@@ -1,0 +1,76 @@
+{
+  "tasks": [
+    {
+      "title": "Add terrain heightmap mesh generation to IR generator",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "The #1 visual gap across all three engine exporters — terrain is always a flat plane. In server/services/game-export/ir-generator.ts, enhance the geography.terrain section to produce actual mesh data. (1) Add to ir-types.ts TerrainIR: vertices (Vec3[]), indices (number[]), normals (Vec3[]), uvs (Vec2[]), slopeThresholds ({ maxSlope: number, textureIndex: number }[]). (2) Add terrainMeshResolution field (default 128x128 grid). (3) In ir-generator.ts, use the existing heightmap data to generate a triangulated grid mesh where Y = heightmap value * terrainScale, compute per-vertex normals for lighting, generate UVs. (4) Add slope-based texturing data: slope < 0.3 = grass (index 0), 0.3-0.6 = rock (index 1), > 0.6 = cliff (index 2). Typecheck must pass."
+    },
+    {
+      "title": "Add animation IR types and populate animation data in IR generator",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Animations are referenced in IR but never populated — all characters are static in exports. (1) In ir-types.ts, add AnimationSetIR: { clipName, startFrame, endFrame, loop, speed, blendWeight }. (2) Add CharacterAnimationIR: { idle, walk, run, jump, attack, interact, die, talk } each an AnimationSetIR. (3) Add animationBlendTree defining transitions: idle↔walk (speed > 0.1), walk↔run (speed > 5.0), any→attack (on input), any→interact (on trigger). (4) Add animationSets field to EntitiesIR as Record<string, CharacterAnimationIR> keyed by model/role. (5) In ir-generator.ts, populate defaults for player and NPC archetypes (guard, merchant, civilian, questgiver) with standard frame ranges. (6) Include animation asset paths referencing the asset manifest (babylonPath, unrealPath, unityPath, godotPath). Typecheck must pass."
+    },
+    {
+      "title": "Complete survival system IR with decay rates and damage logic",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "All three engine exporters have stub survival systems that track values but never decay them. (1) In ir-types.ts, ensure SurvivalIR includes per-need: decayRatePerSecond, criticalThreshold (0-1), damagePerSecondWhenCritical, warningThreshold (0-1), recoveryItems (string[] of item IDs). (2) Add temperatureZones: array of { center: Vec3, radius: number, temperature: number } for hot/cold world zones. (3) Add sleepLocations: array of { position: Vec3, quality: number } from buildings tagged as residences/inns. (4) In ir-generator.ts, populate survival data when world genre enables it — genre-appropriate defaults (survival: fast decay, RPG: slow, sandbox: none). Typecheck must pass."
+    },
+    {
+      "title": "Add resource gathering nodes and respawn data to IR generator",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Resource system is an empty stub in all three engines because the IR never provides node placement data. (1) In ir-types.ts, add ResourceNodeIR: { position: Vec3, resourceType, maxYield, gatherTimeSeconds, respawnTimeSeconds, toolRequired?, minSkillLevel? }. (2) Add resourceNodes array to GeographyIR. (3) In ir-generator.ts, procedurally scatter resource nodes by biome: forests→wood, mountains→stone/iron/crystal, rivers→water, fields→food/fiber. (4) Nodes must not overlap with buildings or roads — check against existing settlement and road positions. (5) Place 20-50 nodes per settlement scaled by population. (6) Verify resource nodes appear in the exported IR JSON. Typecheck must pass."
+    },
+    {
+      "title": "Add quest object placement to IR generator",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "questObjects is defined in IR types but always exported as an empty array. (1) In ir-generator.ts, populate the existing questObjects array in EntitiesIR. (2) For each quest with location-based objectives, create a QuestObjectIR at the objective's target position. (3) Include: interactionType ('collect'|'examine'|'activate'|'talk'), visualType ('marker'|'chest'|'scroll'|'crystal'|'altar'), glowColor based on quest priority. (4) Place quest markers at NPC positions for talk-to objectives, at building entrances for location objectives, at procedural positions for collection objectives. (5) Generate 1-3 quest objects per active quest. Typecheck must pass."
+    },
+    {
+      "title": "Add animal population system to IR generator",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "animals array is defined but always empty with a comment 'populated at runtime'. (1) In ir-types.ts, add AnimalIR: { id, species, position: Vec3, wanderRadius, behavior ('passive'|'neutral'|'aggressive'), health, lootTable?: string[], spawnGroup? }. (2) Populate the existing animals array in EntitiesIR. (3) Scatter by biome: forests (deer, wolves, bears, rabbits), plains (cattle, horses, sheep), water (fish, ducks), mountains (goats, eagles), desert (snakes, scorpions). (4) 5-15 animal groups per settlement area — passive near towns, aggressive in wilderness. (5) Each group has 1-5 members near a center point. Typecheck must pass."
+    },
+    {
+      "title": "Add GLB-to-FBX conversion utility for Unreal animated asset pipeline",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Research confirms Unreal has persistent glTF skeletal animation issues — FBX is the safe path. (1) Create server/services/game-export/asset-converter.ts with convertGlbToFbx(inputPath, outputPath): Promise<string>. (2) Check if Blender CLI is available via 'blender --version'; if not, warn and return original GLB path as fallback. (3) If available, run headless: blender --background --python <script> -- input.glb output.fbx. (4) Embed a Python script string that imports GLB and exports FBX with baked animations + embedded textures. (5) Add hasSkeletalAnimation(assetPath): boolean that checks GLB metadata. (6) Integrate into Unreal exporter: convert animated assets to FBX, keep static as GLB. (7) 60-second timeout with error handling. Typecheck must pass."
+    },
+    {
+      "title": "Add NPC daily schedule system to IR",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "NPCs currently stand at spawn or patrol randomly. Schedules create a living world. (1) In ir-types.ts, add ScheduleEntryIR: { startHour (0-23), endHour, locationId, activity, priority }. (2) Add schedule field to NPCIR as ScheduleEntryIR[]. (3) In ir-generator.ts, generate schedules by role: merchants (shop 8-18, home 18-8), guards (patrol 6-18, barracks 18-6), questgivers (post 9-17, home 17-9), civilians (work 8-17, tavern 17-20, home 20-8). (4) Each entry references a building ID from the settlement's buildings array. (5) NPCs with businesses get work at their business location. (6) Residential NPCs get home from assigned residence. Typecheck must pass."
+    },
+    {
+      "title": "Add foliage and vegetation scatter data to IR generator",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Nature objects exist for trees/rocks but no ground-cover foliage scatter system. (1) In ir-types.ts, add FoliageInstanceIR: { position: Vec3, rotation, scale: Vec3, foliageType, density }. (2) Add FoliageLayerIR: { foliageType ('grass'|'bush'|'flower'|'fern'|'mushroom'|'vine'), density, minScale, maxScale, slopeRange: [number, number], elevationRange: [number, number] }. (3) Add foliageLayers to GeographyIR. (4) In ir-generator.ts, use Poisson disk sampling for natural distribution. (5) Density by biome: forest (high grass + ferns + mushrooms), plains (grass + flowers), desert (sparse bushes), mountain (sparse grass + moss), coastal (beach grass). (6) 500-2000 instances per settlement area. Typecheck must pass."
+    },
+    {
+      "title": "Add landscape biome zone data to IR generator",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Currently terrain is one flat color. Biome zones enable multi-texture terrain painting. (1) In ir-types.ts, add BiomeZoneIR: { id, biomeType ('forest'|'plains'|'desert'|'tundra'|'swamp'|'coastal'|'mountain'|'jungle'), bounds: { min: Vec3, max: Vec3 }, dominantTexture, secondaryTexture?, ambientSound? }. (2) Add biomeZones array to GeographyIR. (3) Derive zones from terrain data: low elevation + high moisture = swamp, high elevation = mountain, low moisture = desert, coastal proximity = coastal, etc. (4) Include texture IDs from asset manifest. (5) Biome-specific ambient audio (forest birds, desert wind, ocean waves, swamp insects). (6) 3-8 zones per world. Typecheck must pass."
+    },
+    {
+      "title": "Add assessment and language learning IR types for educational game export",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Insimul is an educational language game — the assessment system is core but missing from exports. (1) In ir-types.ts, add AssessmentIR: { id, assessmentType ('vocabulary'|'pronunciation'|'grammar'|'conversation'|'cultural'), targetLanguageId, difficultyLevel, questions: AssessmentQuestionIR[], passingScore, rewards: { xp, items? } }. (2) Add AssessmentQuestionIR: { prompt, correctAnswer, distractors?, audioClipPath?, imageRef?, questionType ('multiple_choice'|'fill_blank'|'listen_repeat'|'translate'|'conversation_response') }. (3) Add assessments array to SystemsIR. (4) In ir-generator.ts, pull from quests with vocabulary/pronunciation/conversation objectives and convert. (5) Link to NPC tutors (teacher/elder roles) via tutorNpcId. Typecheck must pass."
+    },
+    {
+      "title": "Add menu and UI configuration to IR",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "No menu configuration exists in the IR — each engine template hardcodes its own. (1) In ir-types.ts, add MenuConfigIR: { mainMenu: { title, backgroundImage?, buttons: MenuButtonIR[] }, pauseMenu: { buttons: MenuButtonIR[] }, settingsMenu: { categories: SettingsCategoryIR[] }, inventoryScreen: { slots, categories: string[] }, mapScreen: { enabled, zoomLevels } }. (2) Add MenuButtonIR: { label, action, icon? }. (3) Add SettingsCategoryIR: { name, settings: { key, label, type: 'slider'|'toggle'|'dropdown', default, options? }[] }. (4) Add menuConfig to UIIR. (5) Populate with: main menu (New Game, Continue, Settings, Quit), pause (Resume, Settings, Save, Main Menu, Quit), settings (Audio volume/mute, Graphics quality/resolution/fullscreen, Controls sensitivity/invert-y, Language target-language/subtitles). (6) World name as title, genre-appropriate background. Typecheck must pass."
+    }
+  ]
+}

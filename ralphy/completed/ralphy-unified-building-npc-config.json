@@ -86,61 +86,61 @@
     },
     {
       "title": "Add unified Building Configuration section to AdminAssetsHub with category layout",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "Create the unified building configuration UI in the asset collection editor. (1) In AdminAssetsHub.tsx, add a new 'Building Configuration' section. Keep existing 3D Config and Procedural Buildings sections but mark them as 'Legacy'. (2) The new section lists all building types organized by category using BUILDING_CATEGORIES from shared/game-engine/building-categories.ts. (3) Each category is a collapsible section with header showing the category name and count of configured types (e.g., 'Commercial Food (3/4 configured)'). (4) Category header also shows a summary indicator: '3 asset / 5 procedural / 2 unconfigured'. (5) Each building type row shows: type name, current mode indicator ('Asset' badge or 'Procedural' badge or 'Unconfigured' in gray), and a small color swatch if procedural. (6) Clicking a building type row expands an inline detail panel below the row. (7) Category header row has an 'Edit Preset' button/icon. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add per-type detail panel with asset mode and procedural mode configuration",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "Build the expanded detail panel for configuring individual building types. (1) The detail panel shows a mode toggle at top: 'Asset Model' / 'Procedural Generation'. (2) In Asset mode: show asset picker dropdown listing available building model assets from the collection, show model scaling override inputs (X, Y, Z number fields with defaults 1.0). Selected asset stores in buildingTypeConfigs[typeName] with mode: 'asset' and assetId. (3) In Procedural mode: show all ProceduralStylePreset fields: baseColors (color pickers, add/remove), roofColor, windowColor, doorColor (color pickers), materialType dropdown (wood, stone, brick, metal, glass, stucco), architectureStyle dropdown (medieval, modern, futuristic, rustic, industrial, colonial, creole), roofStyle dropdown (hip, gable, flat, side_gable, hipped_dormers). (4) Show feature toggles: hasBalcony, hasIronworkBalcony, hasPorch (with porchDepth/porchSteps inputs), hasShutters (with shutterColor picker). (5) Show dimension overrides: floors, width, depth number inputs. (6) Fields matching the category preset show placeholder '(inherited from [category])' dimmed — editing creates an override. (7) 'Reset to category default' icon button per overridden field and 'Reset All' button. (8) Changes save to buildingTypeConfigs[typeName].styleOverrides. (9) Reuse existing color picker and dropdown patterns from ProceduralBuildingsEditor. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add category preset editor modal with texture picker support",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "Build the category preset editor and texture picker components. (1) Clicking 'Edit Preset' on a category header opens a modal or expandable section with all ProceduralStylePreset fields (same as per-type procedural mode). (2) Include texture picker fields: wall texture, roof texture, floor texture, door texture, window texture. (3) Each texture picker is a dropdown listing: textures from the current collection, global/public texture assets, and a 'None (use color)' option. (4) When a texture is selected, show a small thumbnail preview next to the picker. (5) Saving stores to categoryPresets[categoryName] on the AssetCollection. (6) Show count of types in this category that will be affected (types without overrides). (7) Texture pickers should also be available in the per-type procedural mode panel (US before this) — add them to the per-type styleOverrides section as well. (8) Check how existing texture assets (groundTextureId, roadTextureId) are selected in AdminAssetsHub.tsx and reuse that pattern. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add interior configuration UI to per-type detail panel",
-      "completed": false,
+      "completed": true,
       "parallel_group": 8,
       "description": "Add interior settings per building type in the detail panel. (1) Add an 'Interior' sub-section below the exterior config in the per-type detail panel. (2) Mode toggle: '3D Model' / 'Procedural Template'. (3) Model mode: dropdown to select from available interior glTF models (list files from assets/models/interiors/ or interior model assets in collection). (4) Template mode: dropdown to select a layout template from INTERIOR_LAYOUT_TEMPLATES (imported from shared/game-engine/interior-templates.ts) showing template name and room count. (5) Template mode: wall texture, floor texture, ceiling texture pickers (reuse the texture picker component from the category preset editor). (6) Template mode: furniture set dropdown (e.g., 'Tavern', 'Shop', 'Residential', 'Civic'). (7) Template mode: lighting preset dropdown (bright, dim, warm, cool, candlelit). (8) Changes save to buildingTypeConfigs[typeName].interiorConfig. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add exterior 3D preview to building configuration detail panel",
-      "completed": false,
+      "completed": true,
       "parallel_group": 8,
       "description": "Embed a real-time 3D preview of the exterior building in the config panel. (1) Embed BuildingModelPreview component in the per-type detail panel (right side or below config fields). (2) In asset mode: preview shows the selected 3D model asset with scaling applied. (3) In procedural mode: render a procedural building using the fully resolved preset (category defaults merged with type overrides). (4) Preview updates automatically when any config field changes (color, material, architecture style, features, textures). (5) Include auto-rotate toggle and zoom controls (reuse existing BuildingModelPreview features). (6) Preview canvas is at least 300x250 pixels. (7) Extend BuildingModelPreview.tsx to accept a full ProceduralStylePreset for rendering if it doesn't already. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add interior 3D preview with exterior/interior tab toggle",
-      "completed": false,
+      "completed": true,
       "parallel_group": 9,
       "description": "Add interior preview alongside the exterior preview. (1) Add 'Exterior' / 'Interior' tab toggle above the 3D preview in the detail panel. (2) Interior tab: if mode is 'model', load and display the selected glTF interior model in the preview canvas. (3) Interior tab: if mode is 'procedural', render the interior using the selected layout template with configured textures, furniture placeholders (simple colored boxes for now), and lighting preset. (4) Interior preview camera is positioned inside the room looking around (orbital camera centered in the main room). (5) Preview updates when interior config fields change. (6) Use a separate Babylon.js scene instance within the same canvas to avoid mesh conflicts with the exterior preview. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add business type editing dropdown on Society page",
-      "completed": false,
+      "completed": true,
       "parallel_group": 9,
       "description": "Allow changing a business's type from the SettlementHub Society page. (1) In the SettlementHub.tsx (client/src/components/locations/) business detail view, add a business type dropdown/select. (2) Dropdown lists all BusinessType values from shared/schema.ts. (3) Current business type is pre-selected. (4) Selecting a new type calls PATCH /api/worlds/:worldId/businesses/:businessId with the new businessType (uses the endpoint from earlier). (5) On success, the UI updates the displayed business type and any associated building preview. (6) Change persists in database. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add residence type editing dropdown on Society page",
-      "completed": false,
+      "completed": true,
       "parallel_group": 9,
       "description": "Allow changing a residence's type from the SettlementHub Society page. (1) In SettlementHub.tsx, add a residence type dropdown/select to the residence detail view. (2) Dropdown lists all ResidenceType values from shared/schema.ts: house, apartment, mansion, cottage, townhouse, mobile_home. (3) Current residence type is pre-selected. (4) Selecting a new type calls PATCH /api/worlds/:worldId/residences/:residenceId with the new residenceType. (5) On success, the UI updates the displayed residence type. (6) Change persists in database. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "Add NPC character configuration section to asset collection editor",
-      "completed": false,
+      "completed": true,
       "parallel_group": 10,
       "description": "Allow configuring NPC appearance settings per collection. (1) Add 'Character Configuration' section to AdminAssetsHub.tsx as a sibling to Building Configuration. (2) Show checkboxes to enable/disable available base body models (list available quaternius body model directories: outfit_male_peasant, outfit_female_peasant, outfit_male_ranger, outfit_female_ranger). (3) Show hair style configuration: checkboxes per gender for which hair styles are available (list all hair_* directories). (4) Show clothing color palette editor: list of color swatches that can be added/removed (default: existing 12+ NPCAppearanceGenerator colors). (5) Show skin tone palette editor: list of color swatches (default: existing 8 skin tones from NPCAppearanceGenerator). (6) Show a 'Preview Sample NPC' button that renders a random NPC using current settings in a small 3D preview canvas (reuse the BuildingModelPreview approach but with NPCModularAssembler). (7) Settings save to the npcConfig field on AssetCollection. Typecheck must pass. Verify in browser using dev-browser skill."
     },
     {
       "title": "End-to-end validation: verify unified building config, NPC diversity, and settlement generation",
-      "completed": false,
+      "completed": true,
       "parallel_group": 11,
       "description": "Comprehensive integration validation of all new systems. (1) Generate a new world and verify settlement has at least 8 distinct business types (not just shops) and at least 3 different residence types. (2) Open the asset collection editor and verify the unified Building Configuration section shows all building types organized by category. (3) Configure a building type in asset mode (select a model), verify it saves and the preview shows the model. (4) Configure a building type in procedural mode with custom colors and textures, verify the preview updates in real-time. (5) Edit a category preset, verify changes propagate to unconfigured types in that category. (6) Configure an interior (select a template, set textures and lighting), verify the interior preview shows rooms. (7) Enter the 3D game and verify NPCs are visually diverse: different genders show different body meshes, NPCs have varied hair styles and colors, clothing colors differ between NPCs. (8) On the Society page, change a business type and residence type using the new dropdowns, verify changes persist. (9) Enter a business interior and verify it matches the configured interior template if one was set. (10) Write results to docs/UNIFIED_CONFIG_INTEGRATION_RESULTS.md."
     }

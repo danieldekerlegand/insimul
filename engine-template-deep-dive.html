@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe Coding Game Engine Templates — Deep Dive</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0c0c0f;
+    --surface: #13131a;
+    --surface2: #1a1a25;
+    --border: #2a2a3a;
+    --accent-ue: #0070f3;
+    --accent-unity: #ffffff;
+    --accent-godot: #478cbf;
+    --accent-green: #00d68a;
+    --accent-warn: #f5a623;
+    --accent-red: #ff4d4d;
+    --text: #e0e0f0;
+    --text-muted: #7a7a9a;
+    --text-dim: #4a4a6a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 3rem 2rem 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 1rem;
+  }
+  h1 span { color: var(--accent-green); }
+  .subtitle {
+    font-size: 1rem;
+    color: var(--text-muted);
+    max-width: 600px;
+    font-family: 'Space Mono', monospace;
+    line-height: 1.7;
+  }
+
+  /* TOC */
+  nav.toc {
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 2rem;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  nav.toc a {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    text-decoration: none;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 0.3rem 0.7rem;
+    border-radius: 2px;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+  nav.toc a:hover { color: var(--text); border-color: var(--text-muted); }
+
+  /* Main layout */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem 6rem;
+  }
+
+  /* Section titles */
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+    margin-top: 4rem;
+  }
+  h2 {
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 2rem 0 0.75rem;
+    letter-spacing: -0.01em;
+  }
+  h4 {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    margin: 1.5rem 0 0.5rem;
+    text-transform: uppercase;
+  }
+  p { margin-bottom: 1rem; color: var(--text); font-size: 0.97rem; }
+
+  /* Engine header cards */
+  .engine-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+    border-left: 3px solid;
+  }
+  .engine-header.ue { background: rgba(0,112,243,0.07); border-color: var(--accent-ue); }
+  .engine-header.unity { background: rgba(255,255,255,0.04); border-color: var(--accent-unity); }
+  .engine-header.godot { background: rgba(71,140,191,0.08); border-color: var(--accent-godot); }
+
+  .engine-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .ue .engine-badge { background: var(--accent-ue); color: #fff; }
+  .unity .engine-badge { background: #fff; color: #000; }
+  .godot .engine-badge { background: var(--accent-godot); color: #fff; }
+  .engine-tagline { font-size: 0.9rem; color: var(--text-muted); }
+
+  /* Verdict chips */
+  .verdict { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .chip {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .chip-green { background: rgba(0,214,138,0.15); color: var(--accent-green); }
+  .chip-warn { background: rgba(245,166,35,0.15); color: var(--accent-warn); }
+  .chip-red { background: rgba(255,77,77,0.12); color: var(--accent-red); }
+
+  /* Code blocks */
+  pre, code {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.25rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    line-height: 1.6;
+    color: #c8c8e0;
+  }
+  code {
+    background: var(--surface2);
+    padding: 0.1rem 0.35rem;
+    border-radius: 2px;
+    color: #a0c8ff;
+    font-size: 0.8rem;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  /* Callout boxes */
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+    font-size: 0.9rem;
+    border-left: 3px solid;
+  }
+  .callout-insight { background: rgba(0,214,138,0.05); border-color: var(--accent-green); }
+  .callout-warn { background: rgba(245,166,35,0.05); border-color: var(--accent-warn); }
+  .callout-critical { background: rgba(255,77,77,0.05); border-color: var(--accent-red); }
+  .callout strong { font-weight: 700; }
+  .callout-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+    color: var(--text-muted);
+  }
+
+  /* Comparison table */
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin: 1.5rem 0;
+  }
+  .matrix th {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: left;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .matrix td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid rgba(42,42,58,0.5);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .matrix tr:hover td { background: rgba(255,255,255,0.02); }
+  .matrix .row-label { color: var(--text-muted); font-family: 'Space Mono', monospace; font-size: 0.75rem; }
+
+  /* File tree */
+  .filetree {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.9;
+    color: #c8c8e0;
+    margin: 1rem 0;
+  }
+  .filetree .dir { color: #7aa2ff; }
+  .filetree .text-file { color: var(--accent-green); }
+  .filetree .binary-file { color: var(--accent-red); }
+  .filetree .generated { color: var(--accent-warn); }
+  .filetree .comment { color: var(--text-dim); }
+
+  /* Strategy cards */
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .strategy-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.25rem;
+  }
+  .strategy-card h4 { margin-top: 0; }
+  .strategy-card p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0; }
+  .strategy-card .card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    color: var(--text);
+  }
+
+  /* Big verdict section */
+  .verdict-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin: 2rem 0;
+  }
+  @media (max-width: 700px) { .verdict-grid { grid-template-columns: 1fr; } }
+  .verdict-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    background: var(--surface);
+  }
+  .verdict-card .engine-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 0.3rem;
+  }
+  .verdict-card .score {
+    font-family: 'Space Mono', monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0.75rem 0;
+  }
+  .verdict-card.ue .score { color: var(--accent-ue); }
+  .verdict-card.unity .score { color: var(--accent-unity); }
+  .verdict-card.godot .score { color: var(--accent-godot); }
+  .verdict-card .label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+  .verdict-card ul { font-size: 0.8rem; color: var(--text-muted); padding-left: 1.2rem; }
+  .verdict-card li { margin-bottom: 0.3rem; }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 3rem 0;
+  }
+
+  .highlight { color: var(--accent-green); font-weight: 700; }
+  .warn-text { color: var(--accent-warn); }
+  .danger-text { color: var(--accent-red); }
+
+  /* Inline tag */
+  .tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    border: 1px solid var(--border);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+  }
+
+  /* Section anchor links */
+  a.anchor { color: inherit; text-decoration: none; }
+
+  /* Sticky section markers */
+  .sticky-label {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Deep Dive Research · 2026</div>
+  <h1>Vibe Coding<br><span>Game Engine Templates</span></h1>
+  <p class="subtitle">A technical investigation into the project file challenge for Unreal Engine, Unity, and Godot — what's binary, what's text, how to bootstrap them programmatically, and how GLB/glTF assets cross the Babylon.js → native engine boundary.</p>
+</header>
+
+<nav class="toc">
+  <a href="#overview">Overview</a>
+  <a href="#ue">Unreal Engine</a>
+  <a href="#unity">Unity</a>
+  <a href="#godot">Godot</a>
+  <a href="#matrix">Comparison</a>
+  <a href="#strategies">Strategies</a>
+  <a href="#gltf">glTF / GLB Assets</a>
+  <a href="#verdict">Verdict</a>
+</nav>
+
+<main>
+
+<!-- OVERVIEW -->
+<div id="overview">
+  <div class="section-label">Section 01</div>
+  <h2>The Core Problem</h2>
+
+  <p>Vibe coding — the practice of describing what you want and having an AI generate all the implementation code — works beautifully for text files. The challenge with game engine project templates is that the <em>scaffolding layer</em>, the files that define the project to the engine itself, combines text-editable configuration with files that either require the engine to be running to generate, depend on binary formats, or contain GUIDs and checksums that must be internally consistent.</p>
+
+  <p>The goal here is to understand exactly <em>which</em> files fall into which category for each engine, and therefore what a vibe-coding pipeline would need to do to generate a valid, immediately openable project from scratch.</p>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">Key Framing</div>
+    <strong>The problem is not "generate a game" — it's "generate a project that opens without errors."</strong> A vibe-coded project template is a skeleton: correct engine settings, a working main scene/level, placeholder scripts, and a sensible folder structure — all without requiring the developer to manually open the engine to bootstrap the project.
+  </div>
+
+  <h3>What "project files" actually means</h3>
+  <p>For any game engine, the project-level files break down into four layers:</p>
+
+  <table class="matrix">
+    <tr>
+      <th>Layer</th><th>Contents</th><th>AI-Generatable?</th>
+    </tr>
+    <tr>
+      <td class="row-label">1. Project Descriptor</td>
+      <td>The root file that tells the engine this folder is a project (.uproject, project.godot, etc.)</td>
+      <td><span class="chip chip-green">Yes — JSON/text</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">2. Engine Settings</td>
+      <td>Physics, rendering, input, audio, build settings stored in config files</td>
+      <td><span class="chip chip-green">Mostly text</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">3. Scene / Level Content</td>
+      <td>The initial scene(s) with cameras, lights, etc.</td>
+      <td><span class="chip chip-warn">Engine-specific format</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">4. Asset Import State</td>
+      <td>Cached import data, GUID maps, asset databases — generated by the engine on first open</td>
+      <td><span class="chip chip-red">Engine must generate</span></td>
+    </tr>
+  </table>
+
+  <p>Layers 1 and 2 are largely solvable with careful text generation. Layer 3 is where each engine diverges significantly. Layer 4 is universally "let the engine do it on first launch."</p>
+</div>
+
+<hr class="divider">
+
+<!-- UNREAL ENGINE -->
+<div id="ue">
+  <div class="section-label">Section 02</div>
+  <h2>Unreal Engine</h2>
+
+  <div class="engine-header ue">
+    <span class="engine-badge">Unreal</span>
+    <span class="engine-tagline">Epic Games · C++ / Blueprint · Current: UE 5.x</span>
+  </div>
+
+  <h3>Project File Structure</h3>
+
+  <div class="filetree">
+    <span class="dir">MyProject/</span><br>
+    &nbsp;&nbsp;<span class="text-file">MyProject.uproject</span>&nbsp;&nbsp;<span class="comment">← JSON descriptor, fully AI-writable</span><br>
+    &nbsp;&nbsp;<span class="dir">Source/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">MyProject.Target.cs</span>&nbsp;&nbsp;<span class="comment">← C# build rule, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">MyProjectEditor.Target.cs</span>&nbsp;&nbsp;<span class="comment">← Editor build rule, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="dir">MyProject/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">MyProject.Build.cs</span>&nbsp;&nbsp;<span class="comment">← Module build rule, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">MyProjectGameModeBase.h/.cpp</span>&nbsp;&nbsp;<span class="comment">← AI-writable C++</span><br>
+    &nbsp;&nbsp;<span class="dir">Config/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">DefaultEngine.ini</span>&nbsp;&nbsp;<span class="comment">← INI, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">DefaultGame.ini</span>&nbsp;&nbsp;<span class="comment">← INI, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">DefaultInput.ini</span>&nbsp;&nbsp;<span class="comment">← INI, AI-writable</span><br>
+    &nbsp;&nbsp;<span class="dir">Content/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="binary-file">StarterContent/ (optional)</span>&nbsp;&nbsp;<span class="comment">← Binary .uasset files — NOT AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="binary-file">Maps/MyLevel.umap</span>&nbsp;&nbsp;<span class="comment">← Binary by default — MAJOR challenge</span><br>
+    &nbsp;&nbsp;<span class="generated">Intermediate/</span>&nbsp;&nbsp;<span class="comment">← Engine-generated, never commit/create</span><br>
+    &nbsp;&nbsp;<span class="generated">Binaries/</span>&nbsp;&nbsp;<span class="comment">← Engine-generated after first compile</span><br>
+    &nbsp;&nbsp;<span class="generated">Saved/</span>&nbsp;&nbsp;<span class="comment">← Engine-generated logs/backups</span><br>
+    &nbsp;&nbsp;<span class="generated">.vs/ or Xcode/</span>&nbsp;&nbsp;<span class="comment">← IDE files, generated by UnrealBuildTool</span>
+  </div>
+
+  <h3>The .uproject File — Fully AI-Writable</h3>
+  <p>The root <code>.uproject</code> file is plain JSON and is the most important file to get right. A minimal valid example for UE5:</p>
+
+  <pre>{
+  "FileVersion": 3,
+  "EngineAssociation": "5.4",
+  "Category": "",
+  "Description": "",
+  "Modules": [
+    {
+      "Name": "MyProject",
+      "Type": "Runtime",
+      "LoadingPhase": "Default",
+      "AdditionalDependencies": [
+        "Engine"
+      ]
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "ModelingToolsEditorMode",
+      "Enabled": true,
+      "TargetAllowList": ["Editor"]
+    }
+  ]
+}</pre>
+
+  <p>Remarkably, an even <em>more</em> minimal version — a single-line JSON object with just <code>{"FileVersion": 3}</code> — is technically enough to open in the editor. UE will scaffold the rest of the folder structure itself. This is a huge advantage for programmatic generation.</p>
+
+  <h3>Config Files — AI-Writable INI</h3>
+  <p>The <code>Config/</code> folder uses standard INI format with UE-specific section headers. These are entirely text and can be generated precisely by an AI. For example, <code>DefaultEngine.ini</code>:</p>
+
+  <pre>[/Script/Engine.RendererSettings]
+r.DefaultFeature.AutoExposure.ExtendDefaultLuminanceRange=True
+r.DynamicGlobalIlluminationMethod=1
+r.ReflectionMethod=1
+
+[/Script/Engine.GameMapsSettings]
+GameDefaultMap=/Game/Maps/MainLevel
+EditorStartupMap=/Game/Maps/MainLevel</pre>
+
+  <h3>The Level / .umap Problem — The Hard Part</h3>
+
+  <div class="callout callout-critical">
+    <div class="callout-title">Core Challenge</div>
+    <strong>UE levels (.umap files) are binary by default.</strong> They store Unreal's internal object graph in a proprietary serialized binary format. An AI cannot directly write a valid <code>.umap</code> file any more than it can write a valid compiled executable.
+  </div>
+
+  <p>There are three approaches to this problem:</p>
+
+  <h4>Approach A: Skip the level file, let the engine create it</h4>
+  <p>The simplest strategy: generate everything <em>except</em> the level file. When the engine opens the project, it can create a default empty level. The <code>DefaultEngine.ini</code> can specify that no map should load on startup, letting the developer create their first level manually. This works but isn't a complete bootstrap — the developer has one manual step.</p>
+
+  <h4>Approach B: Use the Engine's own CLI to generate it</h4>
+  <p>Unreal provides <code>UnrealEditor-Cmd.exe</code> (and its equivalents) which can be invoked from the command line to run editor operations including level creation. A vibe-coding pipeline could generate all text files, then invoke the engine itself to create and populate a starter level:</p>
+
+  <pre># Generate the project skeleton (text files only)
+ai_generate_project MyProject/
+
+# Invoke UE command line to compile and create a default level
+&lt;UE_ROOT&gt;/Engine/Binaries/Win64/UnrealEditor-Cmd.exe \
+  MyProject/MyProject.uproject \
+  -run=resavepackages \
+  -map=/Game/Maps/MainLevel \
+  -buildlighting \
+  -AllowCommandletRendering</pre>
+
+  <h4>Approach C: Use a Blueprint-only project with a minimal level stub</h4>
+  <p>For Blueprint-only projects (no C++), there is a workaround: the <code>NewMap</code> commandlet can create a minimal level. Additionally, some community-maintained minimal project skeletons ship a tiny, pre-generated <code>.umap</code> binary that acts as an "empty level" stub — AI generates everything else, this single binary is copied from a known-good minimal template.</p>
+
+  <h3>C++ Source Files — Fully AI-Writable</h3>
+  <p>The C++ source layer is completely text. The three critical Build System files follow known, repetitive patterns and are ideal for AI generation:</p>
+
+  <pre>// MyProject.Build.cs — the module definition
+using UnrealBuildTool;
+public class MyProject : ModuleRules {
+  public MyProject(ReadOnlyTargetRules Target) : base(Target) {
+    PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    PublicDependencyModuleNames.AddRange(new string[] {
+      "Core", "CoreUObject", "Engine", "InputCore"
+    });
+  }
+}</pre>
+
+  <h3>Asset Files (.uasset) — AI Cannot Write</h3>
+  <p>All content assets (materials, meshes, textures, blueprints) are stored as <code>.uasset</code> binary files. An AI cannot generate these. The practical resolution is to either skip them (empty <code>Content/</code>) or reference engine-provided starter content that the developer can add from within the editor.</p>
+
+  <h3>UnrealBuildTool — The Good News</h3>
+  <p>After the text files are in place, <code>GenerateProjectFiles.bat</code> (Windows) or <code>GenerateProjectFiles.sh</code> (Linux/Mac) is a CLI tool that generates all IDE project files (Visual Studio .sln, Xcode workspace). This is entirely automatable — it's just a script invocation. The UBT build system then handles compilation from the text source files alone; no binary stubs are needed for the code layer.</p>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">UE Summary</div>
+    <strong>Text-writable:</strong> .uproject (JSON), Config INI files, C++ source (.h/.cpp), Build.cs Target.cs. <br>
+    <strong>Binary/engine-required:</strong> .umap level files, .uasset content assets, IDE project files. <br>
+    <strong>Strategy:</strong> AI generates all text files; level creation requires either engine CLI invocation or a stub binary copied from a minimal template.
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- UNITY -->
+<div id="unity">
+  <div class="section-label">Section 03</div>
+  <h2>Unity</h2>
+
+  <div class="engine-header unity">
+    <span class="engine-badge">Unity</span>
+    <span class="engine-tagline">Unity Technologies · C# · Current: Unity 6</span>
+  </div>
+
+  <h3>Project File Structure</h3>
+
+  <div class="filetree">
+    <span class="dir">MyProject/</span><br>
+    &nbsp;&nbsp;<span class="dir">Assets/</span>&nbsp;&nbsp;<span class="comment">← Everything AI needs to touch lives here</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">Scenes/MainScene.unity</span>&nbsp;&nbsp;<span class="comment">← YAML (text mode) or binary — CRITICAL CHOICE</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">Scripts/GameManager.cs</span>&nbsp;&nbsp;<span class="comment">← C#, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">Scenes/MainScene.unity.meta</span>&nbsp;&nbsp;<span class="comment">← YAML meta, AI-writable (but GUID must be valid)</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">Scripts/GameManager.cs.meta</span>&nbsp;&nbsp;<span class="comment">← YAML meta with GUID</span><br>
+    &nbsp;&nbsp;<span class="dir">ProjectSettings/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">ProjectSettings.asset</span>&nbsp;&nbsp;<span class="comment">← Unity YAML, AI-writable with care</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">EditorSettings.asset</span>&nbsp;&nbsp;<span class="comment">← Controls text vs binary serialization</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">InputManager.asset</span>&nbsp;&nbsp;<span class="comment">← Unity YAML, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">TagManager.asset</span>&nbsp;&nbsp;<span class="comment">← Unity YAML, AI-writable</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">QualitySettings.asset</span>&nbsp;&nbsp;<span class="comment">← Unity YAML, AI-writable</span><br>
+    &nbsp;&nbsp;<span class="dir">Packages/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">manifest.json</span>&nbsp;&nbsp;<span class="comment">← Standard JSON, AI-writable</span><br>
+    &nbsp;&nbsp;<span class="generated">Library/</span>&nbsp;&nbsp;<span class="comment">← Engine-generated, never create manually</span><br>
+    &nbsp;&nbsp;<span class="generated">Temp/</span>&nbsp;&nbsp;<span class="comment">← Engine-generated build temp</span><br>
+    &nbsp;&nbsp;<span class="text-file">*.sln</span>&nbsp;&nbsp;<span class="comment">← IDE files, regenerated by Unity</span>
+  </div>
+
+  <h3>The Serialization Mode Decision — Critical</h3>
+
+  <p>Unity has two serialization modes: <strong>binary</strong> (default, compact, opaque) and <strong>Force Text</strong> (YAML-based, human-readable, version-control-friendly). This single setting completely determines whether scene and prefab files are AI-writable.</p>
+
+  <div class="callout callout-critical">
+    <div class="callout-title">The Key Insight</div>
+    <strong>Any new project bootstrapped for vibe coding MUST use Force Text serialization.</strong> This is controlled by <code>ProjectSettings/EditorSettings.asset</code>. When Force Text mode is active, every <code>.unity</code> scene file and <code>.prefab</code> becomes human-readable YAML that an AI can write, read, and modify.
+  </div>
+
+  <p>Setting Force Text in <code>EditorSettings.asset</code>:</p>
+  <pre>%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!159 &1
+EditorSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 9
+  m_ExternalVersionControlSupport: Visible Meta Files
+  m_SerializationMode: 2       # ← 2 = Force Text (0 = Mixed, 1 = Force Binary)
+  m_LineEndingsForNewScripts: 0
+  m_DefaultBehaviorMode: 0
+  m_PrefabRegularEnvironment: {fileID: 0}
+  m_PrefabUIEnvironment: {fileID: 0}
+  m_SpritePackerMode: 4
+  m_SpritePackerPaddingPower: 1
+  m_EtcTextureCompressorBehavior: 1</pre>
+
+  <h3>Unity Scene Files (.unity) in Text Mode</h3>
+
+  <p>With Force Text enabled, a <code>.unity</code> scene is a multi-document YAML file. Each GameObject, component, camera, and light is its own YAML document separated by <code>---</code>. The format is Unity's own YAML subset — not standard YAML, but close enough that it's fully text-writable with care.</p>
+
+  <p>A minimal working scene with a camera:</p>
+  <pre>%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!29 &1
+OcclusionCullingSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_OcclusionBakeSettings:
+    smallestOccluder: 5
+    smallestHole: 0.25
+    backfaceThreshold: 100
+--- !u!104 &2
+RenderSettings:
+  m_ObjectHideFlags: 0
+  m_Fog: 0
+  m_AmbientMode: 0
+  m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
+--- !u!1 &123456789      # ← File ID (must be unique within file)
+GameObject:
+  m_ObjectHideFlags: 0
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 123456790}  # ← References Transform below
+  m_Layer: 0
+  m_Name: Main Camera
+  m_IsActive: 1
+--- !u!4 &123456790      # ← Transform component
+Transform:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 123456789}
+  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+--- !u!20 &123456791     # ← Camera component
+Camera:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 123456789}
+  m_Enabled: 1
+  near clip plane: 0.3
+  far clip plane: 1000
+  field of view: 60</pre>
+
+  <h3>The GUID / Meta File Problem</h3>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">GUID Consistency — A Significant Constraint</div>
+    <strong>Every asset in Unity requires a corresponding <code>.meta</code> file with a globally unique GUID.</strong> Scene files reference scripts, materials, and other assets by these GUIDs. If an AI generates a scene that references a script at GUID <code>abc123</code>, the script's <code>.meta</code> file must declare exactly that GUID, or Unity will report missing references.
+  </div>
+
+  <p>A script meta file looks like:</p>
+  <pre>fileFormatVersion: 2
+guid: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4  # ← Must be a valid UUID4, consistent across files
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}</pre>
+
+  <p>The practical solution is for an AI to <strong>generate all GUIDs upfront</strong> before writing any files, maintain a map of asset paths to GUIDs, and use that map consistently across scene files and meta files. Since GUIDs are just random 128-bit hex strings, an AI has no trouble generating them — it just needs to stay internally consistent.</p>
+
+  <h3>Package Manager — Simple JSON</h3>
+  <p>The <code>Packages/manifest.json</code> file lists all UPM packages. This is standard JSON and trivially writable:</p>
+  <pre>{
+  "dependencies": {
+    "com.unity.inputsystem": "1.8.1",
+    "com.unity.render-pipelines.universal": "17.0.3",
+    "com.unity.textmeshpro": "3.0.9"
+  }
+}</pre>
+
+  <h3>ProjectSettings Files</h3>
+  <p>All files in <code>ProjectSettings/</code> use the same Unity YAML format. These are well-documented and AI-writable. The most important ones:</p>
+
+  <table class="matrix">
+    <tr><th>File</th><th>Purpose</th><th>Difficulty</th></tr>
+    <tr><td><code>ProjectSettings.asset</code></td><td>Company name, version, build identifiers, scripting defines</td><td><span class="chip chip-warn">Medium — many fields</span></td></tr>
+    <tr><td><code>InputManager.asset</code></td><td>Legacy input axes</td><td><span class="chip chip-green">Easy — repetitive patterns</span></td></tr>
+    <tr><td><code>TagManager.asset</code></td><td>Tags and layers</td><td><span class="chip chip-green">Easy</span></td></tr>
+    <tr><td><code>QualitySettings.asset</code></td><td>Graphics quality levels</td><td><span class="chip chip-warn">Medium</span></td></tr>
+    <tr><td><code>GraphicsSettings.asset</code></td><td>Render pipeline asset references</td><td><span class="chip chip-warn">Medium — references by GUID</span></td></tr>
+    <tr><td><code>Physics2DSettings.asset</code></td><td>2D physics defaults</td><td><span class="chip chip-green">Easy</span></td></tr>
+  </table>
+
+  <h3>The Library Folder — Do Not Touch</h3>
+  <p>The <code>Library/</code> folder is Unity's internal asset import cache. It is massive (often gigabytes), completely binary, and must be generated by Unity on first open. An AI project generator should never attempt to create this. Unity always regenerates it from the <code>Assets/</code> and <code>Packages/</code> sources when none is present.</p>
+
+  <h3>Batch Mode Bootstrap — The Power Tool</h3>
+  <p>Unity supports a powerful <code>-batchmode</code> CLI flag that runs the engine headlessly. A vibe-coding pipeline could generate all text/YAML files, then invoke Unity once in batch mode to execute an Editor script that performs post-generation setup:</p>
+
+  <pre>Unity.exe \
+  -batchmode -nographics -quit \
+  -projectPath ./MyProject \
+  -executeMethod ProjectBootstrapper.Initialize \
+  -logFile ./bootstrap.log</pre>
+
+  <p>The <code>ProjectBootstrapper.Initialize</code> static C# method (placed in <code>Assets/Editor/</code> and generated by the AI) can set up everything Unity won't accept from text files alone: baking lightmaps, forcing asset reimport, creating prefabs from scripts, etc.</p>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">Unity Summary</div>
+    <strong>Text-writable (with Force Text mode):</strong> .unity scenes, .prefab files, .meta files, ProjectSettings/*.asset, manifest.json, all C# scripts. <br>
+    <strong>Binary / engine-required:</strong> Library/ cache (always regenerated), binary mode .unity/.prefab files (avoidable), compiled .dll assemblies. <br>
+    <strong>Key constraint:</strong> GUID consistency across all .meta files and scene cross-references — must be managed by the AI generator. <br>
+    <strong>Strategy:</strong> Force Text mode + systematic GUID generation = fully AI-writable Unity projects. Optionally use batch mode for post-generation tasks.
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- GODOT -->
+<div id="godot">
+  <div class="section-label">Section 04</div>
+  <h2>Godot</h2>
+
+  <div class="engine-header godot">
+    <span class="engine-badge">Godot</span>
+    <span class="engine-tagline">Godot Foundation · GDScript / C# · Current: Godot 4.x</span>
+  </div>
+
+  <h3>Project File Structure</h3>
+
+  <div class="filetree">
+    <span class="dir">MyProject/</span><br>
+    &nbsp;&nbsp;<span class="text-file">project.godot</span>&nbsp;&nbsp;<span class="comment">← INI-style, fully AI-writable</span><br>
+    &nbsp;&nbsp;<span class="dir">scenes/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">main.tscn</span>&nbsp;&nbsp;<span class="comment">← Text Scene format, fully AI-writable</span><br>
+    &nbsp;&nbsp;<span class="dir">scripts/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-file">game_manager.gd</span>&nbsp;&nbsp;<span class="comment">← GDScript, AI-writable</span><br>
+    &nbsp;&nbsp;<span class="dir">assets/</span>&nbsp;&nbsp;<span class="comment">← Images, audio, etc. (not AI-writable)</span><br>
+    &nbsp;&nbsp;<span class="generated">.godot/</span>&nbsp;&nbsp;<span class="comment">← Engine-generated cache, like Unity's Library/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="generated">imported/</span>&nbsp;&nbsp;<span class="comment">← Compiled binary scene/resource cache</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="generated">editor/</span>&nbsp;&nbsp;<span class="comment">← Editor state, recent files</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="generated">global_script_class_cache.cfg</span>&nbsp;&nbsp;<span class="comment">← Auto-generated class registry</span><br>
+    &nbsp;&nbsp;<span class="text-file">export_presets.cfg</span>&nbsp;&nbsp;<span class="comment">← Export config, AI-writable if needed</span>
+  </div>
+
+  <h3>project.godot — Almost Trivially Writable</h3>
+
+  <p>Godot's project descriptor is a straightforward INI-style file. It's arguably the most approachable of the three engines for programmatic generation:</p>
+
+  <pre>; Godot Project v4 Compatible Configuration File
+; https://godotengine.org
+
+config_version=5
+
+[application]
+config/name="MyProject"
+config/description=""
+config/version="1.0.0"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.4", "Forward Plus")
+config/icon="res://assets/icon.svg"
+
+[display]
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+renderer/rendering_method="forward_plus"
+
+[input]
+ui_accept={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":4194309,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)]
+}</pre>
+
+  <h3>Scene Files (.tscn) — The Most AI-Friendly Format</h3>
+
+  <p>Godot's TSCN format is arguably <strong>the most AI-friendly scene format of any major game engine</strong>. It's a flat, simple, human-readable text format with minimal hidden complexity:</p>
+
+  <pre>[gd_scene load_steps=3 format=3 uid="uid://bpfg8yjdnp4g2"]
+
+[ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_a2c4e"]
+
+[sub_resource type="Environment" id="Environment_xyz12"]
+background_mode = 2
+sky = null
+ambient_light_source = 2
+ambient_light_energy = 0.8
+
+[node name="Main" type="Node3D"]
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 8)
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.7, -0.5, 0.5, 0, 0.7, 0.7, -0.7, -0.5, 0.5, 0, 5, 0)
+light_energy = 1.0
+shadow_enabled = true
+[node name="GameManager" type="Node" parent="."]
+script = ExtResource("1_a2c4e")</pre>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">TSCN Design Philosophy</div>
+    Only <strong>non-default values</strong> are written to .tscn files — properties equal to their defaults are omitted entirely. This means a minimal scene for a working starting point can genuinely be a dozen lines. The parser in Godot (<code>resource_format_text.cpp</code>) is open source and well-documented.
+  </div>
+
+  <h3>Resource Files (.tres) — Also Text</h3>
+  <p>Materials, resources, and other data objects use the TRES format, which follows the same structure as TSCN. An AI can write materials, animation data, and custom resources in this format.</p>
+
+  <h3>UID Management — A Minor Complication</h3>
+
+  <p>Godot 4 introduced UIDs for resources (the <code>uid://...</code> strings you see in scene files). These are used for more robust cross-reference resolution than file paths alone. The format is a base62-like encoded 64-bit integer. An AI needs to generate these to be non-conflicting random-looking strings in the correct format:</p>
+
+  <pre># UID format: uid://[base62 chars, ~12 chars]
+# Example: uid://bpfg8yjdnp4g2
+# These don't need to be globally unique across all projects — just within one</pre>
+
+  <p>The practical approach is to generate random 64-bit values and encode them in Godot's UID alphabet. The UID is not verified against any database — it's generated locally and used as a stable identifier within the project. An AI can safely generate these.</p>
+
+  <h3>GDScript — Ideal for AI Generation</h3>
+  <p>GDScript is Python-inspired, dynamically typed (though optionally type-hinted), and has minimal boilerplate. It's one of the most AI-writable scripting languages in the game dev ecosystem:</p>
+
+  <pre>extends Node3D
+
+@export var player_speed: float = 5.0
+
+func _ready() -> void:
+    print("Game started")
+
+func _process(delta: float) -> void:
+    pass</pre>
+
+  <h3>The .godot/ Cache Folder</h3>
+  <p>Like Unity's <code>Library/</code>, the <code>.godot/</code> folder is engine-generated and should never be manually created. Godot regenerates it automatically when opening a project where it's absent. For the headless/CI use case, running <code>godot --editor --headless --quit</code> once will force cache generation before any further operations.</p>
+
+  <h3>Headless CLI — Very Capable</h3>
+
+  <p>Godot 4 has excellent headless support:</p>
+
+  <pre># Initialize project cache without opening UI
+godot --editor --headless --quit --path ./MyProject
+
+# Run a tool script headlessly
+godot --headless --script res://tools/setup.gd
+
+# Export the project
+godot --headless --export-release "Linux/X11" ./build/game.x86_64</pre>
+
+  <p>The ability to run arbitrary GDScript files headlessly via <code>--script</code> is particularly powerful for a vibe-coding pipeline. The AI can generate a <code>setup.gd</code> tool script that runs post-generation tasks (generating nav meshes, pre-baking data, etc.) and the pipeline invokes it without any GUI interaction.</p>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">Godot Summary</div>
+    <strong>Text-writable:</strong> project.godot, all .tscn scene files, all .tres resource files, all GDScript .gd files, all C# .cs files, export_presets.cfg. <br>
+    <strong>Engine-required:</strong> .godot/ cache folder (auto-generated on first open). Binary .scn/.res files exist but are always optional alternatives to .tscn/.tres. <br>
+    <strong>Strategy:</strong> Godot projects can be <em>almost entirely</em> AI-generated with no binary stubs required. UIDs need deterministic generation logic. The headless <code>--script</code> flag enables powerful post-generation scripting.
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- COMPARISON MATRIX -->
+<div id="matrix">
+  <div class="section-label">Section 05</div>
+  <h2>Side-by-Side Comparison</h2>
+
+  <table class="matrix">
+    <tr>
+      <th>Challenge</th>
+      <th>Unreal Engine</th>
+      <th>Unity</th>
+      <th>Godot</th>
+    </tr>
+    <tr>
+      <td class="row-label">Project Descriptor</td>
+      <td><span class="chip chip-green">JSON — trivial</span></td>
+      <td><span class="chip chip-green">No single descriptor; folder structure is the project</span></td>
+      <td><span class="chip chip-green">INI — trivial</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Scene / Level Format</td>
+      <td><span class="chip chip-red">Binary .umap — major blocker</span></td>
+      <td><span class="chip chip-warn">YAML (text mode ON) / binary (default)</span></td>
+      <td><span class="chip chip-green">TSCN text — fully writable</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Config / Settings</td>
+      <td><span class="chip chip-green">INI files</span></td>
+      <td><span class="chip chip-warn">Unity YAML — writable with schema knowledge</span></td>
+      <td><span class="chip chip-green">INI — trivial</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Script Language</td>
+      <td><span class="chip chip-green">C++ / Blueprint (C++ is AI-writable)</span></td>
+      <td><span class="chip chip-green">C# — AI-writable</span></td>
+      <td><span class="chip chip-green">GDScript or C# — AI-writable</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Cross-Reference IDs</td>
+      <td><span class="chip chip-warn">Object IDs within .umap (opaque)</span></td>
+      <td><span class="chip chip-warn">GUIDs — must be consistent across .meta files</span></td>
+      <td><span class="chip chip-warn">UIDs — encodable, locally scoped</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Asset Files</td>
+      <td><span class="chip chip-red">.uasset — binary, engine must create</span></td>
+      <td><span class="chip chip-red">Most assets binary; meta files are text</span></td>
+      <td><span class="chip chip-warn">.tres for data resources is text; media files are binary</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Cache / Import State</td>
+      <td><span class="chip chip-warn">Intermediate/ Binaries/ — engine-generated</span></td>
+      <td><span class="chip chip-red">Library/ — large, always engine-generated</span></td>
+      <td><span class="chip chip-warn">.godot/ — engine-generated, fast to regenerate</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Headless CLI</td>
+      <td><span class="chip chip-warn">UnrealEditor-Cmd — powerful but heavyweight</span></td>
+      <td><span class="chip chip-green">-batchmode with -executeMethod — well supported</span></td>
+      <td><span class="chip chip-green">--headless --script — excellent, lightweight</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Requires Engine Installed</td>
+      <td><span class="chip chip-warn">For level creation + compile</span></td>
+      <td><span class="chip chip-warn">For Library/ generation + batch tasks</span></td>
+      <td><span class="chip chip-green">Only for .godot/ cache; project opens without it</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Overall AI-Generatability</td>
+      <td><span class="chip chip-warn">Moderate — blocked on .umap</span></td>
+      <td><span class="chip chip-green">High — with Force Text mode</span></td>
+      <td><span class="chip chip-green">Highest — almost entirely text</span></td>
+    </tr>
+  </table>
+</div>
+
+<hr class="divider">
+
+<!-- STRATEGIES -->
+<div id="strategies">
+  <div class="section-label">Section 06</div>
+  <h2>Implementation Strategies</h2>
+
+  <h3>Strategy 1: Pure Text Generation + First-Launch Bootstrap</h3>
+  <p>The simplest approach. Generate all text files; rely on the engine to complete initialization on first open. This is entirely feasible for all three engines and requires no engine installation in the generation environment.</p>
+
+  <div class="strategy-grid">
+    <div class="strategy-card">
+      <div class="card-title">Unreal</div>
+      <p>Generate .uproject + Config INI + Source C++ files. Omit .umap — engine will prompt to create a new level. On first compile, UnrealBuildTool handles everything.</p>
+    </div>
+    <div class="strategy-card">
+      <div class="card-title">Unity</div>
+      <p>Generate Assets/ + ProjectSettings/ YAML with Force Text enabled + manifest.json. On first open, Unity generates Library/ cache. Scenes open correctly if GUIDs are internally consistent.</p>
+    </div>
+    <div class="strategy-card">
+      <div class="card-title">Godot</div>
+      <p>Generate project.godot + .tscn scenes + .gd scripts. On first open, Godot generates .godot/ cache. Everything works immediately — the most complete of the three.</p>
+    </div>
+  </div>
+
+  <h3>Strategy 2: Stub Binary + AI Text Generation</h3>
+  <p>For Unreal specifically, maintain a library of minimal pre-generated binary stubs (an empty level .umap, a few basic .uasset materials) that the AI references by name. The AI generates all text files and copies the appropriate stubs. This achieves a fully functional out-of-box project.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Stub Library Management</div>
+    The stub .umap files need to be versioned per UE version — a UE5.4 stub may not be valid in UE5.5. The stub library therefore requires maintenance as Unreal releases new versions. For a production pipeline, automate stub generation using Epic's own project templates as sources.
+  </div>
+
+  <h3>Strategy 3: Headless Engine in CI/CD</h3>
+  <p>The most powerful but most infrastructurally complex approach. Run the target engine in headless mode as part of the generation pipeline:</p>
+
+  <pre>#!/bin/bash
+# Full pipeline with headless engine
+
+# Step 1: AI generates all text files
+generate_text_files --config template.yaml --output ./MyProject
+
+# Step 2: Godot headless to initialize cache + run setup
+godot --editor --headless --quit --path ./MyProject
+godot --headless --script res://tools/post_generate.gd --path ./MyProject
+
+# Step 3: For Unity with batchmode
+Unity.exe -batchmode -nographics -quit \
+  -projectPath ./MyProject \
+  -executeMethod Bootstrap.Initialize
+
+# Step 4: Package as zip for delivery
+zip -r MyProject.zip MyProject/ --exclude "*.godot/*" --exclude "Library/*"</pre>
+
+  <h3>Strategy 4: In-Engine Editor Plugin</h3>
+  <p>Build the vibe-coding interface <em>as an editor plugin</em> for each engine. The AI generates code + scene descriptions; the plugin, running inside the engine, materializes them into actual project assets using the engine's own APIs. This is the most powerful approach and avoids binary format issues entirely, but requires the developer to already have a project open.</p>
+
+  <table class="matrix">
+    <tr><th>Engine</th><th>Plugin API</th><th>Notes</th></tr>
+    <tr>
+      <td>Unreal</td>
+      <td><code>UEditorUtilityWidget</code> / Python scripting / <code>EditorAssetLibrary</code></td>
+      <td>UE5 supports Python scripting in the editor, which can create levels and assets</td>
+    </tr>
+    <tr>
+      <td>Unity</td>
+      <td><code>AssetDatabase</code>, <code>EditorApplication</code>, <code>PrefabUtility</code></td>
+      <td>Rich C# Editor API; can create any asset type programmatically</td>
+    </tr>
+    <tr>
+      <td>Godot</td>
+      <td><code>EditorPlugin</code>, <code>EditorInterface</code>, tool scripts</td>
+      <td>Full editor access via GDScript @tool annotation; headless script execution also available</td>
+    </tr>
+  </table>
+
+  <h3>Strategy 5: The "Describe to Diff" Approach</h3>
+  <p>Rather than generating complete project files from scratch, maintain a minimal base template for each engine and have the AI generate <em>diffs/patches</em> against it. The base template handles all binary stubs and boilerplate; the AI only touches the textual delta — scene structure, script logic, settings overrides. This is likely the most robust production approach.</p>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">Recommended Architecture</div>
+    For a robust vibe-coding system: <strong>(1)</strong> Maintain versioned minimal base templates for each engine. <strong>(2)</strong> AI generates scene files, scripts, and config patches on top. <strong>(3)</strong> Headless engine invocation handles any remaining initialization. <strong>(4)</strong> The delivered output is a zip that opens cleanly in the target engine version.
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- VERDICT -->
+<div id="verdict">
+  <div class="section-label">Section 07</div>
+  <h2>Final Verdict</h2>
+
+  <div class="verdict-grid">
+    <div class="verdict-card godot">
+      <div class="engine-name">Godot</div>
+      <div class="score">★★★★★</div>
+      <div class="label">AI-Generatability Score</div>
+      <ul>
+        <li>All project files are text</li>
+        <li>TSCN format is minimal and clean</li>
+        <li>Excellent headless CLI</li>
+        <li>GDScript is highly AI-friendly</li>
+        <li>UIDs are locally scoped and simple</li>
+        <li>Strongly recommended as starting point</li>
+      </ul>
+    </div>
+    <div class="verdict-card unity">
+      <div class="engine-name">Unity</div>
+      <div class="score">★★★★☆</div>
+      <div class="label">AI-Generatability Score</div>
+      <ul>
+        <li>Force Text mode unlocks full text generation</li>
+        <li>GUID consistency is manageable</li>
+        <li>Powerful batchmode CLI for post-gen</li>
+        <li>Library/ always requires first-open</li>
+        <li>Unity YAML schema requires care</li>
+        <li>Version-sensitive field names</li>
+      </ul>
+    </div>
+    <div class="verdict-card ue">
+      <div class="engine-name">Unreal Engine</div>
+      <div class="score">★★★☆☆</div>
+      <div class="label">AI-Generatability Score</div>
+      <ul>
+        <li>.uproject and Config INI are trivial</li>
+        <li>C++ source layer is fully AI-writable</li>
+        <li>.umap level files are the hard blocker</li>
+        <li>Solvable with stub binary library</li>
+        <li>Heavyweight engine for headless tasks</li>
+        <li>Still feasible with stub strategy</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>The Recommended Pipeline Architecture</h3>
+  <p>For a production-grade vibe-coding system that targets all three engines, the recommended approach is a <strong>layered template + AI delta</strong> model:</p>
+
+  <pre>VibeCodePipeline:
+  1. Parse user description / prompt
+  2. Select engine target + version
+  3. Load base template for engine/version from template store
+     - Godot: ~10 files, all text
+     - Unity: ~20 files, text + empty Assets/ skeleton
+     - UE:    ~15 text files + 1 minimal .umap stub binary
+  4. AI generates:
+     - Scene/level description → engine scene format
+     - System descriptions → script files
+     - Settings overrides → config/settings files
+  5. Copy GLB/glTF asset files into project (no pre-conversion needed)
+     - Godot: drop into assets/ — native, zero config
+     - Unity: drop into Assets/ — glTFast pkg already in manifest.json
+     - UE (static):    drop into Content/ — Interchange handles import
+     - UE (animated):  convert to FBX first via gltf-pipeline or Blender CLI
+  6. Merge AI output over base template
+  7. (Optional) Run headless engine to finalize cache + import assets
+  8. Package and deliver project zip</pre>
+
+  <p>The key insight across all three engines: <strong>the binary problem is largely a solvable initialization problem, not a deep architectural blocker.</strong> The engine itself is the best tool for generating the few binary files it needs — and all three engines support headless operation that can be piped into a generation workflow.</p>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">Bottom Line</div>
+    Start with Godot to prototype the pipeline — it's the closest to "fully text, fully AI-writable" of any production game engine. Then apply the same architecture to Unity (requiring Force Text mode enforcement) and Unreal (requiring a stub .umap library + optional UBT invocation). The core generation logic — scene graph, script logic, settings — is engine-agnostic and can be translated between formats.
+  </div>
+
+</div>
+
+<hr class="divider">
+
+<!-- GLTF / GLB ASSETS -->
+<div id="gltf">
+  <div class="section-label">Section 08</div>
+  <h2>glTF / GLB Asset Compatibility</h2>
+
+  <p>The Babylon.js prototype layer of this system uses GLB/glTF as its native asset format — the same files that artists and procedural pipelines produce. The question is whether those same files can be handed directly to the three desktop engines, or whether a translation step is required before they become part of an exported template.</p>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">Key Architectural Difference</div>
+    In <strong>Babylon.js</strong>, GLBs are loaded at <em>runtime</em> directly by the engine. In all three desktop engines, GLBs are <em>imported at editor time</em> and transcoded into the engine's internal native format — Unreal's <code>.uasset</code>, Unity's Library cache, Godot's <code>.godot/imported/</code> cache. The source GLB persists in the project folder, but the engine renders from a processed copy. This means any data loss from unsupported material extensions or animation edge cases happens at that transcoding stage, not before.
+  </div>
+
+  <h3>Compatibility at a Glance</h3>
+
+  <table class="matrix">
+    <tr>
+      <th>Feature</th>
+      <th>Godot</th>
+      <th>Unity (glTFast)</th>
+      <th>Unreal Engine</th>
+    </tr>
+    <tr>
+      <td class="row-label">Static meshes</td>
+      <td><span class="chip chip-green">Native — recommended format</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support via Interchange</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">PBR materials (baseColor, metallic, roughness)</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Embedded textures</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Skeletal meshes (rigged characters)</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-warn">Works, occasional scale/bone issues</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Animations (skeletal)</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-warn">Persistent real-world issues; FBX safer</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Morph targets / blend shapes</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-warn">Supported but edge cases exist</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Multiple UV sets (3+)</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-warn">Max 2 UV sets</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">KHR_materials_clearcoat</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-warn">Mask + smoothness only; coat normal unsupported</span></td>
+      <td><span class="chip chip-warn">Partial</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">KHR_materials_transmission</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-warn">URP: approximation; BiRP/HDRP: clear glass only</span></td>
+      <td><span class="chip chip-warn">Partial</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">KHR_materials_unlit</td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+      <td><span class="chip chip-green">Full support</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Plugin/package required</td>
+      <td><span class="chip chip-green">None — built in</span></td>
+      <td><span class="chip chip-warn">com.unity.cloud.gltfast (1 manifest.json line)</span></td>
+      <td><span class="chip chip-warn">Interchange glTF plugin (1 .uproject line)</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Mobile / non-Forward+ renderers</td>
+      <td><span class="chip chip-warn">Rendering bugs reported on Vulkan Mobile + GL Compat</span></td>
+      <td><span class="chip chip-green">All render pipelines supported</span></td>
+      <td><span class="chip chip-green">All platforms supported</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Pre-conversion required?</td>
+      <td><span class="chip chip-green">No</span></td>
+      <td><span class="chip chip-green">No</span></td>
+      <td><span class="chip chip-warn">Static: No — Animated: Recommend FBX fallback</span></td>
+    </tr>
+  </table>
+
+  <h3>Godot — Recommended Format, Zero Friction</h3>
+
+  <p>Godot treats GLB as its preferred 3D interchange format, making it the ideal engine for a Babylon.js → Godot pipeline. You drop GLB files into the project directory and they become immediately importable as <code>PackedScene</code> resources. Bidirectional support — import from Blender/Babylon sources, export back out for round-tripping — has been present since Godot 4.0.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Godot Renderer Caveat</div>
+    Rendering issues have been confirmed on the <strong>Vulkan Mobile</strong> and <strong>GL Compatible</strong> renderers (the ones targeting older hardware and mobile). The default <strong>Forward+</strong> renderer handles glTF materials correctly. If your templates are intended for mobile targets, test the import pipeline against both renderers before shipping.
+  </div>
+
+  <p>Godot also exposes its glTF data structures to GDScript, allowing custom import logic for proprietary glTF extensions — useful if your Babylon.js assets use <code>extras</code> or custom extension data that needs to survive the import into Godot.</p>
+
+  <h3>Unity — One Package Declaration, Then Fully Functional</h3>
+
+  <p>Unity has no native glTF support out of the box, but the official <code>com.unity.cloud.gltfast</code> package (originally the community <code>com.atteneder.gltfast</code>, now Unity-owned) resolves this completely. Adding it to <code>Packages/manifest.json</code> makes Unity register itself as the default importer for <code>.gltf</code> and <code>.glb</code> extensions, converting them to native Unity prefabs on import — no manual steps needed.</p>
+
+  <pre>// Packages/manifest.json — add this to dependencies
+{
+  "dependencies": {
+    "com.unity.cloud.gltfast": "6.9.1",
+    "com.unity.inputsystem": "1.8.1",
+    ...
+  }
+}</pre>
+
+  <p>The material fidelity is excellent for the common PBR subset. The known limitations that matter for a template pipeline are:</p>
+
+  <table class="matrix">
+    <tr><th>Limitation</th><th>Impact</th><th>Workaround</th></tr>
+    <tr>
+      <td>Max 2 UV sets</td>
+      <td>Assets using 3+ UV channels lose the extra sets</td>
+      <td>Merge UV data to 2 sets at export time</td>
+    </tr>
+    <tr>
+      <td>Clearcoat normal unsupported</td>
+      <td>Car paint / lacquer effects lose normal detail</td>
+      <td>Bake clearcoat normal into base normal map</td>
+    </tr>
+    <tr>
+      <td>Transmission approximation in URP</td>
+      <td>Glass/liquid materials are approximate, not physically correct</td>
+      <td>Use HDRP for transmission-heavy scenes, or bake look</td>
+    </tr>
+    <tr>
+      <td>Shader variants missing in builds</td>
+      <td>Materials work in Editor but break in packaged builds</td>
+      <td>Include <code>UnityGLTFShaderVariantCollection</code> in Graphics Settings</td>
+    </tr>
+  </table>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Build-Time Shader Gotcha</div>
+    glTFast uses custom shader graphs that must be explicitly included in builds. If your template uses URP, add <code>UnityGLTFShaderVariantCollection</code> (or the BiRP equivalent) to the <strong>Preloaded Shaders</strong> list in Project Settings → Graphics. The template generator should write this into <code>ProjectSettings/GraphicsSettings.asset</code> automatically.
+  </div>
+
+  <h3>Unreal Engine — Static Assets Work, Animated Assets Need Care</h3>
+
+  <p>Unreal Engine 5 includes a glTF importer via its <strong>Interchange Framework</strong>, which can be enabled with a single entry in the <code>.uproject</code> plugins array. Static environment assets, props, and PBR materials import correctly and reliably.</p>
+
+  <pre>// MyProject.uproject — enable Interchange glTF support
+{
+  "Plugins": [
+    { "Name": "InterchangeEditor", "Enabled": true },
+    { "Name": "GLTFImporter",      "Enabled": true }
+  ]
+}</pre>
+
+  <p>The meaningful friction is with <strong>skeletal meshes and animations</strong>. Community reports across multiple UE5.x versions document persistent issues: skeletal animations from GLBs can exhibit stretching, incorrect bone scales, and transform mismatches that don't appear in other glTF viewers or in Godot/Unity. Static assets from the same GLB files import without issue.</p>
+
+  <div class="callout callout-critical">
+    <div class="callout-title">Animated Character Assets — Use FBX for Unreal</div>
+    For any template that includes rigged, animated characters, the safest approach for the Unreal export path is to <strong>convert to FBX at pipeline time</strong> rather than rely on the glTF animation importer. This is a one-command operation using freely available tooling and can be automated entirely within the export pipeline. Static meshes and environments can remain as GLB/glTF.
+  </div>
+
+  <h3>Automated Conversion for the Unreal Animation Path</h3>
+
+  <p>The conversion from GLB → FBX can be fully automated using either <strong>Blender's CLI</strong> (free, open source) or the Khronos <strong>gltf-pipeline</strong> tool combined with a converter. Blender is the most reliable path for preserving animation fidelity:</p>
+
+  <pre>#!/usr/bin/env python3
+# convert_animated_glb_to_fbx.py
+# Runs headless via: blender --background --python this_script.py -- input.glb output.fbx
+
+import bpy, sys
+
+argv = sys.argv[sys.argv.index("--") + 1:]
+input_glb, output_fbx = argv[0], argv[1]
+
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.import_scene.gltf(filepath=input_glb)
+bpy.ops.export_scene.fbx(
+    filepath=output_fbx,
+    use_selection=False,
+    add_leaf_bones=False,
+    bake_anim=True,
+    bake_anim_use_all_actions=True,
+    path_mode='COPY',
+    embed_textures=True
+)
+
+# Shell invocation:
+# blender --background --python convert_animated_glb_to_fbx.py -- character.glb character.fbx</pre>
+
+  <p>This script runs entirely headlessly — no Blender GUI is opened. It can be integrated as a conditional step in the template export pipeline: if the target is Unreal <em>and</em> the asset contains animation data, run the conversion; otherwise, pass the GLB through unchanged.</p>
+
+  <h3>Pipeline Decision Logic</h3>
+
+  <p>Putting it together, the asset handling decision for each export target is straightforward:</p>
+
+  <pre>for each GLB asset in template:
+  if target == "godot":
+    copy GLB as-is → project/assets/
+    # Godot imports natively, no action needed
+
+  elif target == "unity":
+    copy GLB as-is → project/Assets/models/
+    # glTFast (in manifest.json) handles the rest
+    # Flag assets with 3+ UV sets or transmission for manual review
+
+  elif target == "unreal":
+    if asset.has_skeletal_animation:
+      run blender_convert(asset, format="FBX") → project/Content/Characters/
+    else:
+      copy GLB as-is → project/Content/Models/
+      # Interchange imports static GLBs correctly</pre>
+
+  <div class="callout callout-insight">
+    <div class="callout-title">GLB Compatibility Summary</div>
+    <strong>No pre-conversion is needed for Godot or Unity</strong> — GLB files drop directly into both engines without any pipeline transformation. For Unreal, static environment and prop assets are equally straightforward; the only case requiring a conversion step is skeletal/animated character assets destined for UE, where a headless Blender FBX conversion is the reliable solution. Since Babylon.js is the Khronos-standard glTF runtime par excellence, assets authored for it are well-positioned for cross-engine use with minimal fidelity loss.
+  </div>
+
+</div>
+
+</main>
+
+</body>
+</html>
