@@ -25,6 +25,7 @@ import { PolyhavenBrowserDialog } from "../PolyhavenBrowserDialog";
 import { SketchfabBrowserDialog } from "../SketchfabBrowserDialog";
 import { AssetBrowserDialog } from "../AssetBrowserDialog";
 import { ModelPreview } from "../ModelPreview";
+import { BuildingModelPreview } from "../locations/BuildingModelPreview";
 import { ImageUpscaleDialog } from "../ImageUpscaleDialog";
 import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
@@ -2038,6 +2039,16 @@ function BuildingTypeOverridesEditor({ overrides, stylePresets, onChange }: {
 
   const unusedTypes = BUILDING_TYPE_KEYS.filter(t => !(t in overrides));
 
+  /** Build a ProceduralBuildingConfig scoped to a single type for preview */
+  const buildPreviewConfig = (type: string, ov: ProceduralBuildingTypeOverride): ProceduralBuildingConfig => ({
+    stylePresets,
+    buildingTypeOverrides: { [type]: ov },
+    defaultResidentialStyleId: undefined,
+    defaultCommercialStyleId: undefined,
+  });
+
+  const isResidentialType = (type: string) => type.startsWith('residence_');
+
   return (
     <div className="space-y-1 px-2 pb-2 border-t pt-1.5">
       {Object.entries(overrides).map(([type, ov]) => {
@@ -2053,6 +2064,13 @@ function BuildingTypeOverridesEditor({ overrides, stylePresets, onChange }: {
             </button>
             {isExp && (
               <div className="space-y-1.5 px-1.5 pb-1.5 border-t pt-1.5">
+                <BuildingModelPreview
+                  proceduralConfig={buildPreviewConfig(type, ov)}
+                  buildingType={type}
+                  zone={isResidentialType(type) ? 'residential' : 'commercial'}
+                  tintColor={isResidentialType(type) ? { r: 0.3, g: 0.5, b: 0.8 } : { r: 0.8, g: 0.5, b: 0.2 }}
+                  className="h-36 mb-1"
+                />
                 <div className="grid grid-cols-3 gap-1">
                   {(['floors', 'width', 'depth'] as const).map(f => (
                     <div key={f}>
