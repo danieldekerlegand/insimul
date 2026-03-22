@@ -30,6 +30,7 @@ import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3 } from "@shared/game-engine/types";
+import { BuildingConfigurationPanel } from "./BuildingConfigurationPanel";
 
 const WORLD_TYPES = [
   { value: "medieval-fantasy", label: "Medieval Fantasy" },
@@ -919,12 +920,13 @@ export function AdminAssetsHub() {
     const hasCollection = browseMode === 'collections' && !!selectedCollection;
     if (!hasAsset && !hasCollection) return null;
 
-    type SectionId = 'preview' | 'details' | 'config' | 'procedural';
+    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'building-config';
     const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
       { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
       { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
       { id: 'config' as SectionId, label: '3D Config', icon: Settings2, show: hasCollection },
       { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
+      { id: 'building-config' as SectionId, label: 'Building Config', icon: Building2, show: hasCollection },
     ];
     const sections = allSections.filter(s => s.show);
 
@@ -1173,6 +1175,15 @@ export function AdminAssetsHub() {
                       <ProceduralBuildingsEditor
                         collection={selectedCollection}
                         onSave={(config) => patchCollectionConfig({ proceduralBuildings: config } as any)}
+                      />
+                    )}
+
+                    {/* Building Configuration Panel */}
+                    {section.id === 'building-config' && selectedCollection && (
+                      <BuildingConfigurationPanel
+                        collection={selectedCollection}
+                        assets={collectionAssets}
+                        onUpdateConfig={(configs) => patchCollectionConfig({ buildingTypeConfigs: configs } as any)}
                       />
                     )}
                   </div>
