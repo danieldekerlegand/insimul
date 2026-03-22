@@ -1,555 +1,373 @@
 /**
- * NPCModularAssembler — Assembles NPCs from modular body parts (body, arms,
- * legs, feet, hair, accessories) loaded from Quaternius character assets.
+ * NPCModularAssembler — Builds NPCs from procedural body-part meshes
+ * instead of loading external 3D model files.
  *
- * Each body part is loaded once as a hidden template, then cloned per NPC.
- * Appearance variation (skin tone, clothing color, hair, scale) is driven
- * deterministically by the character ID hash via NPCAppearanceGenerator.
+ * Assembles head, torso, upper/lower arms, and upper/lower legs as child
+ * meshes of a root TransformNode-like Mesh. Body proportions vary by
+ * body type (average, athletic, heavy, slim) and are deterministic per
+ * character ID via the existing NPCAppearanceGenerator hash system.
+ *
+ * The assembled mesh integrates with NPCAppearanceGenerator for coloring
+ * and with NPCAccessorySystem for attachment points.
  */
 
 import {
-  AbstractMesh,
   Color3,
   Mesh,
+  MeshBuilder,
   Scene,
-  SceneLoader,
   StandardMaterial,
-  TransformNode,
   Vector3,
 } from '@babylonjs/core';
-import { CHARACTERS_BASE } from '@shared/asset-paths';
-import { hashString, hashFloat, generateNPCAppearance, type NPCRole } from './NPCAppearanceGenerator';
 
-// --- Types ---
+import {
+  generateNPCAppearance,
+  blendWithRoleTint,
+  hashString,
+  hashFloat,
+  type NPCAppearance,
+} from './NPCAppearanceGenerator';
 
-export type NPCGender = 'male' | 'female';
+import type { NPCRole } from './NPCModelInstancer';
 
-/** Body part slot identifiers */
-export type BodyPartSlot = 'body' | 'arms' | 'legs' | 'feet' | 'head_hood' | 'acc_pauldron';
+// --- Body type proportions ---
 
-/** Hair style identifiers */
-export type HairStyle = 'long' | 'simpleparted' | 'buzzed' | 'buns' | 'buzzedfemale' | 'beard';
+export type NPCBodyType = 'average' | 'athletic' | 'heavy' | 'slim';
 
-/** Outfit type identifiers */
-export type OutfitType = 'peasant' | 'ranger';
+/** Proportions controlling the dimensions of each body part */
+export interface BodyProportions {
+  headRadius: number;
+  torsoWidth: number;
+  torsoHeight: number;
+  torsoDepth: number;
+  armRadius: number;
+  upperArmLength: number;
+  lowerArmLength: number;
+  legRadius: number;
+  upperLegLength: number;
+  lowerLegLength: number;
+}
 
-/** Configuration for assembling an NPC */
-export interface NPCAssemblyConfig {
-  characterId: string;
-  gender: NPCGender;
-  role: NPCRole;
-  outfit?: OutfitType;
+const BODY_TYPE_PROPORTIONS: Record<NPCBodyType, BodyProportions> = {
+  average: {
+    headRadius: 0.18,
+    torsoWidth: 0.40,
+    torsoHeight: 0.55,
+    torsoDepth: 0.22,
+    armRadius: 0.06,
+    upperArmLength: 0.30,
+    lowerArmLength: 0.28,
+    legRadius: 0.08,
+    upperLegLength: 0.35,
+    lowerLegLength: 0.35,
+  },
+  athletic: {
+    headRadius: 0.18,
+    torsoWidth: 0.46,
+    torsoHeight: 0.58,
+    torsoDepth: 0.24,
+    armRadius: 0.075,
+    upperArmLength: 0.32,
+    lowerArmLength: 0.30,
+    legRadius: 0.09,
+    upperLegLength: 0.37,
+    lowerLegLength: 0.37,
+  },
+  heavy: {
+    headRadius: 0.19,
+    torsoWidth: 0.52,
+    torsoHeight: 0.52,
+    torsoDepth: 0.30,
+    armRadius: 0.08,
+    upperArmLength: 0.28,
+    lowerArmLength: 0.26,
+    legRadius: 0.10,
+    upperLegLength: 0.33,
+    lowerLegLength: 0.33,
+  },
+  slim: {
+    headRadius: 0.17,
+    torsoWidth: 0.34,
+    torsoHeight: 0.56,
+    torsoDepth: 0.18,
+    armRadius: 0.05,
+    upperArmLength: 0.30,
+    lowerArmLength: 0.28,
+    legRadius: 0.065,
+    upperLegLength: 0.36,
+    lowerLegLength: 0.36,
+  },
+};
+
+/** Derive body type from character traits (mirrors NPCModelManifest logic) */
+export function deriveBodyType(physicalTraits?: string[], occupation?: string): NPCBodyType {
+  const traits = (physicalTraits || []).map(t => t.toLowerCase()).join(' ');
+  const occ = (occupation || '').toLowerCase();
+
+  if (traits.includes('muscular') || traits.includes('strong') || traits.includes('brawny') ||
+      occ.includes('blacksmith') || occ.includes('soldier') || occ.includes('warrior') || occ.includes('guard')) {
+    return 'athletic';
+  }
+  if (traits.includes('heavy') || traits.includes('stout') || traits.includes('large') || traits.includes('portly') ||
+      occ.includes('innkeeper') || occ.includes('cook') || occ.includes('brewer')) {
+    return 'heavy';
+  }
+  if (traits.includes('thin') || traits.includes('slender') || traits.includes('lithe') || traits.includes('wiry') ||
+      occ.includes('thief') || occ.includes('scout') || occ.includes('scholar') || occ.includes('mage')) {
+    return 'slim';
+  }
+  return 'average';
 }
 
 /** Result of assembling an NPC */
 export interface AssembledNPC {
-  root: TransformNode;
-  parts: Map<string, AbstractMesh>;
-  hairMesh: AbstractMesh | null;
-  eyebrowMesh: AbstractMesh | null;
+  root: Mesh;
+  parts: Map<string, Mesh>;
+  appearance: NPCAppearance;
+  bodyType: NPCBodyType;
 }
 
-/** Stored template for a loaded body part */
-interface PartTemplate {
-  sourceMesh: AbstractMesh;
-  allMeshes: AbstractMesh[];
+// --- Material caching ---
+
+interface CachedMaterials {
+  skin: StandardMaterial;
+  clothing: StandardMaterial;
+  accent: StandardMaterial;
 }
 
-// --- Constants ---
-
-const QUATERNIUS_BASE = `/${CHARACTERS_BASE}/quaternius`;
-
-/** Core body part slots for each outfit */
-const CORE_SLOTS: BodyPartSlot[] = ['body', 'arms', 'legs', 'feet'];
-
-/** Extra slots available per outfit type and gender */
-const EXTRA_SLOTS: Record<OutfitType, Record<NPCGender, BodyPartSlot[]>> = {
-  peasant: { male: [], female: [] },
-  ranger: {
-    male: ['head_hood', 'acc_pauldron'],
-    female: ['head_hood', 'acc_pauldron'],
-  },
-};
-
-/** Hair styles available per gender */
-const HAIR_STYLES: Record<NPCGender, HairStyle[]> = {
-  female: ['long', 'simpleparted', 'buns', 'buzzedfemale'],
-  male: ['buzzed', 'simpleparted', 'long'],
-};
-
-/** Hair color palette */
-const HAIR_COLORS: Color3[] = [
-  new Color3(0.15, 0.10, 0.07), // black
-  new Color3(0.35, 0.22, 0.12), // dark brown
-  new Color3(0.55, 0.38, 0.20), // medium brown
-  new Color3(0.70, 0.52, 0.28), // light brown
-  new Color3(0.85, 0.68, 0.35), // blonde
-  new Color3(0.60, 0.25, 0.12), // auburn
-  new Color3(0.75, 0.55, 0.45), // strawberry blonde
-  new Color3(0.30, 0.28, 0.28), // dark grey
-];
-
-/** Available outfit types */
-const OUTFIT_TYPES: OutfitType[] = ['peasant', 'ranger'];
-
-// --- Helpers ---
-
-/** Build the directory name for a body part */
-function partDirName(gender: NPCGender, outfit: OutfitType, slot: BodyPartSlot): string {
-  // Special cases for non-standard naming
-  if (outfit === 'ranger' && slot === 'feet') {
-    return gender === 'male'
-      ? `outfit_${gender}_ranger_feet_boots`
-      : `outfit_${gender}_ranger_feet`;
-  }
-  if (outfit === 'ranger' && slot === 'acc_pauldron') {
-    return gender === 'male'
-      ? `outfit_${gender}_ranger_acc_pauldron`
-      : `outfit_${gender}_ranger_acc_pauldrons`;
-  }
-  return `outfit_${gender}_${outfit}_${slot}`;
-}
-
-/** Build the gltf filename for a body part */
-function partFileName(gender: NPCGender, outfit: OutfitType, slot: BodyPartSlot): string {
-  const dir = partDirName(gender, outfit, slot);
-  return `${dir}.gltf`;
-}
-
-/** Build the directory name for a hair style */
-function hairDirName(style: HairStyle): string {
-  return `hair_hair_${style}`;
-}
-
-/** Select root mesh from loaded mesh array */
-function selectRootMesh(meshes: AbstractMesh[]): AbstractMesh | null {
-  const root = meshes.find(m => m.name === '__root__');
-  if (root) return root;
-  return meshes.find(m => m instanceof Mesh) ?? null;
-}
-
-// --- Main Class ---
+// --- Main assembler class ---
 
 export class NPCModularAssembler {
   private scene: Scene;
 
-  /** Cached body part templates: key = "gender_outfit_slot" */
-  private partTemplates: Map<string, PartTemplate> = new Map();
-
-  /** Cached hair templates: key = hair style name */
-  private hairTemplates: Map<string, PartTemplate> = new Map();
-
-  /** Cached eyebrow templates: key = "eyebrows_gender" */
-  private eyebrowTemplates: Map<string, PartTemplate> = new Map();
-
-  /** Track how many NPCs have been assembled (for stats) */
-  private assembledCount = 0;
+  /** Shared materials keyed by appearance hash to reduce material count */
+  private materialCache: Map<string, CachedMaterials> = new Map();
 
   constructor(scene: Scene) {
     this.scene = scene;
   }
 
   /**
-   * Preload all body part templates for both genders and outfits.
-   * Call during asset loading phase. Failed loads are silently skipped.
-   */
-  async preloadTemplates(): Promise<void> {
-    const loadPromises: Promise<void>[] = [];
-
-    for (const gender of ['male', 'female'] as NPCGender[]) {
-      for (const outfit of OUTFIT_TYPES) {
-        // Core slots
-        for (const slot of CORE_SLOTS) {
-          loadPromises.push(this.loadPartTemplate(gender, outfit, slot));
-        }
-        // Extra slots
-        const extras = EXTRA_SLOTS[outfit][gender];
-        for (const slot of extras) {
-          loadPromises.push(this.loadPartTemplate(gender, outfit, slot));
-        }
-      }
-    }
-
-    await Promise.all(loadPromises);
-  }
-
-  /**
-   * Preload all hair and eyebrow templates.
-   * Call during asset loading phase.
-   */
-  async preloadHairTemplates(): Promise<void> {
-    const loadPromises: Promise<void>[] = [];
-
-    // Hair styles
-    const allStyles = new Set<HairStyle>([
-      ...HAIR_STYLES.male,
-      ...HAIR_STYLES.female,
-      'beard',
-    ]);
-    for (const style of allStyles) {
-      loadPromises.push(this.loadHairTemplate(style));
-    }
-
-    // Eyebrows
-    loadPromises.push(this.loadEyebrowTemplate('regular'));
-    loadPromises.push(this.loadEyebrowTemplate('female'));
-
-    await Promise.all(loadPromises);
-  }
-
-  /**
-   * Assemble a complete NPC from modular parts.
+   * Assemble a complete NPC mesh from body parts.
    *
-   * @param config - Assembly configuration
-   * @returns Assembled NPC with root transform node and part references, or null on failure
+   * @param characterId - Unique character ID (used for deterministic appearance)
+   * @param role - NPC role for tint coloring
+   * @param bodyType - Body type controlling proportions
+   * @returns Assembled NPC with root mesh, part map, and appearance data
    */
-  assembleNPC(config: NPCAssemblyConfig): AssembledNPC | null {
-    const { characterId, gender, role } = config;
-    const hash = hashString(characterId);
+  assemble(characterId: string, role: NPCRole, bodyType: NPCBodyType): AssembledNPC {
+    const proportions = BODY_TYPE_PROPORTIONS[bodyType];
     const appearance = generateNPCAppearance(characterId, role);
+    const materials = this.getOrCreateMaterials(characterId, appearance);
+    const parts = new Map<string, Mesh>();
 
-    // Select outfit deterministically
-    const outfitVal = hashFloat(hash, 10);
-    const outfit = config.outfit ?? OUTFIT_TYPES[Math.floor(outfitVal * OUTFIT_TYPES.length) % OUTFIT_TYPES.length];
+    // Root mesh (invisible container)
+    const root = new Mesh(`npc_modular_${characterId}`, this.scene);
 
-    // Create root transform node
-    const root = new TransformNode(`npc_modular_${characterId}`, this.scene);
+    // Compute vertical layout from bottom up
+    const lowerLegBottom = 0;
+    const kneeY = lowerLegBottom + proportions.lowerLegLength;
+    const hipY = kneeY + proportions.upperLegLength;
+    const torsoBottomY = hipY;
+    const torsoTopY = torsoBottomY + proportions.torsoHeight;
+    const shoulderY = torsoTopY;
+    const neckY = torsoTopY;
+    const headCenterY = neckY + proportions.headRadius * 0.9;
 
-    // Apply height/width variation
-    const heightVal = hashFloat(hash, 11);
-    const widthVal = hashFloat(hash, 12);
-    const heightScale = 0.85 + heightVal * 0.30; // 0.85 to 1.15
-    const widthScale = 0.90 + widthVal * 0.20;   // 0.90 to 1.10
-    root.scaling = new Vector3(widthScale, heightScale, widthScale);
+    // Head
+    const head = MeshBuilder.CreateSphere(
+      `npc_head_${characterId}`,
+      { diameter: proportions.headRadius * 2, segments: 8 },
+      this.scene
+    );
+    head.position = new Vector3(0, headCenterY, 0);
+    head.material = materials.skin;
+    head.parent = root;
+    parts.set('head', head);
 
-    const parts = new Map<string, AbstractMesh>();
+    // Torso
+    const torso = MeshBuilder.CreateBox(
+      `npc_torso_${characterId}`,
+      {
+        width: proportions.torsoWidth,
+        height: proportions.torsoHeight,
+        depth: proportions.torsoDepth,
+      },
+      this.scene
+    );
+    torso.position = new Vector3(0, torsoBottomY + proportions.torsoHeight / 2, 0);
+    torso.material = materials.clothing;
+    torso.parent = root;
+    parts.set('torso', torso);
 
-    // Clone and attach core body parts
-    for (const slot of CORE_SLOTS) {
-      const cloned = this.clonePart(gender, outfit, slot, characterId);
-      if (cloned) {
-        cloned.parent = root;
-        parts.set(slot, cloned);
+    // Arms (left and right)
+    const armOffsetX = proportions.torsoWidth / 2 + proportions.armRadius;
+    for (const side of ['left', 'right'] as const) {
+      const sign = side === 'left' ? -1 : 1;
 
-        // Apply colors to cloned meshes
-        this.applyPartColors(cloned, slot, appearance.skinColor, appearance.clothingColor, appearance.accentColor);
-      }
+      // Upper arm
+      const upperArm = MeshBuilder.CreateCylinder(
+        `npc_upperArm_${side}_${characterId}`,
+        {
+          height: proportions.upperArmLength,
+          diameter: proportions.armRadius * 2,
+          tessellation: 8,
+        },
+        this.scene
+      );
+      upperArm.position = new Vector3(
+        sign * armOffsetX,
+        shoulderY - proportions.upperArmLength / 2,
+        0
+      );
+      upperArm.material = materials.clothing;
+      upperArm.parent = root;
+      parts.set(`upperArm_${side}`, upperArm);
+
+      // Lower arm (forearm) — skin colored
+      const lowerArm = MeshBuilder.CreateCylinder(
+        `npc_lowerArm_${side}_${characterId}`,
+        {
+          height: proportions.lowerArmLength,
+          diameter: proportions.armRadius * 1.8,
+          tessellation: 8,
+        },
+        this.scene
+      );
+      lowerArm.position = new Vector3(
+        sign * armOffsetX,
+        shoulderY - proportions.upperArmLength - proportions.lowerArmLength / 2,
+        0
+      );
+      lowerArm.material = materials.skin;
+      lowerArm.parent = root;
+      parts.set(`lowerArm_${side}`, lowerArm);
     }
 
-    // Clone and attach extra parts (hoods, pauldrons) based on outfit
-    const extras = EXTRA_SLOTS[outfit][gender];
-    for (const slot of extras) {
-      // Deterministically decide whether to show optional accessories
-      const showVal = hashFloat(hash, 13 + extras.indexOf(slot));
-      if (showVal > 0.5) {
-        const cloned = this.clonePart(gender, outfit, slot, characterId);
-        if (cloned) {
-          cloned.parent = root;
-          parts.set(slot, cloned);
-          this.applyPartColors(cloned, slot, appearance.skinColor, appearance.clothingColor, appearance.accentColor);
-        }
-      }
+    // Legs (left and right)
+    const legOffsetX = proportions.torsoWidth * 0.25;
+    for (const side of ['left', 'right'] as const) {
+      const sign = side === 'left' ? -1 : 1;
+
+      // Upper leg
+      const upperLeg = MeshBuilder.CreateCylinder(
+        `npc_upperLeg_${side}_${characterId}`,
+        {
+          height: proportions.upperLegLength,
+          diameter: proportions.legRadius * 2,
+          tessellation: 8,
+        },
+        this.scene
+      );
+      upperLeg.position = new Vector3(
+        sign * legOffsetX,
+        hipY - proportions.upperLegLength / 2,
+        0
+      );
+      upperLeg.material = materials.accent;
+      upperLeg.parent = root;
+      parts.set(`upperLeg_${side}`, upperLeg);
+
+      // Lower leg
+      const lowerLeg = MeshBuilder.CreateCylinder(
+        `npc_lowerLeg_${side}_${characterId}`,
+        {
+          height: proportions.lowerLegLength,
+          diameter: proportions.legRadius * 1.8,
+          tessellation: 8,
+        },
+        this.scene
+      );
+      lowerLeg.position = new Vector3(
+        sign * legOffsetX,
+        kneeY - proportions.lowerLegLength / 2,
+        0
+      );
+      lowerLeg.material = materials.accent;
+      lowerLeg.parent = root;
+      parts.set(`lowerLeg_${side}`, lowerLeg);
     }
 
-    // Attach hair
-    const hairMesh = this.selectAndCloneHair(characterId, gender, hash);
-    if (hairMesh) {
-      hairMesh.parent = root;
-      const hairColorVal = hashFloat(hash, 20);
-      const hairColor = HAIR_COLORS[Math.floor(hairColorVal * HAIR_COLORS.length) % HAIR_COLORS.length];
-      this.applyColorToMesh(hairMesh, hairColor);
-    }
+    // Apply appearance scale
+    root.scaling = appearance.scale;
 
-    // Attach eyebrows
-    const eyebrowKey = gender === 'female' ? 'female' : 'regular';
-    const eyebrowMesh = this.cloneEyebrow(eyebrowKey, characterId);
-    if (eyebrowMesh) {
-      eyebrowMesh.parent = root;
-      // Match eyebrow color to hair
-      if (hairMesh) {
-        const hairMat = this.getFirstMaterial(hairMesh);
-        if (hairMat) {
-          this.applyColorToMesh(eyebrowMesh, hairMat.diffuseColor);
-        }
-      }
-    }
+    // Mark all parts as non-pickable (interaction goes through root)
+    parts.forEach((part) => {
+      part.isPickable = false;
+    });
+    root.isPickable = true;
 
-    // If no parts were cloned at all, clean up and return null
-    if (parts.size === 0) {
-      root.dispose();
-      return null;
-    }
-
-    this.assembledCount++;
-    return { root, parts, hairMesh, eyebrowMesh };
+    return { root, parts, appearance, bodyType };
   }
 
   /**
-   * Get assembler statistics.
+   * Compute the total height of an assembled NPC (before scale).
    */
-  getStats(): { partTemplates: number; hairTemplates: number; eyebrowTemplates: number; assembled: number } {
-    return {
-      partTemplates: this.partTemplates.size,
-      hairTemplates: this.hairTemplates.size,
-      eyebrowTemplates: this.eyebrowTemplates.size,
-      assembled: this.assembledCount,
-    };
+  static computeHeight(bodyType: NPCBodyType): number {
+    const p = BODY_TYPE_PROPORTIONS[bodyType];
+    return p.lowerLegLength + p.upperLegLength + p.torsoHeight + p.headRadius * 2 * 0.9;
   }
 
   /**
-   * Dispose all templates and free resources.
+   * Get the body proportions for a given body type.
+   */
+  static getProportions(bodyType: NPCBodyType): Readonly<BodyProportions> {
+    return BODY_TYPE_PROPORTIONS[bodyType];
+  }
+
+  /**
+   * Dispose all cached materials.
    */
   dispose(): void {
-    for (const template of this.partTemplates.values()) {
-      for (const m of template.allMeshes) {
-        if (!m.isDisposed()) m.dispose();
-      }
-    }
-    this.partTemplates.clear();
-
-    for (const template of this.hairTemplates.values()) {
-      for (const m of template.allMeshes) {
-        if (!m.isDisposed()) m.dispose();
-      }
-    }
-    this.hairTemplates.clear();
-
-    for (const template of this.eyebrowTemplates.values()) {
-      for (const m of template.allMeshes) {
-        if (!m.isDisposed()) m.dispose();
-      }
-    }
-    this.eyebrowTemplates.clear();
-
-    this.assembledCount = 0;
+    this.materialCache.forEach((mats) => {
+      mats.skin.dispose();
+      mats.clothing.dispose();
+      mats.accent.dispose();
+    });
+    this.materialCache.clear();
   }
 
-  // --- Internal: Template loading ---
+  // --- Internal ---
 
-  private async loadPartTemplate(gender: NPCGender, outfit: OutfitType, slot: BodyPartSlot): Promise<void> {
-    const key = `${gender}_${outfit}_${slot}`;
-    if (this.partTemplates.has(key)) return;
+  private getOrCreateMaterials(characterId: string, appearance: NPCAppearance): CachedMaterials {
+    // Use a key derived from the appearance colors so characters with
+    // identical appearances share materials
+    const colorKey = [
+      appearance.skinColor.r.toFixed(3),
+      appearance.skinColor.g.toFixed(3),
+      appearance.clothingColor.r.toFixed(3),
+      appearance.clothingColor.g.toFixed(3),
+      appearance.accentColor.r.toFixed(3),
+      appearance.accentColor.g.toFixed(3),
+      appearance.roleTint.r.toFixed(3),
+    ].join('_');
 
-    const dir = partDirName(gender, outfit, slot);
-    const file = partFileName(gender, outfit, slot);
-    const rootUrl = `${QUATERNIUS_BASE}/${dir}/`;
+    const cached = this.materialCache.get(colorKey);
+    if (cached) return cached;
 
-    try {
-      const result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
-      const root = selectRootMesh(result.meshes);
-      if (!root) {
-        result.meshes.forEach(m => m.dispose());
-        return;
-      }
-
-      // Reparent orphan meshes under root
-      for (const m of result.meshes) {
-        if (m !== root && !m.parent) {
-          m.parent = root;
-        }
-      }
-
-      // Hide template
-      root.setEnabled(false);
-      root.name = `__template_part_${key}`;
-
-      this.partTemplates.set(key, { sourceMesh: root, allMeshes: result.meshes });
-    } catch {
-      // Asset not found — silently skip
+    const skin = new StandardMaterial(`npc_skin_${characterId}`, this.scene);
+    skin.diffuseColor = blendWithRoleTint(appearance.skinColor, appearance);
+    skin.specularPower = appearance.roughness * 100;
+    if (appearance.emissiveIntensity > 0) {
+      skin.emissiveColor = skin.diffuseColor.scale(appearance.emissiveIntensity);
     }
-  }
 
-  private async loadHairTemplate(style: HairStyle): Promise<void> {
-    if (this.hairTemplates.has(style)) return;
-
-    const dir = hairDirName(style);
-    const rootUrl = `${QUATERNIUS_BASE}/${dir}/`;
-    const file = `${dir}.gltf`;
-
-    try {
-      const result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
-      const root = selectRootMesh(result.meshes);
-      if (!root) {
-        result.meshes.forEach(m => m.dispose());
-        return;
-      }
-
-      for (const m of result.meshes) {
-        if (m !== root && !m.parent) m.parent = root;
-      }
-
-      root.setEnabled(false);
-      root.name = `__template_hair_${style}`;
-
-      this.hairTemplates.set(style, { sourceMesh: root, allMeshes: result.meshes });
-    } catch {
-      // Asset not found — silently skip
+    const clothing = new StandardMaterial(`npc_clothing_${characterId}`, this.scene);
+    clothing.diffuseColor = blendWithRoleTint(appearance.clothingColor, appearance);
+    clothing.specularPower = appearance.roughness * 100;
+    if (appearance.emissiveIntensity > 0) {
+      clothing.emissiveColor = clothing.diffuseColor.scale(appearance.emissiveIntensity);
     }
-  }
 
-  private async loadEyebrowTemplate(type: string): Promise<void> {
-    const key = `eyebrows_${type}`;
-    if (this.eyebrowTemplates.has(key)) return;
-
-    const dir = `hair_eyebrows_${type}`;
-    const rootUrl = `${QUATERNIUS_BASE}/${dir}/`;
-    const file = `${dir}.gltf`;
-
-    try {
-      const result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
-      const root = selectRootMesh(result.meshes);
-      if (!root) {
-        result.meshes.forEach(m => m.dispose());
-        return;
-      }
-
-      for (const m of result.meshes) {
-        if (m !== root && !m.parent) m.parent = root;
-      }
-
-      root.setEnabled(false);
-      root.name = `__template_${key}`;
-
-      this.eyebrowTemplates.set(key, { sourceMesh: root, allMeshes: result.meshes });
-    } catch {
-      // Asset not found — silently skip
+    const accent = new StandardMaterial(`npc_accent_${characterId}`, this.scene);
+    accent.diffuseColor = blendWithRoleTint(appearance.accentColor, appearance);
+    accent.specularPower = appearance.roughness * 100;
+    if (appearance.emissiveIntensity > 0) {
+      accent.emissiveColor = accent.diffuseColor.scale(appearance.emissiveIntensity);
     }
-  }
 
-  // --- Internal: Cloning ---
-
-  private clonePart(gender: NPCGender, outfit: OutfitType, slot: BodyPartSlot, npcId: string): AbstractMesh | null {
-    const key = `${gender}_${outfit}_${slot}`;
-    const template = this.partTemplates.get(key);
-    if (!template) return null;
-
-    try {
-      const clone = (template.sourceMesh as Mesh).clone(`part_${slot}_${npcId}`, null);
-      if (!clone) return null;
-      clone.setEnabled(true);
-      // Enable child meshes too
-      for (const child of clone.getChildMeshes()) {
-        child.setEnabled(true);
-      }
-      return clone;
-    } catch {
-      return null;
-    }
-  }
-
-  private selectAndCloneHair(characterId: string, gender: NPCGender, hash: number): AbstractMesh | null {
-    const styles = HAIR_STYLES[gender];
-    const hairVal = hashFloat(hash, 15);
-    const styleIndex = Math.floor(hairVal * styles.length) % styles.length;
-    const style = styles[styleIndex];
-
-    const template = this.hairTemplates.get(style);
-    if (!template) return null;
-
-    try {
-      const clone = (template.sourceMesh as Mesh).clone(`hair_${style}_${characterId}`, null);
-      if (!clone) return null;
-      clone.setEnabled(true);
-      for (const child of clone.getChildMeshes()) {
-        child.setEnabled(true);
-      }
-
-      // Males have a 40% chance of a beard
-      if (gender === 'male') {
-        const beardVal = hashFloat(hash, 16);
-        if (beardVal < 0.4) {
-          const beardTemplate = this.hairTemplates.get('beard');
-          if (beardTemplate) {
-            const beardClone = (beardTemplate.sourceMesh as Mesh).clone(`beard_${characterId}`, clone);
-            if (beardClone) {
-              beardClone.setEnabled(true);
-              for (const child of beardClone.getChildMeshes()) {
-                child.setEnabled(true);
-              }
-            }
-          }
-        }
-      }
-
-      return clone;
-    } catch {
-      return null;
-    }
-  }
-
-  private cloneEyebrow(type: string, npcId: string): AbstractMesh | null {
-    const key = `eyebrows_${type}`;
-    const template = this.eyebrowTemplates.get(key);
-    if (!template) return null;
-
-    try {
-      const clone = (template.sourceMesh as Mesh).clone(`eyebrow_${npcId}`, null);
-      if (!clone) return null;
-      clone.setEnabled(true);
-      for (const child of clone.getChildMeshes()) {
-        child.setEnabled(true);
-      }
-      return clone;
-    } catch {
-      return null;
-    }
-  }
-
-  // --- Internal: Material/color application ---
-
-  /** Apply skin, clothing, and accent colors to a body part based on slot type */
-  private applyPartColors(
-    mesh: AbstractMesh,
-    slot: BodyPartSlot,
-    skinColor: Color3,
-    clothingColor: Color3,
-    accentColor: Color3,
-  ): void {
-    // Body slot gets clothing color; skin-exposed parts get skin color on skin meshes
-    const primaryColor = slot === 'body' || slot === 'arms' || slot === 'legs' || slot === 'feet'
-      ? clothingColor
-      : accentColor;
-
-    const allMeshes = [mesh, ...mesh.getChildMeshes()];
-    for (const m of allMeshes) {
-      if (!(m.material instanceof StandardMaterial)) continue;
-
-      // Clone material so each NPC has independent colors
-      const mat = m.material.clone(`${m.material.name}_${mesh.name}`) as StandardMaterial;
-
-      // Detect skin meshes by name convention (textures named with "skin" or "Regular")
-      const matName = mat.name.toLowerCase();
-      if (matName.includes('skin') || matName.includes('regular')) {
-        mat.diffuseColor = Color3.Lerp(mat.diffuseColor, skinColor, 0.7);
-      } else {
-        mat.diffuseColor = Color3.Lerp(mat.diffuseColor, primaryColor, 0.5);
-      }
-
-      m.material = mat;
-    }
-  }
-
-  /** Apply a single color tint to all StandardMaterial meshes in a hierarchy */
-  private applyColorToMesh(mesh: AbstractMesh, color: Color3): void {
-    const allMeshes = [mesh, ...mesh.getChildMeshes()];
-    for (const m of allMeshes) {
-      if (!(m.material instanceof StandardMaterial)) continue;
-      const mat = m.material.clone(`${m.material.name}_${mesh.name}`) as StandardMaterial;
-      mat.diffuseColor = Color3.Lerp(mat.diffuseColor, color, 0.6);
-      m.material = mat;
-    }
-  }
-
-  /** Get the first StandardMaterial from a mesh or its children */
-  private getFirstMaterial(mesh: AbstractMesh): StandardMaterial | null {
-    if (mesh.material instanceof StandardMaterial) return mesh.material;
-    for (const child of mesh.getChildMeshes()) {
-      if (child.material instanceof StandardMaterial) return child.material;
-    }
-    return null;
+    const mats: CachedMaterials = { skin, clothing, accent };
+    this.materialCache.set(colorKey, mats);
+    return mats;
   }
 }
-
-// --- Exported constants for testing ---
-
-export { HAIR_STYLES, HAIR_COLORS, OUTFIT_TYPES, CORE_SLOTS, EXTRA_SLOTS };
