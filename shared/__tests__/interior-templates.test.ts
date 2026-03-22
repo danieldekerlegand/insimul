@@ -12,8 +12,8 @@ import {
 } from '../game-engine/interior-templates';
 
 describe('Interior Layout Templates', () => {
-  it('should have at least 15 templates', () => {
-    expect(INTERIOR_LAYOUT_TEMPLATES.length).toBeGreaterThanOrEqual(15);
+  it('should have at least 40 templates', () => {
+    expect(INTERIOR_LAYOUT_TEMPLATES.length).toBeGreaterThanOrEqual(40);
   });
 
   it('should have unique IDs', () => {
@@ -113,6 +113,70 @@ describe('Interior Layout Templates', () => {
       });
     }
   });
+
+  describe('subtype-specific templates exist', () => {
+    const subtypeIds = [
+      'bank', 'barbershop', 'tailor', 'pharmacy', 'law_firm',
+      'town_hall', 'university', 'hospital', 'police_station', 'fire_station', 'daycare',
+      'brewery',
+      'grocery_store', 'jewelry_store', 'book_store', 'pawn_shop',
+      'factory', 'carpenter', 'butcher',
+      'harbor', 'fish_market',
+      'cottage', 'townhouse', 'apartment',
+    ];
+
+    for (const id of subtypeIds) {
+      it(`has subtype template "${id}"`, () => {
+        expect(getTemplateById(id)).toBeDefined();
+      });
+    }
+  });
+
+  describe('subtype templates have unique room functions', () => {
+    it('bank has bank_lobby and vault rooms', () => {
+      const bank = getTemplateById('bank')!;
+      const roomFunctions = bank.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('bank_lobby');
+      expect(roomFunctions).toContain('vault');
+    });
+
+    it('hospital has waiting_room, exam_room, and hospital_ward rooms', () => {
+      const hospital = getTemplateById('hospital')!;
+      const roomFunctions = hospital.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('waiting_room');
+      expect(roomFunctions).toContain('exam_room');
+      expect(roomFunctions).toContain('hospital_ward');
+    });
+
+    it('brewery has brewing, tasting_room, and barrel_cellar rooms', () => {
+      const brewery = getTemplateById('brewery')!;
+      const roomFunctions = brewery.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('brewing');
+      expect(roomFunctions).toContain('tasting_room');
+      expect(roomFunctions).toContain('barrel_cellar');
+    });
+
+    it('butcher has butcher_shop and cutting_room rooms', () => {
+      const butcher = getTemplateById('butcher')!;
+      const roomFunctions = butcher.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('butcher_shop');
+      expect(roomFunctions).toContain('cutting_room');
+    });
+
+    it('police_station has police_front and holding_cell rooms', () => {
+      const police = getTemplateById('police_station')!;
+      const roomFunctions = police.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('police_front');
+      expect(roomFunctions).toContain('holding_cell');
+    });
+
+    it('fire_station has engine_bay and bunk_room rooms', () => {
+      const fire = getTemplateById('fire_station')!;
+      const roomFunctions = fire.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('engine_bay');
+      expect(roomFunctions).toContain('bunk_room');
+    });
+  });
 });
 
 describe('getTemplateById', () => {
@@ -132,6 +196,14 @@ describe('getTemplateForBuildingType', () => {
     expect(getTemplateForBuildingType('building', 'tavern')?.id).toBe('tavern');
     expect(getTemplateForBuildingType('building', 'inn')?.id).toBe('tavern');
     expect(getTemplateForBuildingType('building', 'shop')?.id).toBe('shop');
+  });
+
+  it('matches subtype-specific templates by business type', () => {
+    expect(getTemplateForBuildingType('building', 'bank')?.id).toBe('bank');
+    expect(getTemplateForBuildingType('building', 'hospital')?.id).toBe('hospital');
+    expect(getTemplateForBuildingType('building', 'brewery')?.id).toBe('brewery');
+    expect(getTemplateForBuildingType('building', 'barbershop')?.id).toBe('barbershop');
+    expect(getTemplateForBuildingType('building', 'butcher')?.id).toBe('butcher');
   });
 
   it('matches by building type when no business type', () => {
