@@ -13,6 +13,8 @@ import type { ZoneType } from './StreetAlignedPlacement';
 import "@babylonjs/loaders/glTF";
 
 import type { ProceduralBuildingConfig, ProceduralStylePreset, RoofStyle as RoofStyleType } from '@shared/game-engine/types';
+import { getCategoryForType } from '@shared/game-engine/building-categories';
+import { getCategoryPreset } from '@shared/game-engine/building-style-presets';
 
 /** Simple string hash for deterministic randomness */
 function hashString(s: string): number {
@@ -1467,7 +1469,7 @@ export class ProceduralBuildingGenerator {
     const width = Math.round(baseWidth * zoneScale.width);
     const depth = Math.round(baseDepth * zoneScale.depth);
 
-    // Resolve style from procedural config, or use the provided worldStyle
+    // Resolve style from procedural config, category defaults, or worldStyle
     let style = data.worldStyle;
     if (data.proceduralConfig && data.proceduralConfig.stylePresets.length > 0) {
       // Check for type-specific style override
@@ -1486,6 +1488,15 @@ export class ProceduralBuildingGenerator {
           const presets = data.proceduralConfig.stylePresets;
           const preset = presets[Math.abs(hashString(data.id)) % presets.length];
           style = ProceduralBuildingGenerator.presetToBuildingStyle(preset, data.id);
+        }
+      }
+    } else {
+      // No asset-collection presets configured — use category-specific defaults
+      const category = data.businessType ? getCategoryForType(data.businessType) : undefined;
+      if (category) {
+        const catPreset = getCategoryPreset(category, data.id);
+        if (catPreset) {
+          style = ProceduralBuildingGenerator.presetToBuildingStyle(catPreset, data.id);
         }
       }
     }
