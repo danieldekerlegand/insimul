@@ -13,6 +13,7 @@ import type { ZoneType } from './StreetAlignedPlacement';
 import "@babylonjs/loaders/glTF";
 
 import type { ProceduralBuildingConfig, ProceduralStylePreset, RoofStyle as RoofStyleType } from '@shared/game-engine/types';
+import type { TextureManager } from './TextureManager';
 
 /** Simple string hash for deterministic randomness */
 function hashString(s: string): number {
@@ -68,6 +69,9 @@ export class ProceduralBuildingGenerator {
 
   // Per-preset textures keyed by asset ID
   private presetTextures: Map<string, Texture> = new Map();
+
+  // Optional TextureManager for on-demand texture resolution by asset ID
+  private textureManager: TextureManager | null = null;
 
   // Shared material cache: avoids creating duplicate materials per building.
   // Key format: "wall_{styleHash}", "roof_{styleHash}", "window_{styleHash}", etc.
@@ -791,7 +795,9 @@ export class ProceduralBuildingGenerator {
     const wallTexId = spec.style.wallTextureId;
     const resolvedWallTex = (wallTexId && this.presetTextures.get(wallTexId)) || this.wallTexture;
 
-    const matKey = `wall_${spec.style.name}_${spec.style.materialType}_${resolvedWallTex ? (wallTexId || 'global') : 'notex'}`;
+    // Cache key includes texture ID so different textures never share a cached material
+    const texKeyPart = wallTexId || (resolvedWallTex ? 'global' : 'notex');
+    const matKey = `wall_${spec.style.name}_${spec.style.materialType}_${texKeyPart}`;
     const material = this.getSharedMaterial(matKey, () => {
       const m = new StandardMaterial(matKey, this.scene);
       m.diffuseColor = spec.style.baseColor;
@@ -804,15 +810,28 @@ export class ProceduralBuildingGenerator {
           wallTex.vScale = 2;
           m.diffuseTexture = wallTex;
           m.diffuseColor = new Color3(1, 1, 1);
+          // Fallback to solid color if texture fails to load
+          wallTex.onLoadObservable.addOnce(() => {
+            if (!wallTex.isReady && !m.isDisposed) {
+              m.diffuseTexture = null;
+              m.diffuseColor = spec.style.baseColor;
+            }
+          });
         }
-      } else if (spec.style.materialType === 'brick') {
-        m.diffuseColor = spec.style.baseColor.scale(0.9);
-      } else if (spec.style.materialType === 'stone') {
-        m.diffuseColor = spec.style.baseColor.scale(0.95);
-      } else if (spec.style.materialType === 'stucco') {
-        // Stucco: matte finish, slight color variation
-        m.diffuseColor = spec.style.baseColor;
-        m.specularColor = new Color3(0.03, 0.03, 0.03);
+      } else if (wallTexId) {
+        // Texture ID set but not pre-registered — try on-demand load
+        this.resolveTexture(wallTexId, null, m, spec.style.baseColor);
+      }
+
+      if (!resolvedWallTex && !wallTexId) {
+        if (spec.style.materialType === 'brick') {
+          m.diffuseColor = spec.style.baseColor.scale(0.9);
+        } else if (spec.style.materialType === 'stone') {
+          m.diffuseColor = spec.style.baseColor.scale(0.95);
+        } else if (spec.style.materialType === 'stucco') {
+          m.diffuseColor = spec.style.baseColor;
+          m.specularColor = new Color3(0.03, 0.03, 0.03);
+        }
       }
       return m;
     });
@@ -883,8 +902,11 @@ export class ProceduralBuildingGenerator {
     const roofTexId = spec.style.roofTextureId;
     const resolvedRoofTex = (roofTexId && this.presetTextures.get(roofTexId)) || this.roofTexture;
 
-    const roofMatKey = `roof_${spec.style.name}_${resolvedRoofTex ? (roofTexId || 'global') : 'notex'}`;
+    // Cache key includes texture ID so different textures never share a cached material
+    const roofTexKeyPart = roofTexId || (resolvedRoofTex ? 'global' : 'notex');
+    const roofMatKey = `roof_${spec.style.name}_${roofTexKeyPart}`;
     const roofMat = this.getSharedMaterial(roofMatKey, () => {
+      const rc = spec.style.roofColor || new Color3(0.3, 0.2, 0.15);
       const m = new StandardMaterial(roofMatKey, this.scene);
       if (resolvedRoofTex) {
         const roofTex = resolvedRoofTex.clone();
@@ -893,9 +915,21 @@ export class ProceduralBuildingGenerator {
           roofTex.vScale = 2;
           m.diffuseTexture = roofTex;
           m.diffuseColor = new Color3(1, 1, 1);
+          // Fallback to solid color if texture fails to load
+          roofTex.onLoadObservable.addOnce(() => {
+            if (!roofTex.isReady && !m.isDisposed) {
+              m.diffuseTexture = null;
+              m.diffuseColor = rc;
+              m.emissiveColor = rc.scale(0.35);
+            }
+          });
         }
+      } else if (roofTexId) {
+        // Texture ID set but not pre-registered — try on-demand load
+        m.diffuseColor = rc;
+        m.emissiveColor = rc.scale(0.35);
+        this.resolveTexture(roofTexId, null, m, rc);
       } else {
-        const rc = spec.style.roofColor || new Color3(0.3, 0.2, 0.15);
         m.diffuseColor = rc;
         m.emissiveColor = rc.scale(0.35);
       }
@@ -1529,6 +1563,54 @@ export class ProceduralBuildingGenerator {
    */
   public registerPresetTexture(assetId: string, texture: Texture): void {
     this.presetTextures.set(assetId, texture);
+  }
+
+  /**
+   * Set optional TextureManager for on-demand texture resolution.
+   * Allows the generator to load textures by ID when they aren't pre-registered.
+   */
+  public setTextureManager(tm: TextureManager): void {
+    this.textureManager = tm;
+  }
+
+  /**
+   * Resolve a texture by asset ID.
+   * Priority: presetTextures cache → TextureManager on-demand load → global fallback → null.
+   * Starts an async load via TextureManager if the texture isn't cached,
+   * and updates the material once loaded.
+   */
+  private resolveTexture(
+    textureId: string | undefined,
+    globalFallback: Texture | null,
+    material?: StandardMaterial,
+    fallbackColor?: Color3,
+  ): Texture | null {
+    if (textureId) {
+      // Check pre-registered textures first
+      const preset = this.presetTextures.get(textureId);
+      if (preset) return preset;
+
+      // Try on-demand load via TextureManager
+      if (this.textureManager) {
+        this.textureManager.loadTextureById(textureId).then((tex) => {
+          if (tex && material && !material.isDisposed) {
+            // Register for future use
+            this.presetTextures.set(textureId, tex);
+            // Apply to existing material
+            const cloned = tex.clone();
+            if (cloned) {
+              cloned.uScale = 2;
+              cloned.vScale = 2;
+              material.diffuseTexture = cloned;
+              material.diffuseColor = new Color3(1, 1, 1);
+            }
+          }
+        }).catch(() => {
+          // Texture load failed — keep solid color fallback (already set)
+        });
+      }
+    }
+    return globalFallback;
   }
 
   /**

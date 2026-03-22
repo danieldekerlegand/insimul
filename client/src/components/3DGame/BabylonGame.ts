@@ -3467,8 +3467,11 @@ export class BabylonGame {
     if (this.buildingGenerator && this.world3DConfig?.proceduralBuildings) {
       this.buildingGenerator.setProceduralConfig(this.world3DConfig.proceduralBuildings);
 
-      // Load per-preset textures (wallTextureId / roofTextureId on each style preset)
+      // Give the building generator a TextureManager reference for on-demand texture loading
       if (this.textureManager) {
+        this.buildingGenerator.setTextureManager(this.textureManager);
+
+        // Pre-load per-preset textures (wallTextureId / roofTextureId on each style preset)
         const presets = this.world3DConfig.proceduralBuildings.stylePresets || [];
         const textureIds = new Set<string>();
         for (const preset of presets) {

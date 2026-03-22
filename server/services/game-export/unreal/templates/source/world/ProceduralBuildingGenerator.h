@@ -199,6 +199,9 @@ private:
 
     UMaterialInstanceDynamic* GetSharedMaterial(const FString& Key, UMaterialInterface* Parent, FLinearColor Color);
 
+    /** Resolve a texture by ID: checks PresetTextures first, then global fallback. */
+    UTexture2D* ResolveTexture(const FString& TextureId, UTexture2D* GlobalFallback) const;
+
     /** Create style-appropriate roof geometry. Returns the roof height for positioning. */
     float CreateRoof(USceneComponent* Parent, const FString& ArchStyle, float Width, float Depth,
                      int32 Floors, FLinearColor Color, UMaterialInterface* BaseMaterial);

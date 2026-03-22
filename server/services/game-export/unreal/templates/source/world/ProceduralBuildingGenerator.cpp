@@ -51,6 +51,18 @@ void AProceduralBuildingGenerator::RegisterPresetTexture(const FString& AssetId,
     PresetTextures.Add(AssetId, Texture);
 }
 
+UTexture2D* AProceduralBuildingGenerator::ResolveTexture(const FString& TextureId, UTexture2D* GlobalFallback) const
+{
+    if (!TextureId.IsEmpty())
+    {
+        if (auto* Found = PresetTextures.Find(TextureId))
+        {
+            return *Found;
+        }
+    }
+    return GlobalFallback;
+}
+
 const TMap<FString, FBuildingStylePreset>& AProceduralBuildingGenerator::GetStylePresets()
 {
     static TMap<FString, FBuildingStylePreset> Presets;
