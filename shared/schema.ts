@@ -898,7 +898,7 @@ export const lots = pgTable("lots", {
 
   // Lot geometry & street alignment
   lotWidth: integer("lot_width").default(12),
-  lotDepth: integer("lot_depth").default(16),
+  lotDepth: integer("lot_depth").default(24),
   streetEdgeId: text("street_edge_id"),
   distanceAlongStreet: integer("distance_along_street").default(0),
   side: text("side").default("left"), // left or right of street
@@ -1815,14 +1815,15 @@ export const visualAssets = pgTable("visual_assets", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Asset Collections - group related assets together
-// Collections are now the primary way to organize assets, managed centrally in Admin Panel
+// World Type Collections - comprehensive config bundles combining asset and procedural settings
+// Replaces the former "Asset Collections" concept. Each collection defines a complete world theme
+// with building, ground, character, nature, and item configurations.
 export const assetCollections = pgTable("asset_collections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
 
   name: text("name").notNull(),
   description: text("description"),
-  collectionType: text("collection_type").notNull(), // complete_theme, texture_pack, character_set, building_set, prop_set, map_atlas
+  collectionType: text("collection_type").notNull(), // world_type_collection (new), or legacy: complete_theme, texture_pack, etc.
 
   // Theme/world type this collection is designed for
   worldType: text("world_type"), // medieval-fantasy, cyberpunk, sci-fi-space, historical-medieval, etc.
@@ -1857,8 +1858,12 @@ export const assetCollections = pgTable("asset_collections", {
   buildingTypeConfigs: jsonb("building_type_configs").$type<Record<string, import('./game-engine/types').UnifiedBuildingTypeConfig> | null>().default(null),
   // Category-level style presets (keys are category names like 'commercial_food', 'commercial_retail', etc.)
   categoryPresets: jsonb("category_presets").$type<Record<string, import('./game-engine/types').ProceduralStylePreset> | null>().default(null),
-  // NPC appearance configuration
+  // NPC appearance configuration (legacy — migrated to worldTypeConfig.characterConfig)
   npcConfig: jsonb("npc_config").$type<import('./game-engine/types').NpcConfig | null>().default(null),
+
+  // Unified World Type Collection config — holds all 5 config modules
+  // (building, ground, character, nature, item) in a single structured field
+  worldTypeConfig: jsonb("world_type_config").$type<import('./game-engine/types').WorldTypeCollectionConfig | null>().default(null),
 
   // Per-engine asset overrides (Phase 2 — Asset Pipeline)
   // When exporting to a native engine, these override the default Babylon.js assets

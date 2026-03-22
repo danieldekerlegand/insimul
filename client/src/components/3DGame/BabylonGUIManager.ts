@@ -171,14 +171,11 @@ export class BabylonGUIManager {
   private fluencyPanel: Rectangle | null = null;
   private _gameType: string | null = null;
 
-  // Time HUD panel (top-center)
+  // Time HUD indicator (bottom-left, compact)
   private _timePanel: Rectangle | null = null;
   private _timeText: TextBlock | null = null;
   private _dayText: TextBlock | null = null;
   private _todText: TextBlock | null = null;
-  private _speedText: TextBlock | null = null;
-  private _onTimeSpeedChange: ((delta: number) => void) | null = null;
-  private _onTimePauseToggle: (() => void) | null = null;
 
   // State
   private isMenuOpen = false;
@@ -2613,104 +2610,59 @@ export class BabylonGUIManager {
 
   private createTimePanel() {
     const panel = new Rectangle("timePanel");
-    panel.width = "220px";
-    panel.height = "90px";
-    panel.background = "rgba(0, 0, 0, 0.7)";
-    panel.color = "white";
-    panel.thickness = 2;
-    panel.cornerRadius = 5;
-    panel.top = "10px";
-    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    panel.width = "140px";
+    panel.height = "32px";
+    panel.background = "rgba(0, 0, 0, 0.6)";
+    panel.color = "rgba(255, 255, 255, 0.5)";
+    panel.thickness = 1;
+    panel.cornerRadius = 4;
+    panel.left = "10px";
+    panel.top = "-10px";
+    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
 
-    const stack = new StackPanel();
-    stack.paddingTop = "6px";
-    panel.addControl(stack);
-
-    // Row 1: time + time-of-day icon
-    const timeRow = new StackPanel();
-    timeRow.isVertical = false;
-    timeRow.height = "26px";
-    stack.addControl(timeRow);
+    const row = new StackPanel();
+    row.isVertical = false;
+    row.height = "24px";
+    panel.addControl(row);
 
     const todIcon = new TextBlock("todIcon");
     todIcon.text = "☀️";
     todIcon.color = "white";
-    todIcon.fontSize = 16;
-    todIcon.width = "30px";
+    todIcon.fontSize = 13;
+    todIcon.width = "24px";
     todIcon.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    timeRow.addControl(todIcon);
+    row.addControl(todIcon);
     this._todText = todIcon;
 
     const timeText = new TextBlock("timeText");
     timeText.text = "08:00";
     timeText.color = "white";
-    timeText.fontSize = 18;
+    timeText.fontSize = 13;
     timeText.fontWeight = "bold";
-    timeText.width = "80px";
+    timeText.width = "50px";
     timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    timeRow.addControl(timeText);
+    row.addControl(timeText);
     this._timeText = timeText;
 
     const dayText = new TextBlock("dayText");
     dayText.text = "Day 1";
-    dayText.color = "#BBBBBB";
-    dayText.fontSize = 14;
-    dayText.width = "80px";
+    dayText.color = "#AAAAAA";
+    dayText.fontSize = 11;
+    dayText.width = "50px";
     dayText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    timeRow.addControl(dayText);
+    row.addControl(dayText);
     this._dayText = dayText;
-
-    // Row 2: speed controls
-    const speedRow = new StackPanel();
-    speedRow.isVertical = false;
-    speedRow.height = "28px";
-    speedRow.paddingTop = "4px";
-    stack.addControl(speedRow);
-
-    const makeBtn = (name: string, label: string, width: string, cb: () => void) => {
-      const btn = Button.CreateSimpleButton(name, label);
-      btn.width = width;
-      btn.height = "24px";
-      btn.color = "white";
-      btn.background = "rgba(80, 80, 80, 0.8)";
-      btn.cornerRadius = 3;
-      btn.fontSize = 13;
-      btn.onPointerClickObservable.add(cb);
-      return btn;
-    };
-
-    speedRow.addControl(makeBtn("timeSlowBtn", "◀", "30px", () => this._onTimeSpeedChange?.(-1)));
-    speedRow.addControl(makeBtn("timePauseBtn", "⏸", "30px", () => this._onTimePauseToggle?.()));
-
-    const speedText = new TextBlock("speedText");
-    speedText.text = "1x";
-    speedText.color = "#FFD700";
-    speedText.fontSize = 14;
-    speedText.fontWeight = "bold";
-    speedText.width = "50px";
-    speedText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    speedRow.addControl(speedText);
-    this._speedText = speedText;
-
-    speedRow.addControl(makeBtn("timeFastBtn", "▶", "30px", () => this._onTimeSpeedChange?.(1)));
 
     this._timePanel = panel;
     this.advancedTexture.addControl(panel);
   }
 
-  public updateTime(timeString: string, day: number, timeOfDay: string, speed: number, paused: boolean) {
+  public updateTime(timeString: string, day: number, timeOfDay: string, _speed: number, _paused: boolean) {
     if (this._timeText) this._timeText.text = timeString;
     if (this._dayText) this._dayText.text = `Day ${day}`;
     if (this._todText) this._todText.text = BabylonGUIManager.TOD_ICONS[timeOfDay] ?? '☀️';
-    if (this._speedText) {
-      this._speedText.text = paused ? '⏸' : `${speed}x`;
-      this._speedText.color = paused ? '#FF6B6B' : '#FFD700';
-    }
   }
-
-  public setOnTimeSpeedChange(cb: (delta: number) => void) { this._onTimeSpeedChange = cb; }
-  public setOnTimePauseToggle(cb: () => void) { this._onTimePauseToggle = cb; }
 
   public dispose() {
     this.advancedTexture.dispose();

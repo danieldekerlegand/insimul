@@ -624,6 +624,18 @@ export class ProceduralBuildingGenerator {
     const label = spec.businessType || spec.type;
     parent.metadata = { ...(parent.metadata || {}), debugLabel: `Building: ${label}` };
 
+    // If the building has a porch, push geometry back in local -Z so the
+    // porch + stairs don't cover the sidewalk. Shift by 3/4 of the porch
+    // extension — the enlarged lot depth provides backyard room behind.
+    if (spec.hasPorch) {
+      const porchExtension = (spec.style.porchDepth ?? 3)
+        + (spec.style.porchSteps ?? 3) * 0.4; // stepDepth = 0.4
+      const setback = porchExtension * 0.75;
+      for (const child of parent.getChildren()) {
+        (child as Mesh).position.z -= setback;
+      }
+    }
+
     // Phase 2: Merge all procedural building sub-meshes that share the same
     // material into fewer meshes to reduce draw calls.
     //

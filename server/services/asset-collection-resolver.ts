@@ -1,10 +1,12 @@
 import { storage } from '../db/storage.js';
 import type { AssetCollection } from '@shared/schema';
-import type { ProceduralBuildingConfig } from '@shared/game-engine/types';
+import type { ProceduralBuildingConfig, WorldTypeCollectionConfig } from '@shared/game-engine/types';
 
 /**
  * World3DConfig type - represents the 3D configuration for a world
- * This is now derived from AssetCollections instead of stored directly on worlds
+ * This is now derived from AssetCollections instead of stored directly on worlds.
+ * Legacy format — the game engine reads this shape. The resolver flattens
+ * WorldTypeCollectionConfig into this format for backward compatibility.
  */
 export type World3DConfig = {
   buildingModels?: Record<string, string>;
@@ -21,6 +23,104 @@ export type World3DConfig = {
   modelScaling?: Record<string, { x: number; y: number; z: number }>;
   proceduralBuildings?: ProceduralBuildingConfig | null;
 };
+
+/**
+ * Flatten WorldTypeCollectionConfig into legacy World3DConfig format
+ * so the game engine continues to work without changes.
+ */
+function flattenWorldTypeConfig(wtc: WorldTypeCollectionConfig): World3DConfig {
+  const config: World3DConfig = {};
+  const scaling: Record<string, { x: number; y: number; z: number }> = {};
+
+  // Ground config
+  if (wtc.groundConfig) {
+    if (wtc.groundConfig.ground?.textureId) config.groundTextureId = wtc.groundConfig.ground.textureId;
+    if (wtc.groundConfig.road?.textureId) config.roadTextureId = wtc.groundConfig.road.textureId;
+  }
+
+  // Building config — extract asset IDs from buildingTypeConfigs into buildingModels
+  if (wtc.buildingConfig) {
+    const buildingModels: Record<string, string> = {};
+    if (wtc.buildingConfig.buildingTypeConfigs) {
+      for (const [typeName, typeConfig] of Object.entries(wtc.buildingConfig.buildingTypeConfigs)) {
+        if (typeConfig.mode === 'asset' && typeConfig.assetId) {
+          buildingModels[typeName] = typeConfig.assetId;
+        }
+        if (typeConfig.modelScaling) {
+          scaling[`buildingModels.${typeName}`] = typeConfig.modelScaling;
+        }
+      }
+    }
+    config.buildingModels = buildingModels;
+    config.proceduralBuildings = wtc.buildingConfig.proceduralDefaults || null;
+  }
+
+  // Character config
+  if (wtc.characterConfig) {
+    const characterModels: Record<string, string> = {};
+    const playerModels: Record<string, string> = {};
+    if (wtc.characterConfig.characterModels) {
+      for (const [role, cfg] of Object.entries(wtc.characterConfig.characterModels)) {
+        if (cfg.assetId) characterModels[role] = cfg.assetId;
+        if (cfg.modelScaling) scaling[`characterModels.${role}`] = cfg.modelScaling;
+      }
+    }
+    if (wtc.characterConfig.playerModels) {
+      for (const [role, cfg] of Object.entries(wtc.characterConfig.playerModels)) {
+        if (cfg.assetId) playerModels[role] = cfg.assetId;
+        if (cfg.modelScaling) scaling[`playerModels.${role}`] = cfg.modelScaling;
+      }
+    }
+    config.characterModels = characterModels;
+    config.playerModels = playerModels;
+  }
+
+  // Nature config
+  if (wtc.natureConfig) {
+    const natureModels: Record<string, string> = {};
+    for (const group of ['trees', 'vegetation', 'water', 'rocks', 'custom'] as const) {
+      const entries = wtc.natureConfig[group];
+      if (entries) {
+        for (const [name, cfg] of Object.entries(entries)) {
+          if (cfg.assetId) natureModels[name] = cfg.assetId;
+          if (cfg.modelScaling) scaling[`natureModels.${name}`] = cfg.modelScaling;
+        }
+      }
+    }
+    config.natureModels = natureModels;
+  }
+
+  // Item config
+  if (wtc.itemConfig) {
+    const objectModels: Record<string, string> = {};
+    const questObjectModels: Record<string, string> = {};
+    if (wtc.itemConfig.objects) {
+      for (const [name, cfg] of Object.entries(wtc.itemConfig.objects)) {
+        if (cfg.assetId) objectModels[name] = cfg.assetId;
+        if (cfg.modelScaling) scaling[`objectModels.${name}`] = cfg.modelScaling;
+      }
+    }
+    if (wtc.itemConfig.questObjects) {
+      for (const [name, cfg] of Object.entries(wtc.itemConfig.questObjects)) {
+        if (cfg.assetId) questObjectModels[name] = cfg.assetId;
+        if (cfg.modelScaling) scaling[`questObjectModels.${name}`] = cfg.modelScaling;
+      }
+    }
+    config.objectModels = objectModels;
+    config.questObjectModels = questObjectModels;
+  }
+
+  // Audio
+  if (wtc.audioAssets) {
+    config.audioAssets = wtc.audioAssets;
+  }
+
+  if (Object.keys(scaling).length > 0) {
+    config.modelScaling = scaling;
+  }
+
+  return config;
+}
 
 /**
  * Get the 3D configuration for a world by resolving its asset collection
@@ -63,7 +163,13 @@ export async function getWorld3DConfigForWorld(worldId: string): Promise<World3D
     return {};
   }
 
-  // Convert collection to World3DConfig format
+  // Prefer new unified worldTypeConfig if present
+  const wtc = (collection as any).worldTypeConfig as WorldTypeCollectionConfig | null;
+  if (wtc) {
+    return flattenWorldTypeConfig(wtc);
+  }
+
+  // Fallback to legacy flat fields
   return {
     buildingModels: collection.buildingModels as Record<string, string> || {},
     natureModels: collection.natureModels as Record<string, string> || {},

@@ -361,6 +361,15 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 		}
 		_create_porch(building, porch_spec)
 
+		# Porch setback: push all geometry back in local -Z so the porch + stairs
+		# don't cover the sidewalk. Shift by 3/4 of the total porch extension.
+		var step_depth_val := 0.4
+		var porch_extension := porch_depth_val + porch_steps_val * step_depth_val
+		var setback := porch_extension * 0.75
+		for child in building.get_children():
+			child.position.z -= setback
+		print("[Insimul] Porch setback=%.2f applied" % setback)
+
 	# Determine style-aware roof height based on roof_style
 	var peaked_roof_height := 3.0
 	var actual_roof_height: float

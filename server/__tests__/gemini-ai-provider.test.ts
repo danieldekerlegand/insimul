@@ -31,7 +31,7 @@ vi.mock('../config/gemini.js', () => ({
   })),
   isGeminiConfigured: vi.fn(() => true),
   getGeminiApiKey: vi.fn(() => 'test-key'),
-  GEMINI_MODELS: { PRO: 'gemini-2.5-pro', FLASH: 'gemini-2.5-flash', SPEECH: 'gemini-2.0-flash-exp' },
+  GEMINI_MODELS: { PRO: 'gemini-3.1-pro-preview', FLASH: 'gemini-2.5-flash', SPEECH: 'gemini-2.0-flash-exp' },
 }));
 
 vi.mock('../services/tts-cache.js', () => {

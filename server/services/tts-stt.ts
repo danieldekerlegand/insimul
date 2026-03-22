@@ -66,7 +66,7 @@ function detectLanguageFromText(text: string): string {
 }
 
 /**
- * Text-to-Speech using Google Cloud Text-to-Speech with gemini-2.5-pro-tts.
+ * Text-to-Speech using Google Cloud Text-to-Speech with gemini-3.1-pro-preview.
  * Results are cached using an LRU cache to avoid redundant API calls.
  * Supports emotional tone modulation via SSML prosody tags.
  */

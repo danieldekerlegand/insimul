@@ -30,6 +30,10 @@ interface BuildingModelPreviewProps {
   /** Zone type for style resolution */
   zone?: 'commercial' | 'residential';
   className?: string;
+  /** Externally controlled view mode — when set, hides internal tab toggle */
+  initialViewMode?: 'exterior' | 'interior';
+  /** Hide the internal Exterior/Interior tab toggle */
+  hideTabs?: boolean;
 }
 
 // Known environment/ground meshes to strip from loaded models
@@ -49,6 +53,8 @@ export function BuildingModelPreview({
   proceduralConfig,
   zone,
   className = '',
+  initialViewMode,
+  hideTabs,
 }: BuildingModelPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<BABYLON.Engine | null>(null);
@@ -59,7 +65,7 @@ export function BuildingModelPreview({
   const [isLoading, setIsLoading] = useState(true);
   const [autoRotate, setAutoRotate] = useState(true);
   const [meshSource, setMeshSource] = useState<'model' | 'placeholder'>('placeholder');
-  const [viewMode, setViewMode] = useState<'exterior' | 'interior'>('exterior');
+  const [viewMode, setViewMode] = useState<'exterior' | 'interior'>(initialViewMode || 'exterior');
 
   useEffect(() => { autoRotateRef.current = autoRotate; }, [autoRotate]);
 
@@ -153,8 +159,37 @@ export function BuildingModelPreview({
           setIsLoading(false);
         }
       );
-    } else if (viewMode === 'interior' && interiorTemplate) {
-      buildProceduralInterior(scene, camera, ground, interiorTemplate);
+    } else if (viewMode === 'interior') {
+      if (interiorTemplate) {
+        buildProceduralInterior(scene, camera, ground, interiorTemplate);
+      } else {
+        // No specific template — generate a basic default interior
+        const defaultTemplate: InteriorLayoutTemplate = {
+          id: 'default',
+          buildingType: buildingType || 'default',
+          matchBusinessTypes: [],
+          width: 10,
+          depth: 8,
+          height: 3,
+          floorCount: 1,
+          colors: {
+            wall: { r: 0.85, g: 0.82, b: 0.75 },
+            floor: { r: 0.45, g: 0.35, b: 0.25 },
+            ceiling: { r: 0.9, g: 0.88, b: 0.85 },
+          },
+          rooms: [{
+            name: 'Main Room',
+            function: 'living',
+            offsetXFraction: 0,
+            offsetZFraction: 0,
+            widthFraction: 0.9,
+            depthFraction: 0.9,
+            floor: 0,
+          }],
+          furnitureSets: [],
+        };
+        buildProceduralInterior(scene, camera, ground, defaultTemplate);
+      }
       setMeshSource('model');
       setIsLoading(false);
     } else {
@@ -197,7 +232,7 @@ export function BuildingModelPreview({
 
   return (
     <div className={`flex flex-col ${className}`}>
-      {hasInterior && (
+      {hasInterior && !hideTabs && (
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'exterior' | 'interior')} className="mb-1">
           <TabsList className="h-7 w-full">
             <TabsTrigger value="exterior" className="text-xs h-5 flex-1">Exterior</TabsTrigger>

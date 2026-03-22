@@ -35,10 +35,10 @@ function getLotWidth(settlementType: string): number {
  */
 function getLotDepth(settlementType: string): number {
   switch (settlementType) {
-    case 'village': return 20;
-    case 'town': return 16;
-    case 'city': return 14;
-    default: return 16;
+    case 'village': return 28;
+    case 'town': return 24;
+    case 'city': return 20;
+    default: return 24;
   }
 }
 

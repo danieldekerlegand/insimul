@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../config/gemini.js', () => ({
   isGeminiConfigured: vi.fn(() => false),
   GEMINI_MODELS: {
-    PRO: 'gemini-2.5-pro',
+    PRO: 'gemini-3.1-pro-preview',
     FLASH: 'gemini-2.5-flash',
     SPEECH: 'gemini-2.0-flash-exp',
   },

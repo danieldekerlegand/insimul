@@ -661,4 +661,121 @@ namespace Insimul.Data
         public string[] clothingPalette;
         public string[] skinTonePalette;
     }
+
+    // ─── World Type Collection Config Modules ────────────────────
+
+    /// <summary>
+    /// Ground/terrain type configuration (asset or procedural).
+    /// Matches GroundTypeConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class GroundTypeConfig
+    {
+        public string mode; // "asset" or "procedural"
+        public string textureId;
+        public ColorData color;
+        public float tiling = 1f;
+    }
+
+    /// <summary>
+    /// Ground configuration module (ground, road, sidewalk, custom).
+    /// Matches GroundConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class GroundConfig
+    {
+        public GroundTypeConfig ground;
+        public GroundTypeConfig road;
+        public GroundTypeConfig sidewalk;
+        // Note: custom ground types use string keys; use a helper for deserialization.
+    }
+
+    /// <summary>
+    /// Character model configuration (asset or procedural).
+    /// Matches CharacterModelConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class CharacterModelConfig
+    {
+        public string mode; // "asset" or "procedural"
+        public string assetId;
+        public Vec3Data modelScaling;
+    }
+
+    /// <summary>
+    /// Character configuration module (player + NPC).
+    /// Matches CharacterConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class CharacterConfig
+    {
+        /// <summary>NPC body model options.</summary>
+        public string[] npcBodyModels;
+        /// <summary>NPC clothing color palette (hex strings).</summary>
+        public string[] npcClothingPalette;
+        /// <summary>NPC skin tone palette (hex strings).</summary>
+        public string[] npcSkinTonePalette;
+    }
+
+    /// <summary>
+    /// Nature element type configuration (asset or procedural).
+    /// Matches NatureTypeConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class NatureTypeConfig
+    {
+        public string mode; // "asset" or "procedural"
+        public string assetId;
+        public Vec3Data modelScaling;
+    }
+
+    /// <summary>
+    /// Nature element configuration module.
+    /// Matches NatureConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class NatureConfig
+    {
+        public NatureTypeConfig[] trees;
+        public NatureTypeConfig[] vegetation;
+        public NatureTypeConfig[] water;
+        public NatureTypeConfig[] rocks;
+    }
+
+    /// <summary>
+    /// Item/prop type configuration (asset or procedural).
+    /// Matches ItemTypeConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class ItemTypeConfig
+    {
+        public string mode; // "asset" or "procedural"
+        public string assetId;
+        public Vec3Data modelScaling;
+    }
+
+    /// <summary>
+    /// Item/prop visual configuration module.
+    /// Matches ItemConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class ItemTypeCollectionConfig
+    {
+        public ItemTypeConfig[] objects;
+        public ItemTypeConfig[] questObjects;
+    }
+
+    /// <summary>
+    /// Top-level World Type Collection configuration.
+    /// Matches WorldTypeCollectionConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class WorldTypeCollectionConfig
+    {
+        public ProceduralBuildingConfig proceduralDefaults;
+        public GroundConfig groundConfig;
+        public CharacterConfig characterConfig;
+        public NatureConfig natureConfig;
+        public ItemTypeCollectionConfig itemConfig;
+    }
 }

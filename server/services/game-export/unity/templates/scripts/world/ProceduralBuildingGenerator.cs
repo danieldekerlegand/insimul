@@ -377,6 +377,17 @@ namespace Insimul.World
                 float pDepth = style.porchDepth > 0 ? style.porchDepth : 3f;
                 int pSteps = style.porchSteps > 0 ? style.porchSteps : 3;
                 AddPorch(building, width, depth, porchElevation, pDepth, pSteps, style);
+
+                // Porch setback: push all geometry back in local -Z so the porch + stairs
+                // don't cover the sidewalk. Shift by 3/4 of the total porch extension.
+                float stepDepth = 0.4f;
+                float porchExtension = pDepth + pSteps * stepDepth;
+                float setback = porchExtension * 0.75f;
+                foreach (Transform child in building.transform)
+                {
+                    child.localPosition -= new Vector3(0, 0, setback);
+                }
+                Debug.Log($"[Insimul] Porch setback={setback:F2} applied");
             }
 
             // Balcony (with ironwork support)

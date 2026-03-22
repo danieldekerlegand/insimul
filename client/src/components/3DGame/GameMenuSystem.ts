@@ -261,10 +261,14 @@ export interface GameMenuCallbacks {
   onDeletePlaythrough?: () => Promise<void>;
   onReturnToMainMenu?: () => void;
   onQuitGame?: () => void;
+  // Rest / time-skip
+  getTimeData?: () => { timeString: string; day: number; timeOfDay: string } | null;
+  onRest?: (hours: number) => void;
 }
 
 export type MenuTab =
   | "character"
+  | "rest"
   | "journal"
   | "quests"
   | "inventory"
@@ -284,6 +288,7 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: "character", label: "Character", icon: "👤" },
+  { id: "rest", label: "Rest", icon: "🛏️" },
   { id: "journal", label: "Journal", icon: "📖" },
   { id: "quests", label: "Quests", icon: "📜" },
   { id: "inventory", label: "Inventory", icon: "🎒" },
@@ -354,6 +359,11 @@ export class GameMenuSystem {
   private vocabSortMode: 'mastery' | 'alpha' | 'recent' | 'used' | 'review' = 'mastery';
   private vocabCategoryFilter: string = 'all';
 
+  // Rest tab time display (live-updated)
+  private _menuTimeText: TextBlock | null = null;
+  private _menuDayText: TextBlock | null = null;
+  private _menuTodText: TextBlock | null = null;
+
   // Callbacks for game state management
   private onMenuOpened: (() => void) | null = null;
   private onMenuClosed: (() => void) | null = null;
@@ -417,6 +427,22 @@ export class GameMenuSystem {
       this.overlay = null;
     }
     this.tabButtons.clear();
+    this._menuTimeText = null;
+    this._menuDayText = null;
+    this._menuTodText = null;
+  }
+
+  private static readonly TOD_ICONS: Record<string, string> = {
+    dawn: '🌅', morning: '☀️', midday: '🌞',
+    afternoon: '🌤️', evening: '🌇', night: '🌙',
+  };
+
+  /** Called from the render loop to live-update time display when menu is open on the Rest tab */
+  public updateTime(timeString: string, day: number, timeOfDay: string): void {
+    if (!this._isOpen || this.activeTab !== 'rest') return;
+    if (this._menuTimeText) this._menuTimeText.text = timeString;
+    if (this._menuDayText) this._menuDayText.text = `Day ${day}`;
+    if (this._menuTodText) this._menuTodText.text = GameMenuSystem.TOD_ICONS[timeOfDay] ?? '☀️';
   }
 
   // ─── Build UI ───────────────────────────────────────────────────────────
@@ -603,6 +629,9 @@ export class GameMenuSystem {
       case "character":
         this.renderCharacterTab();
         break;
+      case "rest":
+        this.renderRestTab();
+        break;
       case "journal":
         this.renderJournalTab();
         break;
@@ -787,6 +816,140 @@ export class GameMenuSystem {
       txt.fontSize = 12;
       barOuter.addControl(txt);
     }
+  }
+
+  // ─── REST TAB ──────────────────────────────────────────────────────────
+
+  private renderRestTab(): void {
+    const { stack } = this.makeScrollableContent("rest");
+
+    this.addSectionHeader(stack, "Rest");
+    this.addSubHeader(stack, "Take a break and let time pass");
+
+    // Current time display
+    this._menuTimeText = null;
+    this._menuDayText = null;
+    this._menuTodText = null;
+
+    const timeData = this.callbacks.getTimeData?.();
+    const timeCard = this.makeCard(stack);
+
+    const timeRow = new StackPanel();
+    timeRow.isVertical = false;
+    timeRow.height = "34px";
+    timeCard.addControl(timeRow);
+
+    const todIcon = new TextBlock();
+    todIcon.text = timeData ? (GameMenuSystem.TOD_ICONS[timeData.timeOfDay] ?? '☀️') : '☀️';
+    todIcon.color = "white";
+    todIcon.fontSize = 22;
+    todIcon.width = "36px";
+    todIcon.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    timeRow.addControl(todIcon);
+    this._menuTodText = todIcon;
+
+    const timeTxt = new TextBlock();
+    timeTxt.text = timeData?.timeString ?? '08:00';
+    timeTxt.color = COLORS.textPrimary;
+    timeTxt.fontSize = 24;
+    timeTxt.fontWeight = "bold";
+    timeTxt.width = "90px";
+    timeTxt.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    timeRow.addControl(timeTxt);
+    this._menuTimeText = timeTxt;
+
+    const dayTxt = new TextBlock();
+    dayTxt.text = timeData ? `Day ${timeData.day}` : 'Day 1';
+    dayTxt.color = COLORS.textSecondary;
+    dayTxt.fontSize = 15;
+    dayTxt.width = "80px";
+    dayTxt.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    timeRow.addControl(dayTxt);
+    this._menuDayText = dayTxt;
+
+    this.addDivider(stack);
+
+    // Rest duration options
+    const restLabel = new TextBlock();
+    restLabel.text = "How long would you like to rest?";
+    restLabel.color = COLORS.textPrimary;
+    restLabel.fontSize = 15;
+    restLabel.height = "30px";
+    restLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(restLabel);
+
+    const restOptions = [
+      { label: "1 Hour", hours: 1, desc: "A short nap" },
+      { label: "2 Hours", hours: 2, desc: "A quick rest" },
+      { label: "4 Hours", hours: 4, desc: "A half-night's sleep" },
+      { label: "8 Hours", hours: 8, desc: "A full night's sleep" },
+      { label: "Until Dawn (5:00)", hours: -1, desc: "Sleep until morning" },
+      { label: "Until Dusk (20:00)", hours: -2, desc: "Wait until evening" },
+    ];
+
+    restOptions.forEach((opt) => {
+      const card = this.makeCard(stack);
+
+      const row = new StackPanel();
+      row.isVertical = false;
+      row.height = "36px";
+      card.addControl(row);
+
+      const info = new StackPanel();
+      info.width = "200px";
+      info.height = "36px";
+      row.addControl(info);
+
+      const labelTxt = new TextBlock();
+      labelTxt.text = opt.label;
+      labelTxt.color = COLORS.textPrimary;
+      labelTxt.fontSize = 14;
+      labelTxt.fontWeight = "bold";
+      labelTxt.height = "20px";
+      labelTxt.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      info.addControl(labelTxt);
+
+      const descTxt = new TextBlock();
+      descTxt.text = opt.desc;
+      descTxt.color = COLORS.textMuted;
+      descTxt.fontSize = 11;
+      descTxt.height = "16px";
+      descTxt.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      info.addControl(descTxt);
+
+      const restBtn = Button.CreateSimpleButton(`rest_${opt.hours}`, "Rest");
+      restBtn.width = "70px";
+      restBtn.height = "30px";
+      restBtn.color = "white";
+      restBtn.background = COLORS.accent;
+      restBtn.cornerRadius = 5;
+      restBtn.fontSize = 13;
+      restBtn.onPointerEnterObservable.add(() => { restBtn.background = "#5A9CF5"; });
+      restBtn.onPointerOutObservable.add(() => { restBtn.background = COLORS.accent; });
+      restBtn.onPointerClickObservable.add(() => {
+        let hours = opt.hours;
+        if (hours < 0 && timeData) {
+          const currentFractional = (timeData ? this.callbacks.getTimeData?.() : null);
+          const curHour = currentFractional?.timeString
+            ? parseInt(currentFractional.timeString.split(':')[0], 10)
+            : 8;
+          if (opt.hours === -1) {
+            // Until dawn (5:00)
+            hours = curHour < 5 ? 5 - curHour : (24 - curHour) + 5;
+          } else {
+            // Until dusk (20:00)
+            hours = curHour < 20 ? 20 - curHour : (24 - curHour) + 20;
+          }
+          if (hours <= 0) hours = 1; // safety minimum
+        } else if (hours < 0) {
+          hours = 8; // fallback
+        }
+        this.callbacks.onRest?.(hours);
+        // Refresh the tab to show updated time
+        setTimeout(() => this.refreshActiveTab(), 100);
+      });
+      row.addControl(restBtn);
+    });
   }
 
   // ─── CHARACTER TAB ──────────────────────────────────────────────────────

@@ -114,6 +114,27 @@ export class GameTimeManager {
     this._msPerGameHour = Math.max(1_000, ms);
   }
 
+  /** Advance time by a number of hours (e.g. resting). Fires hour/day/time-of-day events. */
+  advanceHours(hours: number): void {
+    if (hours <= 0) return;
+    for (let i = 0; i < hours; i++) {
+      this._minute = 0;
+      this._hour += 1;
+      if (this._hour >= 24) {
+        this._hour = 0;
+        this._day += 1;
+        this._emitDayChanged();
+      }
+      this._emitHourChanged();
+      const currentToD = getTimeOfDay(this._hour);
+      if (currentToD !== this._lastTimeOfDay) {
+        this._emitTimeOfDayChanged(this._lastTimeOfDay, currentToD);
+        this._lastTimeOfDay = currentToD;
+      }
+    }
+    this._accumulatedMs = 0;
+  }
+
   /** Set time directly (e.g. from a save). Does NOT fire events. */
   setTime(hour: number, minute: number = 0, day?: number): void {
     this._hour = Math.max(0, Math.min(23, Math.floor(hour)));

@@ -11,7 +11,7 @@ vi.mock('../config/gemini.js', () => ({
       }))
     }
   })),
-  GEMINI_MODELS: { FLASH: 'gemini-2.0-flash', PRO: 'gemini-2.5-pro' }
+  GEMINI_MODELS: { FLASH: 'gemini-2.0-flash', PRO: 'gemini-3.1-pro-preview' }
 }));
 
 function makeMessages(count: number): GeminiMessage[] {

@@ -99,8 +99,8 @@ export function ResidenceDetailView({
             <span className="text-muted-foreground">Type</span>
             {canEdit && onResidenceTypeChange ? (
               <Select
-                value={residence.residenceType || 'House'}
-                onValueChange={(value) => onResidenceTypeChange(residence.id, value)}
+                value={residence.residenceType ? residence.residenceType.charAt(0).toUpperCase() + residence.residenceType.slice(1).toLowerCase() : 'House'}
+                onValueChange={(value) => onResidenceTypeChange(residence.id, value.toLowerCase())}
               >
                 <SelectTrigger className="w-[140px] h-7 text-xs">
                   <SelectValue />

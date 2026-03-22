@@ -136,7 +136,7 @@
       "title": "Implement Gemini native audio I/O for single-call voice chat",
       "completed": true,
       "parallel_group": 2,
-      "description": "Investigate and implement Gemini 2.5's native audio input + audio output capability. In server/services/tts-stt.ts or a new server/services/gemini-voice.ts, create a function that sends audio input to Gemini with the system prompt and gets both text and audio output in a single generateContent call. Use model 'gemini-2.5-flash' or 'gemini-2.5-pro' with audio modality config. If the API supports it, this collapses STT+LLM+TTS into one network call. Wire it into the voice-chat endpoint as the preferred path with fallback to the 3-step pipeline."
+      "description": "Investigate and implement Gemini 2.5's native audio input + audio output capability. In server/services/tts-stt.ts or a new server/services/gemini-voice.ts, create a function that sends audio input to Gemini with the system prompt and gets both text and audio output in a single generateContent call. Use model 'gemini-2.5-flash' or 'gemini-3.1-pro-preview' with audio modality config. If the API supports it, this collapses STT+LLM+TTS into one network call. Wire it into the voice-chat endpoint as the preferred path with fallback to the 3-step pipeline."
     },
     {
       "title": "[US-068] Intra-settlement street rendering in 3D",

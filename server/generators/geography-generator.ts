@@ -715,7 +715,7 @@ export class GeographyGenerator {
 
         // Lot dimensions by settlement type
         const lotWidth = config.settlementType === 'village' ? 15 : config.settlementType === 'town' ? 12 : 10;
-        const lotDepth = config.settlementType === 'village' ? 20 : config.settlementType === 'town' ? 16 : 14;
+        const lotDepth = config.settlementType === 'village' ? 28 : config.settlementType === 'town' ? 24 : 20;
 
         buildings.push({
           id: `building-${buildingIndex}`,
@@ -980,7 +980,7 @@ export class GeographyGenerator {
       const side = placement?.side || 'left';
       const facingAngle = placement?.facingAngle ?? 0;
       const lotWidth = placement?.lotWidth || 12;
-      const lotDepth = placement?.lotDepth || 16;
+      const lotDepth = placement?.lotDepth || 24;
       const elevation = building.properties?.elevation || 0;
       const foundationType = building.properties?.foundationType || 'flat';
       const blockId = building.properties?.blockId || null;
@@ -1413,7 +1413,7 @@ export class GeographyGenerator {
             side: buildingIndex % 2 === 0 ? 'left' : 'right',
             facingAngle: 0,
             lotWidth: config.settlementType === 'village' ? 15 : config.settlementType === 'town' ? 12 : 10,
-            lotDepth: config.settlementType === 'village' ? 20 : config.settlementType === 'town' ? 16 : 14,
+            lotDepth: config.settlementType === 'village' ? 28 : config.settlementType === 'town' ? 24 : 20,
             distanceAlongStreet: Math.round((i / buildingsPerStreet) * 100),
             elevation: 0,
             foundationType: 'flat',

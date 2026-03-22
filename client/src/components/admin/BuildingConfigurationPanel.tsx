@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronRight, Home, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette, Image as ImageIcon, X } from "lucide-react";
 import { BUILDING_CATEGORY_GROUPINGS, getCategoryForType, type BuildingCategory } from "@shared/game-engine/building-categories";
+import { AssetBrowserDialog } from "../AssetBrowserDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type {
   UnifiedBuildingTypeConfig,
@@ -82,11 +83,15 @@ export function humanize(s: string): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+import type { ConfigSelection } from "./config-selection";
+
 interface BuildingConfigurationPanelProps {
   collection: AssetCollection;
   assets?: VisualAsset[];
   onUpdateConfig: (buildingTypeConfigs: Record<string, UnifiedBuildingTypeConfig>) => void;
   onUpdateCategoryPresets?: (categoryPresets: Record<string, ProceduralStylePreset>) => void;
+  selection?: ConfigSelection;
+  onSelect?: (selection: ConfigSelection) => void;
 }
 
 // ─── Category summary ────────────────────────────────────────────────────────
@@ -374,6 +379,10 @@ interface BuildingTypeDetailPanelProps {
   categoryPreset: ProceduralStylePreset | undefined;
   assets: VisualAsset[];
   onUpdate: (config: UnifiedBuildingTypeConfig) => void;
+  /** Hide the interior config section (when shown in separate tab) */
+  hideInterior?: boolean;
+  /** Show only the interior config section */
+  interiorOnly?: boolean;
 }
 
 /** Checks whether a field in styleOverrides differs from the category preset */
@@ -391,6 +400,8 @@ export function BuildingTypeDetailPanel({
   categoryPreset,
   assets,
   onUpdate,
+  hideInterior,
+  interiorOnly,
 }: BuildingTypeDetailPanelProps) {
   const mode = config?.mode;
   const overrides = config?.styleOverrides;
@@ -457,11 +468,11 @@ export function BuildingTypeDetailPanel({
 
   return (
     <div
-      className="ml-5 mr-1 my-1 p-2 border rounded bg-muted/20 space-y-2 text-xs"
+      className={`${interiorOnly || hideInterior ? '' : 'ml-5 mr-1 my-1'} p-2 border rounded bg-muted/20 space-y-2 text-xs`}
       data-testid={`type-detail-${typeName}`}
     >
       {/* Mode toggle */}
-      <div className="flex items-center gap-2">
+      {!interiorOnly && (<div className="flex items-center gap-2">
         <span className="text-muted-foreground text-[10px]">Mode:</span>
         <button
           className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
@@ -481,10 +492,10 @@ export function BuildingTypeDetailPanel({
         >
           Procedural
         </button>
-      </div>
+      </div>)}
 
       {/* ── Asset Mode ── */}
-      {mode === "asset" && (
+      {!interiorOnly && mode === "asset" && (
         <div className="space-y-2" data-testid={`asset-config-${typeName}`}>
           <div>
             <Label className="text-[10px]">Model Asset</Label>
@@ -530,7 +541,7 @@ export function BuildingTypeDetailPanel({
       )}
 
       {/* ── Procedural Mode ── */}
-      {mode === "procedural" && (
+      {!interiorOnly && mode === "procedural" && (
         <div className="space-y-2" data-testid={`procedural-config-${typeName}`}>
           {/* Reset all */}
           {hasAnyOverrides && (
@@ -753,37 +764,276 @@ export function BuildingTypeDetailPanel({
               ))}
             </div>
           </div>
+
+          {/* Exterior Textures */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground">Textures</p>
+            {([
+              ['Wall Texture', 'wallTextureId'] as const,
+              ['Roof Texture', 'roofTextureId'] as const,
+              ['Door Texture', 'doorTextureId'] as const,
+              ['Window Texture', 'windowTextureId'] as const,
+            ]).map(([label, field]) => {
+              const textureId = getResolved(field as any) as string | undefined;
+              const textureName = textureId ? (assets.find(a => a.id === textureId)?.name ?? 'Selected') : null;
+              return (
+                <div key={field} className="flex items-center justify-between rounded border px-2 py-1">
+                  <div className="min-w-0 mr-2">
+                    <p className="text-[10px] font-medium">{label}</p>
+                    <p className="text-[9px] text-muted-foreground truncate">{textureName ?? 'Not set (using color)'}</p>
+                  </div>
+                  <div className="flex gap-0.5 shrink-0">
+                    {isOverridden(overrides, field as any) && (
+                      <button className="text-muted-foreground hover:text-foreground" onClick={() => resetField(field as any)} title="Reset">
+                        <RotateCcw className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                    {textureId && (
+                      <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setOverride({ [field]: undefined } as any)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* Not configured yet */}
-      {!mode && (
+      {!interiorOnly && !mode && (
         <div className="text-muted-foreground text-[10px]">
           Not configured. Select a mode above to begin.
         </div>
       )}
 
       {/* Interior config section */}
-      {config && (
+      {!hideInterior && (config || interiorOnly) && (
         <div className="border rounded p-2 space-y-2 bg-muted/20">
-          <div className="flex items-center gap-1.5">
-            <Home className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Interior</span>
-            {config.interiorConfig && (
-              <Badge variant="secondary" className="text-[9px] h-3.5 ml-auto">
-                {config.interiorConfig.mode}
-              </Badge>
-            )}
-          </div>
+          {!interiorOnly && (
+            <div className="flex items-center gap-1.5">
+              <Home className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Interior</span>
+              {config?.interiorConfig && (
+                <Badge variant="secondary" className="text-[9px] h-3.5 ml-auto">
+                  {config.interiorConfig.mode}
+                </Badge>
+              )}
+            </div>
+          )}
           <InteriorConfigEditor
-            config={config.interiorConfig}
+            config={config?.interiorConfig}
             assets={assets}
-            onChange={(interiorConfig) => onUpdate({ ...config, interiorConfig })}
+            onChange={(interiorConfig) => onUpdate({ ...(config || { mode: 'procedural' as const }), interiorConfig })}
             onClear={() => {
+              if (!config) return;
               const { interiorConfig: _, ...rest } = config;
               onUpdate(rest as UnifiedBuildingTypeConfig);
             }}
           />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+
+// ─── Inline Category Preset Editor ──────────────────────────────────────────
+
+const TEXTURE_FIELDS = [
+  { key: 'wallTextureId' as const, label: 'Wall Texture' },
+  { key: 'roofTextureId' as const, label: 'Roof Texture' },
+  { key: 'floorTextureId' as const, label: 'Floor Texture' },
+  { key: 'doorTextureId' as const, label: 'Door Texture' },
+  { key: 'windowTextureId' as const, label: 'Window Texture' },
+] as const;
+
+type TextureFieldKey = typeof TEXTURE_FIELDS[number]['key'];
+
+function makeDefaultPreset(category: string): ProceduralStylePreset {
+  return {
+    id: `cat_${category}_${Date.now()}`,
+    name: `${CATEGORY_LABELS[category as BuildingCategory] ?? category} Style`,
+    baseColors: [{ r: 0.8, g: 0.75, b: 0.65 }],
+    roofColor: { r: 0.3, g: 0.25, b: 0.2 },
+    windowColor: { r: 0.8, g: 0.85, b: 0.9 },
+    doorColor: { r: 0.4, g: 0.3, b: 0.2 },
+    materialType: 'wood',
+    architectureStyle: 'colonial',
+  };
+}
+
+function InlineCategoryPresetEditor({
+  category,
+  preset,
+  assets,
+  onUpdate,
+  onAdd,
+  onRemove,
+  onTexturePick,
+}: {
+  category: string;
+  preset: ProceduralStylePreset | undefined;
+  assets: VisualAsset[];
+  onUpdate: (partial: Partial<ProceduralStylePreset>) => void;
+  onAdd: () => void;
+  onRemove: () => void;
+  onTexturePick: (field: TextureFieldKey) => void;
+}) {
+  const [showPresetDetails, setShowPresetDetails] = useState(false);
+
+  if (!preset) {
+    return (
+      <div className="flex items-center justify-between px-2 py-1 bg-muted/30 rounded text-[10px]">
+        <span className="text-muted-foreground flex items-center gap-1">
+          <Palette className="w-3 h-3" /> No category style preset
+        </span>
+        <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={onAdd}>
+          <Plus className="w-3 h-3 mr-0.5" /> Add Preset
+        </Button>
+      </div>
+    );
+  }
+
+  const getTextureName = (textureId?: string) => {
+    if (!textureId) return null;
+    return assets.find(a => a.id === textureId)?.name ?? 'Selected';
+  };
+
+  return (
+    <div className="border rounded bg-muted/20 px-2 py-1.5 space-y-1.5">
+      <button
+        className="flex items-center justify-between w-full text-[10px]"
+        onClick={() => setShowPresetDetails(!showPresetDetails)}
+      >
+        <div className="flex items-center gap-1.5">
+          <Palette className="w-3 h-3 text-muted-foreground" />
+          <span className="font-medium">Category Preset: {preset.name}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {preset.baseColors.slice(0, 4).map((c, i) => (
+            <div key={i} className="w-3 h-3 rounded-sm border" style={{ backgroundColor: colorToHex(c) }} />
+          ))}
+          <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform ${showPresetDetails ? 'rotate-90' : ''}`} />
+        </div>
+      </button>
+
+      {showPresetDetails && (
+        <div className="space-y-2 pt-1 border-t">
+          <div>
+            <Label className="text-[10px]">Name</Label>
+            <Input className="h-6 text-xs" value={preset.name} onChange={e => onUpdate({ name: e.target.value })} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5">
+            <div>
+              <Label className="text-[10px]">Material</Label>
+              <Select value={preset.materialType} onValueChange={v => onUpdate({ materialType: v as MaterialType })}>
+                <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{MATERIAL_TYPES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px]">Architecture</Label>
+              <Select value={preset.architectureStyle} onValueChange={v => onUpdate({ architectureStyle: v as ArchitectureStyle })}>
+                <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{ARCH_STYLES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-[10px]">Roof Style</Label>
+            <Select value={preset.roofStyle || 'default'} onValueChange={v => onUpdate({ roofStyle: v === 'default' ? undefined : v as RoofStyle })}>
+              <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default (from architecture)</SelectItem>
+                {ROOF_STYLES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Wall Colors */}
+          <div>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px]">Wall Colors</Label>
+              <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => {
+                onUpdate({ baseColors: [...preset.baseColors, { r: 0.7, g: 0.7, b: 0.7 }] });
+              }}><Plus className="w-2.5 h-2.5" /></Button>
+            </div>
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {preset.baseColors.map((c, i) => (
+                <div key={i} className="relative group">
+                  <input type="color" value={colorToHex(c)}
+                    onChange={e => {
+                      const colors = [...preset.baseColors];
+                      colors[i] = hexToColor(e.target.value);
+                      onUpdate({ baseColors: colors });
+                    }}
+                    className="w-6 h-6 rounded border cursor-pointer p-0" />
+                  {preset.baseColors.length > 1 && (
+                    <button className="absolute -top-1 -right-1 w-3 h-3 bg-destructive text-white rounded-full text-[8px] leading-none hidden group-hover:flex items-center justify-center"
+                      onClick={() => onUpdate({ baseColors: preset.baseColors.filter((_, j) => j !== i) })}>&times;</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Accent Colors */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {([['Roof', 'roofColor'], ['Window', 'windowColor'], ['Door', 'doorColor']] as const).map(([label, field]) => (
+              <div key={field}>
+                <Label className="text-[10px]">{label}</Label>
+                <input type="color" value={colorToHex((preset as any)[field])}
+                  onChange={e => onUpdate({ [field]: hexToColor(e.target.value) })}
+                  className="w-full h-6 rounded border cursor-pointer p-0" />
+              </div>
+            ))}
+          </div>
+
+          {/* Features */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground">Features</p>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+              {([['Balcony', 'hasBalcony'], ['Ironwork', 'hasIronworkBalcony'], ['Porch', 'hasPorch'], ['Shutters', 'hasShutters']] as const).map(([label, field]) => (
+                <label key={field} className="flex items-center gap-1 text-[10px] cursor-pointer">
+                  <input type="checkbox" checked={!!(preset as any)[field]}
+                    onChange={e => onUpdate({ [field]: e.target.checked || undefined })} className="w-3 h-3" />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Textures */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground">Textures</p>
+            {TEXTURE_FIELDS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between rounded border px-2 py-1">
+                <div className="min-w-0 mr-2">
+                  <p className="text-[10px] font-medium">{label}</p>
+                  <p className="text-[9px] text-muted-foreground truncate">{getTextureName((preset as any)[key]) ?? 'Not set'}</p>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => onTexturePick(key)}>
+                    <ImageIcon className="w-3 h-3 mr-0.5" /> Pick
+                  </Button>
+                  {(preset as any)[key] && (
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => onUpdate({ [key]: undefined })}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Button variant="destructive" size="sm" className="w-full h-6 text-[10px]" onClick={onRemove}>
+            <Trash2 className="w-3 h-3 mr-1" /> Remove Preset
+          </Button>
         </div>
       )}
     </div>
@@ -797,18 +1047,23 @@ export function BuildingConfigurationPanel({
   assets = [],
   onUpdateConfig,
   onUpdateCategoryPresets,
+  selection,
+  onSelect,
 }: BuildingConfigurationPanelProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [expandedType, setExpandedType] = useState<string | null>(null);
+  const [showTextureBrowser, setShowTextureBrowser] = useState(false);
+  const [texturePickTarget, setTexturePickTarget] = useState<{ category: string; field: TextureFieldKey } | null>(null);
 
   const configs = useMemo<Record<string, UnifiedBuildingTypeConfig>>(
-    () => (collection as any).buildingTypeConfigs || {},
-    [(collection as any).buildingTypeConfigs],
+    () => (collection as any).worldTypeConfig?.buildingConfig?.buildingTypeConfigs
+      || (collection as any).buildingTypeConfigs || {},
+    [(collection as any).worldTypeConfig, (collection as any).buildingTypeConfigs],
   );
 
   const presets = useMemo<Record<string, ProceduralStylePreset>>(
-    () => (collection as any).categoryPresets || {},
-    [(collection as any).categoryPresets],
+    () => (collection as any).worldTypeConfig?.buildingConfig?.categoryPresets
+      || (collection as any).categoryPresets || {},
+    [(collection as any).worldTypeConfig, (collection as any).categoryPresets],
   );
 
   const toggleCategory = (cat: string) => {
@@ -820,9 +1075,11 @@ export function BuildingConfigurationPanel({
     });
   };
 
-  const toggleType = (typeName: string) => {
-    setExpandedType(prev => (prev === typeName ? null : typeName));
-  };
+  const isTypeSelected = (typeName: string) =>
+    selection?.module === 'building' && selection.typeName === typeName;
+
+  const isPresetSelected = (category: string) =>
+    selection?.module === 'building-preset' && selection.category === category;
 
   const handleTypeUpdate = useCallback(
     (typeName: string, typeConfig: UnifiedBuildingTypeConfig) => {
@@ -830,6 +1087,49 @@ export function BuildingConfigurationPanel({
     },
     [configs, onUpdateConfig],
   );
+
+  const handlePresetUpdate = useCallback(
+    (category: string, partial: Partial<ProceduralStylePreset>) => {
+      if (!onUpdateCategoryPresets) return;
+      onUpdateCategoryPresets({
+        ...presets,
+        [category]: { ...presets[category], ...partial },
+      });
+    },
+    [presets, onUpdateCategoryPresets],
+  );
+
+  const handlePresetAdd = useCallback(
+    (category: string) => {
+      if (!onUpdateCategoryPresets) return;
+      onUpdateCategoryPresets({
+        ...presets,
+        [category]: makeDefaultPreset(category),
+      });
+    },
+    [presets, onUpdateCategoryPresets],
+  );
+
+  const handlePresetRemove = useCallback(
+    (category: string) => {
+      if (!onUpdateCategoryPresets) return;
+      const next = { ...presets };
+      delete next[category];
+      onUpdateCategoryPresets(next);
+    },
+    [presets, onUpdateCategoryPresets],
+  );
+
+  const handleTextureSelect = useCallback((asset: any) => {
+    if (!texturePickTarget || !onUpdateCategoryPresets) return;
+    const { category, field } = texturePickTarget;
+    onUpdateCategoryPresets({
+      ...presets,
+      [category]: { ...presets[category], [field]: asset.id },
+    });
+    setShowTextureBrowser(false);
+    setTexturePickTarget(null);
+  }, [texturePickTarget, presets, onUpdateCategoryPresets]);
 
   const categories = Object.entries(BUILDING_CATEGORY_GROUPINGS) as [
     BuildingCategory,
@@ -891,34 +1191,55 @@ export function BuildingConfigurationPanel({
               </div>
             </button>
 
-            {/* Expanded category — list of building types */}
+            {/* Expanded category — preset editor + building types */}
             {isExpanded && (
-              <div className="border-t px-1.5 pb-1.5 pt-1 space-y-0.5">
-                {types.map(typeName => {
-                  const cfg = configs[typeName];
-                  const isTypeExpanded = expandedType === typeName;
-                  const presetColor = preset?.baseColors?.[0];
-                  const overrideColor = cfg?.styleOverrides?.baseColors?.[0];
-                  const displayColor = overrideColor || presetColor;
+              <div className="border-t px-1.5 pb-1.5 pt-1 space-y-1.5">
+                {/* Inline category preset editor */}
+                <InlineCategoryPresetEditor
+                  category={category}
+                  preset={preset}
+                  assets={assets}
+                  onUpdate={(partial) => handlePresetUpdate(category, partial)}
+                  onAdd={() => handlePresetAdd(category)}
+                  onRemove={() => handlePresetRemove(category)}
+                  onTexturePick={(field) => {
+                    setTexturePickTarget({ category, field });
+                    setShowTextureBrowser(true);
+                  }}
+                />
 
-                  return (
-                    <div key={typeName} data-testid={`building-type-${typeName}`}>
+                {/* Building types list */}
+                <div className="space-y-0.5">
+                  {types.map(typeName => {
+                    const cfg = configs[typeName];
+                    const selected = isTypeSelected(typeName);
+                    const presetColor = preset?.baseColors?.[0];
+                    const overrideColor = cfg?.styleOverrides?.baseColors?.[0];
+                    const displayColor = overrideColor || presetColor;
+
+                    return (
                       <button
-                        className="flex items-center gap-2 w-full text-xs px-1.5 py-1 hover:bg-muted/40 rounded transition-colors"
-                        onClick={() => toggleType(typeName)}
+                        key={typeName}
+                        className={`flex items-center gap-2 w-full text-xs px-1.5 py-1 rounded transition-colors ${
+                          selected ? 'bg-primary/15 text-primary font-medium' : 'hover:bg-muted/40'
+                        }`}
+                        onClick={() => onSelect?.({
+                          module: 'building',
+                          typeName,
+                          category,
+                          config: cfg,
+                          categoryPreset: preset,
+                        })}
                         data-testid={`type-row-${typeName}`}
                       >
                         <span
                           className="inline-block w-3 h-3 rounded-sm border border-border shrink-0"
                           style={{ backgroundColor: color3ToCss(displayColor) }}
                         />
-                        {/* Type name */}
                         <span className="flex-1 text-left truncate">{humanize(typeName)}</span>
-                        {/* Interior indicator */}
                         {cfg?.interiorConfig && (
                           <Home className="w-3 h-3 text-muted-foreground shrink-0" />
                         )}
-                        {/* Mode badge */}
                         {cfg ? (
                           <Badge
                             variant={cfg.mode === "asset" ? "default" : "secondary"}
@@ -931,29 +1252,23 @@ export function BuildingConfigurationPanel({
                             Unset
                           </Badge>
                         )}
-                        <ChevronRight
-                          className={`w-3 h-3 text-muted-foreground transition-transform shrink-0 ${isTypeExpanded ? "rotate-90" : ""}`}
-                        />
+                        <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
                       </button>
-
-                      {/* Expanded type detail panel */}
-                      {isTypeExpanded && (
-                        <BuildingTypeDetailPanel
-                          typeName={typeName}
-                          config={cfg}
-                          categoryPreset={preset}
-                          assets={assets}
-                          onUpdate={updated => handleTypeUpdate(typeName, updated)}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
         );
       })}
+
+      {/* Texture picker browser (shared across all categories) */}
+      <AssetBrowserDialog
+        open={showTextureBrowser}
+        onOpenChange={(open) => { setShowTextureBrowser(open); if (!open) setTexturePickTarget(null); }}
+        onAssetSelected={handleTextureSelect}
+      />
     </div>
   );
 }

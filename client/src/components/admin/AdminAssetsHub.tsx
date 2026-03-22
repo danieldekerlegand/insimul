@@ -30,6 +30,9 @@ import { ImageUpscaleDialog } from "../ImageUpscaleDialog";
 import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
 import { BuildingConfigurationPanel } from "./BuildingConfigurationPanel";
+import { WorldTypeCollectionEditor } from "./WorldTypeCollectionEditor";
+import { ConfigDetailPanel } from "./ConfigDetailPanel";
+import type { ConfigSelection } from "./config-selection";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3, NpcConfig } from "@shared/game-engine/types";
 import { CategoryPresetEditorModal, type TexturePickerRequest } from "./CategoryPresetEditorModal";
@@ -118,6 +121,7 @@ export function AdminAssetsHub() {
 
   // Right panel
   const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets' | 'building-config' | null>('preview');
+  const [configSelection, setConfigSelection] = useState<ConfigSelection>(null);
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -237,10 +241,9 @@ export function AdminAssetsHub() {
     },
   });
 
-  // All assets fetch (for all-assets browse mode)
+  // All assets fetch (used for all-assets browse mode AND for texture/model pickers in config panels)
   const { data: allAssets = [], isLoading: allAssetsLoading } = useQuery<VisualAsset[]>({
     queryKey: ['/api/assets', 'all'],
-    enabled: browseMode === 'all-assets',
     queryFn: async () => {
       const response = await fetch('/api/assets');
       if (!response.ok) throw new Error('Failed to fetch assets');
@@ -276,7 +279,6 @@ export function AdminAssetsHub() {
         c.tags?.some(t => t.toLowerCase().includes(q))
       );
     }
-    if (filterType !== "all") result = result.filter(c => c.collectionType === filterType);
     if (filterWorldType !== "all") result = result.filter(c => c.worldType === filterWorldType);
     result.sort((a, b) => {
       if (a.isBase && !b.isBase) return -1;
@@ -284,12 +286,14 @@ export function AdminAssetsHub() {
       return a.name.localeCompare(b.name);
     });
     return result;
-  }, [collections, searchQuery, filterType, filterWorldType]);
+  }, [collections, searchQuery, filterWorldType]);
 
   const groupedCollections = useMemo(() => {
     const groups = new Map<string, AssetCollection[]>();
     for (const c of filteredCollections) {
-      const key = c.isBase ? 'Base Collections' : (COLLECTION_TYPES.find(t => t.value === c.collectionType)?.label || c.collectionType);
+      // Group by world type, or "Uncategorized" if no world type
+      const worldLabel = WORLD_TYPES.find(t => t.value === c.worldType)?.label || c.worldType || 'Uncategorized';
+      const key = c.isBase ? `${worldLabel} (Base)` : worldLabel;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(c);
     }
@@ -311,25 +315,32 @@ export function AdminAssetsHub() {
         a.tags?.some(t => t.toLowerCase().includes(q))
       );
     }
-    if (assetTypeFilter !== "all") result = result.filter(a => a.assetType === assetTypeFilter);
+    if (assetTypeFilter !== "all") result = result.filter(a => getAssetCategory(a) === assetTypeFilter);
     return result;
   }, [browseMode, displayAssets, assetSearchQuery, assetTypeFilter]);
 
-  // All asset types for the type filter
+  // Extract category from asset name parenthetical, e.g. "wooden_crate_02 (chest)" -> "chest"
+  const getAssetCategory = (asset: VisualAsset): string => {
+    const match = asset.name.match(/\(([^)]+)\)\s*$/);
+    return match ? match[1].trim() : 'uncategorized';
+  };
+
+  // All asset categories for the type filter
   const allAssetTypes = useMemo(() =>
-    Array.from(new Set(allAssets.map(a => a.assetType).filter(Boolean))).sort(),
+    Array.from(new Set(allAssets.map(a => getAssetCategory(a)))).sort(),
     [allAssets]
   );
 
-  // Group assets by type (for all-assets browse mode)
+  // Group assets by category extracted from name (for all-assets browse mode)
   const groupedAssets = useMemo(() => {
     const groups = new Map<string, VisualAsset[]>();
     for (const a of filteredDisplayAssets) {
-      const key = a.assetType || 'unknown';
+      const key = getAssetCategory(a);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(a);
     }
-    return groups;
+    // Sort groups alphabetically
+    return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
   }, [filteredDisplayAssets]);
 
   // Find which collections an asset belongs to
@@ -428,7 +439,7 @@ export function AdminAssetsHub() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          name, description: description || null, collectionType,
+          name, description: description || null, collectionType: 'world_type_collection',
           worldType: (worldType && worldType !== '__none__') ? worldType : null, purpose: purpose || null,
           tags: tags.split(',').map(t => t.trim()).filter(Boolean),
           isPublic, isBase: false, assetIds: initialAssets, modelScaling, ...initial3DConfig,
@@ -614,7 +625,7 @@ export function AdminAssetsHub() {
             <DropdownMenuLabel>Add Assets</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => { resetForm(); setShowCreateDialog(true); }}>
-              <Package className="w-3.5 h-3.5 mr-2" /> New Collection
+              <Package className="w-3.5 h-3.5 mr-2" /> New World Type
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setShowPolyhavenBrowser(true)} disabled={!!selectedCollection?.isBase}>
@@ -662,72 +673,49 @@ export function AdminAssetsHub() {
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input placeholder="Search collections..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-7 text-xs pl-7" />
         </div>
-        <div className="flex gap-1">
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="h-6 text-[10px] flex-1"><SelectValue placeholder="Type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {COLLECTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterWorldType} onValueChange={setFilterWorldType}>
-            <SelectTrigger className="h-6 text-[10px] flex-1"><SelectValue placeholder="World" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Worlds</SelectItem>
-              {WORLD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={filterWorldType} onValueChange={setFilterWorldType}>
+          <SelectTrigger className="h-6 text-[10px]"><SelectValue placeholder="World Type" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All World Types</SelectItem>
+            {WORLD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Collection List */}
+      {/* Collection List (flat) */}
       <ScrollArea className="flex-1">
-        <div className="p-2">
+        <div className="p-2 space-y-0.5">
           {isLoading ? (
             <p className="text-xs text-muted-foreground text-center py-8">Loading...</p>
           ) : filteredCollections.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-8">No collections found</p>
           ) : (
-            <div className="space-y-0.5">
-              {Array.from(groupedCollections.entries()).map(([groupName, groupCollections]) => {
-                const isExpanded = expandedGroups.has(groupName);
-                return (
-                  <div key={groupName}>
-                    <button className="w-full flex items-center gap-1 px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors" onClick={() => toggleGroup(groupName)}>
-                      {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-                      <span className="truncate">{groupName}</span>
-                      <span className="ml-auto text-[10px] opacity-60">{groupCollections.length}</span>
-                    </button>
-                    {isExpanded && groupCollections.map(collection => {
-                      const isSelected = selectedCollection?.id === collection.id;
-                      const assetCount = collection.assetIds?.length || 0;
-                      return (
-                        <div key={collection.id} className="group flex items-center">
-                          <button
-                            className={`flex-1 text-left px-5 py-1.5 text-xs rounded-sm transition-colors flex items-center gap-2 min-w-0 ${
-                              isSelected ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                            }`}
-                            onClick={() => { setSelectedCollection(collection); setSelectedAsset(null); }}
-                          >
-                            <Package className={`w-3 h-3 shrink-0 ${assetCount === 0 ? 'text-amber-500' : ''}`} />
-                            <span className="truncate flex-1">{collection.name}</span>
-                            <span className={`text-[10px] shrink-0 ${assetCount === 0 ? 'text-amber-500 font-medium' : 'opacity-60'}`}>{assetCount === 0 ? 'empty' : assetCount}</span>
-                          </button>
-                          <Button
-                            variant="ghost" size="icon"
-                            className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0 mr-1"
-                            title="Copy collection"
-                            onClick={(e) => { e.stopPropagation(); handleCopyCollection(collection); }}
-                          >
-                            <Copy className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
+            filteredCollections.map(collection => {
+              const isSelected = selectedCollection?.id === collection.id;
+              const worldLabel = WORLD_TYPES.find(t => t.value === collection.worldType)?.label;
+              return (
+                <div key={collection.id} className="group flex items-center">
+                  <button
+                    className={`flex-1 text-left px-3 py-1.5 text-xs rounded-sm transition-colors flex items-center gap-2 min-w-0 ${
+                      isSelected ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    }`}
+                    onClick={() => { setSelectedCollection(collection); setSelectedAsset(null); }}
+                  >
+                    <Package className="w-3 h-3 shrink-0" />
+                    <span className="truncate flex-1">{collection.name}</span>
+                    {worldLabel && <span className="text-[10px] shrink-0 opacity-60">{worldLabel}</span>}
+                  </button>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0 mr-1"
+                    title="Copy collection"
+                    onClick={(e) => { e.stopPropagation(); handleCopyCollection(collection); }}
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
+                </div>
+              );
+            })
           )}
         </div>
       </ScrollArea>
@@ -750,7 +738,7 @@ export function AdminAssetsHub() {
           <SelectContent>
             <SelectItem value="all">All Types ({allAssets.length})</SelectItem>
             {allAssetTypes.map(t => (
-              <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')} ({allAssets.filter(a => a.assetType === t).length})</SelectItem>
+              <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')} ({allAssets.filter(a => getAssetCategory(a) === t).length})</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -830,11 +818,9 @@ export function AdminAssetsHub() {
       );
     }
 
-    // In collections mode, show collection details + asset grid
+    // In collections mode, show World Type Collection Editor in center
     if (browseMode === 'collections' && selectedCollection) {
       const isBase = selectedCollection.isBase === true;
-      const assetCount = selectedCollection.assetIds?.length || 0;
-      const typeLabel = COLLECTION_TYPES.find(t => t.value === selectedCollection.collectionType)?.label || selectedCollection.collectionType;
       const worldTypeLabel = WORLD_TYPES.find(t => t.value === selectedCollection.worldType)?.label || selectedCollection.worldType;
 
       return (
@@ -844,7 +830,6 @@ export function AdminAssetsHub() {
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-lg font-bold break-words">{selectedCollection.name}</h2>
               {isBase && <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">Base</Badge>}
-              <Badge variant="outline">{typeLabel}</Badge>
               {worldTypeLabel && <Badge variant="secondary" className="text-xs">{worldTypeLabel}</Badge>}
             </div>
             {selectedCollection.description && <p className="text-sm text-muted-foreground">{selectedCollection.description}</p>}
@@ -855,7 +840,7 @@ export function AdminAssetsHub() {
             {!isBase && (
               <>
                 <Button variant="outline" size="sm" onClick={() => { loadCollectionToForm(selectedCollection); setShowEditDialog(true); }}>
-                  <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit
+                  <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit Details
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setShowPolyhavenBrowser(true)}>
                   <Package className="w-3.5 h-3.5 mr-1.5" /> Polyhaven
@@ -873,38 +858,18 @@ export function AdminAssetsHub() {
                 </div>
               </>
             )}
-            {isBase && (
-              <span className="text-xs text-muted-foreground">{assetCount} assets</span>
-            )}
           </div>
 
-          {/* Asset grid */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="p-4">
-              {collectionAssets.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                  <p className="text-sm">No assets in this collection</p>
-                  {!isBase && <p className="text-xs mt-1">Use the toolbar above to add assets</p>}
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-                  {collectionAssets.map((asset) => (
-                    <AssetGridItem
-                      key={asset.id}
-                      asset={asset}
-                      isSelected={selectedAsset?.id === asset.id}
-                      onClick={() => { setSelectedAsset(asset); setExpandedSection('preview'); }}
-                      modelLoaded={loadedModelIds.includes(asset.id)}
-                      onModelHover={() => handleModelHover(asset.id)}
-                      playingAudioId={playingAudioId}
-                      onAudioPlayPause={handleAudioPlayPause}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </ScrollArea>
+          {/* World Type Collection Editor (5 config tabs) */}
+          <div className="flex-1 min-h-0">
+            <WorldTypeCollectionEditor
+              collection={selectedCollection}
+              assets={allAssets}
+              onPatch={patchCollectionConfig}
+              selection={configSelection}
+              onSelect={setConfigSelection}
+            />
+          </div>
         </div>
       );
     }
@@ -933,318 +898,223 @@ export function AdminAssetsHub() {
   // ─── Right Panel ───────────────────────────────────────────────────────────
 
   const renderRight = () => {
-    // Always show right panel when there's a selected asset or collection
     const hasAsset = !!selectedAsset;
     const hasCollection = browseMode === 'collections' && !!selectedCollection;
     if (!hasAsset && !hasCollection) return null;
 
-    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets' | 'building-config';
-    const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
-      { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
-      { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
-      { id: 'building-config' as SectionId, label: 'Building Config', icon: Building2, show: hasCollection },
-      { id: 'config' as SectionId, label: '3D Config', icon: Settings2, show: hasCollection },
-      { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
-      { id: 'npc' as SectionId, label: 'NPC Characters', icon: Users, show: hasCollection },
-      { id: 'category_presets' as SectionId, label: 'Category Presets', icon: Palette, show: hasCollection },
-    ];
-    const sections = allSections.filter(s => s.show);
-
-    return (
-      <div className="w-72 shrink-0 border-l flex flex-col min-h-0">
-        {sections.map((section, idx) => {
-          const isExpanded = expandedSection === section.id;
-          const Icon = section.icon;
-          return (
-            <div key={section.id} className={`flex flex-col min-h-0 ${idx > 0 ? 'border-t' : ''} ${isExpanded ? 'flex-1' : ''}`}>
-              <button
-                className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                onClick={() => setExpandedSection(isExpanded ? null : section.id)}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {section.label}
-                <ChevronRight className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-              </button>
-
-              {isExpanded && (
-                <ScrollArea className="flex-1 min-h-0">
-                  <div className="px-3 pb-3 space-y-3">
-                    {/* Asset Preview */}
-                    {section.id === 'preview' && selectedAsset && (
-                      <>
-                        <div className="relative rounded-lg border overflow-hidden bg-muted/30">
-                          {isImageAsset(selectedAsset) ? (
-                            <img src={`/${selectedAsset.filePath}`} alt={selectedAsset.name} className="w-full aspect-square object-contain" />
-                          ) : isModelAsset(selectedAsset) ? (
-                            <div className="aspect-square">
-                              <ModelPreview modelPath={selectedAsset.filePath} className="h-full w-full" showControls={true} />
-                            </div>
-                          ) : isAudioAsset(selectedAsset) ? (
-                            <div className="aspect-square flex flex-col items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-                              <Volume2 className="h-8 w-8 text-purple-500 mb-2" />
-                              <audio controls src={`/${selectedAsset.filePath}`} className="w-5/6" />
-                            </div>
-                          ) : (
-                            <div className="aspect-square flex items-center justify-center">
-                              <Box className="h-8 w-8 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-
-                        <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setShowFullscreenAsset(true)}>
-                          <Maximize2 className="w-3 h-3 mr-1.5" /> Fullscreen
-                        </Button>
-
-                        {/* Quick info */}
-                        <div className="space-y-1.5 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Type</span>
-                            <span>{selectedAsset.assetType?.replace(/_/g, ' ')}</span>
-                          </div>
-                          {selectedAsset.fileSize && (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Size</span>
-                              <span>{(selectedAsset.fileSize / 1024).toFixed(1)} KB</span>
-                            </div>
-                          )}
-                          {selectedAsset.width && selectedAsset.height && (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Dimensions</span>
-                              <span>{selectedAsset.width}x{selectedAsset.height}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Collections this asset belongs to */}
-                        {browseMode === 'all-assets' && (() => {
-                          const assetCollections = getAssetCollections(selectedAsset.id);
-                          if (assetCollections.length === 0) return null;
-                          return (
-                            <div>
-                              <p className="text-[10px] text-muted-foreground mb-1">In Collections</p>
-                              <div className="flex flex-wrap gap-1">
-                                {assetCollections.map(c => (
-                                  <Badge key={c.id} variant="outline" className="text-[10px] h-4 cursor-pointer hover:bg-primary/10"
-                                    onClick={() => { setBrowseMode('collections'); setSelectedCollection(c); setSelectedAsset(selectedAsset); }}>
-                                    {c.name}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Actions */}
-                        <div className="flex gap-1 flex-wrap">
-                          <Button variant="outline" size="sm" className="text-[10px] h-6 px-2" onClick={() => handleDownload(selectedAsset)}>
-                            <Download className="w-3 h-3 mr-1" /> Download
-                          </Button>
-                          {isImageAsset(selectedAsset) && (
-                            <>
-                              <Button variant="outline" size="sm" className="text-[10px] h-6 px-2" onClick={() => setShowUpscaleDialog(true)}>
-                                <ArrowUp className="w-3 h-3 mr-1" /> Upscale
-                              </Button>
-                              <Button variant="outline" size="sm" className="text-[10px] h-6 px-2" onClick={() => setShowEnhanceDialog(true)}>
-                                <Wand2 className="w-3 h-3 mr-1" /> Enhance
-                              </Button>
-                            </>
-                          )}
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm" className="text-[10px] h-6 px-2">
-                                <Trash2 className="w-3 h-3 mr-1" /> Delete
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Asset?</AlertDialogTitle>
-                                <AlertDialogDescription>Permanently delete "{selectedAsset.name}"?</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteMutation.mutate(selectedAsset.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Details */}
-                    {section.id === 'details' && selectedAsset && (
-                      <>
-                        <DetailField label="ID" value={selectedAsset.id} mono />
-                        <DetailField label="Name" value={selectedAsset.name} />
-                        <DetailField label="Type" value={selectedAsset.assetType?.replace(/_/g, ' ') || 'Unknown'} />
-                        <DetailField label="Format" value={selectedAsset.mimeType || 'Unknown'} />
-                        <DetailField label="File Path" value={selectedAsset.filePath} mono />
-                        {selectedAsset.purpose && <DetailField label="Purpose" value={selectedAsset.purpose} />}
-                        {selectedAsset.usageContext && <DetailField label="Context" value={selectedAsset.usageContext} />}
-                        {selectedAsset.generationProvider && (
-                          <>
-                            <DetailField label="Provider" value={selectedAsset.generationProvider} />
-                            {selectedAsset.generationPrompt && <DetailField label="Prompt" value={selectedAsset.generationPrompt} />}
-                          </>
-                        )}
-                        {selectedAsset.tags && selectedAsset.tags.length > 0 && (
-                          <div>
-                            <p className="text-[10px] text-muted-foreground mb-1">Tags</p>
-                            <div className="flex flex-wrap gap-1">
-                              {selectedAsset.tags.map((tag, i) => (
-                                <Badge key={i} variant="outline" className="text-[10px] h-4"><Tag className="w-2 h-2 mr-0.5" />{tag}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {section.id === 'details' && !selectedAsset && selectedCollection && (
-                      <>
-                        <DetailField label="ID" value={selectedCollection.id} mono />
-                        <DetailField label="Type" value={COLLECTION_TYPES.find(t => t.value === selectedCollection.collectionType)?.label || selectedCollection.collectionType} />
-                        <DetailField label="World Type" value={WORLD_TYPES.find(t => t.value === selectedCollection.worldType)?.label || selectedCollection.worldType || 'None'} />
-                        <DetailField label="Purpose" value={selectedCollection.purpose || 'Not set'} />
-                        <DetailField label="Public" value={selectedCollection.isPublic ? 'Yes' : 'No'} />
-                        <DetailField label="Base" value={selectedCollection.isBase ? 'Yes' : 'No'} />
-                        {selectedCollection.createdAt && <DetailField label="Created" value={new Date(selectedCollection.createdAt).toLocaleDateString()} />}
-                        {selectedCollection.tags && selectedCollection.tags.length > 0 && (
-                          <div>
-                            <p className="text-[10px] text-muted-foreground mb-1">Tags</p>
-                            <div className="flex flex-wrap gap-1">
-                              {selectedCollection.tags.map((tag, i) => <Badge key={i} variant="outline" className="text-[10px] h-4">{tag}</Badge>)}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Unified Building Configuration */}
-                    {section.id === 'building-config' && selectedCollection && (
-                      <BuildingConfigurationPanel
-                        collection={selectedCollection}
-                        assets={collectionAssets}
-                        onUpdateConfig={(buildingTypeConfigs) =>
-                          patchCollectionConfig({ buildingTypeConfigs } as any)
-                        }
-                        onUpdateCategoryPresets={(categoryPresets) =>
-                          patchCollectionConfig({ categoryPresets } as any)
-                        }
-                      />
-                    )}
-
-                    {/* 3D Config */}
-                    {section.id === 'config' && selectedCollection && (
-                      <>
-                        {/* Textures */}
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Textures</p>
-                          <InlineModelRow label="Ground Texture" assetId={selectedCollection.groundTextureId || undefined} assets={collectionAssets}
-                            onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'groundTextureId', inline: true }); setShowModelBrowser(true); }}
-                            onClear={() => handleInlineTextureAssign('groundTextureId', null)} />
-                          <InlineModelRow label="Road Texture" assetId={selectedCollection.roadTextureId || undefined} assets={collectionAssets}
-                            onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'roadTextureId', inline: true }); setShowModelBrowser(true); }}
-                            onClear={() => handleInlineTextureAssign('roadTextureId', null)} />
-                        </div>
-
-                        {/* Model groups */}
-                        {[
-                          { title: 'Building Models', field: 'buildingModels', group: 'building' as const, prefix: '',
-                            roles: ['default', 'smallResidence', 'largeResidence', 'mansion', 'tavern', 'shop', 'blacksmith', 'church', 'library', 'hospital', 'school', 'bank', 'theater', 'windmill', 'watermill', 'lumbermill', 'barracks', 'mine', 'municipal'] },
-                          { title: 'Player Models', field: 'playerModels', group: 'character' as const, prefix: 'player_',
-                            roles: ['default', 'male', 'female', 'knight', 'mage', 'rogue'] },
-                          { title: 'NPC Models', field: 'characterModels', group: 'character' as const, prefix: '',
-                            roles: ['civilian_male', 'civilian_female', 'guard', 'merchant', 'noble'] },
-                          { title: 'Nature Models', field: 'natureModels', group: 'nature' as const, prefix: '',
-                            roles: ['defaultTree', 'tree', 'rock', 'shrub', 'bush'] },
-                          { title: 'Quest Objects', field: 'questObjectModels', group: 'object' as const, prefix: 'quest_',
-                            roles: ['collectible', 'marker', 'container', 'key', 'scroll'] },
-                        ].map(({ title, field, group, prefix, roles }) => {
-                          const models = (selectedCollection as any)[field] || {};
-                          const count = Object.keys(models).length;
-                          const isExpanded = expandedConfigGroups.has(field);
-                          return (
-                            <div key={field} className="border rounded">
-                              <button
-                                className="flex items-center justify-between w-full text-xs px-2 py-2 hover:bg-muted/50 rounded cursor-pointer transition-colors"
-                                onClick={() => setExpandedConfigGroups(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(field)) next.delete(field); else next.add(field);
-                                  return next;
-                                })}
-                              >
-                                <div className="flex items-center gap-1.5">
-                                  <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                                  <span className="font-medium">{title}</span>
-                                </div>
-                                <Badge variant={count > 0 ? "secondary" : "outline"} className="text-[10px] h-4">{count}/{roles.length}</Badge>
-                              </button>
-                              {isExpanded && (
-                                <div className="space-y-1 px-1.5 pb-1.5 border-t pt-1.5">
-                                  {roles.map(role => {
-                                    const scalingKey = `${field}.${role}`;
-                                    const scaling = ((selectedCollection as any).modelScaling || {})[scalingKey];
-                                    return (
-                                      <InlineModelRow key={role}
-                                        label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
-                                        assetId={models[role]}
-                                        assets={collectionAssets}
-                                        scaling={scaling}
-                                        onScaleChange={(axis, value) => handleInlineScaleUpdate(scalingKey, axis, value)}
-                                        onScaleReset={() => handleInlineScaleReset(scalingKey)}
-                                        onSelect={() => { setModelBrowserContext({ group, key: `${prefix}${role}`, inline: true }); setShowModelBrowser(true); }}
-                                        onClear={() => handleInlineModelAssign(field, role, null)} />
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </>
-                    )}
-
-                    {/* Procedural Buildings Editor */}
-                    {section.id === 'procedural' && selectedCollection && (
-                      <ProceduralBuildingsEditor
-                        collection={selectedCollection}
-                        onSave={(config) => patchCollectionConfig({ proceduralBuildings: config } as any)}
-                      />
-                    )}
-
-                    {/* NPC Character Config */}
-                    {section.id === 'npc' && selectedCollection && (
-                      <NpcConfigEditor
-                        config={selectedCollection.npcConfig || null}
-                        onSave={(cfg) => patchCollectionConfig({ npcConfig: cfg } as any)}
-                      />
-                    )}
-
-                    {/* Category Presets */}
-                    {section.id === 'category_presets' && selectedCollection && (
-                      <div className="space-y-2">
-                        <p className="text-[10px] text-muted-foreground">
-                          Style presets applied to all buildings in a category (e.g. all restaurants share a style).
-                        </p>
-                        <Button variant="outline" size="sm" className="w-full h-7 text-xs" onClick={() => setShowCategoryPresetEditor(true)}>
-                          <Palette className="w-3 h-3 mr-1" /> Edit Category Presets
-                          {(selectedCollection as any).categoryPresets && (
-                            <Badge variant="secondary" className="ml-1.5 text-[9px] h-4">
-                              {Object.keys((selectedCollection as any).categoryPresets).length}
-                            </Badge>
-                          )}
-                        </Button>
+    // When an asset is selected, show asset preview + details
+    if (hasAsset) {
+      return (
+        <div className="w-72 shrink-0 border-l flex flex-col min-h-0">
+          {/* Asset Preview Section */}
+          <div className="flex flex-col min-h-0 flex-1">
+            <button
+              className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              onClick={() => setExpandedSection(expandedSection === 'preview' ? null : 'preview')}
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              Asset Preview
+              <ChevronRight className={`w-3 h-3 ml-auto transition-transform ${expandedSection === 'preview' ? 'rotate-90' : ''}`} />
+            </button>
+            {expandedSection === 'preview' && selectedAsset && (
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="px-3 pb-3 space-y-3">
+                  <div className="relative rounded-lg border overflow-hidden bg-muted/30">
+                    {isImageAsset(selectedAsset) ? (
+                      <img src={`/${selectedAsset.filePath}`} alt={selectedAsset.name} className="w-full aspect-square object-contain" />
+                    ) : isModelAsset(selectedAsset) ? (
+                      <div className="aspect-square">
+                        <ModelPreview modelPath={selectedAsset.filePath} className="h-full w-full" showControls={true} />
+                      </div>
+                    ) : isAudioAsset(selectedAsset) ? (
+                      <div className="aspect-square flex flex-col items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20">
+                        <Volume2 className="h-8 w-8 text-purple-500 mb-2" />
+                        <audio controls src={`/${selectedAsset.filePath}`} className="w-5/6" />
+                      </div>
+                    ) : (
+                      <div className="aspect-square flex items-center justify-center">
+                        <Box className="h-8 w-8 text-muted-foreground" />
                       </div>
                     )}
-
                   </div>
-                </ScrollArea>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
+
+                  <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setShowFullscreenAsset(true)}>
+                    <Maximize2 className="w-3 h-3 mr-1.5" /> Fullscreen
+                  </Button>
+
+                  {/* Quick info */}
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Type</span>
+                      <span>{selectedAsset.assetType?.replace(/_/g, ' ')}</span>
+                    </div>
+                    {selectedAsset.fileSize && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Size</span>
+                        <span>{(selectedAsset.fileSize / 1024).toFixed(1)} KB</span>
+                      </div>
+                    )}
+                    {selectedAsset.width && selectedAsset.height && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Dimensions</span>
+                        <span>{selectedAsset.width}x{selectedAsset.height}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Collections this asset belongs to */}
+                  {browseMode === 'all-assets' && (() => {
+                    const assetCollections = getAssetCollections(selectedAsset.id);
+                    if (assetCollections.length === 0) return null;
+                    return (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">In Collections</p>
+                        <div className="flex flex-wrap gap-1">
+                          {assetCollections.map(c => (
+                            <Badge key={c.id} variant="outline" className="text-[10px] h-4 cursor-pointer hover:bg-primary/10"
+                              onClick={() => { setBrowseMode('collections'); setSelectedCollection(c); setSelectedAsset(selectedAsset); }}>
+                              {c.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Actions */}
+                  <div className="flex gap-1 flex-wrap">
+                    <Button variant="outline" size="sm" className="text-[10px] h-6 px-2" onClick={() => handleDownload(selectedAsset)}>
+                      <Download className="w-3 h-3 mr-1" /> Download
+                    </Button>
+                    {isImageAsset(selectedAsset) && (
+                      <>
+                        <Button variant="outline" size="sm" className="text-[10px] h-6 px-2" onClick={() => setShowUpscaleDialog(true)}>
+                          <ArrowUp className="w-3 h-3 mr-1" /> Upscale
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-[10px] h-6 px-2" onClick={() => setShowEnhanceDialog(true)}>
+                          <Wand2 className="w-3 h-3 mr-1" /> Enhance
+                        </Button>
+                      </>
+                    )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="text-[10px] h-6 px-2">
+                          <Trash2 className="w-3 h-3 mr-1" /> Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Asset?</AlertDialogTitle>
+                          <AlertDialogDescription>Permanently delete "{selectedAsset.name}"?</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(selectedAsset.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+
+                  {/* Asset Details */}
+                  <DetailField label="ID" value={selectedAsset.id} mono />
+                  <DetailField label="Name" value={selectedAsset.name} />
+                  <DetailField label="Type" value={selectedAsset.assetType?.replace(/_/g, ' ') || 'Unknown'} />
+                  <DetailField label="Format" value={selectedAsset.mimeType || 'Unknown'} />
+                  <DetailField label="File Path" value={selectedAsset.filePath} mono />
+                  {selectedAsset.purpose && <DetailField label="Purpose" value={selectedAsset.purpose} />}
+                  {selectedAsset.usageContext && <DetailField label="Context" value={selectedAsset.usageContext} />}
+                  {selectedAsset.generationProvider && (
+                    <>
+                      <DetailField label="Provider" value={selectedAsset.generationProvider} />
+                      {selectedAsset.generationPrompt && <DetailField label="Prompt" value={selectedAsset.generationPrompt} />}
+                    </>
+                  )}
+                  {selectedAsset.tags && selectedAsset.tags.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Tags</p>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedAsset.tags.map((tag, i) => (
+                          <Badge key={i} variant="outline" className="text-[10px] h-4"><Tag className="w-2 h-2 mr-0.5" />{tag}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // When a collection is selected (no asset), show config detail panel
+    if (hasCollection && selectedCollection) {
+      const wtc = (selectedCollection as any).worldTypeConfig || {};
+
+      return (
+        <div className="w-80 shrink-0 border-l flex flex-col min-h-0">
+          <ConfigDetailPanel
+            selection={configSelection}
+            assets={allAssets}
+            onUpdateBuilding={(typeName, updated) => {
+              const configs = wtc.buildingConfig?.buildingTypeConfigs || {};
+              const newConfigs = { ...configs, [typeName]: updated };
+              patchCollectionConfig({
+                worldTypeConfig: { ...wtc, buildingConfig: { ...wtc.buildingConfig, buildingTypeConfigs: newConfigs } },
+                buildingTypeConfigs: newConfigs,
+              } as any);
+              // Update selection to reflect changes
+              const preset = wtc.buildingConfig?.categoryPresets?.[configSelection?.module === 'building' ? configSelection.category : ''];
+              setConfigSelection({ module: 'building', typeName, category: configSelection?.module === 'building' ? configSelection.category : '', config: updated, categoryPreset: preset });
+            }}
+            onUpdateGround={(groundType, update) => {
+              const gc = wtc.groundConfig || {};
+              const existing = (groundType === 'ground' || groundType === 'road' || groundType === 'sidewalk')
+                ? gc[groundType] || {} : gc.custom?.[groundType] || {};
+              const updated = { ...existing, ...update };
+              const newGc = { ...gc };
+              if (groundType === 'ground' || groundType === 'road' || groundType === 'sidewalk') {
+                newGc[groundType] = updated;
+              } else {
+                newGc.custom = { ...(newGc.custom || {}), [groundType]: updated };
+              }
+              patchCollectionConfig({ worldTypeConfig: { ...wtc, groundConfig: newGc } } as any);
+              setConfigSelection({ module: 'ground', groundType, config: updated });
+            }}
+            onUpdateCharacter={(section, role, update) => {
+              const cc = wtc.characterConfig || {};
+              const field = section === 'player' ? 'playerModels' : 'characterModels';
+              const models = cc[field] || {};
+              const existing = models[role] || { mode: 'asset' };
+              const updated = { ...existing, ...update };
+              const newCc = { ...cc, [field]: { ...models, [role]: updated } };
+              patchCollectionConfig({ worldTypeConfig: { ...wtc, characterConfig: newCc } } as any);
+              setConfigSelection({ module: 'character', section, role, config: updated });
+            }}
+            onUpdateNature={(group, item, update) => {
+              const nc = wtc.natureConfig || {};
+              const groupItems = nc[group] || {};
+              const existing = groupItems[item] || { mode: 'asset' };
+              const updated = { ...existing, ...update };
+              const newNc = { ...nc, [group]: { ...groupItems, [item]: updated } };
+              patchCollectionConfig({ worldTypeConfig: { ...wtc, natureConfig: newNc } } as any);
+              setConfigSelection({ module: 'nature', group, item, config: updated });
+            }}
+            onUpdateItem={(group, item, update) => {
+              const ic = wtc.itemConfig || {};
+              const groupItems = ic[group] || {};
+              const existing = groupItems[item] || { mode: 'asset' };
+              const updated = { ...existing, ...update };
+              const newIc = { ...ic, [group]: { ...groupItems, [item]: updated } };
+              patchCollectionConfig({ worldTypeConfig: { ...wtc, itemConfig: newIc } } as any);
+              setConfigSelection({ module: 'item', group, item, config: updated });
+            }}
+          />
+        </div>
+      );
+    }
+
+    return null;
   };
 
   // ─── Root ──────────────────────────────────────────────────────────────────
@@ -1378,14 +1248,11 @@ export function AdminAssetsHub() {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader>
-            <DialogTitle>Create Asset Collection</DialogTitle>
-            <DialogDescription>Create a new asset collection</DialogDescription>
+            <DialogTitle>Create World Type Collection</DialogTitle>
+            <DialogDescription>Create a new world type collection with building, ground, character, nature, and item configurations</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Medieval Fantasy Pack" /></div>
-              <div className="space-y-2"><Label>Collection Type *</Label><Select value={collectionType} onValueChange={setCollectionType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COLLECTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
-            </div>
+            <div className="space-y-2"><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Medieval Fantasy Pack" /></div>
             <div className="space-y-2"><Label>World Type</Label><Select value={worldType} onValueChange={setWorldType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">None (Generic)</SelectItem>{WORLD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label>Copy from Base Collection</Label><Select value={baseCollectionId || '__none__'} onValueChange={(v) => setBaseCollectionId(v === '__none__' ? '' : v)}><SelectTrigger><SelectValue placeholder="None (empty)" /></SelectTrigger><SelectContent><SelectItem value="__none__">None (empty)</SelectItem>{baseCollections.map(bc => <SelectItem key={bc.id} value={bc.id}>{bc.name} {bc.worldType ? `(${bc.worldType})` : ''}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
@@ -1408,12 +1275,9 @@ export function AdminAssetsHub() {
       {/* Edit Collection Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
-          <DialogHeader><DialogTitle>Edit Collection</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit World Type Collection</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-              <div className="space-y-2"><Label>Collection Type *</Label><Select value={collectionType} onValueChange={setCollectionType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COLLECTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
-            </div>
+            <div className="space-y-2"><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
             <div className="space-y-2"><Label>World Type</Label><Select value={worldType} onValueChange={setWorldType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{WORLD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
             <div className="grid grid-cols-2 gap-4">
@@ -1508,22 +1372,6 @@ export function AdminAssetsHub() {
           if (selectedCollection) queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
           queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
         }} />
-
-      {/* Category Preset Editor Modal */}
-      {selectedCollection && (
-        <CategoryPresetEditorModal
-          open={showCategoryPresetEditor}
-          onOpenChange={(open) => { setShowCategoryPresetEditor(open); if (!open) setCategoryTexturePickerRequest(null); }}
-          presets={(selectedCollection as any).categoryPresets ?? null}
-          assets={collectionAssets}
-          onSave={(presets) => patchCollectionConfig({ categoryPresets: presets } as any)}
-          onTexturePickerOpen={(req) => {
-            setCategoryTexturePickerRequest(req);
-            setModelBrowserContext({ group: 'texture', key: `catpreset_${req.category}_${req.field}`, inline: true });
-            setShowModelBrowser(true);
-          }}
-        />
-      )}
 
       {/* Model Browser for 3D config */}
       {selectedCollection && showModelBrowser && modelBrowserContext && (

@@ -489,6 +489,95 @@ export interface NpcConfig {
   skinTonePalette?: string[];
 }
 
+// ─── World Type Collection Config Modules ───────────────────────────────────
+
+/** Ground/terrain configuration module */
+export interface GroundTypeConfig {
+  mode: 'asset' | 'procedural';
+  textureId?: string;
+  color?: Color3;
+  tiling?: number;
+}
+
+export interface GroundConfig {
+  ground?: GroundTypeConfig;
+  road?: GroundTypeConfig;
+  sidewalk?: GroundTypeConfig;
+  /** Additional named ground types (e.g., dirt_path, cobblestone, grass_field) */
+  custom?: Record<string, GroundTypeConfig>;
+}
+
+/** Character configuration module (player + NPC) */
+export interface CharacterConfig {
+  /** Player character models by role (e.g., default, male, female) */
+  playerModels?: Record<string, CharacterModelConfig>;
+  /** NPC body model options */
+  npcBodyModels?: string[];
+  /** NPC hair styles by gender */
+  npcHairStyles?: Record<string, string[]>;
+  /** NPC clothing color palette (hex strings) */
+  npcClothingPalette?: string[];
+  /** NPC skin tone palette (hex strings) */
+  npcSkinTonePalette?: string[];
+  /** Named character model assignments (e.g., guard, merchant, civilian_male) */
+  characterModels?: Record<string, CharacterModelConfig>;
+}
+
+export interface CharacterModelConfig {
+  mode: 'asset' | 'procedural';
+  assetId?: string;
+  modelScaling?: Vec3;
+  proceduralParams?: Record<string, any>;
+}
+
+/** Nature element configuration module */
+export interface NatureConfig {
+  trees?: Record<string, NatureTypeConfig>;
+  vegetation?: Record<string, NatureTypeConfig>;
+  water?: Record<string, NatureTypeConfig>;
+  rocks?: Record<string, NatureTypeConfig>;
+  /** Additional named nature types */
+  custom?: Record<string, NatureTypeConfig>;
+}
+
+export interface NatureTypeConfig {
+  mode: 'asset' | 'procedural';
+  assetId?: string;
+  modelScaling?: Vec3;
+  proceduralParams?: Record<string, any>;
+}
+
+/** Item/prop visual configuration module */
+export interface ItemConfig {
+  /** General prop/object models */
+  objects?: Record<string, ItemTypeConfig>;
+  /** Quest-specific object models */
+  questObjects?: Record<string, ItemTypeConfig>;
+  /** Additional named item types */
+  custom?: Record<string, ItemTypeConfig>;
+}
+
+export interface ItemTypeConfig {
+  mode: 'asset' | 'procedural';
+  assetId?: string;
+  modelScaling?: Vec3;
+  proceduralParams?: Record<string, any>;
+}
+
+/** Top-level World Type Collection configuration — replaces flat asset collection fields */
+export interface WorldTypeCollectionConfig {
+  buildingConfig?: {
+    buildingTypeConfigs?: Record<string, UnifiedBuildingTypeConfig>;
+    categoryPresets?: Record<string, ProceduralStylePreset>;
+    proceduralDefaults?: ProceduralBuildingConfig;
+  };
+  groundConfig?: GroundConfig;
+  characterConfig?: CharacterConfig;
+  natureConfig?: NatureConfig;
+  itemConfig?: ItemConfig;
+  audioAssets?: Record<string, string>;
+}
+
 export interface BuildingStyleData {
   name: string;
   baseColor: Color3;

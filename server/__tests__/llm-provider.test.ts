@@ -12,7 +12,7 @@ const mockGenAI = {
 vi.mock('../config/gemini.js', () => ({
   getGenAI: () => mockGenAI,
   isGeminiConfigured: () => true,
-  GEMINI_MODELS: { PRO: 'gemini-2.5-pro', FLASH: 'gemini-2.5-flash' },
+  GEMINI_MODELS: { PRO: 'gemini-3.1-pro-preview', FLASH: 'gemini-2.5-flash' },
 }));
 
 import {
@@ -138,11 +138,11 @@ describe('GeminiProvider', () => {
   it('uses custom model from config', async () => {
     mockGenerateContent.mockResolvedValue({ text: 'resp' });
 
-    const provider = new GeminiProvider({ model: 'gemini-2.5-pro' });
+    const provider = new GeminiProvider({ model: 'gemini-3.1-pro-preview' });
     await provider.generate({ prompt: 'test' });
 
     const call = mockGenerateContent.mock.calls[0][0];
-    expect(call.model).toBe('gemini-2.5-pro');
+    expect(call.model).toBe('gemini-3.1-pro-preview');
   });
 });
 

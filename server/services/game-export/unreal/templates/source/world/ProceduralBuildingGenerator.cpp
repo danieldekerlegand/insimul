@@ -299,6 +299,24 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
                     CurrentStyle.PorchSteps, PorchElevation, BaseColor, nullptr);
     }
 
+    // Porch setback: push all geometry back in local -Z so the porch + stairs
+    // don't cover the sidewalk. Shift by 3/4 of the total porch extension.
+    if (CurrentStyle.bHasPorch)
+    {
+        const float StepDepth = 0.4f;
+        float PorchExtension = CurrentStyle.PorchDepth + CurrentStyle.PorchSteps * StepDepth;
+        float Setback = PorchExtension * 0.75f;
+        TArray<USceneComponent*> ChildComponents;
+        GetRootComponent()->GetChildrenComponents(false, ChildComponents);
+        for (auto* Child : ChildComponents)
+        {
+            FVector Loc = Child->GetRelativeLocation();
+            Loc.Y -= Setback; // Unreal: Y is forward/back in local space
+            Child->SetRelativeLocation(Loc);
+        }
+        UE_LOG(LogTemp, Log, TEXT("[Insimul] Porch setback=%.2f applied"), Setback);
+    }
+
     // Use RoofStyle enum for roof selection instead of just architecture style string
     CreateRoofFromStyle(GetRootComponent(), CurrentStyle.RoofStyle, Width, Depth,
                         Floors, RoofColor, nullptr);

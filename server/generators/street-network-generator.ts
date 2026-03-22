@@ -500,6 +500,7 @@ export interface LotPlacement {
 // ─── Lot sizing by settlement type ────────────────────────────────────────────
 
 const TARGET_LOT_WIDTHS: Record<string, number> = { village: 15, town: 12, city: 10 };
+const MIN_LOT_DEPTHS: Record<string, number> = { village: 28, town: 24, city: 20 };
 
 /**
  * Place lots by subdividing the rectangular blocks formed by the street grid.
@@ -524,6 +525,7 @@ export function placeLots(
   if (segments.length === 0 || lotCount <= 0) return placements;
 
   const targetLotWidth = TARGET_LOT_WIDTHS[settlementType] || 12;
+  const minLotDepth = MIN_LOT_DEPTHS[settlementType] || 24;
 
   // Collect street centerline positions per direction.
   // For grid networks each NS street has a consistent X; each EW street a consistent Z.
@@ -603,7 +605,7 @@ export function placeLots(
       if (placements.length >= lotCount) break;
 
       const lotW = colWidthEW;
-      const lotD = rowDepth;
+      const lotD = Math.max(rowDepth, minLotDepth);
       const lotCenterX = block.minX + (col + 0.5) * colWidthEW;
 
       // Top row: faces the top EW street (building door faces -Z)

@@ -1,0 +1,106 @@
+{
+  "tasks": [
+    {
+      "title": "Create unified AI provider interface and factory",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "All 20+ AI services call Gemini directly — need a single provider interface so backends are swappable. (1) Create server/services/ai/ai-provider.ts with IAIProvider interface covering: generate(request: LLMRequest) → LLMResponse, generateStream(prompt, context, options) → AsyncIterable<string>, textToSpeech(text, voice, options) → Buffer, speechToText(audioBuffer, options) → string, generateImage(prompt, options) → Buffer|null. (2) Create server/services/ai/tts-provider.ts with ITTSProvider interface: synthesize(text, voice, options) → Buffer. (3) Create server/services/ai/stt-provider.ts with ISTTProvider interface: transcribe(audioBuffer, options) → string. (4) Create server/services/ai/ai-provider-factory.ts that reads AI_PROVIDER env var ('gemini' | 'local', default 'gemini') and returns the correct provider singleton. (5) Existing ILLMProvider (batch) and IStreamingLLMProvider (streaming) interfaces are composed within IAIProvider. (6) Provider is resolved once at startup, injectable into all services. Typecheck must pass."
+    },
+    {
+      "title": "Configure AI provider environment variables and startup logging",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "All AI provider settings must be controlled via environment variables. (1) AI_PROVIDER — 'gemini' (default) | 'local'. (2) LOCAL_MODEL_PATH — absolute path to GGUF model file. (3) LOCAL_MODEL_NAME — model name for bundled model selection (e.g. 'phi-4-mini-q4'). (4) LOCAL_GPU_LAYERS — number of layers to offload to GPU (default: auto-detect). (5) LOCAL_CONTEXT_SIZE — context window size in tokens (default: 4096). (6) PIPER_VOICES_DIR — path to Piper voice model directory. (7) WHISPER_MODEL_PATH — path to Whisper GGML model file. (8) WHISPER_MODEL_SIZE — 'tiny' | 'base' | 'small' | 'medium' | 'large' (default: 'base'). (9) All variables documented in .env.example with descriptions. (10) Replace logGeminiStatus() with logAIStatus() that reports active provider, loaded models, and GPU status. Typecheck must pass."
+    },
+    {
+      "title": "Implement Gemini provider wrapping existing integration",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Wrap the existing Gemini integration in the new unified interface — zero regression on all existing functionality. (1) Create server/services/ai/providers/gemini/gemini-ai-provider.ts implementing IAIProvider. (2) Create server/services/ai/providers/gemini/gemini-tts-provider.ts implementing ITTSProvider — wraps logic from server/services/tts-stt.ts textToSpeech(). (3) Create server/services/ai/providers/gemini/gemini-stt-provider.ts implementing ISTTProvider — wraps logic from server/services/tts-stt.ts speechToText(). (4) Wraps existing singleton instances from server/config/gemini.ts (getGenAI, getGenerativeAI). (5) Preserves all existing fallback behavior (no API key → graceful degradation). (6) Preserves retry with exponential backoff from tts-stt.ts withRetry(). (7) All existing API endpoints must produce identical responses. Typecheck must pass."
+    },
+    {
+      "title": "Upgrade Gemini from 2.5 to 3.1 and adopt new API features",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Gemini 2.0 models retire June 1, 2026 — must upgrade to 3.1. (1) Update GEMINI_MODELS.PRO from 'gemini-3.1-pro-preview' to 'gemini-3.1-pro-preview'. (2) Update GEMINI_MODELS.FLASH from 'gemini-2.5-flash' to 'gemini-3.1-flash-lite-preview'. (3) Update GEMINI_MODELS.SPEECH from 'gemini-2.0-flash-exp' to appropriate 3.1 speech model. (4) Update @google/generative-ai and @google/genai npm packages to latest versions compatible with 3.1. (5) Review and adopt any new Gemini 3.1 API features (improved tool use, extended context, new response modalities). (6) Verify TTS voice names (Kore, Charon, Aoede, Puck) still work with 3.1. (7) Test all 16+ services against 3.1 models — verify output quality hasn't regressed. (8) Update cost estimation in llm-provider.ts to reflect 3.1 pricing. Typecheck must pass."
+    },
+    {
+      "title": "Integrate llama.cpp for local text generation via node-llama-cpp",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Bundle llama.cpp directly as a native addon — no external Ollama dependency. (1) Add node-llama-cpp npm package (Node.js bindings for llama.cpp). (2) Create server/services/ai/providers/local/local-ai-provider.ts implementing IAIProvider. (3) Support model selection via LOCAL_MODEL_PATH env var (path to GGUF model file). (4) Support LOCAL_MODEL_NAME env var for default bundled model (e.g. 'phi-4-mini-q4'). (5) Implement generate() — single completion with system prompt, temperature, maxTokens. (6) Implement generateStream() — token-by-token streaming via AsyncIterable. (7) GPU auto-detection: use Metal (macOS), CUDA (Linux/Windows), or CPU fallback. (8) Model loads once at startup, stays in memory. (9) Concurrent request queuing (llama.cpp is single-threaded per model instance). (10) All prompt formats that Gemini services use (system prompts, JSON output, etc.) work with local models. Typecheck must pass."
+    },
+    {
+      "title": "Integrate Piper TTS for local text-to-speech",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Piper is the fastest, lightest local TTS — ~50-100MB per voice, real-time on CPU. (1) Add piper-tts or equivalent Node.js binding, or bundle Piper binary + onnxruntime-node for ONNX models. (2) Create server/services/ai/providers/local/piper-tts-provider.ts implementing ITTSProvider. (3) Support PIPER_VOICES_DIR env var pointing to directory of .onnx voice model files. (4) Map existing voice names (Kore, Charon, Aoede, Puck) to Piper voice equivalents. (5) Support gender selection (male, female, neutral) via voice model selection. (6) Output MP3 or WAV matching existing TTS interface. (7) Emotional tone modulation: map SSML prosody parameters to Piper's speed/pitch controls. (8) LRU cache integration — reuse existing TTSCache from server/services/tts-cache.ts. (9) Language support: at minimum English, French, Spanish, German (Piper has 30+ language models). Typecheck must pass."
+    },
+    {
+      "title": "Integrate whisper.cpp for local speech-to-text",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "whisper.cpp via nodejs-whisper provides best Node.js STT integration. (1) Add nodejs-whisper or whisper-node npm package. (2) Create server/services/ai/providers/local/whisper-stt-provider.ts implementing ISTTProvider. (3) Support WHISPER_MODEL_PATH env var (path to Whisper GGML model file). (4) Default to whisper-base model (~150MB, good accuracy/speed tradeoff). (5) Accept audio input in webm, wav, mp3 formats — convert to 16kHz WAV internally if needed. (6) Language hint support (BCP-47 codes) matching existing STT interface from tts-stt.ts. (7) Auto-language detection when no hint provided. Typecheck must pass."
+    },
+    {
+      "title": "Create local native audio pipeline (STT → LLM → TTS)",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Local equivalent of Gemini's native audio I/O so voice chat works offline. (1) Create server/services/ai/providers/local/local-native-audio.ts. (2) Implement the same NativeAudioChatRequest/Response interface as server/services/gemini-native-audio.ts. (3) Pipeline: whisper.cpp transcribe → llama.cpp generate → Piper synthesize. (4) Total pipeline latency target < 2 seconds for a typical NPC dialogue turn on modern hardware (M1+ Mac, RTX 3060+ PC). (5) Conversation history from request passed through to LLM step. (6) Emotional tone from request applied to Piper TTS step. (7) Voice name from request mapped to Piper voice model. Typecheck must pass."
+    },
+    {
+      "title": "Migrate text-generator, quest-generator, grammar-generator to provider interface",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "First batch of service migrations — content generation services. (1) server/services/text-generator.ts — replace getGenAI()/getGenerativeAI() calls with provider generate(), preserve CEFR difficulty handling, vocabulary extraction, and JSON parsing. (2) server/services/quest-generator.ts — replace with provider generate(), preserve hardcoded fallback quest when AI unavailable. (3) server/services/grammar-generator.ts — replace with provider generate(), preserve retry with exponential backoff, Tracery modifier sanitization, and 3-attempt retry logic. (4) No file imports directly from server/config/gemini.ts. (5) All existing prompt templates and system instructions preserved. Typecheck must pass."
+    },
+    {
+      "title": "Migrate gemini-ai, character-interaction, and conversation services to provider interface",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Second batch — core dialogue and rule generation services. (1) server/services/gemini-ai.ts — replace with provider generate(), preserve Insimul/Ensemble/Kismet/TotT format-specific prompts. (2) server/services/character-interaction.ts — replace with provider generate(), preserve personality context injection. (3) server/services/streaming-chat.ts — replace createChatStream with provider generateStream(), replace textToSpeech with provider textToSpeech(), preserve sentence accumulation and SSE delivery. (4) server/services/conversation/providers/gemini-provider.ts — replaced by provider generateStream(), keep as thin adapter or remove. (5) server/services/conversation-compression.ts — replace with provider generate(). (6) No file imports directly from server/config/gemini.ts. Typecheck must pass."
+    },
+    {
+      "title": "Migrate translation, language, pronunciation, and enrichment services to provider interface",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Third batch — language learning and enrichment services. (1) server/services/item-translation.ts — replace with provider generate(), preserve batch-of-50 chunking. (2) server/services/language-service.ts — replace with provider generate(), preserve conlang support and language feature generation. (3) server/services/pronunciation-scorer.ts — replace with provider generate() + speechToText(), preserve Levenshtein fallback when AI unavailable. (4) server/services/llm-event-enrichment.ts — replace with provider generate(), preserve 3-tier enrichment system and batch processing. (5) No file imports directly from server/config/gemini.ts. Typecheck must pass."
+    },
+    {
+      "title": "Migrate TTS/STT, native audio, image generation, and route-level Gemini calls to provider interface",
+      "completed": true,
+      "parallel_group": 4,
+      "description": "Final batch — voice services, image generation, and direct route calls. (1) server/services/tts-stt.ts — replaced by provider textToSpeech()/speechToText(), retain as thin wrapper or remove, keep LANGUAGE_CODE_MAP and detectLanguageFromText as shared utilities. (2) server/services/gemini-native-audio.ts — replaced by provider native audio pipeline, retain NativeAudioChatRequest/Response types as shared interface. (3) server/services/image-generation.ts — replace with provider generateImage(), local fallback returns null or placeholder. (4) server/routes.ts — all direct getGenAI()/getGenerativeAI() calls go through provider. (5) server/routes/npc-exam-routes.ts — uses provider. (6) server/routes/assessment-scoring.ts — uses provider. (7) server/services/sketchfab-api.ts — uses provider if applicable. (8) server/generators/name-generator.ts — uses provider generate(), preserve Tracery-only fallback. (9) No file imports directly from server/config/gemini.ts except the Gemini provider implementation itself. Typecheck must pass."
+    },
+    {
+      "title": "Create AI bundler for game exports with model packaging",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Game exports must include the local AI stack so exported games work fully offline. (1) Create server/services/game-export/ai-bundler.ts for AI asset management — model file copying, size calculation, manifest generation. (2) Extend server/services/game-export/plugin-bundler.ts InsimulPluginConfig with aiProvider: 'local' | 'cloud' and model paths. (3) Bundle GGUF model file (default: Phi-4-mini Q4, ~2GB) into export. (4) Bundle Piper voice models (~50-100MB per voice) into export. (5) Bundle Whisper model (base, ~150MB) into export. (6) Export size displayed to user before download (with AI models vs without). (7) Option to export without AI models for smaller downloads that require cloud connection. Typecheck must pass."
+    },
+    {
+      "title": "Integrate AI bundle into Babylon.js export pipeline",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Babylon export gets llama.cpp WASM + models bundled for browser-based offline AI. (1) In server/services/game-export/babylon/babylon-exporter-new.ts, call ai-bundler when aiProvider is 'local'. (2) Bundle llama.cpp WASM build in assets/ai/ directory. (3) Include GGUF model, Piper ONNX voices, and Whisper model in assets/ai/models/. (4) Update babylon-project-generator.ts Vite config to handle large binary assets (WASM + model files). (5) Generate a local-ai-client.ts in the export that loads WASM and provides generate/TTS/STT functions matching the server API. (6) Exported game detects local models on startup and falls back to cloud API if missing. Typecheck must pass."
+    },
+    {
+      "title": "Integrate AI bundle into Godot export pipeline",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Godot export gets llama.cpp as GDNative plugin with bundled models. (1) In server/services/game-export/godot/godot-exporter.ts, call ai-bundler when aiProvider is 'local'. (2) Generate GDNative plugin wrapper for llama.cpp — C wrapper with GDScript bindings. (3) Include model files in res://ai/ directory. (4) Update godot-project-generator.ts to register the GDNative library in default_env.tres. (5) Generate GDScript AI service class that wraps the native calls with generate(), tts(), stt() methods. (6) Include fallback to HTTP cloud API when native plugin unavailable. Typecheck must pass."
+    },
+    {
+      "title": "Integrate AI bundle into Unity export pipeline",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Unity export gets llama.cpp as native plugin with models in StreamingAssets. (1) In server/services/game-export/unity/unity-exporter.ts, call ai-bundler when aiProvider is 'local'. (2) Generate C# wrapper using Unity's native plugin system (DllImport for llama.cpp). (3) Include model files in StreamingAssets/ai/ directory. (4) Update unity-project-generator.ts to include the native plugin in Plugins/ folder. (5) Generate C# AIService MonoBehaviour with Generate(), TextToSpeech(), SpeechToText() methods. (6) Include fallback to UnityWebRequest cloud API when native plugin unavailable. Typecheck must pass."
+    },
+    {
+      "title": "Integrate AI bundle into Unreal export pipeline",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Unreal export gets llama.cpp as C++ plugin with models in Content/AI. (1) In server/services/game-export/unreal/unreal-exporter.ts, call ai-bundler when aiProvider is 'local'. (2) Generate C++ plugin wrapper with UObject-based API for llama.cpp. (3) Include model files in Content/AI/ directory. (4) Update unreal-project-generator.ts to register the plugin module in .uproject and .Build.cs. (5) Generate UInsimulAIService UObject with Generate(), TextToSpeech(), SpeechToText() BlueprintCallable functions. (6) Include fallback to FHttpModule cloud API when native plugin unavailable. Typecheck must pass."
+    }
+  ]
+}

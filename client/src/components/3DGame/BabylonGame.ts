@@ -1452,21 +1452,21 @@ export class BabylonGame {
 
       // Select biome-appropriate ground texture tiling based on world type
       const worldType = (this.config.worldType || '').toLowerCase();
-      let tileScale = 6;
-      let bumpScale = 12;
+      let tileScale = 48;
+      let bumpScale = 48;
 
       if (worldType.includes('desert') || worldType.includes('sand')) {
-        tileScale = 3; // Larger, smoother sand dunes
-        bumpScale = 6;
+        tileScale = 32; // Larger, smoother sand dunes
+        bumpScale = 32;
       } else if (worldType.includes('tundra') || worldType.includes('snow') || worldType.includes('ice')) {
-        tileScale = 4;
-        bumpScale = 8;
+        tileScale = 36;
+        bumpScale = 36;
       } else if (worldType.includes('forest') || worldType.includes('fantasy') || worldType.includes('medieval')) {
-        tileScale = 8; // Denser grass tiling
-        bumpScale = 14;
+        tileScale = 56; // Denser grass tiling
+        bumpScale = 56;
       } else if (worldType.includes('cyberpunk') || worldType.includes('sci-fi') || worldType.includes('modern')) {
-        tileScale = 4; // Urban concrete
-        bumpScale = 8;
+        tileScale = 36; // Urban concrete
+        bumpScale = 36;
       }
 
       const diffuseTexture = new Texture(GROUND_DIFFUSE_URL, scene);
@@ -1566,8 +1566,7 @@ export class BabylonGame {
     this.guiManager.setOnNPCSelected((npcId) => this.setSelectedNPC(npcId));
     this.guiManager.setOnActionSelected((actionId) => this.handlePerformAction(actionId));
     this.guiManager.setOnPayFines(() => this.handlePayFines());
-    this.guiManager.setOnTimeSpeedChange((delta) => this.handleTimeSpeedChange(delta));
-    this.guiManager.setOnTimePauseToggle(() => this.handleTimePauseToggle());
+    // Time speed/pause controls are now in the game menu Character tab
     this.guiManager.setMinimapNavigateCallback((worldX, worldZ) => {
       if (this.playerMesh) {
         this.playerMesh.position.x = worldX;
@@ -1824,6 +1823,13 @@ export class BabylonGame {
       onDeletePlaythrough: () => this.handleDeletePlaythrough(),
       onReturnToMainMenu: () => this.handleReturnToMainMenu(),
       onQuitGame: () => this.handleQuitGame(),
+      // Rest / time-skip
+      getTimeData: () => ({
+        timeString: this.gameTimeManager.timeString,
+        day: this.gameTimeManager.day,
+        timeOfDay: this.gameTimeManager.timeOfDay,
+      }),
+      onRest: (hours: number) => this.gameTimeManager.advanceHours(hours),
     };
 
     // Initialize WorldStateManager for save/load
@@ -9121,13 +9127,20 @@ export class BabylonGame {
       this.gameTimeManager.update(this.engine!.getDeltaTime());
       this.dayNightCycle?.update();
 
-      // Update time HUD
+      // Update time HUD indicator
       this.guiManager?.updateTime(
         this.gameTimeManager.timeString,
         this.gameTimeManager.day,
         this.gameTimeManager.timeOfDay,
         this.gameTimeManager.timeScale,
         this.gameTimeManager.paused,
+      );
+
+      // Update time display in game menu (if open on Rest tab)
+      this.gameMenuSystem?.updateTime(
+        this.gameTimeManager.timeString,
+        this.gameTimeManager.day,
+        this.gameTimeManager.timeOfDay,
       );
 
       // Render whichever scene is active (overworld or interior)
@@ -12515,7 +12528,7 @@ export class BabylonGame {
     }
 
     if (groundAsset) {
-      this.textureManager.applyGroundTexture(groundAsset, { uScale: 8, vScale: 8, useBump: true });
+      this.textureManager.applyGroundTexture(groundAsset, { uScale: 48, vScale: 48, useBump: true });
       this.selectedGroundTexture = groundAsset.id;
 
       // Reset diffuseColor to white so the texture shows its true colors
@@ -12542,14 +12555,14 @@ export class BabylonGame {
     }
 
     if (roadAsset) {
-      this.textureManager.applyRoadTexture(roadAsset, { uScale: 4, vScale: 4 });
+      this.textureManager.applyRoadTexture(roadAsset, { uScale: 24, vScale: 24 });
       this.selectedRoadTexture = roadAsset.id;
     }
 
     // Apply wall textures to buildings if available
     const wallAsset = this.worldAssets.find((a) => a.assetType === "texture_wall");
     if (wallAsset) {
-      this.textureManager.applySettlementTextures(wallAsset, { uScale: 2, vScale: 2 });
+      this.textureManager.applySettlementTextures(wallAsset, { uScale: 8, vScale: 8 });
       this.selectedWallTexture = wallAsset.id;
     }
   }

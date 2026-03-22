@@ -840,6 +840,158 @@ struct FInsimulNpcConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> SkinTonePalette;
 };
 
+// ─── World Type Collection Config Modules ────────────────────────────────────
+
+/**
+ * Ground/terrain type configuration (asset or procedural).
+ * Mirrors GroundTypeConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulGroundTypeConfig
+{
+    GENERATED_BODY()
+
+    /** Whether this ground type uses an asset texture or procedural generation */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "asset" or "procedural"
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TextureId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor Color = FLinearColor::White;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Tiling = 1.f;
+};
+
+/**
+ * Ground configuration module (ground, road, sidewalk, custom).
+ * Mirrors GroundConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulGroundConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulGroundTypeConfig Ground;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulGroundTypeConfig Road;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulGroundTypeConfig Sidewalk;
+    /** Additional named ground types (e.g., dirt_path, cobblestone, grass_field) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulGroundTypeConfig> Custom;
+};
+
+/**
+ * Character model configuration (asset or procedural).
+ * Mirrors CharacterModelConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulCharacterModelConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "asset" or "procedural"
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssetId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector ModelScaling = FVector(1.f, 1.f, 1.f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> ProceduralParams;
+};
+
+/**
+ * Character configuration module (player + NPC).
+ * Mirrors CharacterConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulCharacterConfig
+{
+    GENERATED_BODY()
+
+    /** Player character models by role (e.g., default, male, female) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulCharacterModelConfig> PlayerModels;
+    /** NPC body model options */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> NpcBodyModels;
+    /** NPC clothing color palette (hex strings) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> NpcClothingPalette;
+    /** NPC skin tone palette (hex strings) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> NpcSkinTonePalette;
+    /** Named character model assignments (e.g., guard, merchant, civilian_male) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulCharacterModelConfig> CharacterModels;
+};
+
+/**
+ * Nature element type configuration (asset or procedural).
+ * Mirrors NatureTypeConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNatureTypeConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "asset" or "procedural"
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssetId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector ModelScaling = FVector(1.f, 1.f, 1.f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> ProceduralParams;
+};
+
+/**
+ * Nature element configuration module.
+ * Mirrors NatureConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNatureConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulNatureTypeConfig> Trees;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulNatureTypeConfig> Vegetation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulNatureTypeConfig> Water;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulNatureTypeConfig> Rocks;
+    /** Additional named nature types */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulNatureTypeConfig> Custom;
+};
+
+/**
+ * Item/prop type configuration (asset or procedural).
+ * Mirrors ItemTypeConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulItemTypeConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "asset" or "procedural"
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssetId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector ModelScaling = FVector(1.f, 1.f, 1.f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> ProceduralParams;
+};
+
+/**
+ * Item/prop visual configuration module.
+ * Mirrors ItemConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulItemConfig
+{
+    GENERATED_BODY()
+
+    /** General prop/object models */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulItemTypeConfig> Objects;
+    /** Quest-specific object models */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulItemTypeConfig> QuestObjects;
+    /** Additional named item types */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulItemTypeConfig> Custom;
+};
+
+/**
+ * Top-level World Type Collection configuration.
+ * Mirrors WorldTypeCollectionConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulWorldTypeCollectionConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulUnifiedBuildingTypeConfig> BuildingTypeConfigs;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulProceduralStylePreset> CategoryPresets;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulProceduralBuildingConfig ProceduralDefaults;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulGroundConfig GroundConfig;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulCharacterConfig CharacterConfig;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulNatureConfig NatureConfig;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulItemConfig ItemConfig;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> AudioAssets;
+};
 
 // ─── Street Networks ────────────────────────────────────────────────────────
 

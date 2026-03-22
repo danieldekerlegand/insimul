@@ -212,8 +212,8 @@ export class TextureManager {
     }
 
     const texture = this.loadTexture(asset);
-    texture.uScale = options?.uScale ?? 8;
-    texture.vScale = options?.vScale ?? 8;
+    texture.uScale = options?.uScale ?? 48;
+    texture.vScale = options?.vScale ?? 48;
 
     material.diffuseTexture = texture;
 
@@ -223,8 +223,8 @@ export class TextureManager {
       if (!material.bumpTexture) {
         const bumpTexture = texture.clone();
         if (bumpTexture) {
-          bumpTexture.uScale = options?.uScale ?? 12;
-          bumpTexture.vScale = options?.vScale ?? 12;
+          bumpTexture.uScale = options?.uScale ?? 48;
+          bumpTexture.vScale = options?.vScale ?? 48;
           material.bumpTexture = bumpTexture;
         }
       }
@@ -252,8 +252,8 @@ export class TextureManager {
       }
 
       const texture = this.loadTexture(asset);
-      texture.uScale = options?.uScale ?? 2;
-      texture.vScale = options?.vScale ?? 2;
+      texture.uScale = options?.uScale ?? 8;
+      texture.vScale = options?.vScale ?? 8;
 
       material.diffuseTexture = texture;
     });
@@ -278,8 +278,8 @@ export class TextureManager {
       }
 
       const texture = this.loadTexture(asset);
-      texture.uScale = options?.uScale ?? 4;
-      texture.vScale = options?.vScale ?? 4;
+      texture.uScale = options?.uScale ?? 24;
+      texture.vScale = options?.vScale ?? 24;
 
       material.diffuseTexture = texture;
     });

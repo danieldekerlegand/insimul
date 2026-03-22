@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +25,21 @@ import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
 import { MapLayersPanel, ALL_LAYERS, type MapLayer } from './MapLayersPanel';
 import { BuildingModelPreview } from './BuildingModelPreview';
 import { getInteriorModelPath } from '@/components/3DGame/InteriorSceneManager';
+
+const BUSINESS_TYPES = [
+  'Generic', 'LawFirm', 'ApartmentComplex', 'Bakery', 'Hospital', 'Bank',
+  'Hotel', 'Restaurant', 'GroceryStore', 'Bar', 'Daycare', 'School',
+  'PoliceStation', 'FireStation', 'TownHall', 'Church', 'Farm', 'Factory',
+  'Shop', 'Mortuary', 'RealEstateOffice', 'InsuranceOffice', 'JewelryStore',
+  'TattoParlor', 'Brewery', 'Pharmacy', 'DentalOffice', 'OptometryOffice',
+  'University', 'Harbor', 'Boatyard', 'FishMarket', 'CustomsHouse', 'Lighthouse',
+  'Warehouse', 'Blacksmith', 'Tailor', 'Butcher', 'BookStore', 'HerbShop',
+  'PawnShop', 'Barbershop', 'Bathhouse', 'Carpenter', 'Stables', 'Clinic',
+] as const;
+
+function formatBusinessType(type: string): string {
+  return type.replace(/([A-Z])/g, ' $1').trim();
+}
 
 interface SettlementHubProps {
   worldId: string;
@@ -395,6 +411,31 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       }
     } catch {
       toast({ title: 'Failed to update residence type', variant: 'destructive' });
+    }
+  };
+
+  const handleBusinessTypeChange = async (businessId: string, newType: string) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`/api/businesses/${businessId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ businessType: newType }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setBusinesses(prev => prev.map(b => b.id === businessId ? updated : b));
+        if (selectedBuilding?.type === 'business' && selectedBuilding.data.id === businessId) {
+          setSelectedBuilding({ ...selectedBuilding, data: updated });
+        }
+        toast({ title: 'Business type updated' });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: 'Failed to update business type', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to update business type', variant: 'destructive' });
     }
   };
 
@@ -1073,7 +1114,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                 const h: Record<string, string> = { 'Content-Type': 'application/json' };
                 if (token) h['Authorization'] = `Bearer ${token}`;
                 const res = await fetch(`/api/settlements/${selectedSettlement.id}/residences`, {
-                  method: 'POST', headers: h, body: JSON.stringify(data),
+                  method: 'POST', headers: h, body: JSON.stringify({ ...data, residenceType: data.residenceType.toLowerCase() }),
                 });
                 if (res.ok) { fetchResidences(selectedSettlement.id); toast({ title: 'Residence created' }); }
                 else toast({ title: 'Failed to create residence', variant: 'destructive' });
@@ -1244,9 +1285,30 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                         <span className="text-muted-foreground">Name</span>
                         <span className="font-medium">{selectedBuilding.data.name}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Type</span>
-                        <Badge variant="outline">{selectedBuilding.data.businessType}</Badge>
+                        {canEdit ? (
+                          <Select
+                            value={selectedBuilding.data.businessType}
+                            onValueChange={(value) => handleBusinessTypeChange(selectedBuilding.data.id, value)}
+                          >
+                            <SelectTrigger className="w-[160px] h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(BUSINESS_TYPES.includes(selectedBuilding.data.businessType)
+                                ? BUSINESS_TYPES
+                                : [selectedBuilding.data.businessType, ...BUSINESS_TYPES]
+                              ).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {formatBusinessType(type)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant="outline">{formatBusinessType(selectedBuilding.data.businessType)}</Badge>
+                        )}
                       </div>
                       {selectedBuilding.data.isOutOfBusiness && (
                         <div className="flex justify-between">
