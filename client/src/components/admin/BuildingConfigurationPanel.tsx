@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette, Image as ImageIcon, X } from "lucide-react";
+import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette } from "lucide-react";
 import { BUILDING_CATEGORY_GROUPINGS, getCategoryForType, type BuildingCategory } from "@shared/game-engine/building-categories";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
+import { AssetDropdown } from "./AssetDropdown";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type {
   UnifiedBuildingTypeConfig,
@@ -126,27 +126,6 @@ export function getCategorySummary(
   return { asset, procedural, unconfigured, withInterior };
 }
 
-// ─── Asset helpers ────────────────────────────────────────────────────────────
-
-function getTextureAssets(assets: VisualAsset[]): VisualAsset[] {
-  return assets.filter(a => {
-    const type = a.assetType || '';
-    const path = (a.filePath || '').toLowerCase();
-    return type.startsWith('texture_') ||
-      path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.webp');
-  });
-}
-
-function getModelAssets(assets: VisualAsset[]): VisualAsset[] {
-  return assets.filter(a => {
-    const type = a.assetType || '';
-    const path = (a.filePath || '').toLowerCase();
-    return type.startsWith('model_') ||
-      a.mimeType === 'model/gltf-binary' ||
-      path.endsWith('.glb') || path.endsWith('.gltf');
-  });
-}
-
 // ─── Interior Config Editor ─────────────────────────────────────────────────
 
 function InteriorConfigEditor({
@@ -161,8 +140,6 @@ function InteriorConfigEditor({
   onClear: () => void;
 }) {
   const current: InteriorTemplateConfig = config || { mode: 'procedural' };
-  const textureAssets = useMemo(() => getTextureAssets(assets), [assets]);
-  const modelAssets = useMemo(() => getModelAssets(assets), [assets]);
 
   const update = (partial: Partial<InteriorTemplateConfig>) => {
     onChange({ ...current, ...partial });
@@ -191,22 +168,13 @@ function InteriorConfigEditor({
       {current.mode === 'model' && (
         <div className="space-y-2">
           <Label className="text-[10px] text-muted-foreground">Interior Model</Label>
-          <Select
-            value={current.modelPath || '_none'}
-            onValueChange={(v) => update({ modelPath: v === '_none' ? undefined : v })}
-          >
-            <SelectTrigger className="h-7 text-xs">
-              <SelectValue placeholder="Select model..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_none">None</SelectItem>
-              {modelAssets.map(a => (
-                <SelectItem key={a.id} value={a.filePath || a.id}>
-                  {a.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <AssetDropdown
+            assets={assets}
+            value={current.modelPath}
+            onChange={(id) => update({ modelPath: id })}
+            filter="model"
+            placeholder="Select model..."
+          />
         </div>
       )}
 
@@ -233,56 +201,35 @@ function InteriorConfigEditor({
       {/* Texture pickers */}
       <div className="space-y-2">
         <Label className="text-[10px] text-muted-foreground">Wall Texture</Label>
-        <Select
-          value={current.wallTextureId || '_none'}
-          onValueChange={(v) => update({ wallTextureId: v === '_none' ? undefined : v })}
-        >
-          <SelectTrigger className="h-7 text-xs">
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none">None</SelectItem>
-            {textureAssets.map(a => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <AssetDropdown
+          assets={assets}
+          value={current.wallTextureId}
+          onChange={(id) => update({ wallTextureId: id })}
+          filter="texture"
+          placeholder="None"
+        />
       </div>
 
       <div className="space-y-2">
         <Label className="text-[10px] text-muted-foreground">Floor Texture</Label>
-        <Select
-          value={current.floorTextureId || '_none'}
-          onValueChange={(v) => update({ floorTextureId: v === '_none' ? undefined : v })}
-        >
-          <SelectTrigger className="h-7 text-xs">
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none">None</SelectItem>
-            {textureAssets.map(a => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <AssetDropdown
+          assets={assets}
+          value={current.floorTextureId}
+          onChange={(id) => update({ floorTextureId: id })}
+          filter="texture"
+          placeholder="None"
+        />
       </div>
 
       <div className="space-y-2">
         <Label className="text-[10px] text-muted-foreground">Ceiling Texture</Label>
-        <Select
-          value={current.ceilingTextureId || '_none'}
-          onValueChange={(v) => update({ ceilingTextureId: v === '_none' ? undefined : v })}
-        >
-          <SelectTrigger className="h-7 text-xs">
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none">None</SelectItem>
-            {textureAssets.map(a => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <AssetDropdown
+          assets={assets}
+          value={current.ceilingTextureId}
+          onChange={(id) => update({ ceilingTextureId: id })}
+          filter="texture"
+          placeholder="None"
+        />
       </div>
 
       {/* Furniture set */}
@@ -407,15 +354,6 @@ export function BuildingTypeDetailPanel({
   const mode = config?.mode;
   const overrides = config?.styleOverrides;
 
-  const modelAssets = useMemo(
-    () => assets.filter(a =>
-      (a.assetType || '').startsWith('model_') ||
-      a.mimeType === 'model/gltf-binary' ||
-      /\.(glb|gltf)$/i.test(a.filePath || ''),
-    ),
-    [assets],
-  );
-
   const setMode = (newMode: 'asset' | 'procedural') => {
     onUpdate({ ...config, mode: newMode });
   };
@@ -500,18 +438,14 @@ export function BuildingTypeDetailPanel({
         <div className="space-y-2" data-testid={`asset-config-${typeName}`}>
           <div>
             <Label className="text-[10px]">Model Asset</Label>
-            <Select
-              value={config?.assetId || "none"}
-              onValueChange={v => setAssetId(v === "none" ? undefined : v)}
-            >
-              <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No model selected</SelectItem>
-                {modelAssets.map(a => (
-                  <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AssetDropdown
+              assets={assets}
+              value={config?.assetId}
+              onChange={setAssetId}
+              filter="model"
+              placeholder="No model selected"
+              className="h-6 text-[10px]"
+            />
           </div>
 
           <div>
@@ -855,8 +789,6 @@ const TEXTURE_FIELDS = [
   { key: 'windowTextureId' as const, label: 'Window Texture' },
 ] as const;
 
-type TextureFieldKey = typeof TEXTURE_FIELDS[number]['key'];
-
 function makeDefaultPreset(category: string): ProceduralStylePreset {
   return {
     id: `cat_${category}_${Date.now()}`,
@@ -877,7 +809,6 @@ function InlineCategoryPresetEditor({
   onUpdate,
   onAdd,
   onRemove,
-  onTexturePick,
 }: {
   category: string;
   preset: ProceduralStylePreset | undefined;
@@ -885,7 +816,6 @@ function InlineCategoryPresetEditor({
   onUpdate: (partial: Partial<ProceduralStylePreset>) => void;
   onAdd: () => void;
   onRemove: () => void;
-  onTexturePick: (field: TextureFieldKey) => void;
 }) {
   const [showPresetDetails, setShowPresetDetails] = useState(false);
 
@@ -901,11 +831,6 @@ function InlineCategoryPresetEditor({
       </div>
     );
   }
-
-  const getTextureName = (textureId?: string) => {
-    if (!textureId) return null;
-    return assets.find(a => a.id === textureId)?.name ?? 'Selected';
-  };
 
   return (
     <div className="border rounded bg-muted/20 px-2 py-1.5 space-y-1.5">
@@ -1017,21 +942,16 @@ function InlineCategoryPresetEditor({
           <div className="space-y-1">
             <p className="text-[10px] font-semibold text-muted-foreground">Textures</p>
             {TEXTURE_FIELDS.map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between rounded border px-2 py-1">
-                <div className="min-w-0 mr-2">
-                  <p className="text-[10px] font-medium">{label}</p>
-                  <p className="text-[9px] text-muted-foreground truncate">{getTextureName((preset as any)[key]) ?? 'Not set'}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => onTexturePick(key)}>
-                    <ImageIcon className="w-3 h-3 mr-0.5" /> Pick
-                  </Button>
-                  {(preset as any)[key] && (
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => onUpdate({ [key]: undefined })}>
-                      <X className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
+              <div key={key} className="space-y-0.5">
+                <Label className="text-[10px]">{label}</Label>
+                <AssetDropdown
+                  assets={assets}
+                  value={(preset as any)[key]}
+                  onChange={(id) => onUpdate({ [key]: id })}
+                  filter="texture"
+                  placeholder="Not set"
+                  className="h-6 text-[10px]"
+                />
               </div>
             ))}
           </div>
@@ -1056,8 +976,6 @@ export function BuildingConfigurationPanel({
   onSelect,
 }: BuildingConfigurationPanelProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [showTextureBrowser, setShowTextureBrowser] = useState(false);
-  const [texturePickTarget, setTexturePickTarget] = useState<{ category: string; field: TextureFieldKey } | null>(null);
 
   const configs = useMemo<Record<string, UnifiedBuildingTypeConfig>>(
     () => (collection as any).worldTypeConfig?.buildingConfig?.buildingTypeConfigs
@@ -1124,17 +1042,6 @@ export function BuildingConfigurationPanel({
     },
     [presets, onUpdateCategoryPresets],
   );
-
-  const handleTextureSelect = useCallback((asset: any) => {
-    if (!texturePickTarget || !onUpdateCategoryPresets) return;
-    const { category, field } = texturePickTarget;
-    onUpdateCategoryPresets({
-      ...presets,
-      [category]: { ...presets[category], [field]: asset.id },
-    });
-    setShowTextureBrowser(false);
-    setTexturePickTarget(null);
-  }, [texturePickTarget, presets, onUpdateCategoryPresets]);
 
   const categories = Object.entries(BUILDING_CATEGORY_GROUPINGS) as [
     BuildingCategory,
@@ -1207,10 +1114,6 @@ export function BuildingConfigurationPanel({
                   onUpdate={(partial) => handlePresetUpdate(category, partial)}
                   onAdd={() => handlePresetAdd(category)}
                   onRemove={() => handlePresetRemove(category)}
-                  onTexturePick={(field) => {
-                    setTexturePickTarget({ category, field });
-                    setShowTextureBrowser(true);
-                  }}
                 />
 
                 {/* Building types list */}
@@ -1268,12 +1171,6 @@ export function BuildingConfigurationPanel({
         );
       })}
 
-      {/* Texture picker browser (shared across all categories) */}
-      <AssetBrowserDialog
-        open={showTextureBrowser}
-        onOpenChange={(open) => { setShowTextureBrowser(open); if (!open) setTexturePickTarget(null); }}
-        onAssetSelected={handleTextureSelect}
-      />
     </div>
   );
 }
