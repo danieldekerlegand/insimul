@@ -186,6 +186,117 @@ export function renderTerrainPixels(
   return output;
 }
 
+/** Street segment data for world canvas rendering. */
+export interface WorldCanvasStreet {
+  waypoints: Array<{ x: number; z: number }>;
+  width: number;
+}
+
+/** Building footprint data for world canvas rendering. */
+export interface WorldCanvasBuilding {
+  position: { x: number; z: number };
+  type: 'business' | 'residence' | 'other';
+  width?: number;
+  depth?: number;
+}
+
+/**
+ * Render a top-down 2D world map canvas with terrain color, streets, and buildings.
+ *
+ * World coordinates range from (-worldSize/2, -worldSize/2) to (worldSize/2, worldSize/2).
+ * The canvas maps these to (0, 0) → (outputSize, outputSize).
+ *
+ * @param outputSize - Square canvas size in pixels
+ * @param worldSize - World extent in game units
+ * @param biome - Biome name for terrain color palette
+ * @param streets - Street segments to draw
+ * @param buildings - Building footprints to draw
+ * @returns HTMLCanvasElement with the rendered world map
+ */
+export function renderWorldCanvas(
+  outputSize: number,
+  worldSize: number,
+  biome: string = 'plains',
+  streets: WorldCanvasStreet[] = [],
+  buildings: WorldCanvasBuilding[] = [],
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = outputSize;
+  canvas.height = outputSize;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  const palette = TERRAIN_PALETTES[biome] || DEFAULT_PALETTE;
+  const [r, g, b] = palette.midland;
+  const worldHalf = worldSize / 2;
+
+  // Fill terrain background
+  ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+  ctx.fillRect(0, 0, outputSize, outputSize);
+
+  // Helper: world coords → canvas pixel coords
+  // World X maps to canvas X (left to right)
+  // World Z maps to canvas Y (positive Z = up in world = top of canvas)
+  const toCanvas = (wx: number, wz: number): [number, number] => {
+    const cx = ((wx + worldHalf) / worldSize) * outputSize;
+    const cy = ((-wz + worldHalf) / worldSize) * outputSize;
+    return [cx, cy];
+  };
+
+  // Draw streets
+  if (streets.length > 0) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200, 200, 200, 0.6)';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (const street of streets) {
+      if (street.waypoints.length < 2) continue;
+      const lineWidth = Math.max(1, (street.width / worldSize) * outputSize);
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      const [sx, sy] = toCanvas(street.waypoints[0].x, street.waypoints[0].z);
+      ctx.moveTo(sx, sy);
+      for (let i = 1; i < street.waypoints.length; i++) {
+        const [px, py] = toCanvas(street.waypoints[i].x, street.waypoints[i].z);
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Draw building footprints
+  if (buildings.length > 0) {
+    ctx.save();
+    for (const building of buildings) {
+      const [cx, cy] = toCanvas(building.position.x, building.position.z);
+      const w = Math.max(2, ((building.width ?? 6) / worldSize) * outputSize);
+      const h = Math.max(2, ((building.depth ?? 6) / worldSize) * outputSize);
+
+      switch (building.type) {
+        case 'business':
+          ctx.fillStyle = 'rgba(100, 149, 237, 0.7)';
+          break;
+        case 'residence':
+          ctx.fillStyle = 'rgba(210, 180, 140, 0.7)';
+          break;
+        default:
+          ctx.fillStyle = 'rgba(169, 169, 169, 0.7)';
+          break;
+      }
+      ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
+    }
+    ctx.restore();
+  }
+
+  return canvas;
+}
+
 /**
  * Generate a terrain background canvas from a heightmap image URL.
  *
