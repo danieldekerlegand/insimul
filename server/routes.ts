@@ -2519,6 +2519,36 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  app.patch("/api/businesses/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const business = await storage.getBusiness(id);
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const { businessType } = req.body;
+      if (!businessType || typeof businessType !== "string") {
+        return res.status(400).json({ error: "businessType is required and must be a string" });
+      }
+
+      const updated = await storage.updateBusiness(id, { businessType });
+      if (!updated) {
+        return res.status(500).json({ error: "Failed to update business" });
+      }
+
+      // Auto-sync to Prolog
+      if (updated.worldId) {
+        const owner = updated.ownerId ? await storage.getCharacter(updated.ownerId) : undefined;
+        prologAutoSync.onBusinessChanged(updated.worldId, updated as any, owner as any).catch(e => console.warn('[PrologAutoSync] business patch:', e));
+      }
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update business" });
+    }
+  });
+
   app.delete("/api/businesses/:id", async (req, res) => {
     try {
       const { id } = req.params;
@@ -2540,6 +2570,30 @@ app.get("/api/rules", async (req, res) => {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete business" });
+    }
+  });
+
+  app.patch("/api/residences/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const residence = await storage.getResidence(id);
+      if (!residence) {
+        return res.status(404).json({ error: "Residence not found" });
+      }
+
+      const { residenceType } = req.body;
+      if (!residenceType || typeof residenceType !== "string") {
+        return res.status(400).json({ error: "residenceType is required and must be a string" });
+      }
+
+      const updated = await storage.updateResidence(id, { residenceType });
+      if (!updated) {
+        return res.status(500).json({ error: "Failed to update residence" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update residence" });
     }
   });
 
