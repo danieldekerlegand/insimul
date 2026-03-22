@@ -13,10 +13,10 @@
  * Run with: npx tsx --tsconfig client/src/components/3DGame/__tests__/tsconfig.test.json client/src/components/3DGame/__tests__/InteriorConfigApplication.test.ts
  */
 
-import { Scene, Mesh, Vector3, MeshBuilder, StandardMaterial, Color3 } from './babylon-mock';
-import { BuildingInteriorGenerator } from '../BuildingInteriorGenerator';
+import { Scene, Mesh, Vector3, MeshBuilder, StandardMaterial, Color3, Light } from './babylon-mock';
+import { BuildingInteriorGenerator, resolveLightingPreset } from '../BuildingInteriorGenerator';
 import type { InteriorLayout } from '../BuildingInteriorGenerator';
-import type { InteriorTemplateConfig, InteriorLayoutTemplate } from '@shared/game-engine/types';
+import type { InteriorTemplateConfig, InteriorLayoutTemplate, LightingPreset } from '@shared/game-engine/types';
 
 let passed = 0;
 let failed = 0;
@@ -347,6 +347,138 @@ console.log('\nmodel mode defaults:');
   assert(layout.width === 10, 'model mode defaults to width=10');
   assert(layout.depth === 10, 'model mode defaults to depth=10');
   assert(layout.height === 4, 'model mode defaults to height=4');
+}
+
+// --- Lighting preset application ---
+
+console.log('\nlighting preset application:');
+
+{
+  // resolveLightingPreset returns correct configs for all presets
+  const presets: LightingPreset[] = ['bright', 'dim', 'warm', 'cool', 'candlelit'];
+  for (const preset of presets) {
+    const config = resolveLightingPreset(preset);
+    assert(config !== undefined, `resolveLightingPreset('${preset}') returns a config`);
+    assert(config.ambientIntensity > 0, `'${preset}' has positive ambientIntensity`);
+    assert(config.pointLightIntensity > 0, `'${preset}' has positive pointLightIntensity`);
+    assert(config.ambientColor instanceof Color3, `'${preset}' ambientColor is Color3`);
+    assert(config.pointLightColor instanceof Color3, `'${preset}' pointLightColor is Color3`);
+  }
+}
+
+{
+  // bright is brighter than dim
+  const bright = resolveLightingPreset('bright');
+  const dim = resolveLightingPreset('dim');
+  assert(bright.ambientIntensity > dim.ambientIntensity, 'bright ambient > dim ambient');
+  assert(bright.pointLightIntensity > dim.pointLightIntensity, 'bright point > dim point');
+}
+
+{
+  // candlelit is the dimmest
+  const candlelit = resolveLightingPreset('candlelit');
+  const presets: LightingPreset[] = ['bright', 'dim', 'warm', 'cool'];
+  for (const p of presets) {
+    const other = resolveLightingPreset(p);
+    assert(other.ambientIntensity >= candlelit.ambientIntensity, `${p} ambient >= candlelit ambient`);
+  }
+}
+
+{
+  // warm preset has warm (orange-shifted) color
+  const warm = resolveLightingPreset('warm');
+  assert(warm.ambientColor.r > warm.ambientColor.g, 'warm: r > g');
+  assert(warm.ambientColor.g > warm.ambientColor.b, 'warm: g > b');
+}
+
+{
+  // cool preset has cool (blue-shifted) color
+  const cool = resolveLightingPreset('cool');
+  assert(cool.ambientColor.b > cool.ambientColor.r, 'cool: b > r');
+}
+
+{
+  // lightingPreset string is applied to scene lights
+  const scene = makeScene();
+  // Add mock lights matching what InteriorSceneManager creates
+  const ambient = new Light('interior_ambient');
+  const center = new Light('interior_center_light');
+  (scene as any).addLight(ambient);
+  (scene as any).addLight(center);
+
+  const gen = new BuildingInteriorGenerator(scene as any);
+  gen.setInteriorConfigs({
+    'tavern': { mode: 'procedural', lightingPreset: 'warm' },
+  });
+
+  gen.generateInterior('tav_light', 'business', 'tavern');
+
+  const warmCfg = resolveLightingPreset('warm');
+  assert(
+    Math.abs(ambient.intensity - warmCfg.ambientIntensity) < 0.01,
+    `ambient intensity set to warm (${ambient.intensity} ≈ ${warmCfg.ambientIntensity})`
+  );
+  assert(
+    Math.abs(center.intensity - warmCfg.pointLightIntensity) < 0.01,
+    `point light intensity set to warm (${center.intensity} ≈ ${warmCfg.pointLightIntensity})`
+  );
+  assert(
+    Math.abs(ambient.diffuse.r - warmCfg.ambientColor.r) < 0.01,
+    `ambient diffuse color set to warm`
+  );
+  assert(
+    Math.abs(center.diffuse.r - warmCfg.pointLightColor.r) < 0.01,
+    `center light diffuse color set to warm`
+  );
+}
+
+{
+  // different presets produce different results
+  const scene1 = makeScene();
+  const ambient1 = new Light('interior_ambient');
+  const center1 = new Light('interior_center_light');
+  (scene1 as any).addLight(ambient1);
+  (scene1 as any).addLight(center1);
+  const gen1 = new BuildingInteriorGenerator(scene1 as any);
+  gen1.setInteriorConfigs({ 'bar': { mode: 'procedural', lightingPreset: 'candlelit' } });
+  gen1.generateInterior('bar_candle', 'business', 'bar');
+
+  const scene2 = makeScene();
+  const ambient2 = new Light('interior_ambient');
+  const center2 = new Light('interior_center_light');
+  (scene2 as any).addLight(ambient2);
+  (scene2 as any).addLight(center2);
+  const gen2 = new BuildingInteriorGenerator(scene2 as any);
+  gen2.setInteriorConfigs({ 'bar': { mode: 'procedural', lightingPreset: 'bright' } });
+  gen2.generateInterior('bar_bright', 'business', 'bar');
+
+  assert(
+    ambient1.intensity !== ambient2.intensity,
+    `candlelit vs bright produce different ambient (${ambient1.intensity} vs ${ambient2.intensity})`
+  );
+  assert(
+    center1.intensity !== center2.intensity,
+    `candlelit vs bright produce different point light (${center1.intensity} vs ${center2.intensity})`
+  );
+}
+
+{
+  // no lightingPreset → lights are NOT modified (stay at defaults)
+  const scene = makeScene();
+  const ambient = new Light('interior_ambient');
+  const center = new Light('interior_center_light');
+  (scene as any).addLight(ambient);
+  (scene as any).addLight(center);
+
+  const gen = new BuildingInteriorGenerator(scene as any);
+  gen.setInteriorConfigs({
+    'tavern': { mode: 'procedural' },
+  });
+
+  gen.generateInterior('tav_no_light', 'business', 'tavern');
+
+  assert(ambient.intensity === 1, `ambient stays at default intensity when no preset (got ${ambient.intensity})`);
+  assert(center.intensity === 1, `center stays at default intensity when no preset (got ${center.intensity})`);
 }
 
 // ── Summary ──
