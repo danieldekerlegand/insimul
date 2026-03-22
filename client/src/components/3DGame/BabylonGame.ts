@@ -157,7 +157,7 @@ import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCBusinessInteractionSystem, type BusinessInteraction, type ServiceResult } from "@/components/3DGame/NPCBusinessInteractionSystem.ts";
 import { BusinessBehaviorSystem } from "@/components/3DGame/BusinessBehaviorSystem.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
-import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
+import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, getClothingColorForMesh, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
@@ -6742,16 +6742,24 @@ export class BabylonGame {
     }
 
     // Apply color and material variations to all sub-meshes
+    let clothingMeshIndex = 0;
     let meshIndex = 0;
     for (const mesh of meshes) {
       if (mesh.material && mesh.material instanceof StandardMaterial) {
         const mat = mesh.material.clone(`${mesh.material.name}_appearance_${characterId.slice(-6)}`) as StandardMaterial;
 
-        // Alternate between skin and clothing colors based on mesh index
-        // Typically mesh 0 is body/skin, others are clothing/accessories
-        const baseColor = meshIndex === 0 ? appearance.skinColor
-          : meshIndex % 2 === 1 ? appearance.clothingColor
-          : appearance.accentColor;
+        let baseColor: Color3;
+        if (meshIndex === 0) {
+          // First mesh: skin
+          baseColor = appearance.skinColor;
+        } else if (meshIndex === meshes.length - 1 && meshes.length > 2) {
+          // Last mesh (when >2): accent color
+          baseColor = appearance.accentColor;
+        } else {
+          // Clothing meshes: alternate primary/secondary with per-mesh hue shift
+          baseColor = getClothingColorForMesh(appearance, clothingMeshIndex);
+          clothingMeshIndex++;
+        }
 
         // Blend base color with role tint
         mat.diffuseColor = blendWithRoleTint(baseColor, appearance);
@@ -6764,6 +6772,15 @@ export class BabylonGame {
 
         mesh.material = mat;
         meshIndex++;
+      }
+
+      // Apply shoulder/head scaling to named mesh parts
+      const meshName = mesh.name.toLowerCase();
+      if (meshName.includes('shoulder') || meshName.includes('upper_arm') || meshName.includes('chest')) {
+        mesh.scaling.x *= appearance.shoulderScale;
+        mesh.scaling.z *= appearance.shoulderScale;
+      } else if (meshName.includes('head') || meshName.includes('skull')) {
+        mesh.scaling = mesh.scaling.scale(appearance.headScale);
       }
     }
 

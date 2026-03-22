@@ -11,16 +11,29 @@ import { Color3, Vector3 } from '@babylonjs/core';
 /** Role types matching BabylonGame's NPCRole */
 export type NPCRole = 'guard' | 'merchant' | 'questgiver' | 'civilian';
 
+/** Body type archetype for proportion generation */
+export type BodyType = 'average' | 'stocky' | 'lean' | 'heavyset' | 'athletic';
+
 /** Generated appearance parameters for a single NPC */
 export interface NPCAppearance {
   /** Skin tone color */
   skinColor: Color3;
   /** Primary clothing/outfit color */
   clothingColor: Color3;
+  /** Secondary clothing color for alternating mesh parts */
+  secondaryClothingColor: Color3;
   /** Secondary accent color for clothing details */
   accentColor: Color3;
+  /** Per-mesh hue shift factor (-1 to 1) for subtle color variation */
+  clothingHueShift: number;
   /** Uniform scale factor (height/build variation) */
   scale: Vector3;
+  /** Body type archetype */
+  bodyType: BodyType;
+  /** Shoulder width multiplier relative to base */
+  shoulderScale: number;
+  /** Head size multiplier */
+  headScale: number;
   /** Material roughness 0-1 (lower = shinier) */
   roughness: number;
   /** Emissive intensity for subtle glow variation */
@@ -69,6 +82,15 @@ const ACCENT_COLORS: Color3[] = [
   new Color3(0.55, 0.30, 0.25), // rust
   new Color3(0.35, 0.35, 0.40), // slate
   new Color3(0.60, 0.45, 0.30), // copper
+];
+
+// Body type archetypes with proportion multipliers
+const BODY_TYPES: { type: BodyType; heightRange: [number, number]; widthRange: [number, number]; shoulderRange: [number, number]; headRange: [number, number] }[] = [
+  { type: 'average',   heightRange: [0.95, 1.05], widthRange: [0.95, 1.05], shoulderRange: [0.97, 1.03], headRange: [0.97, 1.03] },
+  { type: 'stocky',    heightRange: [0.85, 0.95], widthRange: [1.05, 1.15], shoulderRange: [1.05, 1.12], headRange: [1.00, 1.05] },
+  { type: 'lean',      heightRange: [1.00, 1.12], widthRange: [0.88, 0.95], shoulderRange: [0.90, 0.97], headRange: [0.95, 1.00] },
+  { type: 'heavyset',  heightRange: [0.90, 1.00], widthRange: [1.10, 1.22], shoulderRange: [1.08, 1.15], headRange: [1.02, 1.08] },
+  { type: 'athletic',  heightRange: [0.98, 1.10], widthRange: [0.98, 1.08], shoulderRange: [1.03, 1.10], headRange: [0.97, 1.02] },
 ];
 
 /** Role-based tint colors (same as original system but used as overlay) */
@@ -127,11 +149,15 @@ export function generateNPCAppearance(characterId: string, role: NPCRole): NPCAp
   const skinVal = hashFloat(hash, 0);
   const clothingVal = hashFloat(hash, 1);
   const accentVal = hashFloat(hash, 2);
-  const scaleVal = hashFloat(hash, 3);
-  const widthVal = hashFloat(hash, 4);
+  const bodyTypeVal = hashFloat(hash, 3);
+  const proportionVal = hashFloat(hash, 4);
   const roughnessVal = hashFloat(hash, 5);
   const emissiveVal = hashFloat(hash, 6);
   const skinVariation = hashFloat(hash, 7);
+  const secondaryClothingVal = hashFloat(hash, 8);
+  const hueShiftVal = hashFloat(hash, 9);
+  const shoulderVal = hashFloat(hash, 10);
+  const headVal = hashFloat(hash, 11);
 
   // Skin: pick base tone then apply slight random variation
   const baseSkin = pickFromPalette(SKIN_TONES, skinVal);
@@ -141,17 +167,35 @@ export function generateNPCAppearance(characterId: string, role: NPCRole): NPCAp
     Math.max(0, Math.min(1, baseSkin.b + (skinVariation - 0.5) * 0.06)),
   );
 
-  // Clothing: pick from palette
+  // Clothing: pick primary and secondary colors from palette
   const clothingColor = pickFromPalette(CLOTHING_COLORS, clothingVal);
 
-  // Accent: pick from palette, ensure it differs from clothing
-  let accentIndex = Math.floor(accentVal * ACCENT_COLORS.length) % ACCENT_COLORS.length;
+  // Secondary clothing: pick a different color, offset by at least 2 from primary
+  const primaryClothingIndex = Math.floor(clothingVal * CLOTHING_COLORS.length) % CLOTHING_COLORS.length;
+  const secondaryOffset = 2 + Math.floor(secondaryClothingVal * (CLOTHING_COLORS.length - 2));
+  const secondaryClothingColor = CLOTHING_COLORS[(primaryClothingIndex + secondaryOffset) % CLOTHING_COLORS.length];
+
+  // Per-mesh hue shift: subtle variation so each clothing mesh isn't identical
+  const clothingHueShift = (hueShiftVal - 0.5) * 0.15; // -0.075 to 0.075
+
+  // Accent: pick from palette
+  const accentIndex = Math.floor(accentVal * ACCENT_COLORS.length) % ACCENT_COLORS.length;
   const accentColor = ACCENT_COLORS[accentIndex];
 
-  // Scale: height varies ±10%, width varies ±5% for build variation
-  const heightScale = 0.90 + scaleVal * 0.20; // 0.90 to 1.10
-  const widthScale = 0.95 + widthVal * 0.10;  // 0.95 to 1.05
+  // Body type: pick archetype then interpolate within its ranges
+  const bodyTypeConfig = pickFromPalette(BODY_TYPES, bodyTypeVal);
+  const bodyType = bodyTypeConfig.type;
+  const [hMin, hMax] = bodyTypeConfig.heightRange;
+  const [wMin, wMax] = bodyTypeConfig.widthRange;
+  const heightScale = hMin + proportionVal * (hMax - hMin);
+  const widthScale = wMin + proportionVal * (wMax - wMin);
   const scale = new Vector3(widthScale, heightScale, widthScale);
+
+  // Shoulder and head scaling within body type ranges
+  const [sMin, sMax] = bodyTypeConfig.shoulderRange;
+  const shoulderScale = sMin + shoulderVal * (sMax - sMin);
+  const [hdMin, hdMax] = bodyTypeConfig.headRange;
+  const headScale = hdMin + headVal * (hdMax - hdMin);
 
   // Material properties
   const roughness = 0.6 + roughnessVal * 0.35; // 0.6 to 0.95
@@ -164,13 +208,44 @@ export function generateNPCAppearance(characterId: string, role: NPCRole): NPCAp
   return {
     skinColor,
     clothingColor,
+    secondaryClothingColor,
     accentColor,
+    clothingHueShift,
     scale,
+    bodyType,
+    shoulderScale,
+    headScale,
     roughness,
     emissiveIntensity,
     roleTint,
     roleTintStrength,
   };
+}
+
+/**
+ * Apply a subtle hue shift to a color by adjusting RGB channels.
+ * Positive shift warms the color, negative shift cools it.
+ */
+export function shiftColor(color: Color3, shift: number, meshIndex: number): Color3 {
+  // Vary shift per mesh so adjacent meshes look different
+  const perMeshShift = shift * (1 + meshIndex * 0.3);
+  return new Color3(
+    Math.max(0, Math.min(1, color.r + perMeshShift)),
+    Math.max(0, Math.min(1, color.g - perMeshShift * 0.5)),
+    Math.max(0, Math.min(1, color.b - perMeshShift * 0.3)),
+  );
+}
+
+/**
+ * Get the clothing color for a specific mesh index.
+ * Alternates between primary and secondary clothing colors,
+ * with per-mesh hue shifting for variety.
+ */
+export function getClothingColorForMesh(appearance: NPCAppearance, meshIndex: number): Color3 {
+  const baseColor = meshIndex % 2 === 0
+    ? appearance.clothingColor
+    : appearance.secondaryClothingColor;
+  return shiftColor(baseColor, appearance.clothingHueShift, meshIndex);
 }
 
 /**
