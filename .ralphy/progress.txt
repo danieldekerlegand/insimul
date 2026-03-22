@@ -400,3 +400,17 @@
   - Determinism (same ID → same appearance), variation (different IDs → different appearances)
   - All 4 body types, all 4 NPC roles, material caching, static utility methods
 - All 20 tests pass, no new TypeScript errors
+
+## Agent 14: Apply interior config from asset collection in BuildingInteriorGenerator
+
+### Completed
+- Added `InteriorTemplateConfig`, `InteriorLayoutTemplate`, `InteriorRoomTemplate`, and `InteriorLightingPreset` types to shared/game-engine/types.ts
+- Updated BuildingInteriorGenerator to accept per-building-type interior configs via `setInteriorConfigs()`:
+  - Config lookup by businessType, buildingType, or case-insensitive fallback via `getInteriorConfig()`
+  - Model mode: creates layout with modelPath metadata for InteriorSceneManager delegation
+  - Procedural mode: applies dimension overrides (width/depth/height/floorCount), color overrides (wall/floor/ceiling), and layout template room generation
+  - Lighting preset application: updates ambient and point light intensity/color/range
+  - Falls back to existing hardcoded behavior when no config is set
+- Updated AssetCollectionLoader to extract `interiorConfigs` from `buildingTypeConfigs` in World3DConfig
+- Wrote 47 tests (InteriorConfigApplication.test.ts) covering config lookup, model mode, dimension overrides, floor count overrides, color overrides, layout templates, and fallback behavior
+- All tests pass (47 new + 79 existing MultiRoomInterior + 30 existing Furniture), TypeScript compiles cleanly

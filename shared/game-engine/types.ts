@@ -475,6 +475,71 @@ export interface BuildingSpecData {
 
 // ─── Building Interiors ─────────────────────────────────────────────────────
 
+/** Lighting preset for interior scenes */
+export interface InteriorLightingPreset {
+  ambientIntensity: number;
+  ambientColor: Color3;
+  pointLightIntensity: number;
+  pointLightColor: Color3;
+  /** Ground color for hemispheric light */
+  groundColor?: Color3;
+  /** Range of the center point light */
+  pointLightRange?: number;
+}
+
+/** Room definition within an interior layout template */
+export interface InteriorRoomTemplate {
+  name: string;
+  /** Room function (living, kitchen, bedroom, shop, storage, etc.) */
+  function: string;
+  /** Relative width as fraction of total (0-1), or absolute if > 1 */
+  relativeWidth: number;
+  /** Relative depth as fraction of total (0-1), or absolute if > 1 */
+  relativeDepth: number;
+  /** Floor index: 0 = ground, 1 = upstairs */
+  floor: number;
+  /** Furniture types to place in this room */
+  furniturePreset?: string[];
+}
+
+/** A named interior layout template with room definitions */
+export interface InteriorLayoutTemplate {
+  id: string;
+  name: string;
+  rooms: InteriorRoomTemplate[];
+  totalWidth: number;
+  totalDepth: number;
+  totalHeight: number;
+  floors: number;
+}
+
+/** Per-building-type interior configuration stored in asset collections */
+export interface InteriorTemplateConfig {
+  /** Whether to use a 3D model or procedural generation */
+  mode: 'model' | 'procedural';
+  /** glTF model path (used when mode is 'model') */
+  modelPath?: string;
+  /** Layout template ID or inline template (used when mode is 'procedural') */
+  layoutTemplateId?: string;
+  layoutTemplate?: InteriorLayoutTemplate;
+  /** Override wall color */
+  wallColor?: Color3;
+  /** Override floor color */
+  floorColor?: Color3;
+  /** Override ceiling color */
+  ceilingColor?: Color3;
+  /** Furniture types to place, keyed by room function */
+  furnitureSet?: Record<string, string[]>;
+  /** Lighting preset override */
+  lighting?: InteriorLightingPreset;
+  /** Override room dimensions */
+  width?: number;
+  depth?: number;
+  height?: number;
+  /** Override floor count */
+  floorCount?: number;
+}
+
 export interface InteriorLayoutData {
   id: string;
   buildingId: string;

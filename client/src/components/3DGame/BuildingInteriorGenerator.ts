@@ -16,6 +16,7 @@ import {
   Color3,
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
+import type { InteriorTemplateConfig, InteriorLayoutTemplate } from '@shared/game-engine/types';
 
 /** Describes a sub-room within a multi-room interior */
 export interface RoomZone {
@@ -85,6 +86,7 @@ export class BuildingInteriorGenerator {
   private interiors: Map<string, InteriorLayout> = new Map();
   private nextSlotIndex: number = 0;
   private furnitureLoader: FurnitureModelLoader | null = null;
+  private interiorConfigs: Record<string, InteriorTemplateConfig> = {};
 
   // When using a dedicated interior scene, interiors are placed at Y=0.
   // When sharing the overworld scene (legacy), they stack at Y=500+.
@@ -108,7 +110,42 @@ export class BuildingInteriorGenerator {
   }
 
   /**
+   * Set per-building-type interior configs from asset collection.
+   * Keys are business types or building types (e.g., 'tavern', 'residence_large').
+   */
+  public setInteriorConfigs(configs: Record<string, InteriorTemplateConfig>): void {
+    this.interiorConfigs = configs;
+  }
+
+  /**
+   * Look up interior config for a building/business type.
+   * Tries businessType first, then buildingType, then lowercased variants.
+   */
+  public getInteriorConfig(buildingType: string, businessType?: string): InteriorTemplateConfig | null {
+    if (businessType && this.interiorConfigs[businessType]) {
+      return this.interiorConfigs[businessType];
+    }
+    if (this.interiorConfigs[buildingType]) {
+      return this.interiorConfigs[buildingType];
+    }
+    // Try lowercase
+    const btLower = buildingType.toLowerCase();
+    const bsLower = (businessType || '').toLowerCase();
+    if (bsLower && this.interiorConfigs[bsLower]) {
+      return this.interiorConfigs[bsLower];
+    }
+    if (this.interiorConfigs[btLower]) {
+      return this.interiorConfigs[btLower];
+    }
+    return null;
+  }
+
+  /**
    * Generate an interior for a building. Returns the layout with entry/exit positions.
+   * If an InteriorTemplateConfig is set for this building type, it will be used
+   * to override dimensions, colors, room layout, and lighting.
+   * If the config mode is 'model', the returned layout will have a `modelPath`
+   * in its metadata for the caller to load via InteriorSceneManager.
    */
   public generateInterior(
     buildingId: string,
@@ -120,13 +157,18 @@ export class BuildingInteriorGenerator {
     const existing = this.interiors.get(buildingId);
     if (existing) return existing;
 
-    // Determine room dimensions based on building type
-    const dims = this.getRoomDimensions(buildingType, businessType);
-    const floorCount = this.getFloorCount(buildingType, businessType);
+    const config = this.getInteriorConfig(buildingType, businessType);
+
+    // If config specifies 'model' mode, create a minimal layout with model path metadata
+    if (config?.mode === 'model' && config.modelPath) {
+      return this.createModelInteriorLayout(buildingId, buildingType, businessType, config, overworldDoorPos);
+    }
+
+    // Procedural mode: use config overrides or fall back to hardcoded defaults
+    const dims = this.getConfiguredDimensions(buildingType, businessType, config);
+    const floorCount = config?.floorCount ?? this.getFloorCount(buildingType, businessType);
 
     // Calculate position for this interior.
-    // Dedicated scene: place at Y=0 (isolated scene, no stacking needed).
-    // Legacy (shared overworld scene): stack at Y=500+ with slot spacing.
     let position: Vector3;
     if (this.useDedicatedScene) {
       position = new Vector3(0, 0, 0);
@@ -138,28 +180,33 @@ export class BuildingInteriorGenerator {
       this.nextSlotIndex += slotsNeeded;
     }
 
-    // Generate room zones for multi-room layout
-    const rooms = this.generateRoomZones(buildingType, businessType, dims.width, dims.depth, dims.height, floorCount);
+    // Generate room zones from config template or hardcoded layout
+    const rooms = config?.layoutTemplate
+      ? this.generateRoomZonesFromTemplate(config.layoutTemplate, dims.width, dims.depth, dims.height)
+      : this.generateRoomZones(buildingType, businessType, dims.width, dims.depth, dims.height, floorCount);
 
-    // Build the room shell (floor, walls, ceiling)
-    const roomMesh = this.buildRoom(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType);
+    // Build the room shell with configured colors
+    const roomMesh = this.buildRoom(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType, config);
 
     // Build partition walls between rooms
-    this.buildPartitions(buildingId, position, rooms, dims.height, buildingType, businessType);
+    this.buildPartitions(buildingId, position, rooms, dims.height, buildingType, businessType, config);
 
     // Build staircase if multi-floor
     const furniture: Mesh[] = [];
     if (floorCount > 1) {
       const stairMesh = this.buildStaircase(buildingId, position, dims.width, dims.depth, dims.height);
       if (stairMesh) furniture.push(stairMesh);
-
-      // Build upstairs floor and ceiling
-      this.buildUpperFloor(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType);
+      this.buildUpperFloor(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType, config);
     }
 
     // Generate furniture for each room zone
     const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType);
     furniture.push(...roomFurniture);
+
+    // Apply lighting preset if configured
+    if (config?.lighting) {
+      this.applyLightingPreset(config.lighting);
+    }
 
     // Door position (center of south wall, at floor level)
     const doorPosition = new Vector3(
@@ -168,7 +215,6 @@ export class BuildingInteriorGenerator {
       position.z - dims.depth / 2 + 0.5
     );
 
-    // Exit position is where the player returns to in the overworld
     const exitPosition = overworldDoorPos
       ? overworldDoorPos.clone()
       : new Vector3(0, 0, 0);
@@ -192,6 +238,152 @@ export class BuildingInteriorGenerator {
 
     this.interiors.set(buildingId, layout);
     return layout;
+  }
+
+  /**
+   * Create a layout for model-based interiors. The layout contains a modelPath
+   * in metadata so the caller (BabylonGame) can delegate to InteriorSceneManager.
+   */
+  private createModelInteriorLayout(
+    buildingId: string,
+    buildingType: string,
+    businessType: string | undefined,
+    config: InteriorTemplateConfig,
+    overworldDoorPos?: Vector3,
+  ): InteriorLayout {
+    const width = config.width ?? 10;
+    const depth = config.depth ?? 10;
+    const height = config.height ?? 4;
+
+    let position: Vector3;
+    if (this.useDedicatedScene) {
+      position = new Vector3(0, 0, 0);
+    } else {
+      const slotY = BuildingInteriorGenerator.BASE_Y_OFFSET +
+        this.nextSlotIndex * BuildingInteriorGenerator.SLOT_SPACING;
+      position = new Vector3(0, slotY, 0);
+      this.nextSlotIndex += 1;
+    }
+
+    // Create a minimal placeholder mesh (model loading is handled externally)
+    const roomMesh = new Mesh(`interior_${buildingId}_model_placeholder`, this.scene);
+    roomMesh.metadata = { modelPath: config.modelPath, interiorMode: 'model' };
+
+    const doorPosition = new Vector3(position.x, position.y + 1, position.z - depth / 2 + 0.5);
+    const exitPosition = overworldDoorPos ? overworldDoorPos.clone() : new Vector3(0, 0, 0);
+
+    const layout: InteriorLayout = {
+      id: `interior_${buildingId}`,
+      buildingId,
+      buildingType,
+      businessType,
+      position,
+      width,
+      depth,
+      height,
+      roomMesh,
+      furniture: [],
+      doorPosition,
+      exitPosition,
+      rooms: [],
+      floorCount: 1,
+    };
+
+    this.interiors.set(buildingId, layout);
+    return layout;
+  }
+
+  /**
+   * Get dimensions from config or fall back to hardcoded defaults.
+   */
+  private getConfiguredDimensions(
+    buildingType: string,
+    businessType: string | undefined,
+    config: InteriorTemplateConfig | null,
+  ): { width: number; depth: number; height: number } {
+    if (config?.layoutTemplate) {
+      return {
+        width: config.layoutTemplate.totalWidth,
+        depth: config.layoutTemplate.totalDepth,
+        height: config.layoutTemplate.totalHeight,
+      };
+    }
+    const base = this.getRoomDimensions(buildingType, businessType);
+    return {
+      width: config?.width ?? base.width,
+      depth: config?.depth ?? base.depth,
+      height: config?.height ?? base.height,
+    };
+  }
+
+  /**
+   * Generate room zones from an InteriorLayoutTemplate.
+   */
+  private generateRoomZonesFromTemplate(
+    template: InteriorLayoutTemplate,
+    totalWidth: number,
+    totalDepth: number,
+    totalHeight: number,
+  ): RoomZone[] {
+    const rooms: RoomZone[] = [];
+
+    for (const rt of template.rooms) {
+      // Interpret relativeWidth/Depth: if <= 1, treat as fraction; if > 1, absolute
+      const roomWidth = rt.relativeWidth <= 1 ? rt.relativeWidth * totalWidth : rt.relativeWidth;
+      const roomDepth = rt.relativeDepth <= 1 ? rt.relativeDepth * totalDepth : rt.relativeDepth;
+      const offsetY = rt.floor * totalHeight;
+
+      // Auto-layout: stack rooms front-to-back on the same floor
+      const sameFloorRooms = rooms.filter(r => r.floor === rt.floor);
+      let offsetZ = 0;
+      if (sameFloorRooms.length > 0) {
+        // Place after existing rooms
+        const lastRoom = sameFloorRooms[sameFloorRooms.length - 1];
+        offsetZ = lastRoom.offsetZ + lastRoom.depth / 2 + roomDepth / 2;
+      } else {
+        offsetZ = -totalDepth / 2 + roomDepth / 2;
+      }
+
+      rooms.push({
+        name: rt.name,
+        function: rt.function,
+        offsetX: 0,
+        offsetZ,
+        offsetY,
+        width: roomWidth,
+        depth: roomDepth,
+        floor: rt.floor,
+      });
+    }
+
+    return rooms;
+  }
+
+  /**
+   * Apply lighting preset to the current scene.
+   */
+  private applyLightingPreset(lighting: import('@shared/game-engine/types').InteriorLightingPreset): void {
+    const scene = this.scene;
+
+    // Update hemispheric (ambient) light
+    const ambient = scene.getLightByName?.('interior_ambient');
+    if (ambient) {
+      ambient.intensity = lighting.ambientIntensity;
+      (ambient as any).diffuse = new Color3(lighting.ambientColor.r, lighting.ambientColor.g, lighting.ambientColor.b);
+      if (lighting.groundColor) {
+        (ambient as any).groundColor = new Color3(lighting.groundColor.r, lighting.groundColor.g, lighting.groundColor.b);
+      }
+    }
+
+    // Update center point light
+    const centerLight = scene.getLightByName?.('interior_center_light');
+    if (centerLight) {
+      centerLight.intensity = lighting.pointLightIntensity;
+      (centerLight as any).diffuse = new Color3(lighting.pointLightColor.r, lighting.pointLightColor.g, lighting.pointLightColor.b);
+      if (lighting.pointLightRange !== undefined) {
+        (centerLight as any).range = lighting.pointLightRange;
+      }
+    }
   }
 
   /**
@@ -244,13 +436,14 @@ export class BuildingInteriorGenerator {
     depth: number,
     height: number,
     buildingType: string,
-    businessType?: string
+    businessType?: string,
+    config?: InteriorTemplateConfig | null,
   ): Mesh {
     const prefix = `interior_${buildingId}`;
     const parent = new Mesh(`${prefix}_room`, this.scene);
     parent.position = position;
 
-    const colors = this.getRoomColors(buildingType, businessType);
+    const colors = this.getConfiguredColors(buildingType, businessType, config);
 
     // Floor
     const floor = MeshBuilder.CreateGround(
@@ -576,9 +769,10 @@ export class BuildingInteriorGenerator {
     height: number,
     buildingType: string,
     businessType?: string,
+    config?: InteriorTemplateConfig | null,
   ): void {
     const prefix = `interior_${buildingId}`;
-    const colors = this.getRoomColors(buildingType, businessType);
+    const colors = this.getConfiguredColors(buildingType, businessType, config);
     const wallMat = new StandardMaterial(`${prefix}_partition_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
@@ -800,9 +994,10 @@ export class BuildingInteriorGenerator {
     height: number,
     buildingType: string,
     businessType?: string,
+    config?: InteriorTemplateConfig | null,
   ): void {
     const prefix = `interior_${buildingId}`;
-    const colors = this.getRoomColors(buildingType, businessType);
+    const colors = this.getConfiguredColors(buildingType, businessType, config);
 
     const floorMat = new StandardMaterial(`${prefix}_upper_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
@@ -974,6 +1169,29 @@ export class BuildingInteriorGenerator {
       case 'warehouse': return this.getWarehouseFurniture(w, d);
       default: return this.getLivingRoomFurniture(w, d);
     }
+  }
+
+  /**
+   * Get room colors using config overrides if available, otherwise hardcoded defaults.
+   */
+  private getConfiguredColors(
+    buildingType: string,
+    businessType: string | undefined,
+    config?: InteriorTemplateConfig | null,
+  ): { floor: Color3; wall: Color3; ceiling: Color3 } {
+    const base = this.getRoomColors(buildingType, businessType);
+    if (!config) return base;
+    return {
+      floor: config.floorColor
+        ? new Color3(config.floorColor.r, config.floorColor.g, config.floorColor.b)
+        : base.floor,
+      wall: config.wallColor
+        ? new Color3(config.wallColor.r, config.wallColor.g, config.wallColor.b)
+        : base.wall,
+      ceiling: config.ceilingColor
+        ? new Color3(config.ceilingColor.r, config.ceilingColor.g, config.ceilingColor.b)
+        : base.ceiling,
+    };
   }
 
   /**
