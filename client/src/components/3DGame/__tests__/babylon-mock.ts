@@ -131,10 +131,24 @@ export class Animation {
   setKeys() {}
 }
 
+export class Light {
+  name: string;
+  intensity = 1;
+  diffuse = new Color3(1, 1, 1);
+  groundColor = new Color3(0, 0, 0);
+  range = 10;
+  constructor(name: string) { this.name = name; }
+}
+
 export class Scene {
   effectLayers: any[] = [];
+  private _lights: Light[] = [];
   beginAnimation() {}
   stopAnimation() {}
+  addLight(light: Light) { this._lights.push(light); }
+  getLightByName(name: string): Light | null {
+    return this._lights.find(l => l.name === name) || null;
+  }
 }
 
 export class TransformNode {

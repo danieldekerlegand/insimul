@@ -16,7 +16,7 @@ import {
   Color3,
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
-import type { InteriorTemplateConfig, InteriorLayoutTemplate } from '@shared/game-engine/types';
+import type { InteriorTemplateConfig, InteriorLayoutTemplate, InteriorLightingPreset, LightingPreset } from '@shared/game-engine/types';
 import {
   INTERIOR_LAYOUT_TEMPLATES,
   getFurnitureSetForRoom,
@@ -91,6 +91,45 @@ const PARTITION_DOOR_HEIGHT = 3.0;
 /** Staircase dimensions */
 const STAIR_WIDTH = 2.0;
 const STAIR_STEP_COUNT = 10;
+
+/** Maps lighting preset names to concrete InteriorLightingPreset values */
+const LIGHTING_PRESET_CONFIGS: Record<LightingPreset, InteriorLightingPreset> = {
+  bright: {
+    ambientIntensity: 1.0,
+    ambientColor: new Color3(1, 1, 1),
+    pointLightIntensity: 0.6,
+    pointLightColor: new Color3(1, 1, 1),
+  },
+  dim: {
+    ambientIntensity: 0.3,
+    ambientColor: new Color3(0.9, 0.85, 0.8),
+    pointLightIntensity: 0.15,
+    pointLightColor: new Color3(0.9, 0.85, 0.8),
+  },
+  warm: {
+    ambientIntensity: 0.7,
+    ambientColor: new Color3(1.0, 0.85, 0.6),
+    pointLightIntensity: 0.4,
+    pointLightColor: new Color3(1.0, 0.85, 0.6),
+  },
+  cool: {
+    ambientIntensity: 0.7,
+    ambientColor: new Color3(0.7, 0.8, 1.0),
+    pointLightIntensity: 0.4,
+    pointLightColor: new Color3(0.7, 0.8, 1.0),
+  },
+  candlelit: {
+    ambientIntensity: 0.2,
+    ambientColor: new Color3(1.0, 0.7, 0.3),
+    pointLightIntensity: 0.1,
+    pointLightColor: new Color3(1.0, 0.7, 0.3),
+  },
+};
+
+/** Resolve a LightingPreset string name to an InteriorLightingPreset config */
+export function resolveLightingPreset(preset: LightingPreset): InteriorLightingPreset {
+  return LIGHTING_PRESET_CONFIGS[preset];
+}
 
 export class BuildingInteriorGenerator {
   private scene: Scene;
@@ -220,9 +259,11 @@ export class BuildingInteriorGenerator {
     const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config);
     furniture.push(...roomFurniture);
 
-    // Apply lighting preset if configured
-    if (config?.lighting) {
-      this.applyLightingPreset(config.lighting);
+    // Apply lighting preset if configured (support both object and string preset name)
+    const lightingConfig = config?.lighting
+      ?? (config?.lightingPreset ? resolveLightingPreset(config.lightingPreset) : undefined);
+    if (lightingConfig) {
+      this.applyLightingPreset(lightingConfig);
     }
 
     // Door position (center of south wall, at floor level)
