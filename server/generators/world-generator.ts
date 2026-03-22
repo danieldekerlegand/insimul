@@ -23,6 +23,8 @@ import { placeItemsInWorld } from './item-placement-generator.js';
 // Main quest NPC spawning
 import { spawnMainQuestNPCs } from '../services/main-quest-npc-spawner.js';
 import { assignDefaultOccupations } from './occupation-assignment.js';
+// Population scaling
+import { countBuildings, calculatePopulationTarget } from './population-scaling.js';
 
 export interface WorldGenerationConfig {
   worldName: string;
@@ -212,8 +214,35 @@ export class WorldGenerator {
       
       districts = geographyResult.districts.length;
       buildings = geographyResult.buildings.length;
+
+      // Population scaling: ensure population is proportional to building count
+      if (config.generateGenealogy) {
+        const buildingCounts = countBuildings(geographyResult.buildings);
+        const { target, deficit } = calculatePopulationTarget(buildingCounts, population);
+
+        if (deficit > 0) {
+          console.log(`\n👥 Population scaling: ${population} people for ${buildingCounts.residences} residences + ${buildingCounts.businesses} businesses (target: ${target})`);
+          console.log(`   Generating ${deficit} immigrants to fill gap...`);
+          const immigrantsCreated = await this.genealogyGen.generateImmigrants({
+            worldId: world.id,
+            settlementId: settlement.id,
+            currentYear: config.currentYear,
+            count: deficit,
+          });
+          population += immigrantsCreated;
+          console.log(`   ✅ Population scaled: ${population} people`);
+        }
+
+        const ratio = buildingCounts.residences > 0
+          ? (population / buildingCounts.residences).toFixed(1)
+          : 'N/A';
+        const bRatio = buildingCounts.businesses > 0
+          ? (population / buildingCounts.businesses).toFixed(1)
+          : 'N/A';
+        console.log(`📊 Settlement generated: ${population} people, ${buildingCounts.residences} residences, ${buildingCounts.businesses} businesses (ratio: ${ratio} people/residence, ${bRatio} people/business)`);
+      }
     }
-    
+
     // Update settlement population
     await storage.updateSettlement(settlement.id, {
       population

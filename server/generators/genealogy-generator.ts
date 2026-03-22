@@ -721,6 +721,61 @@ export class GenealogyGenerator {
   }
 
   /**
+   * Generate individual immigrant characters (non-family) to fill population gaps.
+   * Returns the number of characters created.
+   */
+  async generateImmigrants(config: {
+    worldId: string;
+    settlementId: string;
+    currentYear: number;
+    count: number;
+  }): Promise<number> {
+    if (config.count <= 0) return 0;
+
+    // Ensure context is loaded for name generation
+    await this.loadContext({
+      worldId: config.worldId,
+      settlementId: config.settlementId,
+      startYear: config.currentYear - 50,
+      currentYear: config.currentYear,
+      numFoundingFamilies: 0,
+      generationsToGenerate: 0,
+      marriageRate: 0,
+      fertilityRate: 0,
+      deathRate: 0,
+    });
+
+    let created = 0;
+    for (let i = 0; i < config.count; i++) {
+      const gender: 'male' | 'female' = Math.random() > 0.5 ? 'male' : 'female';
+      const firstName = this.getFallbackName(gender);
+      const lastName = this.namePool.surnames[Math.floor(Math.random() * this.namePool.surnames.length)];
+      const age = 18 + Math.floor(Math.random() * 45); // 18-62
+      const birthYear = config.currentYear - age;
+      const personality = this.generatePersonality();
+
+      await storage.createCharacter({
+        worldId: config.worldId,
+        firstName,
+        lastName,
+        gender,
+        birthYear,
+        age,
+        isAlive: true,
+        currentLocation: config.settlementId,
+        personality,
+        skills: this.generateSkills(personality, age),
+        socialAttributes: {
+          immigrant: true,
+        },
+      });
+      created++;
+    }
+
+    return created;
+  }
+
+  /**
    * Reset used names
    */
   reset(): void {
