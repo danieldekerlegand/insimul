@@ -3,11 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Layers, BarChart3, Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import type { Character, VisualAsset } from '@shared/schema';
+import type { BusinessType, Character, VisualAsset } from '@shared/schema';
 import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
 import { AssetBrowserDialog } from '../AssetBrowserDialog';
 import { JobQueueViewer } from '../JobQueueViewer';
@@ -58,6 +59,32 @@ export function SettlementDetailView({
   const [expandedLotId, setExpandedLotId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const BUSINESS_TYPES: BusinessType[] = [
+    'Generic', 'LawFirm', 'ApartmentComplex', 'Bakery', 'Hospital', 'Bank',
+    'Hotel', 'Restaurant', 'GroceryStore', 'Bar', 'Daycare', 'School',
+    'PoliceStation', 'FireStation', 'TownHall', 'Church', 'Farm', 'Factory',
+    'Shop', 'Mortuary', 'RealEstateOffice', 'InsuranceOffice', 'JewelryStore',
+    'TattoParlor', 'Brewery', 'Pharmacy', 'DentalOffice', 'OptometryOffice',
+    'University', 'Harbor', 'Boatyard', 'FishMarket', 'CustomsHouse', 'Lighthouse',
+    'Warehouse', 'Blacksmith', 'Tailor', 'Butcher', 'BookStore', 'HerbShop',
+    'PawnShop', 'Barbershop', 'Bathhouse', 'Carpenter', 'Stables', 'Clinic',
+  ];
+
+  const updateBusinessTypeMutation = useMutation({
+    mutationFn: async ({ businessId, businessType }: { businessId: string; businessType: string }) => {
+      const response = await apiRequest('PATCH', `/api/businesses/${businessId}`, { businessType });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settlements'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/businesses'] });
+      toast({ title: 'Business Updated', description: 'Business type changed successfully' });
+    },
+    onError: () => {
+      toast({ title: 'Update Failed', description: 'Failed to update business type', variant: 'destructive' });
+    },
+  });
 
   // Helper to look up a character's full name by ID
   const getCharacterName = (charId: string | null | undefined): string => {
@@ -627,7 +654,21 @@ export function SettlementDetailView({
                       <Building2 className="w-5 h-5 text-primary" />
                       <div>
                         <CardTitle className="text-base">{business.name}</CardTitle>
-                        <CardDescription>{business.businessType}</CardDescription>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={business.businessType}
+                            onValueChange={(value) => updateBusinessTypeMutation.mutate({ businessId: business.id, businessType: value })}
+                          >
+                            <SelectTrigger className="h-7 text-xs text-muted-foreground border-none bg-transparent hover:bg-muted/50 px-1 -ml-1 w-auto gap-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BUSINESS_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
