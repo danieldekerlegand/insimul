@@ -606,53 +606,53 @@ export class WorldGenerator {
     year: number
   ): BusinessType[] {
     const businesses: BusinessType[] = [];
-    
+
     // Core essentials (always needed)
-    businesses.push('Agriculture');
-    
+    businesses.push('Farm');
+
     if (population > 100) {
-      businesses.push('Retail');
+      businesses.push('GroceryStore');
       businesses.push('Restaurant');
     }
-    
+
     if (population > 300) {
-      businesses.push('Medicine');
-      businesses.push('Construction');
-      businesses.push('Manufacturing');
+      businesses.push('Clinic');
+      businesses.push('Carpenter');
+      businesses.push('Factory');
     }
-    
+
     if (population > 500) {
-      businesses.push('Law');
-      businesses.push('Education');
-      businesses.push('Financial');
+      businesses.push('LawFirm');
+      businesses.push('School');
+      businesses.push('Bank');
     }
-    
+
     if (population > 1000) {
-      businesses.push('Entertainment');
-      businesses.push('Government');
+      businesses.push('Bar');
+      businesses.push('TownHall');
     }
-    
+
     // Terrain-specific
     if (terrain === 'mountains') {
-      businesses.push('Mining');
+      businesses.push('Blacksmith');
     } else if (terrain === 'coast' || terrain === 'river') {
-      businesses.push('Transportation');
+      businesses.push('Harbor');
     } else if (terrain === 'forest') {
-      businesses.push('Logging');
+      businesses.push('Carpenter');
     }
-    
+
     // Era-specific adjustments
     if (year < 1900) {
       // More agricultural in pre-industrial era
-      businesses.push('Agriculture');
+      businesses.push('Farm');
     } else if (year > 1950) {
       // More retail/service in modern era
-      businesses.push('Retail');
+      businesses.push('Shop');
       if (population > 500) {
-        businesses.push('Healthcare');
+        businesses.push('Hospital');
       }
     }
-    
+
     return businesses;
   }
 
@@ -660,26 +660,27 @@ export class WorldGenerator {
    * Generate business name based on type and founder
    */
   private generateBusinessName(businessType: BusinessType, founder: Character): string {
-    const templates: Record<string, string[]> = {
-      'Agriculture': ['Farm', 'Ranch', 'Farmstead'],
-      'Retail': ['General Store', 'Shop', 'Mercantile'],
+    const templates: Partial<Record<BusinessType, string[]>> = {
+      'Farm': ['Farm', 'Ranch', 'Farmstead'],
+      'GroceryStore': ['General Store', 'Grocery', 'Mercantile'],
+      'Shop': ['Shop', 'Emporium', 'Goods'],
       'Restaurant': ['Tavern', 'Inn', 'Eatery'],
-      'Medicine': ['Clinic', 'Practice', 'Medical Office'],
-      'Construction': ['Builders', 'Construction Co.', 'Contractors'],
-      'Manufacturing': ['Smithy', 'Workshop', 'Factory'],
-      'Law': ['Law Office', 'Legal Services', 'Attorney at Law'],
-      'Education': ['School', 'Academy', 'Institute'],
-      'Financial': ['Bank', 'Savings & Loan', 'Credit Union'],
-      'Entertainment': ['Theater', 'Hall', 'Playhouse'],
-      'Government': ['Town Hall', 'City Hall', 'Municipal Building'],
-      'Mining': ['Mine', 'Quarry', 'Mining Co.'],
-      'Transportation': ['Shipping Co.', 'Transport', 'Freight'],
-      'Logging': ['Lumber Mill', 'Logging Co.', 'Timber']
+      'Clinic': ['Clinic', 'Practice', 'Medical Office'],
+      'Hospital': ['Hospital', 'Medical Center', 'Infirmary'],
+      'Carpenter': ['Builders', 'Woodworks', 'Carpentry'],
+      'Factory': ['Workshop', 'Factory', 'Manufactory'],
+      'LawFirm': ['Law Office', 'Legal Services', 'Attorney at Law'],
+      'School': ['School', 'Academy', 'Institute'],
+      'Bank': ['Bank', 'Savings & Loan', 'Credit Union'],
+      'Bar': ['Saloon', 'Pub', 'Tavern'],
+      'TownHall': ['Town Hall', 'City Hall', 'Municipal Building'],
+      'Blacksmith': ['Forge', 'Smithy', 'Ironworks'],
+      'Harbor': ['Shipping Co.', 'Dock', 'Wharf'],
     };
-    
-    const typeTemplates = templates[businessType] || ['Business'];
+
+    const typeTemplates = templates[businessType] || [businessType];
     const template = typeTemplates[Math.floor(Math.random() * typeTemplates.length)];
-    
+
     return `${founder.lastName}'s ${template}`;
   }
 
@@ -690,23 +691,24 @@ export class WorldGenerator {
     day: OccupationVocation[];
     night: OccupationVocation[];
   } {
-    const vacancies: Record<string, { day: OccupationVocation[]; night: OccupationVocation[] }> = {
-      'Agriculture': { day: ['Farmer', 'Farmer'], night: [] },
-      'Retail': { day: ['Cashier', 'Cashier'], night: [] },
-      'Restaurant': { day: ['Chef', 'Waiter'], night: ['Bartender'] },
-      'Medicine': { day: ['Doctor', 'Nurse'], night: ['Nurse'] },
-      'Construction': { day: ['Construction Worker', 'Construction Worker'], night: [] },
-      'Manufacturing': { day: ['Factory Worker', 'Factory Worker'], night: [] },
-      'Law': { day: ['Lawyer', 'Secretary'], night: [] },
-      'Education': { day: ['Teacher', 'Teacher'], night: [] },
-      'Financial': { day: ['Banker', 'Accountant'], night: [] },
-      'Entertainment': { day: ['Performer'], night: ['Performer'] },
-      'Government': { day: ['Manager'], night: [] },
-      'Mining': { day: ['Miner', 'Miner'], night: [] },
-      'Transportation': { day: ['Driver'], night: [] },
-      'Logging': { day: ['Logger', 'Logger'], night: [] }
+    const vacancies: Partial<Record<BusinessType, { day: OccupationVocation[]; night: OccupationVocation[] }>> = {
+      'Farm': { day: ['Farmer', 'Farmhand'], night: [] },
+      'GroceryStore': { day: ['Grocer', 'Cashier'], night: [] },
+      'Shop': { day: ['Cashier', 'Cashier'], night: [] },
+      'Restaurant': { day: ['Cook', 'Waiter'], night: ['Bartender'] },
+      'Clinic': { day: ['Doctor', 'Nurse'], night: ['Nurse'] },
+      'Hospital': { day: ['Doctor', 'Nurse'], night: ['Nurse'] },
+      'Carpenter': { day: ['Carpenter', 'Carpenter'], night: [] },
+      'Factory': { day: ['Laborer', 'Laborer'], night: [] },
+      'LawFirm': { day: ['Lawyer', 'Secretary'], night: [] },
+      'School': { day: ['Teacher', 'Teacher'], night: [] },
+      'Bank': { day: ['BankTeller', 'BankTeller'], night: [] },
+      'Bar': { day: ['Bartender'], night: ['Bartender'] },
+      'TownHall': { day: ['Manager'], night: [] },
+      'Blacksmith': { day: ['Blacksmith', 'Blacksmith'], night: [] },
+      'Harbor': { day: ['Laborer'], night: [] },
     };
-    
+
     return vacancies[businessType] || { day: [], night: [] };
   }
 
