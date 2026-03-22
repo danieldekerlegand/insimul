@@ -29,7 +29,7 @@ export type WorldTextureStyle =
   | 'generic';
 
 export interface TextureGenerationParams {
-  worldId: string;
+  worldId?: string;
   category: TextureCategory;
   material: string;
   worldStyle?: WorldTextureStyle;

@@ -134,6 +134,7 @@ import { NPCInitiatedConversationController } from "@/components/3DGame/NPCIniti
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
+import { InteriorSceneManager, getInteriorModelPath } from "@/components/3DGame/InteriorSceneManager.ts";
 import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITURE_SIZE_MAP, type OutdoorFurnitureType } from "@/components/3DGame/OutdoorFurnitureGenerator.ts";
 import { FurnitureModelLoader } from "@/components/3DGame/FurnitureModelLoader.ts";
 import { InteriorItemManager } from "@/components/3DGame/InteriorItemManager.ts";
@@ -632,6 +633,7 @@ export class BabylonGame {
     questObjectModels?: Record<string, string>;
     audioAssets?: Record<string, string>;
     modelScaling?: Record<string, { x: number; y: number; z: number }>;
+    proceduralBuildings?: import('@shared/game-engine/types').ProceduralBuildingConfig | null;
   } | null = null;
   private worldAssets: VisualAsset[] = [];
 
@@ -657,9 +659,12 @@ export class BabylonGame {
   private chunkManager: ChunkManager | null = null;
 
   // Phase 4: Building interiors
+  private interiorSceneManager: InteriorSceneManager | null = null;
   private interiorGenerator: BuildingInteriorGenerator | null = null;
   private furnitureModelLoader: FurnitureModelLoader | null = null;
   private activeInterior: InteriorLayout | null = null;
+  private activeBuildingId: string | null = null;
+  private interiorCamera: FreeCamera | null = null;
   private savedOverworldPosition: Vector3 | null = null;
   private savedOverworldRotationY: number = 0;
   private savedOverworldCameraAlpha: number = 0;
@@ -2905,8 +2910,15 @@ export class BabylonGame {
     this.roadGenerator = new RoadGenerator(scene);
     this.riverGenerator = new RiverGenerator(scene);
     this.waterRenderer = new WaterRenderer(scene);
-    this.interiorGenerator = new BuildingInteriorGenerator(scene);
-    this.interiorItemManager = new InteriorItemManager(scene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
+    // Initialize interior scene system — must happen before BuildingEntrySystem
+    // which depends on interiorGenerator.
+    console.log('[Init] Creating InteriorSceneManager. engine:', !!this.engine, 'scene:', !!scene);
+    this.interiorSceneManager = new InteriorSceneManager(this.engine!, scene);
+    const interiorScene = this.interiorSceneManager.getInteriorScene();
+    this.interiorGenerator = new BuildingInteriorGenerator(interiorScene);
+    this.interiorGenerator.setTargetScene(interiorScene, true);
+    this.interiorItemManager = new InteriorItemManager(interiorScene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
+    console.log('[Init] InteriorSceneManager ready:', !!this.interiorSceneManager);
     this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
       onTeleportPlayer: (pos: Vector3) => {
         if (this.playerMesh) {
@@ -3002,6 +3014,10 @@ export class BabylonGame {
         // Status text available for debug/UI if needed
       },
     });
+
+    // Disable BuildingEntrySystem's own keyboard handler — BabylonGame handles
+    // E-key entry/exit directly to support interior scene switching.
+    this.buildingEntrySystem.disableKeyboard();
 
     // Wire InteriorNPCManager into BuildingEntrySystem for automatic NPC placement
     this.buildingEntrySystem.setInteriorNPCManager(
@@ -3432,6 +3448,11 @@ export class BabylonGame {
       }
     }
 
+    // Apply procedural building config from asset collection
+    if (this.buildingGenerator && this.world3DConfig?.proceduralBuildings) {
+      this.buildingGenerator.setProceduralConfig(this.world3DConfig.proceduralBuildings);
+    }
+
     // Nature models: iterate ALL keys from config3D.natureModels
     // Primary keys (defaultTree, rock, shrub, bush) register as overrides;
     // additional tree-like keys become random tree variants;
@@ -3577,6 +3598,7 @@ export class BabylonGame {
     }
 
     const worldStyle = ProceduralBuildingGenerator.getStyleForWorld(worldType, "plains");
+    const proceduralBuildingConfig = this.world3DConfig?.proceduralBuildings || null;
     const biome = ProceduralNatureGenerator.getBiomeFromWorldType(worldType);
 
 
@@ -3759,6 +3781,7 @@ export class BabylonGame {
             population: scaledSettlement.population,
             rotation: lotInfo.facingAngle,
             zone: lotInfo.zone as any,
+            proceduralConfig: proceduralBuildingConfig,
           });
 
           // Clamp building footprint to lot dimensions so it doesn't overflow into streets
@@ -3893,6 +3916,7 @@ export class BabylonGame {
             population: occupants.length,
             rotation: lotInfo.facingAngle,
             zone: lotInfo.zone as any,
+            proceduralConfig: proceduralBuildingConfig,
           });
 
           // Clamp building footprint to lot dimensions so it doesn't overflow into streets
@@ -4089,6 +4113,7 @@ export class BabylonGame {
               population: scaledSettlement.population,
               rotation: slotInfo.facingAngle,
               zone: slotInfo.zone,
+              proceduralConfig: proceduralBuildingConfig,
             });
 
             buildingSpec = {
@@ -4186,6 +4211,7 @@ export class BabylonGame {
             population: Math.floor(scaledSettlement.population / buildingCount),
             rotation: slotInfo.facingAngle,
             zone: slotInfo.zone,
+            proceduralConfig: proceduralBuildingConfig,
           });
 
           buildingSpec = {
@@ -4217,6 +4243,13 @@ export class BabylonGame {
             occupants: []
           };
           building.isPickable = true;
+
+          // Store in building data map for E-key interaction
+          this.buildingData.set(genericResId, {
+            position: building.position.clone(),
+            metadata: building.metadata,
+            mesh: building
+          });
 
           // Generate wall collision meshes
           this.buildingCollisionSystem?.generateCollision({
@@ -4718,14 +4751,19 @@ export class BabylonGame {
     // Performance: freeze world matrices and optimize static meshes
     this.optimizeStaticMeshes();
 
-    // Diagnostic: find any abnormally large meshes in the scene
+    // Diagnostic: find any abnormally large or high-flying meshes
     if (this.scene) {
       for (const m of this.scene.meshes) {
         if (m.isDisposed()) continue;
         const bi = m.getBoundingInfo();
         const sz = bi.boundingBox.maximumWorld.subtract(bi.boundingBox.minimumWorld);
         const maxDim = Math.max(Math.abs(sz.x), Math.abs(sz.y), Math.abs(sz.z));
-        if (maxDim > 50) {
+        const absY = Math.abs(m.getAbsolutePosition().y);
+        if (maxDim > 10 && m.name !== 'ground' && !m.name.includes('sky')) {
+          console.warn(`[WorldGen] LARGE mesh: "${m.name}" maxDim=${maxDim.toFixed(1)} absY=${absY.toFixed(1)} scale=(${m.scaling.x.toFixed(4)}, ${m.scaling.y.toFixed(4)}, ${m.scaling.z.toFixed(4)}) enabled=${m.isEnabled()} visible=${m.isVisible}`);
+        }
+        if (absY > 30 && m.name !== 'ground' && !m.name.includes('sky')) {
+          console.warn(`[WorldGen] HIGH mesh: "${m.name}" absY=${absY.toFixed(1)} maxDim=${maxDim.toFixed(1)} scale=(${m.scaling.x.toFixed(4)}, ${m.scaling.y.toFixed(4)}, ${m.scaling.z.toFixed(4)}) enabled=${m.isEnabled()}`);
         }
       }
     }
@@ -4733,11 +4771,10 @@ export class BabylonGame {
     // Generate terrain background for the minimap from the heightmap
     this.generateMinimapTerrainBackground();
 
-    // Capture the minimap snapshot BEFORE hiding prototypes.
-    // InstancedMesh objects require their source prototype meshes to be enabled
-    // in order to render in an RTT-based screenshot. After hidePrototypes() the
-    // source meshes are disabled and instanced buildings won't appear.
-    await this.captureMinimapSnapshot();
+    // Minimap snapshot disabled — CreateScreenshotUsingRenderTargetAsync blocks
+    // the GPU for 10-15s on complex scenes, causing a grey screen during loading.
+    // The terrain background from generateMinimapTerrainBackground() is sufficient.
+    // TODO: Re-enable with a deferred approach (capture after game loop starts).
 
     // Hide ALL template prototype meshes now that world generation is done.
     // We move them far off-screen rather than disposing because
@@ -6824,8 +6861,9 @@ export class BabylonGame {
   }
 
   /**
-   * Phase 4B: Enter a building interior. Generates the interior if needed,
-   * performs a fade-to-black transition, and teleports the player inside.
+   * Phase 4B: Enter a building interior. Loads a GLB interior model if one
+   * is mapped to this business/building type; otherwise falls back to
+   * procedural generation. Switches the engine to the interior scene.
    */
   private async enterBuilding(
     buildingId: string,
@@ -6833,51 +6871,90 @@ export class BabylonGame {
     businessType?: string,
     doorWorldPos?: Vector3
   ): Promise<void> {
-    if (!this.playerMesh || !this.scene || !this.interiorGenerator || this.isInsideBuilding) return;
+    if (!this.playerMesh || !this.scene || this.isInsideBuilding) return;
 
-    // Save current overworld position, rotation, and camera state
+    // Lazy-init interior scene manager
+    if (!this.interiorSceneManager && this.engine && this.scene) {
+      console.log('[Interior] Lazy-creating InteriorSceneManager');
+      this.interiorSceneManager = new InteriorSceneManager(this.engine, this.scene);
+      if (this.interiorGenerator) {
+        const interiorScene = this.interiorSceneManager.getInteriorScene();
+        this.interiorGenerator.setTargetScene(interiorScene, true);
+        this.interiorItemManager = new InteriorItemManager(interiorScene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
+      }
+    }
+
+    if (!this.interiorSceneManager) {
+      console.warn('[Interior] Cannot enter building — no interiorSceneManager');
+      return;
+    }
+
+    // Save current overworld state
     this.savedOverworldPosition = this.playerMesh.position.clone();
     this.savedOverworldRotationY = this.playerMesh.rotation.y;
     if (this.camera) {
       this.savedOverworldCameraAlpha = this.camera.alpha;
     }
 
-    // Generate interior (or retrieve cached)
-    const interior = this.interiorGenerator.generateInterior(
-      buildingId,
-      buildingType,
-      businessType,
-      doorWorldPos
-    );
-    this.activeInterior = interior;
+    this.activeBuildingId = buildingId;
 
     // Fade to black
     await this.performFadeTransition(true);
 
-    // Hide the sky dome and set a dark clear color so no void is visible
-    const skyDome = this.scene.getMeshByName('sky-dome');
-    if (skyDome) skyDome.setEnabled(false);
-    this.scene.clearColor = new Color4(0.05, 0.04, 0.03, 1);
+    // Switch to the interior scene
+    this.playerMesh.setEnabled(false);
+    const interiorScene = this.interiorSceneManager.getInteriorScene();
 
-    // Teleport player to interior door position and face inward (north / +Z)
-    this.playerMesh.position = interior.doorPosition.clone();
-    this.playerMesh.rotation.y = 0; // face +Z (into the room)
+    // Create first-person camera BEFORE switching scenes to avoid
+    // "No camera defined" errors in the render loop
+    let spawnPos = new Vector3(0, 1.6, 0);
+    this.interiorCamera = new FreeCamera('interior_camera', spawnPos, interiorScene);
+    interiorScene.activeCamera = this.interiorCamera;
 
-    // Adjust camera for interior: bring it close to the player so walls
-    // fill the view and no void is visible outside the room
-    if (this.camera) {
-      this.camera.alpha = -Math.PI / 2;
-      const interiorRadius = Math.min(interior.width, interior.depth) / 4;
-      const clampedRadius = Math.max(2, Math.min(interiorRadius, 5));
-      this.camera.lowerRadiusLimit = clampedRadius;
-      this.camera.upperRadiusLimit = clampedRadius;
-      this.camera.radius = clampedRadius;
+    // Now safe to switch — interior scene has an active camera
+    this.interiorSceneManager.switchToInterior();
+
+    // Try to load a GLB interior model for this building type
+    const interiorModelPath = getInteriorModelPath(buildingType, businessType);
+
+    if (interiorModelPath) {
+      console.log(`[Interior] Loading GLB interior: ${interiorModelPath} for ${businessType || buildingType}`);
+      try {
+        const { spawnPosition, meshCount } = await this.interiorSceneManager.loadInteriorModel(interiorModelPath);
+        spawnPos = spawnPosition;
+        console.log(`[Interior] GLB interior loaded: ${meshCount} meshes`);
+      } catch (err) {
+        console.warn('[Interior] Failed to load GLB interior, falling back to procedural:', err);
+        // Fall back to procedural
+        spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
+      }
+    } else {
+      // No model mapped — use procedural generation
+      console.log(`[Interior] No GLB mapped for ${businessType || buildingType}, using procedural`);
+      spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
     }
+
+    // Update camera position to final spawn point
+    this.interiorCamera.position = spawnPos;
+    this.interiorCamera.rotation.y = Math.PI;
+    this.interiorCamera.minZ = 0.1;
+    this.interiorCamera.speed = 0.5;
+    this.interiorCamera.angularSensibility = 3000;
+    this.interiorCamera.checkCollisions = true;
+    this.interiorCamera.ellipsoid = new Vector3(0.4, 0.8, 0.4);
+    this.interiorCamera.applyGravity = true;
+    this.interiorCamera.keysUp = [87];    // W
+    this.interiorCamera.keysDown = [83];  // S
+    this.interiorCamera.keysLeft = [65];  // A
+    this.interiorCamera.keysRight = [68]; // D
+    this.interiorCamera.attachControl(this.engine!.getRenderingCanvas(), true);
+    interiorScene.activeCamera = this.interiorCamera;
+
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
     this.currentBuildingBusinessType = businessType;
 
-    // Register placed interior NPCs with business behavior system
+    // Register placed interior NPCs
     if (this.businessBehaviorSystem && this.interiorNPCManager && businessType) {
       this.businessBehaviorSystem.clearAll();
       for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
@@ -6885,23 +6962,38 @@ export class BabylonGame {
       }
     }
 
-    // Spawn item props inside the interior
-    this.interiorItemManager?.spawnItems(buildingId, interior, this.worldItems);
+    // Spawn item props (only for procedural interiors)
+    if (this.activeInterior) {
+      this.interiorItemManager?.spawnItems(buildingId, this.activeInterior, this.worldItems);
+    }
 
-    // Create an invisible trigger zone just outside the door opening.
-    // When the player walks through the door, this detects it and auto-exits.
-    this.createInteriorDoorTrigger(interior);
-
-    // Show toast notification
     const label = businessType || buildingType || 'Building';
     this.guiManager?.showToast({
       title: `Entered ${label}`,
-      description: 'Walk through the door or press E to exit',
+      description: 'Press E to exit',
       duration: 2500,
     });
 
-    // Fade back in
     await this.performFadeTransition(false);
+  }
+
+  /** Generate a procedural interior and return the spawn position. */
+  private generateProceduralInterior(
+    buildingId: string,
+    buildingType: string,
+    businessType?: string,
+    doorWorldPos?: Vector3
+  ): Vector3 {
+    if (!this.interiorGenerator) {
+      return new Vector3(0, 1.6, 0);
+    }
+    const interior = this.interiorGenerator.generateInterior(
+      buildingId, buildingType, businessType, doorWorldPos
+    );
+    this.activeInterior = interior;
+    const spawnPos = interior.doorPosition.clone();
+    spawnPos.y += 1.6;
+    return spawnPos;
   }
 
   /**
@@ -6913,14 +7005,16 @@ export class BabylonGame {
     this.interiorDoorTrigger?.dispose();
     this.interiorDoorTrigger = null;
 
-    if (!this.scene) return;
+    // Use interior scene if available, otherwise overworld
+    const targetScene = this.interiorSceneManager?.scene ?? this.scene;
+    if (!targetScene) return;
 
     // Place a thin invisible box just outside the door opening
     const trigger = MeshBuilder.CreateBox('interior_door_trigger', {
       width: 3,
       height: 3,
       depth: 1,
-    }, this.scene);
+    }, targetScene);
     // Position it just outside (south of) the door
     trigger.position = new Vector3(
       interior.doorPosition.x,
@@ -6941,17 +7035,36 @@ export class BabylonGame {
   private async exitBuilding(): Promise<void> {
     if (!this.playerMesh || !this.isInsideBuilding || !this.activeInterior) return;
 
-    // Capture interior before async operations (activeInterior may be nulled by callbacks during await)
+    // Capture state before async operations
     const interior = this.activeInterior;
+    const buildingId = this.activeBuildingId;
 
     // Fade to black
     await this.performFadeTransition(true);
 
-    // Restore sky dome and clear color for the overworld
-    if (this.scene) {
-      const skyDome = this.scene.getMeshByName('sky-dome');
-      if (skyDome) skyDome.setEnabled(true);
-      this.scene.clearColor = new Color4(0.75, 0.75, 0.75, 1);
+    // Clean up interior scene resources
+    if (this.interiorSceneManager) {
+      // Dispose the interior camera
+      this.interiorCamera?.detachControl();
+      this.interiorCamera?.dispose();
+      this.interiorCamera = null;
+
+      // Dispose the interior geometry
+      if (buildingId) {
+        this.interiorGenerator?.disposeInterior(buildingId);
+      }
+      this.interiorSceneManager.clearInteriorMeshes();
+
+      // Switch back to overworld rendering
+      this.interiorSceneManager.switchToOverworld();
+
+      // Re-enable player mesh in overworld
+      this.playerMesh.setEnabled(true);
+
+      // Re-attach overworld camera
+      if (this.camera) {
+        this.camera.attachControl(this.engine!.getRenderingCanvas(), true);
+      }
     }
 
     // Restore camera to overworld settings
@@ -6965,12 +7078,10 @@ export class BabylonGame {
     if (this.savedOverworldPosition) {
       this.playerMesh.position = this.savedOverworldPosition.clone();
       this.playerMesh.rotation.y = this.savedOverworldRotationY;
-      // Restore camera angle to where it was before entering
       if (this.camera) {
         this.camera.alpha = this.savedOverworldCameraAlpha;
       }
     } else if (interior?.exitPosition) {
-      // Fallback: use the exit position stored in the interior layout
       this.playerMesh.position = interior.exitPosition.clone();
     }
     this.playerController?.resetPhysicsState();
@@ -6982,6 +7093,7 @@ export class BabylonGame {
 
     this.isInsideBuilding = false;
     this.activeInterior = null;
+    this.activeBuildingId = null;
     this.savedOverworldPosition = null;
     this.currentBuildingBusinessType = undefined;
 
@@ -7004,18 +7116,19 @@ export class BabylonGame {
    */
   private performFadeTransition(fadeOut: boolean): Promise<void> {
     return new Promise((resolve) => {
-      if (!this.scene) { resolve(); return; }
+      const activeScene = this.interiorSceneManager?.getActiveScene() ?? this.scene;
+      if (!activeScene) { resolve(); return; }
 
-      // Create a fullscreen overlay plane
-      const overlay = MeshBuilder.CreatePlane('fade_overlay', { size: 500 }, this.scene);
-      overlay.position = this.scene.activeCamera
-        ? this.scene.activeCamera.position.clone()
+      // Create a fullscreen overlay plane in the currently active scene
+      const overlay = MeshBuilder.CreatePlane('fade_overlay', { size: 500 }, activeScene);
+      overlay.position = activeScene.activeCamera
+        ? activeScene.activeCamera.position.clone()
         : Vector3.Zero();
       overlay.billboardMode = Mesh.BILLBOARDMODE_ALL;
       overlay.renderingGroupId = 3;
       overlay.isPickable = false;
 
-      const mat = new StandardMaterial('fade_mat', this.scene);
+      const mat = new StandardMaterial('fade_mat', activeScene);
       mat.diffuseColor = Color3.Black();
       mat.emissiveColor = Color3.Black();
       mat.disableLighting = true;
@@ -7028,22 +7141,20 @@ export class BabylonGame {
       const startAlpha = fadeOut ? 0 : 1;
       const endAlpha = fadeOut ? 1 : 0;
 
-      const observer = this.scene.onBeforeRenderObservable.add(() => {
+      const observer = activeScene.onBeforeRenderObservable.add(() => {
         const elapsed = Date.now() - startTime;
         const t = Math.min(elapsed / duration, 1);
         mat.alpha = startAlpha + (endAlpha - startAlpha) * t;
 
         // Keep overlay in front of camera
-        if (this.scene?.activeCamera) {
-          const cam = this.scene.activeCamera;
+        if (activeScene?.activeCamera) {
+          const cam = activeScene.activeCamera;
           const forward = cam.getForwardRay().direction.normalize();
           overlay.position = cam.position.add(forward.scale(1));
         }
 
         if (t >= 1) {
-          if (this.scene) {
-            this.scene.onBeforeRenderObservable.remove(observer);
-          }
+          activeScene.onBeforeRenderObservable.remove(observer);
           overlay.dispose();
           mat.dispose();
           resolve();
@@ -7154,11 +7265,7 @@ export class BabylonGame {
 
       // Phase 4B: Interior exit door — click to leave building
       if (metadata.interiorExit && metadata.buildingId) {
-        if (this.buildingEntrySystem?.isInside) {
-          this.buildingEntrySystem.exitBuilding();
-        } else {
-          this.exitBuilding();
-        }
+        this.exitBuilding();
         return;
       }
 
@@ -7170,16 +7277,12 @@ export class BabylonGame {
           const dist = Vector3.Distance(this.playerMesh.position, buildingMesh.position);
           if (dist < 12) {
             const buildingId = metadata.buildingId || metadata.businessId || metadata.residenceId;
-            if (this.buildingEntrySystem) {
-              this.buildingEntrySystem.enterBuilding(buildingId);
-            } else {
-              this.enterBuilding(
-                buildingId,
-                metadata.buildingType,
-                metadata.businessType,
-                buildingMesh.position.clone()
-              );
-            }
+            this.enterBuilding(
+              buildingId,
+              metadata.buildingType,
+              metadata.businessType,
+              buildingMesh.position.clone()
+            );
             return;
           }
         }
@@ -7624,12 +7727,7 @@ export class BabylonGame {
         this.npcInteractionPrompt?.update();
       }
 
-      // Check if player walked through the interior door trigger zone
-      if (this.isInsideBuilding && this.interiorDoorTrigger && this.playerMesh) {
-        if (this.interiorDoorTrigger.intersectsMesh(this.playerMesh, false)) {
-          this.exitBuilding();
-        }
-      }
+      // Door trigger check removed — player exits by pressing E.
 
       // Update business behavior system when inside a building
       if (this.isInsideBuilding && this.businessBehaviorSystem) {
@@ -8424,6 +8522,54 @@ export class BabylonGame {
     }
   }
 
+  /**
+   * Play an animation from an ActionResult's animation data on an entity.
+   * Searches the entity's animation groups for the clip name (exact or fuzzy match).
+   * Works for both player mesh and NPC instances.
+   */
+  private playActionAnimation(entityId: string, animData: { clip: string; clipAlt?: string; loop: boolean; speed?: number; blendIn?: number }): void {
+    // Find the entity's animation groups
+    let animGroups: any[] | undefined;
+
+    if (entityId === 'player') {
+      // Player mesh in first-person doesn't have animations,
+      // but if a third-person model is loaded, use its groups
+      animGroups = this.scene?.animationGroups as any[];
+    } else {
+      const instance = this.npcMeshes.get(entityId);
+      animGroups = instance?.animationGroups;
+    }
+
+    if (!animGroups?.length) return;
+
+    // Search for the animation clip by name (exact first, then fuzzy)
+    const findClip = (clipName: string) => {
+      // Exact match
+      let group = animGroups!.find((ag: any) => ag.name === clipName);
+      if (group) return group;
+      // Case-insensitive match
+      const lower = clipName.toLowerCase();
+      group = animGroups!.find((ag: any) => ag.name?.toLowerCase() === lower);
+      if (group) return group;
+      // Substring match
+      return animGroups!.find((ag: any) => ag.name?.toLowerCase().includes(lower));
+    };
+
+    const group = findClip(animData.clip) || (animData.clipAlt ? findClip(animData.clipAlt) : null);
+    if (!group) return;
+
+    // Stop other animations and play the matched one
+    for (const ag of animGroups) {
+      if (ag !== group) ag.stop();
+    }
+
+    if (animData.speed && typeof group.speedRatio !== 'undefined') {
+      group.speedRatio = animData.speed;
+    }
+
+    group.start(animData.loop);
+  }
+
   private executeVolitionGoal(instance: NPCInstance, goal: VolitionGoal, now: number): void {
     if (!instance.mesh) return;
     const currentPos = instance.mesh.position;
@@ -8697,7 +8843,7 @@ export class BabylonGame {
     const prevClearColor = this.scene.clearColor.clone();
     this.scene.clearColor = new Color4(0.22, 0.35, 0.18, 1);
 
-    const SNAPSHOT_SIZE = 2048;
+    const SNAPSHOT_SIZE = 1024;
 
     // Temporarily remove LOD levels so distant buildings aren't culled.
     // Buildings have addLODLevel(500, null) but the minimap camera is at y=800.
@@ -8714,9 +8860,17 @@ export class BabylonGame {
     }
 
     try {
-      const dataUrl = await Tools.CreateScreenshotUsingRenderTargetAsync(
-        engine, snapCam, SNAPSHOT_SIZE
-      );
+      // Race the RTT screenshot against a timeout — on complex scenes
+      // CreateScreenshotUsingRenderTargetAsync can hang indefinitely.
+      const timeoutMs = 8000;
+      const dataUrl = await Promise.race([
+        Tools.CreateScreenshotUsingRenderTargetAsync(
+          engine, snapCam, SNAPSHOT_SIZE
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Minimap snapshot timed out')), timeoutMs)
+        ),
+      ]);
       this.guiManager.setMinimapImage(dataUrl, worldSize);
       // Share the snapshot with the full-screen map
       if (this.fullscreenMap) {
@@ -8918,17 +9072,19 @@ export class BabylonGame {
         this.gameTimeManager.paused,
       );
 
-      this.scene.render();
+      // Render whichever scene is active (overworld or interior)
+      const activeScene = this.interiorSceneManager?.getActiveScene() ?? this.scene;
+      activeScene.render();
 
       // Update perf overlay every 500ms
       this._perfTimer += this.engine!.getDeltaTime();
       if (this._perfTimer >= 500 && this._perfDiv) {
         this._perfTimer = 0;
         const fps = this.engine!.getFps().toFixed(0);
-        const activeMeshes = this.scene.getActiveMeshes().length;
-        const totalMeshes = this.scene.meshes.length;
+        const activeMeshes = activeScene.getActiveMeshes().length;
+        const totalMeshes = activeScene.meshes.length;
         const drawCalls = (this.engine as any)._drawCalls?.lastSecAverage?.toFixed(0) ?? (this.engine as any)._drawCalls?.current ?? 0;
-        const materials = this.scene.materials.length;
+        const materials = activeScene.materials.length;
         const frameMs = this.engine!.getDeltaTime().toFixed(1);
         this._perfDiv.textContent = `${fps} FPS | ${frameMs}ms | ${activeMeshes}/${totalMeshes} meshes | ${drawCalls} draws | ${materials} mats`;
 
@@ -10995,6 +11151,11 @@ export class BabylonGame {
         variant: result.success ? "default" : "destructive"
       });
 
+      // Play animation from action result
+      if (result.success && result.animation) {
+        this.playActionAnimation('player', result.animation);
+      }
+
       // Record action in Prolog knowledge base (for quest tracking & NPC memory)
       if (result.success && this.prologEngine) {
         this.prologEngine.recordPlayerAction('player', npcId, actionId).catch(() => {});
@@ -12265,9 +12426,14 @@ export class BabylonGame {
     this.interiorItemManager?.dispose();
     this.interiorItemManager = null;
     this.interiorGenerator?.dispose();
+    this.interiorSceneManager?.dispose();
+    this.interiorSceneManager = null;
+    this.interiorCamera?.dispose();
+    this.interiorCamera = null;
     this.furnitureModelLoader?.dispose();
     this.furnitureModelLoader = null;
     this.activeInterior = null;
+    this.activeBuildingId = null;
     this.savedOverworldPosition = null;
     this.isInsideBuilding = false;
   }

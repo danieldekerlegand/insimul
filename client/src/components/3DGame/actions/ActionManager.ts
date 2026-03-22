@@ -175,12 +175,16 @@ export class ActionManager {
     state.timesUsed += 1;
     this.activeActionStates.set(actionId, state);
 
+    // Extract animation data from action's customData
+    const animation = (action.customData as any)?.animation || undefined;
+
     return {
       success: true,
       message: `${action.name} performed successfully`,
       effects,
       energyUsed: action.energyCost || 0,
-      narrativeText
+      narrativeText,
+      animation
     };
   }
 

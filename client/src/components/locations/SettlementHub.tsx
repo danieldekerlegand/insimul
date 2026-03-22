@@ -23,6 +23,7 @@ import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
 import { MapLayersPanel, ALL_LAYERS, type MapLayer } from './MapLayersPanel';
 import { BuildingModelPreview } from './BuildingModelPreview';
+import { getInteriorModelPath } from '@/components/3DGame/InteriorSceneManager';
 
 interface SettlementHubProps {
   worldId: string;
@@ -87,6 +88,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   // Cache of resolved building model info from 3D config: role → { filePath, assetName }
   const [buildingModelInfo, setBuildingModelInfo] = useState<Record<string, { filePath: string; assetName: string }>>({});
+  // Procedural building config from the asset collection (for preview rendering)
+  const [proceduralBuildingConfig, setProceduralBuildingConfig] = useState<any>(null);
 
   // Fetch building model paths when world changes
   useEffect(() => {
@@ -100,6 +103,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         if (!configRes.ok || !assetsRes.ok) return;
         const config3D = await configRes.json();
         const assets: any[] = await assetsRes.json();
+        // Store procedural building config for preview rendering
+        if (config3D?.proceduralBuildings) {
+          setProceduralBuildingConfig(config3D.proceduralBuildings);
+        }
         if (!config3D?.buildingModels) return;
         const info: Record<string, { filePath: string; assetName: string }> = {};
         for (const [role, assetId] of Object.entries(config3D.buildingModels)) {
@@ -1131,6 +1138,14 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                 <CardContent className="space-y-2">
                   <BuildingModelPreview
                     modelPath={selectedBuilding.modelPath}
+                    interiorModelPath={getInteriorModelPath(
+                      selectedBuilding.type,
+                      selectedBuilding.type === 'business'
+                        ? selectedBuilding.data.businessType
+                        : selectedBuilding.type === 'residence'
+                          ? (selectedBuilding.data.residenceType || 'residence')
+                          : undefined
+                    )}
                     tintColor={
                       selectedBuilding.type === 'business'
                         ? { r: 0.55, g: 0.4, b: 0.25 }
@@ -1145,6 +1160,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           ? selectedBuilding.data.residenceType
                           : selectedBuilding.data.buildingType
                     }
+                    proceduralConfig={proceduralBuildingConfig}
+                    zone={selectedBuilding.type === 'business' ? 'commercial' : 'residential'}
                     className="h-52"
                   />
                   {/* Asset resolution explanation */}

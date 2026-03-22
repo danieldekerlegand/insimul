@@ -29,6 +29,12 @@ namespace Insimul.World
         /// <summary>Optional roof texture override for procedural buildings.</summary>
         private Texture2D _roofTexture;
 
+        /// <summary>Procedural building configuration loaded from IR data.</summary>
+        private ProceduralBuildingConfig _proceduralConfig;
+
+        /// <summary>The currently active style preset used for procedural generation.</summary>
+        private BuildingStylePreset _activeStyle;
+
         #region Style Presets
 
         public struct BuildingStylePreset
@@ -40,6 +46,13 @@ namespace Insimul.World
             public Color doorColor;
             public string materialType;
             public string architectureStyle;
+            public string roofStyle;
+            public bool hasIronworkBalcony;
+            public bool hasPorch;
+            public float porchDepth;
+            public int porchSteps;
+            public bool hasShutters;
+            public Color shutterColor;
         }
 
         public struct BuildingTypeDefaults
@@ -92,7 +105,32 @@ namespace Insimul.World
                 roofColor = new Color(0.5f, 0.35f, 0.2f),
                 windowColor = new Color(0.8f, 0.85f, 0.7f),
                 doorColor = new Color(0.5f, 0.3f, 0.2f),
-                materialType = "wood", architectureStyle = "rustic"
+                materialType = "wood", architectureStyle = "rustic",
+                roofStyle = "gable"
+            }},
+            { "colonial_stucco", new BuildingStylePreset {
+                name = "Colonial Stucco",
+                baseColor = new Color(0.92f, 0.88f, 0.78f),
+                roofColor = new Color(0.35f, 0.22f, 0.15f),
+                windowColor = new Color(0.7f, 0.8f, 0.85f),
+                doorColor = new Color(0.3f, 0.2f, 0.12f),
+                materialType = "stucco", architectureStyle = "colonial",
+                roofStyle = "hip",
+                hasPorch = true, porchDepth = 3f, porchSteps = 3,
+                hasShutters = true,
+                shutterColor = new Color(0.15f, 0.3f, 0.15f)
+            }},
+            { "creole_townhouse", new BuildingStylePreset {
+                name = "Creole Townhouse",
+                baseColor = new Color(0.85f, 0.75f, 0.55f),
+                roofColor = new Color(0.25f, 0.25f, 0.3f),
+                windowColor = new Color(0.6f, 0.7f, 0.8f),
+                doorColor = new Color(0.35f, 0.2f, 0.15f),
+                materialType = "stucco", architectureStyle = "creole",
+                roofStyle = "hipped_dormers",
+                hasIronworkBalcony = true,
+                hasShutters = true,
+                shutterColor = new Color(0.2f, 0.35f, 0.2f)
             }}
         };
 
@@ -133,6 +171,10 @@ namespace Insimul.World
             string type = (worldType ?? "").ToLower();
             string terr = (terrain ?? "").ToLower();
 
+            if (type.Contains("colonial"))
+                return STYLE_PRESETS["colonial_stucco"];
+            if (type.Contains("creole") || type.Contains("french quarter"))
+                return STYLE_PRESETS["creole_townhouse"];
             if (type.Contains("medieval") || type.Contains("fantasy"))
             {
                 if (terr.Contains("forest") || terr.Contains("rural"))
@@ -147,6 +189,30 @@ namespace Insimul.World
                 return STYLE_PRESETS["rustic_cottage"];
 
             return STYLE_PRESETS["medieval_wood"];
+        }
+
+        /// <summary>Convert a ProceduralStylePreset (from IR data) to a BuildingStylePreset.</summary>
+        public static BuildingStylePreset PresetToBuildingStyle(ProceduralStylePreset preset)
+        {
+            return new BuildingStylePreset
+            {
+                name = preset.name,
+                baseColor = preset.baseColors != null && preset.baseColors.Length > 0
+                    ? preset.baseColors[0].ToColor()
+                    : Color.gray,
+                roofColor = preset.roofColor.ToColor(),
+                windowColor = preset.windowColor.ToColor(),
+                doorColor = preset.doorColor.ToColor(),
+                materialType = preset.materialType,
+                architectureStyle = preset.architectureStyle,
+                roofStyle = preset.roofStyle ?? "gable",
+                hasIronworkBalcony = preset.hasIronworkBalcony,
+                hasPorch = preset.hasPorch,
+                porchDepth = preset.porchDepth > 0 ? preset.porchDepth : 3f,
+                porchSteps = preset.porchSteps > 0 ? preset.porchSteps : 3,
+                hasShutters = preset.hasShutters,
+                shutterColor = preset.shutterColor.ToColor()
+            };
         }
 
         #endregion
@@ -170,6 +236,19 @@ namespace Insimul.World
         public void SetRoofTexture(Texture2D texture)
         {
             _roofTexture = texture;
+        }
+
+        /// <summary>Apply a procedural building configuration from IR data.</summary>
+        public void SetProceduralConfig(ProceduralBuildingConfig config)
+        {
+            _proceduralConfig = config;
+            if (config?.stylePresets != null && config.stylePresets.Length > 0)
+            {
+                _activeStyle = PresetToBuildingStyle(config.stylePresets[0]);
+                baseColor = _activeStyle.baseColor;
+                roofColor = _activeStyle.roofColor;
+                Debug.Log($"[Insimul] ProceduralBuildingGenerator config applied with {config.stylePresets.Length} style preset(s)");
+            }
         }
 
         private Material GetSharedMaterial(string key, Color color)
@@ -233,19 +312,23 @@ namespace Insimul.World
         private void GenerateBuildingProcedural(Vector3 position, float rotation, int floors,
             float width, float depth, string role)
         {
+            var style = _activeStyle.name != null ? _activeStyle : GetStyleForWorld("", "");
             float floorHeight = 3f;
             float totalHeight = floors * floorHeight;
+
+            // Calculate porch elevation — raises building on a foundation when porch is enabled
+            float porchElevation = style.hasPorch ? 1.0f : 0f;
 
             // Base
             var building = GameObject.CreatePrimitive(PrimitiveType.Cube);
             building.name = $"Building_{role}";
             building.tag = "Building";
-            building.transform.position = position + Vector3.up * totalHeight / 2f;
+            building.transform.position = position + Vector3.up * (totalHeight / 2f + porchElevation);
             building.transform.localScale = new Vector3(width, totalHeight, depth);
             building.transform.rotation = Quaternion.Euler(0, rotation, 0);
             building.transform.SetParent(transform);
 
-            // Apply wall texture override or shared color material
+            // Apply wall material (stucco, textured, or default color)
             var renderer = building.GetComponent<Renderer>();
             if (renderer != null)
             {
@@ -255,26 +338,88 @@ namespace Insimul.World
                     wallMat.mainTexture = _wallTexture;
                     renderer.sharedMaterial = wallMat;
                 }
+                else if (style.materialType == "stucco")
+                {
+                    var stuccoMat = GetSharedMaterial($"stucco_{style.baseColor}", style.baseColor);
+                    stuccoMat.SetFloat("_Glossiness", 0.15f);
+                    renderer.sharedMaterial = stuccoMat;
+                }
                 else
                 {
                     renderer.sharedMaterial = GetSharedMaterial("wall", baseColor);
                 }
             }
 
-            // Determine style for roof height
-            string archStyle = "medieval"; // default; real style comes from world data
+            // Roof — use roofStyle from preset
+            string roofStyle = !string.IsNullOrEmpty(style.roofStyle) ? style.roofStyle : "gable";
+            AddRoof(building, width, depth, totalHeight, rotation, position, porchElevation, roofStyle, style);
+
+            // Door with frame and handle
+            AddDoor(building, width, depth, floors, totalHeight, rotation, position);
+
+            // Windows with optional shutters
+            AddWindows(building, width, depth, floors, totalHeight, style);
+
+            // Porch
+            if (style.hasPorch)
+            {
+                float pDepth = style.porchDepth > 0 ? style.porchDepth : 3f;
+                int pSteps = style.porchSteps > 0 ? style.porchSteps : 3;
+                AddPorch(building, width, depth, porchElevation, pDepth, pSteps, style);
+            }
+
+            // Balcony (with ironwork support)
+            if (floors >= 2)
+            {
+                bool hasBalcony = style.hasIronworkBalcony;
+                if (!hasBalcony && BUILDING_TYPES.TryGetValue(role ?? "", out var typeDefaults))
+                    hasBalcony = typeDefaults.hasBalcony;
+                if (hasBalcony)
+                    AddBalcony(building, width, depth, totalHeight, floorHeight, style);
+            }
+
+            // Mark as static for batching and add LOD culling
+            building.isStatic = true;
+
+            var lodGroup = building.AddComponent<LODGroup>();
+            var renderers = building.GetComponentsInChildren<Renderer>();
+            lodGroup.SetLODs(new LOD[] {
+                new LOD(lodCullDistance / 1000f, renderers),
+                new LOD(0, new Renderer[0])
+            });
+            lodGroup.RecalculateBounds();
+        }
+
+        private void AddRoof(GameObject building, float width, float depth,
+            float totalHeight, float rotation, Vector3 position,
+            float porchElevation, string roofStyle, BuildingStylePreset style)
+        {
             float peakedRoofHeight = 3f;
             float actualRoofHeight;
+            string archStyle = style.architectureStyle ?? "medieval";
 
-            if (archStyle == "modern" || archStyle == "futuristic")
-                actualRoofHeight = 0.5f;
-            else
-                actualRoofHeight = peakedRoofHeight;
+            switch (roofStyle)
+            {
+                case "flat":
+                    actualRoofHeight = 0.5f;
+                    break;
+                case "hip":
+                case "hipped_dormers":
+                    actualRoofHeight = peakedRoofHeight * 0.8f;
+                    break;
+                case "side_gable":
+                    actualRoofHeight = peakedRoofHeight * 0.9f;
+                    break;
+                case "gable":
+                default:
+                    actualRoofHeight = (archStyle == "modern" || archStyle == "futuristic")
+                        ? 0.5f : peakedRoofHeight;
+                    break;
+            }
 
-            // Roof — positioned flush on top of building walls
             var roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
             roof.name = "Roof";
-            roof.transform.position = position + Vector3.up * (totalHeight + actualRoofHeight / 2f);
+            roof.transform.position = position + Vector3.up * (totalHeight + porchElevation + actualRoofHeight / 2f);
             roof.transform.localScale = new Vector3(width + 1f, actualRoofHeight, depth + 1f);
             roof.transform.rotation = Quaternion.Euler(0, rotation, 0);
             roof.transform.SetParent(building.transform);
@@ -293,23 +438,209 @@ namespace Insimul.World
                     roofRenderer.sharedMaterial = GetSharedMaterial("roof", roofColor);
                 }
             }
-
-            // Door with frame and handle
-            AddDoor(building, width, depth, floors, totalHeight, rotation, position);
-
-            // Mark as static for batching and add LOD culling
-            building.isStatic = true;
             roof.isStatic = true;
 
-            // LOD group covers all child renderers (door, roof, etc.) so unmerged
-            // children don't remain visible when the parent building is LOD-hidden.
-            var lodGroup = building.AddComponent<LODGroup>();
-            var renderers = building.GetComponentsInChildren<Renderer>();
-            lodGroup.SetLODs(new LOD[] {
-                new LOD(lodCullDistance / 1000f, renderers),
-                new LOD(0, new Renderer[0])
-            });
-            lodGroup.RecalculateBounds();
+            // Add dormers for hipped_dormers style
+            if (roofStyle == "hipped_dormers")
+            {
+                float dormerWidth = 1.5f;
+                float dormerHeight = 1.2f;
+                float dormerDepth = 1.0f;
+                int dormerCount = Mathf.Max(1, Mathf.FloorToInt(width / 6f));
+                var dormerMat = GetSharedMaterial("dormer", style.baseColor);
+
+                for (int i = 0; i < dormerCount; i++)
+                {
+                    float xOffset = -width / 2f + (width / (dormerCount + 1)) * (i + 1);
+                    var dormer = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    dormer.name = $"Dormer_{i}";
+                    dormer.transform.localScale = new Vector3(dormerWidth, dormerHeight, dormerDepth);
+                    dormer.transform.localPosition = new Vector3(xOffset,
+                        totalHeight / 2f + actualRoofHeight * 0.3f, depth / 2f + dormerDepth / 2f);
+                    dormer.transform.SetParent(building.transform, false);
+                    dormer.GetComponent<Renderer>().sharedMaterial = dormerMat;
+                    dormer.isStatic = true;
+                }
+            }
+        }
+
+        private void AddWindows(GameObject building, float width, float depth, int floors,
+            float totalHeight, BuildingStylePreset style)
+        {
+            float groundY = -totalHeight / 2f;
+            float floorHeight = 3f;
+            float windowSize = 0.8f;
+            float windowDepth = 0.05f;
+            var windowMat = GetSharedMaterial("window", style.windowColor);
+
+            for (int floor = 0; floor < floors; floor++)
+            {
+                float windowY = groundY + floor * floorHeight + floorHeight * 0.6f;
+                int windowCount = Mathf.Max(1, Mathf.FloorToInt(width / 4f));
+
+                for (int w = 0; w < windowCount; w++)
+                {
+                    float xOffset = -width / 2f + (width / (windowCount + 1)) * (w + 1);
+
+                    // Front-facing window
+                    var window = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    window.name = $"Window_F{floor}_{w}";
+                    window.transform.localScale = new Vector3(windowSize, windowSize * 1.4f, windowDepth);
+                    window.transform.localPosition = new Vector3(xOffset, windowY, depth / 2f + windowDepth / 2f);
+                    window.transform.SetParent(building.transform, false);
+                    window.GetComponent<Renderer>().sharedMaterial = windowMat;
+                    window.isStatic = true;
+
+                    // Shutters
+                    if (style.hasShutters)
+                    {
+                        Color sColor = style.shutterColor != default ? style.shutterColor : style.doorColor;
+                        var shutterMat = GetSharedMaterial($"shutter_{sColor}", sColor);
+                        float shutterWidth = windowSize * 0.3f;
+                        float shutterHeight = windowSize * 1.4f;
+
+                        // Left shutter
+                        var leftShutter = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        leftShutter.name = $"Shutter_L_F{floor}_{w}";
+                        leftShutter.transform.localScale = new Vector3(shutterWidth, shutterHeight, windowDepth);
+                        leftShutter.transform.localPosition = new Vector3(
+                            xOffset - windowSize / 2f - shutterWidth / 2f,
+                            windowY, depth / 2f + windowDepth / 2f);
+                        leftShutter.transform.SetParent(building.transform, false);
+                        leftShutter.GetComponent<Renderer>().sharedMaterial = shutterMat;
+                        leftShutter.isStatic = true;
+
+                        // Right shutter
+                        var rightShutter = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        rightShutter.name = $"Shutter_R_F{floor}_{w}";
+                        rightShutter.transform.localScale = new Vector3(shutterWidth, shutterHeight, windowDepth);
+                        rightShutter.transform.localPosition = new Vector3(
+                            xOffset + windowSize / 2f + shutterWidth / 2f,
+                            windowY, depth / 2f + windowDepth / 2f);
+                        rightShutter.transform.SetParent(building.transform, false);
+                        rightShutter.GetComponent<Renderer>().sharedMaterial = shutterMat;
+                        rightShutter.isStatic = true;
+                    }
+                }
+            }
+        }
+
+        private void AddBalcony(GameObject building, float width, float depth,
+            float totalHeight, float floorHeight, BuildingStylePreset style)
+        {
+            float groundY = -totalHeight / 2f;
+            float balconyY = groundY + floorHeight; // second floor level
+            float balconyDepth = 1.5f;
+            float balconyThickness = 0.15f;
+            float railHeight = 1.0f;
+
+            // Balcony floor slab
+            var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            slab.name = "Balcony_Slab";
+            slab.transform.localScale = new Vector3(width * 0.8f, balconyThickness, balconyDepth);
+            slab.transform.localPosition = new Vector3(0, balconyY, depth / 2f + balconyDepth / 2f);
+            slab.transform.SetParent(building.transform, false);
+            slab.GetComponent<Renderer>().sharedMaterial = GetSharedMaterial("balcony_slab", style.baseColor * 0.9f);
+            slab.isStatic = true;
+
+            if (style.hasIronworkBalcony)
+            {
+                // Ironwork railing with individual balusters
+                var ironColor = new Color(0.15f, 0.15f, 0.15f);
+                var ironMat = GetSharedMaterial("ironwork", ironColor);
+                float balusterSpacing = 0.15f;
+                float balusterWidth = 0.03f;
+                int balusterCount = Mathf.FloorToInt(width * 0.8f / balusterSpacing);
+
+                // Top rail
+                var topRail = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                topRail.name = "Balcony_TopRail";
+                topRail.transform.localScale = new Vector3(width * 0.8f, 0.04f, 0.04f);
+                topRail.transform.localPosition = new Vector3(0,
+                    balconyY + balconyThickness / 2f + railHeight,
+                    depth / 2f + balconyDepth);
+                topRail.transform.SetParent(building.transform, false);
+                topRail.GetComponent<Renderer>().sharedMaterial = ironMat;
+                topRail.isStatic = true;
+
+                // Balusters
+                for (int b = 0; b < balusterCount; b++)
+                {
+                    float bx = -width * 0.4f + balusterSpacing * b;
+                    var baluster = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    baluster.name = $"Baluster_{b}";
+                    baluster.transform.localScale = new Vector3(balusterWidth, railHeight, balusterWidth);
+                    baluster.transform.localPosition = new Vector3(bx,
+                        balconyY + balconyThickness / 2f + railHeight / 2f,
+                        depth / 2f + balconyDepth);
+                    baluster.transform.SetParent(building.transform, false);
+                    baluster.GetComponent<Renderer>().sharedMaterial = ironMat;
+                    baluster.isStatic = true;
+                }
+            }
+            else
+            {
+                // Simple solid railing
+                var rail = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                rail.name = "Balcony_Rail";
+                rail.transform.localScale = new Vector3(width * 0.8f, railHeight, 0.1f);
+                rail.transform.localPosition = new Vector3(0,
+                    balconyY + balconyThickness / 2f + railHeight / 2f,
+                    depth / 2f + balconyDepth);
+                rail.transform.SetParent(building.transform, false);
+                rail.GetComponent<Renderer>().sharedMaterial = GetSharedMaterial("balcony_rail", style.doorColor);
+                rail.isStatic = true;
+            }
+        }
+
+        private void AddPorch(GameObject building, float width, float depth,
+            float porchElevation, float porchDepth, int porchSteps, BuildingStylePreset style)
+        {
+            float groundY = -building.transform.localScale.y / 2f;
+
+            // Foundation block (raises building above ground)
+            var foundation = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            foundation.name = "Porch_Foundation";
+            foundation.transform.localScale = new Vector3(width + 0.2f, porchElevation, depth + 0.2f);
+            foundation.transform.localPosition = new Vector3(0, groundY - porchElevation / 2f, 0);
+            foundation.transform.SetParent(building.transform, false);
+            foundation.GetComponent<Renderer>().sharedMaterial = GetSharedMaterial("foundation", style.baseColor * 0.7f);
+            foundation.isStatic = true;
+
+            // Porch deck
+            float deckThickness = 0.15f;
+            var deck = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            deck.name = "Porch_Deck";
+            deck.transform.localScale = new Vector3(width, deckThickness, porchDepth);
+            deck.transform.localPosition = new Vector3(0,
+                groundY - deckThickness / 2f,
+                depth / 2f + porchDepth / 2f);
+            deck.transform.SetParent(building.transform, false);
+            var deckMat = GetSharedMaterial("porch_deck", style.doorColor * 1.2f);
+            deck.GetComponent<Renderer>().sharedMaterial = deckMat;
+            deck.isStatic = true;
+
+            // Steps leading up to porch
+            if (porchSteps > 0 && porchElevation > 0)
+            {
+                float stepHeight = porchElevation / porchSteps;
+                float stepDepth = 0.3f;
+                float stepWidth = width * 0.4f;
+                var stepMat = GetSharedMaterial("porch_steps", style.baseColor * 0.8f);
+
+                for (int s = 0; s < porchSteps; s++)
+                {
+                    var step = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    step.name = $"Porch_Step_{s}";
+                    step.transform.localScale = new Vector3(stepWidth, stepHeight, stepDepth);
+                    step.transform.localPosition = new Vector3(0,
+                        groundY - porchElevation + stepHeight * (s + 0.5f),
+                        depth / 2f + porchDepth + stepDepth * (porchSteps - s - 0.5f));
+                    step.transform.SetParent(building.transform, false);
+                    step.GetComponent<Renderer>().sharedMaterial = stepMat;
+                    step.isStatic = true;
+                }
+            }
         }
 
         private void AddDoor(GameObject building, float width, float depth, int floors,
@@ -325,7 +656,7 @@ namespace Insimul.World
             float groundY = -totalHeight / 2f;
 
             // Door frame material (darker than door)
-            var style = GetStyleForWorld("", ""); // default style
+            var style = _activeStyle.name != null ? _activeStyle : GetStyleForWorld("", "");
             var frameMat = GetSharedMaterial("doorframe", style.doorColor * 0.5f);
 
             // Left frame post

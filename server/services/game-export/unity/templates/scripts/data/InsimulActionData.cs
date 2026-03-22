@@ -2,6 +2,19 @@ using System;
 
 namespace Insimul.Data
 {
+    /// <summary>
+    /// An effect entry within an action definition (from IR data).
+    /// </summary>
+    [Serializable]
+    public class InsimulActionEffectEntry
+    {
+        public string category;
+        public string type;
+        public string first;
+        public string operatorStr;
+        public float value;
+    }
+
     [Serializable]
     public class InsimulActionData
     {
@@ -26,5 +39,6 @@ namespace Insimul.Data
         public bool isBase;
         public string sourceFormat;
         public string customData; // JSON string
+        public InsimulActionEffectEntry[] effects;
     }
 }

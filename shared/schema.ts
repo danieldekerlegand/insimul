@@ -1850,6 +1850,9 @@ export const assetCollections = pgTable("asset_collections", {
   // Per-model scaling overrides (key = "groupField.role", e.g. "buildingModels.tavern")
   modelScaling: jsonb("model_scaling").$type<Record<string, { x: number; y: number; z: number }>>().default({}),
 
+  // Procedural building generation parameters (style presets, type overrides, etc.)
+  proceduralBuildings: jsonb("procedural_buildings").$type<import('./game-engine/types').ProceduralBuildingConfig | null>().default(null),
+
   // Per-engine asset overrides (Phase 2 — Asset Pipeline)
   // When exporting to a native engine, these override the default Babylon.js assets
   unrealAssets: jsonb("unreal_assets").$type<{
@@ -1978,6 +1981,7 @@ export const insertAssetCollectionSchema = createInsertSchema(assetCollections).
   playerModels: true,
   questObjectModels: true,
   audioAssets: true,
+  proceduralBuildings: true,
   unrealAssets: true,
   unityAssets: true,
   godotAssets: true,

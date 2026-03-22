@@ -733,6 +733,7 @@ const AssetCollectionSchema = new Schema({
   questObjectModels: { type: Schema.Types.Mixed, default: {} },
   audioAssets: { type: Schema.Types.Mixed, default: {} },
   modelScaling: { type: Schema.Types.Mixed, default: {} },
+  proceduralBuildings: { type: Schema.Types.Mixed, default: null },
   groundTextureId: { type: String, default: null },
   roadTextureId: { type: String, default: null },
   wallTextureId: { type: String, default: null },

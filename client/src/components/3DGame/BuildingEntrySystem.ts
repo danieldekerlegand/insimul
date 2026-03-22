@@ -121,6 +121,18 @@ export class BuildingEntrySystem {
   }
 
   /**
+   * Disable the built-in keyboard handler for building entry/exit.
+   * Used when the parent (BabylonGame) handles E-key entry directly
+   * to support scene switching for interior rendering.
+   */
+  disableKeyboard(): void {
+    if (this.keyboardHandler) {
+      window.removeEventListener('keydown', this.keyboardHandler);
+      this.keyboardHandler = null;
+    }
+  }
+
+  /**
    * Register a building for entry detection.
    * Must be called for each building that supports entry.
    */

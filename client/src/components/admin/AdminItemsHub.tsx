@@ -5,13 +5,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import {
   Search, ChevronRight, ChevronDown, Info, Package, Box,
   Sword, Shield, FlaskConical, Apple, Hammer, Gem, Key, ScrollText,
-  AlertTriangle, ImageIcon,
+  AlertTriangle, ImageIcon, RefreshCw,
 } from "lucide-react";
 import { ModelPreview } from "../ModelPreview";
+import { AssetBrowserDialog } from "../AssetBrowserDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 
 interface BaseItem {
@@ -60,6 +62,7 @@ const RARITY_COLORS: Record<string, string> = {
 
 export function AdminItemsHub() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Data
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,6 +74,9 @@ export function AdminItemsHub() {
 
   // Groups
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Asset browser dialog
+  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
 
   // Fetch base items
   const { data: baseItems = [], isLoading } = useQuery<BaseItem[]>({
@@ -114,6 +120,48 @@ export function AdminItemsHub() {
       }
     }
     return null;
+  };
+
+  // Find which collection holds a given role's mapping (or pick the first props/weapons/furniture base collection)
+  const findCollectionForRole = (objectRole: string): AssetCollection | null => {
+    // First check if already mapped in a collection
+    for (const col of collections) {
+      if ((col.objectModels as Record<string, string>)?.[objectRole]) return col;
+    }
+    // Fall back to "Base Props & Objects" or first base collection
+    return collections.find(c => c.name === 'Base Props & Objects') || collections[0] || null;
+  };
+
+  // Mutation to update objectModels mapping on a collection
+  const updateAssetMapping = useMutation({
+    mutationFn: async ({ collectionId, objectRole, assetId }: { collectionId: string; objectRole: string; assetId: string }) => {
+      const col = collections.find(c => c.id === collectionId);
+      const updatedModels = { ...(col?.objectModels as Record<string, string> || {}), [objectRole]: assetId };
+      const updatedAssetIds = [...new Set([...(col?.assetIds || []), assetId])];
+      const res = await apiRequest('PATCH', `/api/asset-collections/${collectionId}`, {
+        objectModels: updatedModels,
+        assetIds: updatedAssetIds,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/asset-collections'] });
+      toast({ title: 'Asset Updated', description: 'Item asset mapping has been updated.' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to update', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const handleAssetSelected = (asset: VisualAsset) => {
+    if (!selectedItem?.objectRole) return;
+    const col = findCollectionForRole(selectedItem.objectRole);
+    if (!col) {
+      toast({ title: 'No collection found', description: 'Cannot find a base collection to update.', variant: 'destructive' });
+      return;
+    }
+    updateAssetMapping.mutate({ collectionId: col.id, objectRole: selectedItem.objectRole, assetId: asset.id });
+    setShowAssetBrowser(false);
   };
 
   // Filtered items
@@ -293,8 +341,14 @@ export function AdminItemsHub() {
             {asset && (
               <>
                 <span className="text-muted-foreground">→</span>
-                <span className="text-xs truncate">{asset.name}</span>
+                <span className="text-xs truncate flex-1">{asset.name}</span>
               </>
+            )}
+            {selectedItem.objectRole && (
+              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] ml-auto shrink-0" onClick={() => setShowAssetBrowser(true)}>
+                <RefreshCw className="w-3 h-3 mr-1" />
+                {asset ? 'Change' : 'Assign'}
+              </Button>
             )}
           </div>
         </div>
@@ -316,7 +370,10 @@ export function AdminItemsHub() {
             {!asset && selectedItem.objectRole && (
               <div className="rounded-lg border p-4 text-center text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30">
                 <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-amber-500" />
-                <p className="text-sm">Role "{selectedItem.objectRole}" has no matching asset in base collections</p>
+                <p className="text-sm mb-2">Role "{selectedItem.objectRole}" has no matching asset in base collections</p>
+                <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowAssetBrowser(true)}>
+                  Assign Asset
+                </Button>
               </div>
             )}
 
@@ -414,11 +471,21 @@ export function AdminItemsHub() {
                             <DetailField label="Asset" value={asset.name} />
                             <DetailField label="File" value={asset.filePath} mono />
                             <DetailField label="Type" value={asset.assetType?.replace(/_/g, ' ') || 'Unknown'} />
+                            {selectedItem.objectRole && (
+                              <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setShowAssetBrowser(true)}>
+                                <RefreshCw className="w-3 h-3 mr-1" /> Change Asset
+                              </Button>
+                            )}
                           </>
                         ) : (
                           <div className="text-center py-6 text-muted-foreground">
                             <Box className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                            <p className="text-xs">{selectedItem.objectRole ? 'Asset not found' : 'No role assigned'}</p>
+                            <p className="text-xs mb-2">{selectedItem.objectRole ? 'Asset not found' : 'No role assigned'}</p>
+                            {selectedItem.objectRole && (
+                              <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowAssetBrowser(true)}>
+                                Assign Asset
+                              </Button>
+                            )}
                           </div>
                         )}
                       </>
@@ -458,6 +525,14 @@ export function AdminItemsHub() {
       </div>
       {renderCenter()}
       {selectedItem && renderRight()}
+
+      {/* Asset Browser Dialog */}
+      <AssetBrowserDialog
+        open={showAssetBrowser}
+        onOpenChange={setShowAssetBrowser}
+        modelsOnly
+        onAssetSelected={handleAssetSelected}
+      />
     </div>
   );
 }

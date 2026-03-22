@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-21T01:09:06.917Z",
+  "lastUpdated": "2026-03-22T01:33:51.463Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -171,7 +171,7 @@
     {
       "path": "client/src/components/3DGame/actions/ActionManager.ts",
       "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
-      "hash": "188556acd1010a79a2d532e563be2b7ddc56a06711cd533554b6f01e5c0213ae",
+      "hash": "965906c33933ca0728108164281dc38672332646bd4e220af26c66a9dacf7bba",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "a4152d94fcafb00f4aaf1230c8403b136f9833114b67b7b669feae1378de6ab9",
+      "hash": "98ec1baf57940d4242944a943b6d2db37362bab06035b5f8ff61c7d83c93b1a4",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "0bdfd751f71482135211a399240740722927a8e973c761126b8d3dabb1e54f2e",
+      "hash": "d9badfaf0c25c06efb8cf0c37b1f0c069bced01e9ad04dbf6b4ffa3e50312c4a",
       "engineMappings": [
         {
           "engine": "unreal",

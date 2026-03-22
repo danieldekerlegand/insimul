@@ -11,15 +11,31 @@ import { FoundationData, createFoundationMesh } from './TerrainFoundationRendere
 import type { ZoneType } from './StreetAlignedPlacement';
 import "@babylonjs/loaders/glTF";
 
+import type { ProceduralBuildingConfig, ProceduralStylePreset, RoofStyle as RoofStyleType } from '@shared/game-engine/types';
+
+/** Simple string hash for deterministic randomness */
+function hashString(s: string): number {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  return hash;
+}
+
 export interface BuildingStyle {
   name: string;
   baseColor: Color3;
   roofColor: Color3;
   windowColor: Color3;
   doorColor: Color3;
-  materialType: 'wood' | 'stone' | 'brick' | 'metal' | 'glass';
-  architectureStyle: 'medieval' | 'modern' | 'futuristic' | 'rustic' | 'industrial';
+  materialType: 'wood' | 'stone' | 'brick' | 'metal' | 'glass' | 'stucco';
+  architectureStyle: 'medieval' | 'modern' | 'futuristic' | 'rustic' | 'industrial' | 'colonial' | 'creole';
   assetSetId?: string;
+  roofStyle?: RoofStyleType;
+  hasIronworkBalcony?: boolean;
+  hasPorch?: boolean;
+  porchDepth?: number;
+  porchSteps?: number;
+  hasShutters?: boolean;
+  shutterColor?: Color3;
 }
 
 export interface BuildingSpec {
@@ -34,6 +50,7 @@ export interface BuildingSpec {
   rotation: number;
   hasChimney?: boolean;
   hasBalcony?: boolean;
+  hasPorch?: boolean;
   windowCount?: { width: number; height: number };
   foundation?: FoundationData;
 }
@@ -56,6 +73,9 @@ export class ProceduralBuildingGenerator {
   private roleScaleHints: Map<string, number> = new Map();
   // Per-role original bounding-box heights measured at import time
   private roleOriginalHeights: Map<string, number> = new Map();
+
+  // Procedural building config from asset collection (style presets, type overrides)
+  private proceduralConfig: ProceduralBuildingConfig | null = null;
 
   // Zone-based scale multipliers for building dimensions.
   // Commercial buildings are taller and wider; residential are standard scale.
@@ -151,6 +171,50 @@ export class ProceduralBuildingGenerator {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Apply a ProceduralBuildingConfig from an asset collection.
+   * This overrides the default style presets and building type defaults.
+   */
+  public setProceduralConfig(config: ProceduralBuildingConfig | null): void {
+    this.proceduralConfig = config;
+  }
+
+  /**
+   * Convert a ProceduralStylePreset (engine-agnostic Color3) to a Babylon BuildingStyle.
+   * Picks a random baseColor from the palette for per-building variety.
+   */
+  private static presetToBuildingStyle(preset: ProceduralStylePreset, seed?: string): BuildingStyle {
+    // Pick a wall color from the palette using a simple hash or random
+    const colors = preset.baseColors;
+    let colorIndex: number;
+    if (seed) {
+      let hash = 0;
+      for (let i = 0; i < seed.length; i++) hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+      colorIndex = Math.abs(hash) % colors.length;
+    } else {
+      colorIndex = Math.floor(Math.random() * colors.length);
+    }
+    const c = colors[colorIndex];
+    return {
+      name: preset.id,
+      baseColor: new Color3(c.r, c.g, c.b),
+      roofColor: new Color3(preset.roofColor.r, preset.roofColor.g, preset.roofColor.b),
+      windowColor: new Color3(preset.windowColor.r, preset.windowColor.g, preset.windowColor.b),
+      doorColor: new Color3(preset.doorColor.r, preset.doorColor.g, preset.doorColor.b),
+      materialType: preset.materialType as BuildingStyle['materialType'],
+      architectureStyle: preset.architectureStyle as BuildingStyle['architectureStyle'],
+      roofStyle: preset.roofStyle,
+      hasIronworkBalcony: preset.hasIronworkBalcony,
+      hasPorch: preset.hasPorch,
+      porchDepth: preset.porchDepth,
+      porchSteps: preset.porchSteps,
+      hasShutters: preset.hasShutters,
+      shutterColor: preset.shutterColor
+        ? new Color3(preset.shutterColor.r, preset.shutterColor.g, preset.shutterColor.b)
+        : undefined,
+    };
   }
 
   private modelPrototypes: Map<string, Mesh> = new Map();
@@ -418,6 +482,10 @@ export class ProceduralBuildingGenerator {
       }
     }
 
+    if (!modelPrototype) {
+      console.log(`[BuildingGen] No model for role="${role}" — using procedural generation`);
+    }
+
     if (modelPrototype) {
       // glTF models are a hierarchy: root TransformNode → child Meshes.
       // Use instantiateHierarchy with doNotInstantiate:true to create full
@@ -431,12 +499,12 @@ export class ProceduralBuildingGenerator {
           clone.name = `${source.name}_${spec.id}`;
         }
       );
+      let modelUsable = false;
       if (instance) {
         instance.name = `building_model_${spec.id}`;
         instance.position = Vector3.Zero();
 
         // Safety net: strip any env meshes that survived cloning
-        // (prototypes are already stripped at registration, but clone names may differ)
         const toDispose = instance.getChildMeshes(false)
           .filter(c => ProceduralBuildingGenerator.isEnvMesh(c.name));
         for (const mesh of toDispose) {
@@ -448,37 +516,101 @@ export class ProceduralBuildingGenerator {
         instance.getChildMeshes().forEach(m => m.setEnabled(true));
         this.adjustModelToSpec(instance as Mesh, spec, role || undefined);
 
-        // Freeze world matrices on all building child meshes (static geometry)
-        instance.getChildMeshes().forEach(m => {
-          m.freezeWorldMatrix();
-          m.alwaysSelectAsActiveMesh = false;
+        // Strip child meshes that are far from the building center.
+        // Some Sketchfab models include decorative scene elements (trees, fruit,
+        // props) at extreme positions in model space. After scaling these can
+        // float far above the building and appear as giant objects in the sky.
+        const parentPos = parent.getAbsolutePosition();
+        const maxDist = (spec.floors || 1) * 5 * 3; // 3x target height as radius
+        const outliers = instance.getChildMeshes(false).filter(c => {
+          if (c.isDisposed()) return false;
+          c.computeWorldMatrix(true);
+          const childPos = c.getAbsolutePosition();
+          const dy = childPos.y - parentPos.y;
+          const dx = childPos.x - parentPos.x;
+          const dz = childPos.z - parentPos.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          return dist > maxDist;
         });
+        if (outliers.length > 0) {
+          console.log(`[BuildingGen] Stripping ${outliers.length} outlier meshes from "${spec.id}" (>${maxDist.toFixed(0)}u from center): ${outliers.slice(0, 3).map(m => m.name).join(', ')}${outliers.length > 3 ? '...' : ''}`);
+          for (const mesh of outliers) { mesh.dispose(); }
+        }
+
+        const remaining = instance.getChildMeshes(false).filter(c => !c.isDisposed());
+        const totalVerts = remaining.reduce((sum, c) => sum + c.getTotalVertices(), 0);
+
+        // Compute world-space bounding box of remaining geometry
+        let bbMin = new Vector3(Infinity, Infinity, Infinity);
+        let bbMax = new Vector3(-Infinity, -Infinity, -Infinity);
+        for (const c of remaining) {
+          if (c.getTotalVertices() === 0) continue;
+          c.computeWorldMatrix(true);
+          const bi = c.getBoundingInfo();
+          bbMin = Vector3.Minimize(bbMin, bi.boundingBox.minimumWorld);
+          bbMax = Vector3.Maximize(bbMax, bi.boundingBox.maximumWorld);
+        }
+        const bbSize = bbMax.subtract(bbMin);
+        const maxBBDim = Math.max(bbSize.x, bbSize.y, bbSize.z);
+
+        if (remaining.length === 0 || totalVerts === 0 || maxBBDim < 2) {
+          console.warn(`[BuildingGen] Building "${spec.id}" model unusable (${remaining.length} meshes, ${totalVerts} verts, maxDim=${maxBBDim.toFixed(1)}) — falling back to procedural`);
+          instance.dispose();
+          modelUsable = false;
+        } else {
+          modelUsable = true;
+
+          // Freeze world matrices on all building child meshes (static geometry)
+          instance.getChildMeshes().forEach(m => {
+            m.freezeWorldMatrix();
+            m.alwaysSelectAsActiveMesh = false;
+          });
+        }
       }
-      this.buildingMeshes.set(spec.id, parent);
-      parent.freezeWorldMatrix();
-      return parent;
+
+      if (modelUsable) {
+        this.buildingMeshes.set(spec.id, parent);
+        parent.freezeWorldMatrix();
+        return parent;
+      }
+      // Model unusable — fall through to procedural generation
+      console.log(`[BuildingGen] Using procedural fallback for "${spec.id}"`);
     }
 
-    // Create main building structure
-    const building = this.createBuildingStructure(spec);
+    // Compute porch elevation: the building must be raised so the door
+    // sits at porch-floor height and the player can walk up the steps.
+    const porchElevation = spec.hasPorch
+      ? (spec.style.porchSteps ?? 3) * 0.3
+      : 0;
+
+    // Create main building structure (raised by porchElevation)
+    const building = this.createBuildingStructure(spec, porchElevation);
     building.parent = parent;
 
     // Add roof
-    const roof = this.createRoof(spec);
+    const roof = this.createRoof(spec, porchElevation);
     roof.parent = parent;
 
     // Add door
     this.addDoor(spec, building);
 
+    // Add windows (with optional shutters)
+    this.addWindows(spec, building);
+
     // Optional features
     if (spec.hasChimney) {
-      const chimney = this.createChimney(spec);
+      const chimney = this.createChimney(spec, porchElevation);
       chimney.parent = parent;
     }
 
     if (spec.hasBalcony && spec.floors > 1) {
-      const balcony = this.createBalcony(spec);
+      const balcony = this.createBalcony(spec, porchElevation);
       balcony.parent = parent;
+    }
+
+    if (spec.hasPorch) {
+      const porch = this.createPorch(spec);
+      porch.parent = parent;
     }
 
     // Attach debug metadata for hover tooltip
@@ -615,8 +747,9 @@ export class ProceduralBuildingGenerator {
 
   /**
    * Create main building structure
+   * @param porchElevation - additional Y offset to raise building to meet porch floor
    */
-  private createBuildingStructure(spec: BuildingSpec): Mesh {
+  private createBuildingStructure(spec: BuildingSpec, porchElevation = 0): Mesh {
     const floorHeight = 4;
     const totalHeight = spec.floors * floorHeight;
 
@@ -630,7 +763,7 @@ export class ProceduralBuildingGenerator {
       this.scene
     );
 
-    building.position.y = totalHeight / 2;
+    building.position.y = totalHeight / 2 + porchElevation;
 
     // Shared material keyed by style + material type + wall texture presence
     const matKey = `wall_${spec.style.name}_${spec.style.materialType}_${this.wallTexture ? 'tex' : 'notex'}`;
@@ -651,6 +784,10 @@ export class ProceduralBuildingGenerator {
         m.diffuseColor = spec.style.baseColor.scale(0.9);
       } else if (spec.style.materialType === 'stone') {
         m.diffuseColor = spec.style.baseColor.scale(0.95);
+      } else if (spec.style.materialType === 'stucco') {
+        // Stucco: matte finish, slight color variation
+        m.diffuseColor = spec.style.baseColor;
+        m.specularColor = new Color3(0.03, 0.03, 0.03);
       }
       return m;
     });
@@ -662,9 +799,10 @@ export class ProceduralBuildingGenerator {
   }
 
   /**
-   * Create roof
+   * Create roof using custom vertex geometry for proper coverage.
+   * @param porchElevation - additional Y offset matching building raise
    */
-  private createRoof(spec: BuildingSpec): Mesh {
+  private createRoof(spec: BuildingSpec, porchElevation = 0): Mesh {
     const floorHeight = 4;
     const totalHeight = spec.floors * floorHeight;
     const peakedRoofHeight = 3;
@@ -672,57 +810,49 @@ export class ProceduralBuildingGenerator {
     let roof: Mesh;
     let actualRoofHeight: number;
 
-    if (spec.style.architectureStyle === 'medieval' || spec.style.architectureStyle === 'rustic') {
-      // Peaked hip roof
+    const roofStyle = spec.style.roofStyle;
+    const arch = spec.style.architectureStyle;
+
+    // Overhang: roof extends slightly beyond the walls
+    const overhang = 0.6;
+    const hw = spec.width / 2 + overhang;  // half-width with overhang
+    const hd = spec.depth / 2 + overhang;  // half-depth with overhang
+    // For buildings with porches, extend the front overhang to meet the porch roof
+    const porchDepth = spec.hasPorch ? (spec.style.porchDepth ?? 3) : 0;
+    const frontHd = spec.hasPorch ? spec.depth / 2 + porchDepth + overhang : hd;
+
+    if (roofStyle === 'gable' || roofStyle === 'side_gable'
+      || ((arch === 'colonial' || arch === 'creole') && roofStyle !== 'hip' && roofStyle !== 'flat')) {
+      // Gable roof: ridge runs left-to-right (side_gable), slopes front & back
       actualRoofHeight = peakedRoofHeight;
-      roof = MeshBuilder.CreateCylinder(
-        `roof_${spec.id}`,
-        {
-          diameterTop: 0,
-          diameterBottom: Math.max(spec.width, spec.depth) * 1.2,
-          height: actualRoofHeight,
-          tessellation: 5
-        },
-        this.scene
-      );
-      roof.rotation.y = Math.PI / 8;
-      // Flatten to match the rectangular footprint
-      const aspect = spec.width / Math.max(spec.depth, 1);
-      if (aspect > 1.2) {
-        roof.scaling.z = 1 / aspect;
-      } else if (aspect < 0.8) {
-        roof.scaling.x = aspect;
-      }
-    } else if (spec.style.architectureStyle === 'modern' || spec.style.architectureStyle === 'futuristic') {
-      // Flat roof
+      roof = this.createGableRoofMesh(spec.id, hw, hd, frontHd, actualRoofHeight, roofStyle === 'gable');
+    } else if (roofStyle === 'hip' || roofStyle === 'hipped_dormers'
+      || arch === 'colonial' || arch === 'creole') {
+      // Hip roof: all four sides slope inward to a ridge
+      actualRoofHeight = arch === 'creole' ? peakedRoofHeight + 1 : peakedRoofHeight;
+      roof = this.createHipRoofMesh(spec.id, hw, hd, frontHd, actualRoofHeight);
+    } else if (roofStyle === 'flat' || arch === 'modern' || arch === 'futuristic') {
       actualRoofHeight = 0.5;
       roof = MeshBuilder.CreateBox(
         `roof_${spec.id}`,
-        {
-          width: spec.width + 0.5,
-          height: actualRoofHeight,
-          depth: spec.depth + 0.5
-        },
+        { width: spec.width + 0.5, height: actualRoofHeight, depth: spec.depth + 0.5 },
         this.scene
       );
-    } else {
-      // Cone roof
+      roof.position.y = totalHeight + actualRoofHeight / 2 + porchElevation;
+    } else if (arch === 'medieval' || arch === 'rustic') {
+      // Hip roof for medieval too (proper coverage)
       actualRoofHeight = peakedRoofHeight;
-      roof = MeshBuilder.CreateCylinder(
-        `roof_${spec.id}`,
-        {
-          diameterTop: 1,
-          diameterBottom: Math.max(spec.width, spec.depth) * 1.1,
-          height: actualRoofHeight,
-          tessellation: 5
-        },
-        this.scene
-      );
+      roof = this.createHipRoofMesh(spec.id, hw, hd, hd, actualRoofHeight);
+    } else {
+      // Fallback: hip roof
+      actualRoofHeight = peakedRoofHeight;
+      roof = this.createHipRoofMesh(spec.id, hw, hd, hd, actualRoofHeight);
     }
 
-    // Babylon meshes are centered at their origin, so offset by half the
-    // roof's own height to sit flush on top of the building walls.
-    roof.position.y = totalHeight + actualRoofHeight / 2;
+    // Position the roof on top of the walls (custom meshes have base at y=0)
+    if (roofStyle !== 'flat' && arch !== 'modern' && arch !== 'futuristic') {
+      roof.position.y = totalHeight + porchElevation;
+    }
 
     // Shared roof material
     const roofMatKey = `roof_${spec.style.name}_${this.roofTexture ? 'tex' : 'notex'}`;
@@ -750,7 +880,132 @@ export class ProceduralBuildingGenerator {
   }
 
   /**
-   * Add windows to building
+   * Create a gable roof mesh from custom vertices.
+   * The ridge runs left-to-right; the front and back slopes go down to the eaves.
+   * Base of the mesh sits at y=0; ridge is at y=height.
+   */
+  private createGableRoofMesh(
+    id: string, hw: number, hd: number, frontHd: number, height: number, ridgeAlongDepth = false,
+  ): Mesh {
+    const roof = new Mesh(`roof_gable_${id}`, this.scene);
+    // For side_gable (default): ridge runs along X axis (left-right)
+    //   Front eave at +Z (frontHd), back eave at -Z (hd)
+    //   Ridge at Z=0, Y=height
+    // Vertices: 6 points defining the prism
+    //   0: left-front-bottom, 1: right-front-bottom
+    //   2: left-back-bottom,  3: right-back-bottom
+    //   4: left-ridge,        5: right-ridge
+    let positions: number[];
+    let indices: number[];
+
+    if (!ridgeAlongDepth) {
+      // Ridge runs along X (side_gable) — slopes on front and back
+      positions = [
+        -hw, 0, frontHd,   // 0: left-front
+         hw, 0, frontHd,   // 1: right-front
+        -hw, 0, -hd,       // 2: left-back
+         hw, 0, -hd,       // 3: right-back
+        -hw, height, 0,    // 4: left-ridge
+         hw, height, 0,    // 5: right-ridge
+      ];
+    } else {
+      // Ridge runs along Z (gable) — slopes on left and right
+      positions = [
+        -hw, 0, frontHd,   // 0: left-front
+         hw, 0, frontHd,   // 1: right-front
+        -hw, 0, -hd,       // 2: left-back
+         hw, 0, -hd,       // 3: right-back
+         0, height, frontHd, // 4: front-ridge
+         0, height, -hd,    // 5: back-ridge
+      ];
+    }
+
+    if (!ridgeAlongDepth) {
+      indices = [
+        // Front slope (0,1,5,4)
+        0, 5, 1,  0, 4, 5,
+        // Back slope (2,3,5,4)
+        2, 3, 5,  2, 5, 4,
+        // Left gable triangle (0,2,4)
+        0, 2, 4,
+        // Right gable triangle (1,5,3)
+        1, 5, 3,
+        // Bottom face (optional, usually hidden)
+        0, 1, 3,  0, 3, 2,
+      ];
+    } else {
+      indices = [
+        // Left slope (0,2,5,4)
+        0, 4, 2,  2, 4, 5,
+        // Right slope (1,3,5,4)
+        1, 3, 5,  1, 5, 4,
+        // Front gable triangle (0,1,4)
+        0, 1, 4,
+        // Back gable triangle (2,5,3)
+        2, 5, 3,
+        // Bottom
+        0, 3, 1,  0, 2, 3,
+      ];
+    }
+
+    const normals: number[] = [];
+    const vertexData = new VertexData();
+    vertexData.positions = positions;
+    vertexData.indices = indices;
+    VertexData.ComputeNormals(positions, indices, normals);
+    vertexData.normals = normals;
+    vertexData.applyToMesh(roof);
+    return roof;
+  }
+
+  /**
+   * Create a hip roof mesh from custom vertices.
+   * All four edges slope inward to a central ridge line.
+   * Base sits at y=0; ridge at y=height.
+   */
+  private createHipRoofMesh(
+    id: string, hw: number, hd: number, frontHd: number, height: number,
+  ): Mesh {
+    const roof = new Mesh(`roof_hip_${id}`, this.scene);
+    // Hip roof: 6 vertices — 4 eave corners + 2 ridge endpoints
+    // Ridge runs along X axis, inset from front/back
+    const ridgeInset = Math.min(hw * 0.5, hd * 0.5);
+    const ridgeHalfLen = hw - ridgeInset;
+
+    const positions = [
+      -hw, 0, frontHd,           // 0: left-front eave
+       hw, 0, frontHd,           // 1: right-front eave
+       hw, 0, -hd,               // 2: right-back eave
+      -hw, 0, -hd,               // 3: left-back eave
+      -ridgeHalfLen, height, 0,  // 4: left ridge point
+       ridgeHalfLen, height, 0,  // 5: right ridge point
+    ];
+
+    const indices = [
+      // Front slope (0,1,5,4) — trapezoid
+      0, 5, 1,  0, 4, 5,
+      // Right slope (1,2,5) — triangle
+      1, 5, 2,
+      // Back slope (2,3,4,5) — trapezoid
+      2, 3, 4,  2, 4, 5,
+      // Left slope (3,0,4) — triangle
+      3, 0, 4,
+      // Bottom (hidden but prevents z-fighting)
+      0, 1, 2,  0, 2, 3,
+    ];
+
+    const normals: number[] = [];
+    const vertexData = new VertexData();
+    vertexData.positions = positions;
+    vertexData.indices = indices;
+    VertexData.ComputeNormals(positions, indices, normals);
+    vertexData.normals = normals;
+    vertexData.applyToMesh(roof);
+    return roof;
+  }
+
+  /**
+   * Add windows to building, with optional shutters for colonial/creole styles
    */
   private addWindows(spec: BuildingSpec, building: Mesh): void {
     const floorHeight = 4;
@@ -767,34 +1022,59 @@ export class ProceduralBuildingGenerator {
       return m;
     });
 
+    // Shutter material (if enabled)
+    let shutterMat: StandardMaterial | null = null;
+    if (spec.style.hasShutters) {
+      const shutterColor = spec.style.shutterColor || spec.style.doorColor;
+      const shutterMatKey = `shutter_${spec.style.name}_${shutterColor.toHexString()}`;
+      shutterMat = this.getSharedMaterial(shutterMatKey, () => {
+        const m = new StandardMaterial(shutterMatKey, this.scene);
+        m.diffuseColor = shutterColor;
+        return m;
+      });
+    }
+
     for (let floor = 0; floor < spec.floors; floor++) {
       const y = floor * floorHeight + floorHeight / 2;
 
-      // Front windows
-      for (let i = 0; i < windowsPerFloor; i++) {
-        const x = -spec.width / 2 + (i + 1) * (spec.width / (windowsPerFloor + 1));
-        const window = MeshBuilder.CreatePlane(
-          `window_front_${spec.id}_f${floor}_${i}`,
-          { width: windowWidth, height: windowHeight },
-          this.scene
-        );
-        window.position = new Vector3(x, y, spec.depth / 2 + 0.05);
-        window.parent = building;
-        window.material = windowMat;
-      }
+      // Front and back windows
+      for (const [side, zSign, rotY] of [
+        ['front', 1, 0],
+        ['back', -1, Math.PI],
+      ] as const) {
+        for (let i = 0; i < windowsPerFloor; i++) {
+          const x = -spec.width / 2 + (i + 1) * (spec.width / (windowsPerFloor + 1));
+          const z = (zSign as number) * (spec.depth / 2 + 0.05);
 
-      // Back windows
-      for (let i = 0; i < windowsPerFloor; i++) {
-        const x = -spec.width / 2 + (i + 1) * (spec.width / (windowsPerFloor + 1));
-        const window = MeshBuilder.CreatePlane(
-          `window_back_${spec.id}_f${floor}_${i}`,
-          { width: windowWidth, height: windowHeight },
-          this.scene
-        );
-        window.position = new Vector3(x, y, -spec.depth / 2 - 0.05);
-        window.rotation.y = Math.PI;
-        window.parent = building;
-        window.material = windowMat;
+          const win = MeshBuilder.CreatePlane(
+            `window_${side}_${spec.id}_f${floor}_${i}`,
+            { width: windowWidth, height: windowHeight },
+            this.scene
+          );
+          win.position = new Vector3(x, y, z);
+          win.rotation.y = rotY as number;
+          win.parent = building;
+          win.material = windowMat;
+
+          // Add shutters (thin boxes flanking each window)
+          if (shutterMat) {
+            const shutterWidth = 0.3;
+            for (const shutterSide of [-1, 1]) {
+              const shutter = MeshBuilder.CreateBox(
+                `shutter_${side}_${spec.id}_f${floor}_${i}_${shutterSide}`,
+                { width: shutterWidth, height: windowHeight + 0.2, depth: 0.08 },
+                this.scene
+              );
+              shutter.position = new Vector3(
+                x + shutterSide * (windowWidth / 2 + shutterWidth / 2),
+                y,
+                z
+              );
+              shutter.parent = building;
+              shutter.material = shutterMat;
+            }
+          }
+        }
       }
     }
   }
@@ -894,7 +1174,7 @@ export class ProceduralBuildingGenerator {
   /**
    * Create chimney
    */
-  private createChimney(spec: BuildingSpec): Mesh {
+  private createChimney(spec: BuildingSpec, porchElevation = 0): Mesh {
     const floorHeight = 4;
     const totalHeight = spec.floors * floorHeight;
     const chimneyHeight = 5;
@@ -907,7 +1187,7 @@ export class ProceduralBuildingGenerator {
 
     chimney.position = new Vector3(
       spec.width / 3,
-      totalHeight + chimneyHeight / 2,
+      totalHeight + chimneyHeight / 2 + porchElevation,
       -spec.depth / 4
     );
 
@@ -923,34 +1203,205 @@ export class ProceduralBuildingGenerator {
   }
 
   /**
-   * Create balcony
+   * Create balcony — supports ironwork railing for Creole/colonial styles
    */
-  private createBalcony(spec: BuildingSpec): Mesh {
+  private createBalcony(spec: BuildingSpec, porchElevation = 0): Mesh {
     const floorHeight = 4;
-    const balconyFloor = Math.floor(spec.floors / 2);
-    const balconyY = balconyFloor * floorHeight;
+    const balconyParent = new Mesh(`balcony_parent_${spec.id}`, this.scene);
+    balconyParent.position.y = porchElevation;
+    const isIronwork = spec.style.hasIronworkBalcony;
 
-    const balcony = MeshBuilder.CreateBox(
-      `balcony_${spec.id}`,
-      { width: spec.width * 0.6, height: 0.3, depth: 2 },
-      this.scene
-    );
+    // For ironwork balconies (Creole), span the full width on every upper floor
+    const balconyWidth = isIronwork ? spec.width * 0.95 : spec.width * 0.6;
+    const balconyDepth = isIronwork ? 2.5 : 2;
+    const startFloor = 1; // Start from second floor
+    const endFloor = isIronwork ? spec.floors : Math.floor(spec.floors / 2) + 1;
 
-    balcony.position = new Vector3(0, balconyY, spec.depth / 2 + 1);
+    for (let floor = startFloor; floor < endFloor; floor++) {
+      const balconyY = floor * floorHeight;
 
-    const balconyMatKey = `balcony_${spec.style.name}`;
-    const balconyMat = this.getSharedMaterial(balconyMatKey, () => {
-      const m = new StandardMaterial(balconyMatKey, this.scene);
-      m.diffuseColor = spec.style.baseColor.scale(0.8);
-      return m;
-    });
-    balcony.material = balconyMat;
+      // Balcony floor slab
+      const slab = MeshBuilder.CreateBox(
+        `balcony_slab_${spec.id}_f${floor}`,
+        { width: balconyWidth, height: 0.2, depth: balconyDepth },
+        this.scene
+      );
+      slab.position = new Vector3(0, balconyY, spec.depth / 2 + balconyDepth / 2);
+      slab.parent = balconyParent;
 
-    return balcony;
+      const balconyMatKey = `balcony_${spec.style.name}${isIronwork ? '_iron' : ''}`;
+      const balconyMat = this.getSharedMaterial(balconyMatKey, () => {
+        const m = new StandardMaterial(balconyMatKey, this.scene);
+        m.diffuseColor = isIronwork
+          ? new Color3(0.15, 0.15, 0.15) // Dark iron
+          : spec.style.baseColor.scale(0.8);
+        return m;
+      });
+      slab.material = balconyMat;
+
+      // Railing
+      if (isIronwork) {
+        // Front railing
+        const frontRail = MeshBuilder.CreateBox(
+          `balcony_rail_front_${spec.id}_f${floor}`,
+          { width: balconyWidth, height: 1.0, depth: 0.08 },
+          this.scene
+        );
+        frontRail.position = new Vector3(0, balconyY + 0.6, spec.depth / 2 + balconyDepth);
+        frontRail.parent = balconyParent;
+        frontRail.material = balconyMat;
+
+        // Side railings
+        for (const side of [-1, 1]) {
+          const sideRail = MeshBuilder.CreateBox(
+            `balcony_rail_side_${spec.id}_f${floor}_${side}`,
+            { width: 0.08, height: 1.0, depth: balconyDepth },
+            this.scene
+          );
+          sideRail.position = new Vector3(
+            side * balconyWidth / 2,
+            balconyY + 0.6,
+            spec.depth / 2 + balconyDepth / 2
+          );
+          sideRail.parent = balconyParent;
+          sideRail.material = balconyMat;
+        }
+
+        // Vertical balusters along the front
+        const balusterCount = Math.floor(balconyWidth / 0.4);
+        for (let i = 0; i < balusterCount; i++) {
+          const x = -balconyWidth / 2 + (i + 0.5) * (balconyWidth / balusterCount);
+          const baluster = MeshBuilder.CreateBox(
+            `balcony_baluster_${spec.id}_f${floor}_${i}`,
+            { width: 0.05, height: 1.0, depth: 0.05 },
+            this.scene
+          );
+          baluster.position = new Vector3(x, balconyY + 0.6, spec.depth / 2 + balconyDepth);
+          baluster.parent = balconyParent;
+          baluster.material = balconyMat;
+        }
+      }
+    }
+
+    return balconyParent;
   }
 
   /**
-   * Generate building spec from business/residence data
+   * Create a front porch with solid foundation, walkable steps, posts, and overhang.
+   * The porch floor sits at porchFloorY; the building is raised to match.
+   */
+  private createPorch(spec: BuildingSpec): Mesh {
+    const porchParent = new Mesh(`porch_parent_${spec.id}`, this.scene);
+    const porchDepth = spec.style.porchDepth ?? 3;
+    const porchSteps = spec.style.porchSteps ?? 3;
+    const stepHeight = 0.3;
+    const stepDepth = 0.4;
+    const porchFloorY = porchSteps * stepHeight;
+    const stepsWidth = Math.min(spec.width * 0.5, 4); // steps centered, not full-width
+    const totalStepsDepth = porchSteps * stepDepth;
+
+    // --- Porch material ---
+    const porchMatKey = `porch_${spec.style.name}_${spec.style.baseColor.toHexString()}`;
+    const porchMat = this.getSharedMaterial(porchMatKey, () => {
+      const m = new StandardMaterial(porchMatKey, this.scene);
+      m.diffuseColor = spec.style.materialType === 'wood'
+        ? new Color3(0.45, 0.32, 0.2)
+        : spec.style.baseColor.scale(0.85);
+      m.specularColor = new Color3(0.05, 0.05, 0.05);
+      return m;
+    });
+
+    // --- Solid foundation block under the porch deck ---
+    // This fills in the area below the porch floor so it's not floating.
+    const foundation = MeshBuilder.CreateBox(
+      `porch_foundation_${spec.id}`,
+      { width: spec.width + 0.5, height: porchFloorY, depth: porchDepth },
+      this.scene
+    );
+    foundation.position = new Vector3(0, porchFloorY / 2, spec.depth / 2 + porchDepth / 2);
+    foundation.parent = porchParent;
+    // Foundation uses a slightly darker variant of the wall color
+    const foundationMatKey = `porch_foundation_${spec.style.name}_${spec.style.baseColor.toHexString()}`;
+    const foundationMat = this.getSharedMaterial(foundationMatKey, () => {
+      const m = new StandardMaterial(foundationMatKey, this.scene);
+      m.diffuseColor = spec.style.baseColor.scale(0.6);
+      m.specularColor = new Color3(0.05, 0.05, 0.05);
+      return m;
+    });
+    foundation.material = foundationMat;
+    foundation.checkCollisions = true;
+
+    // Also fill in under the main building to ground level
+    const buildingFoundation = MeshBuilder.CreateBox(
+      `building_foundation_${spec.id}`,
+      { width: spec.width, height: porchFloorY, depth: spec.depth },
+      this.scene
+    );
+    buildingFoundation.position = new Vector3(0, porchFloorY / 2, 0);
+    buildingFoundation.parent = porchParent;
+    buildingFoundation.material = foundationMat;
+
+    // --- Porch floor deck (visible top surface) ---
+    const porchFloor = MeshBuilder.CreateBox(
+      `porch_floor_${spec.id}`,
+      { width: spec.width + 0.5, height: 0.12, depth: porchDepth },
+      this.scene
+    );
+    porchFloor.position = new Vector3(0, porchFloorY + 0.06, spec.depth / 2 + porchDepth / 2);
+    porchFloor.parent = porchParent;
+    porchFloor.material = porchMat;
+    porchFloor.checkCollisions = true;
+
+    // --- Steps: solid filled blocks, each one taller than the last ---
+    // Each step is a filled box from ground up to that step's height.
+    for (let i = 0; i < porchSteps; i++) {
+      const thisStepTopY = (i + 1) * stepHeight;
+      const stepZ = spec.depth / 2 + porchDepth + totalStepsDepth - (i + 1) * stepDepth + stepDepth / 2;
+      const step = MeshBuilder.CreateBox(
+        `porch_step_${spec.id}_${i}`,
+        { width: stepsWidth, height: thisStepTopY, depth: stepDepth },
+        this.scene
+      );
+      step.position = new Vector3(0, thisStepTopY / 2, stepZ);
+      step.parent = porchParent;
+      step.material = porchMat;
+      // Enable collision so the player can walk up
+      step.checkCollisions = true;
+    }
+
+    // --- Porch posts (columns) ---
+    const postCount = Math.max(2, Math.floor(spec.width / 4));
+    const postHeight = 3.5;
+    const postMatKey = `porch_post_${spec.style.name}`;
+    const postMat = this.getSharedMaterial(postMatKey, () => {
+      const m = new StandardMaterial(postMatKey, this.scene);
+      m.diffuseColor = new Color3(0.9, 0.9, 0.88);
+      m.specularColor = new Color3(0.05, 0.05, 0.05);
+      return m;
+    });
+
+    for (let i = 0; i < postCount; i++) {
+      const x = -spec.width / 2 + (i + 0.5) * (spec.width / postCount) + 0.25;
+      const post = MeshBuilder.CreateCylinder(
+        `porch_post_${spec.id}_${i}`,
+        { diameter: 0.2, height: postHeight, tessellation: 8 },
+        this.scene
+      );
+      post.position = new Vector3(x, porchFloorY + postHeight / 2, spec.depth / 2 + porchDepth - 0.2);
+      post.parent = porchParent;
+      post.material = postMat;
+    }
+
+    // --- Porch roof overhang ---
+    // (The main roof now extends to cover the porch, but we keep a thin
+    //  soffit/fascia visible under the roof eave for visual weight.)
+
+    return porchParent;
+  }
+
+  /**
+   * Generate building spec from business/residence data.
+   * If a proceduralConfig is provided, uses it to resolve style and type overrides.
    */
   public static createSpecFromData(data: {
     id: string;
@@ -962,13 +1413,18 @@ export class ProceduralBuildingGenerator {
     /** Street-facing rotation in radians (from StreetAlignedPlacement) */
     rotation?: number;
     zone?: ZoneType;
+    /** Procedural config from asset collection — overrides dimensions, style, features */
+    proceduralConfig?: ProceduralBuildingConfig | null;
   }): BuildingSpec {
     const defaults = data.businessType && ProceduralBuildingGenerator.BUILDING_TYPES[data.businessType]
       || ProceduralBuildingGenerator.BUILDING_TYPES['residence_medium'];
 
-    const baseFloors = defaults.floors || 2;
-    const baseWidth = defaults.width || 10;
-    const baseDepth = defaults.depth || 10;
+    // Apply procedural config type overrides if available
+    const typeOverride = data.proceduralConfig?.buildingTypeOverrides?.[data.businessType || ''];
+
+    const baseFloors = typeOverride?.floors ?? defaults.floors ?? 2;
+    const baseWidth = typeOverride?.width ?? defaults.width ?? 10;
+    const baseDepth = typeOverride?.depth ?? defaults.depth ?? 10;
 
     // Apply zone-based scale multipliers
     const zoneScale = data.zone
@@ -978,6 +1434,33 @@ export class ProceduralBuildingGenerator {
     const width = Math.round(baseWidth * zoneScale.width);
     const depth = Math.round(baseDepth * zoneScale.depth);
 
+    // Resolve style from procedural config, or use the provided worldStyle
+    let style = data.worldStyle;
+    if (data.proceduralConfig && data.proceduralConfig.stylePresets.length > 0) {
+      // Check for type-specific style override
+      if (typeOverride?.stylePresetId) {
+        const preset = data.proceduralConfig.stylePresets.find(p => p.id === typeOverride.stylePresetId);
+        if (preset) style = ProceduralBuildingGenerator.presetToBuildingStyle(preset, data.id);
+      } else {
+        // Use zone default or random from all presets
+        const defaultId = data.zone === 'commercial'
+          ? data.proceduralConfig.defaultCommercialStyleId
+          : data.proceduralConfig.defaultResidentialStyleId;
+        if (defaultId) {
+          const preset = data.proceduralConfig.stylePresets.find(p => p.id === defaultId);
+          if (preset) style = ProceduralBuildingGenerator.presetToBuildingStyle(preset, data.id);
+        } else {
+          const presets = data.proceduralConfig.stylePresets;
+          const preset = presets[Math.abs(hashString(data.id)) % presets.length];
+          style = ProceduralBuildingGenerator.presetToBuildingStyle(preset, data.id);
+        }
+      }
+    }
+
+    const hasChimney = typeOverride?.hasChimney ?? defaults.hasChimney ?? false;
+    const hasBalcony = typeOverride?.hasBalcony ?? defaults.hasBalcony ?? style.hasIronworkBalcony ?? false;
+    const hasPorch = typeOverride?.hasPorch ?? style.hasPorch ?? false;
+
     return {
       id: data.id,
       type: data.type,
@@ -985,11 +1468,12 @@ export class ProceduralBuildingGenerator {
       floors,
       width,
       depth,
-      style: data.worldStyle,
+      style,
       position: data.position,
       rotation: data.rotation ?? Math.random() * Math.PI * 2,
-      hasChimney: defaults.hasChimney || false,
-      hasBalcony: defaults.hasBalcony || false
+      hasChimney,
+      hasBalcony,
+      hasPorch,
     };
   }
 

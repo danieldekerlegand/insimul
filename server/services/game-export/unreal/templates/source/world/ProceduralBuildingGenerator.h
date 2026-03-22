@@ -5,6 +5,20 @@
 #include "ProceduralBuildingGenerator.generated.h"
 
 /**
+ * Roof style enum for procedural building generation.
+ * Mirrors RoofStyle from the TypeScript ProceduralBuildingGenerator.
+ */
+UENUM(BlueprintType)
+enum class EBuildingRoofStyle : uint8
+{
+    Hip            UMETA(DisplayName = "Hip"),
+    Gable          UMETA(DisplayName = "Gable"),
+    Flat           UMETA(DisplayName = "Flat"),
+    SideGable      UMETA(DisplayName = "Side Gable"),
+    HippedDormers  UMETA(DisplayName = "Hipped Dormers")
+};
+
+/**
  * Style preset data for a building visual style.
  */
 USTRUCT(BlueprintType)
@@ -19,6 +33,20 @@ struct FBuildingStylePreset
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor DoorColor;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString MaterialType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ArchitectureStyle;
+    /** Roof style override (hip, gable, flat, etc.) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EBuildingRoofStyle RoofStyle = EBuildingRoofStyle::Hip;
+    /** Whether balconies use ironwork balusters */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasIronworkBalcony = false;
+    /** Whether the building has a front porch */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasPorch = false;
+    /** Porch depth in meters */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float PorchDepth = 3.0f;
+    /** Number of porch steps */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PorchSteps = 3;
+    /** Whether windows have decorative shutters */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasShutters = false;
+    /** Shutter color */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor ShutterColor = FLinearColor(0.2f, 0.3f, 0.2f);
 };
 
 /**
@@ -34,6 +62,7 @@ struct FBuildingTypeDefaults
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float Depth = 10.0f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasChimney = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasBalcony = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasPorch = false;
 };
 
 /**
@@ -102,6 +131,15 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Building")
     static FBuildingStylePreset GetStyleForWorld(const FString& WorldType, const FString& Terrain);
 
+    /** Store a procedural building configuration for use during generation. */
+    UFUNCTION(BlueprintCallable, Category = "Building")
+    void SetProceduralConfig(const FString& ConfigJson);
+
+    /** Convert an engine-agnostic style preset name to a FBuildingStylePreset.
+     *  Uses the seed for deterministic variation. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Building")
+    static FBuildingStylePreset PresetToBuildingStyle(const FString& PresetName, int32 Seed);
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
     FLinearColor BaseColor = FLinearColor({{BASE_COLOR_R}}, {{BASE_COLOR_G}}, {{BASE_COLOR_B}});
 
@@ -144,10 +182,41 @@ private:
     float CreateRoof(USceneComponent* Parent, const FString& ArchStyle, float Width, float Depth,
                      int32 Floors, FLinearColor Color, UMaterialInterface* BaseMaterial);
 
+    /** Create roof geometry using the RoofStyle enum instead of architecture string. */
+    float CreateRoofFromStyle(USceneComponent* Parent, EBuildingRoofStyle RoofStyle, float Width, float Depth,
+                              int32 Floors, FLinearColor Color, UMaterialInterface* BaseMaterial);
+
+    /** Create a custom-vertex gable roof mesh. */
+    void CreateGableRoofMesh(USceneComponent* Parent, float Width, float Depth, float Height,
+                             FLinearColor Color, UMaterialInterface* BaseMaterial);
+
+    /** Create a custom-vertex hip roof mesh. */
+    void CreateHipRoofMesh(USceneComponent* Parent, float Width, float Depth, float Height,
+                           FLinearColor Color, UMaterialInterface* BaseMaterial);
+
+    /** Create a porch with foundation, deck, steps, and posts. */
+    void CreatePorch(USceneComponent* Parent, float BuildingWidth, float BuildingDepth,
+                     float PorchDepth, int32 PorchSteps, float PorchElevation,
+                     FLinearColor Color, UMaterialInterface* BaseMaterial);
+
+    /** Add shutters flanking a window. */
+    void AddShutters(USceneComponent* Parent, FVector WindowPosition, float WindowWidth,
+                     float WindowHeight, FLinearColor ShutterColor, UMaterialInterface* BaseMaterial);
+
+    /** Add ironwork balcony with balusters to a floor. */
+    void AddIronworkBalcony(USceneComponent* Parent, float Width, float Depth, int32 Floor,
+                            FLinearColor Color, UMaterialInterface* BaseMaterial);
+
     /** Add door with frame and handle to building. */
     void AddDoor(USceneComponent* Parent, float Width, float Depth, int32 Floors,
                  FLinearColor DoorColor, UMaterialInterface* BaseMaterial);
 
     /** Propagate LOD cull distance to child components that don't already have one. */
     void PropagateChildLOD();
+
+    /** Stored procedural building configuration JSON. */
+    TSharedPtr<FJsonObject> ProceduralConfig;
+
+    /** Current building style for the active generation pass. */
+    FBuildingStylePreset CurrentStyle;
 };

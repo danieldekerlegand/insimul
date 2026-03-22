@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 namespace Insimul.Data
 {
@@ -79,7 +80,11 @@ namespace Insimul.Data
         public InsimulAIConfigData aiConfig;
     }
 
-    [Serializable] public class ColorData { public float r, g, b; }
+    [Serializable] public class ColorData
+    {
+        public float r, g, b;
+        public Color ToColor() => new Color(r, g, b);
+    }
 
     [Serializable] public class ThemeData
     {
@@ -499,5 +504,112 @@ namespace Insimul.Data
     {
         public StreetNode[] nodes;
         public StreetSegment[] segments;
+    }
+
+    // ── Roof Styles ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Supported roof styles for procedural buildings.
+    /// Matches RoofStyle from shared/game-engine/types.ts.
+    /// Values: hip, gable, flat, side_gable, hipped_dormers
+    /// </summary>
+    public static class RoofStyle
+    {
+        public const string Hip = "hip";
+        public const string Gable = "gable";
+        public const string Flat = "flat";
+        public const string SideGable = "side_gable";
+        public const string HippedDormers = "hipped_dormers";
+    }
+
+    /// <summary>
+    /// Supported material types for procedural buildings.
+    /// Matches MaterialType from shared/game-engine/types.ts.
+    /// </summary>
+    public static class MaterialType
+    {
+        public const string Wood = "wood";
+        public const string Stone = "stone";
+        public const string Brick = "brick";
+        public const string Metal = "metal";
+        public const string Glass = "glass";
+        public const string Stucco = "stucco";
+    }
+
+    /// <summary>
+    /// Supported architecture styles for procedural buildings.
+    /// Matches ArchitectureStyle from shared/game-engine/types.ts.
+    /// </summary>
+    public static class ArchitectureStyle
+    {
+        public const string Medieval = "medieval";
+        public const string Modern = "modern";
+        public const string Futuristic = "futuristic";
+        public const string Rustic = "rustic";
+        public const string Industrial = "industrial";
+        public const string Colonial = "colonial";
+        public const string Creole = "creole";
+    }
+
+    // ── Procedural Building Configuration ────────────────────────────────
+
+    /// <summary>
+    /// A style preset that can be randomly assigned to buildings.
+    /// Matches ProceduralStylePreset from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class ProceduralStylePreset
+    {
+        public string id;
+        public string name;
+        /// <summary>Multiple possible wall colors — one chosen randomly per building.</summary>
+        public ColorData[] baseColors;
+        public ColorData roofColor;
+        public ColorData windowColor;
+        public ColorData doorColor;
+        public string materialType;
+        public string architectureStyle;
+        public string roofStyle;
+        public bool hasBalcony;
+        public bool hasIronworkBalcony;
+        public bool hasPorch;
+        public float porchDepth;
+        public int porchSteps;
+        public bool hasShutters;
+        public ColorData shutterColor;
+    }
+
+    /// <summary>
+    /// Per-building-type dimension/feature overrides.
+    /// Matches ProceduralBuildingTypeOverride from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class ProceduralBuildingTypeOverride
+    {
+        public int floors;
+        public float width;
+        public float depth;
+        public bool hasChimney;
+        public bool hasBalcony;
+        public bool hasPorch;
+        /// <summary>Force a specific style preset for this building type.</summary>
+        public string stylePresetId;
+    }
+
+    /// <summary>
+    /// Top-level procedural building configuration stored in an AssetCollection.
+    /// Matches ProceduralBuildingConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class ProceduralBuildingConfig
+    {
+        /// <summary>Style presets available in this collection (randomly assigned to buildings).</summary>
+        public ProceduralStylePreset[] stylePresets;
+        // Note: buildingTypeOverrides uses string keys and cannot be directly deserialized
+        // with JsonUtility. Use a helper or a flat list instead.
+        /// <summary>Default style preset ID for residential buildings (random if not set).</summary>
+        public string defaultResidentialStyleId;
+        /// <summary>Default style preset ID for commercial buildings (random if not set).</summary>
+        public string defaultCommercialStyleId;
     }
 }

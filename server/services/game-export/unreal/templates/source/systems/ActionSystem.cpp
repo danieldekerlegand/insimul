@@ -416,6 +416,29 @@ FInsimulActionResult UActionSystem::ExecuteAction(const FString& ActionId, AActo
         State.CooldownRemaining = static_cast<float>(Cooldown);
     }
 
+    // Extract animation data from action's customData if present
+    const TSharedPtr<FJsonObject>* CustomDataObj;
+    if (ActionObj->TryGetObjectField(TEXT("customData"), CustomDataObj))
+    {
+        const TSharedPtr<FJsonObject>* AnimObj;
+        if ((*CustomDataObj)->TryGetObjectField(TEXT("animation"), AnimObj))
+        {
+            Result.bHasAnimation = true;
+            (*AnimObj)->TryGetStringField(TEXT("clip"), Result.Animation.Clip);
+            (*AnimObj)->TryGetStringField(TEXT("clipAlt"), Result.Animation.ClipAlt);
+            (*AnimObj)->TryGetStringField(TEXT("library"), Result.Animation.Library);
+            Result.Animation.bLoop = (*AnimObj)->GetBoolField(TEXT("loop"));
+
+            double SpeedVal;
+            if ((*AnimObj)->TryGetNumberField(TEXT("speed"), SpeedVal))
+                Result.Animation.Speed = static_cast<float>(SpeedVal);
+
+            double BlendVal;
+            if ((*AnimObj)->TryGetNumberField(TEXT("blendIn"), BlendVal))
+                Result.Animation.BlendIn = static_cast<float>(BlendVal);
+        }
+    }
+
     Result.bSuccess = true;
     Result.Message = FString::Printf(TEXT("%s performed successfully"), *ActionName);
     Result.EnergyUsed = static_cast<int32>(ActionObj->GetNumberField(TEXT("energyCost")));

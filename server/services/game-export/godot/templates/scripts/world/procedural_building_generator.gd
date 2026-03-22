@@ -7,6 +7,9 @@ class_name ProceduralBuildingGenerator
 
 var _material_cache := {}
 
+## Runtime procedural configuration set via set_procedural_config().
+var _procedural_config: Dictionary = {}
+
 ## Role-based model prototypes registered via register_role_model.
 var _role_model_prototypes: Dictionary = {}
 
@@ -28,7 +31,14 @@ const STYLE_PRESETS := {
 		"window_color": Color(0.9, 0.9, 0.7),
 		"door_color": Color(0.4, 0.25, 0.15),
 		"material_type": "wood",
-		"architecture_style": "medieval"
+		"architecture_style": "medieval",
+		"roof_style": "gable",
+		"has_ironwork_balcony": false,
+		"has_porch": false,
+		"porch_depth": 3.0,
+		"porch_steps": 3,
+		"has_shutters": false,
+		"shutter_color": Color(0.3, 0.2, 0.1)
 	},
 	"medieval_stone": {
 		"name": "Medieval Stone",
@@ -37,7 +47,14 @@ const STYLE_PRESETS := {
 		"window_color": Color(0.7, 0.8, 0.9),
 		"door_color": Color(0.3, 0.2, 0.1),
 		"material_type": "stone",
-		"architecture_style": "medieval"
+		"architecture_style": "medieval",
+		"roof_style": "gable",
+		"has_ironwork_balcony": false,
+		"has_porch": false,
+		"porch_depth": 3.0,
+		"porch_steps": 3,
+		"has_shutters": false,
+		"shutter_color": Color(0.3, 0.3, 0.3)
 	},
 	"modern_concrete": {
 		"name": "Modern Concrete",
@@ -46,7 +63,14 @@ const STYLE_PRESETS := {
 		"window_color": Color(0.6, 0.7, 0.8),
 		"door_color": Color(0.5, 0.5, 0.5),
 		"material_type": "brick",
-		"architecture_style": "modern"
+		"architecture_style": "modern",
+		"roof_style": "flat",
+		"has_ironwork_balcony": false,
+		"has_porch": false,
+		"porch_depth": 3.0,
+		"porch_steps": 3,
+		"has_shutters": false,
+		"shutter_color": Color(0.5, 0.5, 0.5)
 	},
 	"futuristic_metal": {
 		"name": "Futuristic Metal",
@@ -55,7 +79,14 @@ const STYLE_PRESETS := {
 		"window_color": Color(0.5, 0.7, 0.9),
 		"door_color": Color(0.3, 0.4, 0.5),
 		"material_type": "metal",
-		"architecture_style": "futuristic"
+		"architecture_style": "futuristic",
+		"roof_style": "flat",
+		"has_ironwork_balcony": false,
+		"has_porch": false,
+		"porch_depth": 3.0,
+		"porch_steps": 3,
+		"has_shutters": false,
+		"shutter_color": Color(0.3, 0.4, 0.5)
 	},
 	"rustic_cottage": {
 		"name": "Rustic Cottage",
@@ -64,7 +95,46 @@ const STYLE_PRESETS := {
 		"window_color": Color(0.8, 0.85, 0.7),
 		"door_color": Color(0.5, 0.3, 0.2),
 		"material_type": "wood",
-		"architecture_style": "rustic"
+		"architecture_style": "rustic",
+		"roof_style": "gable",
+		"has_ironwork_balcony": false,
+		"has_porch": true,
+		"porch_depth": 3.0,
+		"porch_steps": 3,
+		"has_shutters": true,
+		"shutter_color": Color(0.3, 0.4, 0.25)
+	},
+	"colonial_stucco": {
+		"name": "Colonial Stucco",
+		"base_color": Color(0.9, 0.85, 0.75),
+		"roof_color": Color(0.35, 0.25, 0.2),
+		"window_color": Color(0.7, 0.8, 0.9),
+		"door_color": Color(0.3, 0.2, 0.1),
+		"material_type": "stucco",
+		"architecture_style": "colonial",
+		"roof_style": "side_gable",
+		"has_ironwork_balcony": false,
+		"has_porch": true,
+		"porch_depth": 3.5,
+		"porch_steps": 4,
+		"has_shutters": true,
+		"shutter_color": Color(0.15, 0.3, 0.15)
+	},
+	"creole_townhouse": {
+		"name": "Creole Townhouse",
+		"base_color": Color(0.85, 0.8, 0.65),
+		"roof_color": Color(0.3, 0.3, 0.3),
+		"window_color": Color(0.7, 0.75, 0.85),
+		"door_color": Color(0.25, 0.15, 0.1),
+		"material_type": "stucco",
+		"architecture_style": "creole",
+		"roof_style": "hipped_dormers",
+		"has_ironwork_balcony": true,
+		"has_porch": false,
+		"porch_depth": 3.0,
+		"porch_steps": 3,
+		"has_shutters": true,
+		"shutter_color": Color(0.15, 0.35, 0.2)
 	}
 }
 
@@ -134,6 +204,10 @@ static func get_style_for_world(world_type: String, terrain: String) -> Dictiona
 	var wt := world_type.to_lower()
 	var tr := terrain.to_lower()
 
+	if wt.contains("creole"):
+		return STYLE_PRESETS["creole_townhouse"]
+	if wt.contains("colonial"):
+		return STYLE_PRESETS["colonial_stucco"]
 	if wt.contains("medieval") or wt.contains("fantasy"):
 		if tr.contains("forest") or tr.contains("rural"):
 			return STYLE_PRESETS["medieval_wood"]
@@ -148,12 +222,30 @@ static func get_style_for_world(world_type: String, terrain: String) -> Dictiona
 	return STYLE_PRESETS["medieval_wood"]
 
 
-func _get_shared_material(key: String, color: Color) -> StandardMaterial3D:
-	if _material_cache.has(key):
-		return _material_cache[key]
+func _get_shared_material(key: String, color: Color, material_type: String = "") -> StandardMaterial3D:
+	var cache_key := key if material_type.is_empty() else "%s_%s" % [key, material_type]
+	if _material_cache.has(cache_key):
+		return _material_cache[cache_key]
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
-	_material_cache[key] = mat
+	match material_type:
+		"stucco":
+			mat.roughness = 0.95
+			mat.metallic = 0.0
+			mat.metallic_specular = 0.1
+		"metal":
+			mat.roughness = 0.3
+			mat.metallic = 0.8
+			mat.metallic_specular = 0.7
+		"stone":
+			mat.roughness = 0.85
+			mat.metallic = 0.0
+			mat.metallic_specular = 0.2
+		"wood":
+			mat.roughness = 0.75
+			mat.metallic = 0.0
+			mat.metallic_specular = 0.15
+	_material_cache[cache_key] = mat
 	return mat
 
 
@@ -191,22 +283,52 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	var floor_height := 3.0
 	var total_height := floors * floor_height
 
+	# Resolve style for material and architecture info
+	var style := get_style_for_world("", "")
+	if _procedural_config.has("style"):
+		style = _procedural_config["style"]
+	var arch_style: String = style.get("architecture_style", "medieval")
+	var mat_type: String = style.get("material_type", "")
+	var roof_style_str: String = style.get("roof_style", "")
+	var has_porch: bool = style.get("has_porch", false)
+	var porch_depth_val: float = style.get("porch_depth", 3.0)
+	var porch_steps_val: int = style.get("porch_steps", 3)
+	var has_shutters: bool = style.get("has_shutters", false)
+	var shutter_color: Color = style.get("shutter_color", Color(0.3, 0.3, 0.3))
+	var has_ironwork_balcony: bool = style.get("has_ironwork_balcony", false)
+
+	# Default roof_style from architecture_style if not explicit
+	if roof_style_str.is_empty():
+		match arch_style:
+			"colonial", "creole":
+				roof_style_str = "side_gable"
+			"modern", "futuristic":
+				roof_style_str = "flat"
+			_:
+				roof_style_str = "gable"
+
+	# Calculate porch elevation offset
+	var porch_elevation: float = 0.0
+	if has_porch:
+		var step_height := 0.2
+		porch_elevation = porch_steps_val * step_height
+
 	# Base building
 	var building := MeshInstance3D.new()
 	var box := BoxMesh.new()
 	box.size = Vector3(width, total_height, depth)
 	building.mesh = box
 	building.name = "Building_%s" % role
-	building.position = pos + Vector3.UP * total_height / 2.0
+	building.position = pos + Vector3.UP * (total_height / 2.0 + porch_elevation)
 	building.rotation.y = rotation_y
 
 	# Apply wall texture override or shared color material
 	if _wall_texture != null:
-		var wall_mat := _get_shared_material("wall_tex", Color.WHITE)
+		var wall_mat := _get_shared_material("wall_tex", Color.WHITE, mat_type)
 		wall_mat.albedo_texture = _wall_texture
 		building.material_override = wall_mat
 	else:
-		building.material_override = _get_shared_material("wall", base_color)
+		building.material_override = _get_shared_material("wall", base_color, mat_type)
 	add_child(building)
 
 	# Collision
@@ -218,15 +340,29 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	body.add_child(col)
 	building.add_child(body)
 
-	# Determine style-aware roof height
+	# Porch
+	if has_porch:
+		var porch_spec := {
+			"width": width,
+			"depth": porch_depth_val,
+			"elevation": porch_elevation,
+			"steps": porch_steps_val,
+			"total_height": total_height,
+			"front_z": depth / 2.0,
+			"mat_type": mat_type
+		}
+		_create_porch(building, porch_spec)
+
+	# Determine style-aware roof height based on roof_style
 	var peaked_roof_height := 3.0
 	var actual_roof_height: float
-	# TODO: pass architecture_style from world data for proper selection
-	var arch_style := "medieval"
-	if arch_style == "modern" or arch_style == "futuristic":
-		actual_roof_height = 0.5
-	else:
-		actual_roof_height = peaked_roof_height
+	match roof_style_str:
+		"flat":
+			actual_roof_height = 0.5
+		"hip", "hipped_dormers", "gable", "side_gable":
+			actual_roof_height = peaked_roof_height
+		_:
+			actual_roof_height = peaked_roof_height
 
 	# Roof — positioned flush on top of building walls
 	var roof := MeshInstance3D.new()
@@ -244,6 +380,13 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	else:
 		roof.material_override = _get_shared_material("roof", roof_color)
 	building.add_child(roof)
+
+	# Windows with optional shutters
+	_add_windows(building, width, depth, floors, total_height, style)
+
+	# Balcony — ironwork style on every upper floor if enabled
+	if has_ironwork_balcony and floors > 1:
+		_add_ironwork_balconies(building, width, depth, floors, total_height)
 
 	# Door with frame, panel, and handle
 	_add_door(building, width, depth, floors, total_height)
@@ -336,3 +479,190 @@ func _add_door(building: MeshInstance3D, width: float, depth: float,
 		front_z + door_depth + 0.03)
 	handle.material_override = handle_mat
 	building.add_child(handle)
+
+
+## Create a porch with foundation deck and steps on the front of a building.
+func _create_porch(building: MeshInstance3D, spec: Dictionary) -> void:
+	var porch_width: float = spec.get("width", 10.0)
+	var porch_depth: float = spec.get("depth", 3.0)
+	var elevation: float = spec.get("elevation", 0.6)
+	var steps: int = spec.get("steps", 3)
+	var total_height: float = spec.get("total_height", 6.0)
+	var front_z: float = spec.get("front_z", 5.0)
+	var mat_type_str: String = spec.get("mat_type", "wood")
+	var ground_y := -total_height / 2.0
+
+	# Porch deck
+	var deck_thickness := 0.15
+	var deck := MeshInstance3D.new()
+	var deck_box := BoxMesh.new()
+	deck_box.size = Vector3(porch_width + 0.5, deck_thickness, porch_depth)
+	deck.mesh = deck_box
+	deck.name = "PorchDeck"
+	deck.position = Vector3(0, ground_y - elevation / 2.0, front_z + porch_depth / 2.0)
+	deck.material_override = _get_shared_material("porch_deck", Color(0.45, 0.3, 0.2), mat_type_str)
+	building.add_child(deck)
+
+	# Porch foundation/support
+	var foundation := MeshInstance3D.new()
+	var fnd_box := BoxMesh.new()
+	fnd_box.size = Vector3(porch_width + 0.5, elevation, 0.3)
+	foundation.mesh = fnd_box
+	foundation.name = "PorchFoundation"
+	foundation.position = Vector3(0, ground_y - elevation / 2.0, front_z + porch_depth)
+	foundation.material_override = _get_shared_material("porch_fnd", Color(0.5, 0.5, 0.45))
+	building.add_child(foundation)
+
+	# Steps
+	if steps > 0:
+		var step_height := elevation / float(steps)
+		var step_depth := 0.35
+		var step_mat := _get_shared_material("porch_step", Color(0.5, 0.35, 0.25), mat_type_str)
+		for i in range(steps):
+			var step := MeshInstance3D.new()
+			var step_box := BoxMesh.new()
+			step_box.size = Vector3(porch_width * 0.5, step_height, step_depth)
+			step.mesh = step_box
+			step.name = "PorchStep_%d" % i
+			var sy := ground_y - elevation + step_height * (float(i) + 0.5)
+			var sz := front_z + porch_depth + step_depth * (steps - i - 0.5)
+			step.position = Vector3(0, sy, sz)
+			step.material_override = step_mat
+			building.add_child(step)
+
+
+## Add windows to each floor, with optional shutters from style.
+func _add_windows(building: MeshInstance3D, width: float, depth: float,
+		floors: int, total_height: float, style: Dictionary) -> void:
+	var floor_height := 3.0
+	var ground_y := -total_height / 2.0
+	var front_z := depth / 2.0
+	var window_width := 1.0
+	var window_height := 1.2
+	var window_depth := 0.08
+	var window_color: Color = style.get("window_color", Color(0.7, 0.8, 0.9))
+	var window_mat := _get_shared_material("window", window_color)
+
+	var do_shutters: bool = style.get("has_shutters", false)
+	var shutter_col: Color = style.get("shutter_color", Color(0.3, 0.3, 0.3))
+	var shutter_mat := _get_shared_material("shutter", shutter_col) if do_shutters else null
+
+	# Place windows on front face, evenly spaced
+	var num_windows := maxi(1, int(width / 3.0))
+	var spacing := width / float(num_windows + 1)
+
+	for floor_i in range(floors):
+		var wy := ground_y + floor_height * floor_i + floor_height * 0.6
+		for wi in range(num_windows):
+			var wx := -width / 2.0 + spacing * (wi + 1)
+			var win := MeshInstance3D.new()
+			var win_box := BoxMesh.new()
+			win_box.size = Vector3(window_width, window_height, window_depth)
+			win.mesh = win_box
+			win.name = "Window_F%d_%d" % [floor_i, wi]
+			win.position = Vector3(wx, wy, front_z + window_depth / 2.0)
+			win.material_override = window_mat
+			building.add_child(win)
+
+			# Shutters (left and right of window)
+			if do_shutters and shutter_mat != null:
+				var shutter_w := 0.15
+				var shutter_h := window_height + 0.1
+				for side in [-1, 1]:
+					var shutter := MeshInstance3D.new()
+					var sb := BoxMesh.new()
+					sb.size = Vector3(shutter_w, shutter_h, 0.06)
+					shutter.mesh = sb
+					shutter.name = "Shutter_F%d_%d_%s" % [floor_i, wi, "L" if side == -1 else "R"]
+					shutter.position = Vector3(
+						wx + side * (window_width / 2.0 + shutter_w / 2.0),
+						wy,
+						front_z + 0.04
+					)
+					shutter.material_override = shutter_mat
+					building.add_child(shutter)
+
+
+## Add ironwork balconies on every upper floor (creole / New Orleans style).
+func _add_ironwork_balconies(building: MeshInstance3D, width: float, depth: float,
+		floors: int, total_height: float) -> void:
+	var floor_height := 3.0
+	var ground_y := -total_height / 2.0
+	var front_z := depth / 2.0
+	var balcony_depth := 1.5
+	var rail_height := 1.0
+	var iron_color := Color(0.12, 0.12, 0.12)
+	var iron_mat := _get_shared_material("ironwork", iron_color, "metal")
+
+	for floor_i in range(1, floors):
+		var floor_y := ground_y + floor_height * floor_i
+
+		# Balcony floor/platform
+		var platform := MeshInstance3D.new()
+		var plat_box := BoxMesh.new()
+		plat_box.size = Vector3(width + 0.4, 0.08, balcony_depth)
+		platform.mesh = plat_box
+		platform.name = "Balcony_Floor_%d" % floor_i
+		platform.position = Vector3(0, floor_y, front_z + balcony_depth / 2.0)
+		platform.material_override = iron_mat
+		building.add_child(platform)
+
+		# Railing — front bar
+		var front_rail := MeshInstance3D.new()
+		var fr_box := BoxMesh.new()
+		fr_box.size = Vector3(width + 0.4, rail_height, 0.05)
+		front_rail.mesh = fr_box
+		front_rail.name = "Balcony_Rail_%d" % floor_i
+		front_rail.position = Vector3(0, floor_y + rail_height / 2.0, front_z + balcony_depth)
+		front_rail.material_override = iron_mat
+		building.add_child(front_rail)
+
+		# Balusters
+		var num_balusters := maxi(2, int(width / 0.8))
+		var bal_spacing := (width + 0.4) / float(num_balusters + 1)
+		for bi in range(num_balusters):
+			var baluster := MeshInstance3D.new()
+			var bb := BoxMesh.new()
+			bb.size = Vector3(0.03, rail_height, 0.03)
+			baluster.mesh = bb
+			baluster.name = "Baluster_%d_%d" % [floor_i, bi]
+			baluster.position = Vector3(
+				-(width + 0.4) / 2.0 + bal_spacing * (bi + 1),
+				floor_y + rail_height / 2.0,
+				front_z + balcony_depth
+			)
+			baluster.material_override = iron_mat
+			building.add_child(baluster)
+
+
+## Apply runtime procedural configuration (style overrides, etc.).
+func set_procedural_config(config: Dictionary) -> void:
+	_procedural_config = config
+	if config.has("style_preset"):
+		var preset_key: String = config["style_preset"]
+		if STYLE_PRESETS.has(preset_key):
+			_procedural_config["style"] = STYLE_PRESETS[preset_key]
+	print("[Insimul] ProceduralBuildingGenerator config updated: %d keys" % config.size())
+
+
+## Convert a style preset dictionary and seed into a building spec dictionary.
+## Useful for generating varied buildings from the same preset.
+static func preset_to_building_style(preset: Dictionary, seed_val: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val
+
+	var result := preset.duplicate(true)
+	# Slight color variation based on seed
+	var variation := 0.05
+	var bc: Color = result.get("base_color", Color.WHITE)
+	result["base_color"] = Color(
+		clampf(bc.r + rng.randf_range(-variation, variation), 0.0, 1.0),
+		clampf(bc.g + rng.randf_range(-variation, variation), 0.0, 1.0),
+		clampf(bc.b + rng.randf_range(-variation, variation), 0.0, 1.0)
+	)
+
+	# Randomize floor count slightly
+	var base_floors: int = result.get("floors", 2)
+	result["floors"] = maxi(1, base_floors + rng.randi_range(-1, 1))
+
+	return result

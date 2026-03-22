@@ -610,6 +610,112 @@ struct FInsimulUIConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString GenreLayout;
 };
 
+// ─── Building Materials & Architecture ───────────────────────────────────────
+
+/**
+ * Building material types.
+ * Mirrors MaterialType from ProceduralBuildingGenerator.
+ */
+UENUM(BlueprintType)
+enum class EInsimulMaterialType : uint8
+{
+    Wood      UMETA(DisplayName = "Wood"),
+    Stone     UMETA(DisplayName = "Stone"),
+    Brick     UMETA(DisplayName = "Brick"),
+    Metal     UMETA(DisplayName = "Metal"),
+    Stucco    UMETA(DisplayName = "Stucco")
+};
+
+/**
+ * Architecture style types.
+ * Mirrors ArchitectureStyle from ProceduralBuildingGenerator.
+ */
+UENUM(BlueprintType)
+enum class EInsimulArchitectureStyle : uint8
+{
+    Medieval    UMETA(DisplayName = "Medieval"),
+    Modern      UMETA(DisplayName = "Modern"),
+    Futuristic  UMETA(DisplayName = "Futuristic"),
+    Rustic      UMETA(DisplayName = "Rustic"),
+    Colonial    UMETA(DisplayName = "Colonial"),
+    Creole      UMETA(DisplayName = "Creole")
+};
+
+/**
+ * Roof style types.
+ * Mirrors RoofStyle from ProceduralBuildingGenerator.
+ */
+UENUM(BlueprintType)
+enum class EInsimulRoofStyle : uint8
+{
+    Hip            UMETA(DisplayName = "Hip"),
+    Gable          UMETA(DisplayName = "Gable"),
+    Flat           UMETA(DisplayName = "Flat"),
+    SideGable      UMETA(DisplayName = "Side Gable"),
+    HippedDormers  UMETA(DisplayName = "Hipped Dormers")
+};
+
+/**
+ * Style preset for procedural building generation.
+ * Mirrors ProceduralStylePreset from the TypeScript engine.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulProceduralStylePreset
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor BaseColor = FLinearColor::White;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor RoofColor = FLinearColor(0.3f, 0.2f, 0.15f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor WindowColor = FLinearColor(0.7f, 0.8f, 0.9f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor DoorColor = FLinearColor(0.4f, 0.25f, 0.15f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulMaterialType MaterialType = EInsimulMaterialType::Wood;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulArchitectureStyle ArchitectureStyle = EInsimulArchitectureStyle::Medieval;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulRoofStyle RoofStyle = EInsimulRoofStyle::Hip;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasIronworkBalcony = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasPorch = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float PorchDepth = 3.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PorchSteps = 3;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasShutters = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor ShutterColor = FLinearColor(0.2f, 0.3f, 0.2f);
+};
+
+/**
+ * Per-building-type overrides for procedural generation.
+ * Mirrors ProceduralBuildingTypeOverride from the TypeScript engine.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulProceduralBuildingTypeOverride
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BuildingType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MinFloors = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MaxFloors = 3;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MinWidth = 8.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxWidth = 16.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MinDepth = 8.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxDepth = 16.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasChimney = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasBalcony = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasPorch = false;
+};
+
+/**
+ * Full procedural building generation configuration.
+ * Mirrors ProceduralBuildingConfig from the TypeScript engine.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulProceduralBuildingConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString DefaultStyle;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulProceduralStylePreset> StylePresets;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulProceduralBuildingTypeOverride> TypeOverrides;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float GlobalScaleMultiplier = 1.0f;
+};
+
 // ─── Street Networks ────────────────────────────────────────────────────────
 
 USTRUCT(BlueprintType)

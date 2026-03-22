@@ -12064,11 +12064,11 @@ Make the action names thematic and immersive.`;
         negativePrompt,
       } = req.body;
 
-      if (!worldId || !category || !material) {
-        return res.status(400).json({ 
-          error: "worldId, category, and material are required",
+      if (!category || !material) {
+        return res.status(400).json({
+          error: "category and material are required",
           example: {
-            worldId: "world-id-here",
+            worldId: "world-id-here (optional)",
             category: "ground|wall|material|ceiling|road|nature",
             material: "stone tiles",
             worldStyle: "medieval-fantasy",

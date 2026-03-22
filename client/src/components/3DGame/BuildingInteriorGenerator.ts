@@ -86,13 +86,20 @@ export class BuildingInteriorGenerator {
   private nextSlotIndex: number = 0;
   private furnitureLoader: FurnitureModelLoader | null = null;
 
-  // Interior offset: each interior is placed at Y=500 + slotIndex * 50
-  // to keep them separated vertically
+  // When using a dedicated interior scene, interiors are placed at Y=0.
+  // When sharing the overworld scene (legacy), they stack at Y=500+.
   private static readonly BASE_Y_OFFSET = 500;
   private static readonly SLOT_SPACING = 50;
+  private useDedicatedScene = false;
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /** Switch the target scene (used when interiors render in a separate scene). */
+  public setTargetScene(scene: Scene, dedicated: boolean = false): void {
+    this.scene = scene;
+    this.useDedicatedScene = dedicated;
   }
 
   /** Set the furniture model loader for glTF-based furniture. */
@@ -117,13 +124,19 @@ export class BuildingInteriorGenerator {
     const dims = this.getRoomDimensions(buildingType, businessType);
     const floorCount = this.getFloorCount(buildingType, businessType);
 
-    // Calculate position for this interior (Y-offset slot)
-    // Extra slot spacing for multi-floor buildings
-    const slotsNeeded = floorCount > 1 ? 2 : 1;
-    const slotY = BuildingInteriorGenerator.BASE_Y_OFFSET +
-      this.nextSlotIndex * BuildingInteriorGenerator.SLOT_SPACING;
-    const position = new Vector3(0, slotY, 0);
-    this.nextSlotIndex += slotsNeeded;
+    // Calculate position for this interior.
+    // Dedicated scene: place at Y=0 (isolated scene, no stacking needed).
+    // Legacy (shared overworld scene): stack at Y=500+ with slot spacing.
+    let position: Vector3;
+    if (this.useDedicatedScene) {
+      position = new Vector3(0, 0, 0);
+    } else {
+      const slotsNeeded = floorCount > 1 ? 2 : 1;
+      const slotY = BuildingInteriorGenerator.BASE_Y_OFFSET +
+        this.nextSlotIndex * BuildingInteriorGenerator.SLOT_SPACING;
+      position = new Vector3(0, slotY, 0);
+      this.nextSlotIndex += slotsNeeded;
+    }
 
     // Generate room zones for multi-room layout
     const rooms = this.generateRoomZones(buildingType, businessType, dims.width, dims.depth, dims.height, floorCount);
@@ -1047,6 +1060,10 @@ export class BuildingInteriorGenerator {
 
   /** Attempt to clone a glTF model for the furniture type. */
   private tryCreateFromModel(name: string, spec: FurnitureSpec): Mesh | null {
+    // In dedicated scene mode, furniture model templates live in the overworld
+    // scene. Cloning them would place geometry in the wrong scene. Use
+    // procedural fallback instead until templates are migrated.
+    if (this.useDedicatedScene) return null;
     if (!this.furnitureLoader) return null;
     return this.furnitureLoader.cloneForFurniture(
       spec.type, name, spec.width, spec.height, spec.depth,
@@ -1672,6 +1689,19 @@ export class BuildingInteriorGenerator {
     });
 
     return specs;
+  }
+
+  /**
+   * Dispose a single interior by building ID and remove it from the cache.
+   * Used when the player exits a building in dedicated-scene mode so the
+   * interior scene can be cleared.
+   */
+  public disposeInterior(buildingId: string): void {
+    const layout = this.interiors.get(buildingId);
+    if (!layout) return;
+    layout.furniture.forEach((f) => { if (!f.isDisposed()) f.dispose(); });
+    if (!layout.roomMesh.isDisposed()) layout.roomMesh.dispose(false, true);
+    this.interiors.delete(buildingId);
   }
 
   /**

@@ -248,12 +248,22 @@ export interface ActionContext {
   playerPosition: { x: number; y: number };
 }
 
+export interface ActionAnimationData {
+  clip: string;
+  clipAlt?: string;
+  library: 'UAL1' | 'UAL2';
+  loop: boolean;
+  speed?: number;
+  blendIn?: number;
+}
+
 export interface ActionResult {
   success: boolean;
   message: string;
   effects: ActionEffect[];
   energyUsed: number;
   narrativeText?: string;
+  animation?: ActionAnimationData;
 }
 
 export interface ActionEffect {
@@ -379,8 +389,63 @@ export interface GameContext {
 
 // ─── Buildings ──────────────────────────────────────────────────────────────
 
-export type MaterialType = 'wood' | 'stone' | 'brick' | 'metal' | 'glass';
-export type ArchitectureStyle = 'medieval' | 'modern' | 'futuristic' | 'rustic' | 'industrial';
+export type MaterialType = 'wood' | 'stone' | 'brick' | 'metal' | 'glass' | 'stucco';
+export type ArchitectureStyle = 'medieval' | 'modern' | 'futuristic' | 'rustic' | 'industrial' | 'colonial' | 'creole';
+export type RoofStyle = 'hip' | 'gable' | 'flat' | 'side_gable' | 'hipped_dormers';
+
+// ─── Procedural Building Configuration (stored in Asset Collections) ────────
+
+/** A style preset that can be randomly assigned to buildings */
+export interface ProceduralStylePreset {
+  id: string;
+  name: string;
+  /** Multiple possible wall colors — one chosen randomly per building for variety */
+  baseColors: Color3[];
+  roofColor: Color3;
+  windowColor: Color3;
+  doorColor: Color3;
+  materialType: MaterialType;
+  architectureStyle: ArchitectureStyle;
+  roofStyle?: RoofStyle;
+  /** Whether buildings of this style have balconies */
+  hasBalcony?: boolean;
+  /** Whether to use decorative ironwork on balconies (Creole/French Quarter style) */
+  hasIronworkBalcony?: boolean;
+  /** Whether buildings of this style have a front porch */
+  hasPorch?: boolean;
+  /** Porch depth in world units */
+  porchDepth?: number;
+  /** Number of steps leading up to the porch/entrance */
+  porchSteps?: number;
+  /** Shutters on windows */
+  hasShutters?: boolean;
+  /** Shutter color (defaults to doorColor if not set) */
+  shutterColor?: Color3;
+}
+
+/** Overrides for a specific building type's dimensions and features */
+export interface ProceduralBuildingTypeOverride {
+  floors?: number;
+  width?: number;
+  depth?: number;
+  hasChimney?: boolean;
+  hasBalcony?: boolean;
+  hasPorch?: boolean;
+  /** Force a specific style preset for this building type */
+  stylePresetId?: string;
+}
+
+/** Top-level procedural building configuration stored in an AssetCollection */
+export interface ProceduralBuildingConfig {
+  /** Style presets available in this collection (randomly assigned to buildings) */
+  stylePresets: ProceduralStylePreset[];
+  /** Per-building-type dimension/feature overrides */
+  buildingTypeOverrides?: Record<string, ProceduralBuildingTypeOverride>;
+  /** Default style preset ID for residential buildings (random if not set) */
+  defaultResidentialStyleId?: string;
+  /** Default style preset ID for commercial buildings (random if not set) */
+  defaultCommercialStyleId?: string;
+}
 
 export interface BuildingStyleData {
   name: string;

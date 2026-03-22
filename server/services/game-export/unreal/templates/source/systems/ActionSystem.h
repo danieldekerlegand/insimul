@@ -38,6 +38,29 @@ struct FInsimulActionState
 };
 
 /**
+ * Animation data attached to an action result.
+ * Mirrors ActionAnimationData from the TypeScript action system.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulActionAnimationData
+{
+    GENERATED_BODY()
+
+    /** Animation clip name */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Clip;
+    /** Alternative animation clip name */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ClipAlt;
+    /** Animation library: "UAL1" or "UAL2" */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Library;
+    /** Whether the animation should loop */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bLoop = false;
+    /** Playback speed multiplier */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Speed = 1.0f;
+    /** Blend-in duration in seconds */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float BlendIn = 0.2f;
+};
+
+/**
  * Result of executing an action.
  */
 USTRUCT(BlueprintType)
@@ -50,6 +73,9 @@ struct FInsimulActionResult
     UPROPERTY(BlueprintReadOnly) int32 EnergyUsed = 0;
     UPROPERTY(BlueprintReadOnly) TArray<FInsimulActionEffect> Effects;
     UPROPERTY(BlueprintReadOnly) FString NarrativeText;
+    /** Optional animation data extracted from action's CustomData */
+    UPROPERTY(BlueprintReadOnly) bool bHasAnimation = false;
+    UPROPERTY(BlueprintReadOnly) FInsimulActionAnimationData Animation;
 };
 
 /**

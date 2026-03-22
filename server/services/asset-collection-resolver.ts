@@ -1,5 +1,6 @@
 import { storage } from '../db/storage.js';
 import type { AssetCollection } from '@shared/schema';
+import type { ProceduralBuildingConfig } from '@shared/game-engine/types';
 
 /**
  * World3DConfig type - represents the 3D configuration for a world
@@ -18,6 +19,7 @@ export type World3DConfig = {
   questObjectModels?: Record<string, string>;
   audioAssets?: Record<string, string>;
   modelScaling?: Record<string, { x: number; y: number; z: number }>;
+  proceduralBuildings?: ProceduralBuildingConfig | null;
 };
 
 /**
@@ -75,6 +77,7 @@ export async function getWorld3DConfigForWorld(worldId: string): Promise<World3D
     questObjectModels: (collection as any).questObjectModels as Record<string, string> || {},
     audioAssets: (collection as any).audioAssets as Record<string, string> || {},
     modelScaling: (collection as any).modelScaling as Record<string, { x: number; y: number; z: number }> || {},
+    proceduralBuildings: (collection as any).proceduralBuildings || null,
   };
 }
 
@@ -181,6 +184,9 @@ export async function updateWorld3DConfig(
   }
   if (config.modelScaling !== undefined) {
     updates.modelScaling = config.modelScaling;
+  }
+  if (config.proceduralBuildings !== undefined) {
+    updates.proceduralBuildings = config.proceduralBuildings;
   }
 
   await storage.updateAssetCollection(selectedCollectionId, updates);

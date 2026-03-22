@@ -6,6 +6,27 @@ using Insimul.Data;
 namespace Insimul.Systems
 {
     /// <summary>
+    /// Animation data attached to an action result.
+    /// Matches ActionAnimationData from shared/game-engine/types.ts.
+    /// </summary>
+    [System.Serializable]
+    public class ActionAnimationData
+    {
+        /// <summary>Primary animation clip name.</summary>
+        public string clip;
+        /// <summary>Alternate animation clip name (optional).</summary>
+        public string clipAlt;
+        /// <summary>Animation library: "UAL1" or "UAL2".</summary>
+        public string library;
+        /// <summary>Whether the animation should loop.</summary>
+        public bool loop;
+        /// <summary>Playback speed multiplier.</summary>
+        public float speed = 1.0f;
+        /// <summary>Blend-in duration in seconds.</summary>
+        public float blendIn = 0.2f;
+    }
+
+    /// <summary>
     /// Effect produced by an action execution.
     /// </summary>
     [System.Serializable]
@@ -32,6 +53,8 @@ namespace Insimul.Systems
         public int energyUsed;
         public List<ActionEffect> effects = new();
         public string narrativeText;
+        /// <summary>Animation to play for this action (may be null).</summary>
+        public ActionAnimationData animation;
     }
 
     /// <summary>
@@ -337,6 +360,22 @@ namespace Insimul.Systems
             result.success = true;
             result.message = $"{action.name} performed successfully";
             result.energyUsed = action.energyCost;
+
+            // Extract animation data from action's customData if present
+            if (!string.IsNullOrEmpty(action.customData))
+            {
+                try
+                {
+                    var customObj = JsonUtility.FromJson<ActionCustomDataWrapper>(action.customData);
+                    if (customObj?.animation != null && !string.IsNullOrEmpty(customObj.animation.clip))
+                        result.animation = customObj.animation;
+                }
+                catch (System.Exception)
+                {
+                    // customData may not contain animation — ignore parse errors
+                }
+            }
+
             Debug.Log($"[Insimul] Executing action: {action.name} ({result.effects.Count} effects)");
             return result;
         }
@@ -353,5 +392,14 @@ namespace Insimul.Systems
             string verb = !string.IsNullOrEmpty(action.verbPast) ? action.verbPast : action.name.ToLower();
             return $"You {verb}.";
         }
+    }
+
+    /// <summary>
+    /// Helper wrapper for deserializing the animation field from action customData JSON.
+    /// </summary>
+    [System.Serializable]
+    internal class ActionCustomDataWrapper
+    {
+        public ActionAnimationData animation;
     }
 }

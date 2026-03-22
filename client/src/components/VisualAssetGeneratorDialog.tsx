@@ -22,8 +22,8 @@ import type { VisualAsset, GenerationJob, GenerationProvider } from '@shared/sch
 interface VisualAssetGeneratorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  entityType: 'character' | 'business' | 'settlement' | 'world' | 'collection';
-  entityId: string;
+  entityType: 'character' | 'business' | 'settlement' | 'world' | 'collection' | 'standalone';
+  entityId?: string;
   entityName?: string;
   assetType: 'character_portrait' | 'building_exterior' | 'map_terrain' | 'map_political' | 'texture_ground' | 'texture_wall' | 'texture_material';
   onAssetGenerated?: (asset: VisualAsset) => void;
@@ -156,6 +156,18 @@ export function VisualAssetGeneratorDialog({
           body.textureType = textureType;
           body.material = material;
           body.style = style;
+        }
+      } else if (entityType === 'standalone' || entityType === 'collection') {
+        if (assetType.startsWith('texture_')) {
+          endpoint = `/api/textures/generate`;
+          body.category = textureType;
+          body.material = material;
+          body.worldStyle = style || 'generic';
+          body.quality = quality;
+          body.size = width;
+          body.seamless = true;
+          if (customPrompt && useCustomPrompt) body.customPrompt = customPrompt;
+          if (negativePrompt) body.negativePrompt = negativePrompt;
         }
       }
 

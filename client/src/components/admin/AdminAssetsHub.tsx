@@ -18,6 +18,7 @@ import {
   Plus, Edit, Trash2, Package, Image as ImageIcon, Sparkles, Save, X,
   Search, ChevronRight, ChevronDown, Info, Settings2, Copy,
   Layers, Download, Tag, Volume2, Box, Maximize2, ArrowUp, Wand2, TrendingUp, Upload, Play, Pause, Move,
+  Building2,
 } from "lucide-react";
 import { VisualAssetGeneratorDialog } from "../VisualAssetGeneratorDialog";
 import { PolyhavenBrowserDialog } from "../PolyhavenBrowserDialog";
@@ -28,6 +29,7 @@ import { ImageUpscaleDialog } from "../ImageUpscaleDialog";
 import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
+import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3 } from "@shared/game-engine/types";
 
 const WORLD_TYPES = [
   { value: "medieval-fantasy", label: "Medieval Fantasy" },
@@ -596,13 +598,13 @@ export function AdminAssetsHub() {
               <Package className="w-3.5 h-3.5 mr-2" /> New Collection
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShowPolyhavenBrowser(true)} disabled={!selectedCollection || !!selectedCollection.isBase}>
+            <DropdownMenuItem onClick={() => setShowPolyhavenBrowser(true)} disabled={!!selectedCollection?.isBase}>
               <Package className="w-3.5 h-3.5 mr-2" /> From Polyhaven
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowSketchfabBrowser(true)} disabled={!selectedCollection || !!selectedCollection.isBase}>
+            <DropdownMenuItem onClick={() => setShowSketchfabBrowser(true)} disabled={!!selectedCollection?.isBase}>
               <Package className="w-3.5 h-3.5 mr-2" /> From Sketchfab
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { setGeneratorAssetType('texture_ground'); setShowAssetGenerator(true); }} disabled={!selectedCollection || !!selectedCollection.isBase}>
+            <DropdownMenuItem onClick={() => { setGeneratorAssetType('texture_ground'); setShowAssetGenerator(true); }} disabled={!!selectedCollection?.isBase}>
               <Sparkles className="w-3.5 h-3.5 mr-2" /> Generate Assets
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -917,11 +919,12 @@ export function AdminAssetsHub() {
     const hasCollection = browseMode === 'collections' && !!selectedCollection;
     if (!hasAsset && !hasCollection) return null;
 
-    type SectionId = 'preview' | 'details' | 'config';
+    type SectionId = 'preview' | 'details' | 'config' | 'procedural';
     const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
       { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
       { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
       { id: 'config' as SectionId, label: '3D Config', icon: Settings2, show: hasCollection },
+      { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
     ];
     const sections = allSections.filter(s => s.show);
 
@@ -1163,6 +1166,14 @@ export function AdminAssetsHub() {
                           );
                         })}
                       </>
+                    )}
+
+                    {/* Procedural Buildings Editor */}
+                    {section.id === 'procedural' && selectedCollection && (
+                      <ProceduralBuildingsEditor
+                        collection={selectedCollection}
+                        onSave={(config) => patchCollectionConfig({ proceduralBuildings: config } as any)}
+                      />
                     )}
                   </div>
                 </ScrollArea>
@@ -1407,26 +1418,29 @@ export function AdminAssetsHub() {
       </AlertDialog>
 
       {/* External Dialogs */}
-      {selectedCollection && (
-        <>
-          <VisualAssetGeneratorDialog open={showAssetGenerator} onOpenChange={setShowAssetGenerator} entityType="collection" entityId={selectedCollection.id} entityName={selectedCollection.name} assetType={generatorAssetType}
-            onAssetGenerated={() => queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] })} />
-          <PolyhavenBrowserDialog open={showPolyhavenBrowser} onOpenChange={setShowPolyhavenBrowser} collectionId={selectedCollection.id} collectionType={selectedCollection.collectionType} worldType={selectedCollection.worldType || 'generic'}
-            onAssetsSelected={(assetIds) => {
-              toast({ title: 'Polyhaven Assets Added', description: `Added ${assetIds.length} assets to collection` });
-              queryClient.invalidateQueries({ queryKey: ['/api/asset-collections'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
-            }} />
-          <SketchfabBrowserDialog open={showSketchfabBrowser} onOpenChange={setShowSketchfabBrowser} collectionId={selectedCollection.id} collectionType={selectedCollection.collectionType} worldType={selectedCollection.worldType || 'generic'}
-            onAssetsSelected={(assets) => {
-              toast({ title: 'Sketchfab Models Added', description: `Added ${assets.length} model${assets.length !== 1 ? 's' : ''} to collection` });
-              queryClient.invalidateQueries({ queryKey: ['/api/asset-collections'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
-            }} />
-        </>
-      )}
+      <VisualAssetGeneratorDialog open={showAssetGenerator} onOpenChange={setShowAssetGenerator}
+        entityType={selectedCollection ? 'collection' : 'standalone'}
+        entityId={selectedCollection?.id}
+        entityName={selectedCollection?.name}
+        assetType={generatorAssetType}
+        onAssetGenerated={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+          if (selectedCollection) queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
+        }} />
+      <PolyhavenBrowserDialog open={showPolyhavenBrowser} onOpenChange={setShowPolyhavenBrowser} collectionId={selectedCollection?.id} collectionType={selectedCollection?.collectionType} worldType={selectedCollection?.worldType || 'generic'}
+        onAssetsSelected={(assetIds) => {
+          toast({ title: 'Polyhaven Assets Added', description: `Added ${assetIds.length} asset${assetIds.length !== 1 ? 's' : ''}` });
+          queryClient.invalidateQueries({ queryKey: ['/api/asset-collections'] });
+          if (selectedCollection) queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+        }} />
+      <SketchfabBrowserDialog open={showSketchfabBrowser} onOpenChange={setShowSketchfabBrowser} collectionId={selectedCollection?.id} collectionType={selectedCollection?.collectionType} worldType={selectedCollection?.worldType || 'generic'}
+        onAssetsSelected={(assets) => {
+          toast({ title: 'Sketchfab Models Added', description: `Added ${assets.length} model${assets.length !== 1 ? 's' : ''}` });
+          queryClient.invalidateQueries({ queryKey: ['/api/asset-collections'] });
+          if (selectedCollection) queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+        }} />
 
       {/* Model Browser for 3D config */}
       {selectedCollection && showModelBrowser && modelBrowserContext && (
@@ -1716,6 +1730,380 @@ function ModelConfigRow({ label, value, assets, onSelect, onClear, scaling, onSc
           onChange={onScaleChange}
           onReset={onScaleReset}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── Procedural Buildings Editor ────────────────────────────────────────────
+
+const MATERIAL_TYPES = ['wood', 'stone', 'brick', 'metal', 'glass', 'stucco'] as const;
+const ARCH_STYLES = ['medieval', 'modern', 'futuristic', 'rustic', 'industrial', 'colonial', 'creole'] as const;
+const ROOF_STYLES = ['hip', 'gable', 'flat', 'side_gable', 'hipped_dormers'] as const;
+
+function colorToHex(c: EngineColor3): string {
+  const r = Math.round(c.r * 255).toString(16).padStart(2, '0');
+  const g = Math.round(c.g * 255).toString(16).padStart(2, '0');
+  const b = Math.round(c.b * 255).toString(16).padStart(2, '0');
+  return `#${r}${g}${b}`;
+}
+
+function hexToColor(hex: string): EngineColor3 {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.substring(0, 2), 16) / 255,
+    g: parseInt(h.substring(2, 4), 16) / 255,
+    b: parseInt(h.substring(4, 6), 16) / 255,
+  };
+}
+
+function ProceduralBuildingsEditor({
+  collection,
+  onSave,
+}: {
+  collection: AssetCollection;
+  onSave: (config: ProceduralBuildingConfig | null) => void;
+}) {
+  const existing = (collection as any).proceduralBuildings as ProceduralBuildingConfig | null;
+  const [config, setConfig] = useState<ProceduralBuildingConfig>(
+    existing || { stylePresets: [], buildingTypeOverrides: {} }
+  );
+  const [expandedPreset, setExpandedPreset] = useState<string | null>(null);
+  const [expandedOverrides, setExpandedOverrides] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const update = (fn: (c: ProceduralBuildingConfig) => ProceduralBuildingConfig) => {
+    setConfig(prev => fn({ ...prev }));
+    setDirty(true);
+  };
+
+  const addPreset = () => {
+    const id = `style_${Date.now()}`;
+    const newPreset: ProceduralStylePreset = {
+      id,
+      name: 'New Style',
+      baseColors: [{ r: 0.8, g: 0.75, b: 0.65 }],
+      roofColor: { r: 0.3, g: 0.25, b: 0.2 },
+      windowColor: { r: 0.8, g: 0.85, b: 0.9 },
+      doorColor: { r: 0.4, g: 0.3, b: 0.2 },
+      materialType: 'wood',
+      architectureStyle: 'colonial',
+    };
+    update(c => ({ ...c, stylePresets: [...c.stylePresets, newPreset] }));
+    setExpandedPreset(id);
+  };
+
+  const updatePreset = (id: string, partial: Partial<ProceduralStylePreset>) => {
+    update(c => ({
+      ...c,
+      stylePresets: c.stylePresets.map(p => p.id === id ? { ...p, ...partial } : p),
+    }));
+  };
+
+  const removePreset = (id: string) => {
+    update(c => ({
+      ...c,
+      stylePresets: c.stylePresets.filter(p => p.id !== id),
+      defaultResidentialStyleId: c.defaultResidentialStyleId === id ? undefined : c.defaultResidentialStyleId,
+      defaultCommercialStyleId: c.defaultCommercialStyleId === id ? undefined : c.defaultCommercialStyleId,
+    }));
+    if (expandedPreset === id) setExpandedPreset(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Style Presets</p>
+        <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={addPreset}>
+          <Plus className="w-3 h-3 mr-0.5" /> Add
+        </Button>
+      </div>
+
+      {config.stylePresets.length === 0 && (
+        <p className="text-[10px] text-muted-foreground italic px-1">No procedural style presets defined. Buildings will use the default world style.</p>
+      )}
+
+      {config.stylePresets.map(preset => {
+        const isExpanded = expandedPreset === preset.id;
+        return (
+          <div key={preset.id} className="border rounded">
+            <button
+              className="flex items-center justify-between w-full text-xs px-2 py-1.5 hover:bg-muted/50 rounded cursor-pointer transition-colors"
+              onClick={() => setExpandedPreset(isExpanded ? null : preset.id)}
+            >
+              <div className="flex items-center gap-1.5">
+                <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                <div className="flex gap-1">
+                  {preset.baseColors.slice(0, 4).map((c, i) => (
+                    <div key={i} className="w-3 h-3 rounded-sm border" style={{ backgroundColor: colorToHex(c) }} />
+                  ))}
+                </div>
+                <span className="font-medium truncate">{preset.name}</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4">{preset.architectureStyle}</Badge>
+            </button>
+
+            {isExpanded && (
+              <div className="space-y-2 px-2 pb-2 border-t pt-2">
+                <div>
+                  <Label className="text-[10px]">Name</Label>
+                  <Input className="h-6 text-xs" value={preset.name} onChange={e => updatePreset(preset.id, { name: e.target.value })} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <Label className="text-[10px]">Material</Label>
+                    <Select value={preset.materialType} onValueChange={v => updatePreset(preset.id, { materialType: v as any })}>
+                      <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{MATERIAL_TYPES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Architecture</Label>
+                    <Select value={preset.architectureStyle} onValueChange={v => updatePreset(preset.id, { architectureStyle: v as any })}>
+                      <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{ARCH_STYLES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-[10px]">Roof Style</Label>
+                  <Select value={preset.roofStyle || 'default'} onValueChange={v => updatePreset(preset.id, { roofStyle: v === 'default' ? undefined : v as any })}>
+                    <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default (from architecture)</SelectItem>
+                      {ROOF_STYLES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px]">Wall Colors (random per building)</Label>
+                    <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => {
+                      updatePreset(preset.id, { baseColors: [...preset.baseColors, { r: 0.7, g: 0.7, b: 0.7 }] });
+                    }}><Plus className="w-2.5 h-2.5" /></Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {preset.baseColors.map((c, i) => (
+                      <div key={i} className="relative group">
+                        <input type="color" value={colorToHex(c)}
+                          onChange={e => {
+                            const colors = [...preset.baseColors];
+                            colors[i] = hexToColor(e.target.value);
+                            updatePreset(preset.id, { baseColors: colors });
+                          }}
+                          className="w-6 h-6 rounded border cursor-pointer p-0" />
+                        {preset.baseColors.length > 1 && (
+                          <button className="absolute -top-1 -right-1 w-3 h-3 bg-destructive text-white rounded-full text-[8px] leading-none hidden group-hover:flex items-center justify-center"
+                            onClick={() => updatePreset(preset.id, { baseColors: preset.baseColors.filter((_, j) => j !== i) })}>&times;</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([['Roof', 'roofColor'], ['Window', 'windowColor'], ['Door', 'doorColor']] as const).map(([label, field]) => (
+                    <div key={field}>
+                      <Label className="text-[10px]">{label}</Label>
+                      <input type="color" value={colorToHex((preset as any)[field])}
+                        onChange={e => updatePreset(preset.id, { [field]: hexToColor(e.target.value) })}
+                        className="w-full h-6 rounded border cursor-pointer p-0" />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold text-muted-foreground">Features</p>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                    {([['Balcony', 'hasBalcony'], ['Ironwork Balcony', 'hasIronworkBalcony'], ['Front Porch', 'hasPorch'], ['Shutters', 'hasShutters']] as const).map(([label, field]) => (
+                      <label key={field} className="flex items-center gap-1 text-[10px] cursor-pointer">
+                        <input type="checkbox" checked={!!(preset as any)[field]}
+                          onChange={e => updatePreset(preset.id, { [field]: e.target.checked || undefined })} className="w-3 h-3" />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {preset.hasPorch && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <Label className="text-[10px]">Porch Depth</Label>
+                      <Input type="number" className="h-6 text-xs" value={preset.porchDepth ?? 3}
+                        onChange={e => updatePreset(preset.id, { porchDepth: parseFloat(e.target.value) || 3 })} />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Porch Steps</Label>
+                      <Input type="number" className="h-6 text-xs" value={preset.porchSteps ?? 3}
+                        onChange={e => updatePreset(preset.id, { porchSteps: parseInt(e.target.value) || 3 })} />
+                    </div>
+                  </div>
+                )}
+
+                {preset.hasShutters && (
+                  <div>
+                    <Label className="text-[10px]">Shutter Color</Label>
+                    <input type="color" value={preset.shutterColor ? colorToHex(preset.shutterColor) : colorToHex(preset.doorColor)}
+                      onChange={e => updatePreset(preset.id, { shutterColor: hexToColor(e.target.value) })}
+                      className="w-full h-6 rounded border cursor-pointer p-0" />
+                  </div>
+                )}
+
+                <Button variant="destructive" size="sm" className="w-full h-6 text-[10px]" onClick={() => removePreset(preset.id)}>
+                  <Trash2 className="w-3 h-3 mr-1" /> Remove Style
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {config.stylePresets.length > 0 && (
+        <div className="space-y-1.5 border rounded p-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Default Styles</p>
+          <div>
+            <Label className="text-[10px]">Residential Default</Label>
+            <Select value={config.defaultResidentialStyleId || 'random'}
+              onValueChange={v => update(c => ({ ...c, defaultResidentialStyleId: v === 'random' ? undefined : v }))}>
+              <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="random">Random from all presets</SelectItem>
+                {config.stylePresets.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px]">Commercial Default</Label>
+            <Select value={config.defaultCommercialStyleId || 'random'}
+              onValueChange={v => update(c => ({ ...c, defaultCommercialStyleId: v === 'random' ? undefined : v }))}>
+              <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="random">Random from all presets</SelectItem>
+                {config.stylePresets.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      <div className="border rounded">
+        <button className="flex items-center justify-between w-full text-xs px-2 py-1.5 hover:bg-muted/50 rounded cursor-pointer transition-colors"
+          onClick={() => setExpandedOverrides(!expandedOverrides)}>
+          <div className="flex items-center gap-1.5">
+            <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform ${expandedOverrides ? 'rotate-90' : ''}`} />
+            <span className="font-medium">Building Type Overrides</span>
+          </div>
+          <Badge variant="outline" className="text-[9px] h-4">{Object.keys(config.buildingTypeOverrides || {}).length}</Badge>
+        </button>
+        {expandedOverrides && (
+          <BuildingTypeOverridesEditor overrides={config.buildingTypeOverrides || {}} stylePresets={config.stylePresets}
+            onChange={overrides => update(c => ({ ...c, buildingTypeOverrides: overrides }))} />
+        )}
+      </div>
+
+      {dirty && (
+        <Button className="w-full h-7 text-xs"
+          onClick={() => { onSave(config.stylePresets.length > 0 ? config : null); setDirty(false); }}>
+          <Save className="w-3 h-3 mr-1" /> Save Procedural Config
+        </Button>
+      )}
+    </div>
+  );
+}
+
+const BUILDING_TYPE_KEYS = [
+  'residence_small', 'residence_medium', 'residence_large', 'residence_mansion',
+  'Bakery', 'Restaurant', 'Tavern', 'Inn', 'Market', 'Shop', 'Blacksmith',
+  'LawFirm', 'Bank', 'Hospital', 'School', 'Church', 'Theater', 'Library', 'ApartmentComplex',
+];
+
+function BuildingTypeOverridesEditor({ overrides, stylePresets, onChange }: {
+  overrides: Record<string, ProceduralBuildingTypeOverride>;
+  stylePresets: ProceduralStylePreset[];
+  onChange: (o: Record<string, ProceduralBuildingTypeOverride>) => void;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const addOverride = (type: string) => { onChange({ ...overrides, [type]: {} }); setExpanded(type); };
+  const updateOverride = (type: string, partial: Partial<ProceduralBuildingTypeOverride>) => {
+    onChange({ ...overrides, [type]: { ...overrides[type], ...partial } });
+  };
+  const removeOverride = (type: string) => {
+    const next = { ...overrides }; delete next[type]; onChange(next);
+    if (expanded === type) setExpanded(null);
+  };
+
+  const unusedTypes = BUILDING_TYPE_KEYS.filter(t => !(t in overrides));
+
+  return (
+    <div className="space-y-1 px-2 pb-2 border-t pt-1.5">
+      {Object.entries(overrides).map(([type, ov]) => {
+        const isExp = expanded === type;
+        return (
+          <div key={type} className="border rounded">
+            <button className="flex items-center justify-between w-full text-[10px] px-1.5 py-1 hover:bg-muted/50 rounded cursor-pointer"
+              onClick={() => setExpanded(isExp ? null : type)}>
+              <div className="flex items-center gap-1">
+                <ChevronRight className={`w-2.5 h-2.5 text-muted-foreground transition-transform ${isExp ? 'rotate-90' : ''}`} />
+                <span className="font-medium">{type.replace(/_/g, ' ')}</span>
+              </div>
+            </button>
+            {isExp && (
+              <div className="space-y-1.5 px-1.5 pb-1.5 border-t pt-1.5">
+                <div className="grid grid-cols-3 gap-1">
+                  {(['floors', 'width', 'depth'] as const).map(f => (
+                    <div key={f}>
+                      <Label className="text-[9px] capitalize">{f}</Label>
+                      <Input type="number" className="h-5 text-[10px]" value={(ov as any)[f] ?? ''} placeholder="default"
+                        onChange={e => updateOverride(type, { [f]: e.target.value ? parseInt(e.target.value) : undefined })} />
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-x-2 gap-y-0.5">
+                  {(['hasChimney', 'hasBalcony', 'hasPorch'] as const).map(field => (
+                    <label key={field} className="flex items-center gap-1 text-[9px] cursor-pointer">
+                      <input type="checkbox" checked={!!ov[field]} className="w-2.5 h-2.5"
+                        onChange={e => updateOverride(type, { [field]: e.target.checked || undefined })} />
+                      {field.replace('has', '')}
+                    </label>
+                  ))}
+                </div>
+                {stylePresets.length > 0 && (
+                  <div>
+                    <Label className="text-[9px]">Force Style</Label>
+                    <Select value={ov.stylePresetId || 'none'} onValueChange={v => updateOverride(type, { stylePresetId: v === 'none' ? undefined : v })}>
+                      <SelectTrigger className="h-5 text-[9px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Use default</SelectItem>
+                        {stylePresets.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <Button variant="ghost" size="sm" className="h-5 text-[9px] text-destructive w-full" onClick={() => removeOverride(type)}>
+                  <Trash2 className="w-2.5 h-2.5 mr-0.5" /> Remove
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {unusedTypes.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full h-5 text-[10px]">
+              <Plus className="w-3 h-3 mr-0.5" /> Add Override
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="max-h-48 overflow-y-auto">
+            {unusedTypes.map(t => (
+              <DropdownMenuItem key={t} className="text-xs" onClick={() => addOverride(t)}>{t.replace(/_/g, ' ')}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   );

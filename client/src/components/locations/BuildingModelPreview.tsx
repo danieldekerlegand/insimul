@@ -4,14 +4,23 @@ import '@babylonjs/loaders/glTF';
 import { Loader2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+import type { ProceduralBuildingConfig, ProceduralStylePreset } from '@shared/game-engine/types';
 
 interface BuildingModelPreviewProps {
   /** Direct path to the 3D model file */
   modelPath?: string | null;
+  /** Direct path to the interior 3D model file */
+  interiorModelPath?: string | null;
   /** Tint color for the building type (business=orange, residence=blue) */
   tintColor?: { r: number; g: number; b: number };
   /** Label shown in the badge */
   buildingType?: string;
+  /** Procedural building config from asset collection */
+  proceduralConfig?: ProceduralBuildingConfig | null;
+  /** Zone type for style resolution */
+  zone?: 'commercial' | 'residential';
   className?: string;
 }
 
@@ -25,8 +34,11 @@ function isEnvMesh(name: string): boolean {
 
 export function BuildingModelPreview({
   modelPath,
+  interiorModelPath,
   tintColor,
   buildingType,
+  proceduralConfig,
+  zone,
   className = '',
 }: BuildingModelPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -38,6 +50,7 @@ export function BuildingModelPreview({
   const [isLoading, setIsLoading] = useState(true);
   const [autoRotate, setAutoRotate] = useState(true);
   const [meshSource, setMeshSource] = useState<'model' | 'placeholder'>('placeholder');
+  const [viewMode, setViewMode] = useState<'exterior' | 'interior'>('exterior');
 
   useEffect(() => { autoRotateRef.current = autoRotate; }, [autoRotate]);
 
@@ -79,9 +92,15 @@ export function BuildingModelPreview({
       if (autoRotateRef.current) camera.alpha += 0.005;
     });
 
-    if (modelPath) {
+    // Resolve style from procedural config for placeholder
+    const resolvedPreset = resolvePresetForPreview(proceduralConfig, buildingType, zone);
+
+    // Determine which model to load based on view mode
+    const activeModelPath = viewMode === 'interior' ? interiorModelPath : modelPath;
+
+    if (activeModelPath) {
       setIsLoading(true);
-      const fullPath = modelPath.startsWith('/') ? modelPath : `/${modelPath}`;
+      const fullPath = activeModelPath.startsWith('/') ? activeModelPath : `/${activeModelPath}`;
       const parts = fullPath.split('/');
       const fileName = parts.pop() || '';
       const rootUrl = parts.join('/') + '/';
@@ -93,33 +112,35 @@ export function BuildingModelPreview({
         scene,
         (meshes) => {
           if (meshes.length > 0) {
-            // Strip environment meshes
-            const envMeshes = meshes.filter(m => isEnvMesh(m.name));
-            for (const m of envMeshes) m.dispose();
+            // Strip environment meshes (only for exterior)
+            if (viewMode === 'exterior') {
+              const envMeshes = meshes.filter(m => isEnvMesh(m.name));
+              for (const m of envMeshes) m.dispose();
+            }
             const remaining = meshes.filter(m => !m.isDisposed());
 
             if (remaining.length > 0) {
               centerAndFrameMeshes(remaining, camera, ground);
               setMeshSource('model');
             } else {
-              buildPlaceholder(scene, camera, ground, tintColor);
+              buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
               setMeshSource('placeholder');
             }
           } else {
-            buildPlaceholder(scene, camera, ground, tintColor);
+            buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
             setMeshSource('placeholder');
           }
           setIsLoading(false);
         },
         undefined,
         () => {
-          buildPlaceholder(scene, camera, ground, tintColor);
+          buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
           setMeshSource('placeholder');
           setIsLoading(false);
         }
       );
     } else {
-      buildPlaceholder(scene, camera, ground, tintColor);
+      buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
       setMeshSource('placeholder');
       setIsLoading(false);
     }
@@ -137,7 +158,7 @@ export function BuildingModelPreview({
       sceneRef.current = null;
       cameraRef.current = null;
     };
-  }, [modelPath, tintColor?.r, tintColor?.g, tintColor?.b]);
+  }, [modelPath, interiorModelPath, tintColor?.r, tintColor?.g, tintColor?.b, proceduralConfig, buildingType, zone, viewMode]);
 
   const handleZoomIn = () => {
     if (cameraRef.current) cameraRef.current.radius = Math.max(1, cameraRef.current.radius - 0.8);
@@ -146,59 +167,73 @@ export function BuildingModelPreview({
     if (cameraRef.current) cameraRef.current.radius = Math.min(20, cameraRef.current.radius + 0.8);
   };
 
-  const sourceLabel = meshSource === 'model' ? (buildingType || '3D Model') : 'Placeholder';
+  const sourceLabel = viewMode === 'interior'
+    ? (meshSource === 'model' ? 'Interior' : 'No Interior')
+    : (meshSource === 'model' ? (buildingType || '3D Model') : 'Placeholder');
+
+  const hasInterior = !!interiorModelPath;
 
   return (
-    <div className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full"
-        style={{ touchAction: 'none' }}
-      />
-
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-          <Loader2 className="w-6 h-6 animate-spin text-white" />
-        </div>
+    <div className={`flex flex-col ${className}`}>
+      {hasInterior && (
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'exterior' | 'interior')} className="mb-1">
+          <TabsList className="h-7 w-full">
+            <TabsTrigger value="exterior" className="text-xs h-5 flex-1">Exterior</TabsTrigger>
+            <TabsTrigger value="interior" className="text-xs h-5 flex-1">Interior</TabsTrigger>
+          </TabsList>
+        </Tabs>
       )}
+      <div className="relative bg-black rounded-lg overflow-hidden flex-1">
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full"
+          style={{ touchAction: 'none' }}
+        />
 
-      {!isLoading && (
-        <>
-          <Badge variant="secondary" className="absolute top-2 left-2 text-xs bg-black/50 text-white border-none">
-            {sourceLabel}
-          </Badge>
-
-          <div className="absolute bottom-2 right-2 flex gap-1">
-            <Button
-              size="icon"
-              variant="secondary"
-              className="h-6 w-6 bg-black/50 hover:bg-black/70"
-              onClick={() => setAutoRotate(!autoRotate)}
-              title={autoRotate ? 'Stop rotation' : 'Auto rotate'}
-            >
-              <RotateCcw className={`h-3 w-3 ${autoRotate ? 'text-blue-400' : 'text-white'}`} />
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              className="h-6 w-6 bg-black/50 hover:bg-black/70"
-              onClick={handleZoomIn}
-              title="Zoom in"
-            >
-              <ZoomIn className="h-3 w-3 text-white" />
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              className="h-6 w-6 bg-black/50 hover:bg-black/70"
-              onClick={handleZoomOut}
-              title="Zoom out"
-            >
-              <ZoomOut className="h-3 w-3 text-white" />
-            </Button>
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <Loader2 className="w-6 h-6 animate-spin text-white" />
           </div>
-        </>
-      )}
+        )}
+
+        {!isLoading && (
+          <>
+            <Badge variant="secondary" className="absolute top-2 left-2 text-xs bg-black/50 text-white border-none">
+              {sourceLabel}
+            </Badge>
+
+            <div className="absolute bottom-2 right-2 flex gap-1">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-6 w-6 bg-black/50 hover:bg-black/70"
+                onClick={() => setAutoRotate(!autoRotate)}
+                title={autoRotate ? 'Stop rotation' : 'Auto rotate'}
+              >
+                <RotateCcw className={`h-3 w-3 ${autoRotate ? 'text-blue-400' : 'text-white'}`} />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-6 w-6 bg-black/50 hover:bg-black/70"
+                onClick={handleZoomIn}
+                title="Zoom in"
+              >
+                <ZoomIn className="h-3 w-3 text-white" />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-6 w-6 bg-black/50 hover:bg-black/70"
+                onClick={handleZoomOut}
+                title="Zoom out"
+              >
+                <ZoomOut className="h-3 w-3 text-white" />
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -237,45 +272,171 @@ function centerAndFrameMeshes(
   ground.scaling = new BABYLON.Vector3(maxDim * 0.8, maxDim * 0.8, 1);
 }
 
-function buildPlaceholder(
+/** Resolve a style preset from the procedural config for preview rendering */
+function resolvePresetForPreview(
+  config?: ProceduralBuildingConfig | null,
+  buildingType?: string,
+  zone?: 'commercial' | 'residential',
+): ProceduralStylePreset | null {
+  if (!config || config.stylePresets.length === 0) return null;
+
+  // Check type-specific override
+  const typeOverride = buildingType ? config.buildingTypeOverrides?.[buildingType] : undefined;
+  if (typeOverride?.stylePresetId) {
+    const preset = config.stylePresets.find(p => p.id === typeOverride.stylePresetId);
+    if (preset) return preset;
+  }
+
+  // Zone default
+  const defaultId = zone === 'commercial'
+    ? config.defaultCommercialStyleId
+    : config.defaultResidentialStyleId;
+  if (defaultId) {
+    const preset = config.stylePresets.find(p => p.id === defaultId);
+    if (preset) return preset;
+  }
+
+  // Random from all presets
+  return config.stylePresets[0];
+}
+
+function buildProceduralPlaceholder(
   scene: BABYLON.Scene,
   camera: BABYLON.ArcRotateCamera,
   ground: BABYLON.Mesh,
-  tintColor?: { r: number; g: number; b: number }
+  tintColor?: { r: number; g: number; b: number },
+  preset?: ProceduralStylePreset | null,
 ) {
-  const color = tintColor
-    ? new BABYLON.Color3(tintColor.r, tintColor.g, tintColor.b)
-    : new BABYLON.Color3(0.45, 0.45, 0.4);
+  // Use preset colors if available, otherwise fall back to tint
+  const wallColor = preset && preset.baseColors.length > 0
+    ? new BABYLON.Color3(preset.baseColors[0].r, preset.baseColors[0].g, preset.baseColors[0].b)
+    : tintColor
+      ? new BABYLON.Color3(tintColor.r, tintColor.g, tintColor.b)
+      : new BABYLON.Color3(0.45, 0.45, 0.4);
+
+  const roofColor = preset
+    ? new BABYLON.Color3(preset.roofColor.r, preset.roofColor.g, preset.roofColor.b)
+    : wallColor.scale(0.7);
 
   const mat = new BABYLON.StandardMaterial('placeholderMat', scene);
-  mat.diffuseColor = color;
-  mat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+  mat.diffuseColor = wallColor;
+  mat.specularColor = new BABYLON.Color3(0.08, 0.08, 0.08);
+
+  const hasPorch = preset?.hasPorch ?? false;
+  const hasBalcony = preset?.hasIronworkBalcony || preset?.hasBalcony;
+  const floors = hasBalcony ? 2 : 1;
+  const bodyHeight = floors * 0.6;
+  const porchElev = hasPorch ? 0.15 : 0;
 
   // Building body
   const body = BABYLON.MeshBuilder.CreateBox('body', {
-    width: 1,
-    height: 1.2,
-    depth: 1,
+    width: 1, height: bodyHeight, depth: 1,
   }, scene);
-  body.position.y = 0.6;
+  body.position.y = bodyHeight / 2 + porchElev;
   body.material = mat;
 
-  // Roof
+  // Roof — proper gable shape using custom vertices
   const roofMat = new BABYLON.StandardMaterial('roofMat', scene);
-  roofMat.diffuseColor = color.scale(0.7);
+  roofMat.diffuseColor = roofColor;
   roofMat.specularColor = BABYLON.Color3.Black();
 
-  const roof = BABYLON.MeshBuilder.CreateCylinder('roof', {
-    diameterTop: 0,
-    diameterBottom: 1.5,
-    height: 0.5,
-    tessellation: 4,
-  }, scene);
-  roof.position.y = 1.45;
-  roof.rotation.y = Math.PI / 4;
-  roof.material = roofMat;
+  const roofHeight = 0.4;
+  const hw = 0.6; // half-width with overhang
+  const hd = hasPorch ? 0.7 : 0.6;
+  const frontHd = hasPorch ? 0.95 : hd;
+  const roofMesh = new BABYLON.Mesh('roof', scene);
+  const ridgeInset = Math.min(hw * 0.5, hd * 0.5);
+  const ridgeHalfLen = hw - ridgeInset;
+  const positions = [
+    -hw, 0, frontHd,  hw, 0, frontHd,  hw, 0, -hd,  -hw, 0, -hd,
+    -ridgeHalfLen, roofHeight, 0,  ridgeHalfLen, roofHeight, 0,
+  ];
+  const indices = [
+    0, 5, 1, 0, 4, 5,  1, 5, 2,  2, 3, 4, 2, 4, 5,  3, 0, 4,  0, 1, 2, 0, 2, 3,
+  ];
+  const normals: number[] = [];
+  const vd = new BABYLON.VertexData();
+  vd.positions = positions;
+  vd.indices = indices;
+  BABYLON.VertexData.ComputeNormals(positions, indices, normals);
+  vd.normals = normals;
+  vd.applyToMesh(roofMesh);
+  roofMesh.position.y = bodyHeight + porchElev;
+  roofMesh.material = roofMat;
 
-  camera.target = new BABYLON.Vector3(0, 0.7, 0);
-  camera.radius = 4;
-  ground.scaling = new BABYLON.Vector3(1.5, 1.5, 1);
+  // Porch
+  if (hasPorch) {
+    const porchMat = new BABYLON.StandardMaterial('porchMat', scene);
+    porchMat.diffuseColor = wallColor.scale(0.75);
+    porchMat.specularColor = BABYLON.Color3.Black();
+
+    // Foundation
+    const foundation = BABYLON.MeshBuilder.CreateBox('porchFound', {
+      width: 1.1, height: porchElev, depth: 0.35,
+    }, scene);
+    foundation.position.y = porchElev / 2;
+    foundation.position.z = 0.5 + 0.175;
+    foundation.material = porchMat;
+
+    // Porch deck
+    const deck = BABYLON.MeshBuilder.CreateBox('porchDeck', {
+      width: 1.1, height: 0.03, depth: 0.35,
+    }, scene);
+    deck.position.y = porchElev;
+    deck.position.z = 0.5 + 0.175;
+    deck.material = porchMat;
+
+    // Posts
+    const postMat = new BABYLON.StandardMaterial('postMat', scene);
+    postMat.diffuseColor = new BABYLON.Color3(0.9, 0.9, 0.88);
+    for (const x of [-0.4, 0.4]) {
+      const post = BABYLON.MeshBuilder.CreateCylinder(`post_${x}`, {
+        diameter: 0.04, height: 0.55, tessellation: 6,
+      }, scene);
+      post.position.set(x, porchElev + 0.275, 0.65);
+      post.material = postMat;
+    }
+  }
+
+  // Ironwork balcony
+  if (hasBalcony && floors > 1) {
+    const ironMat = new BABYLON.StandardMaterial('ironMat', scene);
+    ironMat.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.15);
+    const balcSlab = BABYLON.MeshBuilder.CreateBox('balcSlab', {
+      width: 0.95, height: 0.03, depth: 0.2,
+    }, scene);
+    balcSlab.position.y = 0.6 + porchElev;
+    balcSlab.position.z = 0.6;
+    balcSlab.material = ironMat;
+
+    const balcRail = BABYLON.MeshBuilder.CreateBox('balcRail', {
+      width: 0.95, height: 0.15, depth: 0.02,
+    }, scene);
+    balcRail.position.y = 0.72 + porchElev;
+    balcRail.position.z = 0.7;
+    balcRail.material = ironMat;
+  }
+
+  // Shutters
+  if (preset?.hasShutters) {
+    const shutterCol = preset.shutterColor || preset.doorColor;
+    const shutterMat = new BABYLON.StandardMaterial('shutterMat', scene);
+    shutterMat.diffuseColor = new BABYLON.Color3(shutterCol.r, shutterCol.g, shutterCol.b);
+    for (const x of [-0.25, 0.25]) {
+      for (let f = 0; f < floors; f++) {
+        for (const sx of [-0.12, 0.12]) {
+          const sh = BABYLON.MeshBuilder.CreateBox(`sh_${x}_${f}_${sx}`, {
+            width: 0.05, height: 0.18, depth: 0.02,
+          }, scene);
+          sh.position.set(x + sx, f * 0.6 + 0.35 + porchElev, 0.52);
+          sh.material = shutterMat;
+        }
+      }
+    }
+  }
+
+  const totalH = bodyHeight + roofHeight + porchElev;
+  camera.target = new BABYLON.Vector3(0, totalH / 2, 0);
+  camera.radius = Math.max(3, totalH * 2);
+  ground.scaling = new BABYLON.Vector3(2, 2, 1);
 }

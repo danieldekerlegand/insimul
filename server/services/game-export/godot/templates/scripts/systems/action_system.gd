@@ -170,7 +170,8 @@ func get_contextual_actions_ranked(context: Dictionary = {}, personality: Dictio
 	return result
 
 ## Execute an action and return a result dictionary.
-## Result: {success: bool, message: String, energy_used: int, effects: Array[Dictionary], narrative_text: String}
+## Result: {success: bool, message: String, energy_used: int, effects: Array[Dictionary], narrative_text: String, animation: Dictionary}
+## animation (optional): {clip: String, clip_alt: String, library: String, loop: bool, speed: float, blend_in: float}
 func execute_action(action_id: String, source: Node, target: Node = null) -> Dictionary:
 	var action := get_action(action_id)
 
@@ -180,7 +181,7 @@ func execute_action(action_id: String, source: Node, target: Node = null) -> Dic
 		context["target"] = target
 	var check := can_perform_action(action_id, context)
 	if not check["can_perform"]:
-		return {"success": false, "message": check["reason"], "energy_used": 0, "effects": [], "narrative_text": ""}
+		return {"success": false, "message": check["reason"], "energy_used": 0, "effects": [], "narrative_text": "", "animation": {}}
 
 	var effects: Array[Dictionary] = []
 
@@ -217,9 +218,23 @@ func execute_action(action_id: String, source: Node, target: Node = null) -> Dic
 	if cooldown > 0:
 		state["cooldown_remaining"] = cooldown
 
+	# Extract animation data from custom_data if present
+	var animation := {}
+	var custom_data: Dictionary = action.get("custom_data", {})
+	if custom_data.has("animation"):
+		var anim_src: Dictionary = custom_data["animation"]
+		animation = {
+			"clip": anim_src.get("clip", ""),
+			"clip_alt": anim_src.get("clipAlt", ""),
+			"library": anim_src.get("library", "UAL1"),
+			"loop": anim_src.get("loop", false),
+			"speed": anim_src.get("speed", 1.0),
+			"blend_in": anim_src.get("blendIn", 0.0)
+		}
+
 	var action_name: String = action.get("name", action_id)
 	print("[Insimul] Executing action: %s (%d effects)" % [action_name, effects.size()])
-	return {"success": true, "message": "%s performed successfully" % action_name, "energy_used": action.get("energyCost", 0), "effects": effects, "narrative_text": narrative_text}
+	return {"success": true, "message": "%s performed successfully" % action_name, "energy_used": action.get("energyCost", 0), "effects": effects, "narrative_text": narrative_text, "animation": animation}
 
 ## Generate narrative text from an action's narrativeTemplates array.
 func _generate_narrative_text(action: Dictionary, actor_name: String, target_name: String) -> String:

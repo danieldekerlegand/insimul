@@ -279,6 +279,11 @@ export class InteriorItemManager {
     const template = this.objectModelTemplates.get(item.objectRole);
     if (!template) return null;
 
+    // If the template lives in a different scene (e.g. overworld) than our
+    // target scene (interior), cloning would place geometry in the wrong scene.
+    // Fall back to procedural geometry in that case.
+    if (template.getScene() !== this.scene) return null;
+
     let cloned: Mesh | null = null;
 
     // glTF root nodes may have 0 vertices — use instantiateHierarchy

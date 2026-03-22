@@ -1,0 +1,431 @@
+{
+  "project": "Insimul",
+  "branchName": "ralph/unified-building-npc-config",
+  "description": "Unified Building & NPC Configuration System - Merge 3D config and procedural buildings into one UI, add texture support, interior templates, fix business diversity, and implement modular NPC assembly",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add unified building type config and texture types",
+      "description": "As a developer, I need to add new types to shared/game-engine/types.ts for unified per-type building configuration, texture references on style presets, and interior template configuration.",
+      "acceptanceCriteria": [
+        "Add UnifiedBuildingTypeConfig type to shared/game-engine/types.ts with fields: mode ('asset' | 'procedural'), assetId?: string, stylePresetId?: string, styleOverrides?: Partial<ProceduralStylePreset>, interiorConfig?: InteriorTemplateConfig, modelScaling?: { x: number, y: number, z: number }",
+        "Add InteriorTemplateConfig type with fields: mode ('model' | 'procedural'), modelPath?: string, layoutTemplateId?: string, wallTextureId?: string, floorTextureId?: string, ceilingTextureId?: string, furnitureSet?: string, lightingPreset?: 'bright' | 'dim' | 'warm' | 'cool' | 'candlelit'",
+        "Add InteriorLayoutTemplate type with fields: id: string, name: string, rooms: RoomTemplate[], totalWidth: number, totalDepth: number, floors: number",
+        "Add RoomTemplate type with fields: name: string, function: string, relativeWidth: number, relativeDepth: number, furniturePreset: string, doorPlacements?: string[]",
+        "Add FurnitureSet type as Record<string, string[]> mapping room functions to lists of furniture item type strings",
+        "Add texture fields to ProceduralStylePreset: wallTextureId?: string, roofTextureId?: string, floorTextureId?: string, doorTextureId?: string, windowTextureId?: string",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "All types go in shared/game-engine/types.ts. Export all new types."
+    },
+    {
+      "id": "US-002",
+      "title": "Add building type configs to AssetCollection schema",
+      "description": "As a developer, I need to add buildingTypeConfigs and categoryPresets fields to the AssetCollection schema so collections can store per-type building configuration.",
+      "acceptanceCriteria": [
+        "Add buildingTypeConfigs field to AssetCollection in shared/schema.ts as optional Record<string, UnifiedBuildingTypeConfig> (JSON stored in MongoDB)",
+        "Add categoryPresets field to AssetCollection in shared/schema.ts as optional Record<string, ProceduralStylePreset> where keys are category names like 'commercial_food', 'commercial_retail', etc.",
+        "Add npcConfig field to AssetCollection in shared/schema.ts as optional object with fields: bodyModels?: string[], hairStyles?: Record<string, string[]>, clothingPalette?: string[], skinTonePalette?: string[]",
+        "Update mongo-storage.ts AssetCollection Mongoose schema to include the new fields with appropriate defaults (empty objects/null)",
+        "Existing asset collections with buildingModels and proceduralBuildings fields continue to work unchanged",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Schema changes must be backward-compatible. All new fields are optional. The old buildingModels and proceduralBuildings fields remain."
+    },
+    {
+      "id": "US-003",
+      "title": "Define building category groupings constant",
+      "description": "As a developer, I need a shared constant that maps building categories to their member business/residence types, so the UI and preset resolution can use a single source of truth.",
+      "acceptanceCriteria": [
+        "Create BUILDING_CATEGORIES constant in shared/game-engine/types.ts (or a new shared/game-engine/building-categories.ts file)",
+        "Define categories: commercial_food (Restaurant, Bar, Bakery, Brewery), commercial_retail (Shop, GroceryStore, JewelryStore, BookStore, PawnShop, HerbShop), commercial_service (Bank, Hotel, Barbershop, Tailor, Bathhouse, DentalOffice, OptometryOffice, Pharmacy, LawFirm, InsuranceOffice, RealEstateOffice, TattoParlor), civic (Church, TownHall, School, University, Hospital, PoliceStation, FireStation, Daycare, Mortuary), industrial (Factory, Farm, Warehouse, Blacksmith, Carpenter, Butcher), maritime (Harbor, Boatyard, FishMarket, CustomsHouse, Lighthouse), residential (house, apartment, mansion, cottage, townhouse, mobile_home)",
+        "Add helper function getCategoryForType(type: string): string | undefined that returns the category name for any business or residence type",
+        "Add helper function getTypesInCategory(category: string): string[] that returns all types in a category",
+        "Export BUILDING_CATEGORIES, getCategoryForType, and getTypesInCategory",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "This constant is used by both the UI (AdminAssetsHub) and the preset resolution logic."
+    },
+    {
+      "id": "US-004",
+      "title": "API endpoints for business and residence type updates",
+      "description": "As a developer, I need PATCH endpoints to update business type and residence type with validation.",
+      "acceptanceCriteria": [
+        "Add PATCH /api/worlds/:worldId/businesses/:businessId endpoint in server/routes.ts that accepts { businessType: string } in the body",
+        "Validate businessType against the BusinessType values defined in shared/schema.ts — return 400 with error message if invalid",
+        "Add PATCH /api/worlds/:worldId/residences/:residenceId endpoint in server/routes.ts that accepts { residenceType: string } in the body",
+        "Validate residenceType against the ResidenceType values defined in shared/schema.ts — return 400 with error message if invalid",
+        "Both endpoints call the existing updateBusiness/updateResidence methods in mongo-storage.ts",
+        "Both endpoints return the updated object as JSON",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Check if PATCH endpoints already exist for businesses/residences in routes.ts. If so, extend them rather than creating duplicates."
+    },
+    {
+      "id": "US-005",
+      "title": "Fix inferBusinessType to not default to Shop",
+      "description": "As a developer, I need to fix the geography generator's inferBusinessType() function so it produces diverse business types instead of defaulting everything to Shop.",
+      "acceptanceCriteria": [
+        "In server/generators/geography-generator.ts, update inferBusinessType() to use a weighted random selection when no keyword match is found instead of returning 'Shop'",
+        "Weights reflect realistic town composition: Restaurant 15%, Bar 10%, Bakery 8%, Shop 12%, GroceryStore 8%, Bank 5%, Hotel 5%, Church 4%, School 4%, Barbershop 5%, Tailor 4%, Butcher 4%, BookStore 4%, Pharmacy 4%, Clinic 4%, Blacksmith 4%",
+        "Add keyword matches for BusinessTypes that are currently missing: Brewery (brewery, brew), Pharmacy (pharmacy, apothecary, chemist), Clinic (clinic, doctor), Barbershop (barber), BookStore (book), Butcher (butcher, meat), Blacksmith (smith, forge), Carpenter (carpenter, woodwork), Stables (stable, horse)",
+        "The function is deterministic when given a name (same name always produces same type) but varies across different names",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "The function is in geography-generator.ts around line 1039-1062. The default fallback on the last line is 'Shop' — that's the main issue."
+    },
+    {
+      "id": "US-006",
+      "title": "Fix determineBusinessMix category-to-type mapping",
+      "description": "As a developer, I need to fix the world generator so generic business categories map to actual BusinessType enum values, producing diverse settlements.",
+      "acceptanceCriteria": [
+        "In server/generators/world-generator.ts, create a CATEGORY_TO_BUSINESS_TYPES mapping: 'Retail' -> ['Shop', 'GroceryStore', 'JewelryStore', 'BookStore', 'PawnShop', 'HerbShop'], 'Restaurant' -> ['Restaurant', 'Bar', 'Bakery', 'Brewery'], 'Medicine' -> ['Hospital', 'Pharmacy', 'Clinic', 'DentalOffice', 'OptometryOffice'], 'Law' -> ['LawFirm'], 'Education' -> ['School', 'Daycare', 'University'], 'Financial' -> ['Bank', 'InsuranceOffice', 'RealEstateOffice'], 'Entertainment' -> ['Bar', 'Hotel'], 'Government' -> ['TownHall', 'PoliceStation', 'FireStation'], 'Manufacturing' -> ['Factory', 'Blacksmith', 'Carpenter'], 'Agriculture' -> ['Farm'], 'Transportation' -> ['Stables', 'Harbor'], 'Logging' -> ['Warehouse']",
+        "In generateInitialBusinesses(), when a generic category is chosen, randomly select a specific BusinessType from the mapped array instead of using the category name directly",
+        "Add a diversity check: no more than 30% of businesses in a settlement should be any single BusinessType — if a type is over-represented, pick a different one from the same category",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "The issue is in world-generator.ts around lines 504-711. determineBusinessMix returns generic categories that get used as businessType directly."
+    },
+    {
+      "id": "US-007",
+      "title": "Diverse residence type generation",
+      "description": "As a developer, I need settlement generation to create a mix of residence types instead of only houses.",
+      "acceptanceCriteria": [
+        "In server/generators/geography-generator.ts (or world-generator.ts, wherever residences are created), assign residence types using weighted distribution: house 40%, apartment 20%, cottage 15%, townhouse 15%, mansion 5%, mobile_home 5%",
+        "For settlements with population > 500, increase apartment weight to 30% and decrease house to 30%",
+        "For settlements with population < 100, increase cottage weight to 25% and set apartment to 10%",
+        "Generated settlements show at least 3 different residence types",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Find where residences are created in the generators — they likely default to 'house'. The ResidenceType enum is in shared/schema.ts."
+    },
+    {
+      "id": "US-008",
+      "title": "Create interior layout templates data file",
+      "description": "As a developer, I need predefined interior layout templates that define room configurations for different building types.",
+      "acceptanceCriteria": [
+        "Create shared/game-engine/interior-templates.ts with INTERIOR_LAYOUT_TEMPLATES array",
+        "Include at least 15 templates: tavern (main_hall 60% + kitchen 25% + storage 15%), restaurant (dining 65% + kitchen 35%), shop (sales_floor 70% + storage 30%), bar (bar_area 55% + seating 30% + storage 15%), bakery (counter 40% + kitchen 45% + storage 15%), residence_small (living 40% + bedroom 35% + kitchen 25%), residence_medium (living 25% + dining 15% + kitchen 20% + bedroom_1 15% + bedroom_2 15% + bathroom 10%), residence_large (living 20% + dining 12% + kitchen 15% + bedroom_1 12% + bedroom_2 12% + bedroom_3 12% + study 10% + bathroom 7%), church (nave 70% + altar 20% + vestry 10%), school (classroom_1 30% + classroom_2 30% + office 20% + hallway 20%), hotel (lobby 30% + room_1 17.5% + room_2 17.5% + room_3 17.5% + room_4 17.5%), blacksmith (forge 55% + display 30% + storage 15%), warehouse (storage_1 45% + storage_2 45% + office 10%), clinic (waiting 30% + exam_1 25% + exam_2 25% + office 20%), farm_barn (open_area 70% + tack_room 30%)",
+        "Each template has: id, name, rooms array (each room has name, function, relativeWidth, relativeDepth as fractions summing to ~1.0), totalWidth, totalDepth, floors",
+        "Export INTERIOR_LAYOUT_TEMPLATES and a helper getTemplateById(id: string)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Room dimensions are relative (fractions) — the actual pixel sizes are computed at generation time based on the building's real dimensions. Use the InteriorLayoutTemplate and RoomTemplate types from US-001."
+    },
+    {
+      "id": "US-009",
+      "title": "Create NPCModularAssembler class",
+      "description": "As a developer, I need a modular NPC mesh assembly system that composes characters from separate body part meshes based on gender and traits.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/NPCModularAssembler.ts with NPCModularAssembler class",
+        "Constructor takes a Babylon.js Scene reference",
+        "Add preloadTemplates() async method that loads all base body part meshes (head, body, arms, legs, feet) for male_peasant, female_peasant, male_ranger, female_ranger from the quaternius character model directories",
+        "Add assembleNPC(characterId: string, gender: 'male' | 'female', occupation?: string) method that: (1) selects base body by gender, (2) selects outfit variant (peasant/ranger) based on deterministic hash of occupation or characterId, (3) clones all body part meshes for that variant, (4) parents cloned parts to a new TransformNode root",
+        "Cache loaded template meshes in a Map — clone for each NPC instance instead of re-loading",
+        "Return the root TransformNode from assembleNPC()",
+        "Add dispose() method to clean up cached templates",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Body part meshes are in client/public/assets/models/characters/quaternius/ in subdirectories like outfit_male_peasant/, split into head/, body/, arms/, legs/, feet/ subdirs. Use SceneLoader.ImportMeshAsync to load .glb files."
+    },
+    {
+      "id": "US-010",
+      "title": "Add hair and facial hair to NPC assembler",
+      "description": "As a developer, I need the NPCModularAssembler to attach varied hair styles and facial hair to NPCs based on gender and deterministic character ID hashing.",
+      "acceptanceCriteria": [
+        "Add hair model catalog to NPCModularAssembler listing all available hair meshes from quaternius: hair_long, hair_parted, hair_buzzed, hair_buns, and hair_beard variants with their file paths",
+        "Add preloadHairTemplates() that loads all hair mesh templates (called from preloadTemplates)",
+        "In assembleNPC(), add deterministic hair selection using a hash of characterId: female characters select from long, parted, buns; male characters select from buzzed, parted, long",
+        "Male characters have 40% deterministic chance of beard — if selected, attach a beard variant mesh",
+        "Clone selected hair mesh and parent it to the NPC's root TransformNode (position at head height)",
+        "Apply deterministic hair color from palette [black, dark_brown, brown, auburn, blonde, red, gray, white] by tinting the hair mesh material's diffuseColor",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Hair models are in client/public/assets/models/characters/quaternius/hair_*/ directories. Use string hash to make selection deterministic per character."
+    },
+    {
+      "id": "US-011",
+      "title": "Add clothing color and proportion variation to NPC assembler",
+      "description": "As a developer, I need each NPC to have unique clothing colors and slight body proportion differences.",
+      "acceptanceCriteria": [
+        "In NPCModularAssembler.assembleNPC(), apply deterministic clothing color: select primary color from 12+ muted clothing colors palette using character ID hash",
+        "Clone materials for each NPC body part so colors are per-instance (not shared across NPCs)",
+        "Apply primary color to body/torso mesh material's diffuseColor, apply a deterministic accent/secondary color to other parts",
+        "Apply height variation: scale root TransformNode Y between 0.85 and 1.15 based on character ID hash",
+        "Apply width variation: scale root TransformNode X and Z between 0.9 and 1.1",
+        "Reuse the existing skin tone palette from NPCAppearanceGenerator (8 diverse tones) — apply to head mesh material",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Reference the existing color palettes in client/src/components/3DGame/NPCAppearanceGenerator.ts. Each NPC must have its own material clones to allow unique colors."
+    },
+    {
+      "id": "US-012",
+      "title": "Integrate modular NPC assembly into BabylonGame",
+      "description": "As a developer, I need to replace the current single-mesh NPC loading in BabylonGame.ts with the modular assembly system.",
+      "acceptanceCriteria": [
+        "BabylonGame instantiates NPCModularAssembler during initialization",
+        "Call preloadTemplates() during the asset loading phase (alongside other model preloading)",
+        "NPC spawning uses NPCModularAssembler.assembleNPC(character.id, character.gender, character.occupation) instead of loading a single model mesh",
+        "NPCModelManifest is kept as fallback — if modular parts are not available for a character, fall back to single-mesh loading via NPCModelManifest.selectNPCModel()",
+        "NPCAppearanceGenerator role-based tinting (guard=red, merchant=yellow, etc.) still applies on top of modular assembly colors",
+        "Performance: template meshes loaded once during preload, cloned per NPC instance",
+        "NPCs in the game world are visually distinguishable by gender, hair, and clothing color",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "BabylonGame.ts is large — focus changes on NPC creation/spawning methods. Keep existing NPCModelManifest as fallback path."
+    },
+    {
+      "id": "US-013",
+      "title": "Apply preset textures in ProceduralBuildingGenerator",
+      "description": "As a developer, I need the ProceduralBuildingGenerator to use per-preset texture references when generating building meshes.",
+      "acceptanceCriteria": [
+        "In ProceduralBuildingGenerator.generateBuilding(), after resolving the style preset, check for wallTextureId, roofTextureId, floorTextureId, doorTextureId, windowTextureId on the preset",
+        "If a texture ID is present, load the texture asset and apply it to the corresponding material (wall material, roof material, etc.)",
+        "If no texture ID, fall back to solid color from the preset (preserves existing behavior)",
+        "Cache texture-based materials in the existing materialCache using a key that combines texture ID + any color tint",
+        "Texture UV mapping: apply default UV scaling appropriate for building surfaces (walls get tiled, roofs get stretched)",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "ProceduralBuildingGenerator.ts already has wallTexture/roofTexture support and a materialCache Map. Extend the existing pattern to support per-preset textures."
+    },
+    {
+      "id": "US-014",
+      "title": "Apply interior config in BuildingInteriorGenerator",
+      "description": "As a developer, I need BuildingInteriorGenerator to consume InteriorTemplateConfig from the asset collection when generating interiors.",
+      "acceptanceCriteria": [
+        "Add method setInteriorConfig(configs: Record<string, UnifiedBuildingTypeConfig>) to BuildingInteriorGenerator",
+        "When generating an interior for a building type, look up the type in buildingTypeConfigs and read its interiorConfig",
+        "If interiorConfig.mode is 'model', delegate to InteriorSceneManager to load the glTF model at interiorConfig.modelPath",
+        "If interiorConfig.mode is 'procedural', look up the layout template by interiorConfig.layoutTemplateId from INTERIOR_LAYOUT_TEMPLATES and use its room definitions for generation",
+        "Apply interiorConfig texture IDs (wallTextureId, floorTextureId, ceilingTextureId) to room surfaces when present",
+        "Apply interiorConfig lightingPreset to set ambient light intensity and color (bright=1.0 white, dim=0.4 warm, warm=0.7 orange, cool=0.7 blue, candlelit=0.3 orange+flickering)",
+        "Fall back to existing hardcoded behavior when no interiorConfig is present for a building type",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "BuildingInteriorGenerator.ts currently has hardcoded room layouts per building type. The new config system overlays on top — existing behavior is the fallback."
+    },
+    {
+      "id": "US-015",
+      "title": "Unified building configuration UI - category layout",
+      "description": "As a world creator, I want to see all building types in one unified panel organized by category in the asset collection editor.",
+      "acceptanceCriteria": [
+        "In AdminAssetsHub.tsx, add a new 'Building Configuration' section (keep existing 3D Config and Procedural Buildings sections for backward compatibility but mark them as 'Legacy')",
+        "New section lists all building types organized by category using BUILDING_CATEGORIES from US-003",
+        "Each category is a collapsible section with header showing category name and count of configured types (e.g., 'Commercial Food (3/4 configured)')",
+        "Each building type row shows: type name, current mode indicator ('Asset' badge or 'Procedural' badge or 'Unconfigured' in gray), and a small color swatch if procedural",
+        "Clicking a building type row expands an inline detail panel below the row",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "AdminAssetsHub.tsx is 2000+ lines. Add the new section alongside existing ones — do NOT remove old sections yet. Use BUILDING_CATEGORIES from shared/game-engine/building-categories.ts (or types.ts)."
+    },
+    {
+      "id": "US-016",
+      "title": "Per-type detail panel - asset mode",
+      "description": "As a world creator, I want to assign a 3D model asset to a building type in the unified configuration panel.",
+      "acceptanceCriteria": [
+        "Expanded detail panel shows mode toggle at top: 'Asset Model' / 'Procedural Generation' buttons or radio",
+        "In Asset mode, show asset picker dropdown listing available building model assets from the collection",
+        "Show model scaling override inputs (X, Y, Z number fields) with defaults of 1.0",
+        "Selecting an asset stores it in buildingTypeConfigs[typeName] with mode: 'asset' and the assetId",
+        "Changes save to the collection via the existing asset collection update API",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "Reuse the existing asset selector pattern from the current Building Models section in AdminAssetsHub.tsx."
+    },
+    {
+      "id": "US-017",
+      "title": "Per-type detail panel - procedural mode",
+      "description": "As a world creator, I want to configure procedural generation settings for a building type with inherited category defaults.",
+      "acceptanceCriteria": [
+        "In Procedural mode, show all ProceduralStylePreset fields: baseColors (color pickers, add/remove), roofColor, windowColor, doorColor (color pickers), materialType dropdown (wood, stone, brick, metal, glass, stucco), architectureStyle dropdown (medieval, modern, futuristic, rustic, industrial, colonial, creole), roofStyle dropdown (hip, gable, flat, side_gable, hipped_dormers)",
+        "Show feature toggles: hasBalcony, hasIronworkBalcony, hasPorch (with porchDepth and porchSteps number inputs), hasShutters (with shutterColor picker)",
+        "Show dimension overrides: floors, width, depth number inputs",
+        "Fields that match the category preset value show placeholder text '(inherited from [category])' and appear dimmed — editing a field creates an override",
+        "Add 'Reset to category default' icon button next to each overridden field, and 'Reset All' button at bottom",
+        "Changes save to buildingTypeConfigs[typeName].styleOverrides",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "Reuse the existing color picker and dropdown patterns from ProceduralBuildingsEditor in AdminAssetsHub.tsx."
+    },
+    {
+      "id": "US-018",
+      "title": "Category preset editor",
+      "description": "As a world creator, I want to edit shared category presets so changes propagate to all building types in that category.",
+      "acceptanceCriteria": [
+        "Category header row has an 'Edit Preset' button/icon next to the category name",
+        "Clicking opens a modal or expandable section with all ProceduralStylePreset fields (same fields as per-type procedural mode)",
+        "Also includes texture picker fields: wall texture, roof texture, floor texture, door texture, window texture (asset selector dropdowns that list available texture assets)",
+        "Saving the category preset stores it in categoryPresets[categoryName] on the AssetCollection",
+        "UI shows a count of how many types in this category will be affected (i.e., types without overrides)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": "Category presets are stored in the AssetCollection's categoryPresets field added in US-002."
+    },
+    {
+      "id": "US-019",
+      "title": "Texture picker in procedural preset editors",
+      "description": "As a world creator, I want to assign textures for walls, roofs, floors, doors, and windows in style presets.",
+      "acceptanceCriteria": [
+        "Add texture picker fields to both the category preset editor (US-018) and the per-type procedural mode panel (US-017)",
+        "Each texture picker is a dropdown that lists texture assets: (1) textures from the current collection, (2) global/public texture assets",
+        "Each picker has a 'None (use color)' option that clears the texture reference",
+        "When a texture is selected, show a small thumbnail preview next to the picker",
+        "Selected texture IDs are stored in the ProceduralStylePreset texture fields (wallTextureId, roofTextureId, etc.)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "Textures may be stored as assets in the system. Check how existing texture assets (groundTextureId, roadTextureId, etc.) are selected in AdminAssetsHub.tsx and reuse that pattern."
+    },
+    {
+      "id": "US-020",
+      "title": "Interior configuration UI in per-type detail panel",
+      "description": "As a world creator, I want to configure interior settings per building type, choosing between a glTF model or a procedural template.",
+      "acceptanceCriteria": [
+        "Add 'Interior' sub-section below the exterior config in the per-type detail panel",
+        "Mode toggle: '3D Model' / 'Procedural Template'",
+        "Model mode: dropdown to select from available interior glTF models (list files from assets/models/interiors/ directory or interior model assets in collection)",
+        "Template mode: dropdown to select a layout template from INTERIOR_LAYOUT_TEMPLATES (show template name and room count)",
+        "Template mode: wall texture, floor texture, ceiling texture pickers (reuse texture picker from US-019)",
+        "Template mode: furniture set dropdown (e.g., 'Tavern', 'Shop', 'Residential', 'Civic')",
+        "Template mode: lighting preset dropdown (bright, dim, warm, cool, candlelit)",
+        "Changes save to buildingTypeConfigs[typeName].interiorConfig",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": "Interior templates come from shared/game-engine/interior-templates.ts (US-008). Furniture sets are string identifiers resolved at generation time."
+    },
+    {
+      "id": "US-021",
+      "title": "Exterior 3D preview in building config panel",
+      "description": "As a world creator, I want a real-time 3D preview of the exterior building while configuring it.",
+      "acceptanceCriteria": [
+        "Embed BuildingModelPreview component in the per-type detail panel (right side or below the config fields)",
+        "In asset mode: preview shows the selected 3D model asset with scaling applied",
+        "In procedural mode: preview renders a procedural building using the fully resolved preset (category defaults + type overrides merged)",
+        "Preview updates automatically when any config field changes (color, material, architecture style, features, textures)",
+        "Include auto-rotate toggle and zoom controls (reuse existing BuildingModelPreview features)",
+        "Preview canvas is at least 300x250 pixels",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "BuildingModelPreview.tsx already supports procedural placeholder rendering and model loading. Extend it to accept a full ProceduralStylePreset for rendering."
+    },
+    {
+      "id": "US-022",
+      "title": "Interior 3D preview in building config panel",
+      "description": "As a world creator, I want to preview the interior configuration alongside the exterior preview.",
+      "acceptanceCriteria": [
+        "Add 'Exterior' / 'Interior' tab toggle above the 3D preview in the detail panel",
+        "Interior tab: if mode is 'model', load and display the selected glTF interior model in the preview canvas",
+        "Interior tab: if mode is 'procedural', render the interior using the selected layout template with configured textures, furniture placeholders, and lighting",
+        "Interior preview camera is positioned inside the room looking around (orbital camera centered in the main room)",
+        "Preview updates when interior config fields change",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": "Interior preview should use a separate Babylon.js scene instance within the same canvas to avoid mesh conflicts with the exterior preview."
+    },
+    {
+      "id": "US-023",
+      "title": "Business type editing on Society page",
+      "description": "As a world creator, I want to change a business's type from the SettlementHub Society page.",
+      "acceptanceCriteria": [
+        "In SettlementHub.tsx, add a business type dropdown/select to the business detail view (where individual businesses are shown)",
+        "Dropdown lists all BusinessType values from shared/schema.ts",
+        "Current business type is pre-selected in the dropdown",
+        "Selecting a new type calls PATCH /api/worlds/:worldId/businesses/:businessId with the new businessType",
+        "On success, the UI updates the displayed business type and any associated building preview",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "Uses the API endpoint created in US-004. SettlementHub.tsx is in client/src/components/locations/."
+    },
+    {
+      "id": "US-024",
+      "title": "Residence type editing on Society page",
+      "description": "As a world creator, I want to change a residence's type from the SettlementHub Society page.",
+      "acceptanceCriteria": [
+        "In SettlementHub.tsx, add a residence type dropdown/select to the residence detail view",
+        "Dropdown lists all ResidenceType values from shared/schema.ts: house, apartment, mansion, cottage, townhouse, mobile_home",
+        "Current residence type is pre-selected in the dropdown",
+        "Selecting a new type calls PATCH /api/worlds/:worldId/residences/:residenceId with the new residenceType",
+        "On success, the UI updates the displayed residence type and any associated building preview",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": "Uses the API endpoint created in US-004. Similar pattern to US-023 but for residences."
+    },
+    {
+      "id": "US-025",
+      "title": "NPC character configuration in asset collection editor",
+      "description": "As a world creator, I want to configure NPC appearance settings per collection (body models, hair styles, color palettes) and preview a sample NPC.",
+      "acceptanceCriteria": [
+        "Add 'Character Configuration' section to AdminAssetsHub.tsx (as a sibling to Building Configuration)",
+        "Show checkboxes to enable/disable available base body models (list available quaternius body model directories)",
+        "Show hair style configuration: checkboxes per gender for which hair styles are available",
+        "Show clothing color palette editor: list of color swatches that can be added/removed (default: existing 12 NPCAppearanceGenerator colors)",
+        "Show skin tone palette editor: list of color swatches (default: existing 8 skin tones)",
+        "Show a 'Preview Sample NPC' button that renders a random NPC using current settings in a small 3D preview canvas",
+        "Settings save to the npcConfig field on AssetCollection",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": "The npcConfig field was added to AssetCollection schema in US-002. NPC preview can reuse a simplified version of BuildingModelPreview's Babylon.js canvas approach."
+    }
+  ]
+}
