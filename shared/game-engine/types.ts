@@ -529,13 +529,39 @@ export interface CharacterConfig {
   npcSkinTonePalette?: string[];
   /** Named character model assignments (e.g., guard, merchant, civilian_male) */
   characterModels?: Record<string, CharacterModelConfig>;
+  /** Saved NPC presets for quick reuse */
+  npcPresets?: Record<string, NPCPreset>;
 }
 
 export interface CharacterModelConfig {
-  mode: 'asset' | 'procedural';
+  mode: 'asset' | 'procedural' | 'composed';
   assetId?: string;
   modelScaling?: Vec3;
   proceduralParams?: Record<string, any>;
+  /** Composed mode: body model asset ID from quaternius manifest */
+  bodyId?: string;
+  /** Composed mode: hair asset ID from quaternius manifest */
+  hairId?: string;
+  /** Composed mode: outfit asset ID (full outfit) from quaternius manifest */
+  outfitId?: string;
+  /** Composed mode: skin color as hex string */
+  skinColor?: string;
+  /** Composed mode: hair color as hex string */
+  hairColor?: string;
+  /** Composed mode: outfit tint color as hex string */
+  outfitColor?: string;
+}
+
+/** A saved NPC appearance preset */
+export interface NPCPreset {
+  name: string;
+  gender: 'male' | 'female';
+  bodyId: string;
+  hairId?: string;
+  outfitId?: string;
+  skinColor: string;
+  hairColor: string;
+  outfitColor: string;
 }
 
 /** Nature element configuration module */

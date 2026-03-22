@@ -883,10 +883,41 @@ struct FInsimulCharacterModelConfig
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "asset" or "procedural"
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "asset", "procedural", or "composed"
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssetId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector ModelScaling = FVector(1.f, 1.f, 1.f);
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> ProceduralParams;
+    /** Composed mode: body model asset ID */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BodyId;
+    /** Composed mode: hair asset ID */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString HairId;
+    /** Composed mode: outfit asset ID (full outfit) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString OutfitId;
+    /** Composed mode: skin color as hex string */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SkinColor;
+    /** Composed mode: hair color as hex string */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString HairColor;
+    /** Composed mode: outfit tint color as hex string */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString OutfitColor;
+};
+
+/**
+ * A saved NPC appearance preset.
+ * Mirrors NPCPreset from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNPCPreset
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Gender; // "male" or "female"
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BodyId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString HairId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString OutfitId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SkinColor;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString HairColor;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString OutfitColor;
 };
 
 /**
@@ -908,6 +939,8 @@ struct FInsimulCharacterConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> NpcSkinTonePalette;
     /** Named character model assignments (e.g., guard, merchant, civilian_male) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulCharacterModelConfig> CharacterModels;
+    /** Saved NPC presets for quick reuse */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FInsimulNPCPreset> NpcPresets;
 };
 
 /**

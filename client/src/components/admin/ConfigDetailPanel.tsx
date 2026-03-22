@@ -24,6 +24,7 @@ import type {
   NatureTypeConfig,
   ItemTypeConfig,
 } from "@shared/game-engine/types";
+import { resolveAssetPath as resolveQuaterniusPath } from "@shared/game-engine/npc-designer-utils";
 
 /** Resolve an asset ID to its file path from the assets list */
 function resolveAssetPath(assets: VisualAsset[], assetId?: string): string | undefined {
@@ -345,31 +346,36 @@ export function ConfigDetailPanel({
   // ─── Character Model ────────────────────────────────────────────────────
   if (selection.module === 'character') {
     const cfg = selection.config;
-    const characterModelPath = resolveAssetPath(assets, cfg?.assetId);
+    const mode = cfg?.mode || 'asset';
+    // For composed mode, preview the body model from quaternius
+    const characterModelPath = mode === 'composed' && cfg?.bodyId
+      ? resolveQuaterniusPath(cfg.bodyId)
+      : resolveAssetPath(assets, cfg?.assetId);
     return (
       <div className="flex flex-col h-full min-h-0">
         <div className="shrink-0 p-3 border-b">
           <p className="text-xs font-semibold mb-2">
             {selection.section === 'player' ? 'Player' : 'NPC'}: {humanize(selection.role)}
           </p>
-          <ConfigPreviewScene height={180} showGround={true} modelPath={characterModelPath} />
+          <ConfigPreviewScene height={180} showGround={true} modelPath={characterModelPath || undefined} />
         </div>
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-3 space-y-3">
             <div>
               <Label className="text-[10px]">Mode</Label>
-              <Select value={cfg?.mode || 'asset'} onValueChange={(v) =>
-                onUpdateCharacter?.(selection.section, selection.role, { mode: v as 'asset' | 'procedural' })
+              <Select value={mode} onValueChange={(v) =>
+                onUpdateCharacter?.(selection.section, selection.role, { mode: v as 'asset' | 'procedural' | 'composed' })
               }>
                 <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="asset">Asset (3D Model)</SelectItem>
+                  <SelectItem value="composed">Composed (Body + Hair + Outfit)</SelectItem>
                   <SelectItem value="procedural">Procedural</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {(cfg?.mode || 'asset') === 'asset' && (
+            {mode === 'asset' && (
               <div className="space-y-1">
                 <Label className="text-[10px]">Model Asset</Label>
                 <AssetSelect
@@ -380,6 +386,37 @@ export function ConfigDetailPanel({
                   onSelect={(asset) => onUpdateCharacter?.(selection.section, selection.role, { assetId: asset.id })}
                   onClear={() => onUpdateCharacter?.(selection.section, selection.role, { assetId: undefined })}
                 />
+              </div>
+            )}
+
+            {mode === 'composed' && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground">
+                  Composed characters use body, hair, and outfit parts from the NPC Designer.
+                  Configure presets in the NPC Designer section, then assign them to roles here.
+                </p>
+                {cfg?.bodyId && (
+                  <div className="text-[10px]">
+                    <span className="text-muted-foreground">Body:</span> {cfg.bodyId}
+                  </div>
+                )}
+                {cfg?.hairId && (
+                  <div className="text-[10px]">
+                    <span className="text-muted-foreground">Hair:</span> {cfg.hairId}
+                  </div>
+                )}
+                {cfg?.outfitId && (
+                  <div className="text-[10px]">
+                    <span className="text-muted-foreground">Outfit:</span> {cfg.outfitId}
+                  </div>
+                )}
+                {cfg?.skinColor && (
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <span className="text-muted-foreground">Skin:</span>
+                    <div className="w-3 h-3 rounded border" style={{ backgroundColor: cfg.skinColor }} />
+                    {cfg.skinColor}
+                  </div>
+                )}
               </div>
             )}
 
