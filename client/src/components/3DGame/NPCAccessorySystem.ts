@@ -18,6 +18,7 @@ import {
   StandardMaterial,
   Vector3,
 } from '@babylonjs/core';
+import type { NPCAppearance, HairStyle, FacialHairStyle } from './NPCAppearanceGenerator';
 
 // ---------- Types ----------
 
@@ -371,6 +372,214 @@ export class NPCAccessorySystem {
   }
 
   /**
+   * Attach procedural hair and facial hair meshes based on NPC appearance.
+   */
+  attachHair(
+    npcId: string,
+    npcRoot: Mesh,
+    appearance: NPCAppearance,
+  ): void {
+    const meshes: Mesh[] = [];
+    const existing = this.npcAccessories.get(npcId) || [];
+
+    // Hair
+    const hairMesh = this.createHairMesh(npcId, npcRoot, appearance.hairStyle, appearance.hairColor);
+    if (hairMesh) meshes.push(hairMesh);
+
+    // Facial hair
+    const facialMesh = this.createFacialHairMesh(npcId, npcRoot, appearance.facialHairStyle, appearance.hairColor);
+    if (facialMesh) meshes.push(facialMesh);
+
+    this.npcAccessories.set(npcId, [...existing, ...meshes]);
+  }
+
+  /**
+   * Create a procedural hair mesh for the given style.
+   */
+  private createHairMesh(npcId: string, parent: Mesh, style: HairStyle, color: Color3): Mesh | null {
+    if (style === 'bald') return null;
+
+    const headPos = ATTACHMENT_OFFSETS.head;
+    const mat = this.getOrCreateHairMaterial(`hair_${colorKey(color)}`, color);
+    let mesh: Mesh;
+
+    switch (style) {
+      case 'short': {
+        mesh = MeshBuilder.CreateSphere(
+          `hair_${npcId}`,
+          { diameterX: 0.38, diameterY: 0.22, diameterZ: 0.38, segments: 8 },
+          this.scene,
+        );
+        mesh.position = headPos.add(new Vector3(0, 0.12, -0.02));
+        break;
+      }
+      case 'medium': {
+        mesh = MeshBuilder.CreateSphere(
+          `hair_${npcId}`,
+          { diameterX: 0.42, diameterY: 0.28, diameterZ: 0.44, segments: 8 },
+          this.scene,
+        );
+        mesh.position = headPos.add(new Vector3(0, 0.1, -0.04));
+        break;
+      }
+      case 'long': {
+        // Top cap + back drape
+        const top = MeshBuilder.CreateSphere(
+          `hair_top_${npcId}`,
+          { diameterX: 0.42, diameterY: 0.26, diameterZ: 0.44, segments: 8 },
+          this.scene,
+        );
+        top.position = headPos.add(new Vector3(0, 0.1, -0.04));
+        top.material = mat;
+        top.parent = parent;
+        top.isPickable = false;
+
+        const drape = MeshBuilder.CreateBox(
+          `hair_drape_${npcId}`,
+          { width: 0.36, height: 0.5, depth: 0.12 },
+          this.scene,
+        );
+        drape.position = headPos.add(new Vector3(0, -0.18, -0.16));
+        drape.material = mat;
+        drape.parent = parent;
+        drape.isPickable = false;
+
+        // Return top as primary, add drape to accessories manually
+        const existing = this.npcAccessories.get(npcId) || [];
+        this.npcAccessories.set(npcId, [...existing, drape]);
+        mesh = top;
+        break;
+      }
+      case 'ponytail': {
+        const cap = MeshBuilder.CreateSphere(
+          `hair_cap_${npcId}`,
+          { diameterX: 0.38, diameterY: 0.22, diameterZ: 0.38, segments: 8 },
+          this.scene,
+        );
+        cap.position = headPos.add(new Vector3(0, 0.12, -0.02));
+        cap.material = mat;
+        cap.parent = parent;
+        cap.isPickable = false;
+
+        const tail = MeshBuilder.CreateCylinder(
+          `hair_tail_${npcId}`,
+          { diameter: 0.1, height: 0.4, tessellation: 6 },
+          this.scene,
+        );
+        tail.position = headPos.add(new Vector3(0, -0.1, -0.2));
+        tail.material = mat;
+        tail.parent = parent;
+        tail.isPickable = false;
+
+        const existing2 = this.npcAccessories.get(npcId) || [];
+        this.npcAccessories.set(npcId, [...existing2, tail]);
+        mesh = cap;
+        break;
+      }
+      case 'mohawk': {
+        mesh = MeshBuilder.CreateBox(
+          `hair_${npcId}`,
+          { width: 0.08, height: 0.2, depth: 0.35 },
+          this.scene,
+        );
+        mesh.position = headPos.add(new Vector3(0, 0.18, -0.02));
+        break;
+      }
+      default:
+        return null;
+    }
+
+    mesh.material = mat;
+    mesh.parent = parent;
+    mesh.isPickable = false;
+    return mesh;
+  }
+
+  /**
+   * Create a procedural facial hair mesh for the given style.
+   */
+  private createFacialHairMesh(npcId: string, parent: Mesh, style: FacialHairStyle, color: Color3): Mesh | null {
+    if (style === 'none') return null;
+
+    const chinPos = ATTACHMENT_OFFSETS.head.add(new Vector3(0, -0.22, 0.12));
+    // Darken hair color slightly for facial hair
+    const facialColor = new Color3(color.r * 0.85, color.g * 0.85, color.b * 0.85);
+    const mat = this.getOrCreateHairMaterial(`facial_${colorKey(facialColor)}`, facialColor);
+    let mesh: Mesh;
+
+    switch (style) {
+      case 'stubble': {
+        mesh = MeshBuilder.CreateBox(
+          `facial_${npcId}`,
+          { width: 0.22, height: 0.06, depth: 0.08 },
+          this.scene,
+        );
+        mesh.position = chinPos;
+        break;
+      }
+      case 'beard': {
+        mesh = MeshBuilder.CreateSphere(
+          `facial_${npcId}`,
+          { diameterX: 0.26, diameterY: 0.18, diameterZ: 0.14, segments: 6 },
+          this.scene,
+        );
+        mesh.position = chinPos.add(new Vector3(0, -0.02, 0));
+        break;
+      }
+      case 'longBeard': {
+        mesh = MeshBuilder.CreateBox(
+          `facial_${npcId}`,
+          { width: 0.22, height: 0.3, depth: 0.1 },
+          this.scene,
+        );
+        mesh.position = chinPos.add(new Vector3(0, -0.1, 0));
+        break;
+      }
+      case 'mustache': {
+        mesh = MeshBuilder.CreateBox(
+          `facial_${npcId}`,
+          { width: 0.18, height: 0.04, depth: 0.06 },
+          this.scene,
+        );
+        mesh.position = chinPos.add(new Vector3(0, 0.1, 0.02));
+        break;
+      }
+      case 'goatee': {
+        mesh = MeshBuilder.CreateCylinder(
+          `facial_${npcId}`,
+          { diameterTop: 0.12, diameterBottom: 0.06, height: 0.14, tessellation: 6 },
+          this.scene,
+        );
+        mesh.position = chinPos.add(new Vector3(0, -0.04, 0));
+        break;
+      }
+      default:
+        return null;
+    }
+
+    mesh.material = mat;
+    mesh.parent = parent;
+    mesh.isPickable = false;
+    return mesh;
+  }
+
+  /**
+   * Get or create a cached hair material by color key.
+   */
+  private getOrCreateHairMaterial(key: string, color: Color3): StandardMaterial {
+    const cached = this.materialCache.get(key);
+    if (cached) return cached;
+
+    const mat = new StandardMaterial(`hair_mat_${key}`, this.scene);
+    mat.diffuseColor = color;
+    mat.specularPower = 40;
+    mat.backFaceCulling = false;
+
+    this.materialCache.set(key, mat);
+    return mat;
+  }
+
+  /**
    * Create a single procedural accessory mesh and parent it to the NPC.
    */
   private createAccessoryMesh(def: AccessoryDefinition, parent: Mesh): Mesh | null {
@@ -588,6 +797,11 @@ function roundRect(
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
   ctx.fill();
+}
+
+/** Create a short cache key from a Color3. */
+function colorKey(c: Color3): string {
+  return `${c.r.toFixed(2)}_${c.g.toFixed(2)}_${c.b.toFixed(2)}`;
 }
 
 /** Truncate text to fit within maxWidth, appending "…" if needed. */

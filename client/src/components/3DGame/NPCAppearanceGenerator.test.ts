@@ -15,6 +15,8 @@ import {
   getClothingColorForMesh,
   type NPCAppearance,
   type BodyType,
+  type HairStyle,
+  type FacialHairStyle,
 } from './NPCAppearanceGenerator';
 
 let passed = 0;
@@ -56,8 +58,8 @@ assert(f1 >= 0 && f1 < 1, 'slot 1 returns value in [0, 1)');
 assert(f0 !== f1, 'different slots produce different values');
 assert(hashFloat(hash, 0) === f0, 'same slot is deterministic');
 
-// All slots should be in range (now using 12 slots)
-for (let slot = 0; slot < 12; slot++) {
+// All slots should be in range (now using 16 slots)
+for (let slot = 0; slot < 16; slot++) {
   const val = hashFloat(hash, slot);
   assert(val >= 0 && val < 1, `slot ${slot} in valid range: ${val}`);
 }
@@ -237,6 +239,44 @@ assert(bbColor instanceof Color3, 'returns a Color3');
 const expectedR = guardApp.clothingColor.r * 0.6 + guardApp.roleTint.r * 0.4;
 assertApprox(bbColor.r, expectedR, 0.01, 'billboard color R blends clothing + role tint');
 
+// --- hair color and style ---
+console.log('\nhair color and style:');
+
+assert(a1.hairColor instanceof Color3, 'hairColor is a Color3');
+assert(a1.hairColor.r >= 0 && a1.hairColor.r <= 1, `hairColor R in [0,1]: ${a1.hairColor.r}`);
+assert(a1.hairColor.g >= 0 && a1.hairColor.g <= 1, `hairColor G in [0,1]: ${a1.hairColor.g}`);
+assert(a1.hairColor.b >= 0 && a1.hairColor.b <= 1, `hairColor B in [0,1]: ${a1.hairColor.b}`);
+
+const validHairStyles: HairStyle[] = ['bald', 'short', 'medium', 'long', 'ponytail', 'mohawk'];
+assert(validHairStyles.includes(a1.hairStyle), `hairStyle is valid: ${a1.hairStyle}`);
+
+const validFacialHair: FacialHairStyle[] = ['none', 'stubble', 'beard', 'longBeard', 'mustache', 'goatee'];
+assert(validFacialHair.includes(a1.facialHairStyle), `facialHairStyle is valid: ${a1.facialHairStyle}`);
+
+// Determinism
+assert(a1.hairColor.equals(a2.hairColor), 'hair color is deterministic');
+assert(a1.hairStyle === a2.hairStyle, 'hair style is deterministic');
+assert(a1.facialHairStyle === a2.facialHairStyle, 'facial hair style is deterministic');
+
+// Same character different roles => same hair
+assert(guardApp.hairColor.equals(merchantApp.hairColor), 'same char gets same hair color regardless of role');
+assert(guardApp.hairStyle === merchantApp.hairStyle, 'same char gets same hair style regardless of role');
+assert(guardApp.facialHairStyle === merchantApp.facialHairStyle, 'same char gets same facial hair regardless of role');
+
+// --- hair variation across NPCs ---
+console.log('\nhair variation:');
+
+const hairColorKeys = new Set(appearances.map(a =>
+  `${a.hairColor.r.toFixed(3)},${a.hairColor.g.toFixed(3)},${a.hairColor.b.toFixed(3)}`
+));
+assert(hairColorKeys.size > 1, `multiple unique hair colors generated (${hairColorKeys.size} unique)`);
+
+const hairStyleKeys = new Set(appearances.map(a => a.hairStyle));
+assert(hairStyleKeys.size > 1, `multiple unique hair styles generated (${hairStyleKeys.size} unique)`);
+
+const facialHairKeys = new Set(appearances.map(a => a.facialHairStyle));
+assert(facialHairKeys.size > 1, `multiple unique facial hair styles generated (${facialHairKeys.size} unique)`);
+
 // --- large-scale uniqueness ---
 console.log('\nlarge-scale uniqueness:');
 
@@ -262,6 +302,18 @@ assert(scaleKeys.size >= 10, `50 NPCs produce at least 10 unique height values (
 
 const bodyTypeKeys = new Set(largeAppearances.map(a => a.bodyType));
 assert(bodyTypeKeys.size >= 3, `50 NPCs produce at least 3 body types (got ${bodyTypeKeys.size})`);
+
+const manyHairColors = new Set(largeAppearances.map(a =>
+  `${a.hairColor.r.toFixed(3)},${a.hairColor.g.toFixed(3)},${a.hairColor.b.toFixed(3)}`
+));
+assert(manyHairColors.size >= 5, `50 NPCs produce at least 5 unique hair colors (got ${manyHairColors.size})`);
+
+const manyHairStyles = new Set(largeAppearances.map(a => a.hairStyle));
+assert(manyHairStyles.size >= 3, `50 NPCs produce at least 3 unique hair styles (got ${manyHairStyles.size})`);
+
+const manyFacialHair = new Set(largeAppearances.map(a => a.facialHairStyle));
+assert(manyFacialHair.size >= 3, `50 NPCs produce at least 3 unique facial hair styles (got ${manyFacialHair.size})`);
+
 
 // --- summary ---
 console.log(`\n${'='.repeat(40)}`);
