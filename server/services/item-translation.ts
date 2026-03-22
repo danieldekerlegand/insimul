@@ -2,11 +2,13 @@
  * Item Translation Service
  *
  * Batch-translates item names and descriptions into a target language
- * using Gemini, and stores the results as `languageLearningData` on each item.
- * This pre-generation avoids runtime translation costs during gameplay.
+ * using the LLM provider interface, and stores the results as
+ * `languageLearningData` on each item. This pre-generation avoids
+ * runtime translation costs during gameplay.
  */
 
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from "../config/gemini.js";
+import type { ILLMProvider } from "./llm-provider.js";
+import { getDefaultLLMProvider } from "./llm-provider.js";
 
 interface ItemForTranslation {
   id: string;
@@ -30,19 +32,21 @@ interface TranslatedItem {
 export async function batchTranslateItems(
   items: ItemForTranslation[],
   targetLanguage: string,
-  batchSize: number = 50
+  batchSize: number = 50,
+  provider?: ILLMProvider,
 ): Promise<TranslatedItem[]> {
-  if (!isGeminiConfigured()) {
-    console.warn('[ItemTranslation] Gemini not configured, skipping translation');
+  const llm = provider ?? getDefaultLLMProvider();
+
+  if (!llm.isConfigured()) {
+    console.warn('[ItemTranslation] LLM provider not configured, skipping translation');
     return [];
   }
 
   const results: TranslatedItem[] = [];
 
-  // Process in batches
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
-    const batchResults = await translateBatch(batch, targetLanguage);
+    const batchResults = await translateBatch(batch, targetLanguage, llm);
     results.push(...batchResults);
   }
 
@@ -51,10 +55,9 @@ export async function batchTranslateItems(
 
 async function translateBatch(
   items: ItemForTranslation[],
-  targetLanguage: string
+  targetLanguage: string,
+  provider: ILLMProvider,
 ): Promise<TranslatedItem[]> {
-  const ai = getGenAI();
-
   const itemList = items.map((item, idx) =>
     `${idx}. "${item.name}" (category: ${item.category || 'general'})`
   ).join('\n');
@@ -75,18 +78,13 @@ Items to translate:
 ${itemList}`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODELS.FLASH,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-      },
+    const response = await provider.generate({
+      prompt,
+      responseMimeType: 'application/json',
+      temperature: 0.2,
     });
 
-    const text = response.text?.trim() || '';
-
-    // Parse the JSON response
+    const text = response.text.trim();
     const parsed = JSON.parse(text);
 
     if (!Array.isArray(parsed)) {

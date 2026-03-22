@@ -7,7 +7,8 @@
  *   Tier 3 — individual enrichment (full context, 1-2 paragraphs each)
  */
 
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from "../config/gemini.js";
+import type { ILLMProvider } from "./llm-provider.js";
+import { getDefaultLLMProvider } from "./llm-provider.js";
 import type { Truth } from "../../shared/schema.js";
 
 // ---------------------------------------------------------------------------
@@ -52,7 +53,6 @@ function classifyTier(event: Truth): 1 | 2 | 3 {
 // ---------------------------------------------------------------------------
 
 function enrichTier1Event(event: Truth): EnrichedEvent {
-  // Keep original content as-is; no LLM needed.
   return {
     id: event.id,
     originalContent: event.content,
@@ -68,13 +68,15 @@ function enrichTier1Event(event: Truth): EnrichedEvent {
 export async function enrichTier2Events(
   events: Truth[],
   worldContext: WorldContext,
+  provider?: ILLMProvider,
 ): Promise<EnrichedEvent[]> {
-  if (!isGeminiConfigured()) {
-    throw new Error("Gemini API key is not configured");
+  const llm = provider ?? getDefaultLLMProvider();
+
+  if (!llm.isConfigured()) {
+    throw new Error("LLM provider is not configured");
   }
   if (events.length === 0) return [];
 
-  const ai = getGenAI();
   const results: EnrichedEvent[] = [];
 
   // Process in batches of 10-20
@@ -99,16 +101,12 @@ export async function enrichTier2Events(
 For each numbered event below, write a 1-2 sentence narrative description that adds color and context. Return ONLY a JSON array of objects with "index" (1-based) and "text" fields. No markdown fences.`;
 
     try {
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODELS.FLASH,
-        config: {
-          systemInstruction: systemPrompt,
-        },
-        contents: eventList,
+      const response = await llm.generate({
+        prompt: eventList,
+        systemPrompt,
       });
 
       if (!response.text) {
-        // Fall back to originals on empty response
         for (const e of batch) {
           results.push({
             id: e.id,
@@ -126,7 +124,6 @@ For each numbered event below, write a 1-2 sentence narrative description that a
       try {
         parsed = JSON.parse(raw);
       } catch {
-        // If parsing fails, return originals
         for (const e of batch) {
           results.push({
             id: e.id,
@@ -138,7 +135,6 @@ For each numbered event below, write a 1-2 sentence narrative description that a
         continue;
       }
 
-      // Map parsed results back to events
       const enrichmentMap = new Map(parsed.map((p) => [p.index, p.text]));
       for (let j = 0; j < batch.length; j++) {
         const e = batch[j];
@@ -172,12 +168,13 @@ For each numbered event below, write a 1-2 sentence narrative description that a
 export async function enrichTier3Event(
   event: Truth,
   worldContext: WorldContext,
+  provider?: ILLMProvider,
 ): Promise<EnrichedEvent> {
-  if (!isGeminiConfigured()) {
-    throw new Error("Gemini API key is not configured");
-  }
+  const llm = provider ?? getDefaultLLMProvider();
 
-  const ai = getGenAI();
+  if (!llm.isConfigured()) {
+    throw new Error("LLM provider is not configured");
+  }
 
   // Build character summaries for involved characters
   const involvedChars =
@@ -207,18 +204,15 @@ export async function enrichTier3Event(
 Write a 1-2 paragraph narrative expanding on the event below. Be vivid but concise. Return ONLY the narrative text, no titles or labels.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODELS.FLASH,
-      config: {
-        systemInstruction: systemPrompt,
-      },
-      contents: `Event: [${event.title}] ${event.content}${event.historicalEra ? ` (era: ${event.historicalEra})` : ""}${event.timeDescription ? ` (time: ${event.timeDescription})` : ""}`,
+    const response = await llm.generate({
+      prompt: `Event: [${event.title}] ${event.content}${event.historicalEra ? ` (era: ${event.historicalEra})` : ""}${event.timeDescription ? ` (time: ${event.timeDescription})` : ""}`,
+      systemPrompt,
     });
 
     return {
       id: event.id,
       originalContent: event.content,
-      enrichedContent: response.text ?? event.content,
+      enrichedContent: response.text || event.content,
       tier: 3,
     };
   } catch (error) {
@@ -240,6 +234,7 @@ export async function enrichHistoricalEvents(
   events: Truth[],
   worldContext: WorldContext,
   tierOverride?: 1 | 2 | 3,
+  provider?: ILLMProvider,
 ): Promise<EnrichedEvent[]> {
   const tier1: Truth[] = [];
   const tier2: Truth[] = [];
@@ -261,7 +256,7 @@ export async function enrichHistoricalEvents(
 
   // Tier 2 — batch LLM
   if (tier2.length > 0) {
-    const enriched = await enrichTier2Events(tier2, worldContext);
+    const enriched = await enrichTier2Events(tier2, worldContext, provider);
     results.push(...enriched);
   }
 
@@ -271,7 +266,7 @@ export async function enrichHistoricalEvents(
     for (let i = 0; i < tier3.length; i += CONCURRENCY) {
       const chunk = tier3.slice(i, i + CONCURRENCY);
       const enriched = await Promise.all(
-        chunk.map((e) => enrichTier3Event(e, worldContext)),
+        chunk.map((e) => enrichTier3Event(e, worldContext, provider)),
       );
       results.push(...enriched);
     }
