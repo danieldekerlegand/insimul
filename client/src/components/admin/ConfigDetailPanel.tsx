@@ -64,12 +64,14 @@ function BuildingDetailEditor({
         <div className="shrink-0 px-3 py-2">
           <div className="rounded-lg border overflow-hidden" style={{ height: 180 }}>
             <BuildingModelPreview
-              key={`${selection.typeName}-${activeTab}-${JSON.stringify(overrides || {})}`}
+              key={`${selection.typeName}-${activeTab}-${JSON.stringify(overrides || {})}-${JSON.stringify(selection.config?.interiorConfig || {})}`}
               hideTabs
               initialViewMode={activeTab}
               tintColor={wallColor}
               buildingType={selection.typeName}
               businessType={selection.typeName}
+              interiorConfig={selection.config?.interiorConfig}
+              interiorAssets={assets}
               proceduralConfig={preset ? {
                 stylePresets: [{
                   id: preset.id || 'preview',
