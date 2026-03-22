@@ -1853,6 +1853,13 @@ export const assetCollections = pgTable("asset_collections", {
   // Procedural building generation parameters (style presets, type overrides, etc.)
   proceduralBuildings: jsonb("procedural_buildings").$type<import('./game-engine/types').ProceduralBuildingConfig | null>().default(null),
 
+  // Unified per-type building configuration (replaces buildingModels + proceduralBuildings for new collections)
+  buildingTypeConfigs: jsonb("building_type_configs").$type<Record<string, import('./game-engine/types').UnifiedBuildingTypeConfig> | null>().default(null),
+  // Category-level style presets (keys are category names like 'commercial_food', 'commercial_retail', etc.)
+  categoryPresets: jsonb("category_presets").$type<Record<string, import('./game-engine/types').ProceduralStylePreset> | null>().default(null),
+  // NPC appearance configuration
+  npcConfig: jsonb("npc_config").$type<import('./game-engine/types').NpcConfig | null>().default(null),
+
   // Per-engine asset overrides (Phase 2 — Asset Pipeline)
   // When exporting to a native engine, these override the default Babylon.js assets
   unrealAssets: jsonb("unreal_assets").$type<{
@@ -1982,6 +1989,9 @@ export const insertAssetCollectionSchema = createInsertSchema(assetCollections).
   questObjectModels: true,
   audioAssets: true,
   proceduralBuildings: true,
+  buildingTypeConfigs: true,
+  categoryPresets: true,
+  npcConfig: true,
   unrealAssets: true,
   unityAssets: true,
   godotAssets: true,

@@ -457,6 +457,38 @@ export interface ProceduralBuildingConfig {
   defaultCommercialStyleId?: string;
 }
 
+// ─── Unified Building Type Configuration ────────────────────────────────────
+
+/** Interior template configuration for a building type */
+export interface InteriorTemplateConfig {
+  mode: 'model' | 'procedural';
+  modelPath?: string;
+  layoutTemplateId?: string;
+  wallTextureId?: string;
+  floorTextureId?: string;
+  ceilingTextureId?: string;
+  furnitureSet?: string;
+  lightingPreset?: 'bright' | 'dim' | 'warm' | 'cool' | 'candlelit';
+}
+
+/** Unified per-type building configuration (asset or procedural mode) */
+export interface UnifiedBuildingTypeConfig {
+  mode: 'asset' | 'procedural';
+  assetId?: string;
+  stylePresetId?: string;
+  styleOverrides?: Partial<ProceduralStylePreset>;
+  interiorConfig?: InteriorTemplateConfig;
+  modelScaling?: Vec3;
+}
+
+/** NPC appearance configuration for an asset collection */
+export interface NpcConfig {
+  bodyModels?: string[];
+  hairStyles?: Record<string, string[]>;
+  clothingPalette?: string[];
+  skinTonePalette?: string[];
+}
+
 export interface BuildingStyleData {
   name: string;
   baseColor: Color3;

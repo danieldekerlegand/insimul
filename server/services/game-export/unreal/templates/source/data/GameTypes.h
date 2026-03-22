@@ -818,11 +818,28 @@ struct FInsimulUnifiedBuildingTypeConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssetId;
     /** ID of a style preset to use as base (procedural mode) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StylePresetId;
+    /** Style overrides applied on top of the preset */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulProceduralStylePreset StyleOverrides;
     /** Interior configuration for this building type */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulInteriorTemplateConfig InteriorConfig;
     /** Model scaling override */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector ModelScaling = FVector(1.f, 1.f, 1.f);
 };
+
+/**
+ * NPC appearance configuration for an asset collection.
+ * Mirrors NpcConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNpcConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> BodyModels;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> ClothingPalette;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> SkinTonePalette;
+};
+
 
 // ─── Street Networks ────────────────────────────────────────────────────────
 

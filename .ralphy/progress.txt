@@ -428,3 +428,14 @@
 - All new types exported from shared/game-engine/types.ts
 - Wrote 11 tests covering all new types, backward compatibility, and multi-room templates
 - All tests pass, TypeScript typecheck clean, ESLint clean
+
+## Agent 3: Add buildingTypeConfigs, categoryPresets, and npcConfig to AssetCollection schema
+
+### Completed
+- Added UnifiedBuildingTypeConfig, InteriorTemplateConfig, and NpcConfig types to shared/game-engine/types.ts
+- Added buildingTypeConfigs (Record<string, UnifiedBuildingTypeConfig>), categoryPresets (Record<string, ProceduralStylePreset>), and npcConfig (NpcConfig) as nullable JSONB fields to AssetCollection Drizzle schema (shared/schema.ts)
+- Updated insertAssetCollectionSchema to include new fields
+- Updated Mongoose AssetCollectionSchema with matching Mixed-type fields (server/db/mongo-storage.ts)
+- All new fields default to null for backward compatibility with existing collections
+- Wrote 18 tests covering type validation, schema inclusion, insert schema, and backward compatibility
+- All tests pass, TypeScript compiles cleanly, ESLint clean
