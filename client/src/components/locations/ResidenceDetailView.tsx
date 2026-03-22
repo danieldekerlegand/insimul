@@ -2,21 +2,40 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Home, Users, ChevronRight, Crown, Heart, UserCheck } from 'lucide-react';
 import type { Character } from '@shared/schema';
+
+export const RESIDENCE_TYPES = [
+  'House',
+  'Apartment',
+  'Cottage',
+  'Manor',
+  'Estate',
+  'Townhouse',
+  'Hut',
+  'Villa',
+  'Cabin',
+  'Palace',
+  'Other',
+] as const;
 
 interface ResidenceDetailViewProps {
   residence: any;
   characters: Character[];
   lots?: any[];
+  canEdit?: boolean;
   onViewCharacter: (character: Character) => void;
+  onResidenceTypeChange?: (residenceId: string, newType: string) => void;
 }
 
 export function ResidenceDetailView({
   residence,
   characters,
   lots = [],
+  canEdit = false,
   onViewCharacter,
+  onResidenceTypeChange,
 }: ResidenceDetailViewProps) {
   const ownerIds: string[] = residence.ownerIds || [];
   const residentIds: string[] = residence.residentIds || [];
@@ -76,9 +95,27 @@ export function ResidenceDetailView({
           </div>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Type</span>
-            <Badge variant="outline" className="capitalize">{residence.residenceType || 'house'}</Badge>
+            {canEdit && onResidenceTypeChange ? (
+              <Select
+                value={residence.residenceType || 'House'}
+                onValueChange={(value) => onResidenceTypeChange(residence.id, value)}
+              >
+                <SelectTrigger className="w-[140px] h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RESIDENCE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge variant="outline" className="capitalize">{residence.residenceType || 'house'}</Badge>
+            )}
           </div>
           {lot && lot.streetName && (
             <div className="flex justify-between">

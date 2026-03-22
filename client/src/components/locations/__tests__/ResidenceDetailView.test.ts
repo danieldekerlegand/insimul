@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { RESIDENCE_TYPES } from '../ResidenceDetailView';
 
 /**
  * Tests for the data-processing logic used by ResidenceDetailView.
@@ -126,6 +127,32 @@ describe('ResidenceDetailView logic', () => {
       const rels = buildHouseholdRelationships(residents, residentIds);
 
       expect(rels).toHaveLength(0);
+    });
+  });
+
+  describe('RESIDENCE_TYPES', () => {
+    it('exports a non-empty array of residence types', () => {
+      expect(RESIDENCE_TYPES.length).toBeGreaterThan(0);
+    });
+
+    it('includes common residence types', () => {
+      expect(RESIDENCE_TYPES).toContain('House');
+      expect(RESIDENCE_TYPES).toContain('Apartment');
+      expect(RESIDENCE_TYPES).toContain('Cottage');
+      expect(RESIDENCE_TYPES).toContain('Manor');
+      expect(RESIDENCE_TYPES).toContain('Townhouse');
+    });
+
+    it('has no duplicate entries', () => {
+      const unique = new Set(RESIDENCE_TYPES);
+      expect(unique.size).toBe(RESIDENCE_TYPES.length);
+    });
+
+    it('has all entries as non-empty strings', () => {
+      for (const type of RESIDENCE_TYPES) {
+        expect(typeof type).toBe('string');
+        expect(type.length).toBeGreaterThan(0);
+      }
     });
   });
 });
