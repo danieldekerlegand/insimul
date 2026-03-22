@@ -1,28 +1,31 @@
-import { storage } from "../db/storage";
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from "../config/gemini.js";
+/**
+ * Character interaction service.
+ *
+ * Uses the ILLMProvider interface so any registered provider (Gemini, OpenAI,
+ * Anthropic, local) can be swapped in without changing callers.
+ */
+
+import { storage } from "../db/storage.js";
+import { getLLMProvider, type ILLMProvider } from './llm-provider.js';
 
 /**
- * Generate a character response using Gemini
+ * Generate a character response using the configured LLM provider.
  */
 export async function getCharacterResponse(
   userQuery: string,
-  charID: string
+  charID: string,
+  provider?: ILLMProvider,
 ): Promise<{ response: string; audio: string | null }> {
-  if (!isGeminiConfigured()) {
-    return {
-      response: "[Gemini API key not set]",
-      audio: null
-    };
+  const llm = provider ?? getLLMProvider();
+
+  if (!llm.isConfigured()) {
+    return { response: "[AI provider not configured]", audio: null };
   }
 
   try {
-    const ai = getGenAI();
-
-    // Get character from storage
     const character = await storage.getCharacter(charID);
 
     let characterContext = `Character ID: ${charID}`;
-
     if (character) {
       characterContext = `
 Character Name: ${character.firstName} ${character.lastName || ''}
@@ -32,28 +35,22 @@ Background: ${character.backstory || 'Not specified'}
 `;
     }
 
-    const prompt = `${characterContext}\n\nUser Query: ${userQuery}\n\nRespond in character, maintaining consistency with the character's personality and background.`;
-
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODELS.PRO,
-      contents: prompt,
+    const response = await llm.generate({
+      prompt: `${characterContext}\n\nUser Query: ${userQuery}\n\nRespond in character, maintaining consistency with the character's personality and background.`,
     });
 
-    return {
-      response: response.text || "I don't have a response at this time.",
-      audio: null
-    };
+    return { response: response.text, audio: null };
   } catch (error) {
     console.error("Character response error:", error);
     return {
-      response: `[Gemini error: ${error instanceof Error ? error.message : 'Unknown error'}]`,
-      audio: null
+      response: `[AI error: ${error instanceof Error ? error.message : 'Unknown error'}]`,
+      audio: null,
     };
   }
 }
 
 /**
- * Get character actions based on current context
+ * Get character actions based on current context.
  */
 export async function getCharacterActions(charID: string): Promise<string[]> {
   try {
@@ -63,16 +60,8 @@ export async function getCharacterActions(charID: string): Promise<string[]> {
       return ["introduce_self", "observe", "wait"];
     }
 
-    // Generate contextual actions based on character
-    const actions = [
-      "speak",
-      "move",
-      "interact",
-      "observe",
-      "think"
-    ];
+    const actions = ["speak", "move", "interact", "observe", "think"];
 
-    // Add personality-specific actions
     if (character.personalityTraits?.includes("aggressive")) {
       actions.push("confront", "challenge");
     }
@@ -91,19 +80,21 @@ export async function getCharacterActions(charID: string): Promise<string[]> {
 }
 
 /**
- * Get action response for a specific action
+ * Get action response for a specific action.
  */
 export async function getActionResponse(
   charID: string,
   action: string,
-  context?: string
+  context?: string,
+  provider?: ILLMProvider,
 ): Promise<string> {
-  if (!isGeminiConfigured()) {
+  const llm = provider ?? getLLMProvider();
+
+  if (!llm.isConfigured()) {
     return "The character performs the action.";
   }
 
   try {
-    const ai = getGenAI();
     const character = await storage.getCharacter(charID);
 
     const characterContext = character ? `
@@ -111,18 +102,15 @@ Character: ${character.firstName} ${character.lastName || ''}
 Personality: ${character.personalityTraits?.join(', ') || 'Not specified'}
 ` : `Character ID: ${charID}`;
 
-    const prompt = `${characterContext}
+    const response = await llm.generate({
+      prompt: `${characterContext}
 Action: ${action}
 Context: ${context || 'No additional context'}
 
-Generate a brief narrative description of how this character performs this action, staying true to their personality.`;
-
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODELS.PRO,
-      contents: prompt,
+Generate a brief narrative description of how this character performs this action, staying true to their personality.`,
     });
 
-    return response.text || "The character acts.";
+    return response.text;
   } catch (error) {
     console.error("Action response error:", error);
     return "The character performs the action.";
@@ -130,7 +118,7 @@ Generate a brief narrative description of how this character performs this actio
 }
 
 /**
- * List narrative sections for a character
+ * List narrative sections for a character.
  */
 export function listNarrativeSections(): Array<{ section: string }> {
   return [
@@ -139,12 +127,12 @@ export function listNarrativeSections(): Array<{ section: string }> {
     { section: "Conflict" },
     { section: "Climax" },
     { section: "Resolution" },
-    { section: "Epilogue" }
+    { section: "Epilogue" },
   ];
 }
 
 /**
- * List narrative triggers for a character
+ * List narrative triggers for a character.
  */
 export function listNarrativeTriggers(): Array<{ trigger: string }> {
   return [
@@ -154,6 +142,6 @@ export function listNarrativeTriggers(): Array<{ trigger: string }> {
     { trigger: "Action Initiated" },
     { trigger: "Conflict Escalation" },
     { trigger: "Resolution Reached" },
-    { trigger: "Scene End" }
+    { trigger: "Scene End" },
   ];
 }
