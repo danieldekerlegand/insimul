@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { Business, Character, Container, VisualAsset } from '@shared/schema';
 import { VisualAssetGeneratorDialog } from './VisualAssetGeneratorDialog';
-import { AssetBrowserDialog } from './AssetBrowserDialog';
+import { AssetSelect } from './AssetSelect';
 
 interface BusinessSummary {
   business: Business;
@@ -30,7 +30,6 @@ interface BusinessDetailCardProps {
 
 export function BusinessDetailCard({ business, showAssets = true }: BusinessDetailCardProps) {
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch business visual assets
@@ -182,16 +181,6 @@ export function BusinessDetailCard({ business, showAssets = true }: BusinessDeta
                 Visual Assets ({businessAssets.length})
               </h4>
               <div className="flex gap-2">
-                {businessAssets.length > 0 && (
-                  <Button
-                    onClick={() => setShowAssetBrowser(true)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <ImageIcon className="h-3 w-3 mr-1" />
-                    View All
-                  </Button>
-                )}
                 <Button
                   onClick={() => setShowAssetGenerator(true)}
                   variant="outline"
@@ -248,13 +237,18 @@ export function BusinessDetailCard({ business, showAssets = true }: BusinessDeta
           }}
         />
 
-        {/* Asset Browser Dialog */}
-        <AssetBrowserDialog
-          open={showAssetBrowser}
-          onOpenChange={setShowAssetBrowser}
-          entityType="business"
-          entityId={business.id}
-        />
+        {/* Asset Selector */}
+        {businessAssets.length > 0 && (
+          <div className="space-y-1">
+            <h4 className="text-xs font-medium">Browse Assets</h4>
+            <AssetSelect
+              entityType="business"
+              entityId={business.id}
+              placeholder="Select an asset to view..."
+              className="h-8 text-xs"
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

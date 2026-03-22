@@ -13,10 +13,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit, Trash2, Package, Image as ImageIcon, Sparkles, Save, X, RefreshCw, ChevronDown, Home, Users, Trees, Box, User, Swords } from "lucide-react";
+import { Plus, Edit, Trash2, Package, Image as ImageIcon, Sparkles, Save, RefreshCw, ChevronDown, Home, Users, Trees, Box, User, Swords } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { VisualAssetGeneratorDialog } from "./VisualAssetGeneratorDialog";
-import { AssetBrowserDialog } from "./AssetBrowserDialog";
+import { AssetSelect } from "./AssetSelect";
 import { PolyhavenBrowserDialog } from "./PolyhavenBrowserDialog";
 import { SketchfabBrowserDialog } from "./SketchfabBrowserDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
@@ -68,15 +68,8 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<AssetCollection | null>(null);
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
-  const [showAllAssetsBrowser, setShowAllAssetsBrowser] = useState(false);
   const [showPolyhavenBrowser, setShowPolyhavenBrowser] = useState(false);
   const [showSketchfabBrowser, setShowSketchfabBrowser] = useState(false);
-  const [showModelBrowser, setShowModelBrowser] = useState(false);
-  const [modelBrowserContext, setModelBrowserContext] = useState<{
-    group: 'texture' | 'building' | 'nature' | 'character' | 'object';
-    key: string;
-  } | null>(null);
   const [generatorAssetType, setGeneratorAssetType] = useState<'character_portrait' | 'building_exterior' | 'texture_ground' | 'texture_wall' | 'texture_material'>('texture_ground');
   
   // 3D Config state
@@ -357,10 +350,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowAllAssetsBrowser(true)}>
-            <ImageIcon className="w-4 h-4 mr-2" />
-            Browse All Assets
-          </Button>
+          <AssetSelect placeholder="Browse all assets..." className="h-8 text-xs w-[200px]" />
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
@@ -474,18 +464,11 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                         </>
                       )}
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => {
-                          setSelectedCollection(collection);
-                          setShowAssetBrowser(true);
-                        }}
-                      >
-                        <ImageIcon className="w-4 h-4 mr-2" />
-                        {isBaseCollection ? 'View Assets' : 'Browse Assets'} ({assetCount})
-                      </Button>
+                      <AssetSelect
+                        collectionId={collection.id}
+                        placeholder={`${isBaseCollection ? 'View' : 'Browse'} assets (${assetCount})...`}
+                        className="h-8 text-xs"
+                      />
 
                       {/* Show "Create Copy" button for base collections */}
                       {isBaseCollection && (
@@ -891,43 +874,35 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                   <div className="flex items-center justify-between rounded border px-3 py-2">
                     <div className="mr-2">
                       <p className="text-sm font-medium">Ground Texture</p>
-                      <p className="text-xs text-muted-foreground">
-                        {groundTextureId
-                          ? collectionAssets.find(a => a.id === groundTextureId)?.name || 'Unknown texture'
-                          : 'No texture selected'}
-                      </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setModelBrowserContext({ group: 'texture', key: 'groundTextureId' });
-                        setShowModelBrowser(true);
+                    <AssetSelect
+                      collectionId={selectedCollection?.id}
+                      value={groundTextureId || undefined}
+                      placeholder="Select texture..."
+                      className="h-8 text-xs w-[180px]"
+                      onSelect={(asset) => {
+                        setGroundTextureId(asset.id);
+                        toast({ title: 'Asset Selected', description: `${asset.name} assigned as groundTextureId` });
                       }}
-                    >
-                      Select Texture
-                    </Button>
+                      onClear={() => setGroundTextureId('')}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between rounded border px-3 py-2">
                     <div className="mr-2">
                       <p className="text-sm font-medium">Road Texture</p>
-                      <p className="text-xs text-muted-foreground">
-                        {roadTextureId
-                          ? collectionAssets.find(a => a.id === roadTextureId)?.name || 'Unknown texture'
-                          : 'No texture selected'}
-                      </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setModelBrowserContext({ group: 'texture', key: 'roadTextureId' });
-                        setShowModelBrowser(true);
+                    <AssetSelect
+                      collectionId={selectedCollection?.id}
+                      value={roadTextureId || undefined}
+                      placeholder="Select texture..."
+                      className="h-8 text-xs w-[180px]"
+                      onSelect={(asset) => {
+                        setRoadTextureId(asset.id);
+                        toast({ title: 'Asset Selected', description: `${asset.name} assigned as roadTextureId` });
                       }}
-                    >
-                      Select Texture
-                    </Button>
+                      onClear={() => setRoadTextureId('')}
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -961,37 +936,23 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                     <div key={role} className="flex items-center justify-between rounded border px-3 py-2">
                       <div className="mr-2">
                         <p className="text-sm font-medium capitalize">{role} Player</p>
-                        <p className="text-xs text-muted-foreground">
-                          {playerModels[role]
-                            ? collectionAssets.find(a => a.id === playerModels[role])?.name || 'Selected'
-                            : 'No model selected'}
-                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setModelBrowserContext({ group: 'character', key: `player_${role}` });
-                            setShowModelBrowser(true);
-                          }}
-                        >
-                          Select
-                        </Button>
-                        {playerModels[role] && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setPlayerModels(prev => {
-                              const next = { ...prev };
-                              delete next[role];
-                              return next;
-                            })}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <AssetSelect
+                        collectionId={selectedCollection?.id}
+                        modelsOnly
+                        value={playerModels[role] || undefined}
+                        placeholder="Select model..."
+                        className="h-8 text-xs w-[180px]"
+                        onSelect={(asset) => {
+                          setPlayerModels(prev => ({ ...prev, [role]: asset.id }));
+                          toast({ title: 'Asset Selected', description: `${asset.name} assigned as player_${role}` });
+                        }}
+                        onClear={() => setPlayerModels(prev => {
+                          const next = { ...prev };
+                          delete next[role];
+                          return next;
+                        })}
+                      />
                     </div>
                   ))}
                 </CardContent>
@@ -1012,37 +973,23 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                     <div key={role} className="flex items-center justify-between rounded border px-3 py-2">
                       <div className="mr-2">
                         <p className="text-sm font-medium">{role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {characterModels[role]
-                            ? collectionAssets.find(a => a.id === characterModels[role])?.name || 'Selected'
-                            : 'No model selected'}
-                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setModelBrowserContext({ group: 'character', key: role });
-                            setShowModelBrowser(true);
-                          }}
-                        >
-                          Select
-                        </Button>
-                        {characterModels[role] && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setCharacterModels(prev => {
-                              const next = { ...prev };
-                              delete next[role];
-                              return next;
-                            })}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <AssetSelect
+                        collectionId={selectedCollection?.id}
+                        modelsOnly
+                        value={characterModels[role] || undefined}
+                        placeholder="Select model..."
+                        className="h-8 text-xs w-[180px]"
+                        onSelect={(asset) => {
+                          setCharacterModels(prev => ({ ...prev, [role]: asset.id }));
+                          toast({ title: 'Asset Selected', description: `${asset.name} assigned as ${role}` });
+                        }}
+                        onClear={() => setCharacterModels(prev => {
+                          const next = { ...prev };
+                          delete next[role];
+                          return next;
+                        })}
+                      />
                     </div>
                   ))}
                 </CardContent>
@@ -1063,37 +1010,23 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                     <div key={role} className="flex items-center justify-between rounded border px-3 py-2">
                       <div className="mr-2">
                         <p className="text-sm font-medium capitalize">{role}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {questObjectModels[role]
-                            ? collectionAssets.find(a => a.id === questObjectModels[role])?.name || 'Selected'
-                            : 'No model selected'}
-                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setModelBrowserContext({ group: 'object', key: `quest_${role}` });
-                            setShowModelBrowser(true);
-                          }}
-                        >
-                          Select
-                        </Button>
-                        {questObjectModels[role] && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setQuestObjectModels(prev => {
-                              const next = { ...prev };
-                              delete next[role];
-                              return next;
-                            })}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <AssetSelect
+                        collectionId={selectedCollection?.id}
+                        modelsOnly
+                        value={questObjectModels[role] || undefined}
+                        placeholder="Select model..."
+                        className="h-8 text-xs w-[180px]"
+                        onSelect={(asset) => {
+                          setQuestObjectModels(prev => ({ ...prev, [role]: asset.id }));
+                          toast({ title: 'Asset Selected', description: `${asset.name} assigned as quest_${role}` });
+                        }}
+                        onClear={() => setQuestObjectModels(prev => {
+                          const next = { ...prev };
+                          delete next[role];
+                          return next;
+                        })}
+                      />
                     </div>
                   ))}
                 </CardContent>
@@ -1114,37 +1047,23 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                     <div key={role} className="flex items-center justify-between rounded border px-3 py-2">
                       <div className="mr-2">
                         <p className="text-sm font-medium">{role.replace(/([A-Z])/g, ' $1').trim()}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {natureModels[role]
-                            ? collectionAssets.find(a => a.id === natureModels[role])?.name || 'Selected'
-                            : 'No model selected'}
-                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setModelBrowserContext({ group: 'nature', key: role });
-                            setShowModelBrowser(true);
-                          }}
-                        >
-                          Select
-                        </Button>
-                        {natureModels[role] && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setNatureModels(prev => {
-                              const next = { ...prev };
-                              delete next[role];
-                              return next;
-                            })}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <AssetSelect
+                        collectionId={selectedCollection?.id}
+                        modelsOnly
+                        value={natureModels[role] || undefined}
+                        placeholder="Select model..."
+                        className="h-8 text-xs w-[180px]"
+                        onSelect={(asset) => {
+                          setNatureModels(prev => ({ ...prev, [role]: asset.id }));
+                          toast({ title: 'Asset Selected', description: `${asset.name} assigned as ${role}` });
+                        }}
+                        onClear={() => setNatureModels(prev => {
+                          const next = { ...prev };
+                          delete next[role];
+                          return next;
+                        })}
+                      />
                     </div>
                   ))}
                 </CardContent>
@@ -1250,18 +1169,6 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
         />
       )}
 
-      {/* Asset Browser Dialog */}
-      {selectedCollection && (
-        <AssetBrowserDialog
-          open={showAssetBrowser}
-          onOpenChange={(open) => {
-            setShowAssetBrowser(open);
-            if (!open) setSelectedCollection(null);
-          }}
-          collectionId={selectedCollection.id}
-        />
-      )}
-
       {/* Polyhaven Browser Dialog */}
       {selectedCollection && (
         <PolyhavenBrowserDialog
@@ -1303,67 +1210,6 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
         />
       )}
 
-      {/* Model Browser Dialog for 3D Asset Selection */}
-      {selectedCollection && showModelBrowser && modelBrowserContext && (
-        <AssetBrowserDialog
-          open={showModelBrowser}
-          onOpenChange={(open) => {
-            setShowModelBrowser(open);
-            if (!open) setModelBrowserContext(null);
-          }}
-          collectionId={selectedCollection.id}
-          modelsOnly={modelBrowserContext.group !== 'texture'}
-          onAssetSelected={(asset) => {
-            if (!modelBrowserContext) return;
-
-            const { group, key } = modelBrowserContext;
-
-            // Update the appropriate state based on the group
-            if (group === 'texture') {
-              if (key === 'groundTextureId') {
-                setGroundTextureId(asset.id);
-              } else if (key === 'roadTextureId') {
-                setRoadTextureId(asset.id);
-              }
-            } else if (group === 'building') {
-              setBuildingModels(prev => ({ ...prev, [key]: asset.id }));
-            } else if (group === 'nature') {
-              setNatureModels(prev => ({ ...prev, [key]: asset.id }));
-            } else if (group === 'character') {
-              // Handle player models (key starts with "player_")
-              if (key.startsWith('player_')) {
-                const role = key.replace('player_', '');
-                setPlayerModels(prev => ({ ...prev, [role]: asset.id }));
-              } else {
-                // Handle NPC models
-                setCharacterModels(prev => ({ ...prev, [key]: asset.id }));
-              }
-            } else if (group === 'object') {
-              // Handle quest object models (key starts with "quest_")
-              if (key.startsWith('quest_')) {
-                const role = key.replace('quest_', '');
-                setQuestObjectModels(prev => ({ ...prev, [role]: asset.id }));
-              } else {
-                setObjectModels(prev => ({ ...prev, [key]: asset.id }));
-              }
-            }
-
-            toast({
-              title: 'Asset Selected',
-              description: `${asset.name} assigned as ${key}`,
-            });
-
-            setShowModelBrowser(false);
-            setModelBrowserContext(null);
-          }}
-        />
-      )}
-
-      {/* Browse All Assets Dialog (no collection filter) */}
-      <AssetBrowserDialog
-        open={showAllAssetsBrowser}
-        onOpenChange={setShowAllAssetsBrowser}
-      />
     </div>
   );
 }

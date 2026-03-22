@@ -13,7 +13,7 @@ import { GroundTexturePreview } from "./GroundTexturePreview";
 import { BuildingModelPreview } from "../locations/BuildingModelPreview";
 import { BuildingTypeDetailPanel } from "./BuildingConfigurationPanel";
 import { colorToHex, hexToColor, humanize } from "./BuildingConfigurationPanel";
-import { AssetDropdown } from "./AssetDropdown";
+import { AssetSelect } from "../AssetSelect";
 import { useState, useCallback } from "react";
 import type { ConfigSelection } from "./config-selection";
 import type { VisualAsset } from "@shared/schema";
@@ -246,7 +246,6 @@ export function ConfigDetailPanel({
   onUpdateNature,
   onUpdateItem,
 }: ConfigDetailPanelProps) {
-
   if (!selection) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
@@ -302,12 +301,12 @@ export function ConfigDetailPanel({
               <>
                 <div className="space-y-1">
                   <Label className="text-[10px]">Texture Asset</Label>
-                  <AssetDropdown
-                    assets={assets}
+                  <AssetSelect
                     value={cfg?.textureId}
-                    onChange={(id) => onUpdateGround?.(selection.groundType, { textureId: id, mode: 'asset' })}
-                    filter="texture"
                     placeholder="Select Texture"
+                    className="h-7 text-xs"
+                    onSelect={(asset) => onUpdateGround?.(selection.groundType, { textureId: asset.id, mode: 'asset' })}
+                    onClear={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}
                   />
                 </div>
                 <div>
@@ -369,12 +368,13 @@ export function ConfigDetailPanel({
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="space-y-1">
                 <Label className="text-[10px]">Model Asset</Label>
-                <AssetDropdown
-                  assets={assets}
+                <AssetSelect
                   value={cfg?.assetId}
-                  onChange={(id) => onUpdateCharacter?.(selection.section, selection.role, { assetId: id })}
-                  filter="model"
                   placeholder="Select Model"
+                  className="h-7 text-xs"
+                  modelsOnly
+                  onSelect={(asset) => onUpdateCharacter?.(selection.section, selection.role, { assetId: asset.id })}
+                  onClear={() => onUpdateCharacter?.(selection.section, selection.role, { assetId: undefined })}
                 />
               </div>
             )}
@@ -433,12 +433,13 @@ export function ConfigDetailPanel({
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="space-y-1">
                 <Label className="text-[10px]">Model Asset</Label>
-                <AssetDropdown
-                  assets={assets}
+                <AssetSelect
                   value={cfg?.assetId}
-                  onChange={(id) => onUpdateNature?.(selection.group, selection.item, { assetId: id })}
-                  filter="model"
                   placeholder="Select Model"
+                  className="h-7 text-xs"
+                  modelsOnly
+                  onSelect={(asset) => onUpdateNature?.(selection.group, selection.item, { assetId: asset.id })}
+                  onClear={() => onUpdateNature?.(selection.group, selection.item, { assetId: undefined })}
                 />
               </div>
             )}
@@ -489,12 +490,13 @@ export function ConfigDetailPanel({
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="space-y-1">
                 <Label className="text-[10px]">Model Asset</Label>
-                <AssetDropdown
-                  assets={assets}
+                <AssetSelect
                   value={cfg?.assetId}
-                  onChange={(id) => onUpdateItem?.(selection.group, selection.item, { assetId: id })}
-                  filter="model"
                   placeholder="Select Model"
+                  className="h-7 text-xs"
+                  modelsOnly
+                  onSelect={(asset) => onUpdateItem?.(selection.group, selection.item, { assetId: asset.id })}
+                  onClear={() => onUpdateItem?.(selection.group, selection.item, { assetId: undefined })}
                 />
               </div>
             )}

@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { VisualAssetGeneratorDialog } from './VisualAssetGeneratorDialog';
-import { AssetBrowserDialog } from './AssetBrowserDialog';
+import { AssetSelect } from './AssetSelect';
 
 interface CharacterEditDialogProps {
   open: boolean;
@@ -61,7 +61,6 @@ export function CharacterEditDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -523,23 +522,13 @@ export function CharacterEditDialog({
                       Generate and manage AI-created visual assets for this character
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAssetBrowser(true)}
-                    >
-                      <ImageIcon className="h-4 w-4 mr-2" />
-                      Browse All
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => setShowAssetGenerator(true)}
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generate New
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowAssetGenerator(true)}
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate New
+                  </Button>
                 </div>
 
                 {characterAssets.length === 0 ? (
@@ -633,16 +622,6 @@ export function CharacterEditDialog({
           onAssetGenerated={() => {
             queryClient.invalidateQueries({ queryKey: ['/api/assets', 'character', character.id] });
           }}
-        />
-      )}
-
-      {/* Asset Browser Dialog */}
-      {character && (
-        <AssetBrowserDialog
-          open={showAssetBrowser}
-          onOpenChange={setShowAssetBrowser}
-          entityType="character"
-          entityId={character.id}
         />
       )}
 

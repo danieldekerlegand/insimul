@@ -13,7 +13,7 @@ import {
   AlertTriangle, ImageIcon, RefreshCw,
 } from "lucide-react";
 import { ModelPreview } from "../ModelPreview";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
+import { AssetSelect } from "../AssetSelect";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 
 interface BaseItem {
@@ -75,8 +75,6 @@ export function AdminItemsHub() {
   // Groups
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  // Asset browser dialog
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
 
   // Fetch base items
   const { data: baseItems = [], isLoading } = useQuery<BaseItem[]>({
@@ -161,7 +159,6 @@ export function AdminItemsHub() {
       return;
     }
     updateAssetMapping.mutate({ collectionId: col.id, objectRole: selectedItem.objectRole, assetId: asset.id });
-    setShowAssetBrowser(false);
   };
 
   // Filtered items
@@ -345,10 +342,14 @@ export function AdminItemsHub() {
               </>
             )}
             {selectedItem.objectRole && (
-              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] ml-auto shrink-0" onClick={() => setShowAssetBrowser(true)}>
-                <RefreshCw className="w-3 h-3 mr-1" />
-                {asset ? 'Change' : 'Assign'}
-              </Button>
+              <div className="ml-auto shrink-0 w-32">
+                <AssetSelect
+                  modelsOnly
+                  placeholder={asset ? 'Change' : 'Assign'}
+                  className="h-5 text-[10px]"
+                  onSelect={handleAssetSelected}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -371,9 +372,12 @@ export function AdminItemsHub() {
               <div className="rounded-lg border p-4 text-center text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30">
                 <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-amber-500" />
                 <p className="text-sm mb-2">Role "{selectedItem.objectRole}" has no matching asset in base collections</p>
-                <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowAssetBrowser(true)}>
-                  Assign Asset
-                </Button>
+                <AssetSelect
+                  modelsOnly
+                  placeholder="Assign Asset"
+                  className="h-8 text-xs"
+                  onSelect={handleAssetSelected}
+                />
               </div>
             )}
 
@@ -472,9 +476,12 @@ export function AdminItemsHub() {
                             <DetailField label="File" value={asset.filePath} mono />
                             <DetailField label="Type" value={asset.assetType?.replace(/_/g, ' ') || 'Unknown'} />
                             {selectedItem.objectRole && (
-                              <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setShowAssetBrowser(true)}>
-                                <RefreshCw className="w-3 h-3 mr-1" /> Change Asset
-                              </Button>
+                              <AssetSelect
+                                modelsOnly
+                                placeholder="Change Asset"
+                                className="h-7 text-xs w-full"
+                                onSelect={handleAssetSelected}
+                              />
                             )}
                           </>
                         ) : (
@@ -482,9 +489,12 @@ export function AdminItemsHub() {
                             <Box className="w-8 h-8 mx-auto mb-2 opacity-30" />
                             <p className="text-xs mb-2">{selectedItem.objectRole ? 'Asset not found' : 'No role assigned'}</p>
                             {selectedItem.objectRole && (
-                              <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowAssetBrowser(true)}>
-                                Assign Asset
-                              </Button>
+                              <AssetSelect
+                                modelsOnly
+                                placeholder="Assign Asset"
+                                className="h-7 text-xs"
+                                onSelect={handleAssetSelected}
+                              />
                             )}
                           </div>
                         )}
@@ -526,13 +536,6 @@ export function AdminItemsHub() {
       {renderCenter()}
       {selectedItem && renderRight()}
 
-      {/* Asset Browser Dialog */}
-      <AssetBrowserDialog
-        open={showAssetBrowser}
-        onOpenChange={setShowAssetBrowser}
-        modelsOnly
-        onAssetSelected={handleAssetSelected}
-      />
     </div>
   );
 }

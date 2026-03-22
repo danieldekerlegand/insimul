@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
 import { ConfigPreviewScene } from "./ConfigPreviewScene";
 import type { ItemConfig, ItemTypeConfig } from "@shared/game-engine/types";
 import type { ConfigSelection } from "./config-selection";
@@ -38,8 +37,6 @@ function defaultItemTypeConfig(): ItemTypeConfig {
 
 export function ItemConfigPanel({ config, onUpdate, selection, onSelect }: ItemConfigPanelProps) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
-  const [assetBrowserTarget, setAssetBrowserTarget] = useState<{ group: ItemGroup; item: string } | null>(null);
   const [newItemName, setNewItemName] = useState("");
 
   const cfg = config || {};
@@ -67,13 +64,6 @@ export function ItemConfigPanel({ config, onUpdate, selection, onSelect }: ItemC
     updateItem(group, key, defaultItemTypeConfig());
     setNewItemName("");
   }, [newItemName, updateItem]);
-
-  const handleAssetSelect = useCallback((asset: any) => {
-    if (!assetBrowserTarget) return;
-    updateItem(assetBrowserTarget.group, assetBrowserTarget.item, { assetId: asset.id, mode: "asset" });
-    setShowAssetBrowser(false);
-    setAssetBrowserTarget(null);
-  }, [assetBrowserTarget, updateItem]);
 
   return (
     <div className="space-y-2">
@@ -160,12 +150,6 @@ export function ItemConfigPanel({ config, onUpdate, selection, onSelect }: ItemC
         );
       })}
 
-      <AssetBrowserDialog
-        open={showAssetBrowser}
-        onOpenChange={setShowAssetBrowser}
-        onAssetSelected={handleAssetSelect}
-        modelsOnly
-      />
     </div>
   );
 }

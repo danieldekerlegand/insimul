@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette } from "lucide-react";
 import { BUILDING_CATEGORY_GROUPINGS, getCategoryForType, type BuildingCategory } from "@shared/game-engine/building-categories";
-import { AssetDropdown } from "./AssetDropdown";
+import { AssetSelect } from "../AssetSelect";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type {
   UnifiedBuildingTypeConfig,
@@ -944,13 +944,12 @@ function InlineCategoryPresetEditor({
             {TEXTURE_FIELDS.map(({ key, label }) => (
               <div key={key} className="space-y-0.5">
                 <Label className="text-[10px]">{label}</Label>
-                <AssetDropdown
-                  assets={assets}
+                <AssetSelect
                   value={(preset as any)[key]}
-                  onChange={(id) => onUpdate({ [key]: id })}
-                  filter="texture"
-                  placeholder="Not set"
+                  placeholder={`Select ${label.toLowerCase()}...`}
                   className="h-6 text-[10px]"
+                  onSelect={(asset) => onUpdate({ [key]: asset.id })}
+                  onClear={() => onUpdate({ [key]: undefined })}
                 />
               </div>
             ))}
@@ -976,7 +975,6 @@ export function BuildingConfigurationPanel({
   onSelect,
 }: BuildingConfigurationPanelProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-
   const configs = useMemo<Record<string, UnifiedBuildingTypeConfig>>(
     () => (collection as any).worldTypeConfig?.buildingConfig?.buildingTypeConfigs
       || (collection as any).buildingTypeConfigs || {},

@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Trash2 } from "lucide-react";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
+import { ConfigPreviewScene } from "./ConfigPreviewScene";
 import type { GroundConfig, GroundTypeConfig, Color3 as EngineColor3 } from "@shared/game-engine/types";
 import { colorToHex, hexToColor } from "./BuildingConfigurationPanel";
 import type { ConfigSelection } from "./config-selection";
@@ -31,9 +31,7 @@ function defaultGroundTypeConfig(): GroundTypeConfig {
   return { mode: "procedural", color: { r: 0.35, g: 0.55, b: 0.3 }, tiling: 4 };
 }
 
-export function GroundConfigPanel({ config, onUpdate, selection, onSelect, assets = [] }: GroundConfigPanelProps) {
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
-  const [assetBrowserTarget, setAssetBrowserTarget] = useState<{ type: GroundTypeKey } | null>(null);
+export function GroundConfigPanel({ config, onUpdate, selection, onSelect }: GroundConfigPanelProps) {
   const [customTypes, setCustomTypes] = useState<string[]>(
     config?.custom ? Object.keys(config.custom) : []
   );
@@ -78,13 +76,6 @@ export function GroundConfigPanel({ config, onUpdate, selection, onSelect, asset
     updateTypeConfig(key, defaultGroundTypeConfig());
     setNewCustomName("");
   }, [newCustomName, updateTypeConfig]);
-
-  const handleAssetSelect = useCallback((asset: any) => {
-    if (!assetBrowserTarget) return;
-    updateTypeConfig(assetBrowserTarget.type, { textureId: asset.id, mode: "asset" });
-    setShowAssetBrowser(false);
-    setAssetBrowserTarget(null);
-  }, [assetBrowserTarget, updateTypeConfig]);
 
   const allTypes = [
     ...GROUND_TYPES.map(t => ({ key: t.key, label: t.label, isCustom: false })),
@@ -155,12 +146,6 @@ export function GroundConfigPanel({ config, onUpdate, selection, onSelect, asset
         </Button>
       </div>
 
-      {/* Asset browser dialog */}
-      <AssetBrowserDialog
-        open={showAssetBrowser}
-        onOpenChange={setShowAssetBrowser}
-        onAssetSelected={handleAssetSelect}
-      />
     </div>
   );
 }
