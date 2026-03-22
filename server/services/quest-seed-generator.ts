@@ -951,6 +951,19 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       }
     }
 
+    // Fallback pass: ensure every objective has a locationPosition.
+    // Use the first resolved quest-level position, or pick a random settlement center.
+    const fallbackPosition = questLocationPosition
+      ?? (locationPositions.size > 0 ? Array.from(locationPositions.values())[0] : null);
+
+    if (fallbackPosition) {
+      for (const objective of objectives) {
+        if (!objective.locationPosition) {
+          objective.locationPosition = { ...fallbackPosition };
+        }
+      }
+    }
+
     // Pick a random NPC as quest giver
     const giver = npcs.length > 0 ? pick(npcs) : null;
 

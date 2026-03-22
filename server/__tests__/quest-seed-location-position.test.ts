@@ -192,26 +192,67 @@ describe('quest seed generator — locationPosition', () => {
     }
   });
 
-  it('does not set locationPosition on quests without location references', () => {
+  it('every seed objective gets a locationPosition fallback when settlements exist', () => {
     const quests = generateSeedQuests({
       world: makeWorld(),
       characters: CHARACTERS,
       settlements: SETTLEMENTS_WITH_POSITIONS,
+    });
+
+    // Filter to seed quests only (exclude assessment quests added at the end)
+    const seedQuests = quests.filter(q => q.tags?.includes('seed'));
+
+    expect(seedQuests.length).toBeGreaterThan(0);
+
+    for (const quest of seedQuests) {
+      for (const obj of (quest.objectives ?? []) as any[]) {
+        expect(obj.locationPosition).toBeDefined();
+        expect(typeof obj.locationPosition.x).toBe('number');
+        expect(typeof obj.locationPosition.z).toBe('number');
+      }
+    }
+  });
+
+  it('objectives without explicit location get a fallback position', () => {
+    const quests = generateSeedQuests({
+      world: makeWorld(),
+      characters: CHARACTERS,
+      settlements: SETTLEMENTS_WITH_POSITIONS,
+      onlyTypes: ['talk_to_npc'],
+    });
+
+    // Filter to seed quests only
+    const seedQuests = quests.filter(q => q.tags?.includes('seed'));
+    expect(seedQuests.length).toBeGreaterThan(0);
+
+    for (const quest of seedQuests) {
+      for (const obj of (quest.objectives ?? []) as any[]) {
+        // talk_to_npc objectives don't reference locations directly,
+        // but should still get a fallback locationPosition
+        expect(obj.locationPosition).toBeDefined();
+        expect(typeof obj.locationPosition.x).toBe('number');
+      }
+    }
+  });
+
+  it('does not set fallback locationPosition when no settlements have positions', () => {
+    const emptySettlements = [
+      { id: 's1', worldId: 'world-1', name: 'Ghost Town', settlementType: 'town' } as unknown as Settlement,
+    ];
+
+    const quests = generateSeedQuests({
+      world: makeWorld(),
+      characters: CHARACTERS,
+      settlements: emptySettlements,
       onlyTypes: ['use_vocabulary'],
     });
 
-    // Vocabulary quests don't reference locations
-    const vocabOnly = quests.filter(q =>
-      !q.objectives?.some((o: any) =>
-        o.type === 'visit_location' || o.type === 'discover_location'
-      )
-    );
+    expect(quests.length).toBeGreaterThan(0);
 
-    for (const quest of vocabOnly) {
-      // These quests may still have locationPosition if they have visit_location sub-objectives
-      // but pure vocabulary quests should not
-      if (!quest.objectives?.some((o: any) => o.target && SETTLEMENTS_WITH_POSITIONS.some(s => s.name === o.target))) {
-        expect(quest.locationPosition).toBeUndefined();
+    for (const quest of quests) {
+      for (const obj of (quest.objectives ?? []) as any[]) {
+        // No settlement has a boundary polygon, so no positions available
+        expect(obj.locationPosition).toBeUndefined();
       }
     }
   });
