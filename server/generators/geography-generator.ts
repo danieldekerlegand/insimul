@@ -23,6 +23,48 @@ import { generateSettlementBoundary } from './boundary-generator';
 import { inferSettlementSubtype, getSubtypeConfig } from './settlement-subtype';
 import type { StreetNode, StreetEdge } from '../../shared/game-engine/types';
 
+/**
+ * Weighted business types for fallback random selection.
+ * Weights reflect realistic distribution of businesses in a small town.
+ */
+export const BUSINESS_TYPE_WEIGHTS: Array<[string, number]> = [
+  ['Shop', 20],
+  ['GroceryStore', 15],
+  ['Restaurant', 12],
+  ['Bakery', 8],
+  ['BarberShop', 7],
+  ['TailorShop', 6],
+  ['HardwareStore', 6],
+  ['Pharmacy', 5],
+  ['Bookstore', 5],
+  ['Hotel', 4],
+  ['Bank', 4],
+  ['ShoeStore', 3],
+  ['AutoRepair', 3],
+  ['Theater', 2],
+];
+
+/** Simple hash of a string to produce a deterministic seed */
+export function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+/** Pick a business type using weighted random selection, seeded by name */
+export function weightedRandomBusinessType(name: string): string {
+  const totalWeight = BUSINESS_TYPE_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
+  const roll = hashString(name) % totalWeight;
+  let cumulative = 0;
+  for (const [type, weight] of BUSINESS_TYPE_WEIGHTS) {
+    cumulative += weight;
+    if (roll < cumulative) return type;
+  }
+  return BUSINESS_TYPE_WEIGHTS[0][0];
+}
+
 export interface Location {
   id: string;
   name: string;
@@ -1034,7 +1076,8 @@ export class GeographyGenerator {
   }
 
   /**
-   * Infer a BusinessType from the business name string
+   * Infer a BusinessType from the business name string.
+   * Falls back to weighted random selection seeded by name for variety.
    */
   private inferBusinessType(name: string): string {
     const lower = name.toLowerCase();
@@ -1059,7 +1102,7 @@ export class GeographyGenerator {
     if (lower.includes('lighthouse')) return 'Lighthouse';
     if (lower.includes('warehouse')) return 'Warehouse';
     if (lower.includes('shop') || lower.includes('store') || lower.includes('market')) return 'Shop';
-    return 'Shop';
+    return weightedRandomBusinessType(name);
   }
 
   /**
