@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import type { ProceduralBuildingConfig, ProceduralStylePreset } from '@shared/game-engine/types';
+import type { ProceduralBuildingConfig, ProceduralStylePreset, InteriorTemplateConfig } from '@shared/game-engine/types';
+import type { VisualAsset } from '@shared/schema';
 import {
   type InteriorLayoutTemplate,
+  INTERIOR_LAYOUT_TEMPLATES,
   getTemplateForBuildingType,
   resolveRoomZone,
   getFurnitureSetForRoom,
@@ -29,6 +31,10 @@ interface BuildingModelPreviewProps {
   proceduralConfig?: ProceduralBuildingConfig | null;
   /** Zone type for style resolution */
   zone?: 'commercial' | 'residential';
+  /** Interior config overrides (textures, furniture set, lighting preset) */
+  interiorConfig?: InteriorTemplateConfig;
+  /** Visual assets for resolving texture IDs to file paths */
+  interiorAssets?: VisualAsset[];
   className?: string;
   /** Externally controlled view mode — when set, hides internal tab toggle */
   initialViewMode?: 'exterior' | 'interior';
@@ -51,6 +57,8 @@ export function BuildingModelPreview({
   buildingType,
   businessType,
   proceduralConfig,
+  interiorConfig,
+  interiorAssets,
   zone,
   className = '',
   initialViewMode,
@@ -161,7 +169,7 @@ export function BuildingModelPreview({
       );
     } else if (viewMode === 'interior') {
       if (interiorTemplate) {
-        buildProceduralInterior(scene, camera, ground, interiorTemplate);
+        buildProceduralInterior(scene, camera, ground, interiorTemplate, interiorConfig, interiorAssets);
       } else {
         // No specific template — generate a basic default interior
         const defaultTemplate: InteriorLayoutTemplate = {
@@ -188,7 +196,7 @@ export function BuildingModelPreview({
           }],
           furnitureSets: [],
         };
-        buildProceduralInterior(scene, camera, ground, defaultTemplate);
+        buildProceduralInterior(scene, camera, ground, defaultTemplate, interiorConfig, interiorAssets);
       }
       setMeshSource('model');
       setIsLoading(false);
@@ -211,7 +219,7 @@ export function BuildingModelPreview({
       sceneRef.current = null;
       cameraRef.current = null;
     };
-  }, [modelPath, interiorModelPath, tintColor?.r, tintColor?.g, tintColor?.b, proceduralConfig, buildingType, businessType, zone, viewMode]);
+  }, [modelPath, interiorModelPath, tintColor?.r, tintColor?.g, tintColor?.b, proceduralConfig, buildingType, businessType, zone, viewMode, interiorConfig, interiorAssets]);
 
   const handleZoomIn = () => {
     if (cameraRef.current) cameraRef.current.radius = Math.max(1, cameraRef.current.radius - 0.8);
@@ -258,6 +266,21 @@ export function BuildingModelPreview({
             <Badge variant="secondary" className="absolute top-2 left-2 text-xs bg-black/50 text-white border-none">
               {sourceLabel}
             </Badge>
+
+            {viewMode === 'interior' && (interiorConfig?.furnitureSet || interiorConfig?.lightingPreset) && (
+              <div className="absolute bottom-2 left-2 flex flex-col gap-0.5">
+                {interiorConfig?.furnitureSet && (
+                  <Badge variant="secondary" className="text-[9px] bg-black/50 text-white border-none px-1.5 py-0">
+                    {interiorConfig.furnitureSet.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </Badge>
+                )}
+                {interiorConfig?.lightingPreset && (
+                  <Badge variant="secondary" className="text-[9px] bg-black/50 text-white border-none px-1.5 py-0">
+                    {interiorConfig.lightingPreset.replace(/\b\w/g, c => c.toUpperCase())}
+                  </Badge>
+                )}
+              </div>
+            )}
 
             <div className="absolute bottom-2 right-2 flex gap-1">
               <Button
@@ -498,12 +521,31 @@ function buildProceduralPlaceholder(
   ground.scaling = new BABYLON.Vector3(2, 2, 1);
 }
 
+/** Resolve a visual asset ID to its file path */
+function resolveAssetPath(assetId: string | undefined, assets?: VisualAsset[]): string | undefined {
+  if (!assetId || !assets?.length) return undefined;
+  const asset = assets.find(a => a.id === assetId);
+  if (!asset?.filePath) return undefined;
+  return asset.filePath.startsWith('/') ? asset.filePath : `/${asset.filePath}`;
+}
+
+/** Lighting preset configurations */
+const LIGHTING_PRESET_CONFIGS: Record<string, { hemiIntensity: number; dirIntensity: number; color: [number, number, number] }> = {
+  bright: { hemiIntensity: 1.0, dirIntensity: 0.6, color: [1, 1, 1] },
+  dim: { hemiIntensity: 0.3, dirIntensity: 0.15, color: [0.9, 0.85, 0.8] },
+  warm: { hemiIntensity: 0.7, dirIntensity: 0.4, color: [1.0, 0.85, 0.6] },
+  cool: { hemiIntensity: 0.7, dirIntensity: 0.4, color: [0.7, 0.8, 1.0] },
+  candlelit: { hemiIntensity: 0.2, dirIntensity: 0.1, color: [1.0, 0.7, 0.3] },
+};
+
 /** Build a procedural interior cutaway preview from an InteriorLayoutTemplate */
 function buildProceduralInterior(
   scene: BABYLON.Scene,
   camera: BABYLON.ArcRotateCamera,
   ground: BABYLON.Mesh,
   template: InteriorLayoutTemplate,
+  interiorConfig?: InteriorTemplateConfig,
+  assets?: VisualAsset[],
 ) {
   // Normalize dimensions to fit nicely in the preview (target ~2 units)
   const maxDim = Math.max(template.width, template.depth);
@@ -514,10 +556,21 @@ function buildProceduralInterior(
 
   const { colors } = template;
 
+  // Resolve texture paths from asset IDs
+  const wallTexturePath = resolveAssetPath(interiorConfig?.wallTextureId, assets);
+  const floorTexturePath = resolveAssetPath(interiorConfig?.floorTextureId, assets);
+  const ceilingTexturePath = resolveAssetPath(interiorConfig?.ceilingTextureId, assets);
+
   // Floor
   const floorMat = new BABYLON.StandardMaterial('intFloorMat', scene);
   floorMat.diffuseColor = new BABYLON.Color3(colors.floor.r, colors.floor.g, colors.floor.b);
   floorMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  if (floorTexturePath) {
+    const tex = new BABYLON.Texture(floorTexturePath, scene);
+    tex.uScale = 2;
+    tex.vScale = 2;
+    floorMat.diffuseTexture = tex;
+  }
   const floor = BABYLON.MeshBuilder.CreateBox('intFloor', { width: w, height: 0.03, depth: d }, scene);
   floor.position.y = 0;
   floor.material = floorMat;
@@ -526,6 +579,12 @@ function buildProceduralInterior(
   const wallMat = new BABYLON.StandardMaterial('intWallMat', scene);
   wallMat.diffuseColor = new BABYLON.Color3(colors.wall.r, colors.wall.g, colors.wall.b);
   wallMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  if (wallTexturePath) {
+    const tex = new BABYLON.Texture(wallTexturePath, scene);
+    tex.uScale = 2;
+    tex.vScale = 2;
+    wallMat.diffuseTexture = tex;
+  }
   const wallThickness = 0.03;
 
   // Back wall
@@ -542,6 +601,21 @@ function buildProceduralInterior(
   const rightWall = BABYLON.MeshBuilder.CreateBox('intRightWall', { width: wallThickness, height: h, depth: d }, scene);
   rightWall.position.set(w / 2, h / 2, 0);
   rightWall.material = wallMat;
+
+  // Ceiling
+  const ceilingMat = new BABYLON.StandardMaterial('intCeilingMat', scene);
+  ceilingMat.diffuseColor = new BABYLON.Color3(colors.ceiling.r, colors.ceiling.g, colors.ceiling.b);
+  ceilingMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  ceilingMat.alpha = 0.6; // Semi-transparent so interior is visible from above
+  if (ceilingTexturePath) {
+    const tex = new BABYLON.Texture(ceilingTexturePath, scene);
+    tex.uScale = 2;
+    tex.vScale = 2;
+    ceilingMat.diffuseTexture = tex;
+  }
+  const ceiling = BABYLON.MeshBuilder.CreateBox('intCeiling', { width: w, height: 0.03, depth: d }, scene);
+  ceiling.position.y = h;
+  ceiling.material = ceilingMat;
 
   // Room partitions (ground floor only for preview clarity)
   const partitionMat = new BABYLON.StandardMaterial('intPartMat', scene);
@@ -564,13 +638,23 @@ function buildProceduralInterior(
     }
   }
 
-  // Furniture — place ground floor furniture as simple shapes
-  const furnitureMat = new BABYLON.StandardMaterial('intFurnBaseMat', scene);
-  furnitureMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  // Determine furniture source — override template if furniture set is specified
+  let furnitureTemplate = template;
+  if (interiorConfig?.furnitureSet) {
+    const overrideTemplate = INTERIOR_LAYOUT_TEMPLATES.find(
+      t => t.id === interiorConfig.furnitureSet || t.buildingType === interiorConfig.furnitureSet,
+    );
+    if (overrideTemplate) furnitureTemplate = overrideTemplate;
+  }
 
+  // Furniture — place ground floor furniture as simple shapes
   for (const room of groundRooms) {
     const resolved = resolveRoomZone(template, room);
-    const furnEntries = getFurnitureSetForRoom(template, room.function);
+    // Try matching room function from furniture template; fall back to first set
+    let furnEntries = getFurnitureSetForRoom(furnitureTemplate, room.function);
+    if (furnEntries.length === 0 && furnitureTemplate !== template && furnitureTemplate.furnitureSets.length > 0) {
+      furnEntries = furnitureTemplate.furnitureSets[0].furniture;
+    }
     const roomCenterX = resolved.offsetX * scale;
     const roomCenterZ = resolved.offsetZ * scale;
     const roomW = resolved.width * scale;
@@ -601,6 +685,23 @@ function buildProceduralInterior(
       mesh.position.set(fx, fh / 2, fz);
       if (furn.rotationY) mesh.rotation.y = furn.rotationY;
       mesh.material = mat;
+    }
+  }
+
+  // Apply lighting preset
+  if (interiorConfig?.lightingPreset) {
+    const preset = LIGHTING_PRESET_CONFIGS[interiorConfig.lightingPreset];
+    if (preset) {
+      const hemi = scene.getLightByName('hemi') as BABYLON.HemisphericLight | null;
+      const dir = scene.getLightByName('dir') as BABYLON.DirectionalLight | null;
+      if (hemi) {
+        hemi.intensity = preset.hemiIntensity;
+        hemi.diffuse = new BABYLON.Color3(preset.color[0], preset.color[1], preset.color[2]);
+      }
+      if (dir) {
+        dir.intensity = preset.dirIntensity;
+        dir.diffuse = new BABYLON.Color3(preset.color[0], preset.color[1], preset.color[2]);
+      }
     }
   }
 
