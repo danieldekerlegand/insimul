@@ -637,6 +637,7 @@ export class BabylonGame {
     audioAssets?: Record<string, string>;
     modelScaling?: Record<string, { x: number; y: number; z: number }>;
     proceduralBuildings?: import('@shared/game-engine/types').ProceduralBuildingConfig | null;
+    buildingTypeConfigs?: Record<string, { interiorConfig?: import('@shared/game-engine/types').InteriorTemplateConfig }>;
   } | null = null;
   private worldAssets: VisualAsset[] = [];
 
@@ -3576,6 +3577,34 @@ export class BabylonGame {
       this.furnitureModelLoader = new FurnitureModelLoader(scene);
       await this.furnitureModelLoader.loadAll();
       this.interiorGenerator.setFurnitureLoader(this.furnitureModelLoader);
+    }
+
+    // Interior configs and textures from asset collection
+    if (this.interiorGenerator && this.world3DConfig?.buildingTypeConfigs) {
+      const interiorConfigs: Record<string, import('@shared/game-engine/types').InteriorTemplateConfig> = {};
+      const textureIds = new Set<string>();
+
+      for (const [type, cfg] of Object.entries(this.world3DConfig.buildingTypeConfigs)) {
+        if (cfg.interiorConfig) {
+          interiorConfigs[type] = cfg.interiorConfig;
+          if (cfg.interiorConfig.wallTextureId) textureIds.add(cfg.interiorConfig.wallTextureId);
+          if (cfg.interiorConfig.floorTextureId) textureIds.add(cfg.interiorConfig.floorTextureId);
+          if (cfg.interiorConfig.ceilingTextureId) textureIds.add(cfg.interiorConfig.ceilingTextureId);
+        }
+      }
+
+      this.interiorGenerator.setInteriorConfigs(interiorConfigs);
+
+      // Load and register interior textures
+      if (this.textureManager && textureIds.size > 0) {
+        for (const assetId of textureIds) {
+          const asset = worldAssets.find((a) => a.id === assetId);
+          if (asset) {
+            const tex = this.textureManager.loadTexture(asset);
+            this.interiorGenerator.registerInteriorTexture(assetId, tex);
+          }
+        }
+      }
     }
   }
 

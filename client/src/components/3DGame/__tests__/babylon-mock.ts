@@ -107,6 +107,7 @@ export class StandardMaterial {
   diffuseColor: any;
   emissiveColor: any;
   specularColor: any;
+  diffuseTexture: any = null;
   alpha = 1;
   constructor(name: string, _scene: any) { this.name = name; }
   dispose() {}
@@ -169,7 +170,11 @@ export class ExecuteCodeAction {
 export class AbstractMesh extends Mesh {}
 
 export class Texture {
-  constructor(_url: string, _scene: any) {}
+  uScale = 1;
+  vScale = 1;
+  url: string;
+  constructor(url: string, _scene: any) { this.url = url; }
+  clone() { const t = new Texture(this.url, null); t.uScale = this.uScale; t.vScale = this.vScale; return t; }
 }
 
 export class DynamicTexture {
