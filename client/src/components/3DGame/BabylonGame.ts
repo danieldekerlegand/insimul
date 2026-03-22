@@ -139,6 +139,7 @@ import { InteriorSceneManager, getInteriorModelPath } from "@/components/3DGame/
 import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITURE_SIZE_MAP, type OutdoorFurnitureType } from "@/components/3DGame/OutdoorFurnitureGenerator.ts";
 import { FurnitureModelLoader } from "@/components/3DGame/FurnitureModelLoader.ts";
 import { InteriorItemManager } from "@/components/3DGame/InteriorItemManager.ts";
+import { ExteriorItemManager } from "@/components/3DGame/ExteriorItemManager.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
@@ -680,6 +681,7 @@ export class BabylonGame {
   private isInsideBuilding: boolean = false;
   private interiorDoorTrigger: Mesh | null = null;
   private interiorItemManager: InteriorItemManager | null = null;
+  private exteriorItemManager: ExteriorItemManager | null = null;
   private buildingEntrySystem: BuildingEntrySystem | null = null;
   private interiorNPCManager: InteriorNPCManager | null = null;
   private businessInteractionSystem: NPCBusinessInteractionSystem = new NPCBusinessInteractionSystem();
@@ -3140,6 +3142,19 @@ export class BabylonGame {
       this.assets = assets;
       this.config3D = config3D;
       this.worldItems = worldItems || [];
+
+      // Spawn exterior items (items with metadata.position) in the overworld
+      if (this.scene && this.worldItems.length > 0) {
+        this.exteriorItemManager = new ExteriorItemManager(
+          this.scene,
+          this.objectModelTemplates,
+          this.objectModelOriginalHeights,
+          this.objectModelScaleHints,
+          (x: number, z: number) => this.projectToGround(x, z).y,
+        );
+        const extMeshes = this.exteriorItemManager.spawnItems(this.worldItems);
+        this.worldPropMeshes.push(...extMeshes);
+      }
 
       // Register world items with the action manager for examine/identify/read-sign/point-and-name
       if (this.worldObjectActionManager && this.worldItems.length > 0) {
@@ -12632,6 +12647,8 @@ export class BabylonGame {
     this.buildingEntrySystem = null;
     this.interiorItemManager?.dispose();
     this.interiorItemManager = null;
+    this.exteriorItemManager?.dispose();
+    this.exteriorItemManager = null;
     this.interiorGenerator?.dispose();
     this.interiorSceneManager?.dispose();
     this.interiorSceneManager = null;

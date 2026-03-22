@@ -16,8 +16,7 @@ import type { Item, Business, Residence, InsertItem, Settlement, Lot } from '../
 
 // ── Business-type → item tag/type mapping ────────────────────────────────────
 
-/** Which item tags and types are appropriate for each business type. */
-export const BUSINESS_ITEM_RULES: Record<string, {
+export interface ItemRuleSet {
   /** Item tags to match (OR logic — any tag matches) */
   tags: string[];
   /** Item types to match (OR logic) */
@@ -25,44 +24,102 @@ export const BUSINESS_ITEM_RULES: Record<string, {
   /** Min / max items to place */
   min: number;
   max: number;
-}> = {
-  Bakery:          { tags: ['food', 'ingredient'],                        itemTypes: ['food'],                           min: 3, max: 8 },
-  Restaurant:      { tags: ['food', 'drink'],                             itemTypes: ['food', 'drink'],                  min: 4, max: 10 },
-  Bar:             { tags: ['drink'],                                     itemTypes: ['drink'],                          min: 3, max: 8 },
-  GroceryStore:    { tags: ['food', 'drink', 'ingredient'],               itemTypes: ['food', 'drink', 'material'],      min: 5, max: 12 },
-  Shop:            { tags: ['tool', 'material', 'crafting'],              itemTypes: ['tool', 'material', 'collectible'], min: 4, max: 10 },
-  Pharmacy:        { tags: ['healing', 'consumable'],                     itemTypes: ['consumable'],                     min: 3, max: 8 },
-  Hospital:        { tags: ['healing', 'consumable'],                     itemTypes: ['consumable'],                     min: 4, max: 10 },
-  JewelryStore:    { tags: ['jewelry', 'treasure'],                       itemTypes: ['collectible'],                    min: 2, max: 6 },
-  Farm:            { tags: ['food', 'ingredient', 'tool'],                itemTypes: ['food', 'tool'],                   min: 3, max: 8 },
-  Factory:         { tags: ['material', 'crafting', 'tool'],              itemTypes: ['material', 'tool'],               min: 3, max: 8 },
-  Brewery:         { tags: ['drink'],                                     itemTypes: ['drink'],                          min: 2, max: 6 },
-  Church:          { tags: ['collectible', 'furniture'],                   itemTypes: ['collectible'],                    min: 1, max: 4 },
-  School:          { tags: ['collectible', 'furniture'],                   itemTypes: ['collectible', 'tool'],            min: 2, max: 5 },
-  University:      { tags: ['collectible', 'furniture'],                   itemTypes: ['collectible', 'tool'],            min: 2, max: 6 },
-  Bank:            { tags: ['treasure', 'currency'],                      itemTypes: ['collectible'],                    min: 1, max: 4 },
-  Warehouse:       { tags: ['container', 'material', 'tool'],            itemTypes: ['material', 'tool', 'collectible'], min: 3, max: 8 },
-  FishMarket:      { tags: ['food'],                                      itemTypes: ['food'],                           min: 2, max: 6 },
-  Hotel:           { tags: ['food', 'drink', 'furniture'],                itemTypes: ['food', 'drink'],                  min: 2, max: 6 },
+}
+
+/** Which item tags and types are appropriate for each business type. */
+export const BUSINESS_ITEM_RULES: Record<string, ItemRuleSet> = {
+  // Food & drink
+  Bakery:          { tags: ['food', 'ingredient', 'baked'],               itemTypes: ['food'],                           min: 4, max: 10 },
+  Restaurant:      { tags: ['food', 'drink', 'tableware'],                itemTypes: ['food', 'drink'],                  min: 5, max: 12 },
+  Bar:             { tags: ['drink', 'tableware'],                        itemTypes: ['drink'],                          min: 4, max: 10 },
+  GroceryStore:    { tags: ['food', 'drink', 'ingredient'],               itemTypes: ['food', 'drink', 'material'],      min: 6, max: 14 },
+  Brewery:         { tags: ['drink', 'container', 'ingredient'],          itemTypes: ['drink'],                          min: 3, max: 8 },
+  Butcher:         { tags: ['food', 'meat', 'tool'],                      itemTypes: ['food', 'tool'],                   min: 3, max: 8 },
+  FishMarket:      { tags: ['food', 'fishing'],                           itemTypes: ['food', 'tool'],                   min: 3, max: 8 },
+
+  // Retail & trade
+  Shop:            { tags: ['tool', 'material', 'crafting', 'goods'],     itemTypes: ['tool', 'material', 'collectible'], min: 5, max: 12 },
+  JewelryStore:    { tags: ['jewelry', 'treasure', 'gem'],                itemTypes: ['collectible'],                    min: 3, max: 8 },
+  BookStore:       { tags: ['book', 'scroll', 'paper', 'writing'],        itemTypes: ['collectible', 'tool'],            min: 4, max: 10 },
+  HerbShop:        { tags: ['herb', 'potion', 'ingredient', 'healing'],   itemTypes: ['consumable', 'material'],         min: 3, max: 8 },
+  PawnShop:        { tags: ['tool', 'collectible', 'treasure', 'goods'],  itemTypes: ['tool', 'collectible', 'weapon'],  min: 4, max: 10 },
+  Tailor:          { tags: ['cloth', 'fabric', 'clothing', 'thread'],     itemTypes: ['armor', 'material'],              min: 3, max: 8 },
+
+  // Crafts & industry
+  Blacksmith:      { tags: ['metal', 'weapon', 'tool', 'crafting'],       itemTypes: ['weapon', 'tool', 'material'],     min: 4, max: 10 },
+  Carpenter:       { tags: ['wood', 'tool', 'crafting', 'furniture'],     itemTypes: ['tool', 'material'],               min: 3, max: 8 },
+  Farm:            { tags: ['food', 'ingredient', 'tool', 'seed'],        itemTypes: ['food', 'tool'],                   min: 4, max: 10 },
+  Factory:         { tags: ['material', 'crafting', 'tool'],              itemTypes: ['material', 'tool'],               min: 4, max: 10 },
+  Warehouse:       { tags: ['container', 'material', 'tool', 'goods'],    itemTypes: ['material', 'tool', 'collectible'], min: 5, max: 12 },
+
+  // Services
+  Pharmacy:        { tags: ['healing', 'consumable', 'potion'],           itemTypes: ['consumable'],                     min: 3, max: 8 },
+  Hospital:        { tags: ['healing', 'consumable', 'medical'],          itemTypes: ['consumable', 'tool'],             min: 4, max: 10 },
+  Clinic:          { tags: ['healing', 'consumable', 'medical'],          itemTypes: ['consumable'],                     min: 3, max: 6 },
+  Barbershop:      { tags: ['tool', 'grooming'],                          itemTypes: ['tool'],                           min: 2, max: 4 },
+  Bathhouse:       { tags: ['consumable', 'grooming', 'light'],           itemTypes: ['consumable'],                     min: 2, max: 5 },
+  Hotel:           { tags: ['food', 'drink', 'furniture', 'light'],       itemTypes: ['food', 'drink'],                  min: 3, max: 8 },
+  DentalOffice:    { tags: ['medical', 'tool'],                           itemTypes: ['tool', 'consumable'],             min: 2, max: 5 },
+  OptometryOffice: { tags: ['medical', 'tool'],                           itemTypes: ['tool'],                           min: 2, max: 4 },
+
+  // Civic & education
+  Church:          { tags: ['collectible', 'book', 'light', 'religious'], itemTypes: ['collectible'],                    min: 2, max: 6 },
+  School:          { tags: ['book', 'writing', 'tool'],                   itemTypes: ['collectible', 'tool'],            min: 3, max: 7 },
+  University:      { tags: ['book', 'writing', 'scroll', 'tool'],         itemTypes: ['collectible', 'tool'],            min: 4, max: 8 },
+  Bank:            { tags: ['treasure', 'currency', 'ledger'],            itemTypes: ['collectible'],                    min: 2, max: 5 },
+  TownHall:        { tags: ['book', 'writing', 'official'],               itemTypes: ['collectible', 'tool'],            min: 2, max: 5 },
+
+  // Maritime
+  Harbor:          { tags: ['tool', 'rope', 'fishing', 'container'],      itemTypes: ['tool', 'material'],               min: 3, max: 8 },
+  Boatyard:        { tags: ['tool', 'wood', 'rope', 'crafting'],          itemTypes: ['tool', 'material'],               min: 3, max: 8 },
+  CustomsHouse:    { tags: ['book', 'writing', 'goods'],                  itemTypes: ['collectible', 'tool'],            min: 2, max: 5 },
+  Lighthouse:      { tags: ['light', 'tool'],                             itemTypes: ['tool'],                           min: 1, max: 3 },
+
+  // Other
+  Stables:         { tags: ['food', 'tool', 'rope', 'animal'],           itemTypes: ['food', 'tool'],                   min: 3, max: 6 },
+  Mortuary:        { tags: ['collectible', 'book', 'tool'],               itemTypes: ['collectible', 'tool'],            min: 1, max: 3 },
+  LawFirm:         { tags: ['book', 'writing', 'paper'],                  itemTypes: ['collectible', 'tool'],            min: 2, max: 5 },
+  InsuranceOffice: { tags: ['book', 'writing', 'paper'],                  itemTypes: ['collectible', 'tool'],            min: 2, max: 4 },
+  RealEstateOffice:{ tags: ['book', 'writing', 'paper'],                  itemTypes: ['collectible', 'tool'],            min: 2, max: 4 },
+  PoliceStation:   { tags: ['weapon', 'tool', 'key'],                     itemTypes: ['weapon', 'tool', 'key'],          min: 2, max: 5 },
+  FireStation:     { tags: ['tool', 'container'],                         itemTypes: ['tool'],                           min: 2, max: 5 },
+  Daycare:         { tags: ['food', 'collectible', 'toy'],                itemTypes: ['food', 'collectible'],            min: 2, max: 5 },
 };
 
 /** Fallback for business types not explicitly mapped. */
-const DEFAULT_BUSINESS_RULES = { tags: ['tool', 'collectible'], itemTypes: ['tool', 'collectible'], min: 1, max: 3 };
+const DEFAULT_BUSINESS_RULES: ItemRuleSet = { tags: ['tool', 'collectible'], itemTypes: ['tool', 'collectible'], min: 2, max: 5 };
 
 /** Residence item rules — common household items. */
-export const RESIDENCE_ITEM_RULES = {
-  tags: ['food', 'drink', 'tool', 'furniture', 'light'],
+export const RESIDENCE_ITEM_RULES: ItemRuleSet = {
+  tags: ['food', 'drink', 'tool', 'furniture', 'light', 'book', 'tableware', 'clothing'],
   itemTypes: ['food', 'drink', 'tool', 'collectible'],
-  min: 2,
-  max: 6,
+  min: 3,
+  max: 8,
 };
 
-/** Exterior item rules — items found outdoors on vacant lots and streets. */
-export const EXTERIOR_ITEM_RULES = {
+/** Exterior item rules — items found outdoors on vacant lots. */
+export const EXTERIOR_ITEM_RULES: ItemRuleSet = {
   tags: ['collectible', 'material', 'tool', 'food', 'ingredient'],
   itemTypes: ['collectible', 'material', 'tool', 'food'],
   min: 1,
   max: 3,
+};
+
+/** Business-type → exterior item rules for items placed outside the building. */
+export const BUSINESS_EXTERIOR_RULES: Record<string, ItemRuleSet> = {
+  Bakery:       { tags: ['container', 'ingredient'],          itemTypes: ['material'],       min: 1, max: 2 },
+  Restaurant:   { tags: ['container'],                        itemTypes: ['material'],       min: 1, max: 2 },
+  Bar:          { tags: ['container', 'drink'],               itemTypes: ['drink'],          min: 1, max: 3 },
+  Brewery:      { tags: ['container', 'drink'],               itemTypes: ['drink'],          min: 1, max: 3 },
+  Blacksmith:   { tags: ['metal', 'material', 'tool'],        itemTypes: ['material'],       min: 1, max: 3 },
+  Farm:         { tags: ['food', 'tool', 'seed'],             itemTypes: ['food', 'tool'],   min: 1, max: 3 },
+  Warehouse:    { tags: ['container', 'material'],            itemTypes: ['material'],       min: 2, max: 4 },
+  Shop:         { tags: ['container', 'goods'],               itemTypes: ['material'],       min: 1, max: 2 },
+  Harbor:       { tags: ['rope', 'container', 'tool'],        itemTypes: ['tool', 'material'], min: 1, max: 3 },
+  Boatyard:     { tags: ['wood', 'rope', 'tool'],             itemTypes: ['material', 'tool'], min: 1, max: 3 },
+  Stables:      { tags: ['food', 'tool'],                     itemTypes: ['food', 'tool'],   min: 1, max: 2 },
+  Carpenter:    { tags: ['wood', 'material'],                 itemTypes: ['material'],       min: 1, max: 2 },
+  Factory:      { tags: ['material', 'container'],            itemTypes: ['material'],       min: 1, max: 3 },
 };
 
 // ── Filtering helpers ────────────────────────────────────────────────────────
@@ -174,14 +231,32 @@ export async function placeItemsInWorld(
     }
   }
 
-  // Place items in exterior locations (vacant lots and streets)
-  const exteriorLots = getExteriorLots(allLots);
-  for (const lot of exteriorLots) {
+  // Place exterior items on vacant lots
+  const vacantLots = getExteriorLots(allLots);
+  for (const lot of vacantLots) {
     const selected = selectItemsForLocation(baseItems, EXTERIOR_ITEM_RULES, worldType);
 
     for (const baseItem of selected) {
       const position = generateExteriorPosition(lot);
       await storage.createItem(makeWorldItem(baseItem, worldId, { lotId: lot.id, position }));
+      exteriorItems++;
+    }
+  }
+
+  // Place exterior items near occupied buildings (crates, barrels, tools, produce)
+  const bizByLot = new Map<string, Business>();
+  for (const biz of activeBusinesses) {
+    if (biz.lotId) bizByLot.set(biz.lotId, biz);
+  }
+  for (const lot of allLots) {
+    const biz = bizByLot.get(lot.id);
+    if (!biz) continue;
+    const rules = BUSINESS_EXTERIOR_RULES[biz.businessType];
+    if (!rules) continue;
+    const selected = selectItemsForLocation(baseItems, rules, worldType);
+    for (const baseItem of selected) {
+      const position = generateExteriorPosition(lot);
+      await storage.createItem(makeWorldItem(baseItem, worldId, { lotId: lot.id, businessId: biz.id, position }));
       exteriorItems++;
     }
   }
