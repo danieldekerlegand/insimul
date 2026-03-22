@@ -104,6 +104,7 @@ export function WorldTypeCollectionEditor({
                   onUpdate={(groundConfig) => updateWorldTypeConfig({ groundConfig })}
                   selection={selection}
                   onSelect={onSelect}
+                  assets={assets}
                 />
               </TabsContent>
 

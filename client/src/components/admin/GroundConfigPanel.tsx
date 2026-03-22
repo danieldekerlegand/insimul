@@ -6,16 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Trash2 } from "lucide-react";
 import { AssetBrowserDialog } from "../AssetBrowserDialog";
-import { ConfigPreviewScene } from "./ConfigPreviewScene";
 import type { GroundConfig, GroundTypeConfig, Color3 as EngineColor3 } from "@shared/game-engine/types";
 import { colorToHex, hexToColor } from "./BuildingConfigurationPanel";
 import type { ConfigSelection } from "./config-selection";
+import type { VisualAsset } from "@shared/schema";
 
 interface GroundConfigPanelProps {
   config: GroundConfig | undefined;
   onUpdate: (config: GroundConfig) => void;
   selection?: ConfigSelection;
   onSelect?: (selection: ConfigSelection) => void;
+  assets?: VisualAsset[];
 }
 
 const GROUND_TYPES = [
@@ -30,7 +31,7 @@ function defaultGroundTypeConfig(): GroundTypeConfig {
   return { mode: "procedural", color: { r: 0.35, g: 0.55, b: 0.3 }, tiling: 4 };
 }
 
-export function GroundConfigPanel({ config, onUpdate, selection, onSelect }: GroundConfigPanelProps) {
+export function GroundConfigPanel({ config, onUpdate, selection, onSelect, assets = [] }: GroundConfigPanelProps) {
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
   const [assetBrowserTarget, setAssetBrowserTarget] = useState<{ type: GroundTypeKey } | null>(null);
   const [customTypes, setCustomTypes] = useState<string[]>(
@@ -110,9 +111,18 @@ export function GroundConfigPanel({ config, onUpdate, selection, onSelect }: Gro
               onClick={() => onSelect?.({ module: 'ground', groundType: key, config: typeCfg })}
             >
               <div className="flex items-center gap-1.5">
-                {typeCfg?.color && (
+                {typeCfg?.mode === 'asset' && typeCfg.textureId ? (
+                  (() => {
+                    const asset = assets.find(a => a.id === typeCfg.textureId);
+                    return asset ? (
+                      <img src={`/${asset.filePath}`} alt="" className="w-3 h-3 rounded-sm border object-cover" />
+                    ) : (
+                      <span className="inline-block w-3 h-3 rounded-sm border bg-muted" />
+                    );
+                  })()
+                ) : typeCfg?.color ? (
                   <span className="inline-block w-3 h-3 rounded-sm border" style={{ backgroundColor: colorToHex(typeCfg.color) }} />
-                )}
+                ) : null}
                 <span className="font-medium">{label}</span>
               </div>
               <div className="flex items-center gap-1">
