@@ -26,6 +26,18 @@ import type {
   ItemTypeConfig,
 } from "@shared/game-engine/types";
 
+/** Resolve an asset ID to its file path from the assets list */
+function resolveAssetPath(assets: VisualAsset[], assetId?: string): string | undefined {
+  if (!assetId) return undefined;
+  return assets.find(a => a.id === assetId)?.filePath;
+}
+
+/** Resolve an asset ID to its display name, falling back to truncated ID */
+function resolveAssetName(assets: VisualAsset[], assetId?: string): string | undefined {
+  if (!assetId) return undefined;
+  return assets.find(a => a.id === assetId)?.name || `${assetId.slice(0, 12)}...`;
+}
+
 // ─── Building Detail Editor with Exterior/Interior tabs ─────────────────────
 
 function BuildingDetailEditor({
@@ -214,8 +226,8 @@ export function ConfigDetailPanel({
               <div className="space-y-1">
                 <Label className="text-[10px]">Texture Asset</Label>
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                    {cfg?.textureId ? `${cfg.textureId.slice(0, 12)}...` : "Select Texture"}
+                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1 truncate" onClick={() => setShowAssetBrowser(true)}>
+                    {cfg?.textureId ? resolveAssetName(assets, cfg.textureId) : "Select Texture"}
                   </Button>
                   {cfg?.textureId && (
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}>
@@ -252,13 +264,14 @@ export function ConfigDetailPanel({
   // ─── Character Model ────────────────────────────────────────────────────
   if (selection.module === 'character') {
     const cfg = selection.config;
+    const characterModelPath = resolveAssetPath(assets, cfg?.assetId);
     return (
       <div className="flex flex-col h-full min-h-0">
         <div className="shrink-0 p-3 border-b">
           <p className="text-xs font-semibold mb-2">
             {selection.section === 'player' ? 'Player' : 'NPC'}: {humanize(selection.role)}
           </p>
-          <ConfigPreviewScene height={180} showGround={true} />
+          <ConfigPreviewScene height={180} showGround={true} modelPath={characterModelPath} />
         </div>
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-3 space-y-3">
@@ -279,8 +292,8 @@ export function ConfigDetailPanel({
               <div className="space-y-1">
                 <Label className="text-[10px]">Model Asset</Label>
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                    {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
+                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1 truncate" onClick={() => setShowAssetBrowser(true)}>
+                    {cfg?.assetId ? resolveAssetName(assets, cfg.assetId) : "Select Model"}
                   </Button>
                   {cfg?.assetId && (
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
@@ -315,11 +328,12 @@ export function ConfigDetailPanel({
   // ─── Nature Item ────────────────────────────────────────────────────────
   if (selection.module === 'nature') {
     const cfg = selection.config;
+    const natureModelPath = resolveAssetPath(assets, cfg?.assetId);
     return (
       <div className="flex flex-col h-full min-h-0">
         <div className="shrink-0 p-3 border-b">
           <p className="text-xs font-semibold mb-2">{humanize(selection.item)}</p>
-          <ConfigPreviewScene height={180} showGround={true} />
+          <ConfigPreviewScene height={180} showGround={true} modelPath={natureModelPath} />
         </div>
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-3 space-y-3">
@@ -338,8 +352,8 @@ export function ConfigDetailPanel({
 
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                  {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
+                <Button variant="outline" size="sm" className="h-7 text-xs flex-1 truncate" onClick={() => setShowAssetBrowser(true)}>
+                  {cfg?.assetId ? resolveAssetName(assets, cfg.assetId) : "Select Model"}
                 </Button>
                 {cfg?.assetId && (
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
@@ -372,11 +386,12 @@ export function ConfigDetailPanel({
   // ─── Item/Prop ──────────────────────────────────────────────────────────
   if (selection.module === 'item') {
     const cfg = selection.config;
+    const itemModelPath = resolveAssetPath(assets, cfg?.assetId);
     return (
       <div className="flex flex-col h-full min-h-0">
         <div className="shrink-0 p-3 border-b">
           <p className="text-xs font-semibold mb-2">{humanize(selection.item)}</p>
-          <ConfigPreviewScene height={180} showGround={true} />
+          <ConfigPreviewScene height={180} showGround={true} modelPath={itemModelPath} />
         </div>
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-3 space-y-3">
@@ -395,8 +410,8 @@ export function ConfigDetailPanel({
 
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                  {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
+                <Button variant="outline" size="sm" className="h-7 text-xs flex-1 truncate" onClick={() => setShowAssetBrowser(true)}>
+                  {cfg?.assetId ? resolveAssetName(assets, cfg.assetId) : "Select Model"}
                 </Button>
                 {cfg?.assetId && (
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
