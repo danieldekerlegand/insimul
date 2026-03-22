@@ -66,7 +66,6 @@ import { VolitionSystem, type NPCState as VolitionNPCState, type VolitionGoal, T
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
-import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
 import { FullscreenMap } from "@/components/3DGame/FullscreenMap.ts";
 import { TERRAIN_PALETTES } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
@@ -466,7 +465,6 @@ export class BabylonGame {
   private waterRenderer: WaterRenderer | null = null;
   private worldScaleManager: WorldScaleManager | null = null;
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
-  private minimap: BabylonMinimap | null = null;
   private fullscreenMap: FullscreenMap | null = null;
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
@@ -2197,9 +2195,6 @@ export class BabylonGame {
 
     // Initialize building info display
     this.buildingInfoDisplay = new BuildingInfoDisplay(scene, this.guiManager.advancedTexture);
-
-    // Initialize minimap
-    this.minimap = new BabylonMinimap(scene, this.guiManager.advancedTexture, this.terrainSize);
 
     // Initialize full-screen map
     this.fullscreenMap = new FullscreenMap(this.guiManager.advancedTexture);
@@ -4691,14 +4686,6 @@ export class BabylonGame {
         settlementMap.set(settlement.id, settlementMarker);
         boundaryData.push({ id: settlement.id, settlement, position: settlementCenter.clone() });
 
-        // Add settlement marker to minimap
-        this.minimap?.addMarker({
-          id: `settlement_${settlement.id}`,
-          position: scaledSettlement.position.clone(),
-          type: 'settlement',
-          label: settlement.name
-        });
-
         // Register settlement as a safe zone with rule enforcer
         this.ruleEnforcer?.registerSettlementZone(
           settlement.id,
@@ -5905,19 +5892,6 @@ export class BabylonGame {
       return;
     }
 
-    // Add exclamation marker on the minimap at the first settlement's position
-    // to guide the player toward the notice board
-    const firstSettlementMesh = this.settlementMeshes.values().next().value;
-    if (firstSettlementMesh && this.minimap) {
-      this.minimap.addMarker({
-        id: 'assessment_notice_board',
-        position: firstSettlementMesh.position.clone(),
-        type: 'exclamation',
-        label: 'Notice Board',
-        color: '#ffcc00',
-      });
-    }
-
     // Add a special assessment notice to the notice board panel
     const targetLang = getTargetLanguage(this.worldData);
     const assessmentNotice = this.createAssessmentNotice('arrival', targetLang);
@@ -5927,8 +5901,7 @@ export class BabylonGame {
     this.noticeBoardPanel?.setOnAssessmentClicked(async (assessmentType) => {
       if (assessmentType !== 'arrival') return;
 
-      // Remove the marker and notice
-      this.minimap?.removeMarker('assessment_notice_board');
+      // Remove the notice
       this.noticeBoardPanel?.removeArticle('assessment_arrival');
 
       // Launch the actual assessment
@@ -6713,13 +6686,6 @@ export class BabylonGame {
       };
 
       this.npcInfos.push(npcInfo);
-
-      this.minimap?.addMarker({
-        id: `npc_${character.id}`,
-        position: root.position.clone(),
-        type: 'npc',
-        label: npcInfo.name
-      });
 
       const healthBar = new HealthBar(this.scene!, root, 2.5);
       healthBar.updateHealth(1.0);
@@ -7862,7 +7828,6 @@ export class BabylonGame {
   }
 
   private _npcGroundSnapTimer = 0;
-  private _minimapUpdateTimer = 0;
   private _fpsDisplayTimer = 0;
   private _settlementCheckTimer = 0;
   private _interactionPromptTimer = 0;
@@ -8004,40 +7969,6 @@ export class BabylonGame {
           });
         }
         this.npcInitiatedConversationController.update(dt, 60000);
-      }
-
-      // Update minimap markers at most every 250ms
-      this._minimapUpdateTimer += dt;
-      if (this._minimapUpdateTimer >= 250) {
-        this._minimapUpdateTimer = 0;
-        this.npcMeshes.forEach((instance, npcId) => {
-          if (!instance?.mesh) return;
-          const npcInfo = this.npcInfos.find((n) => n.id === npcId);
-          const label = npcInfo?.name ?? npcId;
-          let color: string | undefined;
-          switch (instance.role) {
-            case 'guard': color = '#F44336'; break;
-            case 'merchant': color = '#4CAF50'; break;
-            case 'questgiver': color = '#FFC107'; break;
-            default: color = '#9E9E9E'; break;
-          }
-          this.minimap?.addMarker({
-            id: `npc_${npcId}`,
-            position: instance.mesh.position,
-            type: 'npc',
-            label,
-            color
-          });
-        });
-
-        if (this.playerMesh) {
-          this.minimap?.addMarker({
-            id: 'player',
-            position: this.playerMesh.position,
-            type: 'player',
-            label: 'You'
-          });
-        }
       }
 
       // Phase 3: Update audio listener position for distance-based culling
@@ -12759,7 +12690,6 @@ export class BabylonGame {
     this.buildingCollisionSystem?.dispose();
     this.buildingCollisionSystem = null;
     this.buildingInfoDisplay?.dispose();
-    this.minimap?.dispose();
     this.fullscreenMap?.dispose();
     this.inventory?.dispose();
     this.shopPanel?.dispose();
