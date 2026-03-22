@@ -6,6 +6,7 @@
  */
 
 import type { VisualAsset } from "@shared/schema";
+import type { InteriorTemplateConfig } from "@shared/game-engine/types";
 
 export interface CollectionAssets {
   groundTexture: VisualAsset | null;
@@ -15,6 +16,8 @@ export interface CollectionAssets {
   characterModels: Map<string, VisualAsset>;
   objectModels: Map<string, VisualAsset>;
   allAssets: VisualAsset[];
+  /** Per-building-type interior configs from the asset collection */
+  interiorConfigs: Record<string, InteriorTemplateConfig>;
 }
 
 export interface World3DConfig {
@@ -24,6 +27,8 @@ export interface World3DConfig {
   natureModels?: Record<string, string>;
   characterModels?: Record<string, string>;
   objectModels?: Record<string, string>;
+  /** Per-building-type interior configuration */
+  buildingTypeConfigs?: Record<string, { interiorConfig?: InteriorTemplateConfig }>;
 }
 
 export class AssetCollectionLoader {
@@ -121,6 +126,16 @@ export class AssetCollectionLoader {
       ? this.findAssetById(this.config3D.roadTextureId)
       : this.findFirstAssetByType('texture_material');
 
+    // Extract interior configs from buildingTypeConfigs
+    const interiorConfigs: Record<string, InteriorTemplateConfig> = {};
+    if (this.config3D?.buildingTypeConfigs) {
+      for (const [type, cfg] of Object.entries(this.config3D.buildingTypeConfigs)) {
+        if (cfg.interiorConfig) {
+          interiorConfigs[type] = cfg.interiorConfig;
+        }
+      }
+    }
+
     return {
       groundTexture,
       roadTexture,
@@ -128,7 +143,8 @@ export class AssetCollectionLoader {
       natureModels,
       characterModels,
       objectModels,
-      allAssets: this.assets
+      allAssets: this.assets,
+      interiorConfigs,
     };
   }
 
@@ -148,7 +164,8 @@ export class AssetCollectionLoader {
       natureModels: new Map(),
       characterModels: new Map(),
       objectModels: new Map(),
-      allAssets: []
+      allAssets: [],
+      interiorConfigs: {},
     };
   }
 
