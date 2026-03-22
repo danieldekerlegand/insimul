@@ -4,13 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  ChevronRight, ChevronDown, RotateCcw, Home, Building2,
+  ChevronRight, RotateCcw, Home,
 } from "lucide-react";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type {
   UnifiedBuildingTypeConfig,
   InteriorTemplateConfig,
   LightingPreset,
+  ProceduralStylePreset,
+  Color3 as EngineColor3,
 } from "@shared/game-engine/types";
 import {
   BUILDING_CATEGORY_GROUPINGS,
@@ -34,29 +36,62 @@ const LAYOUT_TEMPLATE_IDS = [
   'clinic', 'farm_barn', 'guild_hall',
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export const CATEGORY_LABELS: Record<BuildingCategory, string> = {
+  commercial_food: "Food & Drink",
+  commercial_retail: "Retail",
+  commercial_service: "Services",
+  civic: "Civic",
+  industrial: "Industrial",
+  maritime: "Maritime",
+  residential: "Residential",
+};
+
+export function color3ToCss(c: EngineColor3 | undefined): string {
+  if (!c) return "#888";
+  return `rgb(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)})`;
+}
 
 export function humanize(s: string): string {
   return s
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ─── Category summary ─────────────────────────────────────────────────────────
+
+interface CategorySummary {
+  asset: number;
+  procedural: number;
+  unconfigured: number;
+  withInterior: number;
 }
 
 export function getCategorySummary(
   types: readonly string[],
   configs: Record<string, UnifiedBuildingTypeConfig>,
-): { asset: number; procedural: number; unconfigured: number; withInterior: number } {
-  let asset = 0, procedural = 0, unconfigured = 0, withInterior = 0;
+): CategorySummary {
+  let asset = 0;
+  let procedural = 0;
+  let unconfigured = 0;
+  let withInterior = 0;
   for (const t of types) {
     const cfg = configs[t];
-    if (!cfg) { unconfigured++; continue; }
-    if (cfg.mode === 'asset') asset++;
-    else procedural++;
-    if (cfg.interiorConfig) withInterior++;
+    if (!cfg) {
+      unconfigured++;
+    } else if (cfg.mode === "asset") {
+      asset++;
+    } else {
+      procedural++;
+    }
+    if (cfg?.interiorConfig) withInterior++;
   }
   return { asset, procedural, unconfigured, withInterior };
 }
+
+// ─── Asset helpers ────────────────────────────────────────────────────────────
 
 function getTextureAssets(assets: VisualAsset[]): VisualAsset[] {
   return assets.filter(a => {
@@ -256,86 +291,57 @@ function InteriorConfigEditor({
   );
 }
 
-// ─── Building Type Detail Panel ─────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-function BuildingTypeDetailPanel({
-  buildingType,
-  config,
-  assets,
-  onUpdate,
-}: {
-  buildingType: string;
-  config: UnifiedBuildingTypeConfig | undefined;
-  assets: VisualAsset[];
-  onUpdate: (cfg: UnifiedBuildingTypeConfig | undefined) => void;
-}) {
-  const current = config || { mode: 'procedural' as const };
-
-  const updateInterior = (interiorConfig: InteriorTemplateConfig) => {
-    onUpdate({ ...current, interiorConfig });
-  };
-
-  const clearInterior = () => {
-    const { interiorConfig: _, ...rest } = current;
-    onUpdate(rest as UnifiedBuildingTypeConfig);
-  };
-
-  return (
-    <div className="space-y-3 pl-3 border-l-2 border-primary/20">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">{humanize(buildingType)}</span>
-        <Badge variant="outline" className="text-[10px] h-4">
-          {current.mode}
-        </Badge>
-      </div>
-
-      {/* Interior Configuration Section */}
-      <div className="border rounded p-2 space-y-2 bg-muted/20">
-        <div className="flex items-center gap-1.5">
-          <Home className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Interior</span>
-          {current.interiorConfig && (
-            <Badge variant="secondary" className="text-[9px] h-3.5 ml-auto">
-              {current.interiorConfig.mode}
-            </Badge>
-          )}
-        </div>
-        <InteriorConfigEditor
-          config={current.interiorConfig}
-          assets={assets}
-          onChange={updateInterior}
-          onClear={clearInterior}
-        />
-      </div>
-    </div>
-  );
+interface BuildingConfigurationPanelProps {
+  collection: AssetCollection;
+  assets?: VisualAsset[];
+  onUpdateConfig: (buildingTypeConfigs: Record<string, UnifiedBuildingTypeConfig>) => void;
+  onUpdateCategoryPresets?: (categoryPresets: Record<string, ProceduralStylePreset>) => void;
 }
 
-// ─── Main Panel ─────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function BuildingConfigurationPanel({
   collection,
-  assets,
+  assets = [],
   onUpdateConfig,
-}: {
-  collection: AssetCollection;
-  assets: VisualAsset[];
-  onUpdateConfig: (configs: Record<string, UnifiedBuildingTypeConfig>) => void;
-}) {
+  onUpdateCategoryPresets,
+}: BuildingConfigurationPanelProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [expandedType, setExpandedType] = useState<string | null>(null);
 
-  const configs: Record<string, UnifiedBuildingTypeConfig> =
-    (collection as any).buildingTypeConfigs || {};
+  const configs = useMemo<Record<string, UnifiedBuildingTypeConfig>>(
+    () => (collection as any).buildingTypeConfigs || {},
+    [(collection as any).buildingTypeConfigs],
+  );
 
-  const categories = Object.entries(BUILDING_CATEGORY_GROUPINGS) as [BuildingCategory, readonly string[]][];
+  const presets = useMemo<Record<string, ProceduralStylePreset>>(
+    () => (collection as any).categoryPresets || {},
+    [(collection as any).categoryPresets],
+  );
 
   const toggleCategory = (cat: string) => {
     setExpandedCategories(prev => {
       const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
       return next;
     });
+  };
+
+  const toggleType = (typeName: string) => {
+    setExpandedType(prev => (prev === typeName ? null : typeName));
+  };
+
+  const handleModeToggle = (typeName: string) => {
+    const current = configs[typeName];
+    const newMode: "asset" | "procedural" = current?.mode === "asset" ? "procedural" : "asset";
+    const updated = {
+      ...configs,
+      [typeName]: { ...current, mode: newMode },
+    };
+    onUpdateConfig(updated);
   };
 
   const handleUpdateType = (type: string, cfg: UnifiedBuildingTypeConfig | undefined) => {
@@ -348,80 +354,207 @@ export function BuildingConfigurationPanel({
     onUpdateConfig(updated);
   };
 
+  const categories = Object.entries(BUILDING_CATEGORY_GROUPINGS) as [
+    BuildingCategory,
+    readonly string[],
+  ][];
+
   return (
-    <div className="space-y-1" data-testid="building-config-panel">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Building Type Configuration
-        </span>
-      </div>
+    <div className="space-y-1" data-testid="building-configuration-panel">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+        Building Types by Category
+      </p>
 
       {categories.map(([category, types]) => {
         const isExpanded = expandedCategories.has(category);
         const summary = getCategorySummary(types, configs);
+        const preset = presets[category];
 
         return (
-          <div key={category} className="border rounded">
+          <div key={category} className="border rounded" data-testid={`category-${category}`}>
+            {/* Category header */}
             <button
-              className="flex items-center justify-between w-full text-xs px-2 py-1.5 hover:bg-muted/50 rounded cursor-pointer transition-colors"
+              className="flex items-center justify-between w-full text-xs px-2 py-2 hover:bg-muted/50 rounded cursor-pointer transition-colors"
               onClick={() => toggleCategory(category)}
-              data-testid={`category-${category}`}
+              data-testid={`category-header-${category}`}
             >
               <div className="flex items-center gap-1.5">
-                {isExpanded
-                  ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                  : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-                <span className="font-medium">{humanize(category)}</span>
+                <ChevronRight
+                  className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                />
+                <span className="font-medium">{CATEGORY_LABELS[category]}</span>
               </div>
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1.5">
+                {preset && (
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm border border-border"
+                    style={{ backgroundColor: color3ToCss(preset.baseColors?.[0]) }}
+                    title="Category preset color"
+                  />
+                )}
                 {summary.withInterior > 0 && (
                   <Badge variant="secondary" className="text-[9px] h-4">
                     {summary.withInterior} interior
                   </Badge>
                 )}
-                <Badge variant={summary.unconfigured === 0 ? "secondary" : "outline"} className="text-[10px] h-4">
-                  {types.length - summary.unconfigured}/{types.length}
+                <Badge variant="outline" className="text-[9px] h-4 font-normal">
+                  {summary.asset > 0 && <span>{summary.asset} asset</span>}
+                  {summary.asset > 0 && summary.procedural > 0 && <span className="mx-0.5">/</span>}
+                  {summary.procedural > 0 && <span>{summary.procedural} proc</span>}
+                  {(summary.asset > 0 || summary.procedural > 0) && summary.unconfigured > 0 && (
+                    <span className="mx-0.5">/</span>
+                  )}
+                  {summary.unconfigured > 0 && (
+                    <span className="text-muted-foreground">{summary.unconfigured} unset</span>
+                  )}
+                  {summary.asset === 0 && summary.procedural === 0 && summary.unconfigured > 0 && (
+                    <span className="text-muted-foreground">{types.length} unconfigured</span>
+                  )}
                 </Badge>
               </div>
             </button>
 
+            {/* Expanded category — list of building types */}
             {isExpanded && (
-              <div className="space-y-1 px-2 pb-2 border-t pt-1.5">
-                {types.map(type => {
-                  const cfg = configs[type];
-                  const isSelected = selectedType === type;
+              <div className="border-t px-1.5 pb-1.5 pt-1 space-y-0.5">
+                {types.map(typeName => {
+                  const cfg = configs[typeName];
+                  const isTypeExpanded = expandedType === typeName;
+                  const presetColor = preset?.baseColors?.[0];
+                  const overrideColor = cfg?.styleOverrides?.baseColors?.[0];
+                  const displayColor = overrideColor || presetColor;
 
                   return (
-                    <div key={type}>
+                    <div key={typeName} data-testid={`building-type-${typeName}`}>
                       <button
-                        className={`flex items-center justify-between w-full text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
-                          isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'
-                        }`}
-                        onClick={() => setSelectedType(isSelected ? null : type)}
-                        data-testid={`type-${type}`}
+                        className="flex items-center gap-2 w-full text-xs px-1.5 py-1 hover:bg-muted/40 rounded transition-colors"
+                        onClick={() => toggleType(typeName)}
+                        data-testid={`type-row-${typeName}`}
                       >
-                        <span>{humanize(type)}</span>
-                        <div className="flex items-center gap-1">
-                          {cfg?.interiorConfig && (
-                            <Home className="w-3 h-3 text-muted-foreground" />
-                          )}
-                          {cfg ? (
-                            <Badge variant="secondary" className="text-[9px] h-3.5">{cfg.mode}</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[9px] h-3.5 text-muted-foreground">—</Badge>
-                          )}
-                        </div>
+                        {/* Color swatch */}
+                        <span
+                          className="inline-block w-3 h-3 rounded-sm border border-border shrink-0"
+                          style={{ backgroundColor: color3ToCss(displayColor) }}
+                        />
+                        {/* Type name */}
+                        <span className="flex-1 text-left truncate">{humanize(typeName)}</span>
+                        {/* Interior indicator */}
+                        {cfg?.interiorConfig && (
+                          <Home className="w-3 h-3 text-muted-foreground shrink-0" />
+                        )}
+                        {/* Mode badge */}
+                        {cfg ? (
+                          <Badge
+                            variant={cfg.mode === "asset" ? "default" : "secondary"}
+                            className="text-[9px] h-4"
+                          >
+                            {cfg.mode === "asset" ? "Asset" : "Procedural"}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] h-4 text-muted-foreground">
+                            Unset
+                          </Badge>
+                        )}
+                        <ChevronRight
+                          className={`w-3 h-3 text-muted-foreground transition-transform shrink-0 ${isTypeExpanded ? "rotate-90" : ""}`}
+                        />
                       </button>
 
-                      {isSelected && (
-                        <div className="mt-1.5 mb-2">
-                          <BuildingTypeDetailPanel
-                            buildingType={type}
-                            config={cfg}
-                            assets={assets}
-                            onUpdate={(newCfg) => handleUpdateType(type, newCfg)}
-                          />
+                      {/* Expanded type detail */}
+                      {isTypeExpanded && (
+                        <div
+                          className="ml-5 mr-1 my-1 p-2 border rounded bg-muted/20 space-y-2 text-xs"
+                          data-testid={`type-detail-${typeName}`}
+                        >
+                          {/* Mode toggle */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">Mode:</span>
+                            <button
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                                cfg?.mode === "asset"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted hover:bg-muted/80"
+                              }`}
+                              onClick={() => handleModeToggle(typeName)}
+                            >
+                              Asset
+                            </button>
+                            <button
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                                cfg?.mode === "procedural"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted hover:bg-muted/80"
+                              }`}
+                              onClick={() => handleModeToggle(typeName)}
+                            >
+                              Procedural
+                            </button>
+                          </div>
+
+                          {/* Summary info based on mode */}
+                          {cfg?.mode === "asset" && (
+                            <div className="text-muted-foreground">
+                              {cfg.assetId ? (
+                                <span>Asset assigned: <code className="text-[10px]">{cfg.assetId}</code></span>
+                              ) : (
+                                <span>No asset assigned yet</span>
+                              )}
+                            </div>
+                          )}
+
+                          {cfg?.mode === "procedural" && (
+                            <div className="space-y-1">
+                              <div className="text-muted-foreground">
+                                {cfg.stylePresetId ? (
+                                  <span>Preset: {cfg.stylePresetId}</span>
+                                ) : (
+                                  <span>Using category defaults</span>
+                                )}
+                              </div>
+                              {cfg.styleOverrides && Object.keys(cfg.styleOverrides).length > 0 && (
+                                <div className="text-muted-foreground">
+                                  {Object.keys(cfg.styleOverrides).length} field override(s)
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {!cfg && (
+                            <div className="text-muted-foreground">
+                              Not configured. Click a mode above to begin.
+                            </div>
+                          )}
+
+                          {/* Scaling info */}
+                          {cfg?.modelScaling && (
+                            <div className="text-muted-foreground">
+                              Scale: {cfg.modelScaling.x.toFixed(2)} x {cfg.modelScaling.y.toFixed(2)} x {cfg.modelScaling.z.toFixed(2)}
+                            </div>
+                          )}
+
+                          {/* Interior config section */}
+                          {cfg && (
+                            <div className="border rounded p-2 space-y-2 bg-muted/20">
+                              <div className="flex items-center gap-1.5">
+                                <Home className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Interior</span>
+                                {cfg.interiorConfig && (
+                                  <Badge variant="secondary" className="text-[9px] h-3.5 ml-auto">
+                                    {cfg.interiorConfig.mode}
+                                  </Badge>
+                                )}
+                              </div>
+                              <InteriorConfigEditor
+                                config={cfg.interiorConfig}
+                                assets={assets}
+                                onChange={(interiorConfig) => handleUpdateType(typeName, { ...cfg, interiorConfig })}
+                                onClear={() => {
+                                  const { interiorConfig: _, ...rest } = cfg;
+                                  handleUpdateType(typeName, rest as UnifiedBuildingTypeConfig);
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

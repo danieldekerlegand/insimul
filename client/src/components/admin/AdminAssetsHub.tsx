@@ -29,6 +29,7 @@ import { BuildingModelPreview } from "../locations/BuildingModelPreview";
 import { ImageUpscaleDialog } from "../ImageUpscaleDialog";
 import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
+import { BuildingConfigurationPanel } from "./BuildingConfigurationPanel";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3, NpcConfig } from "@shared/game-engine/types";
 import { CategoryPresetEditorModal, type TexturePickerRequest } from "./CategoryPresetEditorModal";
@@ -117,7 +118,7 @@ export function AdminAssetsHub() {
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>("all");
 
   // Right panel
-  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets' | null>('preview');
+  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets' | 'building-config' | null>('preview');
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -942,11 +943,11 @@ export function AdminAssetsHub() {
     const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
       { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
       { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
+      { id: 'building-config' as SectionId, label: 'Building Config', icon: Building2, show: hasCollection },
       { id: 'config' as SectionId, label: '3D Config', icon: Settings2, show: hasCollection },
       { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
       { id: 'npc' as SectionId, label: 'NPC Characters', icon: Users, show: hasCollection },
       { id: 'category_presets' as SectionId, label: 'Category Presets', icon: Palette, show: hasCollection },
-      { id: 'building-config' as SectionId, label: 'Building Config', icon: Building2, show: hasCollection },
     ];
     const sections = allSections.filter(s => s.show);
 
@@ -1117,6 +1118,19 @@ export function AdminAssetsHub() {
                           </div>
                         )}
                       </>
+                    )}
+
+                    {/* Unified Building Configuration */}
+                    {section.id === 'building-config' && selectedCollection && (
+                      <BuildingConfigurationPanel
+                        collection={selectedCollection}
+                        onUpdateConfig={(buildingTypeConfigs) =>
+                          patchCollectionConfig({ buildingTypeConfigs } as any)
+                        }
+                        onUpdateCategoryPresets={(categoryPresets) =>
+                          patchCollectionConfig({ categoryPresets } as any)
+                        }
+                      />
                     )}
 
                     {/* 3D Config */}
