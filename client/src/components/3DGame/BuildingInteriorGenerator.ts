@@ -17,6 +17,8 @@ import {
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate } from '@shared/game-engine/types';
+import { getTemplateForBuildingType, getTemplatesForCategory } from '@shared/game-engine/interior-templates';
+import { getCategoryForType } from '@shared/game-engine/building-categories';
 
 /** Describes a sub-room within a multi-room interior */
 export interface RoomZone {
@@ -164,9 +166,13 @@ export class BuildingInteriorGenerator {
       return this.createModelInteriorLayout(buildingId, buildingType, businessType, config, overworldDoorPos);
     }
 
-    // Procedural mode: use config overrides or fall back to hardcoded defaults
-    const dims = this.getConfiguredDimensions(buildingType, businessType, config);
-    const floorCount = config?.floorCount ?? this.getFloorCount(buildingType, businessType);
+    // Look up a matching interior layout template (with category fallback)
+    const category = getCategoryForType(businessType || '') || getCategoryForType(buildingType || '');
+    const layoutTemplate = getTemplateForBuildingType(buildingType, businessType, category);
+
+    // Procedural mode: use config overrides, then template, then hardcoded defaults
+    const dims = this.getConfiguredDimensions(buildingType, businessType, config, layoutTemplate);
+    const floorCount = config?.floorCount ?? layoutTemplate?.floorCount ?? this.getFloorCount(buildingType, businessType);
 
     // Calculate position for this interior.
     let position: Vector3;
@@ -180,10 +186,12 @@ export class BuildingInteriorGenerator {
       this.nextSlotIndex += slotsNeeded;
     }
 
-    // Generate room zones from config template or hardcoded layout
+    // Generate room zones: config template > layout template > hardcoded layout
     const rooms = config?.layoutTemplate
       ? this.generateRoomZonesFromTemplate(config.layoutTemplate, dims.width, dims.depth, dims.height)
-      : this.generateRoomZones(buildingType, businessType, dims.width, dims.depth, dims.height, floorCount);
+      : layoutTemplate
+        ? this.generateRoomZonesFromInteriorTemplate(layoutTemplate, dims.width, dims.depth, dims.height)
+        : this.generateRoomZones(buildingType, businessType, dims.width, dims.depth, dims.height, floorCount);
 
     // Build the room shell with configured colors
     const roomMesh = this.buildRoom(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType, config);
@@ -300,6 +308,7 @@ export class BuildingInteriorGenerator {
     buildingType: string,
     businessType: string | undefined,
     config: InteriorTemplateConfig | null,
+    template?: import('@shared/game-engine/interior-templates').InteriorLayoutTemplate,
   ): { width: number; depth: number; height: number } {
     if (config?.layoutTemplate) {
       return {
@@ -308,7 +317,10 @@ export class BuildingInteriorGenerator {
         height: config.layoutTemplate.totalHeight,
       };
     }
-    const base = this.getRoomDimensions(buildingType, businessType);
+    // Use template dimensions if available, then hardcoded fallback
+    const base = template
+      ? { width: template.width, depth: template.depth, height: template.height }
+      : this.getRoomDimensions(buildingType, businessType);
     return {
       width: config?.width ?? base.width,
       depth: config?.depth ?? base.depth,
@@ -352,6 +364,34 @@ export class BuildingInteriorGenerator {
         offsetY,
         width: roomWidth,
         depth: roomDepth,
+        floor: rt.floor,
+      });
+    }
+
+    return rooms;
+  }
+
+  /**
+   * Generate room zones from an InteriorLayoutTemplate (from interior-templates.ts).
+   * Uses fraction-based offsets and dimensions from RoomZoneTemplate.
+   */
+  private generateRoomZonesFromInteriorTemplate(
+    template: import('@shared/game-engine/interior-templates').InteriorLayoutTemplate,
+    totalWidth: number,
+    totalDepth: number,
+    totalHeight: number,
+  ): RoomZone[] {
+    const rooms: RoomZone[] = [];
+
+    for (const rt of template.rooms) {
+      rooms.push({
+        name: rt.name,
+        function: rt.function,
+        offsetX: rt.offsetXFraction * totalWidth,
+        offsetZ: rt.offsetZFraction * totalDepth,
+        offsetY: rt.floor * totalHeight,
+        width: rt.widthFraction * totalWidth,
+        depth: rt.depthFraction * totalDepth,
         floor: rt.floor,
       });
     }
