@@ -26,6 +26,10 @@ dotenv.config({ path: envPath });
 // Debug: Verify MONGO_URL is loaded
 console.log("Environment loaded. MONGO_URL:", process.env.MONGO_URL ? "✓ Set" : "✗ Not set");
 
+// Log AI provider configuration
+import { logAIStatus } from "./config/ai-config.js";
+logAIStatus();
+
 // Parse command-line arguments
 const args = process.argv.slice(2);
 const options = {
