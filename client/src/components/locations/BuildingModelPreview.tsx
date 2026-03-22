@@ -15,6 +15,7 @@ import {
   resolveRoomZone,
   getFurnitureSetForRoom,
 } from '@shared/game-engine/interior-templates';
+import { BUILDING_TYPE_DEFAULTS } from '@shared/game-engine/building-defaults';
 
 interface BuildingModelPreviewProps {
   /** Direct path to the 3D model file */
@@ -151,18 +152,18 @@ export function BuildingModelPreview({
               centerAndFrameMeshes(remaining, camera, ground);
               setMeshSource('model');
             } else {
-              buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
+              buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset, buildingType, interiorAssets);
               setMeshSource('placeholder');
             }
           } else {
-            buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
+            buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset, buildingType, interiorAssets);
             setMeshSource('placeholder');
           }
           setIsLoading(false);
         },
         undefined,
         () => {
-          buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
+          buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset, buildingType, interiorAssets);
           setMeshSource('placeholder');
           setIsLoading(false);
         }
@@ -201,7 +202,7 @@ export function BuildingModelPreview({
       setMeshSource('model');
       setIsLoading(false);
     } else {
-      buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
+      buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset, buildingType, interiorAssets);
       setMeshSource('placeholder');
       setIsLoading(false);
     }
@@ -386,6 +387,8 @@ function buildProceduralPlaceholder(
   ground: BABYLON.Mesh,
   tintColor?: { r: number; g: number; b: number },
   preset?: ProceduralStylePreset | null,
+  buildingType?: string,
+  assets?: VisualAsset[],
 ) {
   // Use preset colors if available, otherwise fall back to tint
   const wallColor = preset && preset.baseColors.length > 0
@@ -398,51 +401,175 @@ function buildProceduralPlaceholder(
     ? new BABYLON.Color3(preset.roofColor.r, preset.roofColor.g, preset.roofColor.b)
     : wallColor.scale(0.7);
 
+  const windowColor = preset
+    ? new BABYLON.Color3(preset.windowColor.r, preset.windowColor.g, preset.windowColor.b)
+    : new BABYLON.Color3(0.7, 0.75, 0.8);
+
+  const doorColor = preset
+    ? new BABYLON.Color3(preset.doorColor.r, preset.doorColor.g, preset.doorColor.b)
+    : new BABYLON.Color3(0.4, 0.3, 0.2);
+
+  // Resolve texture paths from asset IDs
+  const wallTexturePath = resolveAssetPath(preset?.wallTextureId, assets);
+  const roofTexturePath = resolveAssetPath(preset?.roofTextureId, assets);
+  const doorTexturePath = resolveAssetPath(preset?.doorTextureId, assets);
+  const windowTexturePath = resolveAssetPath(preset?.windowTextureId, assets);
+
+  // Look up building defaults for accurate dimensions
+  const defaults = buildingType ? BUILDING_TYPE_DEFAULTS[buildingType] : undefined;
+
   const mat = new BABYLON.StandardMaterial('placeholderMat', scene);
   mat.diffuseColor = wallColor;
   mat.specularColor = new BABYLON.Color3(0.08, 0.08, 0.08);
+  if (wallTexturePath) {
+    const tex = new BABYLON.Texture(wallTexturePath, scene);
+    tex.uScale = 2;
+    tex.vScale = 2;
+    mat.diffuseTexture = tex;
+  }
 
-  const hasPorch = preset?.hasPorch ?? false;
-  const hasBalcony = preset?.hasIronworkBalcony || preset?.hasBalcony;
-  const floors = hasBalcony ? 2 : 1;
-  const bodyHeight = floors * 0.6;
+  const hasPorch = preset?.hasPorch ?? defaults?.hasPorch ?? false;
+  const hasBalcony = preset?.hasIronworkBalcony || preset?.hasBalcony || defaults?.hasBalcony;
+  const hasChimney = defaults?.hasChimney ?? false;
+
+  // Use building defaults for floor count and aspect ratio
+  const floors = defaults?.floors ?? (hasBalcony ? 2 : 1);
+  const floorHeight = 0.5;
+  const bodyHeight = floors * floorHeight;
   const porchElev = hasPorch ? 0.15 : 0;
+
+  // Use width/depth ratio from defaults, normalized to fit preview
+  const rawW = defaults?.width ?? 10;
+  const rawD = defaults?.depth ?? 10;
+  const maxRaw = Math.max(rawW, rawD);
+  const bw = (rawW / maxRaw) * 1.2;  // normalize to ~1.2 unit max
+  const bd = (rawD / maxRaw) * 1.2;
 
   // Building body
   const body = BABYLON.MeshBuilder.CreateBox('body', {
-    width: 1, height: bodyHeight, depth: 1,
+    width: bw, height: bodyHeight, depth: bd,
   }, scene);
   body.position.y = bodyHeight / 2 + porchElev;
   body.material = mat;
+
+  // Door on front face
+  const doorMat = new BABYLON.StandardMaterial('doorMat', scene);
+  doorMat.diffuseColor = doorColor;
+  doorMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  if (doorTexturePath) {
+    const tex = new BABYLON.Texture(doorTexturePath, scene);
+    doorMat.diffuseTexture = tex;
+  }
+  const doorH = Math.min(floorHeight * 0.7, 0.4);
+  const doorW = doorH * 0.5;
+  const door = BABYLON.MeshBuilder.CreateBox('door', {
+    width: doorW, height: doorH, depth: 0.02,
+  }, scene);
+  door.position.set(0, doorH / 2 + porchElev, bd / 2 + 0.011);
+  door.material = doorMat;
+
+  // Windows on front face for each floor
+  const windowMat = new BABYLON.StandardMaterial('windowMat', scene);
+  windowMat.diffuseColor = windowColor;
+  windowMat.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+  windowMat.alpha = 0.85;
+  if (windowTexturePath) {
+    const tex = new BABYLON.Texture(windowTexturePath, scene);
+    windowMat.diffuseTexture = tex;
+  }
+
+  const winH = floorHeight * 0.35;
+  const winW = winH * 0.7;
+  // Place windows symmetrically, avoiding door position on ground floor
+  const winXPositions = bw > 0.6 ? [-bw * 0.3, bw * 0.3] : [-bw * 0.25, bw * 0.25];
+  for (let f = 0; f < floors; f++) {
+    const startX = f === 0 ? winXPositions : [...winXPositions]; // all floors get side windows
+    if (f > 0 && bw > 0.8) startX.push(0); // upper floors also get center window
+    for (const wx of startX) {
+      const win = BABYLON.MeshBuilder.CreateBox(`win_${f}_${wx}`, {
+        width: winW, height: winH, depth: 0.02,
+      }, scene);
+      const winY = porchElev + f * floorHeight + floorHeight * 0.55;
+      win.position.set(wx, winY, bd / 2 + 0.011);
+      win.material = windowMat;
+    }
+  }
 
   // Roof — proper gable shape using custom vertices
   const roofMat = new BABYLON.StandardMaterial('roofMat', scene);
   roofMat.diffuseColor = roofColor;
   roofMat.specularColor = BABYLON.Color3.Black();
+  if (roofTexturePath) {
+    const tex = new BABYLON.Texture(roofTexturePath, scene);
+    tex.uScale = 2;
+    tex.vScale = 2;
+    roofMat.diffuseTexture = tex;
+  }
 
-  const roofHeight = 0.4;
-  const hw = 0.6; // half-width with overhang
-  const hd = hasPorch ? 0.7 : 0.6;
-  const frontHd = hasPorch ? 0.95 : hd;
-  const roofMesh = new BABYLON.Mesh('roof', scene);
-  const ridgeInset = Math.min(hw * 0.5, hd * 0.5);
-  const ridgeHalfLen = hw - ridgeInset;
-  const positions = [
-    -hw, 0, frontHd,  hw, 0, frontHd,  hw, 0, -hd,  -hw, 0, -hd,
-    -ridgeHalfLen, roofHeight, 0,  ridgeHalfLen, roofHeight, 0,
-  ];
-  const indices = [
-    0, 5, 1, 0, 4, 5,  1, 5, 2,  2, 3, 4, 2, 4, 5,  3, 0, 4,  0, 1, 2, 0, 2, 3,
-  ];
-  const normals: number[] = [];
-  const vd = new BABYLON.VertexData();
-  vd.positions = positions;
-  vd.indices = indices;
-  BABYLON.VertexData.ComputeNormals(positions, indices, normals);
-  vd.normals = normals;
-  vd.applyToMesh(roofMesh);
-  roofMesh.position.y = bodyHeight + porchElev;
-  roofMesh.material = roofMat;
+  const roofStyle = preset?.roofStyle ?? 'gable';
+  const roofOverhang = 0.1;
+  const rhw = bw / 2 + roofOverhang; // half-width with overhang
+  const rhd = bd / 2 + roofOverhang;
+  const frontRhd = hasPorch ? rhd + 0.3 : rhd;
+
+  if (roofStyle === 'flat') {
+    const flatRoof = BABYLON.MeshBuilder.CreateBox('roof', {
+      width: bw + roofOverhang * 2, height: 0.05, depth: bd + roofOverhang * 2,
+    }, scene);
+    flatRoof.position.y = bodyHeight + porchElev + 0.025;
+    flatRoof.material = roofMat;
+  } else {
+    const roofHeight = roofStyle === 'hip' || roofStyle === 'hipped_dormers' ? 0.3 : 0.4;
+    const roofMesh = new BABYLON.Mesh('roof', scene);
+
+    if (roofStyle === 'hip' || roofStyle === 'hipped_dormers') {
+      // Hipped roof — ridge shorter than building length
+      const ridgeLen = Math.max(rhw * 0.4, 0.1);
+      const positions = [
+        -rhw, 0, frontRhd,  rhw, 0, frontRhd,  rhw, 0, -rhd,  -rhw, 0, -rhd,
+        -ridgeLen, roofHeight, 0,  ridgeLen, roofHeight, 0,
+      ];
+      const indices = [
+        0, 5, 1, 0, 4, 5,  1, 5, 2, 2, 5, 4,  2, 4, 3,  3, 4, 0,  0, 1, 2, 0, 2, 3,
+      ];
+      const normals: number[] = [];
+      const vd = new BABYLON.VertexData();
+      vd.positions = positions;
+      vd.indices = indices;
+      BABYLON.VertexData.ComputeNormals(positions, indices, normals);
+      vd.normals = normals;
+      vd.applyToMesh(roofMesh);
+    } else {
+      // Gable / side_gable roof
+      const isside = roofStyle === 'side_gable';
+      const ridgeInset = Math.min(rhw * 0.5, rhd * 0.5);
+      const ridgeHalfLen = (isside ? rhd : rhw) - ridgeInset;
+      let positions: number[];
+      if (isside) {
+        positions = [
+          -rhw, 0, frontRhd,  rhw, 0, frontRhd,  rhw, 0, -rhd,  -rhw, 0, -rhd,
+          0, roofHeight, -ridgeHalfLen,  0, roofHeight, ridgeHalfLen,
+        ];
+      } else {
+        positions = [
+          -rhw, 0, frontRhd,  rhw, 0, frontRhd,  rhw, 0, -rhd,  -rhw, 0, -rhd,
+          -ridgeHalfLen, roofHeight, 0,  ridgeHalfLen, roofHeight, 0,
+        ];
+      }
+      const indices = [
+        0, 5, 1, 0, 4, 5,  1, 5, 2,  2, 3, 4, 2, 4, 5,  3, 0, 4,  0, 1, 2, 0, 2, 3,
+      ];
+      const normals: number[] = [];
+      const vd = new BABYLON.VertexData();
+      vd.positions = positions;
+      vd.indices = indices;
+      BABYLON.VertexData.ComputeNormals(positions, indices, normals);
+      vd.normals = normals;
+      vd.applyToMesh(roofMesh);
+    }
+    roofMesh.position.y = bodyHeight + porchElev;
+    roofMesh.material = roofMat;
+  }
 
   // Porch
   if (hasPorch) {
@@ -450,31 +577,46 @@ function buildProceduralPlaceholder(
     porchMat.diffuseColor = wallColor.scale(0.75);
     porchMat.specularColor = BABYLON.Color3.Black();
 
+    const porchDepth = 0.35;
     // Foundation
     const foundation = BABYLON.MeshBuilder.CreateBox('porchFound', {
-      width: 1.1, height: porchElev, depth: 0.35,
+      width: bw + 0.1, height: porchElev, depth: porchDepth,
     }, scene);
     foundation.position.y = porchElev / 2;
-    foundation.position.z = 0.5 + 0.175;
+    foundation.position.z = bd / 2 + porchDepth / 2;
     foundation.material = porchMat;
 
     // Porch deck
     const deck = BABYLON.MeshBuilder.CreateBox('porchDeck', {
-      width: 1.1, height: 0.03, depth: 0.35,
+      width: bw + 0.1, height: 0.03, depth: porchDepth,
     }, scene);
     deck.position.y = porchElev;
-    deck.position.z = 0.5 + 0.175;
+    deck.position.z = bd / 2 + porchDepth / 2;
     deck.material = porchMat;
 
     // Posts
     const postMat = new BABYLON.StandardMaterial('postMat', scene);
     postMat.diffuseColor = new BABYLON.Color3(0.9, 0.9, 0.88);
-    for (const x of [-0.4, 0.4]) {
+    for (const x of [-bw * 0.35, bw * 0.35]) {
       const post = BABYLON.MeshBuilder.CreateCylinder(`post_${x}`, {
-        diameter: 0.04, height: 0.55, tessellation: 6,
+        diameter: 0.04, height: floorHeight, tessellation: 6,
       }, scene);
-      post.position.set(x, porchElev + 0.275, 0.65);
+      post.position.set(x, porchElev + floorHeight / 2, bd / 2 + porchDepth * 0.8);
       post.material = postMat;
+    }
+
+    // Steps
+    const steps = preset?.porchSteps ?? 2;
+    const stepMat = new BABYLON.StandardMaterial('stepMat', scene);
+    stepMat.diffuseColor = wallColor.scale(0.6);
+    stepMat.specularColor = BABYLON.Color3.Black();
+    for (let s = 0; s < steps; s++) {
+      const stepH = porchElev / steps;
+      const step = BABYLON.MeshBuilder.CreateBox(`step_${s}`, {
+        width: doorW * 2, height: stepH, depth: 0.08,
+      }, scene);
+      step.position.set(0, stepH * (s + 0.5), bd / 2 + porchDepth + 0.04 * (steps - s));
+      step.material = stepMat;
     }
   }
 
@@ -483,18 +625,29 @@ function buildProceduralPlaceholder(
     const ironMat = new BABYLON.StandardMaterial('ironMat', scene);
     ironMat.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.15);
     const balcSlab = BABYLON.MeshBuilder.CreateBox('balcSlab', {
-      width: 0.95, height: 0.03, depth: 0.2,
+      width: bw * 0.9, height: 0.03, depth: 0.2,
     }, scene);
-    balcSlab.position.y = 0.6 + porchElev;
-    balcSlab.position.z = 0.6;
+    balcSlab.position.y = floorHeight + porchElev;
+    balcSlab.position.z = bd / 2 + 0.1;
     balcSlab.material = ironMat;
 
     const balcRail = BABYLON.MeshBuilder.CreateBox('balcRail', {
-      width: 0.95, height: 0.15, depth: 0.02,
+      width: bw * 0.9, height: 0.15, depth: 0.02,
     }, scene);
-    balcRail.position.y = 0.72 + porchElev;
-    balcRail.position.z = 0.7;
+    balcRail.position.y = floorHeight + porchElev + 0.12;
+    balcRail.position.z = bd / 2 + 0.2;
     balcRail.material = ironMat;
+
+    // Balcony railing posts
+    const railCount = Math.max(2, Math.floor(bw / 0.15));
+    for (let i = 0; i <= railCount; i++) {
+      const rx = -bw * 0.45 + (bw * 0.9 / railCount) * i;
+      const railPost = BABYLON.MeshBuilder.CreateCylinder(`railPost_${i}`, {
+        diameter: 0.015, height: 0.15, tessellation: 6,
+      }, scene);
+      railPost.position.set(rx, floorHeight + porchElev + 0.075, bd / 2 + 0.2);
+      railPost.material = ironMat;
+    }
   }
 
   // Shutters
@@ -502,23 +655,39 @@ function buildProceduralPlaceholder(
     const shutterCol = preset.shutterColor || preset.doorColor;
     const shutterMat = new BABYLON.StandardMaterial('shutterMat', scene);
     shutterMat.diffuseColor = new BABYLON.Color3(shutterCol.r, shutterCol.g, shutterCol.b);
-    for (const x of [-0.25, 0.25]) {
+    for (const wx of winXPositions) {
       for (let f = 0; f < floors; f++) {
-        for (const sx of [-0.12, 0.12]) {
-          const sh = BABYLON.MeshBuilder.CreateBox(`sh_${x}_${f}_${sx}`, {
-            width: 0.05, height: 0.18, depth: 0.02,
+        for (const sx of [-(winW / 2 + 0.02), (winW / 2 + 0.02)]) {
+          const sh = BABYLON.MeshBuilder.CreateBox(`sh_${wx}_${f}_${sx}`, {
+            width: 0.04, height: winH + 0.02, depth: 0.02,
           }, scene);
-          sh.position.set(x + sx, f * 0.6 + 0.35 + porchElev, 0.52);
+          const winY = porchElev + f * floorHeight + floorHeight * 0.55;
+          sh.position.set(wx + sx, winY, bd / 2 + 0.012);
           sh.material = shutterMat;
         }
       }
     }
   }
 
-  const totalH = bodyHeight + roofHeight + porchElev;
+  // Chimney
+  if (hasChimney) {
+    const chimneyMat = new BABYLON.StandardMaterial('chimneyMat', scene);
+    chimneyMat.diffuseColor = new BABYLON.Color3(0.4, 0.3, 0.25);
+    chimneyMat.specularColor = BABYLON.Color3.Black();
+    const chimneyH = 0.35;
+    const chimney = BABYLON.MeshBuilder.CreateBox('chimney', {
+      width: 0.12, height: chimneyH, depth: 0.12,
+    }, scene);
+    chimney.position.set(bw * 0.3, bodyHeight + porchElev + chimneyH / 2, -bd * 0.2);
+    chimney.material = chimneyMat;
+  }
+
+  const roofPeak = roofStyle === 'flat' ? 0.05 : 0.4;
+  const totalH = bodyHeight + roofPeak + porchElev;
   camera.target = new BABYLON.Vector3(0, totalH / 2, 0);
-  camera.radius = Math.max(3, totalH * 2);
-  ground.scaling = new BABYLON.Vector3(2, 2, 1);
+  camera.radius = Math.max(3, totalH * 2.2);
+  const groundScale = Math.max(bw, bd) * 1.5;
+  ground.scaling = new BABYLON.Vector3(groundScale, groundScale, 1);
 }
 
 /** Resolve a visual asset ID to its file path */

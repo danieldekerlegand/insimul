@@ -101,6 +101,10 @@ function BuildingDetailEditor({
                   porchDepth: overrides?.porchDepth ?? preset.porchDepth,
                   porchSteps: overrides?.porchSteps ?? preset.porchSteps,
                   shutterColor: overrides?.shutterColor ?? preset.shutterColor,
+                  wallTextureId: overrides?.wallTextureId ?? preset.wallTextureId,
+                  roofTextureId: overrides?.roofTextureId ?? preset.roofTextureId,
+                  doorTextureId: overrides?.doorTextureId ?? preset.doorTextureId,
+                  windowTextureId: overrides?.windowTextureId ?? preset.windowTextureId,
                 }],
               } : {
                 stylePresets: [{
