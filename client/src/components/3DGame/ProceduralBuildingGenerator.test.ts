@@ -309,5 +309,154 @@ console.log('\nPartial feature texture IDs (only some set):');
   assertEqual(spec.style.shutterTextureId, 'only_shutter_tex', 'shutterTextureId set when provided (partial)');
 }
 
+console.log('\n--- Material cache key uniqueness for texture IDs ---');
+{
+  // Verify that different texture IDs produce different cache keys
+  // (This tests the key format logic indirectly via spec creation)
+  const presetWithWall = {
+    id: 'wall_tex_preset',
+    name: 'With Wall Tex',
+    baseColors: [{ r: 0.5, g: 0.5, b: 0.5 }],
+    roofColor: { r: 0.3, g: 0.3, b: 0.3 },
+    windowColor: { r: 0.8, g: 0.8, b: 0.8 },
+    doorColor: { r: 0.4, g: 0.4, b: 0.4 },
+    materialType: 'brick' as const,
+    architectureStyle: 'colonial' as const,
+    wallTextureId: 'tex_alpha',
+  };
+
+  const presetWithDiffWall = {
+    id: 'diff_wall_preset',
+    name: 'Diff Wall Tex',
+    baseColors: [{ r: 0.5, g: 0.5, b: 0.5 }],
+    roofColor: { r: 0.3, g: 0.3, b: 0.3 },
+    windowColor: { r: 0.8, g: 0.8, b: 0.8 },
+    doorColor: { r: 0.4, g: 0.4, b: 0.4 },
+    materialType: 'brick' as const,
+    architectureStyle: 'colonial' as const,
+    wallTextureId: 'tex_beta',
+  };
+
+  const specA = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'cache_test_a',
+    type: 'business',
+    businessType: 'Bakery',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [presetWithWall],
+      defaultCommercialStyleId: 'wall_tex_preset',
+    },
+  });
+
+  const specB = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'cache_test_b',
+    type: 'business',
+    businessType: 'Bakery',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [presetWithDiffWall],
+      defaultCommercialStyleId: 'diff_wall_preset',
+    },
+  });
+
+  assert(
+    specA.style.wallTextureId !== specB.style.wallTextureId,
+    'different presets produce different wallTextureIds for cache key differentiation'
+  );
+  assertEqual(specA.style.wallTextureId, 'tex_alpha', 'specA has tex_alpha');
+  assertEqual(specB.style.wallTextureId, 'tex_beta', 'specB has tex_beta');
+}
+
+console.log('\n--- Texture ID with wallTextureId set but no roofTextureId ---');
+{
+  const preset = {
+    id: 'wall_only_preset',
+    name: 'Wall Only',
+    baseColors: [{ r: 0.6, g: 0.5, b: 0.4 }],
+    roofColor: { r: 0.2, g: 0.2, b: 0.2 },
+    windowColor: { r: 0.7, g: 0.7, b: 0.7 },
+    doorColor: { r: 0.3, g: 0.3, b: 0.3 },
+    materialType: 'stone' as const,
+    architectureStyle: 'medieval' as const,
+    wallTextureId: 'my_wall_tex',
+  };
+
+  const spec = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_wall_only',
+    type: 'residence',
+    businessType: 'residence_medium',
+    position: new Vector3(5, 0, 10),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [preset],
+      defaultResidentialStyleId: 'wall_only_preset',
+    },
+  });
+
+  assertEqual(spec.style.wallTextureId, 'my_wall_tex', 'wallTextureId propagated when only wall texture set');
+  assert(spec.style.roofTextureId === undefined, 'roofTextureId remains undefined when not set');
+}
+
+console.log('\n--- Multiple presets with different texture combinations ---');
+{
+  const presetFull = {
+    id: 'full_tex',
+    name: 'Full Textures',
+    baseColors: [{ r: 0.5, g: 0.5, b: 0.5 }],
+    roofColor: { r: 0.3, g: 0.3, b: 0.3 },
+    windowColor: { r: 0.8, g: 0.8, b: 0.8 },
+    doorColor: { r: 0.4, g: 0.4, b: 0.4 },
+    materialType: 'brick' as const,
+    architectureStyle: 'colonial' as const,
+    wallTextureId: 'wall_full',
+    roofTextureId: 'roof_full',
+  };
+
+  const presetNone = {
+    id: 'no_tex',
+    name: 'No Textures',
+    baseColors: [{ r: 0.5, g: 0.5, b: 0.5 }],
+    roofColor: { r: 0.3, g: 0.3, b: 0.3 },
+    windowColor: { r: 0.8, g: 0.8, b: 0.8 },
+    doorColor: { r: 0.4, g: 0.4, b: 0.4 },
+    materialType: 'wood' as const,
+    architectureStyle: 'rustic' as const,
+  };
+
+  const specFull = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_full_tex',
+    type: 'business',
+    businessType: 'Tavern',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [presetFull, presetNone],
+      buildingTypeOverrides: { 'Tavern': { stylePresetId: 'full_tex' } },
+    },
+  });
+
+  const specNone = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_no_tex',
+    type: 'residence',
+    businessType: 'residence_small',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [presetFull, presetNone],
+      defaultResidentialStyleId: 'no_tex',
+    },
+  });
+
+  assertEqual(specFull.style.wallTextureId, 'wall_full', 'full-texture preset has wallTextureId');
+  assertEqual(specFull.style.roofTextureId, 'roof_full', 'full-texture preset has roofTextureId');
+  assert(specNone.style.wallTextureId === undefined, 'no-texture preset has no wallTextureId');
+  assert(specNone.style.roofTextureId === undefined, 'no-texture preset has no roofTextureId');
+
+  // Verify style names differ (used in cache key)
+  assert(specFull.style.name !== specNone.style.name, 'different presets produce different style names');
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 process.exit(failed > 0 ? 1 : 0);

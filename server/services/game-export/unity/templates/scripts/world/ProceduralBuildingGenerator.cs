@@ -400,14 +400,21 @@ namespace Insimul.World
             building.transform.rotation = Quaternion.Euler(0, rotation, 0);
             building.transform.SetParent(transform);
 
-            // Apply wall material (stucco, textured, or default color)
+            // Resolve wall texture: prefer per-preset texture, fall back to global, then solid color
             var renderer = building.GetComponent<Renderer>();
             if (renderer != null)
             {
-                if (_wallTexture != null)
+                Texture2D resolvedWallTex = null;
+                if (!string.IsNullOrEmpty(style.wallTextureId) && _presetTextures.ContainsKey(style.wallTextureId))
+                    resolvedWallTex = _presetTextures[style.wallTextureId];
+                if (resolvedWallTex == null)
+                    resolvedWallTex = _wallTexture;
+
+                string wallTexKey = style.wallTextureId ?? (resolvedWallTex != null ? "global" : "notex");
+                if (resolvedWallTex != null)
                 {
-                    var wallMat = GetSharedMaterial("wall_tex", Color.white);
-                    wallMat.mainTexture = _wallTexture;
+                    var wallMat = GetSharedMaterial($"wall_{style.name}_{style.materialType}_{wallTexKey}", Color.white);
+                    wallMat.mainTexture = resolvedWallTex;
                     renderer.sharedMaterial = wallMat;
                 }
                 else if (style.materialType == "stucco")
@@ -507,13 +514,21 @@ namespace Insimul.World
             roof.transform.rotation = Quaternion.Euler(0, rotation, 0);
             roof.transform.SetParent(building.transform);
 
+            // Resolve roof texture: prefer per-preset texture, fall back to global, then solid color
             var roofRenderer = roof.GetComponent<Renderer>();
             if (roofRenderer != null)
             {
-                if (_roofTexture != null)
+                Texture2D resolvedRoofTex = null;
+                if (!string.IsNullOrEmpty(style.roofTextureId) && _presetTextures.ContainsKey(style.roofTextureId))
+                    resolvedRoofTex = _presetTextures[style.roofTextureId];
+                if (resolvedRoofTex == null)
+                    resolvedRoofTex = _roofTexture;
+
+                string roofTexKey = style.roofTextureId ?? (resolvedRoofTex != null ? "global" : "notex");
+                if (resolvedRoofTex != null)
                 {
-                    var roofMat = GetSharedMaterial("roof_tex", Color.white);
-                    roofMat.mainTexture = _roofTexture;
+                    var roofMat = GetSharedMaterial($"roof_{style.name}_{roofTexKey}", Color.white);
+                    roofMat.mainTexture = resolvedRoofTex;
                     roofRenderer.sharedMaterial = roofMat;
                 }
                 else

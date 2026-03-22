@@ -390,10 +390,18 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	building.position = pos + Vector3.UP * (total_height / 2.0 + porch_elevation)
 	building.rotation.y = rotation_y
 
-	# Apply wall texture override or shared color material
-	if _wall_texture != null:
-		var wall_mat := _get_shared_material("wall_tex", Color.WHITE, mat_type)
-		wall_mat.albedo_texture = _wall_texture
+	# Resolve wall texture: prefer per-preset texture, fall back to global, then solid color
+	var resolved_wall_tex: Texture2D = null
+	var wall_tex_id: String = style.get("wallTextureId", "")
+	if wall_tex_id != "" and _preset_textures.has(wall_tex_id):
+		resolved_wall_tex = _preset_textures[wall_tex_id]
+	if resolved_wall_tex == null:
+		resolved_wall_tex = _wall_texture
+
+	var wall_tex_key := wall_tex_id if wall_tex_id != "" else ("global" if resolved_wall_tex != null else "notex")
+	if resolved_wall_tex != null:
+		var wall_mat := _get_shared_material("wall_%s_%s_%s" % [style.get("name", ""), mat_type, wall_tex_key], Color.WHITE, mat_type)
+		wall_mat.albedo_texture = resolved_wall_tex
 		building.material_override = wall_mat
 	else:
 		building.material_override = _get_shared_material("wall", base_color, mat_type)
@@ -450,10 +458,18 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	roof.name = "Roof"
 	roof.position = Vector3(0, total_height / 2.0 + actual_roof_height / 2.0, 0)
 
-	# Apply roof texture override or shared color material
-	if _roof_texture != null:
-		var roof_mat := _get_shared_material("roof_tex", Color.WHITE)
-		roof_mat.albedo_texture = _roof_texture
+	# Resolve roof texture: prefer per-preset texture, fall back to global, then solid color
+	var resolved_roof_tex: Texture2D = null
+	var roof_tex_id: String = style.get("roofTextureId", "")
+	if roof_tex_id != "" and _preset_textures.has(roof_tex_id):
+		resolved_roof_tex = _preset_textures[roof_tex_id]
+	if resolved_roof_tex == null:
+		resolved_roof_tex = _roof_texture
+
+	var roof_tex_key := roof_tex_id if roof_tex_id != "" else ("global" if resolved_roof_tex != null else "notex")
+	if resolved_roof_tex != null:
+		var roof_mat := _get_shared_material("roof_%s_%s" % [style.get("name", ""), roof_tex_key], Color.WHITE)
+		roof_mat.albedo_texture = resolved_roof_tex
 		roof.material_override = roof_mat
 	else:
 		roof.material_override = _get_shared_material("roof", roof_color)
