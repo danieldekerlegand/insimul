@@ -32,6 +32,7 @@ import { QualityComparisonDialog } from "../QualityComparisonDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3, NpcConfig } from "@shared/game-engine/types";
 import { CategoryPresetEditorModal, type TexturePickerRequest } from "./CategoryPresetEditorModal";
+import { BuildingConfigurationPanel } from "./BuildingConfigurationPanel";
 
 const WORLD_TYPES = [
   { value: "medieval-fantasy", label: "Medieval Fantasy" },
@@ -937,7 +938,7 @@ export function AdminAssetsHub() {
     const hasCollection = browseMode === 'collections' && !!selectedCollection;
     if (!hasAsset && !hasCollection) return null;
 
-    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets';
+    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets' | 'building-config';
     const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
       { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
       { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
@@ -945,6 +946,7 @@ export function AdminAssetsHub() {
       { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
       { id: 'npc' as SectionId, label: 'NPC Characters', icon: Users, show: hasCollection },
       { id: 'category_presets' as SectionId, label: 'Category Presets', icon: Palette, show: hasCollection },
+      { id: 'building-config' as SectionId, label: 'Building Config', icon: Building2, show: hasCollection },
     ];
     const sections = allSections.filter(s => s.show);
 
@@ -1219,6 +1221,15 @@ export function AdminAssetsHub() {
                           )}
                         </Button>
                       </div>
+                    )}
+
+                    {/* Building Configuration Panel */}
+                    {section.id === 'building-config' && selectedCollection && (
+                      <BuildingConfigurationPanel
+                        collection={selectedCollection}
+                        assets={collectionAssets}
+                        onUpdateConfig={(configs) => patchCollectionConfig({ buildingTypeConfigs: configs } as any)}
+                      />
                     )}
                   </div>
                 </ScrollArea>
