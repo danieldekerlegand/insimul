@@ -1103,6 +1103,7 @@ export function AdminAssetsHub() {
                     {section.id === 'building-config' && selectedCollection && (
                       <BuildingConfigurationPanel
                         collection={selectedCollection}
+                        assets={collectionAssets}
                         onUpdateConfig={(buildingTypeConfigs) =>
                           patchCollectionConfig({ buildingTypeConfigs } as any)
                         }
