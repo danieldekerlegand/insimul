@@ -10,7 +10,8 @@
  *   props/quaternius/     — items, props, food, weapons, tools
  *   furniture/quaternius/ — furniture, interior items
  *   buildings/quaternius/ — buildings, structures
- *   characters/quaternius/ — characters, animals, outfits
+ *   characters/quaternius/ — characters, outfits
+ *   animals/              — animal models (moved from characters/quaternius/)
  *   vehicles/quaternius/  — cars, trains, transport
  *
  * Usage:
@@ -38,6 +39,7 @@ const DEST_DIRS = {
   furniture: path.join(PUBLIC_DIR, 'assets/models/furniture/quaternius'),
   buildings: path.join(PUBLIC_DIR, 'assets/models/buildings/quaternius'),
   characters: path.join(PUBLIC_DIR, 'assets/models/characters/quaternius'),
+  animals: path.join(PUBLIC_DIR, 'assets/models/animals'),
   vehicles: path.join(PUBLIC_DIR, 'assets/models/vehicles/quaternius'),
   weapons: path.join(PUBLIC_DIR, 'assets/models/props/quaternius'), // weapons go in props
   food: path.join(PUBLIC_DIR, 'assets/models/props/quaternius'),    // food goes in props
@@ -85,8 +87,8 @@ const PACKS: PackDef[] = [
   {
     packDir: 'Ultimate Animated Animals - July 2021',
     gltfDir: 'glTF',
-    category: 'characters',
-    assetType: 'model_character',
+    category: 'animals',
+    assetType: 'model_animal',
     prefix: 'animal_',
     tags: ['animal', 'animated', 'quaternius'],
   },
