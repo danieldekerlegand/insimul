@@ -175,6 +175,11 @@ public:
     /** Zone-based scale multipliers indexed by zone name (commercial, residential). */
     static const TMap<FString, FZoneScale>& GetZoneScale();
 
+    /** Apply subtype-specific style overrides (color tint, material/feature preferences)
+     *  on top of a base preset for the given building role. Returns the modified preset. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Building")
+    static FBuildingStylePreset ApplySubtypeOverride(const FBuildingStylePreset& Base, const FString& BuildingRole);
+
 private:
     UPROPERTY()
     TMap<FString, UMaterialInstanceDynamic*> MaterialCache;
