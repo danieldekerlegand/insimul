@@ -82,6 +82,13 @@ const WHITE_WASH: RoomColor = { r: 0.7, g: 0.68, b: 0.62 };
 const DARK_CEILING: RoomColor = { r: 0.3, g: 0.2, b: 0.12 };
 const FORGE_DARK: RoomColor = { r: 0.25, g: 0.22, b: 0.2 };
 const FORGE_WALL: RoomColor = { r: 0.35, g: 0.3, b: 0.25 };
+const MARBLE_WHITE: RoomColor = { r: 0.8, g: 0.78, b: 0.75 };
+const MARBLE_FLOOR: RoomColor = { r: 0.7, g: 0.68, b: 0.65 };
+const TILE_BLUE: RoomColor = { r: 0.5, g: 0.6, b: 0.7 };
+const BRICK_RED: RoomColor = { r: 0.55, g: 0.3, b: 0.2 };
+const COPPER_BROWN: RoomColor = { r: 0.6, g: 0.4, b: 0.2 };
+const SAWDUST_TAN: RoomColor = { r: 0.6, g: 0.5, b: 0.35 };
+const COTTAGE_WALL: RoomColor = { r: 0.65, g: 0.58, b: 0.48 };
 
 // Furniture colors
 const TABLE_BROWN: RoomColor = { r: 0.45, g: 0.3, b: 0.15 };
@@ -100,6 +107,14 @@ const BOOKSHELF_DARK: RoomColor = { r: 0.35, g: 0.2, b: 0.1 };
 const HAY_YELLOW: RoomColor = { r: 0.7, g: 0.6, b: 0.3 };
 const CLINIC_WHITE: RoomColor = { r: 0.75, g: 0.72, b: 0.68 };
 const SCHOOL_DESK: RoomColor = { r: 0.48, g: 0.35, b: 0.2 };
+const BRASS_GOLD: RoomColor = { r: 0.7, g: 0.55, b: 0.25 };
+const SAFE_DARK: RoomColor = { r: 0.25, g: 0.25, b: 0.28 };
+const FABRIC_RED: RoomColor = { r: 0.55, g: 0.15, b: 0.12 };
+const GLASS_CASE: RoomColor = { r: 0.6, g: 0.65, b: 0.7 };
+const COPPER_VAT: RoomColor = { r: 0.55, g: 0.38, b: 0.18 };
+const MEAT_BLOCK: RoomColor = { r: 0.5, g: 0.35, b: 0.25 };
+const IRON_HOOK: RoomColor = { r: 0.4, g: 0.4, b: 0.42 };
+const LOCKER_GRAY: RoomColor = { r: 0.5, g: 0.5, b: 0.52 };
 
 // ─── Furniture Sets ──────────────────────────────────────────────────────────
 
@@ -270,6 +285,237 @@ const RESTAURANT_MAIN_FURNITURE: FurnitureEntry[] = [
   { type: 'chair', offsetXFraction: -0.35, offsetZFraction: 0.15, width: 0.5, height: 1.0, depth: 0.5, color: CHAIR_BROWN },
   { type: 'chair', offsetXFraction: 0.35, offsetZFraction: 0.15, width: 0.5, height: 1.0, depth: 0.5, color: CHAIR_BROWN },
   { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.38, width: 3, height: 1.0, depth: 0.7, color: COUNTER_TAN },
+];
+
+// ─── Subtype-Specific Furniture Sets ─────────────────────────────────────────
+
+const BANK_LOBBY_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.2, width: 5, height: 1.1, depth: 0.8, color: COUNTER_TAN },
+  { type: 'chair', offsetXFraction: -0.25, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0.25, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'table', offsetXFraction: 0, offsetZFraction: -0.2, width: 1.2, height: 0.8, depth: 0.6, color: TABLE_BROWN },
+  { type: 'pillar', offsetXFraction: -0.4, offsetZFraction: 0, width: 0.4, height: 3.0, depth: 0.4, color: MARBLE_WHITE },
+  { type: 'pillar', offsetXFraction: 0.4, offsetZFraction: 0, width: 0.4, height: 3.0, depth: 0.4, color: MARBLE_WHITE },
+];
+
+const VAULT_FURNITURE: FurnitureEntry[] = [
+  { type: 'safe', offsetXFraction: 0, offsetZFraction: 0.3, width: 2.0, height: 2.0, depth: 1.5, color: SAFE_DARK },
+  { type: 'shelf', offsetXFraction: -0.35, offsetZFraction: 0, width: 1.2, height: 1.8, depth: 0.5, color: METAL_GRAY },
+  { type: 'shelf', offsetXFraction: 0.35, offsetZFraction: 0, width: 1.2, height: 1.8, depth: 0.5, color: METAL_GRAY },
+  { type: 'chest', offsetXFraction: 0, offsetZFraction: -0.25, width: 1.0, height: 0.6, depth: 0.6, color: SAFE_DARK },
+];
+
+const WAITING_ROOM_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: 0.3, offsetZFraction: 0.3, width: 2.5, height: 1.0, depth: 0.7, color: COUNTER_TAN },
+  { type: 'chair', offsetXFraction: -0.3, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: -0.1, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0.1, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'table', offsetXFraction: -0.2, offsetZFraction: -0.35, width: 0.8, height: 0.5, depth: 0.5, color: TABLE_BROWN },
+];
+
+const HOSPITAL_WARD_FURNITURE: FurnitureEntry[] = [
+  { type: 'bed', offsetXFraction: -0.3, offsetZFraction: -0.2, width: 1.5, height: 0.6, depth: 2.0, color: CLINIC_WHITE },
+  { type: 'bed', offsetXFraction: 0.3, offsetZFraction: -0.2, width: 1.5, height: 0.6, depth: 2.0, color: CLINIC_WHITE },
+  { type: 'bed', offsetXFraction: -0.3, offsetZFraction: 0.2, width: 1.5, height: 0.6, depth: 2.0, color: CLINIC_WHITE },
+  { type: 'bed', offsetXFraction: 0.3, offsetZFraction: 0.2, width: 1.5, height: 0.6, depth: 2.0, color: CLINIC_WHITE },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.4, width: 1.5, height: 1.8, depth: 0.4, color: CLINIC_WHITE },
+];
+
+const EXAM_ROOM_FURNITURE: FurnitureEntry[] = [
+  { type: 'bed', offsetXFraction: 0, offsetZFraction: 0, width: 1.5, height: 0.7, depth: 2.0, color: CLINIC_WHITE },
+  { type: 'stool', offsetXFraction: 0.3, offsetZFraction: -0.1, width: 0.4, height: 0.6, depth: 0.4, color: CHAIR_BROWN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.0, height: 1.8, depth: 0.4, color: CLINIC_WHITE },
+  { type: 'table', offsetXFraction: -0.35, offsetZFraction: 0.2, width: 0.8, height: 0.7, depth: 0.5, color: TABLE_BROWN },
+];
+
+const BREWING_FURNITURE: FurnitureEntry[] = [
+  { type: 'vat', offsetXFraction: -0.25, offsetZFraction: 0, width: 1.5, height: 2.0, depth: 1.5, color: COPPER_VAT },
+  { type: 'vat', offsetXFraction: 0.25, offsetZFraction: 0, width: 1.5, height: 2.0, depth: 1.5, color: COPPER_VAT },
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.35, width: 3, height: 0.9, depth: 0.8, color: COUNTER_TAN },
+  { type: 'barrel', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+];
+
+const BARREL_CELLAR_FURNITURE: FurnitureEntry[] = [
+  { type: 'barrel', offsetXFraction: -0.3, offsetZFraction: -0.3, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: -0.1, offsetZFraction: -0.3, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.1, offsetZFraction: -0.3, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.3, offsetZFraction: -0.3, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: -0.3, offsetZFraction: 0.1, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.1, offsetZFraction: 0.1, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.5, height: 1.8, depth: 0.5, color: SHELF_BROWN },
+];
+
+const TASTING_ROOM_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.25, width: 3.5, height: 1.1, depth: 0.8, color: COUNTER_TAN },
+  { type: 'stool', offsetXFraction: -0.2, offsetZFraction: 0.1, width: 0.4, height: 0.7, depth: 0.4, color: CHAIR_BROWN },
+  { type: 'stool', offsetXFraction: 0, offsetZFraction: 0.1, width: 0.4, height: 0.7, depth: 0.4, color: CHAIR_BROWN },
+  { type: 'stool', offsetXFraction: 0.2, offsetZFraction: 0.1, width: 0.4, height: 0.7, depth: 0.4, color: CHAIR_BROWN },
+  { type: 'barrel', offsetXFraction: -0.4, offsetZFraction: -0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.4, offsetZFraction: -0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+];
+
+const BARBER_FURNITURE: FurnitureEntry[] = [
+  { type: 'chair', offsetXFraction: -0.2, offsetZFraction: 0.1, width: 0.7, height: 1.2, depth: 0.7, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0.2, offsetZFraction: 0.1, width: 0.7, height: 1.2, depth: 0.7, color: CHAIR_BROWN },
+  { type: 'shelf', offsetXFraction: -0.2, offsetZFraction: 0.35, width: 1.0, height: 1.2, depth: 0.3, color: SHELF_BROWN },
+  { type: 'shelf', offsetXFraction: 0.2, offsetZFraction: 0.35, width: 1.0, height: 1.2, depth: 0.3, color: SHELF_BROWN },
+  { type: 'bench', offsetXFraction: 0, offsetZFraction: -0.35, width: 2.0, height: 0.5, depth: 0.5, color: TABLE_BROWN },
+  { type: 'counter', offsetXFraction: 0.4, offsetZFraction: 0.1, width: 0.8, height: 0.9, depth: 0.5, color: COUNTER_TAN },
+];
+
+const SEWING_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0, width: 2.0, height: 0.8, depth: 1.0, color: TABLE_BROWN },
+  { type: 'chair', offsetXFraction: 0, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.2, width: 1.2, height: 2.0, depth: 0.5, color: SHELF_BROWN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.2, width: 1.2, height: 2.0, depth: 0.5, color: SHELF_BROWN },
+  { type: 'crate', offsetXFraction: -0.3, offsetZFraction: -0.3, width: 0.6, height: 0.6, depth: 0.6, color: FABRIC_RED },
+];
+
+const FITTING_ROOM_FURNITURE: FurnitureEntry[] = [
+  { type: 'shelf', offsetXFraction: 0, offsetZFraction: 0.35, width: 1.5, height: 2.0, depth: 0.3, color: SHELF_BROWN },
+  { type: 'bench', offsetXFraction: 0, offsetZFraction: -0.2, width: 1.5, height: 0.5, depth: 0.5, color: TABLE_BROWN },
+  { type: 'display_table', offsetXFraction: -0.3, offsetZFraction: 0, width: 0.6, height: 1.6, depth: 0.4, color: TABLE_BROWN },
+];
+
+const PHARMACY_COUNTER_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.15, width: 3.5, height: 1.0, depth: 0.8, color: COUNTER_TAN },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.35, width: 1.2, height: 2.0, depth: 0.4, color: SHELF_BROWN },
+  { type: 'shelf', offsetXFraction: 0, offsetZFraction: 0.38, width: 1.2, height: 2.0, depth: 0.4, color: SHELF_BROWN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.35, width: 1.2, height: 2.0, depth: 0.4, color: SHELF_BROWN },
+  { type: 'table', offsetXFraction: 0.3, offsetZFraction: -0.2, width: 1.0, height: 0.8, depth: 0.6, color: TABLE_BROWN },
+  { type: 'stool', offsetXFraction: 0.3, offsetZFraction: -0.35, width: 0.4, height: 0.6, depth: 0.4, color: CHAIR_BROWN },
+];
+
+const CONFERENCE_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0, width: 3.5, height: 0.8, depth: 1.5, color: TABLE_BROWN },
+  { type: 'chair', offsetXFraction: -0.3, offsetZFraction: -0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0.3, offsetZFraction: -0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: -0.3, offsetZFraction: 0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0.3, offsetZFraction: 0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0, offsetZFraction: -0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0, offsetZFraction: 0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+];
+
+const LECTURE_HALL_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0.35, width: 2.5, height: 0.9, depth: 0.8, color: SCHOOL_DESK },
+  { type: 'chair', offsetXFraction: 0, offsetZFraction: 0.45, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'bench', offsetXFraction: -0.2, offsetZFraction: 0, width: 3.0, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: -0.2, offsetZFraction: -0.2, width: 3.0, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: -0.2, offsetZFraction: -0.4, width: 3.0, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'bookshelf', offsetXFraction: 0.4, offsetZFraction: 0.35, width: 1.2, height: 2.0, depth: 0.5, color: BOOKSHELF_DARK },
+];
+
+const POLICE_FRONT_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.2, width: 4, height: 1.1, depth: 0.8, color: COUNTER_TAN },
+  { type: 'chair', offsetXFraction: -0.25, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0.25, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.35, width: 1.5, height: 2.0, depth: 0.5, color: SHELF_BROWN },
+  { type: 'bookshelf', offsetXFraction: -0.4, offsetZFraction: 0.35, width: 1.5, height: 2.0, depth: 0.5, color: BOOKSHELF_DARK },
+];
+
+const HOLDING_CELL_FURNITURE: FurnitureEntry[] = [
+  { type: 'bench', offsetXFraction: 0, offsetZFraction: 0.2, width: 2.0, height: 0.5, depth: 0.6, color: TABLE_BROWN },
+];
+
+const ENGINE_BAY_FURNITURE: FurnitureEntry[] = [
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.5, height: 2.0, depth: 0.6, color: METAL_GRAY },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.5, height: 2.0, depth: 0.6, color: METAL_GRAY },
+  { type: 'crate', offsetXFraction: -0.35, offsetZFraction: -0.3, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+  { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: -0.3, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: -0.35, width: 3, height: 0.9, depth: 0.8, color: COUNTER_TAN },
+];
+
+const BUNK_FURNITURE: FurnitureEntry[] = [
+  { type: 'bed', offsetXFraction: -0.3, offsetZFraction: -0.2, width: 1.5, height: 0.6, depth: 2.0, color: BED_RED },
+  { type: 'bed', offsetXFraction: 0.3, offsetZFraction: -0.2, width: 1.5, height: 0.6, depth: 2.0, color: BED_RED },
+  { type: 'bed', offsetXFraction: -0.3, offsetZFraction: 0.2, width: 1.5, height: 0.6, depth: 2.0, color: BED_RED },
+  { type: 'bed', offsetXFraction: 0.3, offsetZFraction: 0.2, width: 1.5, height: 0.6, depth: 2.0, color: BED_RED },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.4, width: 1.5, height: 2.0, depth: 0.5, color: LOCKER_GRAY },
+];
+
+const DISPLAY_CASE_FURNITURE: FurnitureEntry[] = [
+  { type: 'display_table', offsetXFraction: -0.2, offsetZFraction: -0.1, width: 1.2, height: 1.0, depth: 0.6, color: GLASS_CASE },
+  { type: 'display_table', offsetXFraction: 0.2, offsetZFraction: -0.1, width: 1.2, height: 1.0, depth: 0.6, color: GLASS_CASE },
+  { type: 'display_table', offsetXFraction: 0, offsetZFraction: 0.15, width: 1.2, height: 1.0, depth: 0.6, color: GLASS_CASE },
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.35, width: 3, height: 1.0, depth: 0.7, color: COUNTER_TAN },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.0, height: 1.8, depth: 0.4, color: SHELF_BROWN },
+];
+
+const GROCERY_FLOOR_FURNITURE: FurnitureEntry[] = [
+  { type: 'shelf', offsetXFraction: -0.3, offsetZFraction: -0.2, width: 1.5, height: 1.8, depth: 0.6, color: SHELF_BROWN },
+  { type: 'shelf', offsetXFraction: 0, offsetZFraction: -0.2, width: 1.5, height: 1.8, depth: 0.6, color: SHELF_BROWN },
+  { type: 'shelf', offsetXFraction: 0.3, offsetZFraction: -0.2, width: 1.5, height: 1.8, depth: 0.6, color: SHELF_BROWN },
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.3, width: 3.5, height: 1.0, depth: 0.8, color: COUNTER_TAN },
+  { type: 'barrel', offsetXFraction: -0.4, offsetZFraction: 0.1, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+  { type: 'crate', offsetXFraction: 0.4, offsetZFraction: 0.1, width: 0.8, height: 0.6, depth: 0.8, color: CRATE_TAN },
+];
+
+const BOOKSTORE_FURNITURE: FurnitureEntry[] = [
+  { type: 'bookshelf', offsetXFraction: -0.4, offsetZFraction: -0.1, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
+  { type: 'bookshelf', offsetXFraction: -0.15, offsetZFraction: -0.1, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
+  { type: 'bookshelf', offsetXFraction: 0.15, offsetZFraction: -0.1, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
+  { type: 'bookshelf', offsetXFraction: 0.4, offsetZFraction: -0.1, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.35, width: 2.5, height: 1.0, depth: 0.7, color: COUNTER_TAN },
+  { type: 'chair', offsetXFraction: -0.3, offsetZFraction: 0.35, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+];
+
+const CARPENTER_WORKSHOP_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.25, width: 3.5, height: 0.9, depth: 0.8, color: COUNTER_TAN },
+  { type: 'table', offsetXFraction: -0.2, offsetZFraction: -0.1, width: 2.0, height: 0.8, depth: 1.2, color: TABLE_BROWN },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.2, height: 1.8, depth: 0.5, color: SHELF_BROWN },
+  { type: 'crate', offsetXFraction: 0.35, offsetZFraction: -0.3, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+  { type: 'crate', offsetXFraction: 0.35, offsetZFraction: -0.1, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+];
+
+const BUTCHER_SHOP_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.2, width: 3.5, height: 1.0, depth: 0.8, color: COUNTER_TAN },
+  { type: 'table', offsetXFraction: 0, offsetZFraction: -0.1, width: 1.5, height: 0.9, depth: 1.0, color: MEAT_BLOCK },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.0, height: 1.8, depth: 0.4, color: IRON_HOOK },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.0, height: 1.8, depth: 0.4, color: SHELF_BROWN },
+  { type: 'barrel', offsetXFraction: -0.35, offsetZFraction: -0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+];
+
+const CUTTING_ROOM_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0, width: 2.0, height: 0.9, depth: 1.2, color: MEAT_BLOCK },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.2, height: 1.8, depth: 0.4, color: IRON_HOOK },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.2, height: 1.8, depth: 0.4, color: METAL_GRAY },
+  { type: 'barrel', offsetXFraction: 0.3, offsetZFraction: -0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+];
+
+const PUBLIC_HALL_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0.2, width: 3.0, height: 0.8, depth: 1.2, color: TABLE_BROWN },
+  { type: 'bench', offsetXFraction: -0.25, offsetZFraction: -0.15, width: 3.0, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: 0.25, offsetZFraction: -0.15, width: 3.0, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: -0.25, offsetZFraction: -0.35, width: 3.0, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: 0.25, offsetZFraction: -0.35, width: 3.0, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'pillar', offsetXFraction: -0.4, offsetZFraction: 0, width: 0.5, height: 3.5, depth: 0.5, color: STONE_LIGHT },
+  { type: 'pillar', offsetXFraction: 0.4, offsetZFraction: 0, width: 0.5, height: 3.5, depth: 0.5, color: STONE_LIGHT },
+];
+
+const FACTORY_FLOOR_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: -0.25, offsetZFraction: 0, width: 3.0, height: 0.9, depth: 1.0, color: COUNTER_TAN },
+  { type: 'counter', offsetXFraction: 0.25, offsetZFraction: 0, width: 3.0, height: 0.9, depth: 1.0, color: COUNTER_TAN },
+  { type: 'crate', offsetXFraction: -0.4, offsetZFraction: -0.35, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+  { type: 'crate', offsetXFraction: 0.4, offsetZFraction: -0.35, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 2.0, height: 2.0, depth: 0.6, color: METAL_GRAY },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 2.0, height: 2.0, depth: 0.6, color: METAL_GRAY },
+];
+
+const DOCKS_OFFICE_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0.15, width: 2.5, height: 0.8, depth: 1.0, color: TABLE_BROWN },
+  { type: 'chair', offsetXFraction: 0, offsetZFraction: 0.3, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'shelf', offsetXFraction: -0.35, offsetZFraction: 0.35, width: 1.5, height: 1.8, depth: 0.5, color: SHELF_BROWN },
+  { type: 'chest', offsetXFraction: 0.3, offsetZFraction: -0.2, width: 1.0, height: 0.6, depth: 0.6, color: TABLE_BROWN },
+  { type: 'barrel', offsetXFraction: -0.35, offsetZFraction: -0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+];
+
+const FISH_STALL_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: -0.2, offsetZFraction: 0, width: 3.0, height: 0.9, depth: 1.0, color: COUNTER_TAN },
+  { type: 'counter', offsetXFraction: 0.2, offsetZFraction: 0, width: 3.0, height: 0.9, depth: 1.0, color: COUNTER_TAN },
+  { type: 'barrel', offsetXFraction: -0.4, offsetZFraction: -0.35, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.4, offsetZFraction: -0.35, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'crate', offsetXFraction: 0, offsetZFraction: 0.35, width: 1.0, height: 0.6, depth: 1.0, color: CRATE_TAN },
 ];
 
 // ─── Templates ───────────────────────────────────────────────────────────────
@@ -521,7 +767,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   {
     id: 'clinic',
     buildingType: 'clinic',
-    matchBusinessTypes: ['clinic', 'healer', 'apothecary', 'hospital'],
+    matchBusinessTypes: ['clinic', 'healer', 'apothecary'],
     width: 14, depth: 12, height: 4,
     floorCount: 1,
     colors: { floor: { r: 0.5, g: 0.48, b: 0.45 }, wall: CLINIC_WHITE, ceiling: { r: 0.65, g: 0.62, b: 0.58 } },
@@ -568,6 +814,504 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
       { roomFunction: 'guild_main', furniture: GUILD_MAIN_FURNITURE },
       { roomFunction: 'office', furniture: OFFICE_FURNITURE },
       { roomFunction: 'library', furniture: LIBRARY_FURNITURE },
+    ],
+  },
+
+  // ─── Commercial: Service Subtypes ───────────────────────────────────────────
+
+  // 17. Bank
+  {
+    id: 'bank',
+    buildingType: 'bank',
+    matchBusinessTypes: ['bank'],
+    width: 14, depth: 12, height: 5,
+    floorCount: 2,
+    colors: { floor: MARBLE_FLOOR, wall: MARBLE_WHITE, ceiling: { r: 0.7, g: 0.68, b: 0.65 } },
+    rooms: [
+      { name: 'lobby', function: 'bank_lobby', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'vault', function: 'vault', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'offices', function: 'office', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'bank_lobby', furniture: BANK_LOBBY_FURNITURE },
+      { roomFunction: 'vault', furniture: VAULT_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+    ],
+  },
+
+  // 18. Barbershop
+  {
+    id: 'barbershop',
+    buildingType: 'barbershop',
+    matchBusinessTypes: ['barbershop', 'barber'],
+    width: 8, depth: 8, height: 3.5,
+    floorCount: 1,
+    colors: { floor: MEDIUM_WOOD, wall: WHITE_WASH, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
+    rooms: [
+      { name: 'barber_room', function: 'barber', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'barber', furniture: BARBER_FURNITURE },
+    ],
+  },
+
+  // 19. Tailor
+  {
+    id: 'tailor',
+    buildingType: 'tailor',
+    matchBusinessTypes: ['tailor', 'seamstress', 'clothier'],
+    width: 10, depth: 8, height: 4,
+    floorCount: 2,
+    colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
+    rooms: [
+      { name: 'shop_front', function: 'fitting', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'sewing_room', function: 'sewing', offsetXFraction: 0, offsetZFraction: 0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'living_quarters', function: 'living', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'fitting', furniture: FITTING_ROOM_FURNITURE },
+      { roomFunction: 'sewing', furniture: SEWING_FURNITURE },
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+    ],
+  },
+
+  // 20. Pharmacy
+  {
+    id: 'pharmacy',
+    buildingType: 'pharmacy',
+    matchBusinessTypes: ['pharmacy', 'herbshop', 'herb_shop'],
+    width: 10, depth: 10, height: 4,
+    floorCount: 2,
+    colors: { floor: { r: 0.5, g: 0.48, b: 0.45 }, wall: CLINIC_WHITE, ceiling: { r: 0.62, g: 0.6, b: 0.55 } },
+    rooms: [
+      { name: 'shop_front', function: 'pharmacy_counter', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'preparation', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'living_quarters', function: 'living', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'pharmacy_counter', furniture: PHARMACY_COUNTER_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+    ],
+  },
+
+  // 21. Law Firm
+  {
+    id: 'law_firm',
+    buildingType: 'lawfirm',
+    matchBusinessTypes: ['lawfirm', 'law_firm', 'lawyer', 'insuranceoffice', 'realestateoffice'],
+    width: 12, depth: 10, height: 4.5,
+    floorCount: 3,
+    colors: { floor: DARK_WOOD, wall: WARM_WALL, ceiling: { r: 0.5, g: 0.45, b: 0.4 } },
+    rooms: [
+      { name: 'reception', function: 'waiting_room', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'conference', function: 'conference', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'office1', function: 'office', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'office2', function: 'office', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'library', function: 'library', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 2 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'waiting_room', furniture: WAITING_ROOM_FURNITURE },
+      { roomFunction: 'conference', furniture: CONFERENCE_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+      { roomFunction: 'library', furniture: LIBRARY_FURNITURE },
+    ],
+  },
+
+  // ─── Civic Subtypes ─────────────────────────────────────────────────────────
+
+  // 22. Town Hall
+  {
+    id: 'town_hall',
+    buildingType: 'townhall',
+    matchBusinessTypes: ['townhall', 'town_hall', 'cityhall'],
+    width: 18, depth: 16, height: 5.5,
+    floorCount: 2,
+    colors: { floor: STONE_LIGHT, wall: MARBLE_WHITE, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
+    rooms: [
+      { name: 'public_hall', function: 'public_hall', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'mayor_office', function: 'office', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'meeting_room', function: 'conference', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'records', function: 'library', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'public_hall', furniture: PUBLIC_HALL_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+      { roomFunction: 'conference', furniture: CONFERENCE_FURNITURE },
+      { roomFunction: 'library', furniture: LIBRARY_FURNITURE },
+    ],
+  },
+
+  // 23. University
+  {
+    id: 'university',
+    buildingType: 'university',
+    matchBusinessTypes: ['university', 'college'],
+    width: 20, depth: 18, height: 5,
+    floorCount: 3,
+    colors: { floor: STONE_LIGHT, wall: { r: 0.62, g: 0.58, b: 0.52 }, ceiling: { r: 0.55, g: 0.52, b: 0.48 } },
+    rooms: [
+      { name: 'lecture_hall', function: 'lecture_hall', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'entrance_hall', function: 'waiting_room', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'library', function: 'library', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+      { name: 'faculty_office1', function: 'office', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+      { name: 'faculty_office2', function: 'office', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'lecture_hall', furniture: LECTURE_HALL_FURNITURE },
+      { roomFunction: 'waiting_room', furniture: WAITING_ROOM_FURNITURE },
+      { roomFunction: 'library', furniture: LIBRARY_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+    ],
+  },
+
+  // 24. Hospital
+  {
+    id: 'hospital',
+    buildingType: 'hospital',
+    matchBusinessTypes: ['hospital'],
+    width: 20, depth: 18, height: 5,
+    floorCount: 3,
+    colors: { floor: { r: 0.55, g: 0.55, b: 0.52 }, wall: CLINIC_WHITE, ceiling: { r: 0.68, g: 0.66, b: 0.62 } },
+    rooms: [
+      { name: 'waiting_room', function: 'waiting_room', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'exam_room', function: 'exam_room', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'ward1', function: 'hospital_ward', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'ward2', function: 'hospital_ward', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'office', function: 'office', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'waiting_room', furniture: WAITING_ROOM_FURNITURE },
+      { roomFunction: 'exam_room', furniture: EXAM_ROOM_FURNITURE },
+      { roomFunction: 'hospital_ward', furniture: HOSPITAL_WARD_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+    ],
+  },
+
+  // 25. Police Station
+  {
+    id: 'police_station',
+    buildingType: 'policestation',
+    matchBusinessTypes: ['policestation', 'police_station', 'police', 'guard'],
+    width: 14, depth: 12, height: 4.5,
+    floorCount: 2,
+    colors: { floor: STONE_GRAY, wall: { r: 0.6, g: 0.58, b: 0.55 }, ceiling: { r: 0.55, g: 0.53, b: 0.5 } },
+    rooms: [
+      { name: 'front_desk', function: 'police_front', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'holding_cells', function: 'holding_cell', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'police_front', furniture: POLICE_FRONT_FURNITURE },
+      { roomFunction: 'holding_cell', furniture: HOLDING_CELL_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+    ],
+  },
+
+  // 26. Fire Station
+  {
+    id: 'fire_station',
+    buildingType: 'firestation',
+    matchBusinessTypes: ['firestation', 'fire_station', 'firehouse'],
+    width: 14, depth: 14, height: 5,
+    floorCount: 2,
+    colors: { floor: STONE_GRAY, wall: BRICK_RED, ceiling: { r: 0.4, g: 0.35, b: 0.3 } },
+    rooms: [
+      { name: 'engine_bay', function: 'engine_bay', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'bunk_room', function: 'bunk_room', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'kitchen', function: 'kitchen', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'engine_bay', furniture: ENGINE_BAY_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+      { roomFunction: 'bunk_room', furniture: BUNK_FURNITURE },
+      { roomFunction: 'kitchen', furniture: KITCHEN_FURNITURE },
+    ],
+  },
+
+  // 27. Daycare
+  {
+    id: 'daycare',
+    buildingType: 'daycare',
+    matchBusinessTypes: ['daycare', 'nursery'],
+    width: 12, depth: 10, height: 3.5,
+    floorCount: 1,
+    colors: { floor: MEDIUM_WOOD, wall: { r: 0.72, g: 0.68, b: 0.58 }, ceiling: { r: 0.65, g: 0.62, b: 0.55 } },
+    rooms: [
+      { name: 'play_room', function: 'classroom', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'classroom', furniture: CLASSROOM_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+    ],
+  },
+
+  // ─── Commercial: Food Subtypes ──────────────────────────────────────────────
+
+  // 28. Brewery
+  {
+    id: 'brewery',
+    buildingType: 'brewery',
+    matchBusinessTypes: ['brewery', 'distillery'],
+    width: 14, depth: 12, height: 5,
+    floorCount: 2,
+    colors: { floor: STONE_GRAY, wall: COPPER_BROWN, ceiling: DARK_CEILING },
+    rooms: [
+      { name: 'brewing_floor', function: 'brewing', offsetXFraction: 0, offsetZFraction: -0.15, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'tasting_room', function: 'tasting_room', offsetXFraction: 0, offsetZFraction: 0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+      { name: 'barrel_cellar', function: 'barrel_cellar', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'brewing', furniture: BREWING_FURNITURE },
+      { roomFunction: 'tasting_room', furniture: TASTING_ROOM_FURNITURE },
+      { roomFunction: 'barrel_cellar', furniture: BARREL_CELLAR_FURNITURE },
+    ],
+  },
+
+  // ─── Commercial: Retail Subtypes ────────────────────────────────────────────
+
+  // 29. Grocery Store
+  {
+    id: 'grocery_store',
+    buildingType: 'grocerystore',
+    matchBusinessTypes: ['grocerystore', 'grocery_store', 'grocery', 'greengrocer'],
+    width: 14, depth: 12, height: 4,
+    floorCount: 2,
+    colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
+    rooms: [
+      { name: 'shop_floor', function: 'grocery_floor', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'cold_storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'living_quarters', function: 'living', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'grocery_floor', furniture: GROCERY_FLOOR_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+    ],
+  },
+
+  // 30. Jewelry Store
+  {
+    id: 'jewelry_store',
+    buildingType: 'jewelrystore',
+    matchBusinessTypes: ['jewelrystore', 'jewelry_store', 'jeweler'],
+    width: 10, depth: 8, height: 4,
+    floorCount: 2,
+    colors: { floor: DARK_WOOD, wall: { r: 0.5, g: 0.45, b: 0.38 }, ceiling: { r: 0.45, g: 0.4, b: 0.35 } },
+    rooms: [
+      { name: 'showroom', function: 'display_case', offsetXFraction: 0, offsetZFraction: -0.15, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'workshop', function: 'workshop', offsetXFraction: 0, offsetZFraction: 0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+      { name: 'vault', function: 'vault', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'display_case', furniture: DISPLAY_CASE_FURNITURE },
+      { roomFunction: 'workshop', furniture: WORKSHOP_FURNITURE },
+      { roomFunction: 'vault', furniture: VAULT_FURNITURE },
+    ],
+  },
+
+  // 31. Book Store
+  {
+    id: 'book_store',
+    buildingType: 'bookstore',
+    matchBusinessTypes: ['bookstore', 'book_store', 'bookseller'],
+    width: 10, depth: 10, height: 4.5,
+    floorCount: 2,
+    colors: { floor: DARK_WOOD, wall: WARM_WALL, ceiling: { r: 0.5, g: 0.45, b: 0.4 } },
+    rooms: [
+      { name: 'book_floor', function: 'bookstore', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'living_quarters', function: 'living', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'bookstore', furniture: BOOKSTORE_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+    ],
+  },
+
+  // 32. Pawn Shop
+  {
+    id: 'pawn_shop',
+    buildingType: 'pawnshop',
+    matchBusinessTypes: ['pawnshop', 'pawn_shop'],
+    width: 10, depth: 8, height: 4,
+    floorCount: 2,
+    colors: { floor: DARK_WOOD, wall: { r: 0.45, g: 0.4, b: 0.35 }, ceiling: { r: 0.4, g: 0.38, b: 0.35 } },
+    rooms: [
+      { name: 'shop_floor', function: 'shop', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'living_quarters', function: 'living', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'shop', furniture: SHOP_FLOOR_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+    ],
+  },
+
+  // ─── Industrial Subtypes ────────────────────────────────────────────────────
+
+  // 33. Factory
+  {
+    id: 'factory',
+    buildingType: 'factory',
+    matchBusinessTypes: ['factory', 'mill', 'foundry'],
+    width: 20, depth: 16, height: 6,
+    floorCount: 2,
+    colors: { floor: STONE_GRAY, wall: FORGE_WALL, ceiling: { r: 0.3, g: 0.28, b: 0.25 } },
+    rooms: [
+      { name: 'factory_floor', function: 'factory_floor', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'storage', function: 'warehouse', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'factory_floor', furniture: FACTORY_FLOOR_FURNITURE },
+      { roomFunction: 'warehouse', furniture: WAREHOUSE_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+    ],
+  },
+
+  // 34. Carpenter
+  {
+    id: 'carpenter',
+    buildingType: 'carpenter',
+    matchBusinessTypes: ['carpenter', 'woodworker', 'joiner'],
+    width: 12, depth: 10, height: 4.5,
+    floorCount: 1,
+    colors: { floor: SAWDUST_TAN, wall: LIGHT_WOOD, ceiling: { r: 0.45, g: 0.38, b: 0.28 } },
+    rooms: [
+      { name: 'workshop', function: 'carpenter_workshop', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'lumber_storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'carpenter_workshop', furniture: CARPENTER_WORKSHOP_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+    ],
+  },
+
+  // 35. Butcher
+  {
+    id: 'butcher',
+    buildingType: 'butcher',
+    matchBusinessTypes: ['butcher', 'meatshop'],
+    width: 10, depth: 8, height: 4,
+    floorCount: 1,
+    colors: { floor: STONE_GRAY, wall: WHITE_WASH, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
+    rooms: [
+      { name: 'shop_front', function: 'butcher_shop', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'cutting_room', function: 'cutting_room', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'butcher_shop', furniture: BUTCHER_SHOP_FURNITURE },
+      { roomFunction: 'cutting_room', furniture: CUTTING_ROOM_FURNITURE },
+    ],
+  },
+
+  // ─── Maritime Subtypes ──────────────────────────────────────────────────────
+
+  // 36. Harbor
+  {
+    id: 'harbor',
+    buildingType: 'harbor',
+    matchBusinessTypes: ['harbor', 'port', 'docks', 'customshouse', 'customs_house'],
+    width: 16, depth: 12, height: 4.5,
+    floorCount: 1,
+    colors: { floor: MEDIUM_WOOD, wall: { r: 0.5, g: 0.45, b: 0.38 }, ceiling: { r: 0.45, g: 0.4, b: 0.35 } },
+    rooms: [
+      { name: 'docks_office', function: 'docks_office', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'warehouse', function: 'warehouse', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'docks_office', furniture: DOCKS_OFFICE_FURNITURE },
+      { roomFunction: 'warehouse', furniture: WAREHOUSE_FURNITURE },
+    ],
+  },
+
+  // 37. Fish Market
+  {
+    id: 'fish_market',
+    buildingType: 'fishmarket',
+    matchBusinessTypes: ['fishmarket', 'fish_market'],
+    width: 14, depth: 10, height: 4,
+    floorCount: 1,
+    colors: { floor: STONE_GRAY, wall: { r: 0.55, g: 0.55, b: 0.52 }, ceiling: { r: 0.5, g: 0.48, b: 0.45 } },
+    rooms: [
+      { name: 'market_floor', function: 'fish_stall', offsetXFraction: 0, offsetZFraction: -0.15, widthFraction: 1, depthFraction: 0.7, floor: 0 },
+      { name: 'ice_storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'fish_stall', furniture: FISH_STALL_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+    ],
+  },
+
+  // ─── Residential Subtypes ──────────────────────────────────────────────────
+
+  // 38. Cottage
+  {
+    id: 'cottage',
+    buildingType: 'cottage',
+    matchBusinessTypes: ['cottage'],
+    width: 8, depth: 8, height: 3.5,
+    floorCount: 1,
+    colors: { floor: MEDIUM_WOOD, wall: COTTAGE_WALL, ceiling: { r: 0.5, g: 0.45, b: 0.38 } },
+    rooms: [
+      { name: 'main_room', function: 'living', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 0 },
+      { name: 'bedroom', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+    ],
+  },
+
+  // 39. Townhouse
+  {
+    id: 'townhouse',
+    buildingType: 'townhouse',
+    matchBusinessTypes: ['townhouse'],
+    width: 8, depth: 12, height: 4,
+    floorCount: 2,
+    colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
+    rooms: [
+      { name: 'living_room', function: 'living', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'kitchen', function: 'kitchen', offsetXFraction: 0, offsetZFraction: 0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'bedroom', function: 'bedroom', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 1 },
+      { name: 'bedroom2', function: 'bedroom', offsetXFraction: 0, offsetZFraction: 0.25, widthFraction: 1, depthFraction: 0.5, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+      { roomFunction: 'kitchen', furniture: KITCHEN_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+    ],
+  },
+
+  // 40. Apartment
+  {
+    id: 'apartment',
+    buildingType: 'apartment',
+    matchBusinessTypes: ['apartment', 'flat'],
+    width: 14, depth: 12, height: 4,
+    floorCount: 3,
+    colors: { floor: MEDIUM_WOOD, wall: PLASTER, ceiling: { r: 0.58, g: 0.55, b: 0.5 } },
+    rooms: [
+      { name: 'lobby', function: 'waiting_room', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 0 },
+      { name: 'unit1_living', function: 'living', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'unit1_bedroom', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'unit2_living', function: 'living', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+      { name: 'unit2_bedroom', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'waiting_room', furniture: WAITING_ROOM_FURNITURE },
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
     ],
   },
 ];
