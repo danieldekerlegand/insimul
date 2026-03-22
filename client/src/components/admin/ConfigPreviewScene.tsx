@@ -112,7 +112,11 @@ export function ConfigPreviewScene({
     // Load model if provided
     if (modelPath && !buildProcedural) {
       try {
-        const result = await BABYLON.SceneLoader.ImportMeshAsync("", "/", modelPath, scene);
+        const fullPath = modelPath.startsWith('/') ? modelPath : `/${modelPath}`;
+        const pathParts = fullPath.split('/');
+        const fileName = pathParts.pop() || '';
+        const rootUrl = pathParts.join('/') + '/';
+        const result = await BABYLON.SceneLoader.ImportMeshAsync("", rootUrl, fileName, scene);
         if (result.meshes.length > 0) {
           // Remove environment/ground meshes from loaded model
           result.meshes.forEach((m: any) => {
