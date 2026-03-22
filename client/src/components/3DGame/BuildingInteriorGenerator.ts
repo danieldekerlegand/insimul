@@ -17,6 +17,14 @@ import {
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate } from '@shared/game-engine/types';
+import {
+  INTERIOR_LAYOUT_TEMPLATES,
+  getFurnitureSetForRoom,
+} from '@shared/game-engine/interior-templates';
+import type {
+  FurnitureEntry,
+  InteriorLayoutTemplate as FurnitureLayoutTemplate,
+} from '@shared/game-engine/interior-templates';
 
 /** Describes a sub-room within a multi-room interior */
 export interface RoomZone {
@@ -200,7 +208,7 @@ export class BuildingInteriorGenerator {
     }
 
     // Generate furniture for each room zone
-    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType);
+    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config);
     furniture.push(...roomFurniture);
 
     // Apply lighting preset if configured
@@ -1109,12 +1117,18 @@ export class BuildingInteriorGenerator {
     height: number,
     buildingType: string,
     businessType?: string,
+    config?: InteriorTemplateConfig | null,
   ): Mesh[] {
     const allFurniture: Mesh[] = [];
     const prefix = `interior_${buildingId}`;
 
+    // Resolve furniture set template if configured
+    const furnitureTemplate = this.resolveFurnitureTemplate(config);
+
     for (const room of rooms) {
-      const specs = this.getFurnitureForRoom(room);
+      const specs = furnitureTemplate
+        ? this.getFurnitureFromTemplate(furnitureTemplate, room)
+        : this.getFurnitureForRoom(room);
       const roomPos = new Vector3(
         position.x + room.offsetX,
         position.y + room.offsetY,
@@ -1169,6 +1183,56 @@ export class BuildingInteriorGenerator {
       case 'warehouse': return this.getWarehouseFurniture(w, d);
       default: return this.getLivingRoomFurniture(w, d);
     }
+  }
+
+  /**
+   * Resolve a furniture template from config's furnitureSet field.
+   * Returns the matching InteriorLayoutTemplate or undefined if none found.
+   */
+  private resolveFurnitureTemplate(
+    config?: InteriorTemplateConfig | null,
+  ): FurnitureLayoutTemplate | undefined {
+    if (!config?.furnitureSet) return undefined;
+    return INTERIOR_LAYOUT_TEMPLATES.find(
+      t => t.id === config.furnitureSet || t.buildingType === config.furnitureSet,
+    );
+  }
+
+  /**
+   * Get furniture specs for a room from a furniture set template.
+   * Converts FurnitureEntry (fractional offsets) to FurnitureSpec (absolute offsets).
+   */
+  private getFurnitureFromTemplate(
+    template: FurnitureLayoutTemplate,
+    room: RoomZone,
+  ): FurnitureSpec[] {
+    let entries = getFurnitureSetForRoom(template, room.function);
+    // Fall back to the first furniture set in the template if no match for this room function
+    if (entries.length === 0 && template.furnitureSets.length > 0) {
+      entries = template.furnitureSets[0].furniture;
+    }
+    // If still nothing, fall back to hardcoded furniture
+    if (entries.length === 0) {
+      return this.getFurnitureForRoom(room);
+    }
+    return entries.map(entry => this.convertFurnitureEntry(entry, room));
+  }
+
+  /**
+   * Convert a FurnitureEntry (template data with fractional offsets) to a FurnitureSpec
+   * (absolute offsets used by the mesh generator).
+   */
+  private convertFurnitureEntry(entry: FurnitureEntry, room: RoomZone): FurnitureSpec {
+    return {
+      type: entry.type,
+      offsetX: entry.offsetXFraction * room.width,
+      offsetZ: entry.offsetZFraction * room.depth,
+      width: entry.width,
+      height: entry.height,
+      depth: entry.depth,
+      color: new Color3(entry.color.r, entry.color.g, entry.color.b),
+      rotationY: entry.rotationY,
+    };
   }
 
   /**
