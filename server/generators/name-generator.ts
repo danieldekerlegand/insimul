@@ -3,8 +3,8 @@
  * Uses Tracery grammars for fast, offline name generation with LLM fallback
  */
 
-import { getModel, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
-import type { GenerativeModel } from '@google/generative-ai';
+import { getGenAI, isGeminiConfigured, GEMINI_MODELS, THINKING_LEVELS } from '../config/gemini.js';
+import type { GoogleGenAI } from '@google/genai';
 import tracery from 'tracery-grammar';
 import { storage } from '../db/storage.js';
 
@@ -39,7 +39,7 @@ interface CharacterNameContext {
 }
 
 export class NameGenerator {
-  private model: GenerativeModel | null = null;
+  private ai: GoogleGenAI | null = null;
   private enabled: boolean = false;
   private grammarCache: Map<string, any> = new Map(); // Cache loaded grammars
 
@@ -47,7 +47,7 @@ export class NameGenerator {
     if (isGeminiConfigured()) {
       try {
         console.log(`🔧 Initializing Name Generator with model: ${GEMINI_MODELS.PRO}`);
-        this.model = getModel(GEMINI_MODELS.PRO);
+        this.ai = getGenAI();
         this.enabled = true;
         console.log(`✅ Grammar+LLM Name Generator initialized with ${GEMINI_MODELS.PRO}`);
       } catch (error) {
@@ -277,15 +277,18 @@ export class NameGenerator {
     }
 
     // Fall back to LLM generation
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       return this.fallbackSettlementName(context);
     }
 
     try {
       const prompt = this.buildSettlementPrompt(context);
-      const result = await this.model.generateContent(prompt);
-      const response = result.response;
-      const name = response.text().trim();
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const name = (result.text || '').trim();
 
       // Clean up the response (remove quotes, extra text, etc.)
       const cleanName = this.cleanName(name);
@@ -348,15 +351,18 @@ export class NameGenerator {
     }
 
     // Fall back to LLM generation
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       return this.fallbackCharacterNames(context, count);
     }
 
     try {
       const prompt = this.buildCharacterPrompt(context, count);
-      const result = await this.model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text().trim();
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const text = (result.text || '').trim();
 
       // Parse the response
       const names = this.parseCharacterNames(text, count);
@@ -585,15 +591,18 @@ export class NameGenerator {
       }
     }
 
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       return contexts.map(ctx => this.fallbackSettlementName(ctx));
     }
 
     try {
       const prompt = this.buildBatchSettlementPrompt(contexts);
-      const result = await this.model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text().trim();
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const text = (result.text || '').trim();
 
       const names = this.parseBatchSettlementNames(text, contexts.length);
 
@@ -650,15 +659,18 @@ export class NameGenerator {
       }
     }
 
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       return this.fallbackCharacterNames(context, count);
     }
 
     try {
       const prompt = this.buildCharacterPrompt(context, count);
-      const result = await this.model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text().trim();
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const text = (result.text || '').trim();
 
       const names = this.parseCharacterNames(text, count);
 
@@ -793,7 +805,7 @@ export class NameGenerator {
     }
 
     // Fall back to LLM generation for custom world types
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       return this.fallbackCompleteWorldNames(request);
     }
 
@@ -801,17 +813,17 @@ export class NameGenerator {
       console.log(`🤖 Generating world names using LLM...`);
       const prompt = this.buildCompleteWorldPrompt(request);
 
-      // Use JSON mode for structured output
-      const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.9, // Higher creativity for diverse names
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: {
+          temperature: 0.9,
           responseMimeType: 'application/json',
-        }
+          thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
+        },
       });
 
-      const response = result.response;
-      const text = response.text().trim();
+      const text = (result.text || '').trim();
       const data = JSON.parse(text);
 
       // Validate and return

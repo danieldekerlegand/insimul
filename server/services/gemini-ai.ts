@@ -1,4 +1,4 @@
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from "../config/gemini.js";
+import { getGenAI, isGeminiConfigured, GEMINI_MODELS, THINKING_LEVELS } from "../config/gemini.js";
 
 export async function generateRule(prompt: string, sourceFormat: string): Promise<string> {
   if (!isGeminiConfigured()) {
@@ -98,6 +98,7 @@ Generate a complete, syntactically correct rule that implements the user's reque
     model: GEMINI_MODELS.PRO,
     config: {
       systemInstruction: systemPrompt,
+      thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM },
     },
     contents: `Generate a ${sourceFormat} rule for: ${prompt}`,
   });
@@ -190,6 +191,7 @@ Generate multiple complete, syntactically correct rules that work together to im
     model: GEMINI_MODELS.PRO,
     config: {
       systemInstruction: systemPrompt,
+      thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM },
     },
     contents: `Generate multiple ${sourceFormat} rules for: ${prompt}`,
   });
@@ -246,6 +248,7 @@ Return ONLY a valid JSON array of quest objects. No markdown, no code fences, no
     model: GEMINI_MODELS.PRO,
     config: {
       systemInstruction: systemPrompt,
+      thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM },
     },
     contents: `Generate ${count} quests for this world: ${worldContext}. Include a mix of main quests, side quests, and character-driven storylines.`,
   });
@@ -323,6 +326,7 @@ Modify the existing rule according to the user's instructions. Maintain the ${so
     model: GEMINI_MODELS.PRO,
     config: {
       systemInstruction: systemPrompt,
+      thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
     },
     contents: `Current rule:\n\n${currentContent}\n\nEdit instructions: ${editInstructions}\n\nReturn the complete modified rule in ${sourceFormat} format.`,
   });

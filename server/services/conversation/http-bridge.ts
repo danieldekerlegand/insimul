@@ -513,15 +513,14 @@ export function registerConversationRoutes(app: Express): void {
         llmProvider = getProvider();
       } catch {
         // Fallback to Gemini directly
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const { getGeminiApiKey, GEMINI_MODELS } = await import('../../config/gemini.js');
-        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-        const model = genAI.getGenerativeModel({
+        const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import('../../config/gemini.js');
+        const ai = getGenAI();
+        const result = await ai.models.generateContent({
           model: GEMINI_MODELS.FLASH,
-          generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
+          contents: prompt,
+          config: { temperature: 0.1, maxOutputTokens: 500, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
         });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const text = result.text || '';
         try {
           const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
           return res.json(parsed);
@@ -573,15 +572,14 @@ export function registerConversationRoutes(app: Express): void {
       try {
         llmProvider = getProvider();
       } catch {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const { getGeminiApiKey, GEMINI_MODELS } = await import('../../config/gemini.js');
-        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-        const model = genAI.getGenerativeModel({
+        const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import('../../config/gemini.js');
+        const ai = getGenAI();
+        const result = await ai.models.generateContent({
           model: GEMINI_MODELS.FLASH,
-          generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
+          contents: prompt,
+          config: { temperature: 0.1, maxOutputTokens: 100, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
         });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const text = result.text || '';
         try {
           const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
           return res.json({ word, translation: parsed.translation, context: parsed.context });

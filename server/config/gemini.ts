@@ -5,22 +5,39 @@
  * ensuring consistency across the entire codebase.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 /**
- * Gemini model configurations
+ * Gemini model configurations — Gemini 3.1 series
  */
 export const GEMINI_MODELS = {
   /** Primary model for complex tasks (chat, rule generation, etc.) */
-  PRO: 'gemini-2.5-pro',
+  PRO: 'gemini-3.1-pro-preview',
 
-  /** Fast model for simple tasks */
-  FLASH: 'gemini-2.5-flash',
+  /** Fast model for simple/high-volume tasks */
+  FLASH: 'gemini-3.1-flash-lite-preview',
 
-  /** Model for speech tasks (experimental) */
-  SPEECH: 'gemini-2.0-flash-exp',
+  /** Model for speech/TTS tasks (still on 2.5 — no 3.x TTS yet) */
+  SPEECH: 'gemini-2.5-flash-preview-tts',
 } as const;
+
+/**
+ * Thinking levels for Gemini 3.1 reasoning control.
+ * Controls the depth of internal reasoning before generating a response.
+ * Re-exports the SDK enum for convenience.
+ */
+export const THINKING_LEVELS = {
+  /** Minimal reasoning — fastest, lowest cost */
+  MINIMAL: ThinkingLevel.MINIMAL,
+  /** Low reasoning — fast, cost-efficient */
+  LOW: ThinkingLevel.LOW,
+  /** Balanced reasoning — good default for most tasks */
+  MEDIUM: ThinkingLevel.MEDIUM,
+  /** Maximum reasoning depth — best quality, highest cost */
+  HIGH: ThinkingLevel.HIGH,
+} as const;
+
+export { ThinkingLevel };
 
 /**
  * Get the Gemini API key from environment variables
@@ -37,28 +54,7 @@ export function isGeminiConfigured(): boolean {
 }
 
 /**
- * Shared GoogleGenerativeAI instance (@google/generative-ai)
- * Used by: name-generator
- */
-let generativeAIInstance: GoogleGenerativeAI | null = null;
-
-export function getGenerativeAI(): GoogleGenerativeAI {
-  const apiKey = getGeminiApiKey();
-
-  if (!apiKey) {
-    throw new Error('Gemini API key not configured. Set GEMINI_API_KEY or GEMINI_FREE_API_KEY in .env');
-  }
-
-  if (!generativeAIInstance) {
-    generativeAIInstance = new GoogleGenerativeAI(apiKey);
-  }
-
-  return generativeAIInstance;
-}
-
-/**
  * Shared GoogleGenAI instance (@google/genai)
- * Used by: gemini-ai, character-interaction, tts-stt, routes
  */
 let genAIInstance: GoogleGenAI | null = null;
 
@@ -77,11 +73,11 @@ export function getGenAI(): GoogleGenAI {
 }
 
 /**
- * Create a model instance with the specified model name
- * @param modelName - Model to use (defaults to PRO)
+ * Build a thinkingConfig object for the @google/genai SDK.
+ * @param level - Thinking level (defaults to MEDIUM for balanced cost/quality)
  */
-export function getModel(modelName: string = GEMINI_MODELS.PRO) {
-  return getGenerativeAI().getGenerativeModel({ model: modelName });
+export function buildThinkingConfig(level: ThinkingLevel = ThinkingLevel.MEDIUM) {
+  return { thinkingConfig: { thinkingLevel: level } };
 }
 
 /**

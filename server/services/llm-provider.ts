@@ -6,7 +6,7 @@
  * OpenAI, Anthropic, and local models can be added later without architectural changes.
  */
 
-import { getGenerativeAI, getGeminiApiKey, GEMINI_MODELS } from '../config/gemini.js';
+import { getGenAI, GEMINI_MODELS, THINKING_LEVELS } from '../config/gemini.js';
 
 export interface LLMProviderConfig {
   provider: 'gemini' | 'openai' | 'anthropic' | 'local';
@@ -72,19 +72,19 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
-    // Use the centralized Gemini config (handles API key resolution)
-    const genAI = getGenerativeAI();
-    const model = genAI.getGenerativeModel({ model: this.model });
+    const ai = getGenAI();
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: request.systemPrompt ? `${request.systemPrompt}\n\n${request.prompt}` : request.prompt }] }],
-      generationConfig: {
+    const result = await ai.models.generateContent({
+      model: this.model,
+      contents: request.systemPrompt ? `${request.systemPrompt}\n\n${request.prompt}` : request.prompt,
+      config: {
         temperature: request.temperature ?? this.defaultTemperature,
         maxOutputTokens: request.maxTokens || this.maxTokens,
+        thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
       },
     });
 
-    const text = result.response.text();
+    const text = result.text || '';
     const tokensUsed = text.length / 4; // rough estimate
 
     return { text, tokensUsed: Math.ceil(tokensUsed), model: this.model, provider: this.name };
@@ -129,8 +129,8 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   estimateCost(promptTokens: number, completionTokens: number): number {
-    // Gemini 2.0 Flash pricing (approx)
-    return (promptTokens * 0.00001 + completionTokens * 0.00004);
+    // Gemini 3.1 Flash-Lite pricing (approx)
+    return (promptTokens * 0.0000025 + completionTokens * 0.000015);
   }
 }
 

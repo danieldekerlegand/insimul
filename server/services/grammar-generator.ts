@@ -3,8 +3,8 @@
  * Uses Gemini to generate Tracery grammars from natural language descriptions
  */
 
-import { getModel, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
-import type { GenerativeModel } from '@google/generative-ai';
+import { getGenAI, isGeminiConfigured, GEMINI_MODELS, THINKING_LEVELS } from '../config/gemini.js';
+import type { GoogleGenAI } from '@google/genai';
 
 interface GrammarGenerationRequest {
   description: string;
@@ -41,13 +41,13 @@ interface GeneratedGrammar {
 }
 
 export class GrammarGenerator {
-  private model: GenerativeModel | null = null;
+  private ai: GoogleGenAI | null = null;
   private enabled: boolean = false;
 
   constructor() {
     if (isGeminiConfigured()) {
       try {
-        this.model = getModel(GEMINI_MODELS.PRO);
+        this.ai = getGenAI();
         this.enabled = true;
         console.log('✅ Grammar Generator initialized with Gemini');
       } catch (error) {
@@ -64,15 +64,19 @@ export class GrammarGenerator {
    * Generate a Tracery grammar from a natural language description
    */
   async generateGrammar(request: GrammarGenerationRequest): Promise<GeneratedGrammar> {
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       throw new Error('Grammar generator not available. Please configure Gemini API.');
     }
 
     const prompt = this.buildPrompt(request);
-    
+
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+      });
+      const response = result.text || '';
       
       // Parse the AI response
       const generated = this.parseResponse(response, request);
@@ -95,7 +99,7 @@ export class GrammarGenerator {
     extensionTheme: string,
     addRules: number = 5
   ): Promise<Record<string, string | string[]>> {
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       throw new Error('Grammar generator not available. Please configure Gemini API.');
     }
 
@@ -117,8 +121,12 @@ Instructions:
 Return the extended grammar as JSON:`;
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const response = result.text || '';
       const extended = this.extractJSON(response);
       
       this.validateGrammar(extended);
@@ -136,7 +144,7 @@ Return the extended grammar as JSON:`;
     examples: string[],
     symbolName: string = 'origin'
   ): Promise<Record<string, string | string[]>> {
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       throw new Error('Grammar generator not available. Please configure Gemini API.');
     }
 
@@ -164,8 +172,12 @@ Example Tracery format:
 Return the grammar as JSON:`;
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      const result = await this.ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+      });
+      const response = result.text || '';
       const grammar = this.extractJSON(response);
 
       this.validateGrammar(grammar);
@@ -195,7 +207,7 @@ Return the grammar as JSON:`;
     worldContext?: GrammarWorldContext,
     onProgress?: (message: string, batchIndex: number, totalBatches: number) => void
   ): Promise<GeneratedGrammar[]> {
-    if (!this.enabled || !this.model) {
+    if (!this.enabled || !this.ai) {
       throw new Error('Grammar generator not available. Please configure Gemini API.');
     }
 
@@ -305,7 +317,7 @@ Return the grammar as JSON:`;
     targetLanguage?: string,
     contextBlock?: string
   ): Promise<Record<string, string | string[]>> {
-    if (!this.model) throw new Error('Model not initialized');
+    if (!this.ai) throw new Error('Gemini AI not initialized');
 
     const langDirective = targetLanguage
       ? `CRITICAL: All names MUST be in ${targetLanguage}. Use authentic ${targetLanguage} naming conventions, vocabulary, and cultural patterns. Do NOT use English names or anglicized versions.`
@@ -462,8 +474,12 @@ QUALITY REQUIREMENTS:
 
 Return ONLY valid JSON. No markdown fences, no explanation, just the JSON object.`;
 
-    const result = await this.model.generateContent(prompt);
-    const response = result.response.text();
+    const result = await this.ai.models.generateContent({
+      model: GEMINI_MODELS.PRO,
+      contents: prompt,
+      config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+    });
+    const response = result.text || '';
     const grammar = this.extractJSON(response);
     this.validateGrammar(grammar);
     return grammar;

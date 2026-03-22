@@ -28,23 +28,26 @@ vi.mock('../services/prolog-llm-router.js', () => ({
   },
 }));
 
-const mockSendMessage = vi.fn();
-const mockStartChat = vi.fn(() => ({ sendMessage: mockSendMessage }));
-const mockGetGenerativeModel = vi.fn(() => ({ startChat: mockStartChat }));
-vi.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: vi.fn(() => ({
-    getGenerativeModel: mockGetGenerativeModel,
-  })),
+const mockGenerateContent = vi.fn();
+const mockModels = { generateContent: mockGenerateContent };
+vi.mock('@google/genai', () => ({
+  GoogleGenAI: vi.fn(() => ({ models: mockModels })),
 }));
 
 vi.mock('../config/gemini.js', () => ({
   isGeminiConfigured: vi.fn(() => true),
-  getModel: vi.fn(),
+  getGenAI: vi.fn(() => ({ models: mockModels })),
   getGeminiApiKey: vi.fn(() => 'test-key'),
   GEMINI_MODELS: {
-    PRO: 'gemini-2.5-pro',
-    FLASH: 'gemini-2.5-flash',
-    SPEECH: 'gemini-2.0-flash-exp',
+    PRO: 'gemini-3.1-pro-preview',
+    FLASH: 'gemini-3.1-flash-lite-preview',
+    SPEECH: 'gemini-2.5-flash-preview-tts',
+  },
+  THINKING_LEVELS: {
+    MINIMAL: 'MINIMAL',
+    LOW: 'LOW',
+    MEDIUM: 'MEDIUM',
+    HIGH: 'HIGH',
   },
 }));
 
@@ -278,23 +281,25 @@ describe('POST /api/gemini/voice-chat', () => {
   });
 
   describe('Gemini model configuration', () => {
-    it('passes temperature and maxTokens from metadata', async () => {
-      mockSendMessage.mockResolvedValue({
-        response: { text: () => 'Hello!' },
+    it('passes temperature and maxTokens via new SDK config', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: 'Hello!',
       });
 
       const temperature = 0.9;
       const maxTokens = 512;
 
-      // Simulate what the endpoint does
-      mockGetGenerativeModel({
-        model: 'gemini-2.5-pro',
-        generationConfig: { temperature, maxOutputTokens: maxTokens },
+      // Simulate what the endpoint does with the new SDK
+      await mockGenerateContent({
+        model: 'gemini-3.1-pro-preview',
+        contents: 'Hello',
+        config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: 'LOW' } },
       });
 
-      expect(mockGetGenerativeModel).toHaveBeenCalledWith({
-        model: 'gemini-2.5-pro',
-        generationConfig: { temperature: 0.9, maxOutputTokens: 512 },
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-pro-preview',
+        contents: 'Hello',
+        config: { temperature: 0.9, maxOutputTokens: 512, thinkingConfig: { thinkingLevel: 'LOW' } },
       });
     });
   });

@@ -11,9 +11,9 @@ vi.mock('../config/gemini.js', () => ({
   isGeminiConfigured: vi.fn(() => true),
   getGenAI: vi.fn(),
   GEMINI_MODELS: {
-    PRO: 'gemini-2.5-pro',
-    FLASH: 'gemini-2.5-flash',
-    SPEECH: 'gemini-2.0-flash-exp',
+    PRO: 'gemini-3.1-pro-preview',
+    FLASH: 'gemini-3.1-flash-lite-preview',
+    SPEECH: 'gemini-2.5-flash-preview-tts',
   },
 }));
 
@@ -81,7 +81,7 @@ describe('gemini-native-audio', () => {
 
       // Verify text generation call
       const textCall = mockGenerateContent.mock.calls[0][0];
-      expect(textCall.model).toBe('gemini-2.5-flash');
+      expect(textCall.model).toBe('gemini-3.1-flash-lite-preview');
       expect(textCall.config.responseModalities).toEqual(['TEXT']);
       expect(textCall.config.temperature).toBe(0.8);
       expect(textCall.config.maxOutputTokens).toBe(500);

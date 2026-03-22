@@ -1,11 +1,11 @@
 /**
  * Gemini Streaming LLM Provider
  *
- * Implements IStreamingLLMProvider using Google's Generative AI SDK
+ * Implements IStreamingLLMProvider using @google/genai SDK
  * with generateContentStream for token-by-token delivery.
  */
 
-import { getGenerativeAI, GEMINI_MODELS } from '../../../config/gemini.js';
+import { getGenAI, GEMINI_MODELS, THINKING_LEVELS } from '../../../config/gemini.js';
 import type {
   IStreamingLLMProvider,
   ConversationContext,
@@ -25,11 +25,7 @@ export class GeminiStreamingProvider implements IStreamingLLMProvider {
     context: ConversationContext,
     options?: StreamCompletionOptions,
   ): AsyncIterable<string> {
-    const genAI = getGenerativeAI();
-    const model = genAI.getGenerativeModel({
-      model: this.modelName,
-      systemInstruction: context.systemPrompt,
-    });
+    const ai = getGenAI();
 
     // Build chat history from conversation history
     const history = (options?.conversationHistory || []).map((msg) => ({
@@ -37,18 +33,29 @@ export class GeminiStreamingProvider implements IStreamingLLMProvider {
       parts: [{ text: msg.content }],
     }));
 
-    const chat = model.startChat({
-      history,
-      generationConfig: {
+    // Build contents: system prompt exchange + history + current prompt
+    const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+
+    if (context.systemPrompt) {
+      contents.push({ role: 'user', parts: [{ text: context.systemPrompt }] });
+      contents.push({ role: 'model', parts: [{ text: 'Understood. I will follow these instructions.' }] });
+    }
+
+    contents.push(...history);
+    contents.push({ role: 'user', parts: [{ text: prompt }] });
+
+    const response = await ai.models.generateContentStream({
+      model: this.modelName,
+      contents,
+      config: {
         temperature: options?.temperature ?? 0.8,
         maxOutputTokens: options?.maxTokens ?? 1024,
+        thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
       },
     });
 
-    const result = await chat.sendMessageStream(prompt);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
+    for await (const chunk of response) {
+      const text = chunk.text;
       if (text) {
         yield text;
       }

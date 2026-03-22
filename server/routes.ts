@@ -17,7 +17,7 @@ import { convertActionToProlog } from '../shared/prolog/action-converter';
 import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
 import { nameGenerator } from './generators/name-generator.js';
-import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
+import { isGeminiConfigured, getGenAI, GEMINI_MODELS, THINKING_LEVELS } from './config/gemini.js';
 import { generateText, generateTextBatch, generatedTextToInsertText, buildStarterSetParams, type TextGenerationParams, type TextCategory, type CefrLevel } from './services/text-generator.js';
 import { conversationContextCache, ConversationContextCache } from './services/conversation-context-cache.js';
 import {
@@ -3476,7 +3476,7 @@ app.get("/api/rules", async (req, res) => {
         return res.json({ utterances, language: targetLanguage });
       }
 
-      const model = getModel(GEMINI_MODELS.standard);
+      const ai = getGenAI();
       const prompt = `You are generating a realistic conversation between two people in a small town. The ENTIRE conversation must be in ${targetLanguage}. Do NOT use English at all.
 
 Character 1: ${char1Name} (${char1Gender}, ${char1Occupation})
@@ -3493,8 +3493,12 @@ ${char2Name}: [dialogue in ${targetLanguage}]
 
 Alternate speakers. Start with ${char1Name}. Every single word must be in ${targetLanguage}.`;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response?.text() || '';
+      const result = await ai.models.generateContent({
+        model: GEMINI_MODELS.PRO,
+        contents: prompt,
+        config: { temperature: 0.8, thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const responseText = (result.text || '').trim();
 
       // Parse the response into utterances
       const lines = responseText.split('\n').filter((l: string) => l.trim());
@@ -5089,19 +5093,19 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         console.log('📖 Step 2: Generating character truths...');
         progressTracker.updateProgress(taskId, 'truths', 'Creating character backstories and secrets...', 45);
         try {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
-          
+          const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+          const ai = getGenAI();
+
           // Fetch all characters from the world
           const characters = await storage.getCharactersByWorld(worldId);
-          
+
           if (characters.length > 0) {
-            const worldContext = customPrompt || 
+            const worldContext = customPrompt ||
               `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
-            
+
             // Limit to first 50 characters to avoid overwhelming the context window
             const charactersToProcess = characters.slice(0, 50);
-            
+
             const truthsPrompt = `Generate interesting character truths (backstories, personality traits, secrets, relationships) for ${charactersToProcess.length} characters in ${worldContext}.
 
 For each character, create 2-3 truths that include:
@@ -5128,18 +5132,13 @@ Character list:
 ${charactersToProcess.map((c, i) => `${i}. ${c.firstName} ${c.lastName} (${c.gender}, age ${c.birthYear ? ((worldDescription?.match(/year (\d+)/)?.[1] || 1900) - c.birthYear) : 'unknown'})`).join('\n')}
 
 Make truths fitting for the world's theme and each character's context.`;
-            
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ 
+
+            const result = await ai.models.generateContent({
               model: GEMINI_MODELS.PRO,
-              generationConfig: {
-                temperature: 0.95,
-                responseMimeType: 'application/json',
-              }
+              contents: truthsPrompt,
+              config: { temperature: 0.95, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
             });
-            
-            const result = await model.generateContent(truthsPrompt);
-            const text = result.response.text().trim();
+            const text = (result.text || '').trim();
             const generatedTruths = JSON.parse(text);
             
             let numTruths = 0;
@@ -5182,12 +5181,12 @@ Make truths fitting for the world's theme and each character's context.`;
         console.log('📜 Step 3: Generating social rules...');
             progressTracker.updateProgress(taskId, 'rules', 'Generating social rules and norms...', 55);
         try {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
-          
-          const worldContext = customPrompt || 
+          const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+          const ai = getGenAI();
+
+          const worldContext = customPrompt ||
             `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
-          
+
           const rulesPrompt = `Generate 10 social rules and norms for ${worldContext}.
 
 Include rules about:
@@ -5239,18 +5238,13 @@ rule respect_nobility {
 }
 
 Make the rule names creative and fitting for the world's theme. Example for cyberpunk: "corporate_respect_protocol" or "neural_privacy_law"`;
-          
-          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-          const model = genAI.getGenerativeModel({ 
+
+          const result = await ai.models.generateContent({
             model: GEMINI_MODELS.PRO,
-            generationConfig: {
-              temperature: 0.9,
-              responseMimeType: 'application/json',
-            }
+            contents: rulesPrompt,
+            config: { temperature: 0.9, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
           });
-          
-          const result = await model.generateContent(rulesPrompt);
-          const text = result.response.text().trim();
+          const text = (result.text || '').trim();
           const generatedRules = JSON.parse(text);
           
           // Parse and save rules
@@ -5294,8 +5288,8 @@ Make the rule names creative and fitting for the world's theme. Example for cybe
 
             if (isGeminiConfigured()) {
               // LLM only fills in descriptions for grammar-generated names
-              const { GoogleGenerativeAI } = await import("@google/generative-ai");
-              const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+              const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+              const ai = getGenAI();
               const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
               const descPrompt = `For this world: ${worldCtxStr}
 
@@ -5305,10 +5299,12 @@ Actions:
 ${actionNames.map((n, i) => `${i + 1}. "${n}"`).join('\n')}
 
 Return ONLY valid JSON array.`;
-              const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-              const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.7, responseMimeType: 'application/json' } });
-              const result = await model.generateContent(descPrompt);
-              const described = JSON.parse(result.response.text().trim());
+              const result = await ai.models.generateContent({
+                model: GEMINI_MODELS.PRO,
+                contents: descPrompt,
+                config: { temperature: 0.7, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+              });
+              const described = JSON.parse((result.text || '').trim());
               if (Array.isArray(described)) {
                 for (const action of described.slice(0, 10)) {
                   if (action.name) {
@@ -5339,8 +5335,8 @@ Return ONLY valid JSON array.`;
             }
           } else if (isGeminiConfigured()) {
             // Full LLM fallback (no grammars available)
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+            const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+            const ai = getGenAI();
             const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
             const actionsPrompt = `Generate 10 character actions for ${worldCtxStr}.
 
@@ -5360,10 +5356,12 @@ Return as a JSON array with this structure:
 ]
 
 Make the action names thematic and immersive.`;
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
-            const result = await model.generateContent(actionsPrompt);
-            const generatedActions = JSON.parse(result.response.text().trim());
+            const result = await ai.models.generateContent({
+              model: GEMINI_MODELS.PRO,
+              contents: actionsPrompt,
+              config: { temperature: 0.9, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+            });
+            const generatedActions = JSON.parse((result.text || '').trim());
             if (Array.isArray(generatedActions)) {
               for (const action of generatedActions.slice(0, 10)) {
                 if (action.name && action.description) {
@@ -5425,8 +5423,8 @@ Make the action names thematic and immersive.`;
           if (itemNames.length >= 8 && isGeminiConfigured()) {
             // Grammar names + LLM for full item definitions
             console.log(`  ⚡ Got ${itemNames.length} item names from grammar`);
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+            const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+            const ai = getGenAI();
             const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
             const itemsPrompt = `For this world: ${worldCtxStr}
 
@@ -5436,10 +5434,12 @@ Item names:
 ${itemNames.map((n, i) => `${i + 1}. "${n}"`).join('\n')}
 
 Return ONLY valid JSON array.`;
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.8, responseMimeType: 'application/json' } });
-            const result = await model.generateContent(itemsPrompt);
-            const generatedItems = JSON.parse(result.response.text().trim());
+            const result = await ai.models.generateContent({
+              model: GEMINI_MODELS.PRO,
+              contents: itemsPrompt,
+              config: { temperature: 0.8, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+            });
+            const generatedItems = JSON.parse((result.text || '').trim());
             if (Array.isArray(generatedItems)) {
               for (const item of generatedItems.slice(0, 20)) {
                 if (item.name && item.itemType) {
@@ -5479,8 +5479,8 @@ Return ONLY valid JSON array.`;
             }
           } else if (isGeminiConfigured()) {
             // Full LLM fallback
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+            const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+            const ai = getGenAI();
             const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
             const itemsPrompt = `Generate 15-20 items unique to this game world: ${worldCtxStr}.
 
@@ -5488,10 +5488,12 @@ These should be world-specific items. Include a mix of weapons/tools, food/drink
 
 Return as JSON array with: "name", "description", "itemType", "icon" (emoji), "value", "sellValue", "weight", "category", "material", "baseType", "rarity", "effects", "lootWeight", "tags".
 Return ONLY valid JSON array.`;
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
-            const result = await model.generateContent(itemsPrompt);
-            const generatedItems = JSON.parse(result.response.text().trim());
+            const result = await ai.models.generateContent({
+              model: GEMINI_MODELS.PRO,
+              contents: itemsPrompt,
+              config: { temperature: 0.9, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+            });
+            const generatedItems = JSON.parse((result.text || '').trim());
             if (Array.isArray(generatedItems)) {
               for (const item of generatedItems.slice(0, 20)) {
                 if (item.name && item.itemType) {
@@ -6281,25 +6283,22 @@ Return ONLY valid JSON array.`;
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey } = await import('./config/gemini.js');
-      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+      const { getGenAI, THINKING_LEVELS } = await import('./config/gemini.js');
+      const ai = getGenAI();
 
-      const model = genAI.getGenerativeModel({
+      const chatHistory = [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
+        ...messages,
+        { role: 'user', parts: [{ text: transcript }] },
+      ];
+
+      const result = await ai.models.generateContent({
         model: GEMINI_MODELS.PRO,
-        generationConfig: { temperature, maxOutputTokens: maxTokens },
+        contents: chatHistory,
+        config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
       });
-
-      const chat = model.startChat({
-        history: [
-          { role: 'user', parts: [{ text: systemPrompt }] },
-          { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
-          ...messages,
-        ],
-      });
-
-      const result = await chat.sendMessage(transcript);
-      const rawResponse = result.response.text();
+      const rawResponse = (result.text || '');
 
       if (!rawResponse || rawResponse.trim() === '') {
         return res.status(500).json({ error: "Gemini returned empty response", transcript });
@@ -6347,14 +6346,8 @@ Return ONLY valid JSON array.`;
       }
 
       const { buildMetadataExtractionPrompt } = await import('../shared/language/utils.js');
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey } = await import('./config/gemini.js');
-
-      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-      const model = genAI.getGenerativeModel({
-        model: GEMINI_MODELS.FLASH,
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-      });
+      const { getGenAI, THINKING_LEVELS } = await import('./config/gemini.js');
+      const ai = getGenAI();
 
       const prompt = buildMetadataExtractionPrompt(
         targetLanguage,
@@ -6363,8 +6356,12 @@ Return ONLY valid JSON array.`;
         { playerProficiency: playerProficiency || 'beginner' }
       );
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text().trim();
+      const result = await ai.models.generateContent({
+        model: GEMINI_MODELS.FLASH,
+        contents: prompt,
+        config: { temperature: 0.1, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const responseText = (result.text || '').trim();
 
       // Parse the JSON response, stripping markdown code fences if present
       const jsonText = responseText
@@ -6470,19 +6467,9 @@ Return ONLY valid JSON array.`;
         });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey } = await import('./config/gemini.js');
-
-      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-
-      // Use a model that supports audio if audio input is provided
-      const model = genAI.getGenerativeModel({
-        model: audioInput ? "gemini-2.5-pro" : GEMINI_MODELS.PRO,
-        generationConfig: {
-          temperature,
-          maxOutputTokens: maxTokens,
-        }
-      });
+      const { getGenAI, THINKING_LEVELS } = await import('./config/gemini.js');
+      const ai = getGenAI();
+      const selectedModel = GEMINI_MODELS.PRO;
 
       let userTranscript: string | undefined;
       let lastMessageContent: any;
@@ -6532,20 +6519,13 @@ Return ONLY valid JSON array.`;
       const { compressConversationHistory } = await import('./services/conversation-compression.js');
       const compressedHistory = await compressConversationHistory(historyMessages);
 
-      // Build the conversation with system prompt
-      const chat = model.startChat({
-        history: [
-          {
-            role: 'user',
-            parts: [{ text: systemPrompt }]
-          },
-          {
-            role: 'model',
-            parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }]
-          },
-          ...compressedHistory
-        ]
-      });
+      // Build the full conversation contents for the new SDK
+      const chatContents = [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
+        ...compressedHistory,
+        { role: 'user', parts: [{ text: lastMessageContent.text }] },
+      ];
 
       // Log full prompt for debugging NPC chat
       console.log("\n========== GEMINI CHAT DEBUG ==========");
@@ -6580,11 +6560,15 @@ Return ONLY valid JSON array.`;
         };
 
         try {
-          const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+          const streamResult = await ai.models.generateContentStream({
+            model: selectedModel,
+            contents: chatContents,
+            config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+          });
 
-          for await (const chunk of streamResult.stream) {
+          for await (const chunk of streamResult) {
             if (clientClosed) break;
-            const chunkText = chunk.text();
+            const chunkText = chunk.text || '';
             if (!chunkText) continue;
 
             fullResponse += chunkText;
@@ -6667,22 +6651,18 @@ Return ONLY valid JSON array.`;
       }
 
       // ── Non-streaming path ──
-      const result = await chat.sendMessage(lastMessageContent.text);
+      const result = await ai.models.generateContent({
+        model: selectedModel,
+        contents: chatContents,
+        config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+      });
 
-
-      console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-
-      const response = result.response.text();
+      const response = (result.text || '');
 
       if (!response || response.trim() === '') {
-        console.error("Gemini returned empty response. Candidates:", result.response.candidates);
-        console.error("Prompt feedback:", result.response.promptFeedback);
+        console.error("Gemini returned empty response.");
         return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
-          details: {
-            promptFeedback: result.response.promptFeedback,
-            candidates: result.response.candidates
-          }
         });
       }
 
@@ -6825,24 +6805,14 @@ Return ONLY valid JSON array.`;
         return res.status(400).json({ error: "playerMessage and targetLanguage are required" });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+      const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
       const { buildGrammarAnalysisPrompt } = await import("../shared/language/utils.js");
 
-      const apiKey = getGeminiApiKey();
-      if (!apiKey) {
+      if (!isGeminiConfigured()) {
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: GEMINI_MODELS.FLASH,
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 512,
-          responseMimeType: "application/json",
-        },
-      });
+      const ai = getGenAI();
 
       const prompt = buildGrammarAnalysisPrompt(
         targetLanguage,
@@ -6851,8 +6821,12 @@ Return ONLY valid JSON array.`;
         worldLanguage || null,
       );
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const result = await ai.models.generateContent({
+        model: GEMINI_MODELS.FLASH,
+        contents: prompt,
+        config: { temperature: 0.1, maxOutputTokens: 512, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const responseText = (result.text || '');
 
       try {
         const parsed = JSON.parse(responseText);
@@ -6876,23 +6850,13 @@ Return ONLY valid JSON array.`;
         return res.status(400).json({ error: "storyText, questions, and playerAnswers are required" });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+      const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
 
-      const apiKey = getGeminiApiKey();
-      if (!apiKey) {
+      if (!isGeminiConfigured()) {
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: GEMINI_MODELS.FLASH,
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 1024,
-          responseMimeType: "application/json",
-        },
-      });
+      const ai = getGenAI();
 
       const questionsWithAnswers = (questions as Array<{ question: string; correctAnswer: string }>)
         .map((q, i) => {
@@ -6924,8 +6888,12 @@ Respond with this JSON structure:
   ]
 }`;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const result = await ai.models.generateContent({
+        model: GEMINI_MODELS.FLASH,
+        contents: prompt,
+        config: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const responseText = (result.text || '');
 
       try {
         const parsed = JSON.parse(responseText);
@@ -10108,8 +10076,8 @@ Respond with this JSON structure:
       // Regenerate rules using LLM if available
       const createdRules = [];
       if (isGeminiConfigured()) {
-        const { GoogleGenerativeAI } = await import("@google/generative-ai");
-        const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+        const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+        const ai = getGenAI();
 
         const worldContext = `A ${(world as any).worldType || 'medieval-fantasy'} world named "${world.name}". ${world.description || ''}`;
         const rulesPrompt = `Generate 10 social rules and norms for ${worldContext}.
@@ -10147,14 +10115,12 @@ rule rule_name {
 
 Make the rule names creative and fitting for the world's theme.`;
 
-        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-        const model = genAI.getGenerativeModel({
+        const result = await ai.models.generateContent({
           model: GEMINI_MODELS.PRO,
-          generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
+          contents: rulesPrompt,
+          config: { temperature: 0.9, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
         });
-
-        const result = await model.generateContent(rulesPrompt);
-        const generatedRules = JSON.parse(result.response.text().trim());
+        const generatedRules = JSON.parse((result.text || '').trim());
 
         if (Array.isArray(generatedRules)) {
           for (const rule of generatedRules.slice(0, 10)) {
@@ -10214,8 +10180,8 @@ Make the rule names creative and fitting for the world's theme.`;
         const actionTypes = ['social', 'combat', 'movement', 'mental', 'economic', 'social', 'combat', 'mental', 'economic', 'movement'];
 
         if (isGeminiConfigured()) {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+          const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+          const ai = getGenAI();
           const worldCtxStr = `A ${wt} world named "${world.name}". ${world.description || ''}`;
           const descPrompt = `For this world: ${worldCtxStr}
 
@@ -10225,10 +10191,12 @@ Actions:
 ${actionNames.map((n: string, i: number) => `${i + 1}. "${n}"`).join('\n')}
 
 Return ONLY valid JSON array.`;
-          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-          const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.7, responseMimeType: 'application/json' } });
-          const result = await model.generateContent(descPrompt);
-          const described = JSON.parse(result.response.text().trim());
+          const result = await ai.models.generateContent({
+            model: GEMINI_MODELS.PRO,
+            contents: descPrompt,
+            config: { temperature: 0.7, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+          });
+          const described = JSON.parse((result.text || '').trim());
           if (Array.isArray(described)) {
             for (const action of described.slice(0, 10)) {
               if (action.name) {
@@ -10257,8 +10225,8 @@ Return ONLY valid JSON array.`;
           }
         }
       } else if (isGeminiConfigured()) {
-        const { GoogleGenerativeAI } = await import("@google/generative-ai");
-        const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+        const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import("./config/gemini.js");
+        const ai = getGenAI();
         const worldCtxStr = `A ${wt} world named "${world.name}". ${world.description || ''}`;
         const actionsPrompt = `Generate 10 character actions for ${worldCtxStr}.
 
@@ -10278,10 +10246,12 @@ Return as a JSON array with this structure:
 ]
 
 Make the action names thematic and immersive.`;
-        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-        const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
-        const result = await model.generateContent(actionsPrompt);
-        const generatedActions = JSON.parse(result.response.text().trim());
+        const result = await ai.models.generateContent({
+          model: GEMINI_MODELS.PRO,
+          contents: actionsPrompt,
+          config: { temperature: 0.9, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        });
+        const generatedActions = JSON.parse((result.text || '').trim());
         if (Array.isArray(generatedActions)) {
           for (const action of generatedActions.slice(0, 10)) {
             if (action.name && action.description) {
