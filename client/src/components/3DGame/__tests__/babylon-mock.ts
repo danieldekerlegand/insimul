@@ -23,6 +23,10 @@ export class Vector3 {
 export class Color3 {
   constructor(public r = 0, public g = 0, public b = 0) {}
   scale(s: number) { return new Color3(this.r * s, this.g * s, this.b * s); }
+  equals(other: Color3) { return this.r === other.r && this.g === other.g && this.b === other.b; }
+  static Lerp(a: Color3, b: Color3, t: number) {
+    return new Color3(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t);
+  }
 }
 
 export class Mesh {

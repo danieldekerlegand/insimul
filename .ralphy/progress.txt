@@ -365,3 +365,27 @@
 - [✓] 2026-03-21 00:44 - Add ambient sound system with environmental audio tied to location and time
 - [✓] 2026-03-21 00:52 - End-to-end validation: verify all new systems work together in world 69bba18ce2e6d5c1cb3c7a9f
 - [✓] 2026-03-21 01:39 - Enlarge building interiors and add multi-room layouts for larger buildings
+
+## Agent 13: Integrate modular NPC assembly into BabylonGame replacing single-mesh NPC loading
+
+### Completed
+- Created NPCModularAssembler (client/src/components/3DGame/NPCModularAssembler.ts):
+  - Builds NPCs from 10 procedural body-part meshes (head, torso, upper/lower arms, upper/lower legs)
+  - 4 body type proportions: average, athletic, heavy, slim (derived from physical traits and occupation)
+  - Uses existing NPCAppearanceGenerator for deterministic skin/clothing/accent coloring per character ID
+  - Material caching: NPCs with identical appearance colors share material instances
+  - Body parts use appropriate materials: skin for head/forearms, clothing for torso/upper arms, accent for legs
+  - All body parts parented to root mesh; parts non-pickable, root pickable
+- Integrated into BabylonGame.ts loadNPC flow:
+  - Modular assembly is now the primary NPC creation path (replaces file-based model loading as first attempt)
+  - File-based loading (world overrides, diverse models, default model) remains as fallback chain
+  - Skips redundant applyNPCAppearance when modular assembly used (colors already baked in)
+  - Proper initialization in constructor and dispose cleanup
+- Added Color3.Lerp and Color3.equals to babylon-mock.ts for test support
+- Wrote 20 tests (client/src/components/3DGame/__tests__/NPCModularAssembler.test.ts):
+  - Body part assembly, child mesh hierarchy, material assignment
+  - Skin/clothing/accent material separation
+  - Pickability settings, scale application, appearance/bodyType in result
+  - Determinism (same ID → same appearance), variation (different IDs → different appearances)
+  - All 4 body types, all 4 NPC roles, material caching, static utility methods
+- All 20 tests pass, no new TypeScript errors

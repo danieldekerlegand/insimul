@@ -162,6 +162,7 @@ import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
+import { NPCModularAssembler, deriveBodyType as deriveModularBodyType } from "@/components/3DGame/NPCModularAssembler.ts";
 import { selectNPCModel, type NPCGender } from "@/components/3DGame/NPCModelVariety.ts";
 import { QuestOfferPanel } from "@/components/3DGame/QuestOfferPanel.ts";
 import type { QuestOfferData } from "@/components/3DGame/QuestOfferPanel.ts";
@@ -538,6 +539,8 @@ export class BabylonGame {
   private preConversationCameraMode: CameraMode | null = null;
   // NPC model instancer: caches templates, clones for subsequent NPCs, shared materials
   private npcModelInstancer: NPCModelInstancer | null = null;
+  // NPC modular assembler: builds NPCs from procedural body-part meshes
+  private npcModularAssembler: NPCModularAssembler | null = null;
 
   // Settlements and world
   private settlementMeshes: Map<string, Mesh> = new Map();
@@ -1323,6 +1326,8 @@ export class BabylonGame {
 
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
+    // Initialize NPC modular assembler (procedural body-part construction)
+    this.npcModularAssembler = new NPCModularAssembler(scene);
 
     // Initialize world object action manager (examine, identify, point-and-name, read sign)
     this.worldObjectActionManager = new WorldObjectActionManager(this.eventBus);
@@ -6278,19 +6283,30 @@ export class BabylonGame {
       let root: Mesh | null = null;
       let animationGroups: any[] = [];
       let instancedBillboard: Mesh | null = null;
+      let usedModularAssembly = false;
 
-      // Try world-level NPC override first (role+gender specific, with fallback chain)
-      const modelInfo = this.resolveNPCModelUrl(role, character);
-      if (modelInfo) {
-        const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file, character.id, role);
-        if (modelResult) {
-          root = modelResult.root;
-          animationGroups = modelResult.animationGroups;
-          instancedBillboard = modelResult.billboard;
+      // Primary path: modular NPC assembly from procedural body parts
+      if (this.npcModularAssembler) {
+        const bodyType = deriveModularBodyType(character.physicalTraits, character.occupation);
+        const assembled = this.npcModularAssembler.assemble(character.id, role, bodyType);
+        root = assembled.root;
+        usedModularAssembly = true;
+      }
+
+      // Fallback: Try world-level NPC override (role+gender specific, with fallback chain)
+      if (!root) {
+        const modelInfo = this.resolveNPCModelUrl(role, character);
+        if (modelInfo) {
+          const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file, character.id, role);
+          if (modelResult) {
+            root = modelResult.root;
+            animationGroups = modelResult.animationGroups;
+            instancedBillboard = modelResult.billboard;
+          }
         }
       }
 
-      // Try diverse NPC model based on gender, body type, and world genre
+      // Fallback: Try diverse NPC model based on gender, body type, and world genre
       if (!root) {
         const diverseModel = resolveNPCModelFromCharacter(character, role, this.config.worldType);
         const diverseResult = await this.getOrLoadNPCModel(diverseModel.cacheKey, diverseModel.rootUrl, diverseModel.file, character.id, role);
@@ -6301,7 +6317,7 @@ export class BabylonGame {
         }
       }
 
-      // Fallback to shared default NPC model (uses instancer with cloning)
+      // Fallback: shared default NPC model (uses instancer with cloning)
       if (!root) {
         const defaultResult = await this.getOrLoadNPCModel('__default_npc__', '', NPC_MODEL_URL, character.id, role);
         if (defaultResult) {
@@ -6311,7 +6327,7 @@ export class BabylonGame {
         }
       }
 
-      // Final fallback: direct load if instancer failed entirely
+      // Final fallback: direct load if all else failed
       if (!root) {
         const result = await SceneLoader.ImportMeshAsync("", "", NPC_MODEL_URL, this.scene);
         root = (this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh));
@@ -6334,8 +6350,14 @@ export class BabylonGame {
       root.position = spawnPos;
 
       // Phase 8B: Apply procedural appearance variation for visual distinction
-      const allNpcMeshes = [root, ...root.getChildMeshes()];
-      const appearance = this.applyNPCAppearance(allNpcMeshes, character.id, role);
+      // Modular assembly already has appearance baked in; only generate for billboard use
+      let appearance: NPCAppearance;
+      if (usedModularAssembly) {
+        appearance = generateNPCAppearance(character.id, role);
+      } else {
+        const allNpcMeshes = [root, ...root.getChildMeshes()];
+        appearance = this.applyNPCAppearance(allNpcMeshes, character.id, role);
+      }
 
       // Create CharacterController for NPCs (with null camera for programmatic control)
       let controller: CharacterController | null = null;
@@ -12375,6 +12397,9 @@ export class BabylonGame {
     // Dispose NPC model instancer (templates + shared materials)
     this.npcModelInstancer?.dispose();
     this.npcModelInstancer = null;
+    // Dispose NPC modular assembler (cached materials)
+    this.npcModularAssembler?.dispose();
+    this.npcModularAssembler = null;
   }
 
   private disposePlayer(): void {
