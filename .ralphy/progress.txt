@@ -365,3 +365,14 @@
 - [✓] 2026-03-21 00:44 - Add ambient sound system with environmental audio tied to location and time
 - [✓] 2026-03-21 00:52 - End-to-end validation: verify all new systems work together in world 69bba18ce2e6d5c1cb3c7a9f
 - [✓] 2026-03-21 01:39 - Enlarge building interiors and add multi-room layouts for larger buildings
+
+## Agent 8: Create interior layout templates data file with 15+ predefined templates
+
+### Completed
+- Created `shared/game-engine/interior-templates.ts` with 16 predefined templates:
+  - tavern, restaurant, shop, bar, bakery, residence_small, residence_medium, residence_large, church, school, hotel, blacksmith, warehouse, clinic, farm_barn, guild_hall
+- Each template defines: dimensions, floor count, room zones (with fractional offsets), color palette, and furniture sets per room function
+- Types: InteriorLayoutTemplate, RoomZoneTemplate, FurnitureEntry, RoomFurnitureSet, ColorPalette, RoomColor
+- Helper functions: getTemplateById(), getTemplateForBuildingType() (longest-match to avoid substring collisions), getTemplateIds(), resolveRoomZone(), getFurnitureSetForRoom()
+- Wrote 34 tests covering template count, uniqueness, dimensions, room-furniture mapping, color ranges, fraction bounds, all 15 required templates, lookup helpers, zone resolution
+- All tests pass
