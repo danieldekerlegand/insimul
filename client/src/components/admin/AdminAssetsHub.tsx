@@ -28,6 +28,7 @@ import { ModelPreview } from "../ModelPreview";
 import { ImageUpscaleDialog } from "../ImageUpscaleDialog";
 import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
+import { BuildingConfigurationPanel } from "./BuildingConfigurationPanel";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3 } from "@shared/game-engine/types";
 
@@ -114,7 +115,7 @@ export function AdminAssetsHub() {
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>("all");
 
   // Right panel
-  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | null>('preview');
+  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | 'procedural' | 'building-config' | null>('preview');
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -919,10 +920,11 @@ export function AdminAssetsHub() {
     const hasCollection = browseMode === 'collections' && !!selectedCollection;
     if (!hasAsset && !hasCollection) return null;
 
-    type SectionId = 'preview' | 'details' | 'config' | 'procedural';
+    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'building-config';
     const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
       { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
       { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
+      { id: 'building-config' as SectionId, label: 'Building Config', icon: Building2, show: hasCollection },
       { id: 'config' as SectionId, label: '3D Config', icon: Settings2, show: hasCollection },
       { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
     ];
@@ -1095,6 +1097,19 @@ export function AdminAssetsHub() {
                           </div>
                         )}
                       </>
+                    )}
+
+                    {/* Unified Building Configuration */}
+                    {section.id === 'building-config' && selectedCollection && (
+                      <BuildingConfigurationPanel
+                        collection={selectedCollection}
+                        onUpdateConfig={(buildingTypeConfigs) =>
+                          patchCollectionConfig({ buildingTypeConfigs } as any)
+                        }
+                        onUpdateCategoryPresets={(categoryPresets) =>
+                          patchCollectionConfig({ categoryPresets } as any)
+                        }
+                      />
                     )}
 
                     {/* 3D Config */}
