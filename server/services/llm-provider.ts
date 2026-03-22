@@ -10,6 +10,7 @@
  */
 
 import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
+import { LocalAIProvider, type LocalAIProviderConfig } from './ai/providers/local/local-ai-provider.js';
 
 export interface LLMProviderConfig {
   provider: 'gemini' | 'openai' | 'anthropic' | 'local';
@@ -227,10 +228,11 @@ export function createLLMProvider(config?: Partial<LLMProviderConfig>): ILLMProv
   switch (providerType) {
     case 'gemini':
       return new GeminiProvider(config);
+    case 'local':
+      return new LocalAIProvider(config as LocalAIProviderConfig);
     case 'openai':
     case 'anthropic':
-    case 'local':
-      throw new Error(`LLM provider '${providerType}' is not yet implemented. Use 'gemini' for now.`);
+      throw new Error(`LLM provider '${providerType}' is not yet implemented. Use 'gemini' or 'local' for now.`);
     default:
       throw new Error(`Unknown LLM provider: ${providerType}`);
   }
