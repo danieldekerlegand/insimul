@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RotateCcw, Plus, Trash2, Box } from "lucide-react";
 import { ConfigPreviewScene } from "./ConfigPreviewScene";
+import { GroundTexturePreview } from "./GroundTexturePreview";
 import { BuildingModelPreview } from "../locations/BuildingModelPreview";
 import { BuildingTypeDetailPanel } from "./BuildingConfigurationPanel";
 import { colorToHex, hexToColor, humanize } from "./BuildingConfigurationPanel";
@@ -187,14 +188,18 @@ export function ConfigDetailPanel({
   if (selection.module === 'ground') {
     const cfg = selection.config;
     const mode = cfg?.mode || 'procedural';
+    const textureAsset = cfg?.textureId ? assets.find(a => a.id === cfg.textureId) : undefined;
+    const textureUrl = textureAsset ? `/${textureAsset.filePath}` : undefined;
     return (
       <div className="flex flex-col h-full min-h-0">
         <div className="shrink-0 p-3 border-b">
           <p className="text-xs font-semibold mb-2">{humanize(selection.groundType)}</p>
-          <ConfigPreviewScene
+          <GroundTexturePreview
+            groundType={selection.groundType}
+            textureUrl={mode === 'asset' ? textureUrl : undefined}
+            color={cfg?.color ? colorToHex(cfg.color) : "#5a8a5a"}
+            tiling={cfg?.tiling ?? 4}
             height={180}
-            showGround={true}
-            groundColor={cfg?.color ? colorToHex(cfg.color) : "#5a8a5a"}
           />
         </div>
         <ScrollArea className="flex-1 min-h-0">
@@ -211,19 +216,26 @@ export function ConfigDetailPanel({
             </div>
 
             {mode === 'asset' && (
-              <div className="space-y-1">
-                <Label className="text-[10px]">Texture Asset</Label>
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                    {cfg?.textureId ? `${cfg.textureId.slice(0, 12)}...` : "Select Texture"}
-                  </Button>
-                  {cfg?.textureId && (
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}>
-                      <Trash2 className="w-3 h-3" />
+              <>
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Texture Asset</Label>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
+                      {textureAsset ? textureAsset.name : cfg?.textureId ? `${cfg.textureId.slice(0, 12)}...` : "Select Texture"}
                     </Button>
-                  )}
+                    {cfg?.textureId && (
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
+                <div>
+                  <Label className="text-[10px]">Tiling</Label>
+                  <Input type="number" className="h-7 text-xs" value={cfg?.tiling ?? 4} min={1} max={32}
+                    onChange={(e) => onUpdateGround?.(selection.groundType, { tiling: Number(e.target.value) })} />
+                </div>
+              </>
             )}
 
             {mode === 'procedural' && (
