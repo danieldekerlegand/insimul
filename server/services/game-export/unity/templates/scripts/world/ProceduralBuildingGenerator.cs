@@ -67,6 +67,7 @@ namespace Insimul.World
             public float depth;
             public bool hasChimney;
             public bool hasBalcony;
+            public bool hasPorch;
         }
 
         public static readonly Dictionary<string, BuildingStylePreset> STYLE_PRESETS =
@@ -139,22 +140,79 @@ namespace Insimul.World
             }}
         };
 
+        /// <summary>Default building dimensions. Matches shared/game-engine/building-defaults.ts.</summary>
+        public static readonly BuildingTypeDefaults DEFAULT_BUILDING_DIMENSIONS =
+            new BuildingTypeDefaults { floors = 2, width = 10, depth = 10 };
+
         public static readonly Dictionary<string, BuildingTypeDefaults> BUILDING_TYPES =
             new Dictionary<string, BuildingTypeDefaults>
         {
-            // Businesses
+            // ── Commercial: Food & Drink ──
             { "Bakery",           new BuildingTypeDefaults { floors = 2, width = 12, depth = 10, hasChimney = true  } },
             { "Restaurant",       new BuildingTypeDefaults { floors = 2, width = 15, depth = 12 } },
+            { "Bar",              new BuildingTypeDefaults { floors = 2, width = 12, depth = 10 } },
+            { "Brewery",          new BuildingTypeDefaults { floors = 2, width = 14, depth = 12, hasChimney = true  } },
+
+            // ── Commercial: Retail ──
+            { "Shop",             new BuildingTypeDefaults { floors = 2, width = 10, depth = 8  } },
+            { "GroceryStore",     new BuildingTypeDefaults { floors = 2, width = 14, depth = 12 } },
+            { "JewelryStore",     new BuildingTypeDefaults { floors = 2, width = 10, depth = 8  } },
+            { "BookStore",        new BuildingTypeDefaults { floors = 2, width = 10, depth = 10 } },
+            { "PawnShop",         new BuildingTypeDefaults { floors = 2, width = 10, depth = 8  } },
+            { "HerbShop",         new BuildingTypeDefaults { floors = 1, width = 8,  depth = 8  } },
+
+            // ── Commercial: Services ──
+            { "Bank",             new BuildingTypeDefaults { floors = 2, width = 14, depth = 12 } },
+            { "Hotel",            new BuildingTypeDefaults { floors = 3, width = 16, depth = 14, hasBalcony = true  } },
+            { "Barbershop",       new BuildingTypeDefaults { floors = 1, width = 8,  depth = 8  } },
+            { "Tailor",           new BuildingTypeDefaults { floors = 2, width = 10, depth = 8  } },
+            { "Bathhouse",        new BuildingTypeDefaults { floors = 1, width = 14, depth = 12 } },
+            { "DentalOffice",     new BuildingTypeDefaults { floors = 2, width = 10, depth = 10 } },
+            { "OptometryOffice",  new BuildingTypeDefaults { floors = 2, width = 10, depth = 10 } },
+            { "Pharmacy",         new BuildingTypeDefaults { floors = 2, width = 10, depth = 10 } },
+            { "LawFirm",          new BuildingTypeDefaults { floors = 3, width = 12, depth = 10 } },
+            { "InsuranceOffice",  new BuildingTypeDefaults { floors = 2, width = 10, depth = 10 } },
+            { "RealEstateOffice", new BuildingTypeDefaults { floors = 2, width = 10, depth = 10 } },
+            { "TattoParlor",      new BuildingTypeDefaults { floors = 1, width = 8,  depth = 8  } },
+
+            // ── Civic ──
+            { "Church",           new BuildingTypeDefaults { floors = 1, width = 16, depth = 24 } },
+            { "TownHall",         new BuildingTypeDefaults { floors = 2, width = 18, depth = 16 } },
+            { "School",           new BuildingTypeDefaults { floors = 2, width = 18, depth = 16 } },
+            { "University",       new BuildingTypeDefaults { floors = 3, width = 20, depth = 18 } },
+            { "Hospital",         new BuildingTypeDefaults { floors = 3, width = 20, depth = 18 } },
+            { "PoliceStation",    new BuildingTypeDefaults { floors = 2, width = 14, depth = 12 } },
+            { "FireStation",      new BuildingTypeDefaults { floors = 2, width = 14, depth = 14 } },
+            { "Daycare",          new BuildingTypeDefaults { floors = 1, width = 12, depth = 10 } },
+            { "Mortuary",         new BuildingTypeDefaults { floors = 1, width = 12, depth = 10 } },
+
+            // ── Industrial ──
+            { "Factory",          new BuildingTypeDefaults { floors = 2, width = 20, depth = 16, hasChimney = true  } },
+            { "Farm",             new BuildingTypeDefaults { floors = 1, width = 14, depth = 12 } },
+            { "Warehouse",        new BuildingTypeDefaults { floors = 1, width = 18, depth = 14 } },
+            { "Blacksmith",       new BuildingTypeDefaults { floors = 1, width = 12, depth = 10, hasChimney = true  } },
+            { "Carpenter",        new BuildingTypeDefaults { floors = 1, width = 12, depth = 10 } },
+            { "Butcher",          new BuildingTypeDefaults { floors = 1, width = 10, depth = 8  } },
+
+            // ── Maritime ──
+            { "Harbor",           new BuildingTypeDefaults { floors = 1, width = 16, depth = 12 } },
+            { "Boatyard",         new BuildingTypeDefaults { floors = 1, width = 18, depth = 14 } },
+            { "FishMarket",       new BuildingTypeDefaults { floors = 1, width = 14, depth = 10 } },
+            { "CustomsHouse",     new BuildingTypeDefaults { floors = 2, width = 14, depth = 12 } },
+            { "Lighthouse",       new BuildingTypeDefaults { floors = 3, width = 8,  depth = 8  } },
+
+            // ── Residential ──
+            { "house",            new BuildingTypeDefaults { floors = 2, width = 10, depth = 10, hasChimney = true  } },
+            { "apartment",        new BuildingTypeDefaults { floors = 3, width = 14, depth = 12 } },
+            { "mansion",          new BuildingTypeDefaults { floors = 3, width = 20, depth = 18, hasBalcony = true, hasChimney = true } },
+            { "cottage",          new BuildingTypeDefaults { floors = 1, width = 8,  depth = 8,  hasChimney = true  } },
+            { "townhouse",        new BuildingTypeDefaults { floors = 2, width = 8,  depth = 12 } },
+            { "mobile_home",      new BuildingTypeDefaults { floors = 1, width = 6,  depth = 10 } },
+
+            // ── Other/legacy ──
             { "Tavern",           new BuildingTypeDefaults { floors = 2, width = 14, depth = 14, hasBalcony = true  } },
             { "Inn",              new BuildingTypeDefaults { floors = 3, width = 16, depth = 14, hasBalcony = true  } },
             { "Market",           new BuildingTypeDefaults { floors = 1, width = 20, depth = 15 } },
-            { "Shop",             new BuildingTypeDefaults { floors = 2, width = 10, depth = 8  } },
-            { "Blacksmith",       new BuildingTypeDefaults { floors = 1, width = 12, depth = 10, hasChimney = true  } },
-            { "LawFirm",          new BuildingTypeDefaults { floors = 3, width = 12, depth = 10 } },
-            { "Bank",             new BuildingTypeDefaults { floors = 2, width = 14, depth = 12 } },
-            { "Hospital",         new BuildingTypeDefaults { floors = 3, width = 20, depth = 18 } },
-            { "School",           new BuildingTypeDefaults { floors = 2, width = 18, depth = 16 } },
-            { "Church",           new BuildingTypeDefaults { floors = 1, width = 16, depth = 24 } },
             { "Theater",          new BuildingTypeDefaults { floors = 2, width = 18, depth = 20 } },
             { "Library",          new BuildingTypeDefaults { floors = 3, width = 16, depth = 14 } },
             { "ApartmentComplex", new BuildingTypeDefaults { floors = 5, width = 18, depth = 16, hasBalcony = true  } },
@@ -163,7 +221,10 @@ namespace Insimul.World
             { "Lumbermill",       new BuildingTypeDefaults { floors = 1, width = 16, depth = 12, hasChimney = true  } },
             { "Barracks",         new BuildingTypeDefaults { floors = 2, width = 18, depth = 14 } },
             { "Mine",             new BuildingTypeDefaults { floors = 1, width = 12, depth = 10 } },
-            // Residences
+            { "Clinic",           new BuildingTypeDefaults { floors = 2, width = 12, depth = 10 } },
+            { "Stables",          new BuildingTypeDefaults { floors = 1, width = 14, depth = 12 } },
+
+            // ── Legacy residence keys ──
             { "residence_small",   new BuildingTypeDefaults { floors = 1, width = 8,  depth = 8  } },
             { "residence_medium",  new BuildingTypeDefaults { floors = 2, width = 10, depth = 10, hasChimney = true  } },
             { "residence_large",   new BuildingTypeDefaults { floors = 2, width = 14, depth = 12, hasBalcony = true, hasChimney = true } },

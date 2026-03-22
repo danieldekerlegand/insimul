@@ -67,6 +67,15 @@ struct FBuildingTypeDefaults
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasChimney = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasBalcony = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasPorch = false;
+
+    /** Construct with defaults matching DEFAULT_BUILDING_DIMENSIONS */
+    FBuildingTypeDefaults() : Floors(2), Width(10.0f), Depth(10.0f),
+        bHasChimney(false), bHasBalcony(false), bHasPorch(false) {}
+
+    FBuildingTypeDefaults(int32 InFloors, float InWidth, float InDepth,
+        bool InChimney = false, bool InBalcony = false, bool InPorch = false)
+        : Floors(InFloors), Width(InWidth), Depth(InDepth),
+          bHasChimney(InChimney), bHasBalcony(InBalcony), bHasPorch(InPorch) {}
 };
 
 /**

@@ -8,6 +8,7 @@
  */
 
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3 } from '@babylonjs/core';
+import { getBuildingDefaults } from '@shared/game-engine/building-defaults';
 
 /** Collision group identifier for building colliders */
 export const BUILDING_COLLISION_GROUP = 'building_collision';
@@ -155,42 +156,10 @@ export class BuildingCollisionSystem {
   }
 
   /**
-   * Look up building dimensions from BUILDING_TYPES via businessType string.
-   * Falls back to residence_medium defaults.
+   * Look up building dimensions via shared building defaults.
    */
   private getBuildingDimensions(businessType?: string): { width: number; depth: number; floors: number } {
-    // These match ProceduralBuildingGenerator.BUILDING_TYPES
-    const BUILDING_TYPES: Record<string, { floors: number; width: number; depth: number }> = {
-      'Bakery': { floors: 2, width: 12, depth: 10 },
-      'Restaurant': { floors: 2, width: 15, depth: 12 },
-      'Tavern': { floors: 2, width: 14, depth: 14 },
-      'Inn': { floors: 3, width: 16, depth: 14 },
-      'Market': { floors: 1, width: 20, depth: 15 },
-      'Shop': { floors: 2, width: 10, depth: 8 },
-      'Blacksmith': { floors: 1, width: 12, depth: 10 },
-      'LawFirm': { floors: 3, width: 12, depth: 10 },
-      'Bank': { floors: 2, width: 14, depth: 12 },
-      'Hospital': { floors: 3, width: 20, depth: 18 },
-      'School': { floors: 2, width: 18, depth: 16 },
-      'Church': { floors: 1, width: 16, depth: 24 },
-      'Theater': { floors: 2, width: 18, depth: 20 },
-      'Library': { floors: 3, width: 16, depth: 14 },
-      'ApartmentComplex': { floors: 5, width: 18, depth: 16 },
-      'Windmill': { floors: 3, width: 10, depth: 10 },
-      'Watermill': { floors: 2, width: 14, depth: 12 },
-      'Lumbermill': { floors: 1, width: 16, depth: 12 },
-      'Barracks': { floors: 2, width: 18, depth: 14 },
-      'Mine': { floors: 1, width: 12, depth: 10 },
-      'residence_small': { floors: 1, width: 8, depth: 8 },
-      'residence_medium': { floors: 2, width: 10, depth: 10 },
-      'residence_large': { floors: 2, width: 14, depth: 12 },
-      'residence_mansion': { floors: 3, width: 20, depth: 18 },
-    };
-
-    if (businessType && BUILDING_TYPES[businessType]) {
-      return BUILDING_TYPES[businessType];
-    }
-    return BUILDING_TYPES['residence_medium'];
+    return getBuildingDefaults(businessType || 'house');
   }
 
   /**

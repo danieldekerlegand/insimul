@@ -127,32 +127,88 @@ const TMap<FString, FBuildingTypeDefaults>& AProceduralBuildingGenerator::GetBui
     static TMap<FString, FBuildingTypeDefaults> Types;
     if (Types.Num() == 0)
     {
-        // Businesses
-        Types.Add(TEXT("Bakery"),            { 2, 12, 10, true,  false });
-        Types.Add(TEXT("Restaurant"),        { 2, 15, 12, false, false });
+        // ── Commercial: Food & Drink ──
+        Types.Add(TEXT("Bakery"),            { 2, 12, 10, true  });
+        Types.Add(TEXT("Restaurant"),        { 2, 15, 12 });
+        Types.Add(TEXT("Bar"),               { 2, 12, 10 });
+        Types.Add(TEXT("Brewery"),           { 2, 14, 12, true  });
+
+        // ── Commercial: Retail ──
+        Types.Add(TEXT("Shop"),              { 2, 10, 8  });
+        Types.Add(TEXT("GroceryStore"),      { 2, 14, 12 });
+        Types.Add(TEXT("JewelryStore"),      { 2, 10, 8  });
+        Types.Add(TEXT("BookStore"),         { 2, 10, 10 });
+        Types.Add(TEXT("PawnShop"),          { 2, 10, 8  });
+        Types.Add(TEXT("HerbShop"),          { 1, 8,  8  });
+
+        // ── Commercial: Services ──
+        Types.Add(TEXT("Bank"),              { 2, 14, 12 });
+        Types.Add(TEXT("Hotel"),             { 3, 16, 14, false, true  });
+        Types.Add(TEXT("Barbershop"),        { 1, 8,  8  });
+        Types.Add(TEXT("Tailor"),            { 2, 10, 8  });
+        Types.Add(TEXT("Bathhouse"),         { 1, 14, 12 });
+        Types.Add(TEXT("DentalOffice"),      { 2, 10, 10 });
+        Types.Add(TEXT("OptometryOffice"),   { 2, 10, 10 });
+        Types.Add(TEXT("Pharmacy"),          { 2, 10, 10 });
+        Types.Add(TEXT("LawFirm"),           { 3, 12, 10 });
+        Types.Add(TEXT("InsuranceOffice"),   { 2, 10, 10 });
+        Types.Add(TEXT("RealEstateOffice"),  { 2, 10, 10 });
+        Types.Add(TEXT("TattoParlor"),       { 1, 8,  8  });
+
+        // ── Civic ──
+        Types.Add(TEXT("Church"),            { 1, 16, 24 });
+        Types.Add(TEXT("TownHall"),          { 2, 18, 16 });
+        Types.Add(TEXT("School"),            { 2, 18, 16 });
+        Types.Add(TEXT("University"),        { 3, 20, 18 });
+        Types.Add(TEXT("Hospital"),          { 3, 20, 18 });
+        Types.Add(TEXT("PoliceStation"),     { 2, 14, 12 });
+        Types.Add(TEXT("FireStation"),       { 2, 14, 14 });
+        Types.Add(TEXT("Daycare"),           { 1, 12, 10 });
+        Types.Add(TEXT("Mortuary"),          { 1, 12, 10 });
+
+        // ── Industrial ──
+        Types.Add(TEXT("Factory"),           { 2, 20, 16, true  });
+        Types.Add(TEXT("Farm"),              { 1, 14, 12 });
+        Types.Add(TEXT("Warehouse"),         { 1, 18, 14 });
+        Types.Add(TEXT("Blacksmith"),        { 1, 12, 10, true  });
+        Types.Add(TEXT("Carpenter"),         { 1, 12, 10 });
+        Types.Add(TEXT("Butcher"),           { 1, 10, 8  });
+
+        // ── Maritime ──
+        Types.Add(TEXT("Harbor"),            { 1, 16, 12 });
+        Types.Add(TEXT("Boatyard"),          { 1, 18, 14 });
+        Types.Add(TEXT("FishMarket"),        { 1, 14, 10 });
+        Types.Add(TEXT("CustomsHouse"),      { 2, 14, 12 });
+        Types.Add(TEXT("Lighthouse"),        { 3, 8,  8  });
+
+        // ── Residential ──
+        Types.Add(TEXT("house"),             { 2, 10, 10, true  });
+        Types.Add(TEXT("apartment"),         { 3, 14, 12 });
+        Types.Add(TEXT("mansion"),           { 3, 20, 18, true, true });
+        Types.Add(TEXT("cottage"),           { 1, 8,  8,  true  });
+        Types.Add(TEXT("townhouse"),         { 2, 8,  12 });
+        Types.Add(TEXT("mobile_home"),       { 1, 6,  10 });
+
+        // ── Other/legacy ──
         Types.Add(TEXT("Tavern"),            { 2, 14, 14, false, true  });
         Types.Add(TEXT("Inn"),               { 3, 16, 14, false, true  });
-        Types.Add(TEXT("Market"),            { 1, 20, 15, false, false });
-        Types.Add(TEXT("Shop"),              { 2, 10, 8,  false, false });
-        Types.Add(TEXT("Blacksmith"),        { 1, 12, 10, true,  false });
-        Types.Add(TEXT("LawFirm"),           { 3, 12, 10, false, false });
-        Types.Add(TEXT("Bank"),              { 2, 14, 12, false, false });
-        Types.Add(TEXT("Hospital"),          { 3, 20, 18, false, false });
-        Types.Add(TEXT("School"),            { 2, 18, 16, false, false });
-        Types.Add(TEXT("Church"),            { 1, 16, 24, false, false });
-        Types.Add(TEXT("Theater"),           { 2, 18, 20, false, false });
-        Types.Add(TEXT("Library"),           { 3, 16, 14, false, false });
+        Types.Add(TEXT("Market"),            { 1, 20, 15 });
+        Types.Add(TEXT("Theater"),           { 2, 18, 20 });
+        Types.Add(TEXT("Library"),           { 3, 16, 14 });
         Types.Add(TEXT("ApartmentComplex"),  { 5, 18, 16, false, true  });
-        Types.Add(TEXT("Windmill"),          { 3, 10, 10, false, false });
-        Types.Add(TEXT("Watermill"),         { 2, 14, 12, false, false });
-        Types.Add(TEXT("Lumbermill"),        { 1, 16, 12, true,  false });
-        Types.Add(TEXT("Barracks"),          { 2, 18, 14, false, false });
-        Types.Add(TEXT("Mine"),              { 1, 12, 10, false, false });
-        // Residences
-        Types.Add(TEXT("residence_small"),   { 1, 8,  8,  false, false });
-        Types.Add(TEXT("residence_medium"),  { 2, 10, 10, true,  false });
-        Types.Add(TEXT("residence_large"),   { 2, 14, 12, true,  true  });
-        Types.Add(TEXT("residence_mansion"), { 3, 20, 18, true,  true  });
+        Types.Add(TEXT("Windmill"),          { 3, 10, 10 });
+        Types.Add(TEXT("Watermill"),         { 2, 14, 12 });
+        Types.Add(TEXT("Lumbermill"),        { 1, 16, 12, true  });
+        Types.Add(TEXT("Barracks"),          { 2, 18, 14 });
+        Types.Add(TEXT("Mine"),              { 1, 12, 10 });
+        Types.Add(TEXT("Clinic"),            { 2, 12, 10 });
+        Types.Add(TEXT("Stables"),           { 1, 14, 12 });
+
+        // ── Legacy residence keys ──
+        Types.Add(TEXT("residence_small"),   { 1, 8,  8  });
+        Types.Add(TEXT("residence_medium"),  { 2, 10, 10, true  });
+        Types.Add(TEXT("residence_large"),   { 2, 14, 12, true, true  });
+        Types.Add(TEXT("residence_mansion"), { 3, 20, 18, true, true  });
     }
     return Types;
 }

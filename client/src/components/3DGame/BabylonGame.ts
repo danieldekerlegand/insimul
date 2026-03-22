@@ -3335,6 +3335,9 @@ export class BabylonGame {
     }
 
     // Diagnostic: log what the asset collection provides
+    console.log('[applyWorld3DConfig] buildingModels:', Object.keys(config3D.buildingModels || {}));
+    console.log('[applyWorld3DConfig] proceduralPresets:', (config3D as any).proceduralBuildings?.stylePresets?.length ?? 0);
+    console.log('[applyWorld3DConfig] worldAssets count:', worldAssets.length);
 
     const scene = this.scene;
 
@@ -3342,6 +3345,7 @@ export class BabylonGame {
       if (!id) return null;
       const asset = worldAssets.find((a) => a.id === id);
       if (!asset) {
+        console.warn(`[applyWorld3DConfig] Asset not found for id: ${id}`);
       }
       return asset || null;
     };
@@ -3628,6 +3632,8 @@ export class BabylonGame {
     const worldStyle = ProceduralBuildingGenerator.getStyleForWorld(worldType, "plains");
     const proceduralBuildingConfig = this.world3DConfig?.proceduralBuildings || null;
     const biome = ProceduralNatureGenerator.getBiomeFromWorldType(worldType);
+
+    console.log(`[generateProceduralWorld] worldType=${worldType}, presets=${proceduralBuildingConfig?.stylePresets?.length ?? 0}, typeOverrides=${proceduralBuildingConfig?.buildingTypeOverrides ? Object.keys(proceduralBuildingConfig.buildingTypeOverrides).length : 0}`);
 
 
     const scaledSettlements = worldScaleManager.distributeSettlements(
@@ -3928,11 +3934,16 @@ export class BabylonGame {
 
           // Determine residence type based on occupancy/size
           const occupants = residence.residentIds || residence.occupants || [];
-          const residenceType = occupants.length > 8
+          const sizeCategory = occupants.length > 8
             ? 'residence_large'
             : occupants.length > 4
               ? 'residence_medium'
               : 'residence_small';
+
+          // Use the actual DB residenceType (e.g. 'house', 'cottage') so that
+          // asset collection models keyed by residence type are matched.
+          // Fall back to size-based category for legacy/procedural generation.
+          const residenceType = (residence as any).residenceType || sizeCategory;
 
           const resLot = residence.lotId ? lotById.get(residence.lotId) : null;
           let buildingSpec = ProceduralBuildingGenerator.createSpecFromData({

@@ -8,6 +8,7 @@
 import { Scene, Mesh, AbstractMesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture, SceneLoader } from '@babylonjs/core';
 
 import { FoundationData, createFoundationMesh } from './TerrainFoundationRenderer';
+import { BUILDING_TYPE_DEFAULTS, DEFAULT_BUILDING_DIMENSIONS } from '@shared/game-engine/building-defaults';
 import type { ZoneType } from './StreetAlignedPlacement';
 import "@babylonjs/loaders/glTF";
 
@@ -90,30 +91,10 @@ export class ProceduralBuildingGenerator {
   };
 
   // Building type to architecture mapping
-  private static BUILDING_TYPES: Record<string, Partial<BuildingSpec>> = {
-    // Businesses
-    'Bakery': { floors: 2, width: 12, depth: 10, hasChimney: true },
-    'Restaurant': { floors: 2, width: 15, depth: 12 },
-    'Tavern': { floors: 2, width: 14, depth: 14, hasBalcony: true },
-    'Inn': { floors: 3, width: 16, depth: 14, hasBalcony: true },
-    'Market': { floors: 1, width: 20, depth: 15 },
-    'Shop': { floors: 2, width: 10, depth: 8 },
-    'Blacksmith': { floors: 1, width: 12, depth: 10, hasChimney: true },
-    'LawFirm': { floors: 3, width: 12, depth: 10 },
-    'Bank': { floors: 2, width: 14, depth: 12 },
-    'Hospital': { floors: 3, width: 20, depth: 18 },
-    'School': { floors: 2, width: 18, depth: 16 },
-    'Church': { floors: 1, width: 16, depth: 24 },
-    'Theater': { floors: 2, width: 18, depth: 20 },
-    'Library': { floors: 3, width: 16, depth: 14 },
-    'ApartmentComplex': { floors: 5, width: 18, depth: 16, hasBalcony: true },
-    'Windmill': { floors: 3, width: 10, depth: 10 },
-    'Watermill': { floors: 2, width: 14, depth: 12 },
-    'Lumbermill': { floors: 1, width: 16, depth: 12, hasChimney: true },
-    'Barracks': { floors: 2, width: 18, depth: 14 },
-    'Mine': { floors: 1, width: 12, depth: 10 },
-
-    // Residences
+  // Building type defaults are defined in shared/game-engine/building-defaults.ts
+  // and imported as BUILDING_TYPE_DEFAULTS. Legacy size-based keys are kept here
+  // only for backward compatibility with old save data.
+  private static LEGACY_RESIDENCE_TYPES: Record<string, Partial<BuildingSpec>> = {
     'residence_small': { floors: 1, width: 8, depth: 8 },
     'residence_medium': { floors: 2, width: 10, depth: 10, hasChimney: true },
     'residence_large': { floors: 2, width: 14, depth: 12, hasBalcony: true, hasChimney: true },
@@ -377,10 +358,19 @@ export class ProceduralBuildingGenerator {
 
   /**
    * Determine a logical role name for the given building spec, used for
-   * world-level model overrides. This is intentionally coarse-grained.
+   * world-level model overrides.
+   *
+   * Asset collection configs store building type configs keyed by the exact
+   * BusinessType name (e.g. "Restaurant", "Bakery") which becomes the role
+   * key in roleModelPrototypes. We therefore check for the exact businessType
+   * first, then fall back to coarse-grained aliases.
    */
   private getRoleForSpec(spec: BuildingSpec): string | null {
     if (spec.type === 'residence') {
+      // Check exact residence type first (e.g. 'house', 'apartment')
+      if (spec.businessType && this.roleModelPrototypes.has(spec.businessType)) {
+        return spec.businessType;
+      }
       if (spec.businessType === 'residence_small') return 'smallResidence';
       if (spec.businessType === 'residence_large') return 'largeResidence';
       if (spec.businessType === 'residence_mansion') return 'mansion';
@@ -388,7 +378,20 @@ export class ProceduralBuildingGenerator {
     }
 
     if (spec.type === 'business' && spec.businessType) {
+      // Check for exact match first — asset collection configs use the
+      // PascalCase BusinessType (e.g. "Restaurant") as the config key,
+      // so the role model is registered under that exact name.
+      if (this.roleModelPrototypes.has(spec.businessType)) {
+        return spec.businessType;
+      }
+
+      // Also check lowercase in case the role was registered lowercase
       const bt = spec.businessType.toLowerCase();
+      if (this.roleModelPrototypes.has(bt)) {
+        return bt;
+      }
+
+      // Coarse-grained aliases for legacy/hardcoded mappings
       if (bt === 'tavern' || bt === 'inn') return 'tavern';
       if (bt === 'shop' || bt === 'market') return 'shop';
       if (bt === 'blacksmith') return 'blacksmith';
@@ -1441,15 +1444,20 @@ export class ProceduralBuildingGenerator {
     /** Procedural config from asset collection — overrides dimensions, style, features */
     proceduralConfig?: ProceduralBuildingConfig | null;
   }): BuildingSpec {
-    const defaults = data.businessType && ProceduralBuildingGenerator.BUILDING_TYPES[data.businessType]
-      || ProceduralBuildingGenerator.BUILDING_TYPES['residence_medium'];
+    // Look up defaults from shared building-defaults, then legacy residence types
+    const sharedDefaults = data.businessType
+      ? (BUILDING_TYPE_DEFAULTS[data.businessType]
+        || ProceduralBuildingGenerator.LEGACY_RESIDENCE_TYPES[data.businessType])
+      : null;
+    const defaults = sharedDefaults || DEFAULT_BUILDING_DIMENSIONS;
 
-    // Apply procedural config type overrides if available
+    // Apply procedural config type overrides if available (from asset collection)
     const typeOverride = data.proceduralConfig?.buildingTypeOverrides?.[data.businessType || ''];
 
-    const baseFloors = typeOverride?.floors ?? defaults.floors ?? 2;
-    const baseWidth = typeOverride?.width ?? defaults.width ?? 10;
-    const baseDepth = typeOverride?.depth ?? defaults.depth ?? 10;
+    // Asset collection overrides take priority over shared defaults
+    const baseFloors = typeOverride?.floors ?? defaults.floors;
+    const baseWidth = typeOverride?.width ?? defaults.width;
+    const baseDepth = typeOverride?.depth ?? defaults.depth;
 
     // Apply zone-based scale multipliers
     const zoneScale = data.zone

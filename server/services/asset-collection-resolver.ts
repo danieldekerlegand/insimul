@@ -1,6 +1,7 @@
 import { storage } from '../db/storage.js';
 import type { AssetCollection } from '@shared/schema';
-import type { ProceduralBuildingConfig, WorldTypeCollectionConfig } from '@shared/game-engine/types';
+import type { ProceduralBuildingConfig, ProceduralStylePreset, WorldTypeCollectionConfig } from '@shared/game-engine/types';
+import { getCategoryForType } from '@shared/game-engine/building-categories';
 
 /**
  * World3DConfig type - represents the 3D configuration for a world
@@ -38,9 +39,39 @@ function flattenWorldTypeConfig(wtc: WorldTypeCollectionConfig): World3DConfig {
     if (wtc.groundConfig.road?.textureId) config.roadTextureId = wtc.groundConfig.road.textureId;
   }
 
-  // Building config — extract asset IDs from buildingTypeConfigs into buildingModels
+  // Building config — extract asset IDs, category presets, and per-type overrides
   if (wtc.buildingConfig) {
     const buildingModels: Record<string, string> = {};
+
+    // Build the procedural config from three sources (in priority order):
+    //   1. proceduralDefaults (legacy, rarely populated by admin UI)
+    //   2. categoryPresets   (admin UI primary: per-category style presets)
+    //   3. per-type styleOverrides in buildingTypeConfigs
+    const proceduralBuildings: ProceduralBuildingConfig = wtc.buildingConfig.proceduralDefaults
+      ? { ...wtc.buildingConfig.proceduralDefaults, stylePresets: [...(wtc.buildingConfig.proceduralDefaults.stylePresets || [])] }
+      : { stylePresets: [] };
+    proceduralBuildings.buildingTypeOverrides = { ...(proceduralBuildings.buildingTypeOverrides || {}) };
+
+    // Convert categoryPresets into style presets. The admin panel stores these
+    // keyed by category (e.g. "commercial_food", "residential"), each being a
+    // full ProceduralStylePreset. These are the primary source of building styles.
+    const categoryPresets = wtc.buildingConfig.categoryPresets || {};
+    const categoryPresetMap = new Map<string, string>(); // category → preset id
+    for (const [category, preset] of Object.entries(categoryPresets)) {
+      // Ensure the preset has an id; use category name if missing
+      const presetWithId: ProceduralStylePreset = {
+        ...preset,
+        id: preset.id || `category_${category}`,
+        name: preset.name || category,
+      };
+      // Avoid duplicates (by id)
+      if (!proceduralBuildings.stylePresets.find(p => p.id === presetWithId.id)) {
+        proceduralBuildings.stylePresets.push(presetWithId);
+      }
+      categoryPresetMap.set(category, presetWithId.id);
+    }
+
+    // Process per-type building configs
     if (wtc.buildingConfig.buildingTypeConfigs) {
       for (const [typeName, typeConfig] of Object.entries(wtc.buildingConfig.buildingTypeConfigs)) {
         if (typeConfig.mode === 'asset' && typeConfig.assetId) {
@@ -49,10 +80,80 @@ function flattenWorldTypeConfig(wtc: WorldTypeCollectionConfig): World3DConfig {
         if (typeConfig.modelScaling) {
           scaling[`buildingModels.${typeName}`] = typeConfig.modelScaling;
         }
+
+        if (typeConfig.mode === 'procedural') {
+          // Resolve the base preset for this type:
+          //   1. Explicit stylePresetId on the type config
+          //   2. Category preset (looked up via building-categories mapping)
+          //   3. First available preset
+          const category = getCategoryForType(typeName);
+          const basePresetId = typeConfig.stylePresetId
+            || (category && categoryPresetMap.get(category))
+            || proceduralBuildings.stylePresets[0]?.id;
+
+          const overrides = typeConfig.styleOverrides || {};
+          const hasOverrides = Object.keys(overrides).length > 0;
+
+          // The admin panel stores dimension/feature fields (floors, width, depth,
+          // hasChimney, hasBalcony, hasPorch) inside styleOverrides even though
+          // they belong on ProceduralBuildingTypeOverride. Extract them here.
+          const dimensionFields = ['floors', 'width', 'depth', 'hasChimney', 'hasBalcony', 'hasPorch'] as const;
+          const dimensionOverride: Record<string, any> = {};
+          for (const field of dimensionFields) {
+            if ((overrides as any)[field] !== undefined) {
+              dimensionOverride[field] = (overrides as any)[field];
+            }
+          }
+
+          if (hasOverrides && basePresetId) {
+            // Merge base preset + per-type style overrides into a synthetic preset
+            const basePreset = proceduralBuildings.stylePresets.find(p => p.id === basePresetId);
+            const syntheticId = `__type_${typeName}`;
+            const syntheticPreset: ProceduralStylePreset = {
+              ...(basePreset || {} as ProceduralStylePreset),
+              ...overrides,
+              id: syntheticId,
+              name: `${typeName} (override)`,
+            } as ProceduralStylePreset;
+            proceduralBuildings.stylePresets.push(syntheticPreset);
+            proceduralBuildings.buildingTypeOverrides![typeName] = {
+              ...(proceduralBuildings.buildingTypeOverrides![typeName] || {}),
+              ...dimensionOverride,
+              stylePresetId: syntheticId,
+            };
+          } else if (basePresetId) {
+            // No per-type style overrides — just point to the category/base preset
+            proceduralBuildings.buildingTypeOverrides![typeName] = {
+              ...(proceduralBuildings.buildingTypeOverrides![typeName] || {}),
+              ...dimensionOverride,
+              stylePresetId: basePresetId,
+            };
+          }
+        }
       }
     }
+
+    // If we still have no presets but do have category presets, use the first
+    // category preset as the default for residential and commercial zones
+    if (proceduralBuildings.stylePresets.length > 0) {
+      if (!proceduralBuildings.defaultResidentialStyleId) {
+        const residentialPresetId = categoryPresetMap.get('residential')
+          || proceduralBuildings.stylePresets[0]?.id;
+        if (residentialPresetId) proceduralBuildings.defaultResidentialStyleId = residentialPresetId;
+      }
+      if (!proceduralBuildings.defaultCommercialStyleId) {
+        const commercialPresetId = categoryPresetMap.get('commercial_food')
+          || categoryPresetMap.get('commercial_retail')
+          || categoryPresetMap.get('commercial_service')
+          || proceduralBuildings.stylePresets[0]?.id;
+        if (commercialPresetId) proceduralBuildings.defaultCommercialStyleId = commercialPresetId;
+      }
+    }
+
     config.buildingModels = buildingModels;
-    config.proceduralBuildings = wtc.buildingConfig.proceduralDefaults || null;
+    config.proceduralBuildings = proceduralBuildings.stylePresets.length > 0
+      ? proceduralBuildings
+      : null;
   }
 
   // Character config

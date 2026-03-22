@@ -84,6 +84,7 @@ export function humanize(s: string): string {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 import type { ConfigSelection } from "./config-selection";
+import { getBuildingDefaults } from "@shared/game-engine/building-defaults";
 
 interface BuildingConfigurationPanelProps {
   collection: AssetCollection;
@@ -747,21 +748,25 @@ export function BuildingTypeDetailPanel({
                 ['Floors', 'floors'],
                 ['Width', 'width'],
                 ['Depth', 'depth'],
-              ] as const).map(([label, field]) => (
-                <div key={field}>
-                  <Label className="text-[9px]">{label}</Label>
-                  <Input
-                    type="number"
-                    className="h-5 text-[10px]"
-                    placeholder="default"
-                    value={(overrides as any)?.[field] ?? ''}
-                    onChange={e => {
-                      const val = e.target.value ? parseFloat(e.target.value) : undefined;
-                      setOverride({ [field]: val } as any);
-                    }}
-                  />
-                </div>
-              ))}
+              ] as const).map(([label, field]) => {
+                const typeDefaults = getBuildingDefaults(typeName);
+                const defaultVal = typeDefaults[field as keyof typeof typeDefaults];
+                return (
+                  <div key={field}>
+                    <Label className="text-[9px]">{label}</Label>
+                    <Input
+                      type="number"
+                      className="h-5 text-[10px]"
+                      placeholder={String(defaultVal)}
+                      value={(overrides as any)?.[field] ?? ''}
+                      onChange={e => {
+                        const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                        setOverride({ [field]: val } as any);
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
 

@@ -148,34 +148,94 @@ const ZONE_SCALE := {
 	"residential": { "floors": 1.0, "width": 1.0,  "depth": 1.0 }
 }
 
+## Fallback defaults when type is unknown.
+const DEFAULT_BUILDING_DIMENSIONS := { "floors": 2, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false }
+
 ## Default building dimensions indexed by business type.
+## Matches shared/game-engine/building-defaults.ts.
 const BUILDING_TYPES := {
-	# Businesses
-	"Bakery":           { "floors": 2, "width": 12, "depth": 10, "has_chimney": true,  "has_balcony": false },
-	"Restaurant":       { "floors": 2, "width": 15, "depth": 12, "has_chimney": false, "has_balcony": false },
-	"Tavern":           { "floors": 2, "width": 14, "depth": 14, "has_chimney": false, "has_balcony": true  },
-	"Inn":              { "floors": 3, "width": 16, "depth": 14, "has_chimney": false, "has_balcony": true  },
-	"Market":           { "floors": 1, "width": 20, "depth": 15, "has_chimney": false, "has_balcony": false },
-	"Shop":             { "floors": 2, "width": 10, "depth": 8,  "has_chimney": false, "has_balcony": false },
-	"Blacksmith":       { "floors": 1, "width": 12, "depth": 10, "has_chimney": true,  "has_balcony": false },
-	"LawFirm":          { "floors": 3, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false },
-	"Bank":             { "floors": 2, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false },
-	"Hospital":         { "floors": 3, "width": 20, "depth": 18, "has_chimney": false, "has_balcony": false },
-	"School":           { "floors": 2, "width": 18, "depth": 16, "has_chimney": false, "has_balcony": false },
-	"Church":           { "floors": 1, "width": 16, "depth": 24, "has_chimney": false, "has_balcony": false },
-	"Theater":          { "floors": 2, "width": 18, "depth": 20, "has_chimney": false, "has_balcony": false },
-	"Library":          { "floors": 3, "width": 16, "depth": 14, "has_chimney": false, "has_balcony": false },
-	"ApartmentComplex": { "floors": 5, "width": 18, "depth": 16, "has_chimney": false, "has_balcony": true  },
-	"Windmill":         { "floors": 3, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false },
-	"Watermill":        { "floors": 2, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false },
-	"Lumbermill":       { "floors": 1, "width": 16, "depth": 12, "has_chimney": true,  "has_balcony": false },
-	"Barracks":         { "floors": 2, "width": 18, "depth": 14, "has_chimney": false, "has_balcony": false },
-	"Mine":             { "floors": 1, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false },
-	# Residences
-	"residence_small":   { "floors": 1, "width": 8,  "depth": 8,  "has_chimney": false, "has_balcony": false },
-	"residence_medium":  { "floors": 2, "width": 10, "depth": 10, "has_chimney": true,  "has_balcony": false },
-	"residence_large":   { "floors": 2, "width": 14, "depth": 12, "has_chimney": true,  "has_balcony": true  },
-	"residence_mansion": { "floors": 3, "width": 20, "depth": 18, "has_chimney": true,  "has_balcony": true  }
+	# ── Commercial: Food & Drink ──
+	"Bakery":           { "floors": 2, "width": 12, "depth": 10, "has_chimney": true,  "has_balcony": false, "has_porch": false },
+	"Restaurant":       { "floors": 2, "width": 15, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Bar":              { "floors": 2, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Brewery":          { "floors": 2, "width": 14, "depth": 12, "has_chimney": true,  "has_balcony": false, "has_porch": false },
+
+	# ── Commercial: Retail ──
+	"Shop":             { "floors": 2, "width": 10, "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"GroceryStore":     { "floors": 2, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"JewelryStore":     { "floors": 2, "width": 10, "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"BookStore":        { "floors": 2, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"PawnShop":         { "floors": 2, "width": 10, "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"HerbShop":         { "floors": 1, "width": 8,  "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+
+	# ── Commercial: Services ──
+	"Bank":             { "floors": 2, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Hotel":            { "floors": 3, "width": 16, "depth": 14, "has_chimney": false, "has_balcony": true,  "has_porch": false },
+	"Barbershop":       { "floors": 1, "width": 8,  "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Tailor":           { "floors": 2, "width": 10, "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Bathhouse":        { "floors": 1, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"DentalOffice":     { "floors": 2, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"OptometryOffice":  { "floors": 2, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Pharmacy":         { "floors": 2, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"LawFirm":          { "floors": 3, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"InsuranceOffice":  { "floors": 2, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"RealEstateOffice": { "floors": 2, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"TattoParlor":      { "floors": 1, "width": 8,  "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+
+	# ── Civic ──
+	"Church":           { "floors": 1, "width": 16, "depth": 24, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"TownHall":         { "floors": 2, "width": 18, "depth": 16, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"School":           { "floors": 2, "width": 18, "depth": 16, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"University":       { "floors": 3, "width": 20, "depth": 18, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Hospital":         { "floors": 3, "width": 20, "depth": 18, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"PoliceStation":    { "floors": 2, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"FireStation":      { "floors": 2, "width": 14, "depth": 14, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Daycare":          { "floors": 1, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Mortuary":         { "floors": 1, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+
+	# ── Industrial ──
+	"Factory":          { "floors": 2, "width": 20, "depth": 16, "has_chimney": true,  "has_balcony": false, "has_porch": false },
+	"Farm":             { "floors": 1, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Warehouse":        { "floors": 1, "width": 18, "depth": 14, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Blacksmith":       { "floors": 1, "width": 12, "depth": 10, "has_chimney": true,  "has_balcony": false, "has_porch": false },
+	"Carpenter":        { "floors": 1, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Butcher":          { "floors": 1, "width": 10, "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+
+	# ── Maritime ──
+	"Harbor":           { "floors": 1, "width": 16, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Boatyard":         { "floors": 1, "width": 18, "depth": 14, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"FishMarket":       { "floors": 1, "width": 14, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"CustomsHouse":     { "floors": 2, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Lighthouse":       { "floors": 3, "width": 8,  "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+
+	# ── Residential ──
+	"house":            { "floors": 2, "width": 10, "depth": 10, "has_chimney": true,  "has_balcony": false, "has_porch": false },
+	"apartment":        { "floors": 3, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"mansion":          { "floors": 3, "width": 20, "depth": 18, "has_chimney": true,  "has_balcony": true,  "has_porch": false },
+	"cottage":          { "floors": 1, "width": 8,  "depth": 8,  "has_chimney": true,  "has_balcony": false, "has_porch": false },
+	"townhouse":        { "floors": 2, "width": 8,  "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"mobile_home":      { "floors": 1, "width": 6,  "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+
+	# ── Other/legacy ──
+	"Tavern":           { "floors": 2, "width": 14, "depth": 14, "has_chimney": false, "has_balcony": true,  "has_porch": false },
+	"Inn":              { "floors": 3, "width": 16, "depth": 14, "has_chimney": false, "has_balcony": true,  "has_porch": false },
+	"Market":           { "floors": 1, "width": 20, "depth": 15, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Theater":          { "floors": 2, "width": 18, "depth": 20, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Library":          { "floors": 3, "width": 16, "depth": 14, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"ApartmentComplex": { "floors": 5, "width": 18, "depth": 16, "has_chimney": false, "has_balcony": true,  "has_porch": false },
+	"Windmill":         { "floors": 3, "width": 10, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Watermill":        { "floors": 2, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Lumbermill":       { "floors": 1, "width": 16, "depth": 12, "has_chimney": true,  "has_balcony": false, "has_porch": false },
+	"Barracks":         { "floors": 2, "width": 18, "depth": 14, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Mine":             { "floors": 1, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Clinic":           { "floors": 2, "width": 12, "depth": 10, "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"Stables":          { "floors": 1, "width": 14, "depth": 12, "has_chimney": false, "has_balcony": false, "has_porch": false },
+
+	# ── Legacy residence keys ──
+	"residence_small":   { "floors": 1, "width": 8,  "depth": 8,  "has_chimney": false, "has_balcony": false, "has_porch": false },
+	"residence_medium":  { "floors": 2, "width": 10, "depth": 10, "has_chimney": true,  "has_balcony": false, "has_porch": false },
+	"residence_large":   { "floors": 2, "width": 14, "depth": 12, "has_chimney": true,  "has_balcony": true,  "has_porch": false },
+	"residence_mansion": { "floors": 3, "width": 20, "depth": 18, "has_chimney": true,  "has_balcony": true,  "has_porch": false }
 }
 
 
