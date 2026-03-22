@@ -1160,6 +1160,11 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           ? selectedBuilding.data.residenceType
                           : selectedBuilding.data.buildingType
                     }
+                    businessType={
+                      selectedBuilding.type === 'business'
+                        ? selectedBuilding.data.businessType
+                        : undefined
+                    }
                     proceduralConfig={proceduralBuildingConfig}
                     zone={selectedBuilding.type === 'business' ? 'commercial' : 'residential'}
                     className="h-52"
