@@ -365,3 +365,17 @@
 - [✓] 2026-03-21 00:44 - Add ambient sound system with environmental audio tied to location and time
 - [✓] 2026-03-21 00:52 - End-to-end validation: verify all new systems work together in world 69bba18ce2e6d5c1cb3c7a9f
 - [✓] 2026-03-21 01:39 - Enlarge building interiors and add multi-room layouts for larger buildings
+
+## Agent 1: Add unified building type config, interior template, and texture types to shared type system
+
+### Completed
+- Added 5 texture fields to ProceduralStylePreset: wallTextureId, roofTextureId, floorTextureId, doorTextureId, windowTextureId (all optional for backward compatibility)
+- Added LightingPreset type: 'bright' | 'dim' | 'warm' | 'cool' | 'candlelit'
+- Added InteriorTemplateConfig interface: mode ('model'|'procedural'), modelPath, layoutTemplateId, texture IDs, furnitureSet, lightingPreset
+- Added RoomTemplate interface: name, function, relativeWidth, relativeDepth, furniturePreset, doorPlacements
+- Added InteriorLayoutTemplate interface: id, name, rooms, totalWidth, totalDepth, floors
+- Added FurnitureSet type: Record<string, string[]> mapping room functions to furniture lists
+- Added UnifiedBuildingTypeConfig interface: mode ('asset'|'procedural'), assetId, stylePresetId, styleOverrides, interiorConfig, modelScaling
+- All new types exported from shared/game-engine/types.ts
+- Wrote 11 tests covering all new types, backward compatibility, and multi-room templates
+- All tests pass, TypeScript typecheck clean, ESLint clean
