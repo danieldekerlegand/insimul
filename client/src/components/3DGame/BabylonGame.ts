@@ -163,6 +163,7 @@ import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.t
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { NPCModularAssembler, deriveBodyType as deriveModularBodyType } from "@/components/3DGame/NPCModularAssembler.ts";
+import { QuaterniusNPCLoader, normalizeToQuaterniusGender } from "@/components/3DGame/QuaterniusNPCLoader.ts";
 import { selectNPCModel, type NPCGender } from "@/components/3DGame/NPCModelVariety.ts";
 import { QuestOfferPanel } from "@/components/3DGame/QuestOfferPanel.ts";
 import type { QuestOfferData } from "@/components/3DGame/QuestOfferPanel.ts";
@@ -541,6 +542,8 @@ export class BabylonGame {
   private npcModelInstancer: NPCModelInstancer | null = null;
   // NPC modular assembler: builds NPCs from procedural body-part meshes
   private npcModularAssembler: NPCModularAssembler | null = null;
+  // Quaternius NPC loader: composite body+hair+outfit from Quaternius assets
+  private quaterniusNPCLoader: QuaterniusNPCLoader | null = null;
 
   // Settlements and world
   private settlementMeshes: Map<string, Mesh> = new Map();
@@ -1329,6 +1332,8 @@ export class BabylonGame {
     this.npcModelInstancer = new NPCModelInstancer(scene);
     // Initialize NPC modular assembler (procedural body-part construction)
     this.npcModularAssembler = new NPCModularAssembler(scene);
+    // Initialize Quaternius NPC loader (composite body+hair+outfit models)
+    this.quaterniusNPCLoader = new QuaterniusNPCLoader(scene);
 
     // Initialize world object action manager (examine, identify, point-and-name, read sign)
     this.worldObjectActionManager = new WorldObjectActionManager(this.eventBus);
@@ -6357,6 +6362,20 @@ export class BabylonGame {
         const assembled = this.npcModularAssembler.assemble(character.id, role, bodyType);
         root = assembled.root;
         usedModularAssembly = true;
+      }
+
+      // Tier 2: Try Quaternius composite model (body + hair + outfit)
+      if (!root && this.quaterniusNPCLoader?.hasAssets()) {
+        const quatGender = normalizeToQuaterniusGender(character.gender);
+        const quatResult = await this.quaterniusNPCLoader.loadForCharacter(
+          character.id,
+          quatGender,
+          role,
+        );
+        if (quatResult) {
+          root = quatResult.root;
+          animationGroups = quatResult.animationGroups;
+        }
       }
 
       // Fallback: Try world-level NPC override (role+gender specific, with fallback chain)
@@ -12492,6 +12511,9 @@ export class BabylonGame {
     // Dispose NPC modular assembler (cached materials)
     this.npcModularAssembler?.dispose();
     this.npcModularAssembler = null;
+    // Dispose Quaternius NPC loader (cached templates)
+    this.quaterniusNPCLoader?.dispose();
+    this.quaterniusNPCLoader = null;
   }
 
   private disposePlayer(): void {
