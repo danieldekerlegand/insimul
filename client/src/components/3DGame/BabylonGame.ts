@@ -6399,6 +6399,8 @@ export class BabylonGame {
           npcName,
           character.occupation || '',
         );
+        // Attach procedural hair and facial hair
+        this.npcAccessorySystem.attachHair(character.id, root, appearance);
       }
 
       // Register with interaction prompt system (look-at based contextual prompts)

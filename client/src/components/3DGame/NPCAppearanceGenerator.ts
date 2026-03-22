@@ -11,6 +11,12 @@ import { Color3, Vector3 } from '@babylonjs/core';
 /** Role types matching BabylonGame's NPCRole */
 export type NPCRole = 'guard' | 'merchant' | 'questgiver' | 'civilian';
 
+/** Hair style variants for procedural head geometry */
+export type HairStyle = 'bald' | 'short' | 'medium' | 'long' | 'ponytail' | 'mohawk';
+
+/** Facial hair variants */
+export type FacialHairStyle = 'none' | 'stubble' | 'beard' | 'longBeard' | 'mustache' | 'goatee';
+
 /** Generated appearance parameters for a single NPC */
 export interface NPCAppearance {
   /** Skin tone color */
@@ -29,6 +35,12 @@ export interface NPCAppearance {
   roleTint: Color3;
   /** How strongly to apply the role tint (0-1) */
   roleTintStrength: number;
+  /** Hair color */
+  hairColor: Color3;
+  /** Hair style variant */
+  hairStyle: HairStyle;
+  /** Facial hair style variant */
+  facialHairStyle: FacialHairStyle;
 }
 
 // Skin tone palette — diverse range of natural skin tones
@@ -70,6 +82,26 @@ const ACCENT_COLORS: Color3[] = [
   new Color3(0.35, 0.35, 0.40), // slate
   new Color3(0.60, 0.45, 0.30), // copper
 ];
+
+// Hair color palette — natural hair colors
+const HAIR_COLORS: Color3[] = [
+  new Color3(0.10, 0.07, 0.05), // black
+  new Color3(0.25, 0.15, 0.08), // dark brown
+  new Color3(0.40, 0.26, 0.13), // medium brown
+  new Color3(0.55, 0.38, 0.18), // light brown
+  new Color3(0.70, 0.55, 0.30), // dirty blonde
+  new Color3(0.85, 0.72, 0.40), // blonde
+  new Color3(0.50, 0.20, 0.10), // auburn
+  new Color3(0.60, 0.25, 0.10), // red
+  new Color3(0.75, 0.75, 0.72), // grey
+  new Color3(0.90, 0.88, 0.85), // white
+];
+
+// Hair style options
+const HAIR_STYLES: HairStyle[] = ['bald', 'short', 'medium', 'long', 'ponytail', 'mohawk'];
+
+// Facial hair style options
+const FACIAL_HAIR_STYLES: FacialHairStyle[] = ['none', 'stubble', 'beard', 'longBeard', 'mustache', 'goatee'];
 
 /** Role-based tint colors (same as original system but used as overlay) */
 const ROLE_TINTS: Record<NPCRole, Color3> = {
@@ -132,6 +164,10 @@ export function generateNPCAppearance(characterId: string, role: NPCRole): NPCAp
   const roughnessVal = hashFloat(hash, 5);
   const emissiveVal = hashFloat(hash, 6);
   const skinVariation = hashFloat(hash, 7);
+  const hairColorVal = hashFloat(hash, 8);
+  const hairStyleVal = hashFloat(hash, 9);
+  const facialHairVal = hashFloat(hash, 10);
+  const hairVariation = hashFloat(hash, 11);
 
   // Skin: pick base tone then apply slight random variation
   const baseSkin = pickFromPalette(SKIN_TONES, skinVal);
@@ -157,6 +193,18 @@ export function generateNPCAppearance(characterId: string, role: NPCRole): NPCAp
   const roughness = 0.6 + roughnessVal * 0.35; // 0.6 to 0.95
   const emissiveIntensity = emissiveVal * 0.08; // 0.0 to 0.08 (subtle)
 
+  // Hair color: pick base then apply slight variation
+  const baseHair = pickFromPalette(HAIR_COLORS, hairColorVal);
+  const hairColor = new Color3(
+    Math.max(0, Math.min(1, baseHair.r + (hairVariation - 0.5) * 0.08)),
+    Math.max(0, Math.min(1, baseHair.g + (hairVariation - 0.5) * 0.08)),
+    Math.max(0, Math.min(1, baseHair.b + (hairVariation - 0.5) * 0.08)),
+  );
+
+  // Hair style and facial hair
+  const hairStyle = pickFromPalette(HAIR_STYLES, hairStyleVal);
+  const facialHairStyle = pickFromPalette(FACIAL_HAIR_STYLES, facialHairVal);
+
   // Role tint
   const roleTint = ROLE_TINTS[role] || ROLE_TINTS.civilian;
   const roleTintStrength = role === 'civilian' ? 0.1 : 0.2;
@@ -170,6 +218,9 @@ export function generateNPCAppearance(characterId: string, role: NPCRole): NPCAp
     emissiveIntensity,
     roleTint,
     roleTintStrength,
+    hairColor,
+    hairStyle,
+    facialHairStyle,
   };
 }
 
