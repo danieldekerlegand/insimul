@@ -39,6 +39,10 @@ export interface BuildingStyle {
   shutterColor?: Color3;
   wallTextureId?: string;
   roofTextureId?: string;
+  balconyTextureId?: string;
+  ironworkTextureId?: string;
+  porchTextureId?: string;
+  shutterTextureId?: string;
 }
 
 export interface BuildingSpec {
@@ -202,6 +206,10 @@ export class ProceduralBuildingGenerator {
         : undefined,
       wallTextureId: preset.wallTextureId,
       roofTextureId: preset.roofTextureId,
+      balconyTextureId: preset.balconyTextureId,
+      ironworkTextureId: preset.ironworkTextureId,
+      porchTextureId: preset.porchTextureId,
+      shutterTextureId: preset.shutterTextureId,
     };
   }
 
@@ -1054,10 +1062,22 @@ export class ProceduralBuildingGenerator {
     let shutterMat: StandardMaterial | null = null;
     if (spec.style.hasShutters) {
       const shutterColor = spec.style.shutterColor || spec.style.doorColor;
-      const shutterMatKey = `shutter_${spec.style.name}_${shutterColor.toHexString()}`;
+      const shutterTexId = spec.style.shutterTextureId;
+      const resolvedShutterTex = shutterTexId ? this.presetTextures.get(shutterTexId) : undefined;
+      const shutterMatKey = `shutter_${spec.style.name}_${resolvedShutterTex ? shutterTexId : shutterColor.toHexString()}`;
       shutterMat = this.getSharedMaterial(shutterMatKey, () => {
         const m = new StandardMaterial(shutterMatKey, this.scene);
-        m.diffuseColor = shutterColor;
+        if (resolvedShutterTex) {
+          const tex = resolvedShutterTex.clone();
+          if (tex) {
+            tex.uScale = 1;
+            tex.vScale = 2;
+            m.diffuseTexture = tex;
+            m.diffuseColor = new Color3(1, 1, 1);
+          }
+        } else {
+          m.diffuseColor = shutterColor;
+        }
         return m;
       });
     }
@@ -1257,12 +1277,25 @@ export class ProceduralBuildingGenerator {
       slab.position = new Vector3(0, balconyY, spec.depth / 2 + balconyDepth / 2);
       slab.parent = balconyParent;
 
-      const balconyMatKey = `balcony_${spec.style.name}${isIronwork ? '_iron' : ''}`;
+      // Resolve balcony texture: ironwork uses ironworkTextureId, standard uses balconyTextureId
+      const balcTexId = isIronwork ? spec.style.ironworkTextureId : spec.style.balconyTextureId;
+      const resolvedBalcTex = balcTexId ? this.presetTextures.get(balcTexId) : undefined;
+      const balconyMatKey = `balcony_${spec.style.name}${isIronwork ? '_iron' : ''}_${resolvedBalcTex ? balcTexId : 'notex'}`;
       const balconyMat = this.getSharedMaterial(balconyMatKey, () => {
         const m = new StandardMaterial(balconyMatKey, this.scene);
-        m.diffuseColor = isIronwork
-          ? new Color3(0.15, 0.15, 0.15) // Dark iron
-          : spec.style.baseColor.scale(0.8);
+        if (resolvedBalcTex) {
+          const tex = resolvedBalcTex.clone();
+          if (tex) {
+            tex.uScale = 2;
+            tex.vScale = 2;
+            m.diffuseTexture = tex;
+            m.diffuseColor = new Color3(1, 1, 1);
+          }
+        } else {
+          m.diffuseColor = isIronwork
+            ? new Color3(0.15, 0.15, 0.15) // Dark iron
+            : spec.style.baseColor.scale(0.8);
+        }
         return m;
       });
       slab.material = balconyMat;
@@ -1329,12 +1362,24 @@ export class ProceduralBuildingGenerator {
     const totalStepsDepth = porchSteps * stepDepth;
 
     // --- Porch material ---
-    const porchMatKey = `porch_${spec.style.name}_${spec.style.baseColor.toHexString()}`;
+    const porchTexId = spec.style.porchTextureId;
+    const resolvedPorchTex = porchTexId ? this.presetTextures.get(porchTexId) : undefined;
+    const porchMatKey = `porch_${spec.style.name}_${resolvedPorchTex ? porchTexId : spec.style.baseColor.toHexString()}`;
     const porchMat = this.getSharedMaterial(porchMatKey, () => {
       const m = new StandardMaterial(porchMatKey, this.scene);
-      m.diffuseColor = spec.style.materialType === 'wood'
-        ? new Color3(0.45, 0.32, 0.2)
-        : spec.style.baseColor.scale(0.85);
+      if (resolvedPorchTex) {
+        const tex = resolvedPorchTex.clone();
+        if (tex) {
+          tex.uScale = 2;
+          tex.vScale = 2;
+          m.diffuseTexture = tex;
+          m.diffuseColor = new Color3(1, 1, 1);
+        }
+      } else {
+        m.diffuseColor = spec.style.materialType === 'wood'
+          ? new Color3(0.45, 0.32, 0.2)
+          : spec.style.baseColor.scale(0.85);
+      }
       m.specularColor = new Color3(0.05, 0.05, 0.05);
       return m;
     });

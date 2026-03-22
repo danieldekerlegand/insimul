@@ -51,6 +51,14 @@ struct FBuildingStylePreset
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString WallTextureId;
     /** Asset ID for roof texture (overrides global roof texture) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString RoofTextureId;
+    /** Asset ID for balcony surface texture */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BalconyTextureId;
+    /** Asset ID for ironwork balcony texture */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString IronworkTextureId;
+    /** Asset ID for porch surface texture */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PorchTextureId;
+    /** Asset ID for shutter texture */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ShutterTextureId;
 };
 
 /**

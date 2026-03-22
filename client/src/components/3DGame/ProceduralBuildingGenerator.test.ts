@@ -207,5 +207,107 @@ console.log('\nType-specific override preset carries texture IDs:');
   assertEqual(spec.style.roofTextureId, 'roof_slate_tex', 'roofTextureId from type-override preset');
 }
 
+console.log('\n--- Balcony, ironwork, porch, shutter texture ID propagation ---');
+{
+  const preset = {
+    id: 'creole_preset',
+    name: 'Creole Style',
+    baseColors: [{ r: 0.8, g: 0.7, b: 0.5 }],
+    roofColor: { r: 0.3, g: 0.2, b: 0.15 },
+    windowColor: { r: 0.8, g: 0.8, b: 1.0 },
+    doorColor: { r: 0.4, g: 0.3, b: 0.2 },
+    materialType: 'stucco' as const,
+    architectureStyle: 'creole' as const,
+    hasIronworkBalcony: true,
+    hasShutters: true,
+    hasPorch: true,
+    balconyTextureId: 'asset_balcony_tex',
+    ironworkTextureId: 'asset_ironwork_tex',
+    porchTextureId: 'asset_porch_tex',
+    shutterTextureId: 'asset_shutter_tex',
+  };
+
+  const spec = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_feature_tex',
+    type: 'residence',
+    businessType: 'residence_medium',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [preset],
+      defaultResidentialStyleId: 'creole_preset',
+    },
+  });
+
+  assertEqual(spec.style.balconyTextureId, 'asset_balcony_tex', 'balconyTextureId propagated from preset');
+  assertEqual(spec.style.ironworkTextureId, 'asset_ironwork_tex', 'ironworkTextureId propagated from preset');
+  assertEqual(spec.style.porchTextureId, 'asset_porch_tex', 'porchTextureId propagated from preset');
+  assertEqual(spec.style.shutterTextureId, 'asset_shutter_tex', 'shutterTextureId propagated from preset');
+}
+
+console.log('\nFeature texture IDs undefined when not set on preset:');
+{
+  const preset = {
+    id: 'plain_preset',
+    name: 'Plain Style',
+    baseColors: [{ r: 0.5, g: 0.5, b: 0.5 }],
+    roofColor: { r: 0.3, g: 0.3, b: 0.3 },
+    windowColor: { r: 0.8, g: 0.8, b: 0.8 },
+    doorColor: { r: 0.4, g: 0.4, b: 0.4 },
+    materialType: 'wood' as const,
+    architectureStyle: 'rustic' as const,
+  };
+
+  const spec = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_no_feature_tex',
+    type: 'residence',
+    businessType: 'residence_small',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [preset],
+      defaultResidentialStyleId: 'plain_preset',
+    },
+  });
+
+  assert(spec.style.balconyTextureId === undefined, 'balconyTextureId undefined when not set');
+  assert(spec.style.ironworkTextureId === undefined, 'ironworkTextureId undefined when not set');
+  assert(spec.style.porchTextureId === undefined, 'porchTextureId undefined when not set');
+  assert(spec.style.shutterTextureId === undefined, 'shutterTextureId undefined when not set');
+}
+
+console.log('\nPartial feature texture IDs (only some set):');
+{
+  const preset = {
+    id: 'partial_preset',
+    name: 'Partial Style',
+    baseColors: [{ r: 0.6, g: 0.6, b: 0.6 }],
+    roofColor: { r: 0.3, g: 0.3, b: 0.3 },
+    windowColor: { r: 0.8, g: 0.8, b: 0.8 },
+    doorColor: { r: 0.4, g: 0.4, b: 0.4 },
+    materialType: 'brick' as const,
+    architectureStyle: 'colonial' as const,
+    shutterTextureId: 'only_shutter_tex',
+    porchTextureId: 'only_porch_tex',
+  };
+
+  const spec = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_partial_tex',
+    type: 'business',
+    businessType: 'Bakery',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [preset],
+      defaultCommercialStyleId: 'partial_preset',
+    },
+  });
+
+  assert(spec.style.balconyTextureId === undefined, 'balconyTextureId undefined when not set (partial)');
+  assert(spec.style.ironworkTextureId === undefined, 'ironworkTextureId undefined when not set (partial)');
+  assertEqual(spec.style.porchTextureId, 'only_porch_tex', 'porchTextureId set when provided (partial)');
+  assertEqual(spec.style.shutterTextureId, 'only_shutter_tex', 'shutterTextureId set when provided (partial)');
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 process.exit(failed > 0 ? 1 : 0);
