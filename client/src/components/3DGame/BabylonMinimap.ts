@@ -4,7 +4,7 @@
  * Displays a minimap showing player position, settlements, NPCs, and quest objectives
  */
 
-import { Scene, Vector3, Mesh } from '@babylonjs/core';
+import { Scene, Vector3 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
 
 export interface MinimapMarker {
@@ -18,6 +18,7 @@ export interface MinimapMarker {
 }
 
 export type TeleportRequestCallback = (worldX: number, worldZ: number) => void;
+export type FullscreenToggleCallback = () => void;
 
 export class BabylonMinimap {
   private scene: Scene;
@@ -25,6 +26,8 @@ export class BabylonMinimap {
   private container: GUI.Rectangle | null = null;
   private mapContainer: GUI.Rectangle | null = null;
   private titleBlock: GUI.TextBlock | null = null;
+  private legendContainer: GUI.Rectangle | null = null;
+  private _legendVisible: boolean = false;
   private isVisible: boolean = false;
   private _expanded: boolean = true;
 
@@ -39,6 +42,9 @@ export class BabylonMinimap {
   // Teleport
   private onTeleportRequest: TeleportRequestCallback | null = null;
   private teleportDialog: GUI.Rectangle | null = null;
+
+  // Fullscreen toggle
+  private onFullscreenToggle: FullscreenToggleCallback | null = null;
 
   constructor(scene: Scene, advancedTexture: GUI.AdvancedDynamicTexture, worldSize: number = 1024) {
     this.scene = scene;
@@ -111,8 +117,58 @@ export class BabylonMinimap {
     headerRow.addControl(title);
     this.titleBlock = title;
 
+    // Legend toggle button (right side, "?")
+    const legendBtn = new GUI.Rectangle('minimapLegendBtn');
+    legendBtn.width = '16px';
+    legendBtn.height = '14px';
+    legendBtn.background = 'transparent';
+    legendBtn.thickness = 0;
+    legendBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    legendBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    legendBtn.left = '-20px';
+    legendBtn.isPointerBlocker = true;
+    const legendIcon = new GUI.TextBlock('minimapLegendIcon');
+    legendIcon.text = '?';
+    legendIcon.color = 'rgba(255,255,255,0.6)';
+    legendIcon.fontSize = 9;
+    legendIcon.fontWeight = 'bold';
+    legendBtn.addControl(legendIcon);
+    headerRow.addControl(legendBtn);
+
+    legendBtn.onPointerEnterObservable.add(() => { legendIcon.color = 'white'; });
+    legendBtn.onPointerOutObservable.add(() => { legendIcon.color = 'rgba(255,255,255,0.6)'; });
+    legendBtn.onPointerClickObservable.add(() => {
+      this._legendVisible = !this._legendVisible;
+      if (this.legendContainer) this.legendContainer.isVisible = this._legendVisible;
+    });
+
+    // Fullscreen toggle button (right side, "⛶")
+    const fullscreenBtn = new GUI.Rectangle('minimapFullscreenBtn');
+    fullscreenBtn.width = '16px';
+    fullscreenBtn.height = '14px';
+    fullscreenBtn.background = 'transparent';
+    fullscreenBtn.thickness = 0;
+    fullscreenBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    fullscreenBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    fullscreenBtn.left = '-2px';
+    fullscreenBtn.isPointerBlocker = true;
+    const fullscreenIcon = new GUI.TextBlock('minimapFullscreenIcon');
+    fullscreenIcon.text = '⛶';
+    fullscreenIcon.color = 'rgba(255,255,255,0.6)';
+    fullscreenIcon.fontSize = 10;
+    fullscreenBtn.addControl(fullscreenIcon);
+    headerRow.addControl(fullscreenBtn);
+
+    fullscreenBtn.onPointerEnterObservable.add(() => { fullscreenIcon.color = 'white'; });
+    fullscreenBtn.onPointerOutObservable.add(() => { fullscreenIcon.color = 'rgba(255,255,255,0.6)'; });
+    fullscreenBtn.onPointerClickObservable.add(() => {
+      this.onFullscreenToggle?.();
+    });
+
     // Click header to toggle collapse
-    headerRow.onPointerClickObservable.add(() => {
+    headerRow.onPointerClickObservable.add((_info, eventState) => {
+      // Don't collapse when clicking the legend or fullscreen buttons
+      if (eventState.skipNextObservers) return;
       this._expanded = !this._expanded;
       if (this._expanded) {
         this.container!.height = `${this.mapSize + 20}px`;
@@ -122,6 +178,9 @@ export class BabylonMinimap {
         this.container!.height = '20px';
         if (this.mapContainer) this.mapContainer.isVisible = false;
         toggleIcon.text = '▲';
+        // Hide legend when collapsing
+        this._legendVisible = false;
+        if (this.legendContainer) this.legendContainer.isVisible = false;
       }
     });
 
@@ -143,8 +202,67 @@ export class BabylonMinimap {
     });
     this.setupRightClickTeleport();
 
+    // Legend panel (anchored below the minimap container)
+    this.createLegend();
+
     // Initially hidden
     this.container.isVisible = false;
+  }
+
+  private createLegend(): void {
+    const items: Array<{ label: string; color: string }> = [
+      { label: 'You', color: 'cyan' },
+      { label: 'NPC', color: 'yellow' },
+      { label: 'Settlement', color: 'orange' },
+      { label: 'Quest', color: 'magenta' },
+      { label: 'Building', color: 'gray' },
+    ];
+
+    const rowH = 14;
+    const legendH = items.length * rowH + 8;
+    const legendW = this.mapSize + 14;
+
+    const legend = new GUI.Rectangle('minimapLegend');
+    legend.width = `${legendW}px`;
+    legend.height = `${legendH}px`;
+    legend.background = 'rgba(0,0,0,0.8)';
+    legend.color = 'rgba(255,255,255,0.4)';
+    legend.thickness = 1;
+    legend.cornerRadius = 4;
+    legend.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    legend.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    legend.left = '-8px';
+    legend.top = `${8 + this.mapSize + 22}px`;
+    legend.isVisible = false;
+    legend.isPointerBlocker = true;
+    this.advancedTexture.addControl(legend);
+    this.legendContainer = legend;
+
+    items.forEach((item, i) => {
+      const row = new GUI.Container(`minimapLegendRow${i}`);
+      row.width = `${legendW - 8}px`;
+      row.height = `${rowH}px`;
+      row.top = `${4 + i * rowH}px`;
+      row.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      legend.addControl(row);
+
+      const dot = new GUI.Ellipse(`minimapLegendDot${i}`);
+      dot.width = '6px';
+      dot.height = '6px';
+      dot.background = item.color;
+      dot.color = 'transparent';
+      dot.thickness = 0;
+      dot.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      dot.left = '4px';
+      row.addControl(dot);
+
+      const label = new GUI.TextBlock(`minimapLegendLabel${i}`, item.label);
+      label.fontSize = 8;
+      label.color = 'white';
+      label.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      label.left = '14px';
+      row.addControl(label);
+    });
   }
 
   /** Total width of the minimap container in pixels. */
@@ -174,6 +292,8 @@ export class BabylonMinimap {
     if (this.container) {
       this.container.isVisible = false;
       this.isVisible = false;
+      this._legendVisible = false;
+      if (this.legendContainer) this.legendContainer.isVisible = false;
     }
   }
 
@@ -360,6 +480,11 @@ export class BabylonMinimap {
     this.onTeleportRequest = cb;
   }
 
+  /** Register a callback invoked when the user clicks the fullscreen toggle button. */
+  public setOnFullscreenToggle(cb: FullscreenToggleCallback): void {
+    this.onFullscreenToggle = cb;
+  }
+
   /**
    * Convert minimap-local pixel coordinates to world X/Z and show
    * a confirmation dialog.
@@ -522,6 +647,12 @@ export class BabylonMinimap {
   public dispose(): void {
     this.dismissTeleportDialog();
     this.clearMarkers();
+
+    if (this.legendContainer) {
+      this.advancedTexture.removeControl(this.legendContainer);
+      this.legendContainer.dispose();
+      this.legendContainer = null;
+    }
 
     if (this.container) {
       this.advancedTexture.removeControl(this.container);
