@@ -678,6 +678,16 @@ struct FInsimulProceduralStylePreset
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PorchSteps = 3;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasShutters = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor ShutterColor = FLinearColor(0.2f, 0.3f, 0.2f);
+    /** Texture asset ID for walls (falls back to BaseColor if empty) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString WallTextureId;
+    /** Texture asset ID for roof (falls back to RoofColor if empty) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString RoofTextureId;
+    /** Texture asset ID for floors */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FloorTextureId;
+    /** Texture asset ID for doors (falls back to DoorColor if empty) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString DoorTextureId;
+    /** Texture asset ID for windows (falls back to WindowColor if empty) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString WindowTextureId;
 };
 
 /**
@@ -714,6 +724,104 @@ struct FInsimulProceduralBuildingConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulProceduralStylePreset> StylePresets;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulProceduralBuildingTypeOverride> TypeOverrides;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float GlobalScaleMultiplier = 1.0f;
+};
+
+// ─── Unified Building Type Configuration ────────────────────────────────────
+
+/**
+ * Lighting preset for interior spaces.
+ * Mirrors LightingPreset from types.ts.
+ */
+UENUM(BlueprintType)
+enum class EInsimulLightingPreset : uint8
+{
+    Bright    UMETA(DisplayName = "Bright"),
+    Dim       UMETA(DisplayName = "Dim"),
+    Warm      UMETA(DisplayName = "Warm"),
+    Cool      UMETA(DisplayName = "Cool"),
+    Candlelit UMETA(DisplayName = "Candlelit")
+};
+
+/**
+ * Interior template configuration for a building type.
+ * Mirrors InteriorTemplateConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulInteriorTemplateConfig
+{
+    GENERATED_BODY()
+
+    /** Whether the interior uses a pre-made 3D model or procedural generation */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "model" or "procedural"
+    /** Path to a glTF interior model (model mode) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ModelPath;
+    /** ID of a predefined layout template (procedural mode) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LayoutTemplateId;
+    /** Texture asset ID for interior walls */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString WallTextureId;
+    /** Texture asset ID for interior floors */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FloorTextureId;
+    /** Texture asset ID for interior ceilings */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CeilingTextureId;
+    /** Named furniture set */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FurnitureSet;
+    /** Lighting atmosphere preset */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulLightingPreset LightingPreset = EInsimulLightingPreset::Bright;
+};
+
+/**
+ * Room definition within an interior layout template.
+ * Mirrors RoomTemplate from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulRoomTemplate
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Function;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float RelativeWidth = 1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float RelativeDepth = 1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FurniturePreset;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> DoorPlacements;
+};
+
+/**
+ * Predefined interior layout template.
+ * Mirrors InteriorLayoutTemplate from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulInteriorLayoutTemplate
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulRoomTemplate> Rooms;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalWidth = 10.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalDepth = 8.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Floors = 1;
+};
+
+/**
+ * Unified per-building-type configuration.
+ * Mirrors UnifiedBuildingTypeConfig from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulUnifiedBuildingTypeConfig
+{
+    GENERATED_BODY()
+
+    /** Whether this building type uses an asset model or procedural generation */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode; // "asset" or "procedural"
+    /** Asset model ID (asset mode) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssetId;
+    /** ID of a style preset to use as base (procedural mode) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StylePresetId;
+    /** Interior configuration for this building type */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulInteriorTemplateConfig InteriorConfig;
+    /** Model scaling override */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector ModelScaling = FVector(1.f, 1.f, 1.f);
 };
 
 // ─── Street Networks ────────────────────────────────────────────────────────

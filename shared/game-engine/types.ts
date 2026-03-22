@@ -421,6 +421,16 @@ export interface ProceduralStylePreset {
   hasShutters?: boolean;
   /** Shutter color (defaults to doorColor if not set) */
   shutterColor?: Color3;
+  /** Texture asset ID for walls (falls back to baseColors if not set) */
+  wallTextureId?: string;
+  /** Texture asset ID for roof (falls back to roofColor if not set) */
+  roofTextureId?: string;
+  /** Texture asset ID for floors */
+  floorTextureId?: string;
+  /** Texture asset ID for doors (falls back to doorColor if not set) */
+  doorTextureId?: string;
+  /** Texture asset ID for windows (falls back to windowColor if not set) */
+  windowTextureId?: string;
 }
 
 /** Overrides for a specific building type's dimensions and features */
@@ -562,6 +572,80 @@ export interface FurnitureSpecData {
   depth: number;
   color: Color3;
   rotationY?: number;
+}
+
+// ─── Unified Building Type Configuration ────────────────────────────────────
+
+/** Lighting preset for interior spaces */
+export type LightingPreset = 'bright' | 'dim' | 'warm' | 'cool' | 'candlelit';
+
+/** Configuration for a building's interior */
+export interface InteriorTemplateConfig {
+  /** Whether the interior uses a pre-made 3D model or procedural generation */
+  mode: 'model' | 'procedural';
+  /** Path to a glTF interior model (model mode) */
+  modelPath?: string;
+  /** ID of a predefined layout template (procedural mode) */
+  layoutTemplateId?: string;
+  /** Texture asset ID for interior walls */
+  wallTextureId?: string;
+  /** Texture asset ID for interior floors */
+  floorTextureId?: string;
+  /** Texture asset ID for interior ceilings */
+  ceilingTextureId?: string;
+  /** Named furniture set to use (e.g., 'tavern', 'shop', 'residential') */
+  furnitureSet?: string;
+  /** Lighting atmosphere preset */
+  lightingPreset?: LightingPreset;
+}
+
+/** Room definition within an interior layout template */
+export interface RoomTemplate {
+  /** Display name of the room (e.g., 'Kitchen', 'Main Hall') */
+  name: string;
+  /** Functional purpose (e.g., 'living', 'kitchen', 'storage', 'shop') */
+  function: string;
+  /** Width as a proportion of the total interior width (0-1) */
+  relativeWidth: number;
+  /** Depth as a proportion of the total interior depth (0-1) */
+  relativeDepth: number;
+  /** Named furniture preset for this room */
+  furniturePreset: string;
+  /** Door placement positions (e.g., 'north', 'south', 'east', 'west') */
+  doorPlacements?: string[];
+}
+
+/** Predefined interior layout template */
+export interface InteriorLayoutTemplate {
+  id: string;
+  name: string;
+  /** Room definitions for the template */
+  rooms: RoomTemplate[];
+  /** Total interior width in world units */
+  totalWidth: number;
+  /** Total interior depth in world units */
+  totalDepth: number;
+  /** Number of floors */
+  floors: number;
+}
+
+/** Mapping of room functions to lists of furniture item type strings */
+export type FurnitureSet = Record<string, string[]>;
+
+/** Unified per-building-type configuration */
+export interface UnifiedBuildingTypeConfig {
+  /** Whether this building type uses an asset model or procedural generation */
+  mode: 'asset' | 'procedural';
+  /** Asset model ID (asset mode) */
+  assetId?: string;
+  /** ID of a style preset to use as base (procedural mode) */
+  stylePresetId?: string;
+  /** Per-type style overrides applied on top of category/preset defaults */
+  styleOverrides?: Partial<ProceduralStylePreset>;
+  /** Interior configuration for this building type */
+  interiorConfig?: InteriorTemplateConfig;
+  /** Model scaling override */
+  modelScaling?: { x: number; y: number; z: number };
 }
 
 // ─── Building Placement (Player Construction) ───────────────────────────────
