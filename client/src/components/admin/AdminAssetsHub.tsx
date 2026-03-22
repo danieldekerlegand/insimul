@@ -33,7 +33,6 @@ import { BuildingConfigurationPanel } from "./BuildingConfigurationPanel";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3, NpcConfig } from "@shared/game-engine/types";
 import { CategoryPresetEditorModal, type TexturePickerRequest } from "./CategoryPresetEditorModal";
-import { BuildingConfigurationPanel } from "./BuildingConfigurationPanel";
 
 const WORLD_TYPES = [
   { value: "medieval-fantasy", label: "Medieval Fantasy" },
@@ -1124,6 +1123,7 @@ export function AdminAssetsHub() {
                     {section.id === 'building-config' && selectedCollection && (
                       <BuildingConfigurationPanel
                         collection={selectedCollection}
+                        assets={collectionAssets}
                         onUpdateConfig={(buildingTypeConfigs) =>
                           patchCollectionConfig({ buildingTypeConfigs } as any)
                         }
@@ -1237,14 +1237,6 @@ export function AdminAssetsHub() {
                       </div>
                     )}
 
-                    {/* Building Configuration Panel */}
-                    {section.id === 'building-config' && selectedCollection && (
-                      <BuildingConfigurationPanel
-                        collection={selectedCollection}
-                        assets={collectionAssets}
-                        onUpdateConfig={(configs) => patchCollectionConfig({ buildingTypeConfigs: configs } as any)}
-                      />
-                    )}
                   </div>
                 </ScrollArea>
               )}
