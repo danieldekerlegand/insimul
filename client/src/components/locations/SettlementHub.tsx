@@ -459,6 +459,16 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     } catch { setResidents([]); }
   };
 
+  const charNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allCharacters.forEach(c => {
+      map.set(c.id, `${c.firstName || ''}${c.lastName ? ` ${c.lastName}` : ''}`.trim() || 'Unknown');
+    });
+    return map;
+  }, [allCharacters]);
+
+  const getCharName = (id: string) => charNameMap.get(id) || 'Unknown';
+
   const settlementsByCountry = useMemo(() => {
     const map = new Map<string | null, any[]>();
     settlements.forEach(s => {
@@ -1001,7 +1011,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                         </div>
                       ))
                     ) : section.id === 'residences' ? (
-                      residences.map(r => (
+                      residences.map(r => {
+                        const ownerIds: string[] = r.ownerIds || [];
+                        const residentIds: string[] = r.residentIds || [];
+                        return (
                         <div key={r.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
                           onClick={() => selectBuilding('residence', r)}
                         >
@@ -1014,10 +1027,24 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                               {r.residenceType && (
                                 <span className="text-xs text-muted-foreground">{r.residenceType}</span>
                               )}
-                              {r.occupantCount !== undefined && (
-                                <Badge variant="outline" className="text-xs py-0 h-4">{r.occupantCount} occupants</Badge>
-                              )}
                             </div>
+                            {ownerIds.length > 0 && (
+                              <div className="mt-1">
+                                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">Owners: </span>
+                                <span className="text-[10px] text-muted-foreground">{ownerIds.map(id => getCharName(id)).join(', ')}</span>
+                              </div>
+                            )}
+                            {residentIds.length > 0 && (
+                              <div className="mt-0.5">
+                                <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">Residents: </span>
+                                <span className="text-[10px] text-muted-foreground">{residentIds.map(id => getCharName(id)).join(', ')}</span>
+                              </div>
+                            )}
+                            {ownerIds.length === 0 && residentIds.length === 0 && (
+                              <div className="mt-0.5">
+                                <span className="text-[10px] text-muted-foreground italic">Vacant</span>
+                              </div>
+                            )}
                           </div>
                           {canEdit && (
                             <button
@@ -1029,7 +1056,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                             </button>
                           )}
                         </div>
-                      ))
+                        );
+                      })
                     ) : (
                       lots.map(l => (
                         <div key={l.id} className="px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer flex items-start gap-1"
