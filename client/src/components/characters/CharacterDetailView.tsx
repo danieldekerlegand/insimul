@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CharacterModelPreview } from './CharacterModelPreview';
 import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
-import { AssetBrowserDialog } from '../AssetBrowserDialog';
+import { AssetSelect } from '../AssetSelect';
 import type { Character, VisualAsset, Business, Residence } from '@shared/schema';
 import { characterModelPath } from '@shared/asset-paths';
 
@@ -88,8 +88,6 @@ export function CharacterDetailView({
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
-
   // Editable fields
   const [firstName, setFirstName] = useState(character.firstName);
   const [middleName, setMiddleName] = useState(character.middleName || '');
@@ -909,16 +907,10 @@ export function CharacterDetailView({
         <TabsContent value="assets" className="space-y-4 mt-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-medium">Character Visual Assets</h3>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowAssetBrowser(true)}>
-                <ImageIcon className="h-3.5 w-3.5 mr-1.5" />
-                Browse
-              </Button>
-              <Button size="sm" onClick={() => setShowAssetGenerator(true)}>
-                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                Generate
-              </Button>
-            </div>
+            <Button size="sm" onClick={() => setShowAssetGenerator(true)}>
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Generate
+            </Button>
           </div>
 
           {visualAssets.length === 0 ? (
@@ -980,14 +972,6 @@ export function CharacterDetailView({
         onAssetGenerated={() => {
           queryClient.invalidateQueries({ queryKey: ['/api/assets/character', character.id] });
         }}
-      />
-
-      {/* Asset Browser Dialog */}
-      <AssetBrowserDialog
-        open={showAssetBrowser}
-        onOpenChange={setShowAssetBrowser}
-        entityType="character"
-        entityId={character.id}
       />
 
       {/* Delete Confirmation */}

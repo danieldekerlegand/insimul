@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Plus, Trash2, RotateCcw } from "lucide-react";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
 import { ConfigPreviewScene } from "./ConfigPreviewScene";
 import type { CharacterConfig, CharacterModelConfig } from "@shared/game-engine/types";
 import type { ConfigSelection } from "./config-selection";
@@ -38,11 +37,6 @@ function defaultCharacterModelConfig(): CharacterModelConfig {
 
 export function CharacterConfigPanel({ config, onUpdate, selection, onSelect }: CharacterConfigPanelProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
-  const [assetBrowserTarget, setAssetBrowserTarget] = useState<{
-    section: "player" | "character";
-    role: string;
-  } | null>(null);
   const [newBodyModel, setNewBodyModel] = useState("");
   const [newHairStyle, setNewHairStyle] = useState("");
   const [newHairGender, setNewHairGender] = useState<"male" | "female">("male");
@@ -64,17 +58,6 @@ export function CharacterConfigPanel({ config, onUpdate, selection, onSelect }: 
     const updated = { ...existing, ...update };
     updateField("characterModels", { ...(cfg.characterModels || {}), [role]: updated });
   }, [cfg, updateField]);
-
-  const handleAssetSelect = useCallback((asset: any) => {
-    if (!assetBrowserTarget) return;
-    if (assetBrowserTarget.section === "player") {
-      updatePlayerModel(assetBrowserTarget.role, { assetId: asset.id });
-    } else {
-      updateCharacterModel(assetBrowserTarget.role, { assetId: asset.id });
-    }
-    setShowAssetBrowser(false);
-    setAssetBrowserTarget(null);
-  }, [assetBrowserTarget, updatePlayerModel, updateCharacterModel]);
 
   type SectionDef = { id: string; label: string; count: number };
   const sections: SectionDef[] = [
@@ -272,12 +255,6 @@ export function CharacterConfigPanel({ config, onUpdate, selection, onSelect }: 
         );
       })}
 
-      <AssetBrowserDialog
-        open={showAssetBrowser}
-        onOpenChange={setShowAssetBrowser}
-        onAssetSelected={handleAssetSelect}
-        modelsOnly
-      />
     </div>
   );
 }

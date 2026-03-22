@@ -4,17 +4,15 @@
  */
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RotateCcw, Plus, Trash2, Box } from "lucide-react";
+import { Box } from "lucide-react";
 import { ConfigPreviewScene } from "./ConfigPreviewScene";
 import { BuildingModelPreview } from "../locations/BuildingModelPreview";
 import { BuildingTypeDetailPanel } from "./BuildingConfigurationPanel";
 import { colorToHex, hexToColor, humanize } from "./BuildingConfigurationPanel";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
+import { AssetSelect } from "../AssetSelect";
 import { useState } from "react";
 import type { ConfigSelection } from "./config-selection";
 import type { VisualAsset } from "@shared/schema";
@@ -161,8 +159,6 @@ export function ConfigDetailPanel({
   onUpdateNature,
   onUpdateItem,
 }: ConfigDetailPanelProps) {
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
-
   if (!selection) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
@@ -213,16 +209,13 @@ export function ConfigDetailPanel({
             {mode === 'asset' && (
               <div className="space-y-1">
                 <Label className="text-[10px]">Texture Asset</Label>
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                    {cfg?.textureId ? `${cfg.textureId.slice(0, 12)}...` : "Select Texture"}
-                  </Button>
-                  {cfg?.textureId && (
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
+                <AssetSelect
+                  value={cfg?.textureId}
+                  placeholder="Select Texture"
+                  className="h-7 text-xs"
+                  onSelect={(asset) => onUpdateGround?.(selection.groundType, { textureId: asset.id, mode: 'asset' })}
+                  onClear={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}
+                />
               </div>
             )}
 
@@ -243,8 +236,6 @@ export function ConfigDetailPanel({
             )}
           </div>
         </ScrollArea>
-        <AssetBrowserDialog open={showAssetBrowser} onOpenChange={setShowAssetBrowser}
-          onAssetSelected={(asset) => { onUpdateGround?.(selection.groundType, { textureId: asset.id, mode: 'asset' }); setShowAssetBrowser(false); }} />
       </div>
     );
   }
@@ -278,16 +269,14 @@ export function ConfigDetailPanel({
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="space-y-1">
                 <Label className="text-[10px]">Model Asset</Label>
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                    {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
-                  </Button>
-                  {cfg?.assetId && (
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
-                      onUpdateCharacter?.(selection.section, selection.role, { assetId: undefined })
-                    }><Trash2 className="w-3 h-3" /></Button>
-                  )}
-                </div>
+                <AssetSelect
+                  value={cfg?.assetId}
+                  placeholder="Select Model"
+                  className="h-7 text-xs"
+                  modelsOnly
+                  onSelect={(asset) => onUpdateCharacter?.(selection.section, selection.role, { assetId: asset.id })}
+                  onClear={() => onUpdateCharacter?.(selection.section, selection.role, { assetId: undefined })}
+                />
               </div>
             )}
 
@@ -306,8 +295,6 @@ export function ConfigDetailPanel({
             </div>
           </div>
         </ScrollArea>
-        <AssetBrowserDialog open={showAssetBrowser} onOpenChange={setShowAssetBrowser} modelsOnly
-          onAssetSelected={(asset) => { onUpdateCharacter?.(selection.section, selection.role, { assetId: asset.id }); setShowAssetBrowser(false); }} />
       </div>
     );
   }
@@ -337,16 +324,14 @@ export function ConfigDetailPanel({
             </div>
 
             {(cfg?.mode || 'asset') === 'asset' && (
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                  {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
-                </Button>
-                {cfg?.assetId && (
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
-                    onUpdateNature?.(selection.group, selection.item, { assetId: undefined })
-                  }><Trash2 className="w-3 h-3" /></Button>
-                )}
-              </div>
+              <AssetSelect
+                value={cfg?.assetId}
+                placeholder="Select Model"
+                className="h-7 text-xs"
+                modelsOnly
+                onSelect={(asset) => onUpdateNature?.(selection.group, selection.item, { assetId: asset.id })}
+                onClear={() => onUpdateNature?.(selection.group, selection.item, { assetId: undefined })}
+              />
             )}
 
             <div>
@@ -363,8 +348,6 @@ export function ConfigDetailPanel({
             </div>
           </div>
         </ScrollArea>
-        <AssetBrowserDialog open={showAssetBrowser} onOpenChange={setShowAssetBrowser} modelsOnly
-          onAssetSelected={(asset) => { onUpdateNature?.(selection.group, selection.item, { assetId: asset.id }); setShowAssetBrowser(false); }} />
       </div>
     );
   }
@@ -394,16 +377,14 @@ export function ConfigDetailPanel({
             </div>
 
             {(cfg?.mode || 'asset') === 'asset' && (
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                  {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
-                </Button>
-                {cfg?.assetId && (
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
-                    onUpdateItem?.(selection.group, selection.item, { assetId: undefined })
-                  }><Trash2 className="w-3 h-3" /></Button>
-                )}
-              </div>
+              <AssetSelect
+                value={cfg?.assetId}
+                placeholder="Select Model"
+                className="h-7 text-xs"
+                modelsOnly
+                onSelect={(asset) => onUpdateItem?.(selection.group, selection.item, { assetId: asset.id })}
+                onClear={() => onUpdateItem?.(selection.group, selection.item, { assetId: undefined })}
+              />
             )}
 
             <div>
@@ -420,8 +401,6 @@ export function ConfigDetailPanel({
             </div>
           </div>
         </ScrollArea>
-        <AssetBrowserDialog open={showAssetBrowser} onOpenChange={setShowAssetBrowser} modelsOnly
-          onAssetSelected={(asset) => { onUpdateItem?.(selection.group, selection.item, { assetId: asset.id }); setShowAssetBrowser(false); }} />
       </div>
     );
   }

@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { VisualAssetGeneratorDialog } from './VisualAssetGeneratorDialog';
-import { AssetBrowserDialog } from './AssetBrowserDialog';
+import { AssetSelect } from './AssetSelect';
 import { BatchGenerationDialog } from './BatchGenerationDialog';
 import { JobQueueViewer } from './JobQueueViewer';
 import type { World, VisualAsset, AssetCollection } from '@shared/schema';
@@ -74,17 +74,12 @@ export function WorldDetailsDialog({
 
   // Visual Assets state
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+
   const [showBatchGeneration, setShowBatchGeneration] = useState(false);
   const [showJobQueue, setShowJobQueue] = useState(false);
   const [assetType, setAssetType] = useState<'texture_ground' | 'texture_wall' | 'texture_material'>('texture_ground');
   const [world3DConfig, setWorld3DConfig] = useState<World3DConfig | null>(null);
   const [isLoading3DConfig, setIsLoading3DConfig] = useState(false);
-  const [showModelBrowser, setShowModelBrowser] = useState(false);
-  const [modelBrowserContext, setModelBrowserContext] = useState<{
-    group: 'building' | 'nature' | 'character' | 'texture' | 'object';
-    key: string;
-  } | null>(null);
   const [isSyncing3DDefaults, setIsSyncing3DDefaults] = useState(false);
   
   // NPC Appearance config state
@@ -263,6 +258,73 @@ export function WorldDetailsDialog({
   const objectRoles = world3DConfig?.objectModels
     ? Object.keys(world3DConfig.objectModels).sort()
     : [];
+
+  const handleUpdate3DConfig = async (group: string, key: string, asset: import('@shared/schema').VisualAsset) => {
+    if (!world) return;
+
+    let body: any = {};
+
+    if (group === 'building') {
+      body.buildingModels = {
+        ...(world3DConfig?.buildingModels || {}),
+        [key]: asset.id
+      };
+    } else if (group === 'nature') {
+      body.natureModels = {
+        ...(world3DConfig?.natureModels || {}),
+        [key]: asset.id
+      };
+    } else if (group === 'character' && key.startsWith('override_')) {
+      const role = key.replace('override_', '');
+      const updatedOverrides = [
+        ...npcAppearance.roleOverrides.filter((o) => o.role !== role),
+        { role, assetId: asset.id, label: asset.name },
+      ];
+      const updatedConfig = { ...npcAppearance, roleOverrides: updatedOverrides };
+      setNpcAppearance(updatedConfig);
+      await handleSaveAppearance(updatedConfig);
+      return;
+    } else if (group === 'character') {
+      body.characterModels = {
+        ...(world3DConfig?.characterModels || {}),
+        [key]: asset.id
+      };
+    } else if (group === 'texture') {
+      body[key] = asset.id;
+    } else if (group === 'object') {
+      body.objectModels = {
+        ...(world3DConfig?.objectModels || {}),
+        [key]: asset.id
+      };
+    }
+
+    try {
+      const response = await fetch(`/api/worlds/${world.id}/3d-config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to update 3D config');
+      }
+
+      const updated = await response.json();
+      setWorld3DConfig(updated as World3DConfig);
+
+      toast({
+        title: '3D model updated',
+        description: `${asset.name} assigned as ${key}`
+      });
+    } catch (error) {
+      toast({
+        title: 'Update failed',
+        description: error instanceof Error ? error.message : 'Failed to update 3D config',
+        variant: 'destructive'
+      });
+    }
+  };
 
   const handleSaveAppearance = async (updated: NpcAppearanceConfig) => {
     if (!world || !token) return;
@@ -548,16 +610,13 @@ export function WorldDetailsDialog({
                           {groundTexture ? groundTexture.name : 'No texture selected'}
                         </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setModelBrowserContext({ group: 'texture', key: 'groundTextureId' });
-                          setShowModelBrowser(true);
-                        }}
-                      >
-                        Select Texture
-                      </Button>
+                      <AssetSelect
+                        worldId={world.id}
+                        value={world3DConfig?.groundTextureId}
+                        placeholder="Select Texture"
+                        className="h-7 text-xs"
+                        onSelect={(asset) => handleUpdate3DConfig('texture', 'groundTextureId', asset)}
+                      />
                     </div>
 
                     <div className="flex items-center justify-between rounded border px-3 py-2">
@@ -567,16 +626,13 @@ export function WorldDetailsDialog({
                           {roadTexture ? roadTexture.name : 'No texture selected'}
                         </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setModelBrowserContext({ group: 'texture', key: 'roadTextureId' });
-                          setShowModelBrowser(true);
-                        }}
-                      >
-                        Select Texture
-                      </Button>
+                      <AssetSelect
+                        worldId={world.id}
+                        value={world3DConfig?.roadTextureId}
+                        placeholder="Select Texture"
+                        className="h-7 text-xs"
+                        onSelect={(asset) => handleUpdate3DConfig('texture', 'roadTextureId', asset)}
+                      />
                     </div>
                   </div>
                 </CardContent>
@@ -610,16 +666,14 @@ export function WorldDetailsDialog({
                                 {asset ? asset.name : 'No model selected'}
                               </p>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setModelBrowserContext({ group: 'object', key: role });
-                                setShowModelBrowser(true);
-                              }}
-                            >
-                              Select Model
-                            </Button>
+                            <AssetSelect
+                              worldId={world.id}
+                              modelsOnly
+                              value={assetId}
+                              placeholder="Select Model"
+                              className="h-7 text-xs"
+                              onSelect={(asset) => handleUpdate3DConfig('object', role, asset)}
+                            />
                           </div>
                         );
                       })}
@@ -945,16 +999,14 @@ export function WorldDetailsDialog({
                                   {asset ? asset.name : 'No model selected'}
                                 </p>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setModelBrowserContext({ group: 'building', key });
-                                  setShowModelBrowser(true);
-                                }}
-                              >
-                                Select Model
-                              </Button>
+                              <AssetSelect
+                                worldId={world.id}
+                                modelsOnly
+                                value={assetId}
+                                placeholder="Select Model"
+                                className="h-7 text-xs"
+                                onSelect={(a) => handleUpdate3DConfig('building', key, a)}
+                              />
                             </div>
                           );
                         })}
@@ -975,16 +1027,14 @@ export function WorldDetailsDialog({
                                   {asset ? asset.name : 'No model selected'}
                                 </p>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setModelBrowserContext({ group: 'nature', key });
-                                  setShowModelBrowser(true);
-                                }}
-                              >
-                                Select Model
-                              </Button>
+                              <AssetSelect
+                                worldId={world.id}
+                                modelsOnly
+                                value={assetId}
+                                placeholder="Select Model"
+                                className="h-7 text-xs"
+                                onSelect={(a) => handleUpdate3DConfig('nature', key, a)}
+                              />
                             </div>
                           );
                         })}
@@ -1010,16 +1060,14 @@ export function WorldDetailsDialog({
                                   {asset ? asset.name : 'No model selected'}
                                 </p>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setModelBrowserContext({ group: 'character', key });
-                                  setShowModelBrowser(true);
-                                }}
-                              >
-                                Select Model
-                              </Button>
+                              <AssetSelect
+                                worldId={world.id}
+                                modelsOnly
+                                value={assetId}
+                                placeholder="Select Model"
+                                className="h-7 text-xs"
+                                onSelect={(a) => handleUpdate3DConfig('character', key, a)}
+                              />
                             </div>
                           );
                         })}
@@ -1140,32 +1188,22 @@ export function WorldDetailsDialog({
                                 </p>
                               </div>
                               <div className="flex gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setModelBrowserContext({ group: 'character', key: `override_${role}` });
-                                    setShowModelBrowser(true);
-                                  }}
-                                >
-                                  Select
-                                </Button>
-                                {override && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      const updated = {
-                                        ...npcAppearance,
-                                        roleOverrides: npcAppearance.roleOverrides.filter((o) => o.role !== role),
-                                      };
-                                      setNpcAppearance(updated);
-                                      handleSaveAppearance(updated);
-                                    }}
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                )}
+                                <AssetSelect
+                                  worldId={world.id}
+                                  modelsOnly
+                                  value={override?.assetId}
+                                  placeholder="Select"
+                                  className="h-7 text-xs"
+                                  onSelect={(a) => handleUpdate3DConfig('character', `override_${role}`, a)}
+                                  onClear={override ? () => {
+                                    const updated = {
+                                      ...npcAppearance,
+                                      roleOverrides: npcAppearance.roleOverrides.filter((o) => o.role !== role),
+                                    };
+                                    setNpcAppearance(updated);
+                                    handleSaveAppearance(updated);
+                                  } : undefined}
+                                />
                               </div>
                             </div>
                           );
@@ -1228,15 +1266,12 @@ export function WorldDetailsDialog({
                       Open the visual asset browser to explore all assets for this world.
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAssetBrowser(true)}
+                  <AssetSelect
+                    worldId={world.id}
+                    placeholder={`Browse All (${worldAssets.length})...`}
+                    className="h-8 text-xs"
                     disabled={worldAssets.length === 0}
-                  >
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    Browse Assets ({worldAssets.length})
-                  </Button>
+                  />
                 </div>
               </div>
 
@@ -1309,103 +1344,6 @@ export function WorldDetailsDialog({
           assetType={assetType}
           onAssetGenerated={() => {
             queryClient.invalidateQueries({ queryKey: ['/api/worlds', world.id, 'assets'] });
-          }}
-        />
-      )}
-
-      {/* Asset Browser Dialog */}
-      {world && (
-        <AssetBrowserDialog
-          open={showAssetBrowser}
-          onOpenChange={setShowAssetBrowser}
-          worldId={world.id}
-        />
-      )}
-
-      {/* 3D Model Asset Browser for world-level 3D config */}
-      {world && (
-        <AssetBrowserDialog
-          open={showModelBrowser}
-          onOpenChange={(open) => {
-            setShowModelBrowser(open);
-            if (!open) {
-              setModelBrowserContext(null);
-            }
-          }}
-          worldId={world.id}
-          modelsOnly={modelBrowserContext?.group !== 'texture'}
-          onAssetSelected={async (asset) => {
-            if (!world || !modelBrowserContext) return;
-
-            const group = modelBrowserContext.group;
-            let body: any = {};
-
-            if (group === 'building') {
-              body.buildingModels = {
-                ...(world3DConfig?.buildingModels || {}),
-                [modelBrowserContext.key]: asset.id
-              };
-            } else if (group === 'nature') {
-              body.natureModels = {
-                ...(world3DConfig?.natureModels || {}),
-                [modelBrowserContext.key]: asset.id
-              };
-            } else if (group === 'character' && modelBrowserContext.key.startsWith('override_')) {
-              // Role override — save to NPC appearance config
-              const role = modelBrowserContext.key.replace('override_', '');
-              const updatedOverrides = [
-                ...npcAppearance.roleOverrides.filter((o) => o.role !== role),
-                { role, assetId: asset.id, label: asset.name },
-              ];
-              const updatedConfig = { ...npcAppearance, roleOverrides: updatedOverrides };
-              setNpcAppearance(updatedConfig);
-              await handleSaveAppearance(updatedConfig);
-              setShowModelBrowser(false);
-              setModelBrowserContext(null);
-              return;
-            } else if (group === 'character') {
-              body.characterModels = {
-                ...(world3DConfig?.characterModels || {}),
-                [modelBrowserContext.key]: asset.id
-               };
-             } else if (group === 'texture') {
-               body[modelBrowserContext.key] = asset.id;
-             } else if (group === 'object') {
-               body.objectModels = {
-                 ...(world3DConfig?.objectModels || {}),
-                 [modelBrowserContext.key]: asset.id
-              };
-            }
-
-            try {
-              const response = await fetch(`/api/worlds/${world.id}/3d-config`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-              });
-
-              if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || 'Failed to update 3D config');
-              }
-
-              const updated = await response.json();
-              setWorld3DConfig(updated as World3DConfig);
-
-              toast({
-                title: '3D model updated',
-                description: `${asset.name} assigned as ${modelBrowserContext.key}`
-              });
-            } catch (error) {
-              toast({
-                title: 'Update failed',
-                description: error instanceof Error ? error.message : 'Failed to update 3D config',
-                variant: 'destructive'
-              });
-            } finally {
-              setShowModelBrowser(false);
-              setModelBrowserContext(null);
-            }
           }}
         />
       )}

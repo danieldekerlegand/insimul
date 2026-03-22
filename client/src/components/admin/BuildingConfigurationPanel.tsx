@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette, Image as ImageIcon, X } from "lucide-react";
+import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette } from "lucide-react";
 import { BUILDING_CATEGORY_GROUPINGS, getCategoryForType, type BuildingCategory } from "@shared/game-engine/building-categories";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
+import { AssetSelect } from "../AssetSelect";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type {
   UnifiedBuildingTypeConfig,
@@ -877,7 +877,6 @@ function InlineCategoryPresetEditor({
   onUpdate,
   onAdd,
   onRemove,
-  onTexturePick,
 }: {
   category: string;
   preset: ProceduralStylePreset | undefined;
@@ -885,7 +884,6 @@ function InlineCategoryPresetEditor({
   onUpdate: (partial: Partial<ProceduralStylePreset>) => void;
   onAdd: () => void;
   onRemove: () => void;
-  onTexturePick: (field: TextureFieldKey) => void;
 }) {
   const [showPresetDetails, setShowPresetDetails] = useState(false);
 
@@ -901,11 +899,6 @@ function InlineCategoryPresetEditor({
       </div>
     );
   }
-
-  const getTextureName = (textureId?: string) => {
-    if (!textureId) return null;
-    return assets.find(a => a.id === textureId)?.name ?? 'Selected';
-  };
 
   return (
     <div className="border rounded bg-muted/20 px-2 py-1.5 space-y-1.5">
@@ -1017,21 +1010,15 @@ function InlineCategoryPresetEditor({
           <div className="space-y-1">
             <p className="text-[10px] font-semibold text-muted-foreground">Textures</p>
             {TEXTURE_FIELDS.map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between rounded border px-2 py-1">
-                <div className="min-w-0 mr-2">
-                  <p className="text-[10px] font-medium">{label}</p>
-                  <p className="text-[9px] text-muted-foreground truncate">{getTextureName((preset as any)[key]) ?? 'Not set'}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => onTexturePick(key)}>
-                    <ImageIcon className="w-3 h-3 mr-0.5" /> Pick
-                  </Button>
-                  {(preset as any)[key] && (
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => onUpdate({ [key]: undefined })}>
-                      <X className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
+              <div key={key}>
+                <Label className="text-[10px]">{label}</Label>
+                <AssetSelect
+                  value={(preset as any)[key]}
+                  placeholder={`Select ${label.toLowerCase()}...`}
+                  className="h-6 text-[10px]"
+                  onSelect={(asset) => onUpdate({ [key]: asset.id })}
+                  onClear={() => onUpdate({ [key]: undefined })}
+                />
               </div>
             ))}
           </div>
@@ -1056,9 +1043,6 @@ export function BuildingConfigurationPanel({
   onSelect,
 }: BuildingConfigurationPanelProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [showTextureBrowser, setShowTextureBrowser] = useState(false);
-  const [texturePickTarget, setTexturePickTarget] = useState<{ category: string; field: TextureFieldKey } | null>(null);
-
   const configs = useMemo<Record<string, UnifiedBuildingTypeConfig>>(
     () => (collection as any).worldTypeConfig?.buildingConfig?.buildingTypeConfigs
       || (collection as any).buildingTypeConfigs || {},
@@ -1124,17 +1108,6 @@ export function BuildingConfigurationPanel({
     },
     [presets, onUpdateCategoryPresets],
   );
-
-  const handleTextureSelect = useCallback((asset: any) => {
-    if (!texturePickTarget || !onUpdateCategoryPresets) return;
-    const { category, field } = texturePickTarget;
-    onUpdateCategoryPresets({
-      ...presets,
-      [category]: { ...presets[category], [field]: asset.id },
-    });
-    setShowTextureBrowser(false);
-    setTexturePickTarget(null);
-  }, [texturePickTarget, presets, onUpdateCategoryPresets]);
 
   const categories = Object.entries(BUILDING_CATEGORY_GROUPINGS) as [
     BuildingCategory,
@@ -1207,10 +1180,6 @@ export function BuildingConfigurationPanel({
                   onUpdate={(partial) => handlePresetUpdate(category, partial)}
                   onAdd={() => handlePresetAdd(category)}
                   onRemove={() => handlePresetRemove(category)}
-                  onTexturePick={(field) => {
-                    setTexturePickTarget({ category, field });
-                    setShowTextureBrowser(true);
-                  }}
                 />
 
                 {/* Building types list */}
@@ -1268,12 +1237,6 @@ export function BuildingConfigurationPanel({
         );
       })}
 
-      {/* Texture picker browser (shared across all categories) */}
-      <AssetBrowserDialog
-        open={showTextureBrowser}
-        onOpenChange={(open) => { setShowTextureBrowser(open); if (!open) setTexturePickTarget(null); }}
-        onAssetSelected={handleTextureSelect}
-      />
     </div>
   );
 }

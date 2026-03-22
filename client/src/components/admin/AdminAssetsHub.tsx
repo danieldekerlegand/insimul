@@ -23,7 +23,7 @@ import {
 import { VisualAssetGeneratorDialog } from "../VisualAssetGeneratorDialog";
 import { PolyhavenBrowserDialog } from "../PolyhavenBrowserDialog";
 import { SketchfabBrowserDialog } from "../SketchfabBrowserDialog";
-import { AssetBrowserDialog } from "../AssetBrowserDialog";
+import { AssetSelect } from "../AssetSelect";
 import { ModelPreview } from "../ModelPreview";
 import { BuildingModelPreview } from "../locations/BuildingModelPreview";
 import { ImageUpscaleDialog } from "../ImageUpscaleDialog";
@@ -174,14 +174,6 @@ export function AdminAssetsHub() {
   // Category preset editor modal
   const [showCategoryPresetEditor, setShowCategoryPresetEditor] = useState(false);
   const [categoryTexturePickerRequest, setCategoryTexturePickerRequest] = useState<TexturePickerRequest | null>(null);
-
-  // Model browser for 3D config
-  const [showModelBrowser, setShowModelBrowser] = useState(false);
-  const [modelBrowserContext, setModelBrowserContext] = useState<{
-    group: 'texture' | 'building' | 'nature' | 'character' | 'object';
-    key: string;
-    inline?: boolean; // true = save directly via PATCH, false = update form state
-  } | null>(null);
 
   // Inline 3D config editing (right panel)
   const [expandedConfigGroups, setExpandedConfigGroups] = useState<Set<string>>(new Set());
@@ -549,55 +541,6 @@ export function AdminAssetsHub() {
     const current = { ...((selectedCollection as any).modelScaling || {}) };
     delete current[scalingKey];
     patchCollectionConfig({ modelScaling: current } as any);
-  };
-
-  const handleModelSelect = (asset: any) => {
-    if (!modelBrowserContext) return;
-    const { group, key, inline } = modelBrowserContext;
-
-    if (inline && selectedCollection) {
-      // Inline mode: PATCH directly
-      if (group === 'texture' && key.startsWith('catpreset_') && categoryTexturePickerRequest) {
-        // Category preset texture assignment
-        const { category, field } = categoryTexturePickerRequest;
-        const existing = (selectedCollection as any).categoryPresets ?? {};
-        if (existing[category]) {
-          const updated = { ...existing, [category]: { ...existing[category], [field]: asset.id } };
-          patchCollectionConfig({ categoryPresets: updated } as any);
-        }
-        setCategoryTexturePickerRequest(null);
-      } else if (group === 'texture') {
-        handleInlineTextureAssign(key, asset.id);
-      } else {
-        const fieldMap: Record<string, string> = {
-          building: 'buildingModels', nature: 'natureModels',
-          character: key.startsWith('player_') ? 'playerModels' : 'characterModels',
-          object: key.startsWith('quest_') ? 'questObjectModels' : 'objectModels',
-        };
-        const role = key.replace(/^(player_|quest_)/, '');
-        handleInlineModelAssign(fieldMap[group], role, asset.id);
-      }
-    } else {
-      // Dialog form mode: update local state
-      if (group === 'texture') {
-        if (key === 'groundTextureId') setGroundTextureId(asset.id);
-        else if (key === 'roadTextureId') setRoadTextureId(asset.id);
-      } else if (group === 'building') {
-        setBuildingModels(prev => ({ ...prev, [key]: asset.id }));
-      } else if (group === 'nature') {
-        setNatureModels(prev => ({ ...prev, [key]: asset.id }));
-      } else if (group === 'character') {
-        if (key.startsWith('player_')) setPlayerModels(prev => ({ ...prev, [key.replace('player_', '')]: asset.id }));
-        else setCharacterModels(prev => ({ ...prev, [key]: asset.id }));
-      } else if (group === 'object') {
-        if (key.startsWith('quest_')) setQuestObjectModels(prev => ({ ...prev, [key.replace('quest_', '')]: asset.id }));
-        else setObjectModels(prev => ({ ...prev, [key]: asset.id }));
-      }
-    }
-
-    toast({ title: 'Assigned', description: `${asset.name} → ${key.replace(/^(player_|quest_)/, '')}` });
-    setShowModelBrowser(false);
-    setModelBrowserContext(null);
   };
 
   const handleDownload = (asset: VisualAsset) => {
@@ -1292,8 +1235,8 @@ export function AdminAssetsHub() {
             <div className="border-t pt-4">
               <h3 className="text-sm font-semibold mb-3">3D Asset Configuration</h3>
               <div className="space-y-2">
-                <ModelConfigRow label="Ground Texture" value={groundTextureId} assets={collectionAssets} onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'groundTextureId' }); setShowModelBrowser(true); }} onClear={() => setGroundTextureId('')} />
-                <ModelConfigRow label="Road Texture" value={roadTextureId} assets={collectionAssets} onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'roadTextureId' }); setShowModelBrowser(true); }} onClear={() => setRoadTextureId('')} />
+                <ModelConfigRow label="Ground Texture" value={groundTextureId} assets={collectionAssets} collectionId={selectedCollection.id} modelsOnly={false} onAssetSelected={(asset) => setGroundTextureId(asset.id)} onClear={() => setGroundTextureId('')} />
+                <ModelConfigRow label="Road Texture" value={roadTextureId} assets={collectionAssets} collectionId={selectedCollection.id} modelsOnly={false} onAssetSelected={(asset) => setRoadTextureId(asset.id)} onClear={() => setRoadTextureId('')} />
               </div>
               {[
                 { title: 'Building Models', field: 'buildingModels', roles: ['default', 'smallResidence', 'largeResidence', 'mansion', 'tavern', 'shop', 'blacksmith', 'church', 'library', 'hospital', 'school', 'bank', 'theater', 'windmill', 'watermill', 'lumbermill', 'barracks', 'mine', 'municipal'], group: 'building' as const, prefix: '', models: buildingModels, setModels: setBuildingModels },
@@ -1309,6 +1252,7 @@ export function AdminAssetsHub() {
                       const scalingKey = `${field}.${role}`;
                       return (
                         <ModelConfigRow key={role} label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()} value={models[role]} assets={collectionAssets}
+                          collectionId={selectedCollection.id} modelsOnly={group !== 'texture'}
                           scaling={modelScaling[scalingKey]}
                           onScaleChange={(axis, value) => setModelScaling(prev => {
                             const entry = prev[scalingKey] || { x: 1, y: 1, z: 1 };
@@ -1319,7 +1263,7 @@ export function AdminAssetsHub() {
                             delete next[scalingKey];
                             return next;
                           })}
-                          onSelect={() => { setModelBrowserContext({ group, key: `${prefix}${role}` }); setShowModelBrowser(true); }}
+                          onAssetSelected={(asset) => setModels((prev: Record<string, string>) => ({ ...prev, [role]: asset.id }))}
                           onClear={() => setModels((prev: Record<string, string>) => { const n = { ...prev }; delete n[role]; return n; })} />
                       );
                     })}
@@ -1372,12 +1316,6 @@ export function AdminAssetsHub() {
           if (selectedCollection) queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
           queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
         }} />
-
-      {/* Model Browser for 3D config */}
-      {selectedCollection && showModelBrowser && modelBrowserContext && (
-        <AssetBrowserDialog open={showModelBrowser} onOpenChange={(open) => { setShowModelBrowser(open); if (!open) setModelBrowserContext(null); }}
-          collectionId={selectedCollection.id} modelsOnly={modelBrowserContext.group !== 'texture'} onAssetSelected={handleModelSelect} />
-      )}
 
       {/* Quality tools */}
       {selectedAsset && showUpscaleDialog && (
@@ -1629,30 +1567,36 @@ function ScaleEditor({ scaling, onChange, onReset }: {
   );
 }
 
-function ModelConfigRow({ label, value, assets, onSelect, onClear, scaling, onScaleChange, onScaleReset }: {
-  label: string; value?: string; assets: VisualAsset[]; onSelect: () => void; onClear: () => void;
+function ModelConfigRow({ label, value, assets, collectionId, modelsOnly, onAssetSelected, onClear, scaling, onScaleChange, onScaleReset }: {
+  label: string; value?: string; assets: VisualAsset[]; collectionId: string; modelsOnly?: boolean;
+  onAssetSelected: (asset: any) => void; onClear: () => void;
   scaling?: { x: number; y: number; z: number };
   onScaleChange?: (axis: 'x' | 'y' | 'z', value: number) => void;
   onScaleReset?: () => void;
 }) {
   const [showScale, setShowScale] = useState(false);
-  const assetName = value ? assets.find(a => a.id === value)?.name || 'Selected' : null;
   const hasCustomScale = scaling && (scaling.x !== 1 || scaling.y !== 1 || scaling.z !== 1);
   return (
     <div className="rounded border">
       <div className="flex items-center justify-between px-2 py-1.5">
         <div className="mr-2 min-w-0">
           <p className="text-xs font-medium capitalize">{label}</p>
-          <p className="text-[10px] text-muted-foreground truncate">{assetName || 'Not set'}</p>
         </div>
-        <div className="flex gap-1 shrink-0">
+        <div className="flex gap-1 shrink-0 items-center">
           {value && onScaleChange && (
             <Button variant={hasCustomScale ? "secondary" : "ghost"} size="sm" className="h-6 w-6 p-0" onClick={() => setShowScale(!showScale)} title="Scale">
               <Move className="w-3 h-3" />
             </Button>
           )}
-          <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={onSelect}>Select</Button>
-          {value && <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClear}><X className="w-3 h-3" /></Button>}
+          <AssetSelect
+            value={value}
+            onSelect={onAssetSelected}
+            onClear={onClear}
+            collectionId={collectionId}
+            modelsOnly={modelsOnly}
+            placeholder="Select..."
+            className="h-6 text-[10px] min-w-[120px]"
+          />
         </div>
       </div>
       {showScale && value && onScaleChange && (

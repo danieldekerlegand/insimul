@@ -10,7 +10,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import type { BusinessType, Character, VisualAsset } from '@shared/schema';
 import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
-import { AssetBrowserDialog } from '../AssetBrowserDialog';
+import { AssetSelect } from '../AssetSelect';
 import { JobQueueViewer } from '../JobQueueViewer';
 
 interface SettlementDetailViewProps {
@@ -49,7 +49,6 @@ export function SettlementDetailView({
   onAddResidence
 }: SettlementDetailViewProps) {
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
-  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
   const [showJobQueue, setShowJobQueue] = useState(false);
   const [assetType, setAssetType] = useState<'map_terrain' | 'map_political' | 'map_region'>('map_terrain');
   const [mapZoom, setMapZoom] = useState(1);
@@ -231,10 +230,14 @@ export function SettlementDetailView({
               <MapPin className="w-5 h-5" />
               Settlement Maps
             </CardTitle>
-            <Button onClick={() => setShowAssetBrowser(true)} variant="outline" size="sm">
-              <ImageIcon className="w-4 h-4 mr-2" />
-              Browse All ({settlementAssets.length})
-            </Button>
+            <div className="w-48">
+              <AssetSelect
+                entityType="settlement"
+                entityId={settlement.id}
+                placeholder={`Browse All (${settlementAssets.length})`}
+                className="h-8 text-xs"
+              />
+            </div>
           </div>
           <CardDescription>
             AI-generated maps showing terrain, political boundaries, and regional context
@@ -916,14 +919,6 @@ export function SettlementDetailView({
         onAssetGenerated={() => {
           queryClient.invalidateQueries({ queryKey: ['/api/assets', 'settlement', settlement.id] });
         }}
-      />
-
-      {/* Asset Browser Dialog */}
-      <AssetBrowserDialog
-        open={showAssetBrowser}
-        onOpenChange={setShowAssetBrowser}
-        entityType="settlement"
-        entityId={settlement.id}
       />
 
       {/* Job Queue Viewer */}
