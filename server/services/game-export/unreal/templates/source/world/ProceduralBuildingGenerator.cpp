@@ -46,6 +46,11 @@ void AProceduralBuildingGenerator::SetRoofTexture(UTexture2D* Texture)
     RoofTextureOverride = Texture;
 }
 
+void AProceduralBuildingGenerator::RegisterPresetTexture(const FString& AssetId, UTexture2D* Texture)
+{
+    PresetTextures.Add(AssetId, Texture);
+}
+
 const TMap<FString, FBuildingStylePreset>& AProceduralBuildingGenerator::GetStylePresets()
 {
     static TMap<FString, FBuildingStylePreset> Presets;

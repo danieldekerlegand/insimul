@@ -101,5 +101,111 @@ console.log('\nRotation zero is valid (not treated as falsy):');
   assertEqual(spec.rotation, 0, 'rotation of 0 is preserved (not replaced by random)');
 }
 
+console.log('\n--- Preset texture ID propagation ---');
+{
+  const preset = {
+    id: 'tex_preset_1',
+    name: 'Textured Stone',
+    baseColors: [{ r: 0.6, g: 0.6, b: 0.6 }],
+    roofColor: { r: 0.3, g: 0.2, b: 0.15 },
+    windowColor: { r: 0.8, g: 0.8, b: 1.0 },
+    doorColor: { r: 0.4, g: 0.3, b: 0.2 },
+    materialType: 'stone' as const,
+    architectureStyle: 'medieval' as const,
+    wallTextureId: 'asset_wall_123',
+    roofTextureId: 'asset_roof_456',
+  };
+
+  const spec = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_tex_building',
+    type: 'business',
+    businessType: 'Bakery',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [preset],
+      defaultCommercialStyleId: 'tex_preset_1',
+    },
+  });
+
+  assertEqual(spec.style.wallTextureId, 'asset_wall_123', 'wallTextureId propagated from preset to style');
+  assertEqual(spec.style.roofTextureId, 'asset_roof_456', 'roofTextureId propagated from preset to style');
+}
+
+console.log('\nPreset without texture IDs leaves them undefined:');
+{
+  const preset = {
+    id: 'no_tex_preset',
+    name: 'Plain Wood',
+    baseColors: [{ r: 0.6, g: 0.4, b: 0.2 }],
+    roofColor: { r: 0.3, g: 0.2, b: 0.1 },
+    windowColor: { r: 0.7, g: 0.7, b: 0.7 },
+    doorColor: { r: 0.5, g: 0.3, b: 0.2 },
+    materialType: 'wood' as const,
+    architectureStyle: 'rustic' as const,
+  };
+
+  const spec = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_no_tex',
+    type: 'residence',
+    businessType: 'residence_small',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [preset],
+      defaultResidentialStyleId: 'no_tex_preset',
+    },
+  });
+
+  assert(spec.style.wallTextureId === undefined, 'wallTextureId is undefined when not set on preset');
+  assert(spec.style.roofTextureId === undefined, 'roofTextureId is undefined when not set on preset');
+}
+
+console.log('\nType-specific override preset carries texture IDs:');
+{
+  const presetA = {
+    id: 'preset_a',
+    name: 'Style A',
+    baseColors: [{ r: 0.5, g: 0.5, b: 0.5 }],
+    roofColor: { r: 0.3, g: 0.3, b: 0.3 },
+    windowColor: { r: 0.8, g: 0.8, b: 0.8 },
+    doorColor: { r: 0.4, g: 0.4, b: 0.4 },
+    materialType: 'brick' as const,
+    architectureStyle: 'colonial' as const,
+    wallTextureId: 'wall_brick_tex',
+  };
+  const presetB = {
+    id: 'preset_b',
+    name: 'Style B',
+    baseColors: [{ r: 0.7, g: 0.7, b: 0.7 }],
+    roofColor: { r: 0.2, g: 0.2, b: 0.2 },
+    windowColor: { r: 0.9, g: 0.9, b: 0.9 },
+    doorColor: { r: 0.3, g: 0.3, b: 0.3 },
+    materialType: 'stone' as const,
+    architectureStyle: 'medieval' as const,
+    roofTextureId: 'roof_slate_tex',
+  };
+
+  const spec = ProceduralBuildingGenerator.createSpecFromData({
+    id: 'test_override_tex',
+    type: 'business',
+    businessType: 'Bakery',
+    position: new Vector3(0, 0, 0),
+    worldStyle: testStyle,
+    proceduralConfig: {
+      stylePresets: [presetA, presetB],
+      defaultCommercialStyleId: 'preset_a',
+      buildingTypeOverrides: {
+        'Bakery': { stylePresetId: 'preset_b' },
+      },
+    },
+  });
+
+  // Should use preset_b (type override), not preset_a (default)
+  assertEqual(spec.style.name, 'preset_b', 'type override preset selected');
+  assert(spec.style.wallTextureId === undefined, 'preset_b has no wallTextureId');
+  assertEqual(spec.style.roofTextureId, 'roof_slate_tex', 'roofTextureId from type-override preset');
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 process.exit(failed > 0 ? 1 : 0);

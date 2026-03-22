@@ -29,6 +29,9 @@ namespace Insimul.World
         /// <summary>Optional roof texture override for procedural buildings.</summary>
         private Texture2D _roofTexture;
 
+        /// <summary>Per-preset textures keyed by asset ID.</summary>
+        private Dictionary<string, Texture2D> _presetTextures = new Dictionary<string, Texture2D>();
+
         /// <summary>Procedural building configuration loaded from IR data.</summary>
         private ProceduralBuildingConfig _proceduralConfig;
 
@@ -53,6 +56,8 @@ namespace Insimul.World
             public int porchSteps;
             public bool hasShutters;
             public Color shutterColor;
+            public string wallTextureId;
+            public string roofTextureId;
         }
 
         public struct BuildingTypeDefaults
@@ -236,6 +241,12 @@ namespace Insimul.World
         public void SetRoofTexture(Texture2D texture)
         {
             _roofTexture = texture;
+        }
+
+        /// <summary>Register a texture by asset ID for use by style presets.</summary>
+        public void RegisterPresetTexture(string assetId, Texture2D texture)
+        {
+            _presetTextures[assetId] = texture;
         }
 
         /// <summary>Apply a procedural building configuration from IR data.</summary>

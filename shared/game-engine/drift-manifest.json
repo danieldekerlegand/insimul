@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "98ec1baf57940d4242944a943b6d2db37362bab06035b5f8ff61c7d83c93b1a4",
+      "hash": "ae3a0ce9e1db095ccad8dd6e1c66a7654150f6c2d0138429cdeb116cd5567398",
       "engineMappings": [
         {
           "engine": "unreal",
