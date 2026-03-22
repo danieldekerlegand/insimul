@@ -431,6 +431,14 @@ export interface ProceduralStylePreset {
   doorTextureId?: string;
   /** Texture asset ID for windows (falls back to windowColor if not set) */
   windowTextureId?: string;
+  /** Texture asset ID for balcony surfaces (falls back to baseColor if not set) */
+  balconyTextureId?: string;
+  /** Texture asset ID for ironwork balcony elements (falls back to dark iron color if not set) */
+  ironworkTextureId?: string;
+  /** Texture asset ID for porch surfaces (falls back to wood/baseColor if not set) */
+  porchTextureId?: string;
+  /** Texture asset ID for shutters (falls back to shutterColor/doorColor if not set) */
+  shutterTextureId?: string;
 }
 
 /** Overrides for a specific building type's dimensions and features */

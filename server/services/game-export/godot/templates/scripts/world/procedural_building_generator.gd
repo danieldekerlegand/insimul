@@ -417,7 +417,8 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 			"steps": porch_steps_val,
 			"total_height": total_height,
 			"front_z": depth / 2.0,
-			"mat_type": mat_type
+			"mat_type": mat_type,
+			"porch_texture_id": style.get("porch_texture_id", "")
 		}
 		_create_porch(building, porch_spec)
 
@@ -463,7 +464,7 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 
 	# Balcony — ironwork style on every upper floor if enabled
 	if has_ironwork_balcony and floors > 1:
-		_add_ironwork_balconies(building, width, depth, floors, total_height)
+		_add_ironwork_balconies(building, width, depth, floors, total_height, style)
 
 	# Door with frame, panel, and handle
 	_add_door(building, width, depth, floors, total_height)
@@ -567,7 +568,16 @@ func _create_porch(building: MeshInstance3D, spec: Dictionary) -> void:
 	var total_height: float = spec.get("total_height", 6.0)
 	var front_z: float = spec.get("front_z", 5.0)
 	var mat_type_str: String = spec.get("mat_type", "wood")
+	var porch_tex_id: String = spec.get("porch_texture_id", "")
 	var ground_y := -total_height / 2.0
+
+	# Porch deck material: prefer texture, fall back to color
+	var porch_deck_mat: StandardMaterial3D
+	if porch_tex_id != "" and _preset_textures.has(porch_tex_id):
+		porch_deck_mat = _get_shared_material("porch_deck_tex", Color.WHITE, mat_type_str)
+		porch_deck_mat.albedo_texture = _preset_textures[porch_tex_id]
+	else:
+		porch_deck_mat = _get_shared_material("porch_deck", Color(0.45, 0.3, 0.2), mat_type_str)
 
 	# Porch deck
 	var deck_thickness := 0.15
@@ -577,7 +587,7 @@ func _create_porch(building: MeshInstance3D, spec: Dictionary) -> void:
 	deck.mesh = deck_box
 	deck.name = "PorchDeck"
 	deck.position = Vector3(0, ground_y - elevation / 2.0, front_z + porch_depth / 2.0)
-	deck.material_override = _get_shared_material("porch_deck", Color(0.45, 0.3, 0.2), mat_type_str)
+	deck.material_override = porch_deck_mat
 	building.add_child(deck)
 
 	# Porch foundation/support
@@ -622,7 +632,14 @@ func _add_windows(building: MeshInstance3D, width: float, depth: float,
 
 	var do_shutters: bool = style.get("has_shutters", false)
 	var shutter_col: Color = style.get("shutter_color", Color(0.3, 0.3, 0.3))
-	var shutter_mat := _get_shared_material("shutter", shutter_col) if do_shutters else null
+	var shutter_tex_id: String = style.get("shutter_texture_id", "")
+	var shutter_mat: StandardMaterial3D = null
+	if do_shutters:
+		if shutter_tex_id != "" and _preset_textures.has(shutter_tex_id):
+			shutter_mat = _get_shared_material("shutter_tex", Color.WHITE)
+			shutter_mat.albedo_texture = _preset_textures[shutter_tex_id]
+		else:
+			shutter_mat = _get_shared_material("shutter", shutter_col)
 
 	# Place windows on front face, evenly spaced
 	var num_windows := maxi(1, int(width / 3.0))
@@ -662,14 +679,20 @@ func _add_windows(building: MeshInstance3D, width: float, depth: float,
 
 ## Add ironwork balconies on every upper floor (creole / New Orleans style).
 func _add_ironwork_balconies(building: MeshInstance3D, width: float, depth: float,
-		floors: int, total_height: float) -> void:
+		floors: int, total_height: float, style: Dictionary = {}) -> void:
 	var floor_height := 3.0
 	var ground_y := -total_height / 2.0
 	var front_z := depth / 2.0
 	var balcony_depth := 1.5
 	var rail_height := 1.0
 	var iron_color := Color(0.12, 0.12, 0.12)
-	var iron_mat := _get_shared_material("ironwork", iron_color, "metal")
+	var ironwork_tex_id: String = style.get("ironwork_texture_id", "")
+	var iron_mat: StandardMaterial3D
+	if ironwork_tex_id != "" and _preset_textures.has(ironwork_tex_id):
+		iron_mat = _get_shared_material("ironwork_tex", Color.WHITE, "metal")
+		iron_mat.albedo_texture = _preset_textures[ironwork_tex_id]
+	else:
+		iron_mat = _get_shared_material("ironwork", iron_color, "metal")
 
 	for floor_i in range(1, floors):
 		var floor_y := ground_y + floor_height * floor_i

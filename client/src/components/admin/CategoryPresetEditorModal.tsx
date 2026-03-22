@@ -21,6 +21,10 @@ const TEXTURE_FIELDS = [
   { key: 'floorTextureId' as const, label: 'Floor Texture' },
   { key: 'doorTextureId' as const, label: 'Door Texture' },
   { key: 'windowTextureId' as const, label: 'Window Texture' },
+  { key: 'balconyTextureId' as const, label: 'Balcony Texture' },
+  { key: 'ironworkTextureId' as const, label: 'Ironwork Texture' },
+  { key: 'porchTextureId' as const, label: 'Porch Texture' },
+  { key: 'shutterTextureId' as const, label: 'Shutter Texture' },
 ] as const;
 
 type TextureFieldKey = typeof TEXTURE_FIELDS[number]['key'];
