@@ -2145,6 +2145,16 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  // Settlement characters
+  app.get("/api/settlements/:settlementId/characters", async (req, res) => {
+    try {
+      const characters = await storage.getCharactersBySettlement(req.params.settlementId);
+      res.json(characters);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch settlement characters" });
+    }
+  });
+
   // Lots routes
   app.get("/api/settlements/:settlementId/lots", async (req, res) => {
     try {

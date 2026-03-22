@@ -2446,6 +2446,12 @@ export class MongoStorage implements IStorage {
     return docs.map(docToCharacter);
   }
 
+  async getCharactersBySettlement(settlementId: string): Promise<Character[]> {
+    await this.connect();
+    const docs = await CharacterModel.find({ currentLocation: settlementId });
+    return docs.map(docToCharacter);
+  }
+
   async createCharacter(insertCharacter: InsertCharacter & { age?: number; occupation?: string }): Promise<Character> {
     await this.connect();
     const doc = await CharacterModel.create({
