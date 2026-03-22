@@ -156,6 +156,7 @@ import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts"
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCBusinessInteractionSystem, type BusinessInteraction, type ServiceResult } from "@/components/3DGame/NPCBusinessInteractionSystem.ts";
 import { BusinessBehaviorSystem } from "@/components/3DGame/BusinessBehaviorSystem.ts";
+import { BusinessPopulationManager } from "@/components/3DGame/BusinessPopulationManager.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, getClothingColorForMesh, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
@@ -683,6 +684,7 @@ export class BabylonGame {
   private businessInteractionSystem: NPCBusinessInteractionSystem = new NPCBusinessInteractionSystem();
   private currentBuildingBusinessType: string | undefined = undefined;
   private businessBehaviorSystem: BusinessBehaviorSystem | null = null;
+  private businessPopulationManager: BusinessPopulationManager = new BusinessPopulationManager();
 
   // NPC Simulation LOD
   private npcSimulationLOD: NPCSimulationLOD | null = null;
@@ -851,6 +853,7 @@ export class BabylonGame {
       }
       this.updateLoadingScreen('Loading NPCs...', 70);
       await this.loadNPCs();
+      this.populateBusinessesWithNPCs();
       await this.initializeRelationshipManager();
       this.updateLoadingScreen('Setting up controls...', 90);
       await this.setupKeyboardHandlers();
@@ -6272,6 +6275,25 @@ export class BabylonGame {
 
     // Update quest indicators after NPCs are loaded
     this.updateQuestIndicators();
+  }
+
+  /**
+   * Populate businesses with customer NPCs during game loading.
+   * Owners/employees are already near their workplace via findNPCSpawnPosition.
+   * This assigns 1-3 random civilian NPCs as customers to each open business.
+   */
+  private populateBusinessesWithNPCs(): void {
+    const result = this.businessPopulationManager.populate(
+      this.buildingData as Map<string, any>,
+      this.npcMeshes as Map<string, any>,
+      {
+        gameHour: this.gameTimeManager?.getState().hour ?? 12,
+        isPointInsideBuilding: (x, z) => this.isPointInsideAnyBuilding(x, z),
+      },
+    );
+    if (result.totalCustomersAssigned > 0) {
+      console.log(`[BabylonGame] Populated businesses with ${result.totalCustomersAssigned} customer NPCs across ${result.customersByBusiness.size} businesses`);
+    }
   }
 
   private getRoleForCharacter(character: WorldCharacter): NPCRole {
