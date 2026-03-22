@@ -18,7 +18,7 @@ import {
   Plus, Edit, Trash2, Package, Image as ImageIcon, Sparkles, Save, X,
   Search, ChevronRight, ChevronDown, Info, Settings2, Copy,
   Layers, Download, Tag, Volume2, Box, Maximize2, ArrowUp, Wand2, TrendingUp, Upload, Play, Pause, Move,
-  Building2, Users,
+  Building2, Users, Palette,
 } from "lucide-react";
 import { VisualAssetGeneratorDialog } from "../VisualAssetGeneratorDialog";
 import { PolyhavenBrowserDialog } from "../PolyhavenBrowserDialog";
@@ -31,6 +31,7 @@ import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3, NpcConfig } from "@shared/game-engine/types";
+import { CategoryPresetEditorModal, type TexturePickerRequest } from "./CategoryPresetEditorModal";
 
 const WORLD_TYPES = [
   { value: "medieval-fantasy", label: "Medieval Fantasy" },
@@ -115,7 +116,7 @@ export function AdminAssetsHub() {
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>("all");
 
   // Right panel
-  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | 'procedural' | 'npc' | null>('preview');
+  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets' | null>('preview');
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -164,6 +165,10 @@ export function AdminAssetsHub() {
   const [showUpscaleDialog, setShowUpscaleDialog] = useState(false);
   const [showEnhanceDialog, setShowEnhanceDialog] = useState(false);
   const [showComparisonDialog, setShowComparisonDialog] = useState(false);
+
+  // Category preset editor modal
+  const [showCategoryPresetEditor, setShowCategoryPresetEditor] = useState(false);
+  const [categoryTexturePickerRequest, setCategoryTexturePickerRequest] = useState<TexturePickerRequest | null>(null);
 
   // Model browser for 3D config
   const [showModelBrowser, setShowModelBrowser] = useState(false);
@@ -540,7 +545,16 @@ export function AdminAssetsHub() {
 
     if (inline && selectedCollection) {
       // Inline mode: PATCH directly
-      if (group === 'texture') {
+      if (group === 'texture' && key.startsWith('catpreset_') && categoryTexturePickerRequest) {
+        // Category preset texture assignment
+        const { category, field } = categoryTexturePickerRequest;
+        const existing = (selectedCollection as any).categoryPresets ?? {};
+        if (existing[category]) {
+          const updated = { ...existing, [category]: { ...existing[category], [field]: asset.id } };
+          patchCollectionConfig({ categoryPresets: updated } as any);
+        }
+        setCategoryTexturePickerRequest(null);
+      } else if (group === 'texture') {
         handleInlineTextureAssign(key, asset.id);
       } else {
         const fieldMap: Record<string, string> = {
@@ -923,13 +937,14 @@ export function AdminAssetsHub() {
     const hasCollection = browseMode === 'collections' && !!selectedCollection;
     if (!hasAsset && !hasCollection) return null;
 
-    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'npc';
+    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'npc' | 'category_presets';
     const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
       { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
       { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
       { id: 'config' as SectionId, label: '3D Config', icon: Settings2, show: hasCollection },
       { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
       { id: 'npc' as SectionId, label: 'NPC Characters', icon: Users, show: hasCollection },
+      { id: 'category_presets' as SectionId, label: 'Category Presets', icon: Palette, show: hasCollection },
     ];
     const sections = allSections.filter(s => s.show);
 
@@ -1187,6 +1202,23 @@ export function AdminAssetsHub() {
                         config={selectedCollection.npcConfig || null}
                         onSave={(cfg) => patchCollectionConfig({ npcConfig: cfg } as any)}
                       />
+                    )}
+
+                    {/* Category Presets */}
+                    {section.id === 'category_presets' && selectedCollection && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-muted-foreground">
+                          Style presets applied to all buildings in a category (e.g. all restaurants share a style).
+                        </p>
+                        <Button variant="outline" size="sm" className="w-full h-7 text-xs" onClick={() => setShowCategoryPresetEditor(true)}>
+                          <Palette className="w-3 h-3 mr-1" /> Edit Category Presets
+                          {(selectedCollection as any).categoryPresets && (
+                            <Badge variant="secondary" className="ml-1.5 text-[9px] h-4">
+                              {Object.keys((selectedCollection as any).categoryPresets).length}
+                            </Badge>
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </ScrollArea>
@@ -1459,6 +1491,22 @@ export function AdminAssetsHub() {
           if (selectedCollection) queryClient.invalidateQueries({ queryKey: ['/api/asset-collections', selectedCollection.id, 'assets'] });
           queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
         }} />
+
+      {/* Category Preset Editor Modal */}
+      {selectedCollection && (
+        <CategoryPresetEditorModal
+          open={showCategoryPresetEditor}
+          onOpenChange={(open) => { setShowCategoryPresetEditor(open); if (!open) setCategoryTexturePickerRequest(null); }}
+          presets={(selectedCollection as any).categoryPresets ?? null}
+          assets={collectionAssets}
+          onSave={(presets) => patchCollectionConfig({ categoryPresets: presets } as any)}
+          onTexturePickerOpen={(req) => {
+            setCategoryTexturePickerRequest(req);
+            setModelBrowserContext({ group: 'texture', key: `catpreset_${req.category}_${req.field}`, inline: true });
+            setShowModelBrowser(true);
+          }}
+        />
+      )}
 
       {/* Model Browser for 3D config */}
       {selectedCollection && showModelBrowser && modelBrowserContext && (
