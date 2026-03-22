@@ -815,7 +815,7 @@ export class WorldGenerator {
 
     // Capacity per residence type
     const capacities: Record<string, number> = {
-      mansion: 12, house: 6, cottage: 4, apartment: 2
+      mansion: 12, house: 6, cottage: 4, apartment: 2, townhouse: 5, mobile_home: 3
     };
 
     // Track remaining capacity per residence
