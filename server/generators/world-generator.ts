@@ -594,6 +594,42 @@ export class WorldGenerator {
       }
     }
 
+    // Phase 3: Ensure remaining unowned lot businesses get owners assigned
+    // This handles cases where there are more geography-generated businesses than business plan entries
+    if (unownedQueue.length > 0) {
+      // Build pool of all adult characters (allow multi-ownership if needed)
+      const allAdults = adultCharacters.sort(() => Math.random() - 0.5);
+      let adultIndex = 0;
+
+      for (const business of unownedQueue) {
+        if (allAdults.length === 0) {
+          // No adults at all — close the business
+          await storage.updateBusiness(business.id, { isOutOfBusiness: true, closedYear: config.currentYear });
+          console.log(`   ✗ Closed ${business.name} (no available owners)`);
+          continue;
+        }
+
+        const owner = allAdults[adultIndex % allAdults.length];
+        adultIndex++;
+
+        try {
+          const businessType = business.businessType || 'Shop';
+          const name = this.generateBusinessName(businessType as BusinessType, owner);
+          await storage.updateBusiness(business.id, {
+            ownerId: owner.id,
+            founderId: owner.id,
+            name,
+            foundedYear: config.currentYear,
+            vacancies: this.getVacanciesForBusinessType(businessType as BusinessType),
+          });
+          resultBusinesses.push({ ...business, ownerId: owner.id, founderId: owner.id, name } as Business);
+          console.log(`   ✓ Assigned owner to ${name} at ${business.address}`);
+        } catch (error) {
+          console.error(`   ✗ Failed to assign owner to business at ${business.address}:`, error);
+        }
+      }
+    }
+
     return resultBusinesses;
   }
 
