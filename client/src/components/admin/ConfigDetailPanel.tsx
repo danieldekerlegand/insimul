@@ -15,7 +15,7 @@ import { BuildingModelPreview } from "../locations/BuildingModelPreview";
 import { BuildingTypeDetailPanel } from "./BuildingConfigurationPanel";
 import { colorToHex, hexToColor, humanize } from "./BuildingConfigurationPanel";
 import { AssetBrowserDialog } from "../AssetBrowserDialog";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { ConfigSelection } from "./config-selection";
 import type { VisualAsset } from "@shared/schema";
 import type {
@@ -140,6 +140,78 @@ function BuildingDetailEditor({
       </Tabs>
     </div>
   );
+}
+
+// ─── Nature Preview Helper ──────────────────────────────────────────────────
+
+function NaturePreview({
+  modelPath,
+  group,
+  mode,
+}: {
+  modelPath?: string;
+  group: string;
+  mode: 'asset' | 'procedural';
+}) {
+  const buildProcedural = useCallback((scene: any, BABYLON: any) => {
+    const mat = new BABYLON.StandardMaterial("natureMat", scene);
+    mat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+
+    if (group === 'trees') {
+      const trunk = BABYLON.MeshBuilder.CreateCylinder("trunk", { height: 1.5, diameterTop: 0.15, diameterBottom: 0.25 }, scene);
+      trunk.position.y = 0.75;
+      const trunkMat = new BABYLON.StandardMaterial("trunkMat", scene);
+      trunkMat.diffuseColor = new BABYLON.Color3(0.4, 0.26, 0.13);
+      trunkMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+      trunk.material = trunkMat;
+      const foliage = BABYLON.MeshBuilder.CreateSphere("foliage", { diameter: 1.5, segments: 8 }, scene);
+      foliage.position.y = 2;
+      foliage.scaling = new BABYLON.Vector3(1, 1.2, 1);
+      mat.diffuseColor = new BABYLON.Color3(0.2, 0.55, 0.2);
+      foliage.material = mat;
+    } else if (group === 'vegetation') {
+      mat.diffuseColor = new BABYLON.Color3(0.25, 0.6, 0.15);
+      for (let i = 0; i < 5; i++) {
+        const blade = BABYLON.MeshBuilder.CreateSphere(`bush${i}`, { diameter: 0.4, segments: 6 }, scene);
+        blade.position.x = (Math.random() - 0.5) * 0.8;
+        blade.position.z = (Math.random() - 0.5) * 0.8;
+        blade.position.y = 0.15;
+        blade.scaling = new BABYLON.Vector3(1, 0.7 + Math.random() * 0.6, 1);
+        blade.material = mat;
+      }
+    } else if (group === 'water') {
+      const water = BABYLON.MeshBuilder.CreateDisc("water", { radius: 1.2, tessellation: 32 }, scene);
+      water.rotation.x = Math.PI / 2;
+      water.position.y = 0.05;
+      mat.diffuseColor = new BABYLON.Color3(0.2, 0.4, 0.7);
+      mat.alpha = 0.8;
+      water.material = mat;
+      const rim = BABYLON.MeshBuilder.CreateTorus("rim", { diameter: 2.4, thickness: 0.15, tessellation: 32 }, scene);
+      rim.position.y = 0.05;
+      const rimMat = new BABYLON.StandardMaterial("rimMat", scene);
+      rimMat.diffuseColor = new BABYLON.Color3(0.5, 0.45, 0.4);
+      rimMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+      rim.material = rimMat;
+    } else {
+      const rock = BABYLON.MeshBuilder.CreateSphere("rock", { diameter: 1, segments: 6 }, scene);
+      rock.position.y = 0.3;
+      rock.scaling = new BABYLON.Vector3(1.2, 0.7, 1);
+      mat.diffuseColor = new BABYLON.Color3(0.5, 0.48, 0.45);
+      rock.material = mat;
+      const pebble = BABYLON.MeshBuilder.CreateSphere("pebble", { diameter: 0.4, segments: 5 }, scene);
+      pebble.position.set(0.6, 0.12, 0.3);
+      pebble.scaling = new BABYLON.Vector3(1.1, 0.6, 0.9);
+      pebble.material = mat;
+    }
+  }, [group]);
+
+  // Asset mode with a model path — load the 3D model
+  if (mode === 'asset' && modelPath) {
+    return <ConfigPreviewScene height={180} showGround={true} modelPath={modelPath} />;
+  }
+
+  // Asset mode without a model, or procedural mode — show placeholder
+  return <ConfigPreviewScene height={180} showGround={true} buildProcedural={buildProcedural} />;
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -319,11 +391,19 @@ export function ConfigDetailPanel({
   // ─── Nature Item ────────────────────────────────────────────────────────
   if (selection.module === 'nature') {
     const cfg = selection.config;
+    const natureAsset = cfg?.assetId ? assets.find(a => a.id === cfg.assetId) : null;
+    const natureModelPath = natureAsset?.filePath || undefined;
+    const natureGroup = selection.group;
     return (
       <div className="flex flex-col h-full min-h-0">
         <div className="shrink-0 p-3 border-b">
           <p className="text-xs font-semibold mb-2">{humanize(selection.item)}</p>
-          <ConfigPreviewScene height={180} showGround={true} />
+          <NaturePreview
+            key={`${selection.group}-${selection.item}-${cfg?.assetId || 'none'}-${cfg?.mode || 'asset'}`}
+            modelPath={(cfg?.mode || 'asset') === 'asset' ? natureModelPath : undefined}
+            group={natureGroup}
+            mode={cfg?.mode || 'asset'}
+          />
         </div>
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-3 space-y-3">
