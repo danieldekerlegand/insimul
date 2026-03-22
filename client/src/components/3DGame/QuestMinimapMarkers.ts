@@ -98,7 +98,10 @@ export interface QuestObjectiveMarker {
 
 /**
  * Extract minimap markers from all active quests' incomplete objectives.
- * Only objectives with a position (`locationPosition` or `position`) produce markers.
+ * Every incomplete objective produces a marker. Position resolution order:
+ *   1. objective.locationPosition
+ *   2. objective.position
+ *   3. quest-level locationPosition (fallback so every objective gets a marker)
  */
 export function extractObjectiveMarkers(quests: Quest[]): QuestObjectiveMarker[] {
   const markers: QuestObjectiveMarker[] = [];
@@ -107,12 +110,15 @@ export function extractObjectiveMarkers(quests: Quest[]): QuestObjectiveMarker[]
     if (quest.status !== 'active') continue;
     if (!quest.objectives || quest.objectives.length === 0) continue;
 
+    // Quest-level fallback position
+    const questPos = (quest as any).locationPosition as { x: number; y?: number; z: number } | undefined;
+
     for (let i = 0; i < quest.objectives.length; i++) {
       const obj = quest.objectives[i];
       if (obj.completed) continue;
 
-      // Prefer locationPosition, fall back to position
-      const pos = obj.locationPosition ?? obj.position;
+      // Prefer objective-level position, fall back to quest-level position
+      const pos = obj.locationPosition ?? obj.position ?? questPos;
       if (!pos) continue;
 
       markers.push({
