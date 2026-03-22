@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Plus, Trash2, RotateCcw } from "lucide-react";
 import { ConfigPreviewScene } from "./ConfigPreviewScene";
+import { NPCDesignerPanel } from "./NPCDesignerPanel";
 import type { CharacterConfig, CharacterModelConfig } from "@shared/game-engine/types";
 import type { ConfigSelection } from "./config-selection";
 
@@ -61,6 +62,7 @@ export function CharacterConfigPanel({ config, onUpdate, selection, onSelect }: 
 
   type SectionDef = { id: string; label: string; count: number };
   const sections: SectionDef[] = [
+    { id: "designer", label: "NPC Designer", count: Object.keys(cfg.npcPresets || {}).length },
     { id: "player", label: "Player Models", count: Object.keys(cfg.playerModels || {}).length },
     { id: "npc", label: "NPC Models", count: Object.keys(cfg.characterModels || {}).length },
     { id: "appearance", label: "NPC Appearance", count: (cfg.npcBodyModels?.length || 0) + Object.values(cfg.npcHairStyles || {}).flat().length },
@@ -92,6 +94,11 @@ export function CharacterConfigPanel({ config, onUpdate, selection, onSelect }: 
 
             {isExpanded && (
               <div className="space-y-2 px-2 pb-2 border-t pt-2">
+                {/* NPC Designer */}
+                {section.id === "designer" && (
+                  <NPCDesignerPanel config={cfg} onUpdate={onUpdate} />
+                )}
+
                 {/* Player Models */}
                 {section.id === "player" && (
                   <div className="space-y-0.5">
