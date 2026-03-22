@@ -5091,14 +5091,14 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         try {
           // Fetch all characters from the world
           const characters = await storage.getCharactersByWorld(worldId);
-          
+
           if (characters.length > 0) {
-            const worldContext = customPrompt || 
+            const worldContext = customPrompt ||
               `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
-            
+
             // Limit to first 50 characters to avoid overwhelming the context window
             const charactersToProcess = characters.slice(0, 50);
-            
+
             const truthsPrompt = `Generate interesting character truths (backstories, personality traits, secrets, relationships) for ${charactersToProcess.length} characters in ${worldContext}.
 
 For each character, create 2-3 truths that include:
@@ -5125,7 +5125,7 @@ Character list:
 ${charactersToProcess.map((c, i) => `${i}. ${c.firstName} ${c.lastName} (${c.gender}, age ${c.birthYear ? ((worldDescription?.match(/year (\d+)/)?.[1] || 1900) - c.birthYear) : 'unknown'})`).join('\n')}
 
 Make truths fitting for the world's theme and each character's context.`;
-            
+
             const contentResult = await getContentProvider().generate({
               prompt: truthsPrompt,
               temperature: 0.95,
@@ -6255,25 +6255,22 @@ Return ONLY valid JSON array.`;
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey } = await import('./config/gemini.js');
-      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+      const { getGenAI, THINKING_LEVELS } = await import('./config/gemini.js');
+      const ai = getGenAI();
 
-      const model = genAI.getGenerativeModel({
+      const chatHistory = [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
+        ...messages,
+        { role: 'user', parts: [{ text: transcript }] },
+      ];
+
+      const result = await ai.models.generateContent({
         model: GEMINI_MODELS.PRO,
-        generationConfig: { temperature, maxOutputTokens: maxTokens },
+        contents: chatHistory,
+        config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
       });
-
-      const chat = model.startChat({
-        history: [
-          { role: 'user', parts: [{ text: systemPrompt }] },
-          { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
-          ...messages,
-        ],
-      });
-
-      const result = await chat.sendMessage(transcript);
-      const rawResponse = result.response.text();
+      const rawResponse = (result.text || '');
 
       if (!rawResponse || rawResponse.trim() === '') {
         return res.status(500).json({ error: "Gemini returned empty response", transcript });
@@ -6321,14 +6318,8 @@ Return ONLY valid JSON array.`;
       }
 
       const { buildMetadataExtractionPrompt } = await import('../shared/language/utils.js');
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey } = await import('./config/gemini.js');
-
-      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-      const model = genAI.getGenerativeModel({
-        model: GEMINI_MODELS.FLASH,
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-      });
+      const { getGenAI, THINKING_LEVELS } = await import('./config/gemini.js');
+      const ai = getGenAI();
 
       const prompt = buildMetadataExtractionPrompt(
         targetLanguage,
@@ -6337,8 +6328,12 @@ Return ONLY valid JSON array.`;
         { playerProficiency: playerProficiency || 'beginner' }
       );
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text().trim();
+      const result = await ai.models.generateContent({
+        model: GEMINI_MODELS.FLASH,
+        contents: prompt,
+        config: { temperature: 0.1, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+      });
+      const responseText = (result.text || '').trim();
 
       // Parse the JSON response, stripping markdown code fences if present
       const jsonText = responseText
@@ -6443,19 +6438,9 @@ Return ONLY valid JSON array.`;
         });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey } = await import('./config/gemini.js');
-
-      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-
-      // Use a model that supports audio if audio input is provided
-      const model = genAI.getGenerativeModel({
-        model: audioInput ? "gemini-2.5-pro" : GEMINI_MODELS.PRO,
-        generationConfig: {
-          temperature,
-          maxOutputTokens: maxTokens,
-        }
-      });
+      const { getGenAI, THINKING_LEVELS } = await import('./config/gemini.js');
+      const ai = getGenAI();
+      const selectedModel = GEMINI_MODELS.PRO;
 
       let userTranscript: string | undefined;
       let lastMessageContent: any;
@@ -6503,20 +6488,13 @@ Return ONLY valid JSON array.`;
       const { compressConversationHistory } = await import('./services/conversation-compression.js');
       const compressedHistory = await compressConversationHistory(historyMessages);
 
-      // Build the conversation with system prompt
-      const chat = model.startChat({
-        history: [
-          {
-            role: 'user',
-            parts: [{ text: systemPrompt }]
-          },
-          {
-            role: 'model',
-            parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }]
-          },
-          ...compressedHistory
-        ]
-      });
+      // Build the full conversation contents for the new SDK
+      const chatContents = [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
+        ...compressedHistory,
+        { role: 'user', parts: [{ text: lastMessageContent.text }] },
+      ];
 
       // Log full prompt for debugging NPC chat
       console.log("\n========== GEMINI CHAT DEBUG ==========");
@@ -6551,11 +6529,15 @@ Return ONLY valid JSON array.`;
         };
 
         try {
-          const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+          const streamResult = await ai.models.generateContentStream({
+            model: selectedModel,
+            contents: chatContents,
+            config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+          });
 
-          for await (const chunk of streamResult.stream) {
+          for await (const chunk of streamResult) {
             if (clientClosed) break;
-            const chunkText = chunk.text();
+            const chunkText = chunk.text || '';
             if (!chunkText) continue;
 
             fullResponse += chunkText;
@@ -6636,22 +6618,18 @@ Return ONLY valid JSON array.`;
       }
 
       // ── Non-streaming path ──
-      const result = await chat.sendMessage(lastMessageContent.text);
+      const result = await ai.models.generateContent({
+        model: selectedModel,
+        contents: chatContents,
+        config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+      });
 
-
-      console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-
-      const response = result.response.text();
+      const response = (result.text || '');
 
       if (!response || response.trim() === '') {
-        console.error("Gemini returned empty response. Candidates:", result.response.candidates);
-        console.error("Prompt feedback:", result.response.promptFeedback);
+        console.error("Gemini returned empty response.");
         return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
-          details: {
-            promptFeedback: result.response.promptFeedback,
-            candidates: result.response.candidates
-          }
         });
       }
 

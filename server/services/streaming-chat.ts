@@ -224,31 +224,38 @@ export async function streamChatWithTTS(
   };
 
   try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const { getGeminiApiKey, GEMINI_MODELS } = await import('../config/gemini.js');
+    const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import('../config/gemini.js');
 
-    const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-    const model = genAI.getGenerativeModel({
+    const ai = getGenAI();
+
+    // Build contents: system prompt exchange + history + current message
+    const contents: any[] = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
+      ...messages,
+    ];
+
+    const streamResult = await ai.models.generateContentStream({
       model: GEMINI_MODELS.PRO,
-      generationConfig: { temperature, maxOutputTokens: maxTokens },
+      contents,
+      config: {
+        temperature,
+        maxOutputTokens: maxTokens,
+        thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
+      },
     });
-
-    const chat = model.startChat({
-      history: [
-        { role: 'user', parts: [{ text: systemPrompt }] },
-        { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
-        ...messages.slice(0, -1),
-      ],
-    });
-
-    const lastMessage = messages[messages.length - 1];
-    const userText = lastMessage.parts[0].text;
-
-    const streamResult = await chat.sendMessageStream(userText);
     const { textToSpeech } = await import('./tts-stt.js');
 
+    // Adapt the new SDK's stream (chunks with .text property) to the interface
+    // expected by processStreamWithTTS (chunks with .text() method)
+    const adaptedStream = (async function* () {
+      for await (const chunk of streamResult) {
+        yield { text: () => chunk.text || '' };
+      }
+    })();
+
     await processStreamWithTTS(
-      streamResult.stream,
+      adaptedStream,
       sendSSE,
       { returnAudio, voice, gender, emotionalTone, targetLanguage },
       textToSpeech,

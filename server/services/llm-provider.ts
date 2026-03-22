@@ -9,7 +9,7 @@
  * conversation/providers/provider-registry.ts.
  */
 
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
+import { getGenAI, isGeminiConfigured, GEMINI_MODELS, THINKING_LEVELS } from '../config/gemini.js';
 import { LocalAIProvider, type LocalAIProviderConfig } from './ai/providers/local/local-ai-provider.js';
 
 export interface LLMProviderConfig {
@@ -142,6 +142,7 @@ export class GeminiProvider implements ILLMProvider {
         systemInstruction: request.systemPrompt,
         temperature: request.temperature ?? this.defaultTemperature,
         maxOutputTokens: request.maxTokens || this.maxTokens,
+        thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
         ...(request.responseMimeType ? { responseMimeType: request.responseMimeType } : {}),
       },
     });
