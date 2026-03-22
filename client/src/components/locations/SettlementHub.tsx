@@ -459,6 +459,15 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     } catch { setResidents([]); }
   };
 
+  // Lookup map: character ID → character name
+  const characterNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    residents.forEach(c => {
+      map.set(c.id, `${c.firstName ?? '?'} ${c.lastName ?? ''}`.trim());
+    });
+    return map;
+  }, [residents]);
+
   const settlementsByCountry = useMemo(() => {
     const map = new Map<string | null, any[]>();
     settlements.forEach(s => {
@@ -973,7 +982,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                         </div>
                       ))
                     ) : section.id === 'businesses' ? (
-                      businesses.map(b => (
+                      businesses.map(b => {
+                        const ownerName = b.ownerId ? characterNameMap.get(b.ownerId) : null;
+                        const employeeCount = b.employees?.length ?? 0;
+                        return (
                         <div key={b.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
                           onClick={() => selectBuilding('business', b)}
                         >
@@ -988,6 +1000,15 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                                 <Badge variant="secondary" className="text-xs py-0 h-4">Closed</Badge>
                               )}
                             </div>
+                            {(ownerName || employeeCount > 0) && (
+                              <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+                                {ownerName && <span>Owner: {ownerName}</span>}
+                                {ownerName && employeeCount > 0 && <span>·</span>}
+                                {employeeCount > 0 && (
+                                  <span>{employeeCount} employee{employeeCount !== 1 ? 's' : ''}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           {canEdit && (
                             <button
@@ -999,7 +1020,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                             </button>
                           )}
                         </div>
-                      ))
+                        );
+                      })
                     ) : section.id === 'residences' ? (
                       residences.map(r => (
                         <div key={r.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
