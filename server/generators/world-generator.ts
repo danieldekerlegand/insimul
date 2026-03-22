@@ -713,7 +713,32 @@ export class WorldGenerator {
   }
 
   /**
-   * Assign employment to characters based on businesses
+   * Get the default vocation for a business type (used as fallback when no vacancies are defined)
+   */
+  private getDefaultVocationForBusinessType(businessType: BusinessType): OccupationVocation {
+    const defaults: Partial<Record<BusinessType, OccupationVocation>> = {
+      'Farm': 'Farmhand',
+      'GroceryStore': 'Grocer',
+      'Shop': 'Cashier',
+      'Restaurant': 'Waiter',
+      'Clinic': 'Nurse',
+      'Hospital': 'Nurse',
+      'Carpenter': 'Carpenter',
+      'Factory': 'Laborer',
+      'LawFirm': 'Secretary',
+      'School': 'Teacher',
+      'Bank': 'BankTeller',
+      'Bar': 'Bartender',
+      'TownHall': 'Manager',
+      'Blacksmith': 'Blacksmith',
+      'Harbor': 'Laborer',
+    };
+    return defaults[businessType] || 'Worker';
+  }
+
+  /**
+   * Assign employment to characters based on businesses.
+   * Guarantees every business gets at least one employee beyond the owner.
    */
   private async assignInitialEmployment(config: {
     worldId: string;
@@ -731,60 +756,93 @@ export class WorldGenerator {
     );
 
     // Shuffle to randomize hiring
-    const shuffled = employableCharacters.sort(() => Math.random() - 0.5);
+    const candidatePool = employableCharacters.sort(() => Math.random() - 0.5);
     let employedCount = 0;
-    
-    for (const business of config.businesses) {
-      // Owner is already employed (counted separately)
-      
-      // Fill day shift vacancies
-      const dayVacancies = (business.vacancies as any)?.day || [];
-      for (const vocation of dayVacancies) {
-        const candidate = shuffled.pop();
-        if (candidate) {
-          try {
-            await fillVacancy(
-              business.id,
-              candidate.id,
-              vocation,
-              'day',
-              business.ownerId || candidate.id,
-              config.currentYear
-            );
-            // Update the character's occupation text field for display
-            await storage.updateCharacter(candidate.id, { occupation: vocation });
-            employedCount++;
-          } catch (error) {
-            console.error(`   ✗ Failed to hire ${vocation}:`, error);
-          }
-        }
-      }
 
-      // Fill night shift vacancies
-      const nightVacancies = (business.vacancies as any)?.night || [];
-      for (const vocation of nightVacancies) {
-        const candidate = shuffled.pop();
-        if (candidate) {
-          try {
-            await fillVacancy(
-              business.id,
-              candidate.id,
-              vocation,
-              'night',
-              business.ownerId || candidate.id,
-              config.currentYear
-            );
-            // Update the character's occupation text field for display
-            await storage.updateCharacter(candidate.id, { occupation: vocation });
-            employedCount++;
-          } catch (error) {
-            console.error(`   ✗ Failed to hire ${vocation}:`, error);
-          }
-        }
+    // Track which businesses have received at least one employee
+    const businessesWithEmployees = new Set<string>();
+
+    // Helper to hire one candidate for a business
+    const hireCandidate = async (
+      business: Business,
+      vocation: OccupationVocation,
+      shift: 'day' | 'night'
+    ): Promise<boolean> => {
+      const candidate = candidatePool.pop();
+      if (!candidate) return false;
+      try {
+        await fillVacancy(
+          business.id,
+          candidate.id,
+          vocation,
+          shift,
+          business.ownerId || candidate.id,
+          config.currentYear
+        );
+        await storage.updateCharacter(candidate.id, { occupation: vocation });
+        employedCount++;
+        businessesWithEmployees.add(business.id);
+        return true;
+      } catch (error) {
+        console.error(`   ✗ Failed to hire ${vocation}:`, error);
+        candidatePool.push(candidate); // Return candidate to pool on failure
+        return false;
+      }
+    };
+
+    // Pass 1: Guarantee at least one employee per business
+    for (const business of config.businesses) {
+      if (candidatePool.length === 0) break;
+
+      const dayVacancies: OccupationVocation[] = (business.vacancies as any)?.day || [];
+      const nightVacancies: OccupationVocation[] = (business.vacancies as any)?.night || [];
+
+      if (dayVacancies.length > 0) {
+        // Hire the first day vacancy
+        await hireCandidate(business, dayVacancies[0], 'day');
+      } else if (nightVacancies.length > 0) {
+        // Hire the first night vacancy
+        await hireCandidate(business, nightVacancies[0], 'night');
+      } else {
+        // No vacancies defined — assign a default worker
+        const defaultVocation = this.getDefaultVocationForBusinessType(
+          business.businessType as BusinessType
+        );
+        await hireCandidate(business, defaultVocation, 'day');
       }
     }
-    
-    console.log(`   ✓ Assigned ${employedCount} jobs`);
+
+    // Pass 2: Fill remaining vacancies across all businesses
+    for (const business of config.businesses) {
+      if (candidatePool.length === 0) break;
+
+      const dayVacancies: OccupationVocation[] = (business.vacancies as any)?.day || [];
+      const nightVacancies: OccupationVocation[] = (business.vacancies as any)?.night || [];
+
+      // Skip the first day/night vacancy already filled in pass 1
+      const skipFirst = businessesWithEmployees.has(business.id);
+      const remainingDay = skipFirst && dayVacancies.length > 0 ? dayVacancies.slice(1) : dayVacancies;
+      const remainingNight = skipFirst && dayVacancies.length === 0 && nightVacancies.length > 0
+        ? nightVacancies.slice(1)
+        : nightVacancies;
+
+      for (const vocation of remainingDay) {
+        if (candidatePool.length === 0) break;
+        await hireCandidate(business, vocation, 'day');
+      }
+
+      for (const vocation of remainingNight) {
+        if (candidatePool.length === 0) break;
+        await hireCandidate(business, vocation, 'night');
+      }
+    }
+
+    const unstaffed = config.businesses.filter(b => !businessesWithEmployees.has(b.id));
+    if (unstaffed.length > 0) {
+      console.warn(`   ⚠ ${unstaffed.length} business(es) could not be staffed (not enough candidates)`);
+    }
+
+    console.log(`   ✓ Assigned ${employedCount} jobs across ${businessesWithEmployees.size}/${config.businesses.length} businesses`);
     return employedCount;
   }
 
