@@ -67,7 +67,7 @@ import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldSc
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
 import { FullscreenMap } from "@/components/3DGame/FullscreenMap.ts";
-import { TERRAIN_PALETTES } from "@/components/3DGame/MinimapTerrainRenderer.ts";
+import { renderWorldCanvas } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { TerrainRenderer } from "@/components/3DGame/TerrainRenderer.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
@@ -4855,13 +4855,9 @@ export class BabylonGame {
       }
     }
 
-    // Generate terrain background for the minimap from the heightmap
+    // Generate 2D top-down world map for the minimap (terrain + streets).
+    // Buildings are added later when first collected in updateMinimapOverlay().
     this.generateMinimapTerrainBackground();
-
-    // Minimap snapshot disabled — CreateScreenshotUsingRenderTargetAsync blocks
-    // the GPU for 10-15s on complex scenes, causing a grey screen during loading.
-    // The terrain background from generateMinimapTerrainBackground() is sufficient.
-    // TODO: Re-enable with a deferred approach (capture after game loop starts).
 
     // Hide ALL template prototype meshes now that world generation is done.
     // We move them far off-screen rather than disposing because
@@ -8919,129 +8915,30 @@ export class BabylonGame {
   }
 
   /**
-   * Capture a top-down orthographic screenshot of the world for the minimap.
-   * Must be called BEFORE hidePrototypes() so clone source meshes are present.
+   * Render a 2D top-down world map for the minimap background.
+   * Draws terrain, streets, and building footprints onto a canvas.
    */
   private generateMinimapTerrainBackground(): void {
     if (!this.guiManager) return;
     const biome = ProceduralNatureGenerator.getBiomeFromWorldType(this.config.worldType);
     const biomeName = biome.name.toLowerCase();
-
-    // Terrain elevation is disabled (flat ground), so generate a uniform
-    // minimap background using the biome's midland color instead of the
-    // heightmap PNG (which would show false water zones at low elevations).
-    const palette = TERRAIN_PALETTES[biomeName] || TERRAIN_PALETTES.plains;
-    const [r, g, b] = palette.midland;
-    const size = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      ctx.fillRect(0, 0, size, size);
-      this.guiManager?.setMinimapTerrainBackground(canvas);
-    }
-  }
-
-  private async captureMinimapSnapshot(): Promise<void> {
-    if (!this.scene || !this.guiManager) return;
-    const engine = this.scene.getEngine();
-    if (!engine) return;
-
     const worldSize = this.terrainSize || 512;
-    const half = worldSize / 2;
 
-    // Create an orthographic camera looking straight down
-    const snapCam = new FreeCamera("_minimapSnapCam", new Vector3(0, 800, -0.01), this.scene);
-    snapCam.rotation = new Vector3(Math.PI / 2, 0, 0);
-    snapCam.mode = Camera.ORTHOGRAPHIC_CAMERA;
-    snapCam.orthoLeft = -half;
-    snapCam.orthoRight = half;
-    snapCam.orthoTop = half;
-    snapCam.orthoBottom = -half;
-    snapCam.minZ = 0.1;
-    snapCam.maxZ = 2000;
+    // Render a 2D top-down world map with terrain, streets, and buildings
+    const canvas = renderWorldCanvas(
+      512,
+      worldSize,
+      biomeName,
+      this._minimapStreets,
+      this._minimapBuildings,
+    );
 
-    // Hide sky dome so it doesn't dominate the view
-    const hideNames = new Set(['sky-dome', 'sky_dome', 'skybox', 'skyBox', 'backdrop', 'environment']);
-    const meshesToRestore: { mesh: AbstractMesh; wasEnabled: boolean }[] = [];
-    for (const mesh of this.scene.meshes) {
-      if (hideNames.has(mesh.name) && mesh.isEnabled()) {
-        meshesToRestore.push({ mesh, wasEnabled: true });
-        mesh.setEnabled(false);
-      }
-    }
-
-    // Hide GUI so fullscreen button / panels don't appear in the snapshot
-    const guiWasVisible = this.guiManager.advancedTexture.rootContainer.isVisible;
-    this.guiManager.advancedTexture.rootContainer.isVisible = false;
-
-    const prevClearColor = this.scene.clearColor.clone();
-    this.scene.clearColor = new Color4(0.22, 0.35, 0.18, 1);
-
-    const SNAPSHOT_SIZE = 1024;
-
-    // Temporarily remove LOD levels so distant buildings aren't culled.
-    // Buildings have addLODLevel(500, null) but the minimap camera is at y=800.
-    const lodBackup: { mesh: Mesh; distance: number }[] = [];
-    for (const mesh of this.scene.meshes) {
-      if (mesh.isDisposed() || !(mesh instanceof Mesh)) continue;
-      const lodLevels = mesh.getLODLevels();
-      if (lodLevels.length > 0) {
-        for (const lod of lodLevels) {
-          lodBackup.push({ mesh, distance: lod.distanceOrScreenCoverage });
-          mesh.removeLODLevel(lod.mesh);
-        }
-      }
-    }
-
-    try {
-      // Race the RTT screenshot against a timeout — on complex scenes
-      // CreateScreenshotUsingRenderTargetAsync can hang indefinitely.
-      const timeoutMs = 8000;
-      const dataUrl = await Promise.race([
-        Tools.CreateScreenshotUsingRenderTargetAsync(
-          engine, snapCam, SNAPSHOT_SIZE
-        ),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Minimap snapshot timed out')), timeoutMs)
-        ),
-      ]);
-      this.guiManager.setMinimapImage(dataUrl, worldSize);
-      // Share the snapshot with the full-screen map
-      if (this.fullscreenMap) {
-        const img = new window.Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0);
-            this.fullscreenMap?.setWorldImage(canvas, worldSize);
-          }
-        };
-        img.src = dataUrl;
-      }
-    } catch (err) {
-      console.error('[BabylonGame] Minimap snapshot failed:', err);
-    }
-
-    // Restore LOD levels
-    for (const entry of lodBackup) {
-      if (!entry.mesh.isDisposed()) {
-        entry.mesh.addLODLevel(entry.distance, null);
-      }
-    }
-
-    // Restore scene state
-    for (const entry of meshesToRestore) {
-      entry.mesh.setEnabled(entry.wasEnabled);
-    }
-    this.guiManager.advancedTexture.rootContainer.isVisible = guiWasVisible;
-    this.scene.clearColor = prevClearColor;
-    snapCam.dispose();
+    // Set as terrain background layer (visible behind sliding viewport)
+    this.guiManager.setMinimapTerrainBackground(canvas);
+    // Set as the full-world image to enable the sliding-window viewport
+    this.guiManager.setMinimapImage(canvas.toDataURL('image/png'), worldSize);
+    // Share with fullscreen map
+    this.fullscreenMap?.setWorldImage(canvas, worldSize);
   }
 
   private updateNearbyNPCForChat(): void {
@@ -9117,6 +9014,8 @@ export class BabylonGame {
         });
       });
       this._minimapBuildingsCollected = true;
+      // Re-render the minimap world image now that buildings are available
+      this.generateMinimapTerrainBackground();
     }
 
     // Collect quest markers from active quests that have a location (legacy fallback)
