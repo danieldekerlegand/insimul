@@ -14,7 +14,7 @@ import "@babylonjs/loaders/glTF";
 
 import type { ProceduralBuildingConfig, ProceduralStylePreset, RoofStyle as RoofStyleType } from '@shared/game-engine/types';
 import { getCategoryForType } from '@shared/game-engine/building-categories';
-import { getCategoryPreset } from '@shared/game-engine/building-style-presets';
+import { getCategoryPreset, getSubtypeStyleOverride, applySubtypeOverride } from '@shared/game-engine/building-style-presets';
 import type { TextureManager } from './TextureManager';
 
 /** Simple string hash for deterministic randomness */
@@ -1551,23 +1551,29 @@ export class ProceduralBuildingGenerator {
     // Resolve style from procedural config, category defaults, or worldStyle
     let style = data.worldStyle;
     if (data.proceduralConfig && data.proceduralConfig.stylePresets.length > 0) {
+      let selectedPreset: ProceduralStylePreset | undefined;
       // Check for type-specific style override
       if (typeOverride?.stylePresetId) {
-        const preset = data.proceduralConfig.stylePresets.find(p => p.id === typeOverride.stylePresetId);
-        if (preset) style = ProceduralBuildingGenerator.presetToBuildingStyle(preset, data.id);
+        selectedPreset = data.proceduralConfig.stylePresets.find(p => p.id === typeOverride.stylePresetId);
       } else {
         // Use zone default or random from all presets
         const defaultId = data.zone === 'commercial'
           ? data.proceduralConfig.defaultCommercialStyleId
           : data.proceduralConfig.defaultResidentialStyleId;
         if (defaultId) {
-          const preset = data.proceduralConfig.stylePresets.find(p => p.id === defaultId);
-          if (preset) style = ProceduralBuildingGenerator.presetToBuildingStyle(preset, data.id);
+          selectedPreset = data.proceduralConfig.stylePresets.find(p => p.id === defaultId);
         } else {
           const presets = data.proceduralConfig.stylePresets;
-          const preset = presets[Math.abs(hashString(data.id)) % presets.length];
-          style = ProceduralBuildingGenerator.presetToBuildingStyle(preset, data.id);
+          selectedPreset = presets[Math.abs(hashString(data.id)) % presets.length];
         }
+      }
+      if (selectedPreset) {
+        // Apply subtype-specific style overrides on top of the selected preset
+        const subtypeOverride = data.businessType ? getSubtypeStyleOverride(data.businessType) : undefined;
+        const finalPreset = subtypeOverride
+          ? applySubtypeOverride(selectedPreset, subtypeOverride)
+          : selectedPreset;
+        style = ProceduralBuildingGenerator.presetToBuildingStyle(finalPreset, data.id);
       }
     } else {
       // No asset-collection presets configured — use category-specific defaults
@@ -1575,7 +1581,12 @@ export class ProceduralBuildingGenerator {
       if (category) {
         const catPreset = getCategoryPreset(category, data.id);
         if (catPreset) {
-          style = ProceduralBuildingGenerator.presetToBuildingStyle(catPreset, data.id);
+          // Apply subtype-specific style overrides on top of the category preset
+          const subtypeOverride = data.businessType ? getSubtypeStyleOverride(data.businessType) : undefined;
+          const finalPreset = subtypeOverride
+            ? applySubtypeOverride(catPreset, subtypeOverride)
+            : catPreset;
+          style = ProceduralBuildingGenerator.presetToBuildingStyle(finalPreset, data.id);
         }
       }
     }

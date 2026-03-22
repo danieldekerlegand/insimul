@@ -355,6 +355,7 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	var style := get_style_for_world("", "")
 	if _procedural_config.has("style"):
 		style = _procedural_config["style"]
+	style = apply_subtype_override(style, role)
 	var arch_style: String = style.get("architecture_style", "medieval")
 	var mat_type: String = style.get("material_type", "")
 	var roof_style_str: String = style.get("roof_style", "")
@@ -780,5 +781,91 @@ static func preset_to_building_style(preset: Dictionary, seed_val: int) -> Dicti
 	# Randomize floor count slightly
 	var base_floors: int = result.get("floors", 2)
 	result["floors"] = maxi(1, base_floors + rng.randi_range(-1, 1))
+
+	return result
+
+
+## Subtype-specific style hints: role -> override dictionary.
+## Mirrors shared/game-engine/building-style-presets.ts SUBTYPE_STYLE_OVERRIDES.
+const SUBTYPE_HINTS := {
+	# ── Commercial: Food & Drink ──
+	"Bakery":     { "tint": Color(1.15, 1.0, 0.85), "material": "brick", "has_shutters": true },
+	"Restaurant": { "tint": Color(1.1, 0.95, 0.85), "material": "brick", "has_porch": true, "porch_depth": 2.0, "porch_steps": 2, "has_shutters": true },
+	"Bar":        { "tint": Color(0.8, 0.75, 0.7), "material": "wood", "has_porch": false, "has_shutters": false },
+	"Brewery":    { "tint": Color(0.9, 0.85, 0.75), "material": "brick" },
+	# ── Commercial: Retail ──
+	"Shop":          { "tint": Color(1.05, 1.05, 1.0), "material": "wood", "has_porch": true, "porch_depth": 1.5, "porch_steps": 1 },
+	"GroceryStore":  { "tint": Color(1.0, 1.1, 0.95), "material": "brick", "has_porch": true, "porch_depth": 2.0, "porch_steps": 1 },
+	"JewelryStore":  { "tint": Color(0.95, 0.95, 1.1), "material": "stone", "has_shutters": true },
+	"BookStore":     { "tint": Color(1.0, 0.95, 0.85), "material": "wood", "has_shutters": true },
+	"PawnShop":      { "tint": Color(0.9, 0.85, 0.8), "material": "wood" },
+	"HerbShop":      { "tint": Color(0.9, 1.1, 0.85), "material": "wood", "has_porch": true, "porch_depth": 1.5, "porch_steps": 1 },
+	# ── Commercial: Services ──
+	"Bank":          { "tint": Color(0.95, 0.95, 0.95), "material": "stone", "has_porch": true, "porch_depth": 3.0, "porch_steps": 4, "has_shutters": false },
+	"Hotel":         { "tint": Color(1.05, 1.0, 0.95), "material": "brick", "has_shutters": true, "has_ironwork_balcony": true },
+	"Barbershop":    { "tint": Color(1.0, 1.0, 1.05), "material": "brick" },
+	"Tailor":        { "tint": Color(1.05, 0.95, 1.05), "material": "wood", "has_shutters": true },
+	"Bathhouse":     { "tint": Color(0.95, 1.0, 1.1), "material": "stone" },
+	"Pharmacy":      { "tint": Color(1.0, 1.05, 1.05), "material": "brick", "has_shutters": true },
+	"LawFirm":       { "tint": Color(0.9, 0.9, 0.9), "material": "stone", "has_porch": true, "porch_depth": 2.0, "porch_steps": 3 },
+	# ── Civic ──
+	"Church":        { "material": "stone", "has_porch": true, "porch_depth": 3.0, "porch_steps": 5 },
+	"TownHall":      { "material": "stone", "has_porch": true, "porch_depth": 3.0, "porch_steps": 4, "has_ironwork_balcony": true },
+	"School":        { "tint": Color(1.0, 0.95, 0.9), "material": "brick", "has_porch": true, "porch_depth": 2.0, "porch_steps": 3 },
+	"University":    { "material": "stone", "has_porch": true, "porch_depth": 3.0, "porch_steps": 5 },
+	"Hospital":      { "tint": Color(1.15, 1.15, 1.15), "material": "stucco", "has_porch": true, "porch_depth": 3.0, "porch_steps": 2 },
+	"PoliceStation": { "tint": Color(0.85, 0.85, 0.9), "material": "brick", "has_porch": true, "porch_depth": 2.0, "porch_steps": 3 },
+	"FireStation":   { "tint": Color(1.1, 0.85, 0.8), "material": "brick" },
+	# ── Industrial ──
+	"Factory":    { "tint": Color(0.85, 0.8, 0.75), "material": "metal" },
+	"Farm":       { "tint": Color(1.1, 1.0, 0.85), "material": "wood", "has_porch": true, "porch_depth": 2.0, "porch_steps": 2 },
+	"Warehouse":  { "tint": Color(0.8, 0.8, 0.8), "material": "metal" },
+	"Blacksmith": { "tint": Color(0.75, 0.7, 0.65), "material": "stone" },
+	"Carpenter":  { "tint": Color(1.05, 0.95, 0.8), "material": "wood" },
+	"Butcher":    { "tint": Color(1.0, 0.9, 0.85), "material": "brick" },
+	# ── Maritime ──
+	"Harbor":       { "tint": Color(0.9, 0.95, 1.0), "material": "wood" },
+	"Boatyard":     { "tint": Color(0.85, 0.9, 0.95), "material": "wood" },
+	"FishMarket":   { "tint": Color(0.95, 1.0, 1.05), "material": "wood", "has_porch": true, "porch_depth": 2.0, "porch_steps": 1 },
+	"CustomsHouse": { "tint": Color(0.95, 0.95, 0.95), "material": "stone" },
+	"Lighthouse":   { "tint": Color(1.1, 1.1, 1.1), "material": "stone" },
+	# ── Residential ──
+	"house":       { "material": "wood", "has_porch": true, "porch_depth": 2.0, "porch_steps": 2, "has_shutters": true },
+	"apartment":   { "material": "brick", "has_ironwork_balcony": true },
+	"mansion":     { "material": "stone", "has_porch": true, "porch_depth": 3.0, "porch_steps": 4, "has_shutters": true, "has_ironwork_balcony": true },
+	"cottage":     { "tint": Color(1.1, 1.05, 0.95), "material": "wood", "has_porch": true, "porch_depth": 1.5, "porch_steps": 1, "has_shutters": true },
+	"townhouse":   { "material": "brick", "has_shutters": true },
+	"mobile_home": { "material": "metal" },
+	# ── Other/Legacy ──
+	"Tavern":  { "tint": Color(1.0, 0.9, 0.8), "material": "wood", "has_ironwork_balcony": true, "has_porch": true, "porch_depth": 2.0, "porch_steps": 2 },
+	"Inn":     { "tint": Color(1.05, 1.0, 0.9), "material": "wood", "has_ironwork_balcony": true, "has_porch": true, "porch_depth": 2.0, "porch_steps": 3, "has_shutters": true },
+	"Library": { "material": "stone", "has_porch": true, "porch_depth": 2.0, "porch_steps": 4 },
+}
+
+
+## Apply subtype-specific overrides on top of a base style dictionary.
+static func apply_subtype_override(base_style: Dictionary, role: String) -> Dictionary:
+	if not SUBTYPE_HINTS.has(role):
+		return base_style
+	var hint: Dictionary = SUBTYPE_HINTS[role]
+	var result := base_style.duplicate(true)
+
+	# Color tint
+	if hint.has("tint"):
+		var tint: Color = hint["tint"]
+		var bc: Color = result.get("base_color", Color.WHITE)
+		result["base_color"] = Color(
+			minf(1.0, bc.r * tint.r),
+			minf(1.0, bc.g * tint.g),
+			minf(1.0, bc.b * tint.b))
+
+	# Material preference
+	if hint.has("material") and result.get("material_type", "") != hint["material"]:
+		result["material_type"] = hint["material"]
+
+	# Feature flags
+	for key in ["has_porch", "porch_depth", "porch_steps", "has_shutters", "has_ironwork_balcony"]:
+		if hint.has(key):
+			result[key] = hint[key]
 
 	return result

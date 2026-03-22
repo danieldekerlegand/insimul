@@ -285,6 +285,9 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
             *Foundation.Type, Foundation.FoundationHeight, TopZ);
     }
 
+    // Apply subtype-specific style overrides for this building role
+    CurrentStyle = ApplySubtypeOverride(CurrentStyle, BuildingRole);
+
     // Compute porch elevation if the style calls for a porch
     float PorchElevation = 0.0f;
     if (CurrentStyle.bHasPorch)
@@ -510,6 +513,104 @@ FBuildingStylePreset AProceduralBuildingGenerator::PresetToBuildingStyle(const F
     Default.MaterialType = TEXT("wood");
     Default.ArchitectureStyle = TEXT("medieval");
     return Default;
+}
+
+FBuildingStylePreset AProceduralBuildingGenerator::ApplySubtypeOverride(
+    const FBuildingStylePreset& Base, const FString& BuildingRole)
+{
+    if (BuildingRole.IsEmpty()) return Base;
+
+    // Subtype override table: role -> {colorTint, preferredMaterial, features}
+    struct FSubtypeHint
+    {
+        FLinearColor ColorTint;   // multiplied against BaseColor
+        FString PreferredMaterial;
+        bool bSetPorch;  bool bPorch;  float PorchDepth; int32 PorchSteps;
+        bool bSetShutters; bool bShutters;
+        bool bSetBalcony; bool bBalcony;
+    };
+
+    // Subtype override table mirrors shared/game-engine/building-style-presets.ts SUBTYPE_STYLE_OVERRIDES.
+    static TMap<FString, FSubtypeHint> Hints;
+    if (Hints.Num() == 0)
+    {
+        // ── Commercial: Food & Drink ──
+        Hints.Add(TEXT("Bakery"),      { {1.15f,1.0f,0.85f,1}, TEXT("brick"),  false,false,0,0, true,true, false,false });
+        Hints.Add(TEXT("Restaurant"),  { {1.1f,0.95f,0.85f,1}, TEXT("brick"),  true,true,2,2,  true,true, false,false });
+        Hints.Add(TEXT("Bar"),         { {0.8f,0.75f,0.7f,1},  TEXT("wood"),   true,false,0,0, true,false, false,false });
+        Hints.Add(TEXT("Brewery"),     { {0.9f,0.85f,0.75f,1}, TEXT("brick"),  false,false,0,0, false,false, false,false });
+        // ── Commercial: Retail ──
+        Hints.Add(TEXT("Shop"),        { {1.05f,1.05f,1.0f,1}, TEXT("wood"),   true,true,1.5f,1, false,false, false,false });
+        Hints.Add(TEXT("GroceryStore"),{ {1.0f,1.1f,0.95f,1},  TEXT("brick"),  true,true,2,1,  false,false, false,false });
+        Hints.Add(TEXT("JewelryStore"),{ {0.95f,0.95f,1.1f,1}, TEXT("stone"),  false,false,0,0, true,true, false,false });
+        Hints.Add(TEXT("BookStore"),   { {1.0f,0.95f,0.85f,1}, TEXT("wood"),   false,false,0,0, true,true, false,false });
+        Hints.Add(TEXT("PawnShop"),    { {0.9f,0.85f,0.8f,1},  TEXT("wood"),   false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("HerbShop"),    { {0.9f,1.1f,0.85f,1},  TEXT("wood"),   true,true,1.5f,1, false,false, false,false });
+        // ── Commercial: Services ──
+        Hints.Add(TEXT("Bank"),        { {0.95f,0.95f,0.95f,1},TEXT("stone"),  true,true,3,4,  true,false, false,false });
+        Hints.Add(TEXT("Hotel"),       { {1.05f,1.0f,0.95f,1}, TEXT("brick"),  false,false,0,0, true,true, true,true });
+        Hints.Add(TEXT("Barbershop"),  { {1.0f,1.0f,1.05f,1},  TEXT("brick"),  false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Tailor"),      { {1.05f,0.95f,1.05f,1},TEXT("wood"),   false,false,0,0, true,true, false,false });
+        Hints.Add(TEXT("Bathhouse"),   { {0.95f,1.0f,1.1f,1},  TEXT("stone"),  false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Pharmacy"),    { {1.0f,1.05f,1.05f,1}, TEXT("brick"),  false,false,0,0, true,true, false,false });
+        Hints.Add(TEXT("LawFirm"),     { {0.9f,0.9f,0.9f,1},   TEXT("stone"),  true,true,2,3,  false,false, false,false });
+        // ── Civic ──
+        Hints.Add(TEXT("Church"),      { {1,1,1,1},             TEXT("stone"),  true,true,3,5,  false,false, false,false });
+        Hints.Add(TEXT("TownHall"),    { {1,1,1,1},             TEXT("stone"),  true,true,3,4,  false,false, true,true });
+        Hints.Add(TEXT("School"),      { {1.0f,0.95f,0.9f,1},  TEXT("brick"),  true,true,2,3,  false,false, false,false });
+        Hints.Add(TEXT("University"),  { {1,1,1,1},             TEXT("stone"),  true,true,3,5,  false,false, false,false });
+        Hints.Add(TEXT("Hospital"),    { {1.15f,1.15f,1.15f,1},TEXT("stucco"), true,true,3,2,  false,false, false,false });
+        Hints.Add(TEXT("PoliceStation"),{ {0.85f,0.85f,0.9f,1},TEXT("brick"),  true,true,2,3,  false,false, false,false });
+        Hints.Add(TEXT("FireStation"), { {1.1f,0.85f,0.8f,1},  TEXT("brick"),  false,false,0,0, false,false, false,false });
+        // ── Industrial ──
+        Hints.Add(TEXT("Factory"),     { {0.85f,0.8f,0.75f,1}, TEXT("metal"),  false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Farm"),        { {1.1f,1.0f,0.85f,1},  TEXT("wood"),   true,true,2,2,  false,false, false,false });
+        Hints.Add(TEXT("Warehouse"),   { {0.8f,0.8f,0.8f,1},   TEXT("metal"),  false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Blacksmith"),  { {0.75f,0.7f,0.65f,1}, TEXT("stone"),  false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Carpenter"),   { {1.05f,0.95f,0.8f,1}, TEXT("wood"),   false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Butcher"),     { {1.0f,0.9f,0.85f,1},  TEXT("brick"),  false,false,0,0, false,false, false,false });
+        // ── Maritime ──
+        Hints.Add(TEXT("Harbor"),      { {0.9f,0.95f,1.0f,1},  TEXT("wood"),   false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Boatyard"),    { {0.85f,0.9f,0.95f,1}, TEXT("wood"),   false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("FishMarket"),  { {0.95f,1.0f,1.05f,1}, TEXT("wood"),   true,true,2,1,  false,false, false,false });
+        Hints.Add(TEXT("CustomsHouse"),{ {0.95f,0.95f,0.95f,1},TEXT("stone"),  false,false,0,0, false,false, false,false });
+        Hints.Add(TEXT("Lighthouse"),  { {1.1f,1.1f,1.1f,1},   TEXT("stone"),  false,false,0,0, false,false, false,false });
+        // ── Residential ──
+        Hints.Add(TEXT("house"),       { {1,1,1,1},             TEXT("wood"),   true,true,2,2,  true,true, false,false });
+        Hints.Add(TEXT("apartment"),   { {1,1,1,1},             TEXT("brick"),  false,false,0,0, false,false, true,true });
+        Hints.Add(TEXT("mansion"),     { {1,1,1,1},             TEXT("stone"),  true,true,3,4,  true,true, true,true });
+        Hints.Add(TEXT("cottage"),     { {1.1f,1.05f,0.95f,1}, TEXT("wood"),   true,true,1.5f,1, true,true, false,false });
+        Hints.Add(TEXT("townhouse"),   { {1,1,1,1},             TEXT("brick"),  false,false,0,0, true,true, false,false });
+        Hints.Add(TEXT("mobile_home"), { {1,1,1,1},             TEXT("metal"),  false,false,0,0, false,false, false,false });
+        // ── Other/Legacy ──
+        Hints.Add(TEXT("Tavern"),      { {1.0f,0.9f,0.8f,1},   TEXT("wood"),   true,true,2,2,  false,false, true,true });
+        Hints.Add(TEXT("Inn"),         { {1.05f,1.0f,0.9f,1},  TEXT("wood"),   true,true,2,3,  true,true, true,true });
+        Hints.Add(TEXT("Library"),     { {1,1,1,1},             TEXT("stone"),  true,true,2,4,  false,false, false,false });
+    }
+
+    const FSubtypeHint* Hint = Hints.Find(BuildingRole);
+    if (!Hint) return Base;
+
+    FBuildingStylePreset Result = Base;
+
+    // Apply color tint
+    Result.BaseColor = FLinearColor(
+        FMath::Min(1.0f, Base.BaseColor.R * Hint->ColorTint.R),
+        FMath::Min(1.0f, Base.BaseColor.G * Hint->ColorTint.G),
+        FMath::Min(1.0f, Base.BaseColor.B * Hint->ColorTint.B));
+
+    // Prefer material if base doesn't match
+    if (!Hint->PreferredMaterial.IsEmpty() && Base.MaterialType != Hint->PreferredMaterial)
+    {
+        Result.MaterialType = Hint->PreferredMaterial;
+    }
+
+    // Feature overrides
+    if (Hint->bSetPorch)   { Result.bHasPorch = Hint->bPorch; Result.PorchDepth = Hint->PorchDepth; Result.PorchSteps = Hint->PorchSteps; }
+    if (Hint->bSetShutters) Result.bHasShutters = Hint->bShutters;
+    if (Hint->bSetBalcony)  Result.bHasIronworkBalcony = Hint->bBalcony;
+
+    return Result;
 }
 
 float AProceduralBuildingGenerator::CreateRoofFromStyle(USceneComponent* Parent,
