@@ -36,6 +36,8 @@ export interface BuildingStyle {
   porchSteps?: number;
   hasShutters?: boolean;
   shutterColor?: Color3;
+  wallTextureId?: string;
+  roofTextureId?: string;
 }
 
 export interface BuildingSpec {
@@ -59,9 +61,12 @@ export class ProceduralBuildingGenerator {
   private scene: Scene;
   private buildingMeshes: Map<string, Mesh> = new Map();
 
-  // Optional textures from asset collection to apply to procedural buildings
+  // Optional global textures from asset collection (fallback)
   private wallTexture: Texture | null = null;
   private roofTexture: Texture | null = null;
+
+  // Per-preset textures keyed by asset ID
+  private presetTextures: Map<string, Texture> = new Map();
 
   // Shared material cache: avoids creating duplicate materials per building.
   // Key format: "wall_{styleHash}", "roof_{styleHash}", "window_{styleHash}", etc.
@@ -214,6 +219,8 @@ export class ProceduralBuildingGenerator {
       shutterColor: preset.shutterColor
         ? new Color3(preset.shutterColor.r, preset.shutterColor.g, preset.shutterColor.b)
         : undefined,
+      wallTextureId: preset.wallTextureId,
+      roofTextureId: preset.roofTextureId,
     };
   }
 
@@ -765,15 +772,18 @@ export class ProceduralBuildingGenerator {
 
     building.position.y = totalHeight / 2 + porchElevation;
 
-    // Shared material keyed by style + material type + wall texture presence
-    const matKey = `wall_${spec.style.name}_${spec.style.materialType}_${this.wallTexture ? 'tex' : 'notex'}`;
+    // Resolve wall texture: prefer per-style preset texture, fall back to global
+    const wallTexId = spec.style.wallTextureId;
+    const resolvedWallTex = (wallTexId && this.presetTextures.get(wallTexId)) || this.wallTexture;
+
+    const matKey = `wall_${spec.style.name}_${spec.style.materialType}_${resolvedWallTex ? (wallTexId || 'global') : 'notex'}`;
     const material = this.getSharedMaterial(matKey, () => {
       const m = new StandardMaterial(matKey, this.scene);
       m.diffuseColor = spec.style.baseColor;
       m.specularColor = new Color3(0.1, 0.1, 0.1);
 
-      if (this.wallTexture) {
-        const wallTex = this.wallTexture.clone();
+      if (resolvedWallTex) {
+        const wallTex = resolvedWallTex.clone();
         if (wallTex) {
           wallTex.uScale = 2;
           wallTex.vScale = 2;
@@ -854,12 +864,15 @@ export class ProceduralBuildingGenerator {
       roof.position.y = totalHeight + porchElevation;
     }
 
-    // Shared roof material
-    const roofMatKey = `roof_${spec.style.name}_${this.roofTexture ? 'tex' : 'notex'}`;
+    // Resolve roof texture: prefer per-style preset texture, fall back to global
+    const roofTexId = spec.style.roofTextureId;
+    const resolvedRoofTex = (roofTexId && this.presetTextures.get(roofTexId)) || this.roofTexture;
+
+    const roofMatKey = `roof_${spec.style.name}_${resolvedRoofTex ? (roofTexId || 'global') : 'notex'}`;
     const roofMat = this.getSharedMaterial(roofMatKey, () => {
       const m = new StandardMaterial(roofMatKey, this.scene);
-      if (this.roofTexture) {
-        const roofTex = this.roofTexture.clone();
+      if (resolvedRoofTex) {
+        const roofTex = resolvedRoofTex.clone();
         if (roofTex) {
           roofTex.uScale = 2;
           roofTex.vScale = 2;
@@ -1489,6 +1502,13 @@ export class ProceduralBuildingGenerator {
    */
   public setRoofTexture(texture: Texture): void {
     this.roofTexture = texture;
+  }
+
+  /**
+   * Register a texture by asset ID for use by style presets.
+   */
+  public registerPresetTexture(assetId: string, texture: Texture): void {
+    this.presetTextures.set(assetId, texture);
   }
 
   /**

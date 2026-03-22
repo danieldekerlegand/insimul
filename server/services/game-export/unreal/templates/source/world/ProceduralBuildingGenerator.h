@@ -47,6 +47,10 @@ struct FBuildingStylePreset
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasShutters = false;
     /** Shutter color */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor ShutterColor = FLinearColor(0.2f, 0.3f, 0.2f);
+    /** Asset ID for wall texture (overrides global wall texture) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString WallTextureId;
+    /** Asset ID for roof texture (overrides global roof texture) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString RoofTextureId;
 };
 
 /**
@@ -127,6 +131,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Building")
     void SetRoofTexture(UTexture2D* Texture);
 
+    /** Register a texture by asset ID for use by style presets. */
+    UFUNCTION(BlueprintCallable, Category = "Building")
+    void RegisterPresetTexture(const FString& AssetId, UTexture2D* Texture);
+
     /** Return an appropriate style preset for the given world type and terrain. */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Building")
     static FBuildingStylePreset GetStyleForWorld(const FString& WorldType, const FString& Terrain);
@@ -175,6 +183,10 @@ private:
 
     UPROPERTY()
     UTexture2D* RoofTextureOverride = nullptr;
+
+    /** Per-preset textures keyed by asset ID. */
+    UPROPERTY()
+    TMap<FString, UTexture2D*> PresetTextures;
 
     UMaterialInstanceDynamic* GetSharedMaterial(const FString& Key, UMaterialInterface* Parent, FLinearColor Color);
 

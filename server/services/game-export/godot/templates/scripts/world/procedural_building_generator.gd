@@ -22,6 +22,9 @@ var _wall_texture: Texture2D = null
 ## Optional roof texture override for procedural buildings.
 var _roof_texture: Texture2D = null
 
+## Per-preset textures keyed by asset ID.
+var _preset_textures: Dictionary = {}
+
 ## Style presets matching the Babylon.js source engine.
 const STYLE_PRESETS := {
 	"medieval_wood": {
@@ -197,6 +200,11 @@ func set_wall_texture(texture: Texture2D) -> void:
 ## Override roof texture for procedural buildings.
 func set_roof_texture(texture: Texture2D) -> void:
 	_roof_texture = texture
+
+
+## Register a texture by asset ID for use by style presets.
+func register_preset_texture(asset_id: String, texture: Texture2D) -> void:
+	_preset_textures[asset_id] = texture
 
 
 ## Return an appropriate style preset key for the given world type and terrain.

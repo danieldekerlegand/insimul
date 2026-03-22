@@ -678,6 +678,8 @@ struct FInsimulProceduralStylePreset
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PorchSteps = 3;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasShutters = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FLinearColor ShutterColor = FLinearColor(0.2f, 0.3f, 0.2f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString WallTextureId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString RoofTextureId;
 };
 
 /**

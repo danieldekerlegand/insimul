@@ -3451,6 +3451,23 @@ export class BabylonGame {
     // Apply procedural building config from asset collection
     if (this.buildingGenerator && this.world3DConfig?.proceduralBuildings) {
       this.buildingGenerator.setProceduralConfig(this.world3DConfig.proceduralBuildings);
+
+      // Load per-preset textures (wallTextureId / roofTextureId on each style preset)
+      if (this.textureManager) {
+        const presets = this.world3DConfig.proceduralBuildings.stylePresets || [];
+        const textureIds = new Set<string>();
+        for (const preset of presets) {
+          if (preset.wallTextureId) textureIds.add(preset.wallTextureId);
+          if (preset.roofTextureId) textureIds.add(preset.roofTextureId);
+        }
+        for (const assetId of textureIds) {
+          const asset = worldAssets.find((a) => a.id === assetId);
+          if (asset) {
+            const tex = this.textureManager.loadTexture(asset);
+            this.buildingGenerator.registerPresetTexture(assetId, tex);
+          }
+        }
+      }
     }
 
     // Nature models: iterate ALL keys from config3D.natureModels

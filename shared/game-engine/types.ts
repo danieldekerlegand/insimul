@@ -421,6 +421,10 @@ export interface ProceduralStylePreset {
   hasShutters?: boolean;
   /** Shutter color (defaults to doorColor if not set) */
   shutterColor?: Color3;
+  /** Asset ID for wall texture (overrides global wallTexture) */
+  wallTextureId?: string;
+  /** Asset ID for roof texture (overrides global roofTexture) */
+  roofTextureId?: string;
 }
 
 /** Overrides for a specific building type's dimensions and features */

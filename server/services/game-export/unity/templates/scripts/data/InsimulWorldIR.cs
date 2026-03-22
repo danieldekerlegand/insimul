@@ -577,6 +577,8 @@ namespace Insimul.Data
         public int porchSteps;
         public bool hasShutters;
         public ColorData shutterColor;
+        public string wallTextureId;
+        public string roofTextureId;
     }
 
     /// <summary>
