@@ -373,6 +373,31 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     } catch { setResidences([]); }
   };
 
+  const handleResidenceTypeChange = async (residenceId: string, newType: string) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`/api/residences/${residenceId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ residenceType: newType }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setResidences(prev => prev.map(r => r.id === residenceId ? updated : r));
+        if (selectedBuilding?.type === 'residence' && selectedBuilding.data.id === residenceId) {
+          setSelectedBuilding({ ...selectedBuilding, data: updated });
+        }
+        toast({ title: 'Residence type updated' });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: 'Failed to update residence type', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to update residence type', variant: 'destructive' });
+    }
+  };
+
   const fetchResidents = async (settlementId: string) => {
     // Filter from allCharacters if available, otherwise fetch
     if (allCharacters.length > 0) {
@@ -1311,7 +1336,9 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                   residence={selectedBuilding.data}
                   characters={allCharacters}
                   lots={lots}
+                  canEdit={canEdit}
                   onViewCharacter={(c) => { setSelectedBuilding(null); setSelectedChar(c); }}
+                  onResidenceTypeChange={handleResidenceTypeChange}
                 />
               )}
             </div>
