@@ -162,6 +162,8 @@ export function ConfigDetailPanel({
   onUpdateItem,
 }: ConfigDetailPanelProps) {
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+  const getAssetName = (id: string | undefined) =>
+    id ? (assets.find(a => a.id === id)?.name ?? id.slice(0, 12) + '...') : null;
 
   if (!selection) {
     return (
@@ -215,7 +217,7 @@ export function ConfigDetailPanel({
                 <Label className="text-[10px]">Texture Asset</Label>
                 <div className="flex gap-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                    {cfg?.textureId ? `${cfg.textureId.slice(0, 12)}...` : "Select Texture"}
+                    {getAssetName(cfg?.textureId) ?? "Select Texture"}
                   </Button>
                   {cfg?.textureId && (
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}>
@@ -280,7 +282,7 @@ export function ConfigDetailPanel({
                 <Label className="text-[10px]">Model Asset</Label>
                 <div className="flex gap-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                    {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
+                    {getAssetName(cfg?.assetId) ?? "Select Model"}
                   </Button>
                   {cfg?.assetId && (
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
@@ -339,7 +341,7 @@ export function ConfigDetailPanel({
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="flex gap-1">
                 <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                  {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
+                  {getAssetName(cfg?.assetId) ?? "Select Model"}
                 </Button>
                 {cfg?.assetId && (
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
@@ -396,7 +398,7 @@ export function ConfigDetailPanel({
             {(cfg?.mode || 'asset') === 'asset' && (
               <div className="flex gap-1">
                 <Button variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowAssetBrowser(true)}>
-                  {cfg?.assetId ? `${cfg.assetId.slice(0, 12)}...` : "Select Model"}
+                  {getAssetName(cfg?.assetId) ?? "Select Model"}
                 </Button>
                 {cfg?.assetId && (
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() =>
