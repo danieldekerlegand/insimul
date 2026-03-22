@@ -18,6 +18,7 @@ import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
 import { nameGenerator } from './generators/name-generator.js';
 import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
+import { getTTSProvider, getSTTProvider, getNativeAudioProvider, getContentProvider } from './services/providers/index.js';
 import { generateText, generateTextBatch, generatedTextToInsertText, buildStarterSetParams, type TextGenerationParams, type TextCategory, type CefrLevel } from './services/text-generator.js';
 import { conversationContextCache, ConversationContextCache } from './services/conversation-context-cache.js';
 import {
@@ -3476,7 +3477,6 @@ app.get("/api/rules", async (req, res) => {
         return res.json({ utterances, language: targetLanguage });
       }
 
-      const model = getModel(GEMINI_MODELS.standard);
       const prompt = `You are generating a realistic conversation between two people in a small town. The ENTIRE conversation must be in ${targetLanguage}. Do NOT use English at all.
 
 Character 1: ${char1Name} (${char1Gender}, ${char1Occupation})
@@ -3493,8 +3493,8 @@ ${char2Name}: [dialogue in ${targetLanguage}]
 
 Alternate speakers. Start with ${char1Name}. Every single word must be in ${targetLanguage}.`;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response?.text() || '';
+      const npcConvoResult = await getContentProvider().generate({ prompt, model: 'fast' });
+      const responseText = npcConvoResult.text || '';
 
       // Parse the response into utterances
       const lines = responseText.split('\n').filter((l: string) => l.trim());
@@ -5089,9 +5089,6 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         console.log('📖 Step 2: Generating character truths...');
         progressTracker.updateProgress(taskId, 'truths', 'Creating character backstories and secrets...', 45);
         try {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
-          
           // Fetch all characters from the world
           const characters = await storage.getCharactersByWorld(worldId);
           
@@ -5129,18 +5126,13 @@ ${charactersToProcess.map((c, i) => `${i}. ${c.firstName} ${c.lastName} (${c.gen
 
 Make truths fitting for the world's theme and each character's context.`;
             
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ 
-              model: GEMINI_MODELS.PRO,
-              generationConfig: {
-                temperature: 0.95,
-                responseMimeType: 'application/json',
-              }
+            const contentResult = await getContentProvider().generate({
+              prompt: truthsPrompt,
+              temperature: 0.95,
+              responseMimeType: 'application/json',
+              model: 'pro',
             });
-            
-            const result = await model.generateContent(truthsPrompt);
-            const text = result.response.text().trim();
-            const generatedTruths = JSON.parse(text);
+            const generatedTruths = JSON.parse(contentResult.text.trim());
             
             let numTruths = 0;
             
@@ -5182,12 +5174,9 @@ Make truths fitting for the world's theme and each character's context.`;
         console.log('📜 Step 3: Generating social rules...');
             progressTracker.updateProgress(taskId, 'rules', 'Generating social rules and norms...', 55);
         try {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
-          
-          const worldContext = customPrompt || 
+          const worldContext = customPrompt ||
             `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
-          
+
           const rulesPrompt = `Generate 10 social rules and norms for ${worldContext}.
 
 Include rules about:
@@ -5239,19 +5228,14 @@ rule respect_nobility {
 }
 
 Make the rule names creative and fitting for the world's theme. Example for cyberpunk: "corporate_respect_protocol" or "neural_privacy_law"`;
-          
-          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-          const model = genAI.getGenerativeModel({ 
-            model: GEMINI_MODELS.PRO,
-            generationConfig: {
-              temperature: 0.9,
-              responseMimeType: 'application/json',
-            }
+
+          const rulesResult = await getContentProvider().generate({
+            prompt: rulesPrompt,
+            temperature: 0.9,
+            responseMimeType: 'application/json',
+            model: 'pro',
           });
-          
-          const result = await model.generateContent(rulesPrompt);
-          const text = result.response.text().trim();
-          const generatedRules = JSON.parse(text);
+          const generatedRules = JSON.parse(rulesResult.text.trim());
           
           // Parse and save rules
           if (Array.isArray(generatedRules)) {
@@ -5294,8 +5278,6 @@ Make the rule names creative and fitting for the world's theme. Example for cybe
 
             if (isGeminiConfigured()) {
               // LLM only fills in descriptions for grammar-generated names
-              const { GoogleGenerativeAI } = await import("@google/generative-ai");
-              const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
               const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
               const descPrompt = `For this world: ${worldCtxStr}
 
@@ -5305,10 +5287,8 @@ Actions:
 ${actionNames.map((n, i) => `${i + 1}. "${n}"`).join('\n')}
 
 Return ONLY valid JSON array.`;
-              const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-              const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.7, responseMimeType: 'application/json' } });
-              const result = await model.generateContent(descPrompt);
-              const described = JSON.parse(result.response.text().trim());
+              const descResult = await getContentProvider().generate({ prompt: descPrompt, temperature: 0.7, responseMimeType: 'application/json', model: 'pro' });
+              const described = JSON.parse(descResult.text.trim());
               if (Array.isArray(described)) {
                 for (const action of described.slice(0, 10)) {
                   if (action.name) {
@@ -5339,8 +5319,6 @@ Return ONLY valid JSON array.`;
             }
           } else if (isGeminiConfigured()) {
             // Full LLM fallback (no grammars available)
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
             const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
             const actionsPrompt = `Generate 10 character actions for ${worldCtxStr}.
 
@@ -5360,10 +5338,8 @@ Return as a JSON array with this structure:
 ]
 
 Make the action names thematic and immersive.`;
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
-            const result = await model.generateContent(actionsPrompt);
-            const generatedActions = JSON.parse(result.response.text().trim());
+            const actionsResult = await getContentProvider().generate({ prompt: actionsPrompt, temperature: 0.9, responseMimeType: 'application/json', model: 'pro' });
+            const generatedActions = JSON.parse(actionsResult.text.trim());
             if (Array.isArray(generatedActions)) {
               for (const action of generatedActions.slice(0, 10)) {
                 if (action.name && action.description) {
@@ -5425,8 +5401,6 @@ Make the action names thematic and immersive.`;
           if (itemNames.length >= 8 && isGeminiConfigured()) {
             // Grammar names + LLM for full item definitions
             console.log(`  ⚡ Got ${itemNames.length} item names from grammar`);
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
             const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
             const itemsPrompt = `For this world: ${worldCtxStr}
 
@@ -5436,10 +5410,8 @@ Item names:
 ${itemNames.map((n, i) => `${i + 1}. "${n}"`).join('\n')}
 
 Return ONLY valid JSON array.`;
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.8, responseMimeType: 'application/json' } });
-            const result = await model.generateContent(itemsPrompt);
-            const generatedItems = JSON.parse(result.response.text().trim());
+            const itemsResult = await getContentProvider().generate({ prompt: itemsPrompt, temperature: 0.8, responseMimeType: 'application/json', model: 'pro' });
+            const generatedItems = JSON.parse(itemsResult.text.trim());
             if (Array.isArray(generatedItems)) {
               for (const item of generatedItems.slice(0, 20)) {
                 if (item.name && item.itemType) {
@@ -5479,8 +5451,6 @@ Return ONLY valid JSON array.`;
             }
           } else if (isGeminiConfigured()) {
             // Full LLM fallback
-            const { GoogleGenerativeAI } = await import("@google/generative-ai");
-            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
             const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
             const itemsPrompt = `Generate 15-20 items unique to this game world: ${worldCtxStr}.
 
@@ -5488,10 +5458,8 @@ These should be world-specific items. Include a mix of weapons/tools, food/drink
 
 Return as JSON array with: "name", "description", "itemType", "icon" (emoji), "value", "sellValue", "weight", "category", "material", "baseType", "rarity", "effects", "lootWeight", "tags".
 Return ONLY valid JSON array.`;
-            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
-            const result = await model.generateContent(itemsPrompt);
-            const generatedItems = JSON.parse(result.response.text().trim());
+            const itemsFallbackResult = await getContentProvider().generate({ prompt: itemsPrompt, temperature: 0.9, responseMimeType: 'application/json', model: 'pro' });
+            const generatedItems = JSON.parse(itemsFallbackResult.text.trim());
             if (Array.isArray(generatedItems)) {
               for (const item of generatedItems.slice(0, 20)) {
                 if (item.name && item.itemType) {
@@ -6102,7 +6070,6 @@ Return ONLY valid JSON array.`;
 
   app.post("/api/tts", async (req, res) => {
     try {
-      const { textToSpeech } = await import("./services/tts-stt.js");
       const { transcript, text, voice = "Kore", gender = "neutral", encoding = "MP3", emotionalTone, targetLanguage } = req.body;
       const textToConvert = transcript || text;
 
@@ -6117,12 +6084,20 @@ Return ONLY valid JSON array.`;
       const { cleanForSpeech } = await import('./services/streaming-chat.js');
       const cleanText = cleanForSpeech(textToConvert);
 
-      const audioBuffer = await textToSpeech(cleanText || textToConvert, voice, gender, encoding, emotionalTone, targetLanguage);
+      const tts = getTTSProvider();
+      const result = await tts.synthesize({
+        text: cleanText || textToConvert,
+        voice,
+        gender,
+        encoding,
+        emotionalTone,
+        targetLanguage,
+      });
 
       // Set appropriate content type based on encoding
       const contentType = encoding === "WAV" ? 'audio/wav' : 'audio/mpeg';
       res.setHeader('Content-Type', contentType);
-      res.send(audioBuffer);
+      res.send(result.audioBuffer);
     } catch (error) {
       console.error("TTS error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to generate speech" });
@@ -6135,8 +6110,6 @@ Return ONLY valid JSON array.`;
 
   app.post("/api/stt", upload.single('audio'), async (req, res) => {
     try {
-      const { speechToText } = await import("./services/tts-stt.js");
-
       let audioBuffer: Buffer;
       let mimeType = 'audio/wav';
       const languageHint = req.body?.languageHint as string | undefined;
@@ -6155,9 +6128,10 @@ Return ONLY valid JSON array.`;
         return res.status(400).json({ error: "No audio data provided" });
       }
 
-      const transcript = await speechToText(audioBuffer, mimeType, languageHint);
+      const stt = getSTTProvider();
+      const result = await stt.transcribe({ audioBuffer, mimeType, languageHint });
 
-      res.json({ transcript });
+      res.json({ transcript: result.transcript });
     } catch (error) {
       console.error("STT error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to transcribe audio" });
@@ -6200,7 +6174,6 @@ Return ONLY valid JSON array.`;
   // Combined Voice-Chat Endpoint — STT → LLM → TTS in a single request
   app.post("/api/gemini/voice-chat", upload.single('audio'), async (req, res) => {
     try {
-      const { speechToText, textToSpeech } = await import("./services/tts-stt.js");
       const { parseGrammarFeedbackBlock, stripSystemMarkers } = await import("../shared/language/progress.js");
 
       // Audio comes via multipart; metadata comes as a JSON string field
@@ -6229,7 +6202,8 @@ Return ONLY valid JSON array.`;
       } = meta;
 
       // 1. STT — pass languageCode as hint for better transcription
-      const transcript = await speechToText(req.file.buffer, req.file.mimetype, languageCode);
+      const sttProvider = getSTTProvider();
+      const { transcript } = await sttProvider.transcribe({ audioBuffer: req.file.buffer, mimeType: req.file.mimetype, languageHint: languageCode });
       if (!transcript || transcript.trim() === '') {
         return res.status(400).json({ error: "Could not transcribe audio" });
       }
@@ -6258,8 +6232,8 @@ Return ONLY valid JSON array.`;
               let audioBase64: string | undefined;
               try {
                 const gender = voice === 'Kore' ? 'female' : 'male';
-                const audioBuffer = await textToSpeech(prologResult.answer!, voice, gender, "MP3");
-                audioBase64 = audioBuffer.toString('base64');
+                const ttsResult = await getTTSProvider().synthesize({ text: prologResult.answer!, voice, gender, encoding: 'MP3' });
+                audioBase64 = ttsResult.audioBuffer.toString('base64');
               } catch { /* TTS optional for Prolog responses */ }
               return res.json({
                 transcript,
@@ -6312,9 +6286,9 @@ Return ONLY valid JSON array.`;
       // 4. TTS — generate audio from cleaned response
       let audioBase64: string | undefined;
       try {
-        const gender = voice === 'Kore' ? 'female' : 'male';
-        const audioBuffer = await textToSpeech(cleanedResponse, voice, gender, "MP3");
-        audioBase64 = audioBuffer.toString('base64');
+        const ttsGender = voice === 'Kore' ? 'female' : 'male';
+        const ttsResult = await getTTSProvider().synthesize({ text: cleanedResponse, voice, gender: ttsGender, encoding: 'MP3' });
+        audioBase64 = ttsResult.audioBuffer.toString('base64');
       } catch (audioErr) {
         console.error("[voice-chat] TTS failed:", audioErr);
       }
@@ -6433,10 +6407,9 @@ Return ONLY valid JSON array.`;
                 const responseData: any = { response: prologResult.answer, source: prologResult.source };
                 if (returnAudio) {
                   try {
-                    const { textToSpeech } = await import("./services/tts-stt.js");
-                    const audioBuffer = await textToSpeech(prologResult.answer!, voice, gender, 'MP3', undefined, targetLanguage);
-                    if (audioBuffer) {
-                      responseData.audio = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
+                    const ttsResult = await getTTSProvider().synthesize({ text: prologResult.answer!, voice, gender, encoding: 'MP3', targetLanguage });
+                    if (ttsResult.audioBuffer) {
+                      responseData.audio = `data:audio/mp3;base64,${ttsResult.audioBuffer.toString('base64')}`;
                     }
                   } catch { /* audio generation optional */ }
                 }
@@ -6489,15 +6462,13 @@ Return ONLY valid JSON array.`;
 
       // Handle audio input
       if (audioInput) {
-        // Import speech-to-text
-        const { speechToText } = await import("./services/tts-stt.js");
-
         // Decode base64 audio
         const base64Data = audioInput.includes(',') ? audioInput.split(',')[1] : audioInput;
         const audioBuffer = Buffer.from(base64Data, 'base64');
 
-        // Get transcript
-        userTranscript = await speechToText(audioBuffer, 'audio/webm');
+        // Get transcript via STT provider
+        const sttResult = await getSTTProvider().transcribe({ audioBuffer, mimeType: 'audio/webm' });
+        userTranscript = sttResult.transcript;
         lastMessageContent = { text: userTranscript };
       } else {
         // Use text from the last message
@@ -6601,10 +6572,9 @@ Return ONLY valid JSON array.`;
                   .trim();
                 if (cleaned) {
                   try {
-                    const { textToSpeech } = await import("./services/tts-stt.js");
                     const ttsGender = gender !== 'neutral' ? gender : (voice === 'Kore' ? 'female' : 'male');
-                    const audioBuffer = await textToSpeech(cleaned, voice, ttsGender, "MP3", undefined, targetLanguage);
-                    safeWrite(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+                    const ttsResult = await getTTSProvider().synthesize({ text: cleaned, voice, gender: ttsGender, encoding: 'MP3', targetLanguage });
+                    safeWrite(`data: ${JSON.stringify({ type: 'audio', audio: ttsResult.audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
                     sentenceIndex++;
                   } catch (audioErr) {
                     console.error("TTS error for sentence chunk:", audioErr);
@@ -6627,10 +6597,9 @@ Return ONLY valid JSON array.`;
                 .trim();
               if (cleaned) {
                 try {
-                  const { textToSpeech } = await import("./services/tts-stt.js");
                   const ttsGender = gender !== 'neutral' ? gender : (voice === 'Kore' ? 'female' : 'male');
-                  const audioBuffer = await textToSpeech(cleaned, voice, ttsGender, "MP3", undefined, targetLanguage);
-                  safeWrite(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+                  const ttsResult = await getTTSProvider().synthesize({ text: cleaned, voice, gender: ttsGender, encoding: 'MP3', targetLanguage });
+                  safeWrite(`data: ${JSON.stringify({ type: 'audio', audio: ttsResult.audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
                 } catch (audioErr) {
                   console.error("TTS error for final sentence chunk:", audioErr);
                 }
@@ -6710,10 +6679,9 @@ Return ONLY valid JSON array.`;
 
       if (returnAudio) {
         try {
-          const { textToSpeech } = await import("./services/tts-stt.js");
           const ttsGender = gender !== 'neutral' ? gender : (voice === 'Kore' ? 'female' : 'male');
-          const audioBuffer = await textToSpeech(cleanedForDisplay, voice, ttsGender, "MP3", undefined, targetLanguage);
-          responseData.audio = audioBuffer.toString('base64');
+          const ttsResult = await getTTSProvider().synthesize({ text: cleanedForDisplay, voice, gender: ttsGender, encoding: 'MP3', targetLanguage });
+          responseData.audio = ttsResult.audioBuffer.toString('base64');
         } catch (audioError) {
           console.error("Failed to generate audio:", audioError);
         }
@@ -6761,37 +6729,20 @@ Return ONLY valid JSON array.`;
         return res.status(400).json({ error: "systemPrompt is required" });
       }
 
-      if (!isGeminiConfigured()) {
-        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
-      }
+      const nativeAudio = getNativeAudioProvider();
 
-      const { nativeAudioChat, nativeTextToAudioChat } = await import("./services/gemini-native-audio.js");
-
-      let result;
-
-      if (audioData) {
-        // Voice mode: audio in → text + audio out
-        const base64Data = audioData.includes(',') ? audioData.split(',')[1] : audioData;
-        result = await nativeAudioChat({
-          audioData: base64Data,
-          mimeType,
-          systemPrompt,
-          history,
-          voice,
-          temperature,
-          maxTokens,
-        });
-      } else {
-        // Text mode with audio response
-        result = await nativeTextToAudioChat(
-          textMessage,
-          systemPrompt,
-          history,
-          voice,
-          temperature,
-          maxTokens,
-        );
-      }
+      const base64Data = audioData ? (audioData.includes(',') ? audioData.split(',')[1] : audioData) : undefined;
+      const result = await nativeAudio.chat({
+        audioData: base64Data,
+        mimeType,
+        textMessage,
+        systemPrompt,
+        history,
+        voice,
+        temperature,
+        maxTokens,
+        returnAudio,
+      });
 
       // Strip system markers for display
       const cleanedResponse = result.text
@@ -6825,24 +6776,7 @@ Return ONLY valid JSON array.`;
         return res.status(400).json({ error: "playerMessage and targetLanguage are required" });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
       const { buildGrammarAnalysisPrompt } = await import("../shared/language/utils.js");
-
-      const apiKey = getGeminiApiKey();
-      if (!apiKey) {
-        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: GEMINI_MODELS.FLASH,
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 512,
-          responseMimeType: "application/json",
-        },
-      });
 
       const prompt = buildGrammarAnalysisPrompt(
         targetLanguage,
@@ -6851,14 +6785,20 @@ Return ONLY valid JSON array.`;
         worldLanguage || null,
       );
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const content = getContentProvider();
+      const result = await content.generate({
+        prompt,
+        temperature: 0.1,
+        maxTokens: 512,
+        responseMimeType: 'application/json',
+        model: 'fast',
+      });
 
       try {
-        const parsed = JSON.parse(responseText);
+        const parsed = JSON.parse(result.text);
         res.json(parsed);
       } catch {
-        console.warn('[GrammarAnalysis] Failed to parse JSON response:', responseText.substring(0, 200));
+        console.warn('[GrammarAnalysis] Failed to parse JSON response:', result.text.substring(0, 200));
         res.json({ status: 'no_target_language', errors: [] });
       }
     } catch (error) {
@@ -6875,24 +6815,6 @@ Return ONLY valid JSON array.`;
       if (!storyText || !questions || !playerAnswers) {
         return res.status(400).json({ error: "storyText, questions, and playerAnswers are required" });
       }
-
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
-
-      const apiKey = getGeminiApiKey();
-      if (!apiKey) {
-        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: GEMINI_MODELS.FLASH,
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 1024,
-          responseMimeType: "application/json",
-        },
-      });
 
       const questionsWithAnswers = (questions as Array<{ question: string; correctAnswer: string }>)
         .map((q, i) => {
@@ -6924,14 +6846,20 @@ Respond with this JSON structure:
   ]
 }`;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const content = getContentProvider();
+      const result = await content.generate({
+        prompt,
+        temperature: 0.1,
+        maxTokens: 1024,
+        responseMimeType: 'application/json',
+        model: 'fast',
+      });
 
       try {
-        const parsed = JSON.parse(responseText);
+        const parsed = JSON.parse(result.text);
         res.json(parsed);
       } catch {
-        console.warn('[ComprehensionEval] Failed to parse JSON response:', responseText.substring(0, 200));
+        console.warn('[ComprehensionEval] Failed to parse JSON response:', result.text.substring(0, 200));
         res.json({ score: 50, feedback: "Unable to evaluate", questionResults: [] });
       }
     } catch (error) {
@@ -6942,8 +6870,7 @@ Respond with this JSON structure:
 
   app.get("/api/tts/get_available_voices", async (req, res) => {
     try {
-      const { getAvailableVoices } = await import("./services/tts-stt.js");
-      const voices = getAvailableVoices();
+      const voices = getTTSProvider().getAvailableVoices();
       res.json(voices);
     } catch (error) {
       res.status(500).json({ error: "Failed to get available voices" });
@@ -10108,9 +10035,6 @@ Respond with this JSON structure:
       // Regenerate rules using LLM if available
       const createdRules = [];
       if (isGeminiConfigured()) {
-        const { GoogleGenerativeAI } = await import("@google/generative-ai");
-        const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
-
         const worldContext = `A ${(world as any).worldType || 'medieval-fantasy'} world named "${world.name}". ${world.description || ''}`;
         const rulesPrompt = `Generate 10 social rules and norms for ${worldContext}.
 
@@ -10147,14 +10071,13 @@ rule rule_name {
 
 Make the rule names creative and fitting for the world's theme.`;
 
-        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-        const model = genAI.getGenerativeModel({
-          model: GEMINI_MODELS.PRO,
-          generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
+        const regenRulesResult = await getContentProvider().generate({
+          prompt: rulesPrompt,
+          temperature: 0.9,
+          responseMimeType: 'application/json',
+          model: 'pro',
         });
-
-        const result = await model.generateContent(rulesPrompt);
-        const generatedRules = JSON.parse(result.response.text().trim());
+        const generatedRules = JSON.parse(regenRulesResult.text.trim());
 
         if (Array.isArray(generatedRules)) {
           for (const rule of generatedRules.slice(0, 10)) {
@@ -10214,8 +10137,6 @@ Make the rule names creative and fitting for the world's theme.`;
         const actionTypes = ['social', 'combat', 'movement', 'mental', 'economic', 'social', 'combat', 'mental', 'economic', 'movement'];
 
         if (isGeminiConfigured()) {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
           const worldCtxStr = `A ${wt} world named "${world.name}". ${world.description || ''}`;
           const descPrompt = `For this world: ${worldCtxStr}
 
@@ -10225,10 +10146,8 @@ Actions:
 ${actionNames.map((n: string, i: number) => `${i + 1}. "${n}"`).join('\n')}
 
 Return ONLY valid JSON array.`;
-          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-          const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.7, responseMimeType: 'application/json' } });
-          const result = await model.generateContent(descPrompt);
-          const described = JSON.parse(result.response.text().trim());
+          const regenDescResult = await getContentProvider().generate({ prompt: descPrompt, temperature: 0.7, responseMimeType: 'application/json', model: 'pro' });
+          const described = JSON.parse(regenDescResult.text.trim());
           if (Array.isArray(described)) {
             for (const action of described.slice(0, 10)) {
               if (action.name) {
@@ -10257,8 +10176,6 @@ Return ONLY valid JSON array.`;
           }
         }
       } else if (isGeminiConfigured()) {
-        const { GoogleGenerativeAI } = await import("@google/generative-ai");
-        const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
         const worldCtxStr = `A ${wt} world named "${world.name}". ${world.description || ''}`;
         const actionsPrompt = `Generate 10 character actions for ${worldCtxStr}.
 
@@ -10278,10 +10195,8 @@ Return as a JSON array with this structure:
 ]
 
 Make the action names thematic and immersive.`;
-        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-        const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
-        const result = await model.generateContent(actionsPrompt);
-        const generatedActions = JSON.parse(result.response.text().trim());
+        const regenActionsResult = await getContentProvider().generate({ prompt: actionsPrompt, temperature: 0.9, responseMimeType: 'application/json', model: 'pro' });
+        const generatedActions = JSON.parse(regenActionsResult.text.trim());
         if (Array.isArray(generatedActions)) {
           for (const action of generatedActions.slice(0, 10)) {
             if (action.name && action.description) {
