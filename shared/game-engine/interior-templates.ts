@@ -57,6 +57,8 @@ export interface RoomFurnitureSet {
 
 export interface InteriorLayoutTemplate {
   id: string;
+  /** Building category this template belongs to (e.g. 'commercial_food', 'civic') */
+  category: string;
   buildingType: string;
   /** Business types this template matches (empty = matches buildingType directly) */
   matchBusinessTypes: string[];
@@ -115,6 +117,14 @@ const COPPER_VAT: RoomColor = { r: 0.55, g: 0.38, b: 0.18 };
 const MEAT_BLOCK: RoomColor = { r: 0.5, g: 0.35, b: 0.25 };
 const IRON_HOOK: RoomColor = { r: 0.4, g: 0.4, b: 0.42 };
 const LOCKER_GRAY: RoomColor = { r: 0.5, g: 0.5, b: 0.52 };
+const NAUTICAL_BLUE: RoomColor = { r: 0.25, g: 0.35, b: 0.45 };
+const WEATHERED_WOOD: RoomColor = { r: 0.45, g: 0.38, b: 0.28 };
+const ROPE_TAN: RoomColor = { r: 0.55, g: 0.48, b: 0.35 };
+const SAIL_WHITE: RoomColor = { r: 0.72, g: 0.7, b: 0.65 };
+const BANK_MARBLE: RoomColor = { r: 0.7, g: 0.68, b: 0.65 };
+const LEATHER_BROWN: RoomColor = { r: 0.42, g: 0.28, b: 0.15 };
+const TOWN_HALL_WOOD: RoomColor = { r: 0.48, g: 0.38, b: 0.25 };
+const BUTCHER_RED: RoomColor = { r: 0.55, g: 0.2, b: 0.15 };
 
 // ─── Furniture Sets ──────────────────────────────────────────────────────────
 
@@ -518,12 +528,49 @@ const FISH_STALL_FURNITURE: FurnitureEntry[] = [
   { type: 'crate', offsetXFraction: 0, offsetZFraction: 0.35, width: 1.0, height: 0.6, depth: 1.0, color: CRATE_TAN },
 ];
 
+const HARBOR_OFFICE_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0.15, width: 2.5, height: 0.8, depth: 1.0, color: WEATHERED_WOOD },
+  { type: 'chair', offsetXFraction: 0, offsetZFraction: 0.3, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'shelf', offsetXFraction: -0.35, offsetZFraction: 0.35, width: 1.5, height: 1.8, depth: 0.5, color: WEATHERED_WOOD },
+  { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: -0.2, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+  { type: 'chest', offsetXFraction: -0.3, offsetZFraction: -0.2, width: 1.0, height: 0.6, depth: 0.6, color: WEATHERED_WOOD },
+];
+
+const DOCK_WAREHOUSE_FURNITURE: FurnitureEntry[] = [
+  { type: 'crate', offsetXFraction: -0.3, offsetZFraction: -0.3, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+  { type: 'crate', offsetXFraction: -0.15, offsetZFraction: -0.3, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+  { type: 'crate', offsetXFraction: 0.15, offsetZFraction: -0.3, width: 1.0, height: 1.0, depth: 1.0, color: CRATE_TAN },
+  { type: 'barrel', offsetXFraction: 0.3, offsetZFraction: -0.15, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.3, offsetZFraction: 0.1, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: -0.3, offsetZFraction: 0.1, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 2.0, height: 2.0, depth: 0.6, color: WEATHERED_WOOD },
+  { type: 'chest', offsetXFraction: -0.2, offsetZFraction: 0.3, width: 1.2, height: 0.7, depth: 0.7, color: WEATHERED_WOOD },
+];
+
+const NAVIGATION_FURNITURE: FurnitureEntry[] = [
+  { type: 'table', offsetXFraction: 0, offsetZFraction: 0, width: 2.5, height: 0.8, depth: 1.5, color: WEATHERED_WOOD },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.5, height: 1.8, depth: 0.5, color: WEATHERED_WOOD },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.5, height: 1.8, depth: 0.5, color: WEATHERED_WOOD },
+  { type: 'chair', offsetXFraction: 0.15, offsetZFraction: 0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chest', offsetXFraction: 0.3, offsetZFraction: -0.3, width: 1.0, height: 0.6, depth: 0.6, color: WEATHERED_WOOD },
+];
+
+const FISH_MARKET_FURNITURE: FurnitureEntry[] = [
+  { type: 'counter', offsetXFraction: -0.2, offsetZFraction: -0.1, width: 3, height: 0.9, depth: 0.8, color: WEATHERED_WOOD },
+  { type: 'counter', offsetXFraction: 0.2, offsetZFraction: 0.15, width: 3, height: 0.9, depth: 0.8, color: WEATHERED_WOOD },
+  { type: 'barrel', offsetXFraction: -0.35, offsetZFraction: 0.3, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: 0.3, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'crate', offsetXFraction: -0.35, offsetZFraction: -0.3, width: 0.8, height: 0.6, depth: 0.8, color: CRATE_TAN },
+  { type: 'crate', offsetXFraction: 0.35, offsetZFraction: -0.3, width: 0.8, height: 0.6, depth: 0.8, color: CRATE_TAN },
+];
+
 // ─── Templates ───────────────────────────────────────────────────────────────
 
 export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 1. Tavern / Inn
   {
     id: 'tavern',
+    category: 'commercial_food',
     buildingType: 'tavern',
     matchBusinessTypes: ['tavern', 'inn', 'bar'],
     width: 18, depth: 16, height: 5,
@@ -545,6 +592,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 2. Restaurant
   {
     id: 'restaurant',
+    category: 'commercial_food',
     buildingType: 'restaurant',
     matchBusinessTypes: ['restaurant', 'cafe', 'diner'],
     width: 16, depth: 14, height: 4.5,
@@ -563,6 +611,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 3. Shop / General Store
   {
     id: 'shop',
+    category: 'commercial_retail',
     buildingType: 'shop',
     matchBusinessTypes: ['shop', 'store', 'market'],
     width: 14, depth: 14, height: 4.5,
@@ -583,6 +632,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 4. Bar
   {
     id: 'bar',
+    category: 'commercial_food',
     buildingType: 'bar',
     matchBusinessTypes: ['bar', 'pub', 'saloon'],
     width: 14, depth: 12, height: 4.5,
@@ -599,6 +649,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 5. Bakery
   {
     id: 'bakery',
+    category: 'commercial_food',
     buildingType: 'bakery',
     matchBusinessTypes: ['bakery', 'patisserie'],
     width: 12, depth: 12, height: 4,
@@ -617,6 +668,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 6. Small Residence
   {
     id: 'residence_small',
+    category: 'residential',
     buildingType: 'residence',
     matchBusinessTypes: ['residence', 'house', 'home'],
     width: 9, depth: 9, height: 3.5,
@@ -635,6 +687,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 7. Medium Residence
   {
     id: 'residence_medium',
+    category: 'residential',
     buildingType: 'residence_medium',
     matchBusinessTypes: ['residence_medium'],
     width: 12, depth: 12, height: 4,
@@ -656,6 +709,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 8. Large Residence / Mansion
   {
     id: 'residence_large',
+    category: 'residential',
     buildingType: 'residence_large',
     matchBusinessTypes: ['residence_large', 'mansion'],
     width: 16, depth: 16, height: 4.5,
@@ -677,6 +731,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 9. Church / Temple
   {
     id: 'church',
+    category: 'civic',
     buildingType: 'church',
     matchBusinessTypes: ['church', 'temple', 'shrine', 'chapel'],
     width: 20, depth: 24, height: 8,
@@ -693,6 +748,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 10. School
   {
     id: 'school',
+    category: 'civic',
     buildingType: 'school',
     matchBusinessTypes: ['school', 'academy', 'classroom'],
     width: 16, depth: 14, height: 4.5,
@@ -711,6 +767,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 11. Hotel
   {
     id: 'hotel',
+    category: 'commercial_service',
     buildingType: 'hotel',
     matchBusinessTypes: ['hotel', 'lodge', 'hostel'],
     width: 18, depth: 16, height: 5,
@@ -732,6 +789,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 12. Blacksmith / Forge
   {
     id: 'blacksmith',
+    category: 'industrial',
     buildingType: 'blacksmith',
     matchBusinessTypes: ['blacksmith', 'forge', 'workshop'],
     width: 16, depth: 14, height: 5,
@@ -750,6 +808,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 13. Warehouse
   {
     id: 'warehouse',
+    category: 'industrial',
     buildingType: 'warehouse',
     matchBusinessTypes: ['warehouse', 'storage', 'depot'],
     width: 20, depth: 16, height: 6,
@@ -766,6 +825,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 14. Clinic / Healer
   {
     id: 'clinic',
+    category: 'commercial_service',
     buildingType: 'clinic',
     matchBusinessTypes: ['clinic', 'healer', 'apothecary'],
     width: 14, depth: 12, height: 4,
@@ -784,6 +844,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 15. Farm Barn
   {
     id: 'farm_barn',
+    category: 'industrial',
     buildingType: 'farm_barn',
     matchBusinessTypes: ['farm_barn', 'barn', 'farm'],
     width: 18, depth: 14, height: 5.5,
@@ -800,6 +861,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 16. Guild Hall
   {
     id: 'guild_hall',
+    category: 'civic',
     buildingType: 'guild',
     matchBusinessTypes: ['guild', 'hall', 'headquarters'],
     width: 18, depth: 18, height: 5,
@@ -822,8 +884,9 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 17. Bank
   {
     id: 'bank',
+    category: 'commercial_service',
     buildingType: 'bank',
-    matchBusinessTypes: ['bank'],
+    matchBusinessTypes: ['bank', 'Bank'],
     width: 14, depth: 12, height: 5,
     floorCount: 2,
     colors: { floor: MARBLE_FLOOR, wall: MARBLE_WHITE, ceiling: { r: 0.7, g: 0.68, b: 0.65 } },
@@ -842,8 +905,9 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 18. Barbershop
   {
     id: 'barbershop',
+    category: 'commercial_service',
     buildingType: 'barbershop',
-    matchBusinessTypes: ['barbershop', 'barber'],
+    matchBusinessTypes: ['barbershop', 'barber', 'Barbershop'],
     width: 8, depth: 8, height: 3.5,
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: WHITE_WASH, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
@@ -858,6 +922,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 19. Tailor
   {
     id: 'tailor',
+    category: 'commercial_service',
     buildingType: 'tailor',
     matchBusinessTypes: ['tailor', 'seamstress', 'clothier'],
     width: 10, depth: 8, height: 4,
@@ -878,6 +943,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 20. Pharmacy
   {
     id: 'pharmacy',
+    category: 'commercial_service',
     buildingType: 'pharmacy',
     matchBusinessTypes: ['pharmacy', 'herbshop', 'herb_shop'],
     width: 10, depth: 10, height: 4,
@@ -898,6 +964,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 21. Law Firm
   {
     id: 'law_firm',
+    category: 'commercial_service',
     buildingType: 'lawfirm',
     matchBusinessTypes: ['lawfirm', 'law_firm', 'lawyer', 'insuranceoffice', 'realestateoffice'],
     width: 12, depth: 10, height: 4.5,
@@ -923,8 +990,9 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 22. Town Hall
   {
     id: 'town_hall',
+    category: 'civic',
     buildingType: 'townhall',
-    matchBusinessTypes: ['townhall', 'town_hall', 'cityhall'],
+    matchBusinessTypes: ['townhall', 'town_hall', 'TownHall', 'cityhall', 'city_hall'],
     width: 18, depth: 16, height: 5.5,
     floorCount: 2,
     colors: { floor: STONE_LIGHT, wall: MARBLE_WHITE, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
@@ -945,6 +1013,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 23. University
   {
     id: 'university',
+    category: 'civic',
     buildingType: 'university',
     matchBusinessTypes: ['university', 'college'],
     width: 20, depth: 18, height: 5,
@@ -968,8 +1037,9 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 24. Hospital
   {
     id: 'hospital',
+    category: 'civic',
     buildingType: 'hospital',
-    matchBusinessTypes: ['hospital'],
+    matchBusinessTypes: ['hospital', 'Hospital'],
     width: 20, depth: 18, height: 5,
     floorCount: 3,
     colors: { floor: { r: 0.55, g: 0.55, b: 0.52 }, wall: CLINIC_WHITE, ceiling: { r: 0.68, g: 0.66, b: 0.62 } },
@@ -993,6 +1063,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 25. Police Station
   {
     id: 'police_station',
+    category: 'civic',
     buildingType: 'policestation',
     matchBusinessTypes: ['policestation', 'police_station', 'police', 'guard'],
     width: 14, depth: 12, height: 4.5,
@@ -1015,6 +1086,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 26. Fire Station
   {
     id: 'fire_station',
+    category: 'civic',
     buildingType: 'firestation',
     matchBusinessTypes: ['firestation', 'fire_station', 'firehouse'],
     width: 14, depth: 14, height: 5,
@@ -1037,6 +1109,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 27. Daycare
   {
     id: 'daycare',
+    category: 'civic',
     buildingType: 'daycare',
     matchBusinessTypes: ['daycare', 'nursery'],
     width: 12, depth: 10, height: 3.5,
@@ -1057,6 +1130,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 28. Brewery
   {
     id: 'brewery',
+    category: 'commercial_food',
     buildingType: 'brewery',
     matchBusinessTypes: ['brewery', 'distillery'],
     width: 14, depth: 12, height: 5,
@@ -1076,11 +1150,33 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
 
   // ─── Commercial: Retail Subtypes ────────────────────────────────────────────
 
-  // 29. Grocery Store
+  // 29. Bookstore
+  {
+    id: 'bookstore',
+    category: 'commercial_retail',
+    buildingType: 'bookstore',
+    matchBusinessTypes: ['BookStore'],
+    width: 12, depth: 14, height: 4.5,
+    floorCount: 2,
+    colors: { floor: DARK_WOOD, wall: WARM_WALL, ceiling: { r: 0.5, g: 0.45, b: 0.38 } },
+    rooms: [
+      { name: 'shop_floor', function: 'bookstore', offsetXFraction: 0, offsetZFraction: -0.15, widthFraction: 1, depthFraction: 0.7, floor: 0 },
+      { name: 'reading_nook', function: 'library', offsetXFraction: 0, offsetZFraction: 0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'bookstore', furniture: BOOKSTORE_FURNITURE },
+      { roomFunction: 'library', furniture: LIBRARY_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+    ],
+  },
+
+  // 30. Grocery Store
   {
     id: 'grocery_store',
+    category: 'commercial_retail',
     buildingType: 'grocerystore',
-    matchBusinessTypes: ['grocerystore', 'grocery_store', 'grocery', 'greengrocer'],
+    matchBusinessTypes: ['grocerystore', 'grocery_store', 'grocery', 'greengrocer', 'GroceryStore'],
     width: 14, depth: 12, height: 4,
     floorCount: 2,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
@@ -1096,9 +1192,10 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 30. Jewelry Store
+  // 31. Jewelry Store
   {
     id: 'jewelry_store',
+    category: 'commercial_retail',
     buildingType: 'jewelrystore',
     matchBusinessTypes: ['jewelrystore', 'jewelry_store', 'jeweler'],
     width: 10, depth: 8, height: 4,
@@ -1116,10 +1213,11 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 31. Book Store
+  // 32. Book Store
   {
     id: 'book_store',
-    buildingType: 'bookstore',
+    category: 'commercial_retail',
+    buildingType: 'book_store',
     matchBusinessTypes: ['bookstore', 'book_store', 'bookseller'],
     width: 10, depth: 10, height: 4.5,
     floorCount: 2,
@@ -1136,9 +1234,10 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 32. Pawn Shop
+  // 33. Pawn Shop
   {
     id: 'pawn_shop',
+    category: 'commercial_retail',
     buildingType: 'pawnshop',
     matchBusinessTypes: ['pawnshop', 'pawn_shop'],
     width: 10, depth: 8, height: 4,
@@ -1158,9 +1257,10 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
 
   // ─── Industrial Subtypes ────────────────────────────────────────────────────
 
-  // 33. Factory
+  // 34. Factory
   {
     id: 'factory',
+    category: 'industrial',
     buildingType: 'factory',
     matchBusinessTypes: ['factory', 'mill', 'foundry'],
     width: 20, depth: 16, height: 6,
@@ -1178,11 +1278,12 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 34. Carpenter
+  // 35. Carpenter
   {
     id: 'carpenter',
+    category: 'industrial',
     buildingType: 'carpenter',
-    matchBusinessTypes: ['carpenter', 'woodworker', 'joiner'],
+    matchBusinessTypes: ['carpenter', 'Carpenter', 'woodworker', 'joiner'],
     width: 12, depth: 10, height: 4.5,
     floorCount: 1,
     colors: { floor: SAWDUST_TAN, wall: LIGHT_WOOD, ceiling: { r: 0.45, g: 0.38, b: 0.28 } },
@@ -1196,11 +1297,12 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 35. Butcher
+  // 36. Butcher
   {
     id: 'butcher',
+    category: 'industrial',
     buildingType: 'butcher',
-    matchBusinessTypes: ['butcher', 'meatshop'],
+    matchBusinessTypes: ['butcher', 'Butcher', 'meatshop'],
     width: 10, depth: 8, height: 4,
     floorCount: 1,
     colors: { floor: STONE_GRAY, wall: WHITE_WASH, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
@@ -1216,11 +1318,33 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
 
   // ─── Maritime Subtypes ──────────────────────────────────────────────────────
 
-  // 36. Harbor
+  // 37. Harbor Office
+  {
+    id: 'harbor_office',
+    category: 'maritime',
+    buildingType: 'harbor',
+    matchBusinessTypes: ['Harbor', 'port', 'dock'],
+    width: 14, depth: 14, height: 4.5,
+    floorCount: 2,
+    colors: { floor: WEATHERED_WOOD, wall: { r: 0.5, g: 0.48, b: 0.42 }, ceiling: { r: 0.42, g: 0.4, b: 0.35 } },
+    rooms: [
+      { name: 'dock_office', function: 'harbor_office', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'warehouse', function: 'dock_warehouse', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'navigation', function: 'navigation', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'harbor_office', furniture: HARBOR_OFFICE_FURNITURE },
+      { roomFunction: 'dock_warehouse', furniture: DOCK_WAREHOUSE_FURNITURE },
+      { roomFunction: 'navigation', furniture: NAVIGATION_FURNITURE },
+    ],
+  },
+
+  // 38. Harbor (docks)
   {
     id: 'harbor',
-    buildingType: 'harbor',
-    matchBusinessTypes: ['harbor', 'port', 'docks', 'customshouse', 'customs_house'],
+    category: 'maritime',
+    buildingType: 'harbor_docks',
+    matchBusinessTypes: ['harbor', 'docks', 'customshouse', 'customs_house'],
     width: 16, depth: 12, height: 4.5,
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: { r: 0.5, g: 0.45, b: 0.38 }, ceiling: { r: 0.45, g: 0.4, b: 0.35 } },
@@ -1234,11 +1358,12 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 37. Fish Market
+  // 39. Fish Market
   {
     id: 'fish_market',
+    category: 'maritime',
     buildingType: 'fishmarket',
-    matchBusinessTypes: ['fishmarket', 'fish_market'],
+    matchBusinessTypes: ['fishmarket', 'fish_market', 'FishMarket', 'fishmonger'],
     width: 14, depth: 10, height: 4,
     floorCount: 1,
     colors: { floor: STONE_GRAY, wall: { r: 0.55, g: 0.55, b: 0.52 }, ceiling: { r: 0.5, g: 0.48, b: 0.45 } },
@@ -1252,11 +1377,31 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
+  // 40. Boatyard
+  {
+    id: 'boatyard',
+    category: 'maritime',
+    buildingType: 'boatyard',
+    matchBusinessTypes: ['boatyard', 'Boatyard', 'shipyard'],
+    width: 20, depth: 16, height: 6,
+    floorCount: 1,
+    colors: { floor: WEATHERED_WOOD, wall: { r: 0.45, g: 0.4, b: 0.32 }, ceiling: { r: 0.4, g: 0.35, b: 0.28 } },
+    rooms: [
+      { name: 'workshop', function: 'workshop', offsetXFraction: 0, offsetZFraction: -0.15, widthFraction: 1, depthFraction: 0.7, floor: 0 },
+      { name: 'supply_room', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'workshop', furniture: WORKSHOP_FURNITURE },
+      { roomFunction: 'storage', furniture: DOCK_WAREHOUSE_FURNITURE },
+    ],
+  },
+
   // ─── Residential Subtypes ──────────────────────────────────────────────────
 
-  // 38. Cottage
+  // 41. Cottage
   {
     id: 'cottage',
+    category: 'residential',
     buildingType: 'cottage',
     matchBusinessTypes: ['cottage'],
     width: 8, depth: 8, height: 3.5,
@@ -1272,9 +1417,10 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 39. Townhouse
+  // 42. Townhouse
   {
     id: 'townhouse',
+    category: 'residential',
     buildingType: 'townhouse',
     matchBusinessTypes: ['townhouse'],
     width: 8, depth: 12, height: 4,
@@ -1293,9 +1439,10 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 40. Apartment
+  // 43. Apartment
   {
     id: 'apartment',
+    category: 'residential',
     buildingType: 'apartment',
     matchBusinessTypes: ['apartment', 'flat'],
     width: 14, depth: 12, height: 4,
@@ -1323,10 +1470,14 @@ export function getTemplateById(id: string): InteriorLayoutTemplate | undefined 
   return INTERIOR_LAYOUT_TEMPLATES.find(t => t.id === id);
 }
 
-/** Find the best-matching template for a building/business type string. */
+/**
+ * Find the best-matching template for a building/business type string.
+ * Falls back to the first template in the given category if no direct match is found.
+ */
 export function getTemplateForBuildingType(
   buildingType: string,
   businessType?: string,
+  category?: string,
 ): InteriorLayoutTemplate | undefined {
   const bt = (businessType || buildingType || '').toLowerCase();
 
@@ -1335,7 +1486,7 @@ export function getTemplateForBuildingType(
   let bestLen = 0;
   for (const template of INTERIOR_LAYOUT_TEMPLATES) {
     for (const m of template.matchBusinessTypes) {
-      if (bt.includes(m) && m.length > bestLen) {
+      if (bt.includes(m.toLowerCase()) && m.length > bestLen) {
         bestMatch = template;
         bestLen = m.length;
       }
@@ -1351,13 +1502,30 @@ export function getTemplateForBuildingType(
       bestLen = template.buildingType.length;
     }
   }
+  if (bestMatch) return bestMatch;
 
-  return bestMatch;
+  // Fall back to first template in the category
+  if (category) {
+    const categoryTemplates = getTemplatesForCategory(category);
+    if (categoryTemplates.length > 0) return categoryTemplates[0];
+  }
+
+  return undefined;
 }
 
 /** Get all template IDs. */
 export function getTemplateIds(): string[] {
   return INTERIOR_LAYOUT_TEMPLATES.map(t => t.id);
+}
+
+/** Get all templates belonging to a building category. */
+export function getTemplatesForCategory(category: string): InteriorLayoutTemplate[] {
+  return INTERIOR_LAYOUT_TEMPLATES.filter(t => t.category === category);
+}
+
+/** Get all unique categories present in templates. */
+export function getTemplateCategories(): string[] {
+  return Array.from(new Set(INTERIOR_LAYOUT_TEMPLATES.map(t => t.category)));
 }
 
 /** Resolve a room zone template to absolute dimensions given the parent template. */

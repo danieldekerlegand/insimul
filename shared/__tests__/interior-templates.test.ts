@@ -4,6 +4,8 @@ import {
   getTemplateById,
   getTemplateForBuildingType,
   getTemplateIds,
+  getTemplatesForCategory,
+  getTemplateCategories,
   resolveRoomZone,
   getFurnitureSetForRoom,
   type InteriorLayoutTemplate,
@@ -19,6 +21,12 @@ describe('Interior Layout Templates', () => {
   it('should have unique IDs', () => {
     const ids = INTERIOR_LAYOUT_TEMPLATES.map(t => t.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('every template has a category', () => {
+    for (const t of INTERIOR_LAYOUT_TEMPLATES) {
+      expect(t.category, `${t.id} missing category`).toBeTruthy();
+    }
   });
 
   it('every template has valid dimensions', () => {
@@ -104,7 +112,11 @@ describe('Interior Layout Templates', () => {
       'tavern', 'restaurant', 'shop', 'bar', 'bakery',
       'residence_small', 'residence_medium', 'residence_large',
       'church', 'school', 'hotel', 'blacksmith', 'warehouse',
-      'clinic', 'farm_barn',
+      'clinic', 'farm_barn', 'guild_hall',
+      // New category-diversified templates
+      'bookstore', 'grocery_store', 'bank', 'barbershop',
+      'town_hall', 'hospital', 'carpenter', 'butcher',
+      'harbor_office', 'fish_market', 'boatyard',
     ];
 
     for (const id of requiredIds) {
@@ -218,6 +230,24 @@ describe('getTemplateForBuildingType', () => {
   it('is case-insensitive via toLowerCase', () => {
     expect(getTemplateForBuildingType('building', 'Tavern')?.id).toBe('tavern');
   });
+
+  it('matches new templates by business type', () => {
+    expect(getTemplateForBuildingType('building', 'Bank')?.id).toBe('bank');
+    expect(getTemplateForBuildingType('building', 'Harbor')?.id).toBe('harbor_office');
+    expect(getTemplateForBuildingType('building', 'FishMarket')?.id).toBe('fish_market');
+    expect(getTemplateForBuildingType('building', 'BookStore')?.id).toBe('bookstore');
+  });
+
+  it('falls back to category when no direct match', () => {
+    // 'Lighthouse' has no direct template, but is in 'maritime' category
+    const result = getTemplateForBuildingType('building', 'unknown_type', 'maritime');
+    expect(result).toBeDefined();
+    expect(result!.category).toBe('maritime');
+  });
+
+  it('returns undefined when no match and no category', () => {
+    expect(getTemplateForBuildingType('spaceship', 'alien')).toBeUndefined();
+  });
 });
 
 describe('getTemplateIds', () => {
@@ -226,13 +256,98 @@ describe('getTemplateIds', () => {
     expect(ids.length).toBe(INTERIOR_LAYOUT_TEMPLATES.length);
     expect(ids).toContain('tavern');
     expect(ids).toContain('clinic');
+    expect(ids).toContain('harbor_office');
+  });
+});
+
+describe('getTemplatesForCategory', () => {
+  it('returns templates for commercial_food', () => {
+    const templates = getTemplatesForCategory('commercial_food');
+    expect(templates.length).toBeGreaterThanOrEqual(2);
+    const ids = templates.map(t => t.id);
+    expect(ids).toContain('tavern');
+    expect(ids).toContain('restaurant');
+  });
+
+  it('returns templates for commercial_retail', () => {
+    const templates = getTemplatesForCategory('commercial_retail');
+    expect(templates.length).toBeGreaterThanOrEqual(2);
+    const ids = templates.map(t => t.id);
+    expect(ids).toContain('shop');
+    expect(ids).toContain('bookstore');
+  });
+
+  it('returns templates for commercial_service', () => {
+    const templates = getTemplatesForCategory('commercial_service');
+    expect(templates.length).toBeGreaterThanOrEqual(2);
+    const ids = templates.map(t => t.id);
+    expect(ids).toContain('hotel');
+    expect(ids).toContain('bank');
+  });
+
+  it('returns templates for civic', () => {
+    const templates = getTemplatesForCategory('civic');
+    expect(templates.length).toBeGreaterThanOrEqual(2);
+    const ids = templates.map(t => t.id);
+    expect(ids).toContain('church');
+    expect(ids).toContain('town_hall');
+  });
+
+  it('returns templates for industrial', () => {
+    const templates = getTemplatesForCategory('industrial');
+    expect(templates.length).toBeGreaterThanOrEqual(2);
+    const ids = templates.map(t => t.id);
+    expect(ids).toContain('blacksmith');
+    expect(ids).toContain('warehouse');
+  });
+
+  it('returns templates for maritime', () => {
+    const templates = getTemplatesForCategory('maritime');
+    expect(templates.length).toBeGreaterThanOrEqual(2);
+    const ids = templates.map(t => t.id);
+    expect(ids).toContain('harbor_office');
+    expect(ids).toContain('fish_market');
+  });
+
+  it('returns templates for residential', () => {
+    const templates = getTemplatesForCategory('residential');
+    expect(templates.length).toBeGreaterThanOrEqual(2);
+    const ids = templates.map(t => t.id);
+    expect(ids).toContain('residence_small');
+    expect(ids).toContain('residence_large');
+  });
+
+  it('returns empty array for unknown category', () => {
+    expect(getTemplatesForCategory('nonexistent')).toEqual([]);
+  });
+
+  it('every category has at least 2 templates', () => {
+    const categories = getTemplateCategories();
+    for (const cat of categories) {
+      const templates = getTemplatesForCategory(cat);
+      expect(templates.length, `category "${cat}" needs >=2 templates`).toBeGreaterThanOrEqual(2);
+    }
+  });
+});
+
+describe('getTemplateCategories', () => {
+  it('returns all 7 building categories', () => {
+    const categories = getTemplateCategories();
+    expect(categories).toContain('commercial_food');
+    expect(categories).toContain('commercial_retail');
+    expect(categories).toContain('commercial_service');
+    expect(categories).toContain('civic');
+    expect(categories).toContain('industrial');
+    expect(categories).toContain('maritime');
+    expect(categories).toContain('residential');
+    expect(categories.length).toBe(7);
   });
 });
 
 describe('resolveRoomZone', () => {
   it('converts fractions to absolute dimensions', () => {
     const template: InteriorLayoutTemplate = {
-      id: 'test', buildingType: 'test', matchBusinessTypes: [],
+      id: 'test', category: 'civic', buildingType: 'test', matchBusinessTypes: [],
       width: 20, depth: 10, height: 5, floorCount: 2,
       colors: { floor: { r: 0, g: 0, b: 0 }, wall: { r: 0, g: 0, b: 0 }, ceiling: { r: 0, g: 0, b: 0 } },
       rooms: [], furnitureSets: [],
@@ -266,5 +381,16 @@ describe('getFurnitureSetForRoom', () => {
   it('returns empty array for non-matching function', () => {
     const tavern = getTemplateById('tavern')!;
     expect(getFurnitureSetForRoom(tavern, 'nonexistent')).toEqual([]);
+  });
+
+  it('returns furniture for new templates', () => {
+    const bank = getTemplateById('bank')!;
+    const lobbyFurniture = getFurnitureSetForRoom(bank, 'bank_lobby');
+    expect(lobbyFurniture.length).toBeGreaterThan(0);
+    expect(lobbyFurniture.some(f => f.type === 'counter')).toBe(true);
+
+    const harbor = getTemplateById('harbor_office')!;
+    const officeFurniture = getFurnitureSetForRoom(harbor, 'harbor_office');
+    expect(officeFurniture.length).toBeGreaterThan(0);
   });
 });
