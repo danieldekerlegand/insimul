@@ -1,14 +1,14 @@
 /**
  * Quest Generator Service
  *
- * Generates quests based on world type and game type using AI.
+ * Generates quests based on world type and game type using an LLM provider.
  * Supports both language-learning and RPG quest types with appropriate
  * categories, objectives, and rewards.
  */
 
 import { getQuestTypeForWorld, getQuestTypesForWorld, type World } from '../../shared/quest-types/index.js';
 import type { InsertQuest } from '../../shared/schema.js';
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
+import { type ILLMProvider, createLLMProvider } from './llm-provider.js';
 import type { PlayerProficiency } from '../../shared/language/language-utils.js';
 import {
   buildObjectiveTypePrompt,
@@ -26,26 +26,22 @@ import {
   bindQuestToWorldEntities,
 } from './world-state-context.js';
 
+/** Default LLM provider instance, lazily created */
+let defaultProvider: ILLMProvider | null = null;
+
+function getDefaultProvider(): ILLMProvider {
+  if (!defaultProvider) {
+    defaultProvider = createLLMProvider({ provider: 'gemini' });
+  }
+  return defaultProvider;
+}
+
 /**
- * Call LLM for quest generation using Gemini API.
+ * Call LLM for quest generation.
  * Returns a JSON string representing a single quest object.
  */
-async function callLLM(prompt: string): Promise<string> {
-  if (!isGeminiConfigured()) {
-    console.warn('[QuestGenerator] Gemini not configured, using fallback quest');
-    return JSON.stringify({
-      title: 'Explore the World',
-      description: 'Discover new locations and meet interesting characters.',
-      category: 'exploration',
-      difficulty: 'easy',
-      objectives: [
-        { type: 'visit_location', description: 'Visit the town square', target: 'town_square', required: 1 }
-      ],
-      rewards: { experience: 50, gold: 100 }
-    });
-  }
-
-  const ai = getGenAI();
+async function callLLM(prompt: string, provider?: ILLMProvider): Promise<string> {
+  const llm = provider ?? getDefaultProvider();
 
   const objectiveTypeConstraints = buildObjectiveTypePrompt();
   const hintPrompt = buildHintGenerationPrompt();
@@ -66,11 +62,7 @@ ${hintPrompt}
 
 Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODELS.PRO,
-    config: { systemInstruction: systemPrompt },
-    contents: prompt,
-  });
+  const response = await llm.generate({ prompt, systemPrompt });
 
   if (!response.text) {
     throw new Error('AI service returned empty response');
@@ -148,8 +140,9 @@ export async function generateQuestForType(params: {
   assignedBy?: string;
   playerProficiency?: PlayerProficiency;
   worldStateContext?: WorldStateContext;
+  provider?: ILLMProvider;
 }): Promise<InsertQuest & { hintsData?: QuestHintsData }> {
-  const { world, questType, category, difficulty, assignedTo, assignedBy, playerProficiency, worldStateContext } = params;
+  const { world, questType, category, difficulty, assignedTo, assignedBy, playerProficiency, worldStateContext, provider } = params;
 
   // Build AI prompt using quest type's generation prompt
   const basePrompt = questType.generationPrompt(world);
@@ -164,7 +157,7 @@ Difficulty: ${difficulty}
 Generate a quest following the format specified above.`;
 
   // Call LLM to generate quest
-  const response = await callLLM(fullPrompt);
+  const response = await callLLM(fullPrompt, provider);
   let questData = JSON.parse(response);
 
   // Bind generated quest to real world entities
@@ -280,6 +273,7 @@ export async function generateQuestsForWorld(
     assignedTo?: string;
     playerProficiency?: PlayerProficiency;
     worldStateContext?: WorldStateContext;
+    provider?: ILLMProvider;
   }
 ): Promise<InsertQuest[]> {
   // Support cross-genre quest mixing: resolve all applicable quest types
@@ -312,6 +306,7 @@ export async function generateQuestsForWorld(
       assignedTo: options?.assignedTo,
       playerProficiency: options?.playerProficiency,
       worldStateContext: options?.worldStateContext,
+      provider: options?.provider,
     });
 
     quests.push(quest);
@@ -346,8 +341,9 @@ export async function generateQuestFromDialogue(params: {
     difficulty?: string;
     objectives?: string[];
   };
+  provider?: ILLMProvider;
 }): Promise<InsertQuest & { hintsData?: QuestHintsData }> {
-  const { world, npcId, npcName, playerId, playerName, conversationContext, playerProficiency, worldStateContext, questHint } = params;
+  const { world, npcId, npcName, playerId, playerName, conversationContext, playerProficiency, worldStateContext, questHint, provider } = params;
 
   const questType = getQuestTypeForWorld(world);
 
@@ -378,7 +374,7 @@ ${playerProficiency ? '- Match difficulty to the player\'s current proficiency l
 
 Return JSON format as specified above.`;
 
-  const response = await callLLM(prompt);
+  const response = await callLLM(prompt, provider);
   let questData = JSON.parse(response);
 
   // Bind generated quest to real world entities

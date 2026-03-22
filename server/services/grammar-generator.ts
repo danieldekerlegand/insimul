@@ -1,10 +1,9 @@
 /**
  * AI-Powered Grammar Generator
- * Uses Gemini to generate Tracery grammars from natural language descriptions
+ * Uses an LLM provider to generate Tracery grammars from natural language descriptions
  */
 
-import { getModel, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
-import type { GenerativeModel } from '@google/generative-ai';
+import { type ILLMProvider, createLLMProvider } from './llm-provider.js';
 
 interface GrammarGenerationRequest {
   description: string;
@@ -41,45 +40,27 @@ interface GeneratedGrammar {
 }
 
 export class GrammarGenerator {
-  private model: GenerativeModel | null = null;
-  private enabled: boolean = false;
+  private provider: ILLMProvider;
 
-  constructor() {
-    if (isGeminiConfigured()) {
-      try {
-        this.model = getModel(GEMINI_MODELS.PRO);
-        this.enabled = true;
-        console.log('✅ Grammar Generator initialized with Gemini');
-      } catch (error) {
-        console.warn('⚠️ Failed to initialize Grammar Generator:', error);
-        this.enabled = false;
-      }
-    } else {
-      console.warn('⚠️ Gemini API not configured for Grammar Generator');
-      this.enabled = false;
-    }
+  constructor(provider?: ILLMProvider) {
+    this.provider = provider ?? createLLMProvider({ provider: 'gemini' });
   }
 
   /**
    * Generate a Tracery grammar from a natural language description
    */
   async generateGrammar(request: GrammarGenerationRequest): Promise<GeneratedGrammar> {
-    if (!this.enabled || !this.model) {
-      throw new Error('Grammar generator not available. Please configure Gemini API.');
-    }
-
     const prompt = this.buildPrompt(request);
-    
+
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
-      
+      const result = await this.provider.generate({ prompt });
+
       // Parse the AI response
-      const generated = this.parseResponse(response, request);
-      
+      const generated = this.parseResponse(result.text, request);
+
       // Validate the generated grammar
       this.validateGrammar(generated.grammar);
-      
+
       return generated;
     } catch (error) {
       console.error('Error generating grammar:', error);
@@ -95,10 +76,6 @@ export class GrammarGenerator {
     extensionTheme: string,
     addRules: number = 5
   ): Promise<Record<string, string | string[]>> {
-    if (!this.enabled || !this.model) {
-      throw new Error('Grammar generator not available. Please configure Gemini API.');
-    }
-
     const prompt = `You are extending an existing Tracery grammar with new variations.
 
 Existing Grammar:
@@ -117,10 +94,9 @@ Instructions:
 Return the extended grammar as JSON:`;
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
-      const extended = this.extractJSON(response);
-      
+      const result = await this.provider.generate({ prompt });
+      const extended = this.extractJSON(result.text);
+
       this.validateGrammar(extended);
       return extended;
     } catch (error) {
@@ -136,10 +112,6 @@ Return the extended grammar as JSON:`;
     examples: string[],
     symbolName: string = 'origin'
   ): Promise<Record<string, string | string[]>> {
-    if (!this.enabled || !this.model) {
-      throw new Error('Grammar generator not available. Please configure Gemini API.');
-    }
-
     const prompt = `You are creating a Tracery grammar by analyzing example outputs.
 
 Examples:
@@ -164,9 +136,8 @@ Example Tracery format:
 Return the grammar as JSON:`;
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
-      const grammar = this.extractJSON(response);
+      const result = await this.provider.generate({ prompt });
+      const grammar = this.extractJSON(result.text);
 
       this.validateGrammar(grammar);
       return grammar;
@@ -195,10 +166,6 @@ Return the grammar as JSON:`;
     worldContext?: GrammarWorldContext,
     onProgress?: (message: string, batchIndex: number, totalBatches: number) => void
   ): Promise<GeneratedGrammar[]> {
-    if (!this.enabled || !this.model) {
-      throw new Error('Grammar generator not available. Please configure Gemini API.');
-    }
-
     console.log(`🎨 Generating custom grammars for: ${customLabel}${targetLanguage ? ` (target language: ${targetLanguage})` : ''}`);
 
     // Build a rich context block shared across all grammar prompts
@@ -305,8 +272,6 @@ Return the grammar as JSON:`;
     targetLanguage?: string,
     contextBlock?: string
   ): Promise<Record<string, string | string[]>> {
-    if (!this.model) throw new Error('Model not initialized');
-
     const langDirective = targetLanguage
       ? `CRITICAL: All names MUST be in ${targetLanguage}. Use authentic ${targetLanguage} naming conventions, vocabulary, and cultural patterns. Do NOT use English names or anglicized versions.`
       : '';
@@ -462,9 +427,8 @@ QUALITY REQUIREMENTS:
 
 Return ONLY valid JSON. No markdown fences, no explanation, just the JSON object.`;
 
-    const result = await this.model.generateContent(prompt);
-    const response = result.response.text();
-    const grammar = this.extractJSON(response);
+    const result = await this.provider.generate({ prompt });
+    const grammar = this.extractJSON(result.text);
     this.validateGrammar(grammar);
     return grammar;
   }
