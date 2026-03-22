@@ -7,6 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import type { ProceduralBuildingConfig, ProceduralStylePreset } from '@shared/game-engine/types';
+import {
+  type InteriorLayoutTemplate,
+  getTemplateForBuildingType,
+  resolveRoomZone,
+  getFurnitureSetForRoom,
+} from '@shared/game-engine/interior-templates';
 
 interface BuildingModelPreviewProps {
   /** Direct path to the 3D model file */
@@ -17,6 +23,8 @@ interface BuildingModelPreviewProps {
   tintColor?: { r: number; g: number; b: number };
   /** Label shown in the badge */
   buildingType?: string;
+  /** Business type for interior template lookup */
+  businessType?: string;
   /** Procedural building config from asset collection */
   proceduralConfig?: ProceduralBuildingConfig | null;
   /** Zone type for style resolution */
@@ -37,6 +45,7 @@ export function BuildingModelPreview({
   interiorModelPath,
   tintColor,
   buildingType,
+  businessType,
   proceduralConfig,
   zone,
   className = '',
@@ -95,6 +104,11 @@ export function BuildingModelPreview({
     // Resolve style from procedural config for placeholder
     const resolvedPreset = resolvePresetForPreview(proceduralConfig, buildingType, zone);
 
+    // Resolve interior template for procedural interior preview
+    const interiorTemplate = buildingType
+      ? getTemplateForBuildingType(buildingType, businessType)
+      : undefined;
+
     // Determine which model to load based on view mode
     const activeModelPath = viewMode === 'interior' ? interiorModelPath : modelPath;
 
@@ -139,6 +153,10 @@ export function BuildingModelPreview({
           setIsLoading(false);
         }
       );
+    } else if (viewMode === 'interior' && interiorTemplate) {
+      buildProceduralInterior(scene, camera, ground, interiorTemplate);
+      setMeshSource('model');
+      setIsLoading(false);
     } else {
       buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset);
       setMeshSource('placeholder');
@@ -158,7 +176,7 @@ export function BuildingModelPreview({
       sceneRef.current = null;
       cameraRef.current = null;
     };
-  }, [modelPath, interiorModelPath, tintColor?.r, tintColor?.g, tintColor?.b, proceduralConfig, buildingType, zone, viewMode]);
+  }, [modelPath, interiorModelPath, tintColor?.r, tintColor?.g, tintColor?.b, proceduralConfig, buildingType, businessType, zone, viewMode]);
 
   const handleZoomIn = () => {
     if (cameraRef.current) cameraRef.current.radius = Math.max(1, cameraRef.current.radius - 0.8);
@@ -167,11 +185,15 @@ export function BuildingModelPreview({
     if (cameraRef.current) cameraRef.current.radius = Math.min(20, cameraRef.current.radius + 0.8);
   };
 
+  // Resolve whether we have any interior to show (model or procedural template)
+  const resolvedInteriorTemplate = buildingType
+    ? getTemplateForBuildingType(buildingType, businessType)
+    : undefined;
+  const hasInterior = !!interiorModelPath || !!resolvedInteriorTemplate;
+
   const sourceLabel = viewMode === 'interior'
     ? (meshSource === 'model' ? 'Interior' : 'No Interior')
     : (meshSource === 'model' ? (buildingType || '3D Model') : 'Placeholder');
-
-  const hasInterior = !!interiorModelPath;
 
   return (
     <div className={`flex flex-col ${className}`}>
@@ -439,4 +461,118 @@ function buildProceduralPlaceholder(
   camera.target = new BABYLON.Vector3(0, totalH / 2, 0);
   camera.radius = Math.max(3, totalH * 2);
   ground.scaling = new BABYLON.Vector3(2, 2, 1);
+}
+
+/** Build a procedural interior cutaway preview from an InteriorLayoutTemplate */
+function buildProceduralInterior(
+  scene: BABYLON.Scene,
+  camera: BABYLON.ArcRotateCamera,
+  ground: BABYLON.Mesh,
+  template: InteriorLayoutTemplate,
+) {
+  // Normalize dimensions to fit nicely in the preview (target ~2 units)
+  const maxDim = Math.max(template.width, template.depth);
+  const scale = 2 / maxDim;
+  const w = template.width * scale;
+  const d = template.depth * scale;
+  const h = template.height * scale;
+
+  const { colors } = template;
+
+  // Floor
+  const floorMat = new BABYLON.StandardMaterial('intFloorMat', scene);
+  floorMat.diffuseColor = new BABYLON.Color3(colors.floor.r, colors.floor.g, colors.floor.b);
+  floorMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  const floor = BABYLON.MeshBuilder.CreateBox('intFloor', { width: w, height: 0.03, depth: d }, scene);
+  floor.position.y = 0;
+  floor.material = floorMat;
+
+  // Walls — three sides only (front open for cutaway view)
+  const wallMat = new BABYLON.StandardMaterial('intWallMat', scene);
+  wallMat.diffuseColor = new BABYLON.Color3(colors.wall.r, colors.wall.g, colors.wall.b);
+  wallMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+  const wallThickness = 0.03;
+
+  // Back wall
+  const backWall = BABYLON.MeshBuilder.CreateBox('intBackWall', { width: w, height: h, depth: wallThickness }, scene);
+  backWall.position.set(0, h / 2, -d / 2);
+  backWall.material = wallMat;
+
+  // Left wall
+  const leftWall = BABYLON.MeshBuilder.CreateBox('intLeftWall', { width: wallThickness, height: h, depth: d }, scene);
+  leftWall.position.set(-w / 2, h / 2, 0);
+  leftWall.material = wallMat;
+
+  // Right wall
+  const rightWall = BABYLON.MeshBuilder.CreateBox('intRightWall', { width: wallThickness, height: h, depth: d }, scene);
+  rightWall.position.set(w / 2, h / 2, 0);
+  rightWall.material = wallMat;
+
+  // Room partitions (ground floor only for preview clarity)
+  const partitionMat = new BABYLON.StandardMaterial('intPartMat', scene);
+  partitionMat.diffuseColor = wallMat.diffuseColor.scale(0.85);
+  partitionMat.specularColor = BABYLON.Color3.Black();
+  partitionMat.alpha = 0.6;
+
+  const groundRooms = template.rooms.filter(r => r.floor === 0);
+  for (let i = 1; i < groundRooms.length; i++) {
+    const room = groundRooms[i];
+    const resolved = resolveRoomZone(template, room);
+    // Only add horizontal partitions (Z-axis splits)
+    const partZ = (resolved.offsetZ - resolved.depth / 2) * scale;
+    if (Math.abs(partZ) < d / 2 - 0.05) {
+      const partition = BABYLON.MeshBuilder.CreateBox(`intPart_${i}`, {
+        width: w * 0.95, height: h * 0.7, depth: wallThickness,
+      }, scene);
+      partition.position.set(0, h * 0.35, partZ);
+      partition.material = partitionMat;
+    }
+  }
+
+  // Furniture — place ground floor furniture as simple shapes
+  const furnitureMat = new BABYLON.StandardMaterial('intFurnBaseMat', scene);
+  furnitureMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+
+  for (const room of groundRooms) {
+    const resolved = resolveRoomZone(template, room);
+    const furnEntries = getFurnitureSetForRoom(template, room.function);
+    const roomCenterX = resolved.offsetX * scale;
+    const roomCenterZ = resolved.offsetZ * scale;
+    const roomW = resolved.width * scale;
+    const roomD = resolved.depth * scale;
+
+    for (const furn of furnEntries) {
+      const fw = furn.width * scale;
+      const fh = furn.height * scale;
+      const fd = furn.depth * scale;
+      const fx = roomCenterX + furn.offsetXFraction * roomW;
+      const fz = roomCenterZ + furn.offsetZFraction * roomD;
+
+      const mat = new BABYLON.StandardMaterial(`furnMat_${furn.type}_${Math.random().toFixed(3)}`, scene);
+      mat.diffuseColor = new BABYLON.Color3(furn.color.r, furn.color.g, furn.color.b);
+      mat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+
+      const isCylinder = furn.type === 'barrel' || furn.type === 'stool' || furn.type === 'pillar';
+      let mesh: BABYLON.Mesh;
+      if (isCylinder) {
+        mesh = BABYLON.MeshBuilder.CreateCylinder(`furn_${furn.type}`, {
+          diameter: Math.max(fw, fd), height: fh, tessellation: 8,
+        }, scene);
+      } else {
+        mesh = BABYLON.MeshBuilder.CreateBox(`furn_${furn.type}`, {
+          width: fw, height: fh, depth: fd,
+        }, scene);
+      }
+      mesh.position.set(fx, fh / 2, fz);
+      if (furn.rotationY) mesh.rotation.y = furn.rotationY;
+      mesh.material = mat;
+    }
+  }
+
+  // Camera setup — isometric-ish angle looking into the cutaway
+  camera.target = new BABYLON.Vector3(0, h * 0.3, 0);
+  camera.alpha = Math.PI / 3;
+  camera.beta = Math.PI / 3.5;
+  camera.radius = Math.max(w, d) * 1.8;
+  ground.scaling = new BABYLON.Vector3(w * 0.8, d * 0.8, 1);
 }
