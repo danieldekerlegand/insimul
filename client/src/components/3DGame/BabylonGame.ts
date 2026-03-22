@@ -61,6 +61,7 @@ import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
 import { WaterRenderer } from "@/components/3DGame/WaterRenderer.ts";
 import { buildStreetNetwork } from "@/components/3DGame/StreetNetworkLayout.ts";
 import { NPCScheduleSystem } from "@/components/3DGame/NPCScheduleSystem.ts";
+import { NPCLocationCycler } from "@/components/3DGame/NPCLocationCycler.ts";
 import { VolitionSystem, type NPCState as VolitionNPCState, type VolitionGoal, TERMINAL_ACTIONS } from "@/components/3DGame/VolitionSystem.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
@@ -700,6 +701,7 @@ export class BabylonGame {
 
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
+  private npcLocationCycler: NPCLocationCycler;
   private ambientLifeSystem: AmbientLifeBehaviorSystem = new AmbientLifeBehaviorSystem();
 
   // Volition System — Ensemble-style spontaneous NPC goal formation
@@ -751,6 +753,7 @@ export class BabylonGame {
     this.config = config;
     this.dataSource = config.dataSource || createDataSource(config.authToken);
     this.worldTheme = computeWorldVisualTheme(config.worldType);
+    this.npcLocationCycler = new NPCLocationCycler(this.gameTimeManager, this.npcScheduleSystem);
   }
 
   /**
@@ -1552,6 +1555,9 @@ export class BabylonGame {
 
     // Wire game time manager to event bus
     this.gameTimeManager.setEventBus(this.eventBus);
+
+    // Wire NPC location cycler to event bus for day/night transitions
+    this.npcLocationCycler.setEventBus(this.eventBus);
 
     // Initialize texture manager
     this.textureManager = new TextureManager(scene);
@@ -6625,6 +6631,9 @@ export class BabylonGame {
           } : undefined
         );
 
+        // Register with location cycler for day/night transitions
+        this.npcLocationCycler.registerNPC(character.id);
+
         // Assign NPC to settlement zone for boundary confinement
         {
           // Determine settlement from work or home building metadata
@@ -8077,6 +8086,39 @@ export class BabylonGame {
   }
 
 
+  /**
+   * Process pending NPC location transitions from the day/night cycler.
+   * Applies goal changes and pathfinding for NPCs that need to relocate.
+   */
+  private processLocationCyclerTransitions(): void {
+    const transitions = this.npcLocationCycler.drainPendingTransitions();
+    if (transitions.length === 0) return;
+
+    for (const { npcId, goal, virtualNow } of transitions) {
+      const instance = this.npcMeshes.get(npcId);
+      if (!instance?.mesh) continue;
+
+      const entry = this.npcScheduleSystem.getEntry(npcId);
+      if (entry) entry.currentGoal = goal;
+      instance.scheduleGoalExpiry = goal.expiresAt;
+
+      const currentPos = instance.mesh.position;
+
+      if ((goal.type === 'go_to_building' || goal.type === 'visit_friend') && goal.doorPosition) {
+        const path = this.npcScheduleSystem.findSidewalkPath(currentPos, goal.doorPosition);
+        instance.schedulePathWaypoints = path;
+        instance.schedulePathIndex = 0;
+      } else if (goal.type === 'wander_sidewalk' || goal.type === 'idle_at_building') {
+        const target = this.npcScheduleSystem.getRandomSidewalkTarget(npcId);
+        if (target) {
+          const path = this.npcScheduleSystem.findSidewalkPath(currentPos, target);
+          instance.schedulePathWaypoints = path;
+          instance.schedulePathIndex = 0;
+        }
+      }
+    }
+  }
+
   // Distance thresholds for NPC optimization (Phase 7 enhanced)
   private static readonly NPC_HIDE_DISTANCE = 120;      // Hide mesh entirely
   private static readonly NPC_BILLBOARD_DISTANCE = 60;   // Show billboard instead of full mesh
@@ -8447,9 +8489,10 @@ export class BabylonGame {
         if (entry) entry.currentGoal = { type: 'wander_sidewalk', expiresAt: now + 30000 };
       }
 
-      // Pick a new goal if none or expired
+      // Pick a new goal if none or expired (use game-time-aware virtual now)
+      const virtualNow = this.npcLocationCycler.getVirtualNow();
       if (!entry?.currentGoal || now >= (instance.scheduleGoalExpiry || 0)) {
-        const goal = this.npcScheduleSystem.pickNextGoal(characterId, now);
+        const goal = this.npcScheduleSystem.pickNextGoal(characterId, virtualNow);
         if (!goal) return;
 
         // Update the schedule entry
@@ -9210,6 +9253,9 @@ export class BabylonGame {
       // Advance game time and update day/night visuals
       this.gameTimeManager.update(this.engine!.getDeltaTime());
       this.dayNightCycle?.update();
+
+      // Process day/night NPC location transitions from the cycler
+      this.processLocationCyclerTransitions();
 
       // Update time HUD indicator
       this.guiManager?.updateTime(
@@ -12684,6 +12730,7 @@ export class BabylonGame {
     this.onboardingActive = false;
     this.assessmentActive = false;
     this.onboardingResult = null;
+    this.npcLocationCycler.dispose();
     this.ambientConversationManager?.dispose();
     this.npcInitiatedConversationController?.dispose();
     this.socializationController?.dispose();
