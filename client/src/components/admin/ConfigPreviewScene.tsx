@@ -21,8 +21,9 @@ interface ConfigPreviewSceneProps {
   className?: string;
   /** Callback with the Babylon scene for custom setup */
   onSceneReady?: (scene: any, engine: any) => void;
-  /** Procedural builder callback — build meshes instead of loading a model */
-  buildProcedural?: (scene: any) => void;
+  /** Procedural builder callback — build meshes instead of loading a model.
+   *  Receives the Babylon.js scene and the BABYLON module for mesh creation. */
+  buildProcedural?: (scene: any, BABYLON: any) => void;
 }
 
 export function ConfigPreviewScene({
@@ -100,7 +101,7 @@ export function ConfigPreviewScene({
 
     // Procedural mesh builder
     if (buildProcedural) {
-      buildProcedural(scene);
+      buildProcedural(scene, BABYLON);
       // Frame all meshes
       const meshes = scene.meshes.filter((m: any) => m.name !== "ground");
       if (meshes.length > 0) {
