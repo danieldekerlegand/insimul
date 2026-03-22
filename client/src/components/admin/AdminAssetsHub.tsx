@@ -18,7 +18,7 @@ import {
   Plus, Edit, Trash2, Package, Image as ImageIcon, Sparkles, Save, X,
   Search, ChevronRight, ChevronDown, Info, Settings2, Copy,
   Layers, Download, Tag, Volume2, Box, Maximize2, ArrowUp, Wand2, TrendingUp, Upload, Play, Pause, Move,
-  Building2,
+  Building2, Users,
 } from "lucide-react";
 import { VisualAssetGeneratorDialog } from "../VisualAssetGeneratorDialog";
 import { PolyhavenBrowserDialog } from "../PolyhavenBrowserDialog";
@@ -29,7 +29,7 @@ import { ImageUpscaleDialog } from "../ImageUpscaleDialog";
 import { ImageEnhancementDialog } from "../ImageEnhancementDialog";
 import { QualityComparisonDialog } from "../QualityComparisonDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
-import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3 } from "@shared/game-engine/types";
+import type { ProceduralBuildingConfig, ProceduralStylePreset, ProceduralBuildingTypeOverride, Color3 as EngineColor3, NpcConfig } from "@shared/game-engine/types";
 
 const WORLD_TYPES = [
   { value: "medieval-fantasy", label: "Medieval Fantasy" },
@@ -114,7 +114,7 @@ export function AdminAssetsHub() {
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>("all");
 
   // Right panel
-  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | null>('preview');
+  const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | 'config' | 'procedural' | 'npc' | null>('preview');
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -195,6 +195,7 @@ export function AdminAssetsHub() {
   const [playerModels, setPlayerModels] = useState<Record<string, string>>({});
   const [questObjectModels, setQuestObjectModels] = useState<Record<string, string>>({});
   const [modelScaling, setModelScaling] = useState<Record<string, { x: number; y: number; z: number }>>({});
+  const [npcConfig, setNpcConfig] = useState<NpcConfig | null>(null);
 
   // ─── Data fetching ─────────────────────────────────────────────────────────
 
@@ -357,7 +358,7 @@ export function AdminAssetsHub() {
     setGroundTextureId(''); setRoadTextureId('');
     setBuildingModels({}); setNatureModels({}); setCharacterModels({});
     setObjectModels({}); setPlayerModels({}); setQuestObjectModels({});
-    setModelScaling({});
+    setModelScaling({}); setNpcConfig(null);
   };
 
   const loadCollectionToForm = (collection: AssetCollection) => {
@@ -377,6 +378,7 @@ export function AdminAssetsHub() {
     setPlayerModels(collection.playerModels || {});
     setQuestObjectModels(collection.questObjectModels || {});
     setModelScaling((collection as any).modelScaling || {});
+    setNpcConfig(collection.npcConfig || null);
   };
 
   const handleCopyCollection = (collection: AssetCollection) => {
@@ -450,6 +452,7 @@ export function AdminAssetsHub() {
           purpose: purpose || null, tags: tags.split(',').map(t => t.trim()).filter(Boolean),
           isPublic, groundTextureId: groundTextureId || null, roadTextureId: roadTextureId || null,
           buildingModels, natureModels, characterModels, objectModels, playerModels, questObjectModels, modelScaling,
+          npcConfig,
         }),
       });
       if (!response.ok) throw new Error('Failed to update');
@@ -919,12 +922,13 @@ export function AdminAssetsHub() {
     const hasCollection = browseMode === 'collections' && !!selectedCollection;
     if (!hasAsset && !hasCollection) return null;
 
-    type SectionId = 'preview' | 'details' | 'config' | 'procedural';
+    type SectionId = 'preview' | 'details' | 'config' | 'procedural' | 'npc';
     const allSections: { id: SectionId; label: string; icon: any; show: boolean }[] = [
       { id: 'preview' as SectionId, label: 'Asset Preview', icon: ImageIcon, show: hasAsset },
       { id: 'details' as SectionId, label: 'Details', icon: Info, show: hasAsset || hasCollection },
       { id: 'config' as SectionId, label: '3D Config', icon: Settings2, show: hasCollection },
       { id: 'procedural' as SectionId, label: 'Procedural Buildings', icon: Building2, show: hasCollection },
+      { id: 'npc' as SectionId, label: 'NPC Characters', icon: Users, show: hasCollection },
     ];
     const sections = allSections.filter(s => s.show);
 
@@ -1175,6 +1179,14 @@ export function AdminAssetsHub() {
                         onSave={(config) => patchCollectionConfig({ proceduralBuildings: config } as any)}
                       />
                     )}
+
+                    {/* NPC Character Config */}
+                    {section.id === 'npc' && selectedCollection && (
+                      <NpcConfigEditor
+                        config={selectedCollection.npcConfig || null}
+                        onSave={(cfg) => patchCollectionConfig({ npcConfig: cfg } as any)}
+                      />
+                    )}
                   </div>
                 </ScrollArea>
               )}
@@ -1400,6 +1412,11 @@ export function AdminAssetsHub() {
                   </div>
                 </div>
               ))}
+            </div>
+            {/* NPC Character Config */}
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-semibold mb-3">NPC Character Configuration</h3>
+              <NpcConfigEditor config={npcConfig} onSave={setNpcConfig} inline />
             </div>
           </div>
           <DialogFooter>
@@ -2010,6 +2027,289 @@ function ProceduralBuildingsEditor({
           <Save className="w-3 h-3 mr-1" /> Save Procedural Config
         </Button>
       )}
+    </div>
+  );
+}
+
+// ─── NPC Config Editor ──────────────────────────────────────────────────────
+
+const DEFAULT_BODY_MODELS = [
+  'outfit_male_peasant', 'outfit_female_peasant',
+  'outfit_male_ranger', 'outfit_female_ranger',
+];
+
+const DEFAULT_HAIR_STYLES: Record<string, string[]> = {
+  male: ['buzzed', 'long', 'simpleparted'],
+  female: ['long', 'buns', 'buzzedfemale'],
+};
+
+const DEFAULT_CLOTHING_PALETTE = [
+  '#8B4513', '#2F4F4F', '#556B2F', '#191970', '#800020',
+  '#C3B091', '#36454F', '#D2B48C', '#8E4585', '#725E54',
+  '#008080', '#FFFDD0',
+];
+
+const DEFAULT_SKIN_TONE_PALETTE = [
+  '#FFDFC4', '#F0D5BE', '#D1A684', '#C68642',
+  '#8D5524', '#6B3E26', '#5C3317', '#3B2219',
+];
+
+function NpcConfigEditor({
+  config,
+  onSave,
+  inline,
+}: {
+  config: NpcConfig | null;
+  onSave: (config: NpcConfig | null) => void;
+  inline?: boolean;
+}) {
+  const [local, setLocal] = useState<NpcConfig>(config || {});
+  const [dirty, setDirty] = useState(false);
+  const [newBodyModel, setNewBodyModel] = useState('');
+  const [newHairGender, setNewHairGender] = useState('male');
+  const [newHairStyle, setNewHairStyle] = useState('');
+
+  const update = (fn: (c: NpcConfig) => NpcConfig) => {
+    setLocal(prev => fn({ ...prev }));
+    setDirty(true);
+  };
+
+  const handleSave = () => {
+    const hasContent = (local.bodyModels?.length || 0) > 0 ||
+      Object.keys(local.hairStyles || {}).length > 0 ||
+      (local.clothingPalette?.length || 0) > 0 ||
+      (local.skinTonePalette?.length || 0) > 0;
+    onSave(hasContent ? local : null);
+    setDirty(false);
+  };
+
+  // In inline mode (edit dialog), auto-sync to parent
+  const effectiveSave = inline ? () => {
+    const hasContent = (local.bodyModels?.length || 0) > 0 ||
+      Object.keys(local.hairStyles || {}).length > 0 ||
+      (local.clothingPalette?.length || 0) > 0 ||
+      (local.skinTonePalette?.length || 0) > 0;
+    onSave(hasContent ? local : null);
+  } : undefined;
+
+  const updateAndSync = (fn: (c: NpcConfig) => NpcConfig) => {
+    setLocal(prev => {
+      const next = fn({ ...prev });
+      if (inline) {
+        const hasContent = (next.bodyModels?.length || 0) > 0 ||
+          Object.keys(next.hairStyles || {}).length > 0 ||
+          (next.clothingPalette?.length || 0) > 0 ||
+          (next.skinTonePalette?.length || 0) > 0;
+        onSave(hasContent ? next : null);
+      } else {
+        setDirty(true);
+      }
+      return next;
+    });
+  };
+
+  const addBodyModel = (model: string) => {
+    if (!model.trim()) return;
+    updateAndSync(c => ({
+      ...c,
+      bodyModels: [...(c.bodyModels || []).filter(m => m !== model.trim()), model.trim()],
+    }));
+    setNewBodyModel('');
+  };
+
+  const removeBodyModel = (model: string) => {
+    updateAndSync(c => ({
+      ...c,
+      bodyModels: (c.bodyModels || []).filter(m => m !== model),
+    }));
+  };
+
+  const addHairStyle = (gender: string, style: string) => {
+    if (!style.trim()) return;
+    updateAndSync(c => ({
+      ...c,
+      hairStyles: {
+        ...(c.hairStyles || {}),
+        [gender]: [...((c.hairStyles || {})[gender] || []).filter(s => s !== style.trim()), style.trim()],
+      },
+    }));
+    setNewHairStyle('');
+  };
+
+  const removeHairStyle = (gender: string, style: string) => {
+    updateAndSync(c => {
+      const styles = { ...(c.hairStyles || {}) };
+      styles[gender] = (styles[gender] || []).filter(s => s !== style);
+      if (styles[gender].length === 0) delete styles[gender];
+      return { ...c, hairStyles: styles };
+    });
+  };
+
+  const updateColorPalette = (field: 'clothingPalette' | 'skinTonePalette', colors: string[]) => {
+    updateAndSync(c => ({ ...c, [field]: colors.length > 0 ? colors : undefined }));
+  };
+
+  const loadDefaults = () => {
+    updateAndSync(() => ({
+      bodyModels: [...DEFAULT_BODY_MODELS],
+      hairStyles: { male: [...DEFAULT_HAIR_STYLES.male], female: [...DEFAULT_HAIR_STYLES.female] },
+      clothingPalette: [...DEFAULT_CLOTHING_PALETTE],
+      skinTonePalette: [...DEFAULT_SKIN_TONE_PALETTE],
+    }));
+  };
+
+  const hasAnyConfig = (local.bodyModels?.length || 0) > 0 ||
+    Object.keys(local.hairStyles || {}).length > 0 ||
+    (local.clothingPalette?.length || 0) > 0 ||
+    (local.skinTonePalette?.length || 0) > 0;
+
+  return (
+    <div className="space-y-3">
+      {!hasAnyConfig && (
+        <div className="text-center py-2">
+          <p className="text-[10px] text-muted-foreground italic mb-2">No NPC appearance config. NPCs will use default world settings.</p>
+          <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={loadDefaults}>
+            <Sparkles className="w-3 h-3 mr-1" /> Load Defaults
+          </Button>
+        </div>
+      )}
+
+      {/* Body Models */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Body Models</p>
+          <Badge variant="outline" className="text-[9px] h-4">{local.bodyModels?.length || 0}</Badge>
+        </div>
+        <div className="flex flex-wrap gap-1 mb-1">
+          {(local.bodyModels || []).map(model => (
+            <Badge key={model} variant="secondary" className="text-[10px] h-5 gap-1 pr-1">
+              {model.replace(/^outfit_/, '').replace(/_/g, ' ')}
+              <button className="ml-0.5 hover:text-destructive" onClick={() => removeBodyModel(model)}>&times;</button>
+            </Badge>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <Select value={newBodyModel || '__custom__'} onValueChange={v => { if (v !== '__custom__') addBodyModel(v); }}>
+            <SelectTrigger className="h-6 text-[10px] flex-1"><SelectValue placeholder="Add model..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__custom__" disabled>Add model...</SelectItem>
+              {DEFAULT_BODY_MODELS.filter(m => !(local.bodyModels || []).includes(m)).map(m => (
+                <SelectItem key={m} value={m}>{m.replace(/^outfit_/, '').replace(/_/g, ' ')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-0.5">
+            <Input className="h-6 text-[10px] w-28" placeholder="Custom model" value={newBodyModel} onChange={e => setNewBodyModel(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addBodyModel(newBodyModel); }} />
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => addBodyModel(newBodyModel)} disabled={!newBodyModel.trim()}>
+              <Plus className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Hair Styles */}
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Hair Styles</p>
+        {Object.entries(local.hairStyles || {}).map(([gender, styles]) => (
+          <div key={gender} className="mb-1.5">
+            <p className="text-[10px] font-medium capitalize mb-0.5">{gender}</p>
+            <div className="flex flex-wrap gap-1">
+              {styles.map(style => (
+                <Badge key={style} variant="secondary" className="text-[10px] h-5 gap-1 pr-1">
+                  {style}
+                  <button className="ml-0.5 hover:text-destructive" onClick={() => removeHairStyle(gender, style)}>&times;</button>
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="flex gap-1">
+          <Select value={newHairGender} onValueChange={setNewHairGender}>
+            <SelectTrigger className="h-6 text-[10px] w-20"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input className="h-6 text-[10px] flex-1" placeholder="Hair style name" value={newHairStyle} onChange={e => setNewHairStyle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { addHairStyle(newHairGender, newHairStyle); } }} />
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => addHairStyle(newHairGender, newHairStyle)} disabled={!newHairStyle.trim()}>
+            <Plus className="w-3 h-3" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Clothing Palette */}
+      <ColorPaletteEditor
+        label="Clothing Palette"
+        colors={local.clothingPalette || []}
+        onChange={(colors) => updateColorPalette('clothingPalette', colors)}
+      />
+
+      {/* Skin Tone Palette */}
+      <ColorPaletteEditor
+        label="Skin Tone Palette"
+        colors={local.skinTonePalette || []}
+        onChange={(colors) => updateColorPalette('skinTonePalette', colors)}
+      />
+
+      {/* Save / Clear */}
+      <div className="flex gap-1">
+        {!inline && dirty && (
+          <Button className="flex-1 h-7 text-xs" onClick={handleSave}>
+            <Save className="w-3 h-3 mr-1" /> Save NPC Config
+          </Button>
+        )}
+        {hasAnyConfig && (
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
+            updateAndSync(() => ({}));
+          }}>
+            <X className="w-3 h-3 mr-1" /> Clear
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ColorPaletteEditor({
+  label,
+  colors,
+  onChange,
+}: {
+  label: string;
+  colors: string[];
+  onChange: (colors: string[]) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+        <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => onChange([...colors, '#888888'])}>
+          <Plus className="w-2.5 h-2.5" />
+        </Button>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {colors.map((color, i) => (
+          <div key={i} className="relative group">
+            <input type="color" value={color}
+              onChange={e => {
+                const next = [...colors];
+                next[i] = e.target.value;
+                onChange(next);
+              }}
+              className="w-6 h-6 rounded border cursor-pointer p-0" />
+            {colors.length > 0 && (
+              <button className="absolute -top-1 -right-1 w-3 h-3 bg-destructive text-white rounded-full text-[8px] leading-none hidden group-hover:flex items-center justify-center"
+                onClick={() => onChange(colors.filter((_, j) => j !== i))}>&times;</button>
+            )}
+          </div>
+        ))}
+        {colors.length === 0 && (
+          <p className="text-[10px] text-muted-foreground italic">No colors defined</p>
+        )}
+      </div>
     </div>
   );
 }
