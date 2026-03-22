@@ -1,14 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { TextGenerationParams, GeneratedTextResult } from '../services/text-generator';
+import type { ILLMProvider, LLMRequest, LLMResponse } from '../services/llm-provider';
 
-// Mock the Gemini config module
-vi.mock('../config/gemini.js', () => ({
-  isGeminiConfigured: vi.fn(() => true),
-  getGenAI: vi.fn(),
-  GEMINI_MODELS: { PRO: 'gemini-2.5-pro', FLASH: 'gemini-2.5-flash' },
-}));
+// Mock createLLMProvider so the default provider path doesn't need real Gemini
+vi.mock('../services/llm-provider.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/llm-provider')>();
+  return {
+    ...actual,
+    createLLMProvider: vi.fn(() => mockProvider),
+  };
+});
 
-import { isGeminiConfigured, getGenAI } from '../config/gemini.js';
 import {
   generateText,
   generateTextBatch,
@@ -60,24 +62,39 @@ const VALID_RESULT: GeneratedTextResult = {
   ],
 };
 
-function mockGeminiResponse(result: any) {
-  const text = typeof result === 'string' ? result : JSON.stringify(result);
-  (getGenAI as ReturnType<typeof vi.fn>).mockReturnValue({
-    models: {
-      generateContent: vi.fn().mockResolvedValue({ text }),
-    },
+function createMockProvider(generateFn?: (req: LLMRequest) => Promise<LLMResponse>): ILLMProvider {
+  const defaultGenerate = async (req: LLMRequest): Promise<LLMResponse> => ({
+    text: JSON.stringify(VALID_RESULT),
+    tokensUsed: 100,
+    model: 'test-model',
+    provider: 'test',
   });
+
+  return {
+    name: 'test',
+    generate: generateFn ?? defaultGenerate,
+    generateBatch: vi.fn(),
+    estimateCost: vi.fn(() => 0),
+  };
 }
+
+const mockProvider = createMockProvider();
 
 describe('text-generator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (isGeminiConfigured as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    // Reset mock provider generate to default
+    (mockProvider as any).generate = async () => ({
+      text: JSON.stringify(VALID_RESULT),
+      tokensUsed: 100,
+      model: 'test-model',
+      provider: 'test',
+    });
   });
 
   describe('generateText', () => {
-    it('generates a valid text from Gemini response', async () => {
-      mockGeminiResponse(VALID_RESULT);
+    it('generates a valid text via provider', async () => {
+      const provider = createMockProvider();
 
       const params: TextGenerationParams = {
         worldId: 'world-1',
@@ -88,7 +105,7 @@ describe('text-generator', () => {
         pageCount: 2,
       };
 
-      const result = await generateText(params);
+      const result = await generateText(params, provider);
 
       expect(result.title).toBe('Le Chat du Village');
       expect(result.pages).toHaveLength(2);
@@ -97,8 +114,12 @@ describe('text-generator', () => {
     });
 
     it('strips code fences from response', async () => {
-      const wrappedResponse = '```json\n' + JSON.stringify(VALID_RESULT) + '\n```';
-      mockGeminiResponse(wrappedResponse);
+      const provider = createMockProvider(async () => ({
+        text: '```json\n' + JSON.stringify(VALID_RESULT) + '\n```',
+        tokensUsed: 100,
+        model: 'test',
+        provider: 'test',
+      }));
 
       const result = await generateText({
         worldId: 'world-1',
@@ -106,13 +127,18 @@ describe('text-generator', () => {
         category: 'book',
         cefrLevel: 'A1',
         pageCount: 2,
-      });
+      }, provider);
 
       expect(result.title).toBe('Le Chat du Village');
     });
 
-    it('throws when Gemini is not configured', async () => {
-      (isGeminiConfigured as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    it('throws on empty response', async () => {
+      const provider = createMockProvider(async () => ({
+        text: '',
+        tokensUsed: 0,
+        model: 'test',
+        provider: 'test',
+      }));
 
       await expect(
         generateText({
@@ -120,35 +146,20 @@ describe('text-generator', () => {
           targetLanguage: 'French',
           category: 'book',
           cefrLevel: 'A1',
-        })
-      ).rejects.toThrow('Gemini API is not configured');
-    });
-
-    it('throws on empty response after retries', async () => {
-      (getGenAI as ReturnType<typeof vi.fn>).mockReturnValue({
-        models: {
-          generateContent: vi.fn().mockResolvedValue({ text: '' }),
-        },
-      });
-
-      await expect(
-        generateText({
-          worldId: 'world-1',
-          targetLanguage: 'French',
-          category: 'book',
-          cefrLevel: 'A1',
-        })
+        }, provider)
       ).rejects.toThrow('empty response');
     });
 
     it('retries on invalid JSON and succeeds on second attempt', async () => {
-      const mockGenerate = vi
-        .fn()
-        .mockResolvedValueOnce({ text: 'not valid json' })
-        .mockResolvedValueOnce({ text: JSON.stringify(VALID_RESULT) });
-
-      (getGenAI as ReturnType<typeof vi.fn>).mockReturnValue({
-        models: { generateContent: mockGenerate },
+      let callCount = 0;
+      const provider = createMockProvider(async () => {
+        callCount++;
+        return {
+          text: callCount === 1 ? 'not valid json' : JSON.stringify(VALID_RESULT),
+          tokensUsed: 100,
+          model: 'test',
+          provider: 'test',
+        };
       });
 
       const result = await generateText({
@@ -157,17 +168,20 @@ describe('text-generator', () => {
         category: 'book',
         cefrLevel: 'A1',
         pageCount: 2,
-      });
+      }, provider);
 
       expect(result.title).toBe('Le Chat du Village');
-      expect(mockGenerate).toHaveBeenCalledTimes(2);
+      expect(callCount).toBe(2);
     });
 
-    it('passes clueText into the prompt', async () => {
-      const mockGenerate = vi.fn().mockResolvedValue({ text: JSON.stringify(VALID_RESULT) });
-      (getGenAI as ReturnType<typeof vi.fn>).mockReturnValue({
-        models: { generateContent: mockGenerate },
-      });
+    it('passes clueText into the prompt sent to provider', async () => {
+      const generateSpy = vi.fn(async (req: LLMRequest): Promise<LLMResponse> => ({
+        text: JSON.stringify(VALID_RESULT),
+        tokensUsed: 100,
+        model: 'test',
+        provider: 'test',
+      }));
+      const provider = createMockProvider(generateSpy);
 
       await generateText({
         worldId: 'world-1',
@@ -176,10 +190,22 @@ describe('text-generator', () => {
         cefrLevel: 'A2',
         clueText: 'The writer visited a secret garden',
         pageCount: 2,
+      }, provider);
+
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      expect(generateSpy.mock.calls[0][0].prompt).toContain('secret garden');
+    });
+
+    it('uses default provider when none is passed', async () => {
+      const result = await generateText({
+        worldId: 'world-1',
+        targetLanguage: 'French',
+        category: 'book',
+        cefrLevel: 'A1',
+        pageCount: 2,
       });
 
-      const prompt = mockGenerate.mock.calls[0][0].contents;
-      expect(prompt).toContain('secret garden');
+      expect(result.title).toBe('Le Chat du Village');
     });
   });
 
@@ -261,7 +287,6 @@ describe('text-generator', () => {
       for (const cat of ['journal', 'letter', 'flyer', 'recipe']) {
         const items = params.filter((p) => p.category === cat);
         expect(items).toHaveLength(4);
-        // One per CEFR level
         const levels = new Set(items.map((i) => i.cefrLevel));
         expect(levels.size).toBe(4);
       }
@@ -277,15 +302,15 @@ describe('text-generator', () => {
   });
 
   describe('generateTextBatch', () => {
-    it('generates multiple texts in batch', async () => {
-      mockGeminiResponse(VALID_RESULT);
+    it('generates multiple texts in batch via provider', async () => {
+      const provider = createMockProvider();
 
       const params: TextGenerationParams[] = [
         { worldId: 'w', targetLanguage: 'French', category: 'book', cefrLevel: 'A1', pageCount: 2 },
         { worldId: 'w', targetLanguage: 'French', category: 'letter', cefrLevel: 'A2', pageCount: 2 },
       ];
 
-      const results = await generateTextBatch(params);
+      const results = await generateTextBatch(params, provider);
       expect(results).toHaveLength(2);
       expect(results[0].title).toBe('Le Chat du Village');
     });

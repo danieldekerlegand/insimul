@@ -2,11 +2,11 @@
  * Procedural Text Generator
  *
  * Generates reading content (books, journals, letters, flyers, recipes) in the
- * target language at specific CEFR difficulty levels using the Gemini API.
+ * target language at specific CEFR difficulty levels using an LLM provider.
  */
 
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
 import type { InsertText } from '../../shared/schema.js';
+import { type ILLMProvider, createLLMProvider } from './llm-provider.js';
 
 export type TextCategory = 'book' | 'journal' | 'letter' | 'flyer' | 'recipe';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2';
@@ -171,30 +171,31 @@ function validateGeneratedText(result: GeneratedTextResult, params: TextGenerati
   return errors;
 }
 
+/** Default LLM provider instance, lazily created */
+let defaultProvider: ILLMProvider | null = null;
+
+function getDefaultProvider(): ILLMProvider {
+  if (!defaultProvider) {
+    defaultProvider = createLLMProvider({ provider: 'gemini' });
+  }
+  return defaultProvider;
+}
+
 /**
- * Generate a single text using the Gemini API.
+ * Generate a single text using an LLM provider.
  * Validates the output and retries once if validation fails.
  */
-export async function generateText(params: TextGenerationParams): Promise<GeneratedTextResult> {
-  if (!isGeminiConfigured()) {
-    throw new Error('Gemini API is not configured. Set GEMINI_API_KEY or GEMINI_FREE_API_KEY.');
-  }
-
-  const ai = getGenAI();
+export async function generateText(params: TextGenerationParams, provider?: ILLMProvider): Promise<GeneratedTextResult> {
+  const llm = provider ?? getDefaultProvider();
   const prompt = buildPrompt(params);
+  const systemPrompt = 'You are a language-learning content creator. Generate reading materials for foreign language learners. Always return valid JSON.';
   const maxAttempts = 2;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODELS.FLASH,
-      config: {
-        systemInstruction: 'You are a language-learning content creator. Generate reading materials for foreign language learners. Always return valid JSON.',
-      },
-      contents: prompt,
-    });
+    const response = await llm.generate({ prompt, systemPrompt });
 
     if (!response.text) {
-      throw new Error('Gemini returned empty response');
+      throw new Error('LLM returned empty response');
     }
 
     const cleaned = stripCodeFences(response.text);
@@ -203,7 +204,7 @@ export async function generateText(params: TextGenerationParams): Promise<Genera
       parsed = JSON.parse(cleaned);
     } catch {
       if (attempt === maxAttempts) {
-        throw new Error(`Failed to parse Gemini response as JSON after ${maxAttempts} attempts`);
+        throw new Error(`Failed to parse LLM response as JSON after ${maxAttempts} attempts`);
       }
       continue;
     }
@@ -261,14 +262,16 @@ export function generatedTextToInsertText(
  * Generate multiple texts in batch.
  */
 export async function generateTextBatch(
-  paramsList: TextGenerationParams[]
+  paramsList: TextGenerationParams[],
+  provider?: ILLMProvider
 ): Promise<GeneratedTextResult[]> {
+  const llm = provider ?? getDefaultProvider();
   const results: GeneratedTextResult[] = [];
   // Process in chunks of 3 to avoid rate limits
   const chunkSize = 3;
   for (let i = 0; i < paramsList.length; i += chunkSize) {
     const chunk = paramsList.slice(i, i + chunkSize);
-    const chunkResults = await Promise.all(chunk.map((p) => generateText(p)));
+    const chunkResults = await Promise.all(chunk.map((p) => generateText(p, llm)));
     results.push(...chunkResults);
     // Small delay between chunks to avoid rate limiting
     if (i + chunkSize < paramsList.length) {
