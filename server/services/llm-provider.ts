@@ -1,10 +1,12 @@
 /**
  * LLM Provider Abstraction Layer
  *
- * Provider-agnostic interface for LLM calls used by translation, pronunciation,
- * enrichment, language generation, and other AI features. Only Gemini is
- * implemented initially; OpenAI, Anthropic, and local models can be added
- * later without architectural changes.
+ * Provider-agnostic interface for batch LLM calls used by rule generation,
+ * character interaction, quest generation, translation, pronunciation,
+ * enrichment, and other AI features.
+ *
+ * Follows the same registry pattern as the streaming LLM provider in
+ * conversation/providers/provider-registry.ts.
  */
 
 import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
@@ -32,13 +34,6 @@ export interface LLMRequest {
   inlineData?: LLMInlineData[]; // for multimodal inputs (audio, images)
 }
 
-export interface LLMBatchRequest {
-  prompts: string[];
-  systemPrompt?: string;
-  temperature?: number;
-  maxTokens?: number;
-}
-
 export interface LLMResponse {
   text: string;
   tokensUsed: number;
@@ -46,13 +41,20 @@ export interface LLMResponse {
   provider: string;
 }
 
-export interface LLMBatchResponse {
-  responses: LLMResponse[];
-  totalTokensUsed: number;
-  failedIndices: number[];
+export interface LLMBatchRequest {
+  prompts: string[];
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
 }
 
-/** Abstract LLM provider interface */
+export interface LLMBatchResponse {
+  responses: LLMResponse[];
+  failedIndices: number[];
+  totalTokensUsed: number;
+}
+
+/** Abstract LLM provider interface for batch (non-streaming) completion */
 export interface ILLMProvider {
   readonly name: string;
 
@@ -61,15 +63,46 @@ export interface ILLMProvider {
 
   /** Generate a single response */
   generate(request: LLMRequest): Promise<LLMResponse>;
-
-  /** Generate responses for a batch of prompts (may be sequential or parallel) */
-  generateBatch(request: LLMBatchRequest): Promise<LLMBatchResponse>;
-
-  /** Estimate cost for a request (in USD) */
-  estimateCost(promptTokens: number, completionTokens: number): number;
 }
 
-/** Gemini implementation (primary provider) */
+export type LLMProviderFactory = () => ILLMProvider;
+
+// ── Provider Registry ─────────────────────────────────────────────────
+
+const providers = new Map<string, LLMProviderFactory>();
+
+/** Register a provider factory under a given name. */
+export function registerLLMProvider(name: string, factory: LLMProviderFactory): void {
+  providers.set(name, factory);
+}
+
+/**
+ * Get a provider instance by name.
+ * Falls back to the LLM_PROVIDER env var, then to 'gemini'.
+ */
+export function getLLMProvider(name?: string): ILLMProvider {
+  const providerName = name || process.env.LLM_PROVIDER || 'gemini';
+  const factory = providers.get(providerName);
+  if (!factory) {
+    throw new Error(
+      `LLM provider '${providerName}' is not registered. Available: ${listLLMProviders().join(', ') || 'none'}`,
+    );
+  }
+  return factory();
+}
+
+/** List all registered provider names. */
+export function listLLMProviders(): string[] {
+  return Array.from(providers.keys());
+}
+
+/** Clear all registered providers (for testing). */
+export function clearLLMProviders(): void {
+  providers.clear();
+}
+
+// ── Gemini Implementation ─────────────────────────────────────────────
+
 export class GeminiProvider implements ILLMProvider {
   readonly name = 'gemini';
   private model: string;
@@ -77,9 +110,9 @@ export class GeminiProvider implements ILLMProvider {
   private maxTokens: number;
 
   constructor(config?: Partial<LLMProviderConfig>) {
-    this.model = config?.model || GEMINI_MODELS.FLASH;
+    this.model = config?.model || GEMINI_MODELS.PRO;
     this.defaultTemperature = config?.defaultTemperature ?? 0.7;
-    this.maxTokens = config?.maxTokens || 2048;
+    this.maxTokens = config?.maxTokens || 4096;
   }
 
   isConfigured(): boolean {
@@ -87,6 +120,10 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
+    if (!this.isConfigured()) {
+      throw new Error('Gemini API key is not configured');
+    }
+
     const ai = getGenAI();
 
     // Build contents array: prompt text + optional inline data
@@ -108,10 +145,17 @@ export class GeminiProvider implements ILLMProvider {
       },
     });
 
-    const text = result.text ?? '';
-    const tokensUsed = Math.ceil(text.length / 4); // rough estimate
+    const text = result.text;
+    if (!text) {
+      throw new Error('AI service returned empty response');
+    }
 
-    return { text, tokensUsed, model: this.model, provider: this.name };
+    return {
+      text,
+      tokensUsed: Math.ceil(text.length / 4),
+      model: this.model,
+      provider: this.name,
+    };
   }
 
   async generateBatch(request: LLMBatchRequest): Promise<LLMBatchResponse> {
@@ -149,14 +193,16 @@ export class GeminiProvider implements ILLMProvider {
       }
     }
 
-    return { responses, totalTokensUsed, failedIndices };
-  }
-
-  estimateCost(promptTokens: number, completionTokens: number): number {
-    // Gemini 2.0 Flash pricing (approx)
-    return (promptTokens * 0.00001 + completionTokens * 0.00004);
+    return {
+      responses,
+      failedIndices,
+      totalTokensUsed,
+    };
   }
 }
+
+// Register Gemini as built-in provider
+registerLLMProvider('gemini', () => new GeminiProvider());
 
 /** Default singleton provider instance */
 let defaultProvider: ILLMProvider | null = null;
@@ -188,52 +234,4 @@ export function createLLMProvider(config?: Partial<LLMProviderConfig>): ILLMProv
     default:
       throw new Error(`Unknown LLM provider: ${providerType}`);
   }
-}
-
-/** Estimate cost for historical simulation enrichment */
-export function estimateEnrichmentCost(
-  eventCount: number,
-  tier: 'none' | 'minor' | 'major' | 'all',
-  provider: ILLMProvider
-): { estimatedCost: number; llmCalls: number; description: string } {
-  if (tier === 'none') {
-    return { estimatedCost: 0, llmCalls: 0, description: 'No LLM enrichment — all events use Tracery grammars' };
-  }
-
-  // Estimate event distribution: 70% minor, 20% moderate, 10% major
-  const minor = Math.floor(eventCount * 0.7);
-  const moderate = Math.floor(eventCount * 0.2);
-  const major = eventCount - minor - moderate;
-
-  let llmCalls = 0;
-  let totalPromptTokens = 0;
-  let totalCompletionTokens = 0;
-
-  if (tier === 'minor' || tier === 'all') {
-    const moderateBatches = Math.ceil(moderate / 15);
-    llmCalls += moderateBatches;
-    totalPromptTokens += moderateBatches * 800;
-    totalCompletionTokens += moderate * 30;
-  }
-
-  if (tier === 'major' || tier === 'all') {
-    llmCalls += major;
-    totalPromptTokens += major * 500;
-    totalCompletionTokens += major * 200;
-  }
-
-  if (tier === 'all') {
-    const minorBatches = Math.ceil(minor / 20);
-    llmCalls += minorBatches;
-    totalPromptTokens += minorBatches * 600;
-    totalCompletionTokens += minor * 15;
-  }
-
-  const estimatedCost = provider.estimateCost(totalPromptTokens, totalCompletionTokens);
-
-  return {
-    estimatedCost,
-    llmCalls,
-    description: `~${llmCalls} LLM calls for ${eventCount} events (${tier} enrichment). Estimated cost: $${estimatedCost.toFixed(4)}`,
-  };
 }
