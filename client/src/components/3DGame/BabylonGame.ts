@@ -2199,6 +2199,11 @@ export class BabylonGame {
     // Initialize full-screen map
     this.fullscreenMap = new FullscreenMap(this.guiManager.advancedTexture);
 
+    // Wire minimap fullscreen button to toggle the full-screen map
+    this.minimap.setOnFullscreenToggle(() => {
+      this.fullscreenMap?.toggle();
+    });
+
     // Initialize inventory
     this.inventory = new BabylonInventory(scene, this.guiManager.advancedTexture);
     this.inventory.setOnItemDropped((item) => this.handleDropItem(item));
