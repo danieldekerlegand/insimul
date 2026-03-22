@@ -14,9 +14,12 @@ import {
   getItemCatalogForBusiness,
   collectUniqueCatalogItems,
   generateAndPersistWorldInventories,
+  baseItemToTemplate,
+  filterBaseItemsForBusiness,
   type MerchantInventoryStorage,
   type TranslateItemFn,
 } from '../services/merchant-inventory.js';
+import type { Item } from '@shared/schema';
 
 // ── Mock Storage ────────────────────────────────────────────────────────────
 
@@ -35,14 +38,14 @@ function createMockStorage(overrides: Partial<MerchantInventoryStorage> = {}): M
 
 describe('Merchant Inventory Auto-Generation', () => {
   describe('generateMerchantInventory', () => {
-    it('generates 8-15 items for a bakery', () => {
+    it('generates 10-20 items for a bakery', () => {
       const inventory = generateMerchantInventory(
         { id: 'biz-1', name: 'Corner Bakery', businessType: 'Bakery' },
         { agreeableness: 0.5 }
       );
 
-      expect(inventory.items.length).toBeGreaterThanOrEqual(8);
-      expect(inventory.items.length).toBeLessThanOrEqual(15);
+      expect(inventory.items.length).toBeGreaterThanOrEqual(10);
+      expect(inventory.items.length).toBeLessThanOrEqual(20);
       expect(inventory.merchantId).toBe('biz-1');
       expect(inventory.merchantName).toBe('Corner Bakery');
     });
@@ -466,6 +469,187 @@ describe('Merchant Inventory Auto-Generation', () => {
       // Should not throw even without updateBusiness
       const result = await generateAndPersistWorldInventories('world-1', storage, null);
       expect(result.inventoryCount).toBe(1);
+    });
+  });
+
+  describe('new business type catalogs', () => {
+    it('blacksmith gets weapons, armor, and smithing items', () => {
+      const catalog = getItemCatalogForBusiness('Blacksmith');
+      expect(catalog.length).toBeGreaterThan(0);
+      const hasWeapons = catalog.some(i => i.itemType === 'weapon');
+      const hasArmor = catalog.some(i => i.itemType === 'armor');
+      expect(hasWeapons).toBe(true);
+      expect(hasArmor).toBe(true);
+    });
+
+    it('tailor gets clothing items', () => {
+      const catalog = getItemCatalogForBusiness('Tailor');
+      expect(catalog.length).toBeGreaterThan(0);
+      const hasClothing = catalog.some(i => i.category === 'clothing' || i.category === 'footwear');
+      expect(hasClothing).toBe(true);
+    });
+
+    it('butcher gets meat items', () => {
+      const catalog = getItemCatalogForBusiness('Butcher');
+      expect(catalog.length).toBeGreaterThan(0);
+      const hasMeat = catalog.some(i => i.category === 'meat' || i.category === 'preserved');
+      expect(hasMeat).toBe(true);
+    });
+
+    it('bookstore gets books and writing items', () => {
+      const catalog = getItemCatalogForBusiness('BookStore');
+      expect(catalog.length).toBeGreaterThan(0);
+      const hasBooks = catalog.some(i => i.category === 'book' || i.category === 'writing');
+      expect(hasBooks).toBe(true);
+    });
+
+    it('herb shop gets herbs and potions', () => {
+      const catalog = getItemCatalogForBusiness('HerbShop');
+      expect(catalog.length).toBeGreaterThan(0);
+      const hasHerbs = catalog.some(i => i.category === 'herb' || i.category === 'potion');
+      expect(hasHerbs).toBe(true);
+    });
+
+    it('pawn shop gets mixed item types', () => {
+      const catalog = getItemCatalogForBusiness('PawnShop');
+      expect(catalog.length).toBeGreaterThan(0);
+      const types = new Set(catalog.map(i => i.itemType));
+      expect(types.size).toBeGreaterThan(2); // pawn shops have diverse items
+    });
+
+    it('fish market gets fish and seafood', () => {
+      const catalog = getItemCatalogForBusiness('FishMarket');
+      expect(catalog.length).toBeGreaterThan(0);
+      const hasFish = catalog.some(i => i.category === 'fish' || i.category === 'shellfish');
+      expect(hasFish).toBe(true);
+    });
+
+    it('Factory aliases to Blacksmith', () => {
+      const catalog = getItemCatalogForBusiness('Factory');
+      const blacksmithCatalog = getItemCatalogForBusiness('Blacksmith');
+      expect(catalog).toEqual(blacksmithCatalog);
+    });
+
+    it('Harbor aliases to FishMarket', () => {
+      const catalog = getItemCatalogForBusiness('Harbor');
+      const fishCatalog = getItemCatalogForBusiness('FishMarket');
+      expect(catalog).toEqual(fishCatalog);
+    });
+  });
+
+  describe('base items integration', () => {
+    const mockBaseItem = (overrides: Partial<Item> = {}): Item => ({
+      id: 'item-1',
+      worldId: 'world-1',
+      name: 'Test Sword',
+      description: 'A test sword',
+      itemType: 'weapon',
+      value: 20,
+      sellValue: 10,
+      weight: 3,
+      tradeable: true,
+      stackable: false,
+      maxStack: 1,
+      icon: '⚔️',
+      tags: ['weapon', 'melee', 'loot:common'],
+      effects: { attackPower: 5 },
+      category: 'melee',
+      material: null,
+      baseType: null,
+      rarity: null,
+      lootWeight: 10,
+      possessable: true,
+      metadata: null,
+      craftingRecipe: null,
+      questRelevance: null,
+      languageLearningData: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    } as Item);
+
+    it('baseItemToTemplate converts a DB item to an ItemTemplate', () => {
+      const item = mockBaseItem();
+      const template = baseItemToTemplate(item);
+
+      expect(template.name).toBe('Test Sword');
+      expect(template.itemType).toBe('weapon');
+      expect(template.basePrice).toBe(20);
+      expect(template.rarity).toBe('common');
+      expect(template.effects).toEqual({ attackPower: 5 });
+    });
+
+    it('baseItemToTemplate detects rarity from tags', () => {
+      expect(baseItemToTemplate(mockBaseItem({ tags: ['loot:rare'] })).rarity).toBe('rare');
+      expect(baseItemToTemplate(mockBaseItem({ tags: ['loot:epic'] })).rarity).toBe('epic');
+      expect(baseItemToTemplate(mockBaseItem({ tags: ['loot:legendary'] })).rarity).toBe('legendary');
+      expect(baseItemToTemplate(mockBaseItem({ tags: ['loot:uncommon'] })).rarity).toBe('uncommon');
+      expect(baseItemToTemplate(mockBaseItem({ tags: ['weapon'] })).rarity).toBe('common');
+    });
+
+    it('filterBaseItemsForBusiness returns matching items for Blacksmith', () => {
+      const items = [
+        mockBaseItem({ name: 'Iron Sword', itemType: 'weapon', tags: ['weapon', 'melee'] }),
+        mockBaseItem({ name: 'Bread', itemType: 'food', tags: ['food'] }),
+        mockBaseItem({ name: 'Shield', itemType: 'armor', tags: ['armor'] }),
+      ];
+
+      const templates = filterBaseItemsForBusiness(items, 'Blacksmith');
+      const names = templates.map(t => t.name);
+      // Should include weapon and armor, not food
+      expect(names).toContain('Shield');
+      expect(names).not.toContain('Bread');
+    });
+
+    it('filterBaseItemsForBusiness skips non-tradeable items', () => {
+      const items = [
+        mockBaseItem({ name: 'Quest Key', tradeable: false, itemType: 'weapon', tags: ['weapon'] }),
+      ];
+
+      const templates = filterBaseItemsForBusiness(items, 'Blacksmith');
+      expect(templates.length).toBe(0);
+    });
+
+    it('filterBaseItemsForBusiness skips items already in hardcoded catalog', () => {
+      // "Iron Sword" is already in Blacksmith catalog
+      const items = [
+        mockBaseItem({ name: 'Iron Sword', itemType: 'weapon', tags: ['weapon', 'melee'] }),
+      ];
+
+      const templates = filterBaseItemsForBusiness(items, 'Blacksmith');
+      expect(templates.length).toBe(0);
+    });
+
+    it('generateMerchantInventory supplements catalog with base items', () => {
+      const baseItems = [
+        mockBaseItem({ name: 'Unique DB Sword', itemType: 'weapon', tags: ['weapon', 'melee'], value: 30 }),
+      ];
+
+      // Generate many inventories to ensure the DB item appears at least once
+      let found = false;
+      for (let i = 0; i < 30; i++) {
+        const inventory = generateMerchantInventory(
+          { id: `biz-${i}`, name: 'Smithy', businessType: 'Blacksmith' },
+          { agreeableness: 0.5 },
+          undefined,
+          baseItems,
+        );
+        if (inventory.items.some(item => item.name === 'Unique DB Sword')) {
+          found = true;
+          break;
+        }
+      }
+      expect(found).toBe(true);
+    });
+  });
+
+  describe('blacksmith accepted item types', () => {
+    it('blacksmith accepts weapons, armor, tools, and materials', () => {
+      const accepted = getAcceptedItemTypes('Blacksmith');
+      expect(accepted.has('weapon')).toBe(true);
+      expect(accepted.has('armor')).toBe(true);
+      expect(accepted.has('tool')).toBe(true);
+      expect(accepted.has('material')).toBe(true);
     });
   });
 });
