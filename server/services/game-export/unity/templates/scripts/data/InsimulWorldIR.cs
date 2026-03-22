@@ -612,4 +612,51 @@ namespace Insimul.Data
         /// <summary>Default style preset ID for commercial buildings (random if not set).</summary>
         public string defaultCommercialStyleId;
     }
+
+    /// <summary>
+    /// Interior template configuration for a building type.
+    /// Matches InteriorTemplateConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class InteriorTemplateConfig
+    {
+        /// <summary>'model' or 'procedural'.</summary>
+        public string mode;
+        public string modelPath;
+        public string layoutTemplateId;
+        public string wallTextureId;
+        public string floorTextureId;
+        public string ceilingTextureId;
+        public string furnitureSet;
+        /// <summary>bright, dim, warm, cool, or candlelit.</summary>
+        public string lightingPreset;
+    }
+
+    /// <summary>
+    /// Unified per-type building configuration (asset or procedural mode).
+    /// Matches UnifiedBuildingTypeConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class UnifiedBuildingTypeConfig
+    {
+        /// <summary>'asset' or 'procedural'.</summary>
+        public string mode;
+        public string assetId;
+        public string stylePresetId;
+        public ProceduralStylePreset styleOverrides;
+        public InteriorTemplateConfig interiorConfig;
+        public Vec3Data modelScaling;
+    }
+
+    /// <summary>
+    /// NPC appearance configuration for an asset collection.
+    /// Matches NpcConfig from shared/game-engine/types.ts.
+    /// </summary>
+    [Serializable]
+    public class NpcConfig
+    {
+        public string[] bodyModels;
+        public string[] clothingPalette;
+        public string[] skinTonePalette;
+    }
 }

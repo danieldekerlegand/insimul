@@ -716,6 +716,59 @@ struct FInsimulProceduralBuildingConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float GlobalScaleMultiplier = 1.0f;
 };
 
+/**
+ * Interior template configuration for a building type.
+ * Mirrors InteriorTemplateConfig from the TypeScript engine.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulInteriorTemplateConfig
+{
+    GENERATED_BODY()
+
+    /** 'model' or 'procedural' */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ModelPath;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LayoutTemplateId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString WallTextureId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FloorTextureId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CeilingTextureId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FurnitureSet;
+    /** bright, dim, warm, cool, or candlelit */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LightingPreset;
+};
+
+/**
+ * Unified per-type building configuration (asset or procedural mode).
+ * Mirrors UnifiedBuildingTypeConfig from the TypeScript engine.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulUnifiedBuildingTypeConfig
+{
+    GENERATED_BODY()
+
+    /** 'asset' or 'procedural' */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mode;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssetId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StylePresetId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulProceduralStylePreset StyleOverrides;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulInteriorTemplateConfig InteriorConfig;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector ModelScaling = FVector(1.f, 1.f, 1.f);
+};
+
+/**
+ * NPC appearance configuration for an asset collection.
+ * Mirrors NpcConfig from the TypeScript engine.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNpcConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> BodyModels;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> ClothingPalette;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> SkinTonePalette;
+};
+
 // ─── Street Networks ────────────────────────────────────────────────────────
 
 USTRUCT(BlueprintType)

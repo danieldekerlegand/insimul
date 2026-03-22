@@ -365,3 +365,14 @@
 - [✓] 2026-03-21 00:44 - Add ambient sound system with environmental audio tied to location and time
 - [✓] 2026-03-21 00:52 - End-to-end validation: verify all new systems work together in world 69bba18ce2e6d5c1cb3c7a9f
 - [✓] 2026-03-21 01:39 - Enlarge building interiors and add multi-room layouts for larger buildings
+
+## Agent 3: Add buildingTypeConfigs, categoryPresets, and npcConfig to AssetCollection schema
+
+### Completed
+- Added UnifiedBuildingTypeConfig, InteriorTemplateConfig, and NpcConfig types to shared/game-engine/types.ts
+- Added buildingTypeConfigs (Record<string, UnifiedBuildingTypeConfig>), categoryPresets (Record<string, ProceduralStylePreset>), and npcConfig (NpcConfig) as nullable JSONB fields to AssetCollection Drizzle schema (shared/schema.ts)
+- Updated insertAssetCollectionSchema to include new fields
+- Updated Mongoose AssetCollectionSchema with matching Mixed-type fields (server/db/mongo-storage.ts)
+- All new fields default to null for backward compatibility with existing collections
+- Wrote 18 tests covering type validation, schema inclusion, insert schema, and backward compatibility
+- All tests pass, TypeScript compiles cleanly, ESLint clean
