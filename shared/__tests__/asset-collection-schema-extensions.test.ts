@@ -216,6 +216,71 @@ describe('AssetCollection schema extensions', () => {
     });
   });
 
+  describe('exterior texture fields on AssetCollection', () => {
+    it('wallTextureId is nullable on AssetCollection', () => {
+      const partial: Pick<AssetCollection, 'wallTextureId'> = {
+        wallTextureId: null,
+      };
+      expect(partial.wallTextureId).toBeNull();
+    });
+
+    it('wallTextureId accepts a string asset ID', () => {
+      const partial: Pick<AssetCollection, 'wallTextureId'> = {
+        wallTextureId: 'stone-wall-tex-1',
+      };
+      expect(partial.wallTextureId).toBe('stone-wall-tex-1');
+    });
+
+    it('roofTextureId is nullable on AssetCollection', () => {
+      const partial: Pick<AssetCollection, 'roofTextureId'> = {
+        roofTextureId: null,
+      };
+      expect(partial.roofTextureId).toBeNull();
+    });
+
+    it('roofTextureId accepts a string asset ID', () => {
+      const partial: Pick<AssetCollection, 'roofTextureId'> = {
+        roofTextureId: 'thatch-roof-tex-1',
+      };
+      expect(partial.roofTextureId).toBe('thatch-roof-tex-1');
+    });
+  });
+
+  describe('exterior texture fields on InsertAssetCollection', () => {
+    it('accepts wallTextureId in insert schema', () => {
+      const insert: Partial<InsertAssetCollection> = {
+        name: 'Test Collection',
+        collectionType: 'complete_theme',
+        wallTextureId: 'wall-tex-1',
+      };
+      expect(insert.wallTextureId).toBe('wall-tex-1');
+    });
+
+    it('accepts roofTextureId in insert schema', () => {
+      const insert: Partial<InsertAssetCollection> = {
+        name: 'Test Collection',
+        collectionType: 'complete_theme',
+        roofTextureId: 'roof-tex-1',
+      };
+      expect(insert.roofTextureId).toBe('roof-tex-1');
+    });
+
+    it('accepts both exterior texture fields together', () => {
+      const insert: Partial<InsertAssetCollection> = {
+        name: 'Medieval Pack',
+        collectionType: 'complete_theme',
+        groundTextureId: 'ground-1',
+        roadTextureId: 'road-1',
+        wallTextureId: 'stone-wall-1',
+        roofTextureId: 'thatch-roof-1',
+      };
+      expect(insert.groundTextureId).toBe('ground-1');
+      expect(insert.roadTextureId).toBe('road-1');
+      expect(insert.wallTextureId).toBe('stone-wall-1');
+      expect(insert.roofTextureId).toBe('thatch-roof-1');
+    });
+  });
+
   describe('backward compatibility', () => {
     it('existing collections without new fields still work', () => {
       // Simulates an existing document without new fields

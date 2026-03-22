@@ -75,6 +75,8 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
   // 3D Config state
   const [groundTextureId, setGroundTextureId] = useState<string>('');
   const [roadTextureId, setRoadTextureId] = useState<string>('');
+  const [wallTextureId, setWallTextureId] = useState<string>('');
+  const [roofTextureId, setRoofTextureId] = useState<string>('');
   const [buildingModels, setBuildingModels] = useState<Record<string, string>>({});
   const [natureModels, setNatureModels] = useState<Record<string, string>>({});
   const [characterModels, setCharacterModels] = useState<Record<string, string>>({});
@@ -138,6 +140,8 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
     setBaseCollectionId('');
     setGroundTextureId('');
     setRoadTextureId('');
+    setWallTextureId('');
+    setRoofTextureId('');
     setBuildingModels({});
     setNatureModels({});
     setCharacterModels({});
@@ -158,6 +162,8 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
     // Load 3D config fields (stored at top level on the collection)
     setGroundTextureId((collection as any).groundTextureId || '');
     setRoadTextureId((collection as any).roadTextureId || '');
+    setWallTextureId((collection as any).wallTextureId || '');
+    setRoofTextureId((collection as any).roofTextureId || '');
     setBuildingModels((collection as any).buildingModels || {});
     setNatureModels((collection as any).natureModels || {});
     setCharacterModels((collection as any).characterModels || {});
@@ -182,6 +188,8 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
       let initial3DConfig = {
         groundTextureId: groundTextureId || null,
         roadTextureId: roadTextureId || null,
+        wallTextureId: wallTextureId || null,
+        roofTextureId: roofTextureId || null,
         buildingModels,
         natureModels,
         characterModels,
@@ -197,6 +205,8 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
           initial3DConfig = {
             groundTextureId: baseCollection.groundTextureId || null,
             roadTextureId: baseCollection.roadTextureId || null,
+            wallTextureId: baseCollection.wallTextureId || null,
+            roofTextureId: baseCollection.roofTextureId || null,
             buildingModels: baseCollection.buildingModels || {},
             natureModels: baseCollection.natureModels || {},
             characterModels: baseCollection.characterModels || {},
@@ -271,6 +281,8 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
           isPublic,
           groundTextureId: groundTextureId || null,
           roadTextureId: roadTextureId || null,
+          wallTextureId: wallTextureId || null,
+          roofTextureId: roofTextureId || null,
           buildingModels,
           natureModels,
           characterModels,
@@ -865,9 +877,9 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
             <TabsContent value="3d-config" className="space-y-4 mt-4">
               <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                 <CardHeader>
-                  <CardTitle className="text-base">Terrain & Textures</CardTitle>
+                  <CardTitle className="text-base">Terrain & Exterior Textures</CardTitle>
                   <CardDescription>
-                    Select default textures for ground and roads in this collection
+                    Select default textures for terrain, roads, and building exteriors
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -902,6 +914,42 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                         toast({ title: 'Asset Selected', description: `${asset.name} assigned as roadTextureId` });
                       }}
                       onClear={() => setRoadTextureId('')}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between rounded border px-3 py-2">
+                    <div className="mr-2">
+                      <p className="text-sm font-medium">Wall Texture</p>
+                      <p className="text-xs text-muted-foreground">Default exterior wall texture</p>
+                    </div>
+                    <AssetSelect
+                      collectionId={selectedCollection?.id}
+                      value={wallTextureId || undefined}
+                      placeholder="Select texture..."
+                      className="h-8 text-xs w-[180px]"
+                      onSelect={(asset) => {
+                        setWallTextureId(asset.id);
+                        toast({ title: 'Asset Selected', description: `${asset.name} assigned as wallTextureId` });
+                      }}
+                      onClear={() => setWallTextureId('')}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between rounded border px-3 py-2">
+                    <div className="mr-2">
+                      <p className="text-sm font-medium">Roof Texture</p>
+                      <p className="text-xs text-muted-foreground">Default exterior roof texture</p>
+                    </div>
+                    <AssetSelect
+                      collectionId={selectedCollection?.id}
+                      value={roofTextureId || undefined}
+                      placeholder="Select texture..."
+                      className="h-8 text-xs w-[180px]"
+                      onSelect={(asset) => {
+                        setRoofTextureId(asset.id);
+                        toast({ title: 'Asset Selected', description: `${asset.name} assigned as roofTextureId` });
+                      }}
+                      onClear={() => setRoofTextureId('')}
                     />
                   </div>
                 </CardContent>
