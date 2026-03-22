@@ -1,5 +1,7 @@
 import { storage } from "../db/storage";
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from "../config/gemini.js";
+import type { ILLMProvider } from "./llm-provider.js";
+import { getDefaultLLMProvider, GeminiProvider } from "./llm-provider.js";
+import { GEMINI_MODELS } from "../config/gemini.js";
 import { conversationContextCache, ConversationContextCache } from "./conversation-context-cache.js";
 import type {
   WorldLanguage,
@@ -37,28 +39,8 @@ const BASE_LANGUAGES: BaseLanguage[] = [
     },
     phonemes: {
       consonants: [
-        "p",
-        "b",
-        "t",
-        "d",
-        "k",
-        "g",
-        "f",
-        "v",
-        "θ",
-        "ð",
-        "s",
-        "z",
-        "ʃ",
-        "ʒ",
-        "h",
-        "m",
-        "n",
-        "ŋ",
-        "l",
-        "r",
-        "w",
-        "j"
+        "p", "b", "t", "d", "k", "g", "f", "v", "θ", "ð",
+        "s", "z", "ʃ", "ʒ", "h", "m", "n", "ŋ", "l", "r", "w", "j"
       ],
       vowels: ["i", "ɪ", "e", "ɛ", "æ", "ɑ", "ɔ", "o", "ʊ", "u", "ʌ", "ə"],
       clusters: ["st", "sp", "sk", "tr", "dr", "pl", "bl", "kl", "gl"]
@@ -83,24 +65,8 @@ const BASE_LANGUAGES: BaseLanguage[] = [
     },
     phonemes: {
       consonants: [
-        "p",
-        "b",
-        "t",
-        "d",
-        "k",
-        "g",
-        "s",
-        "z",
-        "ʃ",
-        "ʒ",
-        "h",
-        "m",
-        "n",
-        "ɲ",
-        "ŋ",
-        "r",
-        "w",
-        "j"
+        "p", "b", "t", "d", "k", "g", "s", "z", "ʃ", "ʒ",
+        "h", "m", "n", "ɲ", "ŋ", "r", "w", "j"
       ],
       vowels: ["a", "i", "u", "e", "o"],
       clusters: ["ky", "gy", "sh", "ch", "ts"]
@@ -125,24 +91,8 @@ const BASE_LANGUAGES: BaseLanguage[] = [
     },
     phonemes: {
       consonants: [
-        "p",
-        "b",
-        "t",
-        "d",
-        "k",
-        "g",
-        "f",
-        "s",
-        "θ",
-        "x",
-        "ʧ",
-        "m",
-        "n",
-        "ɲ",
-        "l",
-        "ʎ",
-        "r",
-        "rr"
+        "p", "b", "t", "d", "k", "g", "f", "s", "θ", "x",
+        "ʧ", "m", "n", "ɲ", "l", "ʎ", "r", "rr"
       ],
       vowels: ["a", "e", "i", "o", "u"],
       clusters: ["pr", "br", "tr", "dr", "kr", "gr", "fl", "pl", "bl"]
@@ -168,25 +118,8 @@ const BASE_LANGUAGES: BaseLanguage[] = [
     },
     phonemes: {
       consonants: [
-        "p",
-        "pʰ",
-        "b",
-        "t",
-        "tʰ",
-        "d",
-        "k",
-        "kʰ",
-        "g",
-        "f",
-        "s",
-        "ʃ",
-        "x",
-        "h",
-        "m",
-        "n",
-        "ŋ",
-        "l",
-        "r"
+        "p", "pʰ", "b", "t", "tʰ", "d", "k", "kʰ", "g", "f",
+        "s", "ʃ", "x", "h", "m", "n", "ŋ", "l", "r"
       ],
       vowels: ["a", "o", "e", "i", "u", "y"],
       clusters: ["zh", "ch", "sh", "ng"]
@@ -391,36 +324,10 @@ function generateGrammar(bases: BaseLanguage[], config: ConlangConfig): GrammarR
 }
 
 const SAMPLE_CONCEPTS: string[] = [
-  "water",
-  "fire",
-  "earth",
-  "air",
-  "sun",
-  "moon",
-  "star",
-  "tree",
-  "flower",
-  "house",
-  "person",
-  "love",
-  "peace",
-  "strength",
-  "wisdom",
-  "journey",
-  "mountain",
-  "river",
-  "sky",
-  "light",
-  "time",
-  "dream",
-  "hope",
-  "fear",
-  "joy",
-  "anger",
-  "friend",
-  "family",
-  "food",
-  "music"
+  "water", "fire", "earth", "air", "sun", "moon", "star", "tree",
+  "flower", "house", "person", "love", "peace", "strength", "wisdom",
+  "journey", "mountain", "river", "sky", "light", "time", "dream",
+  "hope", "fear", "joy", "anger", "friend", "family", "food", "music"
 ];
 
 function generateWord(phonemes: Phonemes): string {
@@ -454,14 +361,23 @@ function generateSampleWords(phonemes: Phonemes): Record<string, string> {
   return words;
 }
 
-async function enrichLanguageWithLLM(language: WorldLanguage): Promise<WorldLanguage> {
-  if (!isGeminiConfigured()) {
+/** Get or create a PRO-model provider for language enrichment/chat */
+function getProModelProvider(provider?: ILLMProvider): ILLMProvider {
+  if (provider) return provider;
+  return new GeminiProvider({ model: GEMINI_MODELS.PRO });
+}
+
+async function enrichLanguageWithLLM(
+  language: WorldLanguage,
+  provider?: ILLMProvider,
+): Promise<WorldLanguage> {
+  const llm = getProModelProvider(provider);
+
+  if (!llm.isConfigured()) {
     return language;
   }
 
-  const ai = getGenAI();
-
-  const systemInstruction =
+  const systemPrompt =
     "You are an expert linguist helping to flesh out a constructed language. " +
     "You will receive basic phonology, grammar, and sample words. " +
     "Return concise JSON with a rich description and a few example sentences.";
@@ -475,61 +391,34 @@ async function enrichLanguageWithLLM(language: WorldLanguage): Promise<WorldLang
 
   const prompt = `Language name: ${language.name}
 
-` +
-    `Description: ${language.description || "(none)"}
-` +
-    `Kind: ${language.kind}
-` +
-    `Word order: ${language.features?.wordOrder || "unknown"}
-` +
-    `Has gender: ${language.features?.hasGender ? "yes" : "no"}
-` +
-    `Has case: ${language.features?.hasCase ? "yes" : "no"}
-` +
-    `Phonemes (consonants): ${(language.phonemes?.consonants || []).join(", ")}
-` +
-    `Phonemes (vowels): ${(language.phonemes?.vowels || []).join(", ")}
-` +
-    `Sample words:
+Description: ${language.description || "(none)"}
+Kind: ${language.kind}
+Word order: ${language.features?.wordOrder || "unknown"}
+Has gender: ${language.features?.hasGender ? "yes" : "no"}
+Has case: ${language.features?.hasCase ? "yes" : "no"}
+Phonemes (consonants): ${(language.phonemes?.consonants || []).join(", ")}
+Phonemes (vowels): ${(language.phonemes?.vowels || []).join(", ")}
+Sample words:
 ${sampleWordsPreview}
 
-` +
-    `Generate JSON with:
-` +
-    `{
-` +
-    `  "description": string,
-` +
-    `  "sampleTexts": [
-` +
-    `    {
-` +
-    `      "english": string,
-` +
-    `      "language": string,
-` +
-    `      "transliteration"?: string,
-` +
-    `      "grammaticalAnalysis"?: string[],
-` +
-    `      "type": "greeting" | "question" | "statement" | "poem" | "proverb"
-` +
-    `    }
-` +
-    `  ]
-` +
-    `}
-` +
-    `Return ONLY valid JSON with that shape.`;
+Generate JSON with:
+{
+  "description": string,
+  "sampleTexts": [
+    {
+      "english": string,
+      "language": string,
+      "transliteration"?: string,
+      "grammaticalAnalysis"?: string[],
+      "type": "greeting" | "question" | "statement" | "poem" | "proverb"
+    }
+  ]
+}
+Return ONLY valid JSON with that shape.`;
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODELS.PRO,
-    config: { systemInstruction },
-    contents: prompt
-  });
+  const response = await llm.generate({ prompt, systemPrompt });
 
-  const text = (response as any).text as string | undefined;
-  if (!text) {
+  if (!response.text) {
     return language;
   }
 
@@ -539,7 +428,7 @@ ${sampleWordsPreview}
   };
 
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(response.text);
   } catch {
     return language;
   }
@@ -603,7 +492,8 @@ async function generateLanguageOfflineInternal(
 }
 
 export async function generateLanguage(
-  params: LanguageGenerationParams
+  params: LanguageGenerationParams,
+  provider?: ILLMProvider,
 ): Promise<WorldLanguage> {
   const mode: LanguageGenerationMode = params.mode ?? "offline";
 
@@ -612,11 +502,13 @@ export async function generateLanguage(
   }
 
   const base = await generateLanguageOfflineInternal(params);
-  if (!isGeminiConfigured()) {
+  const llm = provider ?? getDefaultLLMProvider();
+
+  if (!llm.isConfigured()) {
     return base;
   }
 
-  return enrichLanguageWithLLM(base);
+  return enrichLanguageWithLLM(base, provider);
 }
 
 export async function getLanguageById(id: string): Promise<WorldLanguage | undefined> {
@@ -642,7 +534,8 @@ export async function getLanguageChatHistory(
 }
 
 export async function sendLanguageChatMessage(
-  params: LanguageChatParams
+  params: LanguageChatParams,
+  provider?: ILLMProvider,
 ): Promise<{ response: string; inLanguage: string; history: LanguageChatMessage[] }> {
   const language = await storage.getWorldLanguage(params.languageId);
   if (!language) {
@@ -655,7 +548,6 @@ export async function sendLanguageChatMessage(
   let history: LanguageChatMessage[];
 
   if (cached && cached.messages.length > 0) {
-    // Reconstruct LanguageChatMessage shape from cache for downstream use
     history = cached.messages.map((m, i) => ({
       id: `cached-${i}`,
       languageId: params.languageId,
@@ -670,7 +562,6 @@ export async function sendLanguageChatMessage(
     }));
   } else {
     history = await storage.getLanguageChatMessages(params.languageId);
-    // Populate cache from DB results
     if (history.length > 0) {
       conversationContextCache.set(cacheKey, {
         messages: history.map(m => ({
@@ -695,14 +586,15 @@ export async function sendLanguageChatMessage(
 
   const savedUserMessage = await storage.createLanguageChatMessage(userMessage);
 
-  // Update cache with the new user message
   conversationContextCache.append(cacheKey, {
     role: 'user',
     content: params.message,
     meta: { inLanguage: null, createdAt: new Date().toISOString() },
   });
 
-  if (!isGeminiConfigured()) {
+  const llm = getProModelProvider(provider);
+
+  if (!llm.isConfigured()) {
     const assistantMessage: InsertLanguageChatMessage = {
       languageId: params.languageId,
       worldId: params.worldId,
@@ -710,7 +602,7 @@ export async function sendLanguageChatMessage(
       scopeId: params.scopeId ?? null,
       userId: null,
       role: "assistant",
-      content: "[Gemini API key not set]",
+      content: "[LLM provider not configured]",
       inLanguage: ""
     };
 
@@ -729,12 +621,10 @@ export async function sendLanguageChatMessage(
     };
   }
 
-  const ai = getGenAI();
-
   const { compressTextHistory } = await import('./conversation-compression.js');
   const historyText = await compressTextHistory(history, language.name);
 
-  const systemInstruction =
+  const systemPrompt =
     `You are a helpful AI assistant that speaks and understands "${language.name}", ` +
     `a constructed language used in a fictional world. ` +
     `You will reply in English and also translate your reply into ${language.name}. ` +
@@ -749,35 +639,24 @@ export async function sendLanguageChatMessage(
     : "";
 
   const prompt = `Language: ${language.name}
-` +
-    `Description: ${language.description || "(none)"}
-` +
-    `Word order: ${language.features?.wordOrder || "unknown"}
-` +
-    `Grammar: ${JSON.stringify(language.grammar || {}, null, 2)}
-` +
-    `Sample words:
+Description: ${language.description || "(none)"}
+Word order: ${language.features?.wordOrder || "unknown"}
+Grammar: ${JSON.stringify(language.grammar || {}, null, 2)}
+Sample words:
 ${sampleWordsPreview}
 
-` +
-    `Conversation so far:
+Conversation so far:
 ${historyText || "(no previous messages)"}
 
-` +
-    `User: ${params.message}`;
+User: ${params.message}`;
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODELS.PRO,
-    config: { systemInstruction },
-    contents: prompt
-  });
+  const response = await llm.generate({ prompt, systemPrompt });
 
-  const text = (response as any).text as string | undefined;
   let parsed: { response?: string; inLanguage?: string } = {};
 
-  if (text) {
+  if (response.text) {
     try {
-      parsed = JSON.parse(text);
+      parsed = JSON.parse(response.text);
     } catch {
       parsed = {};
     }
@@ -800,7 +679,6 @@ ${historyText || "(no previous messages)"}
 
   const savedAssistantMessage = await storage.createLanguageChatMessage(assistantMessage);
 
-  // Update cache with assistant response
   conversationContextCache.append(cacheKey, {
     role: 'assistant',
     content: englishResponse,

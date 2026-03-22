@@ -1,12 +1,13 @@
 /**
  * LLM Provider Abstraction Layer
  *
- * Provider-agnostic interface for LLM calls used by the historical simulation
- * enrichment system and other AI features. Only Gemini is implemented initially;
- * OpenAI, Anthropic, and local models can be added later without architectural changes.
+ * Provider-agnostic interface for LLM calls used by translation, pronunciation,
+ * enrichment, language generation, and other AI features. Only Gemini is
+ * implemented initially; OpenAI, Anthropic, and local models can be added
+ * later without architectural changes.
  */
 
-import { getGenerativeAI, getGeminiApiKey, GEMINI_MODELS } from '../config/gemini.js';
+import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
 
 export interface LLMProviderConfig {
   provider: 'gemini' | 'openai' | 'anthropic' | 'local';
@@ -17,11 +18,18 @@ export interface LLMProviderConfig {
   maxTokens?: number;
 }
 
+export interface LLMInlineData {
+  data: string; // base64-encoded
+  mimeType: string;
+}
+
 export interface LLMRequest {
   prompt: string;
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  responseMimeType?: string; // e.g., 'application/json'
+  inlineData?: LLMInlineData[]; // for multimodal inputs (audio, images)
 }
 
 export interface LLMBatchRequest {
@@ -48,6 +56,9 @@ export interface LLMBatchResponse {
 export interface ILLMProvider {
   readonly name: string;
 
+  /** Check if the provider is configured and ready */
+  isConfigured(): boolean;
+
   /** Generate a single response */
   generate(request: LLMRequest): Promise<LLMResponse>;
 
@@ -65,29 +76,42 @@ export class GeminiProvider implements ILLMProvider {
   private defaultTemperature: number;
   private maxTokens: number;
 
-  constructor(config: LLMProviderConfig) {
-    this.model = config.model || GEMINI_MODELS.FLASH;
-    this.defaultTemperature = config.defaultTemperature ?? 0.7;
-    this.maxTokens = config.maxTokens || 2048;
+  constructor(config?: Partial<LLMProviderConfig>) {
+    this.model = config?.model || GEMINI_MODELS.FLASH;
+    this.defaultTemperature = config?.defaultTemperature ?? 0.7;
+    this.maxTokens = config?.maxTokens || 2048;
+  }
+
+  isConfigured(): boolean {
+    return isGeminiConfigured();
   }
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
-    // Use the centralized Gemini config (handles API key resolution)
-    const genAI = getGenerativeAI();
-    const model = genAI.getGenerativeModel({ model: this.model });
+    const ai = getGenAI();
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: request.systemPrompt ? `${request.systemPrompt}\n\n${request.prompt}` : request.prompt }] }],
-      generationConfig: {
+    // Build contents array: prompt text + optional inline data
+    const contents: Array<string | { inlineData: LLMInlineData }> = [request.prompt];
+    if (request.inlineData) {
+      for (const data of request.inlineData) {
+        contents.push({ inlineData: data });
+      }
+    }
+
+    const result = await ai.models.generateContent({
+      model: this.model,
+      contents,
+      config: {
+        systemInstruction: request.systemPrompt,
         temperature: request.temperature ?? this.defaultTemperature,
         maxOutputTokens: request.maxTokens || this.maxTokens,
+        ...(request.responseMimeType ? { responseMimeType: request.responseMimeType } : {}),
       },
     });
 
-    const text = result.response.text();
-    const tokensUsed = text.length / 4; // rough estimate
+    const text = result.text ?? '';
+    const tokensUsed = Math.ceil(text.length / 4); // rough estimate
 
-    return { text, tokensUsed: Math.ceil(tokensUsed), model: this.model, provider: this.name };
+    return { text, tokensUsed, model: this.model, provider: this.name };
   }
 
   async generateBatch(request: LLMBatchRequest): Promise<LLMBatchResponse> {
@@ -105,7 +129,7 @@ export class GeminiProvider implements ILLMProvider {
           systemPrompt: request.systemPrompt,
           temperature: request.temperature,
           maxTokens: request.maxTokens,
-        }).catch(err => {
+        }).catch(() => {
           failedIndices.push(i + idx);
           return null;
         })
@@ -134,13 +158,29 @@ export class GeminiProvider implements ILLMProvider {
   }
 }
 
+/** Default singleton provider instance */
+let defaultProvider: ILLMProvider | null = null;
+
+/** Get the default LLM provider (creates one if needed) */
+export function getDefaultLLMProvider(): ILLMProvider {
+  if (!defaultProvider) {
+    defaultProvider = new GeminiProvider();
+  }
+  return defaultProvider;
+}
+
+/** Override the default LLM provider (useful for testing) */
+export function setDefaultLLMProvider(provider: ILLMProvider): void {
+  defaultProvider = provider;
+}
+
 /** Factory function to create the appropriate provider */
 export function createLLMProvider(config?: Partial<LLMProviderConfig>): ILLMProvider {
   const providerType = config?.provider || 'gemini';
 
   switch (providerType) {
     case 'gemini':
-      return new GeminiProvider(config as LLMProviderConfig || { provider: 'gemini' });
+      return new GeminiProvider(config);
     case 'openai':
     case 'anthropic':
     case 'local':
@@ -170,22 +210,19 @@ export function estimateEnrichmentCost(
   let totalCompletionTokens = 0;
 
   if (tier === 'minor' || tier === 'all') {
-    // Tier 1 still uses Tracery, but moderate events get short LLM descriptions
-    const moderateBatches = Math.ceil(moderate / 15); // 15 events per batch
+    const moderateBatches = Math.ceil(moderate / 15);
     llmCalls += moderateBatches;
-    totalPromptTokens += moderateBatches * 800; // ~800 tokens per batch prompt
-    totalCompletionTokens += moderate * 30; // ~30 tokens per event description
+    totalPromptTokens += moderateBatches * 800;
+    totalCompletionTokens += moderate * 30;
   }
 
   if (tier === 'major' || tier === 'all') {
-    // Major events get individual calls
     llmCalls += major;
-    totalPromptTokens += major * 500; // ~500 tokens per major event prompt
-    totalCompletionTokens += major * 200; // ~200 tokens per major event narrative
+    totalPromptTokens += major * 500;
+    totalCompletionTokens += major * 200;
   }
 
   if (tier === 'all') {
-    // All events get some LLM touch
     const minorBatches = Math.ceil(minor / 20);
     llmCalls += minorBatches;
     totalPromptTokens += minorBatches * 600;

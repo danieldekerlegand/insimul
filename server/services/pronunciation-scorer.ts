@@ -1,12 +1,13 @@
 /**
  * Audio-level Pronunciation Scoring Service
  *
- * Uses Gemini's audio understanding to analyze pronunciation quality
- * from raw audio, producing per-word scores and fluency metrics.
+ * Uses the LLM provider's multimodal capabilities to analyze pronunciation
+ * quality from raw audio, producing per-word scores and fluency metrics.
  * Falls back to text-based Levenshtein scoring if audio analysis fails.
  */
 
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from "../config/gemini.js";
+import type { ILLMProvider } from "./llm-provider.js";
+import { getDefaultLLMProvider } from "./llm-provider.js";
 import {
   scorePronunciation,
   buildAudioResult,
@@ -16,24 +17,27 @@ import {
 } from "@shared/language/pronunciation-scoring.js";
 
 /**
- * Score pronunciation from audio data by sending audio + expected text to Gemini
- * for word-level pronunciation analysis.
+ * Score pronunciation from audio data by sending audio + expected text to the
+ * LLM provider for word-level pronunciation analysis.
  *
- * Falls back to text-based scoring if Gemini is unavailable or analysis fails.
+ * Falls back to text-based scoring if the provider is unavailable or analysis fails.
  */
 export async function scoreAudioPronunciation(
   audioBuffer: Buffer,
   expectedPhrase: string,
   mimeType: string = 'audio/wav',
   languageHint?: string,
+  provider?: ILLMProvider,
 ): Promise<AudioPronunciationResult> {
-  if (!isGeminiConfigured()) {
+  const llm = provider ?? getDefaultLLMProvider();
+
+  if (!llm.isConfigured()) {
     return fallbackTextScore(audioBuffer, expectedPhrase, mimeType, languageHint);
   }
 
   try {
-    const analysis = await analyzePronunciationWithGemini(
-      audioBuffer, expectedPhrase, mimeType, languageHint,
+    const analysis = await analyzePronunciationWithLLM(
+      audioBuffer, expectedPhrase, mimeType, languageHint, llm,
     );
     return buildAudioResult(expectedPhrase, analysis);
   } catch (error) {
@@ -43,17 +47,16 @@ export async function scoreAudioPronunciation(
 }
 
 /**
- * Send audio to Gemini with a structured prompt requesting word-level
+ * Send audio to the LLM provider with a structured prompt requesting word-level
  * pronunciation analysis. Returns parsed analysis or throws on failure.
  */
-async function analyzePronunciationWithGemini(
+async function analyzePronunciationWithLLM(
   audioBuffer: Buffer,
   expectedPhrase: string,
   mimeType: string,
-  languageHint?: string,
+  languageHint: string | undefined,
+  provider: ILLMProvider,
 ): Promise<GeminiPronunciationAnalysis> {
-  const client = getGenAI();
-
   const languageInstruction = languageHint
     ? `The expected language is ${languageHint}.`
     : '';
@@ -86,25 +89,19 @@ Rules:
 - fluencyScore reflects pacing and natural rhythm (penalize long pauses, false starts)
 - Be encouraging but honest in feedback`;
 
-  const response = await client.models.generateContent({
-    model: GEMINI_MODELS.FLASH,
-    contents: [
-      prompt,
-      {
-        inlineData: {
-          data: audioBuffer.toString('base64'),
-          mimeType,
-        },
-      },
-    ],
+  const response = await provider.generate({
+    prompt,
+    inlineData: [{
+      data: audioBuffer.toString('base64'),
+      mimeType,
+    }],
   });
 
-  const text = response.text || '';
-  return parseGeminiResponse(text, expectedPhrase);
+  return parseGeminiResponse(response.text, expectedPhrase);
 }
 
 /**
- * Parse Gemini's JSON response into a GeminiPronunciationAnalysis.
+ * Parse the LLM's JSON response into a GeminiPronunciationAnalysis.
  * Handles minor formatting issues (markdown fences, trailing commas).
  */
 function parseGeminiResponse(
@@ -118,7 +115,7 @@ function parseGeminiResponse(
     const parsed = JSON.parse(cleaned);
     return validateAnalysis(parsed, expectedPhrase);
   } catch {
-    throw new Error(`Failed to parse Gemini pronunciation response: ${text.slice(0, 200)}`);
+    throw new Error(`Failed to parse pronunciation response: ${text.slice(0, 200)}`);
   }
 }
 
@@ -130,7 +127,7 @@ function validateAnalysis(
   expectedPhrase: string,
 ): GeminiPronunciationAnalysis {
   if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('Gemini response is not an object');
+    throw new Error('Response is not an object');
   }
 
   const transcript = typeof parsed.transcript === 'string' ? parsed.transcript : expectedPhrase;
@@ -166,7 +163,7 @@ function clampScore(val: unknown): number {
 }
 
 /**
- * Fallback: transcribe audio via Gemini STT, then use text-based scoring.
+ * Fallback: transcribe audio via STT, then use text-based scoring.
  */
 async function fallbackTextScore(
   audioBuffer: Buffer,
