@@ -14,6 +14,7 @@ import {
   Vector3,
   StandardMaterial,
   Color3,
+  Texture,
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate } from '@shared/game-engine/types';
@@ -87,6 +88,7 @@ export class BuildingInteriorGenerator {
   private nextSlotIndex: number = 0;
   private furnitureLoader: FurnitureModelLoader | null = null;
   private interiorConfigs: Record<string, InteriorTemplateConfig> = {};
+  private interiorTextures: Map<string, Texture> = new Map();
 
   // When using a dedicated interior scene, interiors are placed at Y=0.
   // When sharing the overworld scene (legacy), they stack at Y=500+.
@@ -115,6 +117,13 @@ export class BuildingInteriorGenerator {
    */
   public setInteriorConfigs(configs: Record<string, InteriorTemplateConfig>): void {
     this.interiorConfigs = configs;
+  }
+
+  /**
+   * Register a texture by asset ID for use by interior configs.
+   */
+  public registerInteriorTexture(assetId: string, texture: Texture): void {
+    this.interiorTextures.set(assetId, texture);
   }
 
   /**
@@ -456,6 +465,7 @@ export class BuildingInteriorGenerator {
     const floorMat = new StandardMaterial(`${prefix}_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
+    this.applyTextureToMaterial(floorMat, config?.floorTextureId);
     floor.material = floorMat;
 
     // Ceiling
@@ -469,6 +479,7 @@ export class BuildingInteriorGenerator {
     ceiling.parent = parent;
     const ceilingMat = new StandardMaterial(`${prefix}_ceiling_mat`, this.scene);
     ceilingMat.diffuseColor = colors.ceiling;
+    this.applyTextureToMaterial(ceilingMat, config?.ceilingTextureId);
     ceiling.material = ceilingMat;
     ceiling.checkCollisions = true;
 
@@ -476,6 +487,7 @@ export class BuildingInteriorGenerator {
     const wallMat = new StandardMaterial(`${prefix}_wall_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    this.applyTextureToMaterial(wallMat, config?.wallTextureId);
 
     // Back wall (north)
     const backWall = MeshBuilder.CreatePlane(
@@ -776,6 +788,7 @@ export class BuildingInteriorGenerator {
     const wallMat = new StandardMaterial(`${prefix}_partition_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    this.applyTextureToMaterial(wallMat, config?.wallTextureId);
 
     // Find ground floor rooms — if there are exactly 2 on floor 0, build a partition
     const groundRooms = rooms.filter(r => r.floor === 0);
@@ -1002,6 +1015,7 @@ export class BuildingInteriorGenerator {
     const floorMat = new StandardMaterial(`${prefix}_upper_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
+    this.applyTextureToMaterial(floorMat, config?.floorTextureId);
 
     // Upper floor (with stairwell hole near east wall)
     const stairwellWidth = STAIR_WIDTH + 1.0;
@@ -1055,6 +1069,7 @@ export class BuildingInteriorGenerator {
     // Upper ceiling
     const ceilingMat = new StandardMaterial(`${prefix}_upper_ceiling_mat`, this.scene);
     ceilingMat.diffuseColor = colors.ceiling;
+    this.applyTextureToMaterial(ceilingMat, config?.ceilingTextureId);
 
     const upperCeiling = MeshBuilder.CreateGround(
       `${prefix}_upper_ceiling`,
@@ -1192,6 +1207,23 @@ export class BuildingInteriorGenerator {
         ? new Color3(config.ceilingColor.r, config.ceilingColor.g, config.ceilingColor.b)
         : base.ceiling,
     };
+  }
+
+  /**
+   * Apply a registered texture to a material if the texture ID is valid.
+   * Sets diffuseColor to white so the texture is not tinted.
+   */
+  private applyTextureToMaterial(material: StandardMaterial, textureId?: string): void {
+    if (!textureId) return;
+    const texture = this.interiorTextures.get(textureId);
+    if (!texture) return;
+    const cloned = texture.clone();
+    if (cloned) {
+      cloned.uScale = 2;
+      cloned.vScale = 2;
+      material.diffuseTexture = cloned;
+      material.diffuseColor = new Color3(1, 1, 1);
+    }
   }
 
   /**

@@ -13,7 +13,7 @@
  * Run with: npx tsx --tsconfig client/src/components/3DGame/__tests__/tsconfig.test.json client/src/components/3DGame/__tests__/InteriorConfigApplication.test.ts
  */
 
-import { Scene, Mesh, Vector3, MeshBuilder, StandardMaterial, Color3 } from './babylon-mock';
+import { Scene, Mesh, Vector3, MeshBuilder, StandardMaterial, Color3, Texture } from './babylon-mock';
 import { BuildingInteriorGenerator } from '../BuildingInteriorGenerator';
 import type { InteriorLayout } from '../BuildingInteriorGenerator';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate } from '@shared/game-engine/types';
@@ -347,6 +347,126 @@ console.log('\nmodel mode defaults:');
   assert(layout.width === 10, 'model mode defaults to width=10');
   assert(layout.depth === 10, 'model mode defaults to depth=10');
   assert(layout.height === 4, 'model mode defaults to height=4');
+}
+
+// --- Interior texture application ---
+
+console.log('\ninterior texture application:');
+
+{
+  const scene = makeScene();
+  const gen = new BuildingInteriorGenerator(scene as any);
+
+  const wallTex = new Texture('/textures/wall.png', scene);
+  const floorTex = new Texture('/textures/floor.png', scene);
+  const ceilingTex = new Texture('/textures/ceiling.png', scene);
+
+  gen.registerInteriorTexture('wall-tex-1', wallTex as any);
+  gen.registerInteriorTexture('floor-tex-1', floorTex as any);
+  gen.registerInteriorTexture('ceiling-tex-1', ceilingTex as any);
+
+  gen.setInteriorConfigs({
+    'tavern': {
+      mode: 'procedural',
+      wallTextureId: 'wall-tex-1',
+      floorTextureId: 'floor-tex-1',
+      ceilingTextureId: 'ceiling-tex-1',
+    },
+  });
+
+  const layout = gen.generateInterior('tav_tex', 'business', 'tavern');
+  const roomChildren = layout.roomMesh.getChildMeshes();
+  const floorMesh = roomChildren.find((m: any) => m.name.includes('floor') && !m.name.includes('upper'));
+  const wallMesh = roomChildren.find((m: any) => m.name.includes('wall_back'));
+  const ceilingMesh = roomChildren.find((m: any) => m.name.includes('ceiling'));
+
+  if (floorMesh?.material) {
+    const mat = floorMesh.material as any;
+    assert(mat.diffuseTexture !== null, 'floor has diffuseTexture applied');
+    assert(mat.diffuseTexture.uScale === 2, 'floor texture uScale=2');
+    assert(mat.diffuseColor.r === 1, 'floor diffuseColor set to white when textured');
+  } else {
+    assert(false, 'floor mesh with material not found for texture test');
+  }
+
+  if (wallMesh?.material) {
+    const mat = wallMesh.material as any;
+    assert(mat.diffuseTexture !== null, 'wall has diffuseTexture applied');
+    assert(mat.diffuseTexture.vScale === 2, 'wall texture vScale=2');
+    assert(mat.diffuseColor.r === 1, 'wall diffuseColor set to white when textured');
+  } else {
+    assert(false, 'wall mesh with material not found for texture test');
+  }
+
+  if (ceilingMesh?.material) {
+    const mat = ceilingMesh.material as any;
+    assert(mat.diffuseTexture !== null, 'ceiling has diffuseTexture applied');
+  } else {
+    assert(false, 'ceiling mesh with material not found for texture test');
+  }
+}
+
+{
+  const scene = makeScene();
+  const gen = new BuildingInteriorGenerator(scene as any);
+
+  // No textures registered — texture IDs in config should be ignored gracefully
+  gen.setInteriorConfigs({
+    'tavern': {
+      mode: 'procedural',
+      wallTextureId: 'nonexistent-tex',
+      floorTextureId: 'nonexistent-tex',
+    },
+  });
+
+  const layout = gen.generateInterior('tav_no_tex', 'business', 'tavern');
+  const roomChildren = layout.roomMesh.getChildMeshes();
+  const floorMesh = roomChildren.find((m: any) => m.name.includes('floor') && !m.name.includes('upper'));
+
+  if (floorMesh?.material) {
+    const mat = floorMesh.material as any;
+    assert(mat.diffuseTexture === null, 'no texture applied when texture ID not registered');
+    assert(mat.diffuseColor.r !== 1 || mat.diffuseColor.g !== 1, 'fallback color preserved when texture missing');
+  } else {
+    assert(false, 'floor mesh not found for missing texture test');
+  }
+}
+
+{
+  const scene = makeScene();
+  const gen = new BuildingInteriorGenerator(scene as any);
+
+  // Partial texture: only wall texture, floor and ceiling should use colors
+  const wallTex = new Texture('/textures/wall.png', scene);
+  gen.registerInteriorTexture('wall-only', wallTex as any);
+
+  gen.setInteriorConfigs({
+    'shop': {
+      mode: 'procedural',
+      wallTextureId: 'wall-only',
+      floorColor: { r: 0.5, g: 0.3, b: 0.1 },
+    },
+  });
+
+  const layout = gen.generateInterior('shop_partial', 'business', 'shop');
+  const roomChildren = layout.roomMesh.getChildMeshes();
+  const floorMesh = roomChildren.find((m: any) => m.name.includes('floor') && !m.name.includes('upper'));
+  const wallMesh = roomChildren.find((m: any) => m.name.includes('wall_back'));
+
+  if (floorMesh?.material) {
+    const mat = floorMesh.material as any;
+    assert(mat.diffuseTexture === null, 'floor has no texture when only wall texture set');
+    assert(Math.abs(mat.diffuseColor.r - 0.5) < 0.01, 'floor uses color override');
+  } else {
+    assert(false, 'floor mesh not found for partial texture test');
+  }
+
+  if (wallMesh?.material) {
+    const mat = wallMesh.material as any;
+    assert(mat.diffuseTexture !== null, 'wall has texture when wallTextureId set');
+  } else {
+    assert(false, 'wall mesh not found for partial texture test');
+  }
 }
 
 // ── Summary ──
