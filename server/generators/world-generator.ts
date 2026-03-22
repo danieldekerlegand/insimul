@@ -824,7 +824,8 @@ export class WorldGenerator {
     const residenceCapacity = residences.map(r => ({
       id: r.id,
       remaining: capacities[r.residenceType] || 4,
-      residentIds: [] as string[]
+      residentIds: [] as string[],
+      ownerIds: [] as string[]
     }));
 
     let residenceIdx = 0;
@@ -837,6 +838,9 @@ export class WorldGenerator {
         residenceIdx = 0;
       }
 
+      // Identify adults in the family (18+ years old)
+      const adults = members.filter((m: any) => m.birthYear && (config.currentYear - m.birthYear) >= 18);
+
       let placed = false;
       // Try to find a residence with enough capacity for the family
       for (let attempts = 0; attempts < residenceCapacity.length; attempts++) {
@@ -848,6 +852,11 @@ export class WorldGenerator {
             res.remaining--;
             assignedCount++;
           }
+          // First adult becomes the owner; if no adults, first member owns
+          const owner = adults[0] || members[0];
+          if (owner && !res.ownerIds.includes(owner.id)) {
+            res.ownerIds.push(owner.id);
+          }
           residenceIdx = idx + 1;
           placed = true;
           break;
@@ -856,28 +865,69 @@ export class WorldGenerator {
 
       // Fallback: split the family across residences if no single one fits
       if (!placed) {
+        const owner = adults[0] || members[0];
+        let ownerAssigned = false;
         for (const member of members) {
           const res = residenceCapacity[residenceIdx % residenceCapacity.length];
           res.residentIds.push(member.id);
           res.remaining = Math.max(0, res.remaining - 1);
           assignedCount++;
+          // Assign owner to the first residence the family lands in
+          if (!ownerAssigned && owner && !res.ownerIds.includes(owner.id)) {
+            res.ownerIds.push(owner.id);
+            ownerAssigned = true;
+          }
           if (res.remaining <= 0) residenceIdx++;
         }
       }
     }
 
-    // Batch update all residences and characters
-    for (const res of residenceCapacity) {
-      if (res.residentIds.length > 0) {
-        await storage.updateResidence(res.id, { residentIds: res.residentIds });
-        // Set currentResidenceId on each character
-        for (const charId of res.residentIds) {
-          await storage.updateCharacter(charId, { currentResidenceId: res.id });
-        }
+    // Ensure every residence has at least one resident by distributing unhoused characters
+    // or reassigning from over-populated residences
+    const emptyResidences = residenceCapacity.filter(r => r.residentIds.length === 0);
+    if (emptyResidences.length > 0 && livingCharacters.length > 0) {
+      // Find characters from the most crowded residences to redistribute
+      const sortedByPopulation = [...residenceCapacity]
+        .filter(r => r.residentIds.length > 1)
+        .sort((a, b) => b.residentIds.length - a.residentIds.length);
+
+      for (const emptyRes of emptyResidences) {
+        if (sortedByPopulation.length === 0) break;
+        const crowded = sortedByPopulation[0];
+        if (crowded.residentIds.length <= 1) break;
+
+        // Move last resident from the most crowded residence
+        const movedId = crowded.residentIds.pop()!;
+        crowded.remaining++;
+        emptyRes.residentIds.push(movedId);
+        emptyRes.remaining--;
+        emptyRes.ownerIds.push(movedId);
+
+        // Also remove from ownerIds if they were an owner of the old residence
+        const ownerIdx = crowded.ownerIds.indexOf(movedId);
+        if (ownerIdx !== -1) crowded.ownerIds.splice(ownerIdx, 1);
+
+        // Re-sort after modification
+        sortedByPopulation.sort((a, b) => b.residentIds.length - a.residentIds.length);
       }
     }
 
-    console.log(`   ✓ Assigned ${assignedCount} characters to ${residenceCapacity.filter(r => r.residentIds.length > 0).length} residences`);
+    // Batch update all residences and characters
+    for (const res of residenceCapacity) {
+      await storage.updateResidence(res.id, {
+        residentIds: res.residentIds,
+        ownerIds: res.ownerIds
+      });
+      // Set currentResidenceId on each character
+      for (const charId of res.residentIds) {
+        await storage.updateCharacter(charId, { currentResidenceId: res.id });
+      }
+    }
+
+    const occupied = residenceCapacity.filter(r => r.residentIds.length > 0).length;
+    const empty = residenceCapacity.filter(r => r.residentIds.length === 0).length;
+    const owned = residenceCapacity.filter(r => r.ownerIds.length > 0).length;
+    console.log(`   ✓ Assigned ${assignedCount} characters to ${occupied} residences (${owned} with owners, ${empty} empty)`);
   }
 
   /**
