@@ -1024,8 +1024,7 @@ export class GeographyGenerator {
       const meta = lotDocs[i];
 
       if (meta._isResidence) {
-        const floors = meta._floors;
-        const residenceType = floors >= 3 ? 'mansion' : floors === 2 ? 'house' : 'cottage';
+        const residenceType = this.getResidenceType(config.settlementType || 'town', meta._buildingIndex);
         residenceDocs.push({
           worldId: config.worldId,
           settlementId: config.settlementId,
@@ -1073,6 +1072,55 @@ export class GeographyGenerator {
     }
 
     return createdLots.map((l: any) => l.id);
+  }
+
+  /**
+   * Weighted residence-type distributions per settlement type.
+   * Cities skew toward apartments/townhouses; villages toward cottages/mobile homes.
+   */
+  private static readonly RESIDENCE_WEIGHTS: Record<string, { type: string; weight: number }[]> = {
+    city: [
+      { type: 'house', weight: 25 },
+      { type: 'apartment', weight: 30 },
+      { type: 'cottage', weight: 5 },
+      { type: 'townhouse', weight: 25 },
+      { type: 'mansion', weight: 5 },
+      { type: 'mobile_home', weight: 10 },
+    ],
+    town: [
+      { type: 'house', weight: 40 },
+      { type: 'apartment', weight: 20 },
+      { type: 'cottage', weight: 15 },
+      { type: 'townhouse', weight: 15 },
+      { type: 'mansion', weight: 5 },
+      { type: 'mobile_home', weight: 5 },
+    ],
+    village: [
+      { type: 'house', weight: 35 },
+      { type: 'apartment', weight: 5 },
+      { type: 'cottage', weight: 30 },
+      { type: 'townhouse', weight: 5 },
+      { type: 'mansion', weight: 5 },
+      { type: 'mobile_home', weight: 20 },
+    ],
+  };
+
+  /**
+   * Pick a residence type using deterministic weighted selection.
+   * Uses a seed (building index) for reproducibility.
+   */
+  getResidenceType(settlementType: string, seed: number): string {
+    const weights = GeographyGenerator.RESIDENCE_WEIGHTS[settlementType]
+      || GeographyGenerator.RESIDENCE_WEIGHTS['town'];
+    const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+    // Deterministic pseudo-random value from seed
+    const roll = ((seed * 2654435761) >>> 0) % totalWeight;
+    let cumulative = 0;
+    for (const entry of weights) {
+      cumulative += entry.weight;
+      if (roll < cumulative) return entry.type;
+    }
+    return weights[weights.length - 1].type;
   }
 
   /**
