@@ -196,15 +196,11 @@ describe('Base Item Asset Audit', () => {
   });
 
   describe('ASSET_RECOMMENDATIONS coverage', () => {
-    it('covers the majority of items without objectRole', () => {
+    it('all items now have objectRoles assigned', () => {
       const withoutRole = BASE_ITEM_CATALOG.filter(
         (i) => i.objectRole === null
       );
-      const withRec = withoutRole.filter(
-        (i) => ASSET_RECOMMENDATIONS[i.name] !== undefined
-      );
-      const coverage = (withRec.length / withoutRole.length) * 100;
-      expect(coverage).toBeGreaterThan(85);
+      expect(withoutRole.length).toBe(0);
     });
 
     it('all recommendations have valid source and format', () => {
@@ -224,6 +220,32 @@ describe('Base Item Asset Audit', () => {
         expect(rec.assetId).toBeTruthy();
         expect(rec.license).toBeTruthy();
       }
+    });
+  });
+
+  describe('complete objectRole coverage', () => {
+    it('every item in the catalog has a non-null objectRole', () => {
+      for (const item of BASE_ITEM_CATALOG) {
+        expect(item.objectRole).not.toBeNull();
+      }
+    });
+
+    it('every objectRole maps to an entry in OBJECT_ROLE_TO_ASSET', () => {
+      const roles = new Set(
+        BASE_ITEM_CATALOG.map((i) => i.objectRole!).filter(Boolean)
+      );
+      for (const role of roles) {
+        expect(
+          OBJECT_ROLE_TO_ASSET[role],
+          `Missing OBJECT_ROLE_TO_ASSET entry for role: ${role}`
+        ).toBeTruthy();
+      }
+    });
+
+    it('100% of items have an existing 3D asset mapping', () => {
+      const summary = generateAuditSummary();
+      expect(summary.withObjectRole).toBe(summary.totalItems);
+      expect(summary.withoutObjectRole).toBe(0);
     });
   });
 });
