@@ -1734,8 +1734,9 @@ export class BabylonGame {
     // Wire NPC location cycler to event bus for day/night transitions
     this.npcLocationCycler.setEventBus(this.eventBus);
 
-    // Initialize texture manager
+    // Initialize texture manager with DataSource for API-free asset resolution
     this.textureManager = new TextureManager(scene);
+    this.textureManager.setDataSource(this.dataSource);
 
     // In exported games, provide the asset ID → file path map so TextureManager
     // can resolve MongoDB asset IDs to local files without an API server
