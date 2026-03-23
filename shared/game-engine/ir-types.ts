@@ -636,12 +636,65 @@ export interface NPCDialogueContext {
 }
 
 export interface AIConfigIR {
-  apiMode: 'insimul' | 'gemini';
+  apiMode: 'insimul' | 'gemini' | 'local';
   insimulEndpoint: string;
   geminiModel: string;
   geminiApiKeyPlaceholder: string;
   voiceEnabled: boolean;
   defaultVoice: string;
+  /** Optional model pack for offline/local AI inference */
+  modelPack?: ModelPackIR | null;
+}
+
+// ─────────────────────────────────────────────
+// Model Pack IR — describes bundled AI models for offline inference
+// ─────────────────────────────────────────────
+
+export type ModelCategory = 'llm' | 'tts' | 'stt';
+
+export interface ModelFileIR {
+  /** Unique identifier for the model (e.g. 'phi-4-mini-q4') */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Category of model */
+  category: ModelCategory;
+  /** Original filename of the model (e.g. 'phi-4-mini-q4.gguf') */
+  filename: string;
+  /** Export path inside the archive (e.g. 'ai/models/phi-4-mini-q4.gguf') */
+  exportPath: string;
+  /** File size in bytes */
+  sizeBytes: number;
+  /** Model format (e.g. 'gguf', 'onnx', 'piper-voice') */
+  format: string;
+  /** Quantization level if applicable (e.g. 'q4_k_m', 'q8_0') */
+  quantization?: string;
+  /** Context window size in tokens (for LLM models) */
+  contextSize?: number;
+}
+
+export interface ModelPackIR {
+  /** Version of the model pack format */
+  version: string;
+  /** Whether local AI is enabled for this export */
+  enabled: boolean;
+  /** Primary LLM model for text generation */
+  llmModel: ModelFileIR | null;
+  /** TTS voice models */
+  ttsModels: ModelFileIR[];
+  /** STT model for speech recognition */
+  sttModel: ModelFileIR | null;
+  /** Total size of all model files in bytes */
+  totalSizeBytes: number;
+  /** Runtime configuration hints */
+  runtimeConfig: {
+    /** Recommended GPU layers (-1 = auto) */
+    gpuLayers: number;
+    /** Default context size */
+    contextSize: number;
+    /** Default temperature for generation */
+    temperature: number;
+  };
 }
 
 export interface RuleIR {
