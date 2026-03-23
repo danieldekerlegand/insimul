@@ -775,6 +775,26 @@ func get_player_assessments(_player_id: String, _world_id: String) -> Array:
 func check_conversation_health() -> bool:
 	return false  # No conversation service in exported mode
 
+## Simulate a rich conversation between two characters (no-op in exported mode).
+func simulate_rich_conversation(world_id: String, char1_id: String, char2_id: String, turn_count: int) -> Variant:
+	return null  # No AI server in exported mode
+
+## Text-to-speech synthesis (no-op in exported mode).
+func text_to_speech(text: String, voice: String, gender: String, target_language: String) -> Variant:
+	return null  # No TTS service in exported mode
+
+## Get player portfolio data (no-op in exported mode).
+func get_portfolio(world_id: String, player_name: String) -> Variant:
+	return null  # No server in exported mode
+
+## Load reading progress (no-op in exported mode).
+func load_reading_progress(player_id: String, world_id: String, playthrough_id: String = "") -> Variant:
+	return null  # No server in exported mode
+
+## Sync reading progress (no-op in exported mode).
+func sync_reading_progress(data: Dictionary) -> void:
+	pass  # No-op in exported mode
+
 # ── Playthroughs index helpers ─────────────────────────────────
 
 const PLAYTHROUGHS_INDEX_PATH := "user://insimul_playthroughs.json"

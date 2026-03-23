@@ -425,6 +425,26 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     bool CheckConversationHealth();
 
+    /** Simulate a rich conversation between two characters (no-op in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString SimulateRichConversation(const FString& WorldId, const FString& Char1Id, const FString& Char2Id, int32 TurnCount);
+
+    /** Text-to-speech synthesis (no-op in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString TextToSpeech(const FString& Text, const FString& Voice, const FString& Gender, const FString& TargetLanguage);
+
+    /** Get player portfolio data (no-op in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetPortfolio(const FString& WorldId, const FString& PlayerName);
+
+    /** Load reading progress (no-op in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadReadingProgress(const FString& PlayerId, const FString& WorldId, const FString& PlaythroughId = TEXT(""));
+
+    /** Sync reading progress (no-op in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    void SyncReadingProgress(const FString& DataJSON);
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */

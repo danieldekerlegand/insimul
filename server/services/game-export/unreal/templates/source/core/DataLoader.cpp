@@ -1116,3 +1116,30 @@ bool UDataLoader::CheckConversationHealth()
     // No conversation streaming service in exported mode
     return false;
 }
+
+FString UDataLoader::SimulateRichConversation(const FString& WorldId, const FString& Char1Id, const FString& Char2Id, int32 TurnCount)
+{
+    // No AI server in exported mode
+    return FString();
+}
+
+FString UDataLoader::TextToSpeech(const FString& Text, const FString& Voice, const FString& Gender, const FString& TargetLanguage)
+{
+    // No TTS service in exported mode
+    return FString();
+}
+
+FString UDataLoader::GetPortfolio(const FString& WorldId, const FString& PlayerName)
+{
+    return TEXT("{}");
+}
+
+FString UDataLoader::LoadReadingProgress(const FString& PlayerId, const FString& WorldId, const FString& PlaythroughId)
+{
+    return TEXT("{}");
+}
+
+void UDataLoader::SyncReadingProgress(const FString& DataJSON)
+{
+    // No-op in exported mode
+}
