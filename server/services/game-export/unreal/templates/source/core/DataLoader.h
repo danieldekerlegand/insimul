@@ -306,6 +306,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     bool UpdatePlaythroughRelationship(const FString& FromCharacterId, const FString& ToCharacterId, const FString& Type, float Strength);
 
+    /** Load language progress from localStorage (returns empty JSON on failure). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadLanguageProgress(const FString& PlayerId, const FString& WorldId, const FString& PlaythroughId = TEXT(""));
+
+    /** Save language progress to localStorage. Returns true on success. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool SaveLanguageProgress(const FString& ProgressJSON);
+
+    /** Check if conversation streaming service is available (always false in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool CheckConversationHealth();
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */

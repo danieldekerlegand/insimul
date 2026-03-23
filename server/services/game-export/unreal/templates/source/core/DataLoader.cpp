@@ -820,3 +820,21 @@ bool UDataLoader::UpdatePlaythroughRelationship(const FString& FromCharacterId, 
     UE_LOG(LogTemp, Verbose, TEXT("[Insimul] UpdatePlaythroughRelationship: no-op in exported mode"));
     return false;
 }
+
+FString UDataLoader::LoadLanguageProgress(const FString& PlayerId, const FString& WorldId, const FString& PlaythroughId)
+{
+    // In exported mode, language progress is managed via save slots — return empty
+    return TEXT("{}");
+}
+
+bool UDataLoader::SaveLanguageProgress(const FString& ProgressJSON)
+{
+    // In exported mode, language progress is managed via save slots
+    return false;
+}
+
+bool UDataLoader::CheckConversationHealth()
+{
+    // No conversation streaming service in exported mode
+    return false;
+}

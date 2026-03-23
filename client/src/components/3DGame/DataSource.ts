@@ -77,6 +77,9 @@ export interface DataSource {
   markPlaythroughInitialized(playthroughId: string): Promise<void>;
   loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
   updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
+  loadLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null>;
+  saveLanguageProgress(data: any): Promise<boolean>;
+  checkConversationHealth(baseUrl?: string): Promise<boolean>;
 }
 
 /**
@@ -616,6 +619,34 @@ export class ApiDataSource implements DataSource {
       body: JSON.stringify({ fromCharacterId, toCharacterId, ...data }),
     });
     return res.ok ? await res.json() : null;
+  }
+
+  async loadLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
+    const url = `${this.baseUrl}/api/language-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}`
+      + (playthroughId ? `?playthroughId=${encodeURIComponent(playthroughId)}` : '');
+    const res = await fetch(url, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : null;
+  }
+
+  async saveLanguageProgress(data: any): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/api/language-progress/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(data),
+    });
+    return res.ok;
+  }
+
+  async checkConversationHealth(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/conversation/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -1591,6 +1622,30 @@ export class FileDataSource implements DataSource {
 
   async updatePlaythroughRelationship(_playthroughId: string, _fromCharacterId: string, _toCharacterId: string, _data: { type: string; strength: number; cause?: string }): Promise<any> {
     return null; // No server in exported mode
+  }
+
+  async loadLanguageProgress(_playerId: string, _worldId: string, _playthroughId?: string): Promise<any | null> {
+    try {
+      const key = `insimul_language_progress_${_playerId}_${_worldId}`;
+      const raw = this._storage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveLanguageProgress(data: any): Promise<boolean> {
+    try {
+      const key = `insimul_language_progress_${data.playerId}_${data.worldId}`;
+      this._storage.setItem(key, JSON.stringify(data));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async checkConversationHealth(): Promise<boolean> {
+    return false; // No conversation service in exported mode
   }
 }
 

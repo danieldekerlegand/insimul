@@ -543,6 +543,18 @@ func load_playthrough_relationships() -> Array:
 func update_playthrough_relationship(_from_id: String, _to_id: String, _type: String, _strength: float) -> bool:
 	return false  # No server in exported mode
 
+## Load language progress (returns empty dict in exported mode — use save slots).
+func load_language_progress(_player_id: String, _world_id: String, _playthrough_id: String = "") -> Dictionary:
+	return {}  # Language progress managed via save slots in exported mode
+
+## Save language progress (no-op in exported mode — use save slots).
+func save_language_progress(_progress_json: String) -> bool:
+	return false  # Language progress managed via save slots in exported mode
+
+## Check if conversation streaming service is available (always false in exported mode).
+func check_conversation_health() -> bool:
+	return false  # No conversation service in exported mode
+
 # ── Playthroughs index helpers ─────────────────────────────────
 
 const PLAYTHROUGHS_INDEX_PATH := "user://insimul_playthroughs.json"
