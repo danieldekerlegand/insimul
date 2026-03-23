@@ -181,6 +181,40 @@ public:
     void UpdateQuest(const FString& QuestId, const FString& UpdateJSON);
 
     /**
+     * Mark a quest as completed locally. Returns JSON with success status.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString CompleteQuest(const FString& QuestId);
+
+    /**
+     * Get quest guidance context for an NPC. Scans active quests for objectives
+     * targeting this NPC and returns a system prompt addition.
+     * Returns JSON with hasGuidance bool and optional systemPromptAddition.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetNpcQuestGuidance(const FString& NpcId);
+
+    /**
+     * Get main quest journal data. Returns JSON with chapters, state, and
+     * investigation board built from local main quest data.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetMainQuestJournal(const FString& PlayerId, const FString& CefrLevel = TEXT(""));
+
+    /**
+     * Try to unlock the next CEFR-gated main quest chapter locally.
+     * Checks CefrLevel against quest requirements and activates if sufficient.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    void TryUnlockMainQuest(const FString& PlayerId, const FString& CefrLevel);
+
+    /**
+     * Record a main quest completion locally. Returns JSON with result status.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString RecordMainQuestCompletion(const FString& PlayerId, const FString& QuestType, const FString& CefrLevel = TEXT(""));
+
+    /**
      * Pay fines for a settlement. Clears accumulated fines and returns result JSON.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")

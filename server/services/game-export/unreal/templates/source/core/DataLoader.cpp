@@ -336,6 +336,44 @@ void UDataLoader::UpdateQuest(const FString& QuestId, const FString& UpdateJSON)
     UE_LOG(LogTemp, Log, TEXT("[Insimul] UpdateQuest(%s)"), *QuestId);
 }
 
+FString UDataLoader::CompleteQuest(const FString& QuestId)
+{
+    // Mark quest as completed in local state
+    FString UpdateJSON = FString::Printf(TEXT("{\"status\":\"completed\",\"completedAt\":\"%s\"}"),
+        *FDateTime::UtcNow().ToIso8601());
+    UpdateQuest(QuestId, UpdateJSON);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] CompleteQuest(%s)"), *QuestId);
+    return FString::Printf(TEXT("{\"success\":true,\"questId\":\"%s\"}"), *QuestId);
+}
+
+FString UDataLoader::GetNpcQuestGuidance(const FString& NpcId)
+{
+    // TODO: Scan active quests for objectives targeting this NPC
+    // and build a system prompt addition string.
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetNpcQuestGuidance(%s)"), *NpcId);
+    return TEXT("{\"hasGuidance\":false}");
+}
+
+FString UDataLoader::GetMainQuestJournal(const FString& PlayerId, const FString& CefrLevel)
+{
+    // TODO: Build journal from local main quest data (filter quests by questType == main_quest).
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetMainQuestJournal(%s, cefrLevel=%s)"), *PlayerId, *CefrLevel);
+    return TEXT("{\"state\":{\"currentChapterId\":null,\"totalXPEarned\":0,\"caseNotes\":[]},\"chapters\":[],\"investigationBoard\":null}");
+}
+
+void UDataLoader::TryUnlockMainQuest(const FString& PlayerId, const FString& CefrLevel)
+{
+    // TODO: Check CEFR level against locked main quest requirements and activate if sufficient.
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] TryUnlockMainQuest(%s, cefrLevel=%s)"), *PlayerId, *CefrLevel);
+}
+
+FString UDataLoader::RecordMainQuestCompletion(const FString& PlayerId, const FString& QuestType, const FString& CefrLevel)
+{
+    // In exported mode, just acknowledge the completion
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] RecordMainQuestCompletion(%s, questType=%s)"), *PlayerId, *QuestType);
+    return FString::Printf(TEXT("{\"result\":{\"questType\":\"%s\",\"recorded\":true}}"), *QuestType);
+}
+
 FString UDataLoader::PayFines(const FString& SettlementId)
 {
     // TODO: Clear accumulated fines for settlement in local state.

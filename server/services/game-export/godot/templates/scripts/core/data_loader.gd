@@ -350,6 +350,87 @@ func update_quest(quest_id: String, update_data: Dictionary) -> void:
 		_quest_updates[quest_id] = {}
 	_quest_updates[quest_id].merge(update_data, true)
 
+## Mark a quest as completed locally.
+func complete_quest(quest_id: String) -> Dictionary:
+	var now_iso := Time.get_datetime_string_from_system(true)
+	update_quest(quest_id, {"status": "completed", "completedAt": now_iso})
+	print("[Insimul] complete_quest(%s)" % quest_id)
+	return {"success": true, "questId": quest_id}
+
+## Get quest guidance context for an NPC. Scans active quests for objectives
+## targeting this NPC and returns a system prompt addition.
+func get_npc_quest_guidance(npc_id: String) -> Dictionary:
+	var quests: Array = load_quests()
+	var hints: Array = []
+	for q in quests:
+		var status: String = q.get("status", "")
+		if _quest_updates.has(str(q.get("id", ""))):
+			status = _quest_updates[str(q.get("id", ""))].get("status", status)
+		if status != "active" and status != "in_progress":
+			continue
+		var objectives: Array = q.get("objectives", [])
+		for obj in objectives:
+			if str(obj.get("targetNpcId", "")) == npc_id or str(obj.get("npcId", "")) == npc_id:
+				var desc: String = obj.get("description", obj.get("title", "Talk to this NPC"))
+				hints.append("Quest \"%s\": %s" % [q.get("title", ""), desc])
+	if hints.size() == 0:
+		return {"hasGuidance": false}
+	return {
+		"hasGuidance": true,
+		"systemPromptAddition": "The player has active quest objectives involving you:\n" + "\n".join(hints),
+	}
+
+## Get main quest journal data built from local main quest data.
+func get_main_quest_journal(player_id: String, cefr_level: String = "") -> Dictionary:
+	var quests: Array = load_quests()
+	var chapters: Array = []
+	for q in quests:
+		if q.get("questType", "") != "main_quest":
+			continue
+		var q_id: String = str(q.get("id", ""))
+		var status: String = q.get("status", "locked")
+		if _quest_updates.has(q_id):
+			status = _quest_updates[q_id].get("status", status)
+		chapters.append({
+			"id": q_id,
+			"title": q.get("title", ""),
+			"description": q.get("description", ""),
+			"order": q.get("questChainOrder", 0),
+			"status": status,
+			"objectives": q.get("objectives", []),
+		})
+	var current_id = chapters[0].get("id") if chapters.size() > 0 else null
+	return {
+		"state": {"currentChapterId": current_id, "totalXPEarned": 0, "caseNotes": []},
+		"chapters": chapters,
+		"playerCefrLevel": cefr_level if not cefr_level.is_empty() else null,
+		"investigationBoard": null,
+	}
+
+## Try to unlock the next CEFR-gated main quest chapter.
+func try_unlock_main_quest(player_id: String, cefr_level: String) -> void:
+	var quests: Array = load_quests()
+	var main_quests: Array = []
+	for q in quests:
+		if q.get("questType", "") == "main_quest":
+			main_quests.append(q)
+	main_quests.sort_custom(func(a, b): return a.get("questChainOrder", 0) < b.get("questChainOrder", 0))
+	for q in main_quests:
+		var q_id: String = str(q.get("id", ""))
+		var status: String = q.get("status", "locked")
+		if _quest_updates.has(q_id):
+			status = _quest_updates[q_id].get("status", status)
+		if status == "locked" and q.has("cefrRequirement"):
+			if cefr_level >= str(q.get("cefrRequirement", "")):
+				update_quest(q_id, {"status": "active"})
+				print("[Insimul] try_unlock_main_quest: unlocked %s" % q_id)
+				break
+
+## Record a main quest completion. In exported mode, just acknowledges the completion.
+func record_main_quest_completion(player_id: String, quest_type: String, _cefr_level: String = "") -> Dictionary:
+	print("[Insimul] record_main_quest_completion(%s, %s)" % [player_id, quest_type])
+	return {"result": {"questType": quest_type, "recorded": true}}
+
 ## Pay fines for a settlement. Clears accumulated fines.
 func pay_fines(settlement_id: String) -> Dictionary:
 	var amount: int = _fines_paid.get(settlement_id, 0)

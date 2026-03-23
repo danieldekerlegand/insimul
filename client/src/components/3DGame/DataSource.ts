@@ -39,6 +39,11 @@ export interface DataSource {
   listPlaythroughs(worldId: string, authToken: string): Promise<any[]>;
   startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any>;
   updateQuest(questId: string, data: any): Promise<void>;
+  completeQuest(worldId: string, questId: string): Promise<any>;
+  getNpcQuestGuidance(worldId: string, npcId: string): Promise<{ hasGuidance: boolean; systemPromptAddition?: string } | null>;
+  getMainQuestJournal(worldId: string, playerId: string, cefrLevel?: string): Promise<any>;
+  tryUnlockMainQuest(worldId: string, playerId: string, cefrLevel: string): Promise<void>;
+  recordMainQuestCompletion(worldId: string, playerId: string, questType: string, cefrLevel?: string): Promise<any>;
   loadSettlementBusinesses(settlementId: string): Promise<any[]>;
   loadSettlementLots(settlementId: string): Promise<any[]>;
   loadSettlementResidences(settlementId: string): Promise<any[]>;
@@ -372,6 +377,47 @@ export class ApiDataSource implements DataSource {
     }
     // Fallback: queue direct world write (no playthrough active)
     await this.saveQueue.enqueue('updateQuest', `quest:${questId}`, { questId, data });
+  }
+
+  async completeQuest(worldId: string, questId: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests/${questId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({}),
+    });
+    return res.ok ? await res.json() : null;
+  }
+
+  async getNpcQuestGuidance(worldId: string, npcId: string): Promise<{ hasGuidance: boolean; systemPromptAddition?: string } | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests/npc-guidance/${npcId}`, { headers: this.getHeaders() });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getMainQuestJournal(worldId: string, playerId: string, cefrLevel?: string): Promise<any> {
+    const cefrParam = cefrLevel ? `?cefrLevel=${cefrLevel}` : '';
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/main-quest/${playerId}${cefrParam}`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : null;
+  }
+
+  async tryUnlockMainQuest(worldId: string, playerId: string, cefrLevel: string): Promise<void> {
+    await fetch(`${this.baseUrl}/api/worlds/${worldId}/main-quest/${playerId}/try-unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ cefrLevel }),
+    });
+  }
+
+  async recordMainQuestCompletion(worldId: string, playerId: string, questType: string, cefrLevel?: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/main-quest/${playerId}/record-completion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ questType, cefrLevel }),
+    });
+    return res.ok ? await res.json() : null;
   }
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {
@@ -1350,6 +1396,76 @@ export class FileDataSource implements DataSource {
       return;
     }
     this.localState.updateQuest(questId, data);
+  }
+
+  async completeQuest(_worldId: string, questId: string): Promise<any> {
+    this.localState.updateQuest(questId, { status: 'completed', completedAt: new Date().toISOString() });
+    return { success: true, questId };
+  }
+
+  async getNpcQuestGuidance(_worldId: string, npcId: string): Promise<{ hasGuidance: boolean; systemPromptAddition?: string } | null> {
+    await this.waitForData();
+    const quests = this.worldData?.quests || [];
+    const updates = this.localState.getQuestUpdates();
+    const activeQuests = quests.filter((q: any) => {
+      const status = updates[q.id]?.status || q.status;
+      return status === 'active' || status === 'in_progress';
+    });
+    const npcObjectives: string[] = [];
+    for (const q of activeQuests) {
+      for (const obj of (q.objectives || [])) {
+        if (obj.targetNpcId === npcId || obj.npcId === npcId) {
+          npcObjectives.push(`Quest "${q.title}": ${obj.description || obj.title || 'Talk to this NPC'}`);
+        }
+      }
+    }
+    if (npcObjectives.length === 0) return { hasGuidance: false };
+    return {
+      hasGuidance: true,
+      systemPromptAddition: `The player has active quest objectives involving you:\n${npcObjectives.join('\n')}`,
+    };
+  }
+
+  async getMainQuestJournal(_worldId: string, _playerId: string, cefrLevel?: string): Promise<any> {
+    await this.waitForData();
+    const quests = this.worldData?.quests || [];
+    const updates = this.localState.getQuestUpdates();
+    const mainQuests = quests.filter((q: any) => q.questType === 'main_quest');
+    const chapters = mainQuests.map((q: any, i: number) => {
+      const update = updates[q.id];
+      const status = update?.status || (i === 0 ? 'active' : 'locked');
+      return {
+        id: q.id, title: q.title, description: q.description,
+        order: q.questChainOrder ?? i, status,
+        objectives: q.objectives || [],
+      };
+    });
+    return {
+      state: { currentChapterId: chapters[0]?.id ?? null, totalXPEarned: 0, caseNotes: [] },
+      chapters,
+      playerCefrLevel: cefrLevel || null,
+      investigationBoard: null,
+    };
+  }
+
+  async tryUnlockMainQuest(_worldId: string, _playerId: string, cefrLevel: string): Promise<void> {
+    await this.waitForData();
+    const quests = this.worldData?.quests || [];
+    const updates = this.localState.getQuestUpdates();
+    const mainQuests = quests
+      .filter((q: any) => q.questType === 'main_quest')
+      .sort((a: any, b: any) => (a.questChainOrder ?? 0) - (b.questChainOrder ?? 0));
+    for (const q of mainQuests) {
+      const status = updates[q.id]?.status || q.status;
+      if (status === 'locked' && q.cefrRequirement && cefrLevel >= q.cefrRequirement) {
+        this.localState.updateQuest(q.id, { status: 'active' });
+        break;
+      }
+    }
+  }
+
+  async recordMainQuestCompletion(_worldId: string, _playerId: string, questType: string, _cefrLevel?: string): Promise<any> {
+    return { result: { questType, recorded: true } };
   }
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {
