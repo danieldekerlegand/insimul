@@ -36,6 +36,10 @@ function createWindow() {
     // In production, load the built app
     // main.js is in electron/, so we need to go up one level to reach the root
     win.loadFile(join(__dirname, '..', 'dist', 'index.html'));
+    // Open DevTools in production when not packaged (useful during local testing)
+    if (!app.isPackaged) {
+      win.webContents.openDevTools();
+    }
   }
 
   // Show window when ready to prevent visual flash
@@ -61,6 +65,9 @@ function createWindow() {
 // fetch() is blocked on file:// protocol in Electron's renderer, so we use this bridge instead.
 ipcMain.handle('read-file', (event, relativePath) => {
   const filePath = join(__dirname, '..', 'dist', relativePath);
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
   return fs.readFileSync(filePath, 'utf8');
 });
 

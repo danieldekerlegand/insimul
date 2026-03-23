@@ -198,8 +198,10 @@ export function registerExportRoutes(app: Express): void {
           });
         }
 
-        console.log(`[Export] Generating Babylon.js ${mode} project for world ${worldId}...`);
-        const zipBuffer = await exportBabylonProject(worldId, { mode, telemetry: telemetryConfig });
+        const aiProvider = req.body.aiProvider || undefined;
+        const buildExecutable = req.body.buildExecutable === true;
+        console.log(`[Export] Generating Babylon.js ${mode} project for world ${worldId}${aiProvider ? ` (AI: ${aiProvider})` : ''}${buildExecutable ? ' (building executable)' : ''}...`);
+        const zipBuffer = await exportBabylonProject(worldId, { mode, telemetry: telemetryConfig, aiProvider, buildExecutable });
 
         // Get world IR for filename
         const ir = await generateWorldIR(worldId);

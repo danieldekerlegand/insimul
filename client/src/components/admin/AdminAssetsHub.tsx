@@ -1235,8 +1235,8 @@ export function AdminAssetsHub() {
             <div className="border-t pt-4">
               <h3 className="text-sm font-semibold mb-3">3D Asset Configuration</h3>
               <div className="space-y-2">
-                <ModelConfigRow label="Ground Texture" value={groundTextureId} assets={collectionAssets} collectionId={selectedCollection.id} modelsOnly={false} onAssetSelected={(asset) => setGroundTextureId(asset.id)} onClear={() => setGroundTextureId('')} />
-                <ModelConfigRow label="Road Texture" value={roadTextureId} assets={collectionAssets} collectionId={selectedCollection.id} modelsOnly={false} onAssetSelected={(asset) => setRoadTextureId(asset.id)} onClear={() => setRoadTextureId('')} />
+                <ModelConfigRow label="Ground Texture" value={groundTextureId} assets={collectionAssets} collectionId={selectedCollection?.id ?? ''} modelsOnly={false} onAssetSelected={(asset) => setGroundTextureId(asset.id)} onClear={() => setGroundTextureId('')} />
+                <ModelConfigRow label="Road Texture" value={roadTextureId} assets={collectionAssets} collectionId={selectedCollection?.id ?? ''} modelsOnly={false} onAssetSelected={(asset) => setRoadTextureId(asset.id)} onClear={() => setRoadTextureId('')} />
               </div>
               {[
                 { title: 'Building Models', field: 'buildingModels', roles: ['default', 'smallResidence', 'largeResidence', 'mansion', 'tavern', 'shop', 'blacksmith', 'church', 'library', 'hospital', 'school', 'bank', 'theater', 'windmill', 'watermill', 'lumbermill', 'barracks', 'mine', 'municipal'], group: 'building' as const, prefix: '', models: buildingModels, setModels: setBuildingModels },
@@ -1252,7 +1252,7 @@ export function AdminAssetsHub() {
                       const scalingKey = `${field}.${role}`;
                       return (
                         <ModelConfigRow key={role} label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()} value={models[role]} assets={collectionAssets}
-                          collectionId={selectedCollection.id} modelsOnly={group !== 'texture'}
+                          collectionId={selectedCollection?.id ?? ''} modelsOnly={group !== 'texture'}
                           scaling={modelScaling[scalingKey]}
                           onScaleChange={(axis, value) => setModelScaling(prev => {
                             const entry = prev[scalingKey] || { x: 1, y: 1, z: 1 };

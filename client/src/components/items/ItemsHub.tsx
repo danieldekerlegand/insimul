@@ -146,7 +146,7 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
       fetch(`/api/worlds/${worldId}/items`).then(r => r.ok ? r.json() : []),
       fetch('/api/items/base').then(r => r.ok ? r.json() : []),
       fetch(`/api/worlds/${worldId}/base-resources/config`).then(r => r.ok ? r.json() : null),
-    ]).then(([worldItems, base, config]) => {
+    ]).then(async ([worldItems, base, config]) => {
       const ownItems = worldItems.filter((i: any) => i.worldId === worldId);
       setItems(ownItems);
       setBaseItems(base);
@@ -156,9 +156,42 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
           disabledBaseItems: config.disabledBaseItems || [],
         });
       }
+
+      // Fetch visual assets referenced by items' visualAssetId
+      const allItems = [...ownItems, ...base];
+      const missingAssetIds: string[] = [];
+      const seen = new Set(worldAssets.map(a => a.id));
+      for (const item of allItems) {
+        if (item.visualAssetId && !seen.has(item.visualAssetId)) {
+          seen.add(item.visualAssetId);
+          missingAssetIds.push(item.visualAssetId);
+        }
+      }
+      if (missingAssetIds.length > 0) {
+        try {
+          // Batch in chunks of 500 (API limit)
+          const allExtra: VisualAsset[] = [];
+          for (let i = 0; i < missingAssetIds.length; i += 500) {
+            const chunk = missingAssetIds.slice(i, i + 500);
+            const res = await fetch('/api/assets/bulk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: chunk }),
+            });
+            if (res.ok) {
+              const extras = await res.json();
+              allExtra.push(...extras);
+            }
+          }
+          if (allExtra.length > 0) {
+            setWorldAssets(prev => [...prev, ...allExtra]);
+          }
+        } catch { /* non-fatal */ }
+      }
+
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [worldId]);
+  }, [worldId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isBaseItemEnabled = (itemId: string): boolean => {
     if (baseConfig.disabledBaseItems.includes(itemId)) return false;
@@ -225,6 +258,12 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
   // Resolve the asset reference for an item based on its objectRole.
   // Returns either a VisualAsset record or a raw file path string.
   const resolveItemAsset = (item: any): { asset: VisualAsset | null; filePath: string | null } => {
+    // Strategy 0: Direct visualAssetId lookup (asset-first items)
+    if (item?.visualAssetId) {
+      const asset = worldAssets.find(a => a.id === item.visualAssetId);
+      if (asset) return { asset, filePath: asset.filePath };
+    }
+
     if (!item?.objectRole) return { asset: null, filePath: null };
 
     const role = item.objectRole;

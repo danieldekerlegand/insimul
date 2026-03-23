@@ -149,8 +149,8 @@ export const INSIMUL_CONFIG = {
   wsUrl: ${JSON.stringify(config.wsUrl)},
   worldId: ${JSON.stringify(config.worldId)},
   apiKey: ${JSON.stringify(config.apiKey)},
-  aiProvider: ${JSON.stringify(config.aiProvider.provider)},
-  aiModelBasePath: ${JSON.stringify(config.aiProvider.modelBasePath)},
+  aiProvider: ${JSON.stringify(config.aiConfig?.apiMode ?? 'cloud')},
+  aiModelBasePath: ${JSON.stringify(config.aiConfig?.localModelPath ?? '')},
 } as const;
 
 export interface AIConfig {
@@ -253,8 +253,8 @@ namespace Insimul
         public const string WsUrl = ${JSON.stringify(config.wsUrl)};
         public const string WorldId = ${JSON.stringify(config.worldId)};
         public const string ApiKey = ${JSON.stringify(config.apiKey)};
-        public const string AIProvider = ${JSON.stringify(config.aiProvider.provider)};
-        public const string AIModelBasePath = ${JSON.stringify(config.aiProvider.modelBasePath)};
+        public const string AIProvider = ${JSON.stringify(config.aiConfig?.apiMode ?? 'cloud')};
+        public const string AIModelBasePath = ${JSON.stringify(config.aiConfig?.localModelPath ?? '')};
 
         public static readonly List<CharacterMapping> CharacterMappings = new List<CharacterMapping>
         {
@@ -311,15 +311,15 @@ function generateGodotConfig(config: InsimulPluginConfig): string {
 
   // AI model path constants (only when local provider is configured)
   let aiSection = '';
-  const mp = config.aiProvider.aiModelPaths;
-  if (config.aiProvider.provider === 'local' && mp) {
+  const mp = config.aiConfig?.modelPack;
+  if (config.aiConfig?.apiMode === 'local' && mp) {
     aiSection += `\nconst AI_PROVIDER: String = "local"`;
-    aiSection += `\nconst AI_LLM_MODEL_PATH: String = ${JSON.stringify(mp.llm ?? '')}`;
-    aiSection += `\nconst AI_STT_MODEL_PATH: String = ${JSON.stringify(mp.stt ?? '')}`;
+    aiSection += `\nconst AI_LLM_MODEL_PATH: String = ${JSON.stringify(mp.llmModel?.exportPath ?? '')}`;
+    aiSection += `\nconst AI_STT_MODEL_PATH: String = ${JSON.stringify(mp.sttModel?.exportPath ?? '')}`;
 
-    if (mp.voices && Object.keys(mp.voices).length > 0) {
-      const voiceEntries = Object.entries(mp.voices)
-        .map(([name, vpath]) => `\t${JSON.stringify(name)}: ${JSON.stringify(vpath)}`)
+    if (mp.ttsModels.length > 0) {
+      const voiceEntries = mp.ttsModels
+        .map(m => `\t${JSON.stringify(m.id)}: ${JSON.stringify(m.exportPath)}`)
         .join(',\n');
       aiSection += `\nconst AI_VOICE_PATHS: Dictionary = {\n${voiceEntries}\n}`;
     } else {
@@ -406,8 +406,8 @@ ServerUrl=${config.serverUrl}
 WsUrl=${config.wsUrl}
 WorldId=${config.worldId}
 ApiKey=${config.apiKey}
-AIProvider=${config.aiProvider.provider}
-AIModelBasePath=${config.aiProvider.modelBasePath}
+AIProvider=${config.aiConfig?.apiMode ?? 'cloud'}
+AIModelBasePath=${config.aiConfig?.localModelPath ?? ''}
 `;
 
   for (let i = 0; i < config.characterMappings.length; i++) {
@@ -434,8 +434,8 @@ namespace InsimulExportConfig
     inline const FString WsUrl = TEXT(${JSON.stringify(config.wsUrl)});
     inline const FString WorldId = TEXT(${JSON.stringify(config.worldId)});
     inline const FString ApiKey = TEXT(${JSON.stringify(config.apiKey)});
-    inline const FString AIProvider = TEXT(${JSON.stringify(config.aiProvider.provider)});
-    inline const FString AIModelBasePath = TEXT(${JSON.stringify(config.aiProvider.modelBasePath)});
+    inline const FString AIProvider = TEXT(${JSON.stringify(config.aiConfig?.apiMode ?? 'cloud')});
+    inline const FString AIModelBasePath = TEXT(${JSON.stringify(config.aiConfig?.localModelPath ?? '')});
 
     struct FCharacterMapping
     {

@@ -571,6 +571,7 @@ const ItemSchema = new Schema({
   maxStack: { type: Number, default: 99 },
   worldType: { type: String, default: null },
   objectRole: { type: String, default: null },
+  visualAssetId: { type: String, default: null },
   category: { type: String, default: null },
   material: { type: String, default: null },
   baseType: { type: String, default: null },

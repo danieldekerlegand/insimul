@@ -57,6 +57,13 @@ export class FurnitureModelLoader {
     if (this.loading) return;
     this.loading = true;
 
+    // In exported games (file:// protocol), polyhaven furniture models are not bundled — skip
+    if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
+      console.log('[FurnitureModelLoader] Skipping — furniture models not bundled in export');
+      this.loading = false;
+      return;
+    }
+
     const entries = Object.entries(FURNITURE_MODEL_PATHS);
     const promises = entries.map(([type, path]) => this.loadTemplate(type, path));
     await Promise.allSettled(promises);

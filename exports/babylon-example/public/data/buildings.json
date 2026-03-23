@@ -1,0 +1,1442 @@
+[
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e87",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e1f",
+    "position": {
+      "x": 186.66666666666666,
+      "y": 0,
+      "z": 190
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "Bakery",
+      "floors": 2,
+      "width": 12,
+      "depth": 10,
+      "hasChimney": true,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e87",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e88",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e20",
+    "position": {
+      "x": 186.66666666666666,
+      "y": 0,
+      "z": 210
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "Restaurant",
+      "floors": 2,
+      "width": 15,
+      "depth": 12,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e88",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e89",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e21",
+    "position": {
+      "x": 200,
+      "y": 0,
+      "z": 190
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "Restaurant",
+      "floors": 2,
+      "width": 15,
+      "depth": 12,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e89",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e8a",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e22",
+    "position": {
+      "x": 200,
+      "y": 0,
+      "z": 210
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "Bank",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e8a",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e8b",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e23",
+    "position": {
+      "x": 213.33333333333334,
+      "y": 0,
+      "z": 190
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "BarberShop",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e8b",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e8c",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e24",
+    "position": {
+      "x": 213.33333333333334,
+      "y": 0,
+      "z": 210
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "GroceryStore",
+      "floors": 1,
+      "width": 20,
+      "depth": 15,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e8c",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e8d",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e25",
+    "position": {
+      "x": 186.66666666666666,
+      "y": 0,
+      "z": 240
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "Shop",
+      "floors": 2,
+      "width": 10,
+      "depth": 8,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e8d",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e8e",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e26",
+    "position": {
+      "x": 186.66666666666666,
+      "y": 0,
+      "z": 260
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "Restaurant",
+      "floors": 2,
+      "width": 15,
+      "depth": 12,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e8e",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e8f",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e27",
+    "position": {
+      "x": 200,
+      "y": 0,
+      "z": 240
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "GroceryStore",
+      "floors": 1,
+      "width": 20,
+      "depth": 15,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e8f",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08e2f34e6ad23a78e90",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e28",
+    "position": {
+      "x": 200,
+      "y": 0,
+      "z": 260
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "Bookstore",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": "69bfe08e2f34e6ad23a78e90",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_10",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e29",
+    "position": {
+      "x": 213.33333333333334,
+      "y": 0,
+      "z": 240
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_11",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e2a",
+    "position": {
+      "x": 213.33333333333334,
+      "y": 0,
+      "z": 260
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_12",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e2b",
+    "position": {
+      "x": 186.66666666666666,
+      "y": 0,
+      "z": 290
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_13",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e2c",
+    "position": {
+      "x": 186.66666666666666,
+      "y": 0,
+      "z": 310
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_14",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e2d",
+    "position": {
+      "x": 200,
+      "y": 0,
+      "z": 290
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_15",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e2e",
+    "position": {
+      "x": 200,
+      "y": 0,
+      "z": 310
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_16",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e2f",
+    "position": {
+      "x": 213.33333333333334,
+      "y": 0,
+      "z": 290
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_17",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e30",
+    "position": {
+      "x": 213.33333333333334,
+      "y": 0,
+      "z": 310
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_18",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e31",
+    "position": {
+      "x": 236.66666666666666,
+      "y": 0,
+      "z": 190
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_19",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e32",
+    "position": {
+      "x": 236.66666666666666,
+      "y": 0,
+      "z": 210
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_20",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e33",
+    "position": {
+      "x": 250,
+      "y": 0,
+      "z": 190
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_21",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e34",
+    "position": {
+      "x": 250,
+      "y": 0,
+      "z": 210
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_22",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e35",
+    "position": {
+      "x": 263.3333333333333,
+      "y": 0,
+      "z": 190
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_23",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e36",
+    "position": {
+      "x": 263.3333333333333,
+      "y": 0,
+      "z": 210
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_24",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e37",
+    "position": {
+      "x": 236.66666666666666,
+      "y": 0,
+      "z": 240
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_25",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e38",
+    "position": {
+      "x": 236.66666666666666,
+      "y": 0,
+      "z": 260
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_26",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e39",
+    "position": {
+      "x": 250,
+      "y": 0,
+      "z": 240
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_27",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e3a",
+    "position": {
+      "x": 250,
+      "y": 0,
+      "z": 260
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_28",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e3b",
+    "position": {
+      "x": 263.3333333333333,
+      "y": 0,
+      "z": 240
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69bfe08a2f34e6ad23a78dc4_29",
+    "settlementId": "69bfe08a2f34e6ad23a78dc4",
+    "lotId": "69bfe08d2f34e6ad23a78e3c",
+    "position": {
+      "x": 263.3333333333333,
+      "y": 0,
+      "z": 260
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "modern_glass",
+      "baseColor": {
+        "r": 0.6,
+        "g": 0.6,
+        "b": 0.65
+      },
+      "roofColor": {
+        "r": 0.25,
+        "g": 0.25,
+        "b": 0.3
+      },
+      "windowColor": {
+        "r": 0.5,
+        "g": 0.7,
+        "b": 0.9
+      },
+      "doorColor": {
+        "r": 0.3,
+        "g": 0.3,
+        "b": 0.35
+      },
+      "materialType": "glass",
+      "architectureStyle": "modern"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  }
+]

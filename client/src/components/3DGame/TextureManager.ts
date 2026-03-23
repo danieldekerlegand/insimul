@@ -10,6 +10,9 @@ export class TextureManager {
   private textureCache: Map<string, Texture> = new Map();
   private assetCache: Map<string, VisualAsset> = new Map();
 
+  // Maps MongoDB asset IDs → local file paths (populated from IR in exported games)
+  private assetIdToPath: Record<string, string> = {};
+
   // Texture load queue: limit concurrent loads to prevent bandwidth saturation
   private static readonly MAX_CONCURRENT_LOADS = 4;
   private _inFlightCount = 0;
@@ -17,6 +20,11 @@ export class TextureManager {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /** Set the asset ID → file path mapping (used by exported games to resolve textures without an API) */
+  setAssetIdMap(map: Record<string, string>): void {
+    this.assetIdToPath = map;
   }
 
   /**
@@ -171,11 +179,22 @@ export class TextureManager {
         return this.textureCache.get(assetId)!;
       }
 
+      // Check if we have a local path mapping (exported games)
+      const localPath = this.assetIdToPath[assetId];
+      if (localPath) {
+        const texture = new Texture(localPath, this.scene);
+        this.textureCache.set(assetId, texture);
+        return texture;
+      }
+
       // Check if we have the asset cached
       let asset = this.assetCache.get(assetId);
 
-      // If not, fetch it
+      // If not, fetch it (only in-app — skip for file:// protocol)
       if (!asset) {
+        if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
+          return null;
+        }
         const response = await fetch(`/api/assets/${assetId}`);
         if (!response.ok) {
           throw new Error(`Failed to fetch asset ${assetId}`);

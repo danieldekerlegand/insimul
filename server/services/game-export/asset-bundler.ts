@@ -64,16 +64,16 @@ interface AssetDef {
 
 const CORE_CHARACTERS: AssetDef[] = [
   // Same models used by the in-app BabylonGame: hardcoded fallback paths must match
-  // PLAYER_MODEL_URL and NPC_MODEL_URL constants in BabylonGame.ts
-  { sourcePath: 'player/Vincent-frontFacing.babylon', exportPath: 'assets/player/Vincent-frontFacing.babylon', category: 'character', role: 'player_default' },
-  { sourcePath: 'player/Vincent_texture_image.jpg', exportPath: 'assets/player/Vincent_texture_image.jpg', category: 'character', role: 'player_texture' },
-  { sourcePath: 'npc/starterAvatars.babylon', exportPath: 'assets/npc/starterAvatars.babylon', category: 'character', role: 'npc_default' },
+  // PLAYER_MODEL_URL and NPC_MODEL_URL constants in shared/asset-paths.ts
+  { sourcePath: 'models/characters/legacy/Vincent-frontFacing.babylon', exportPath: 'assets/player/Vincent-frontFacing.babylon', category: 'character', role: 'player_default' },
+  { sourcePath: 'models/characters/legacy/Vincent_texture_image.jpg', exportPath: 'assets/player/Vincent_texture_image.jpg', category: 'character', role: 'player_texture' },
+  { sourcePath: 'models/characters/legacy/starterAvatars.babylon', exportPath: 'assets/npc/starterAvatars.babylon', category: 'character', role: 'npc_default' },
 ];
 
 const CORE_GROUND: AssetDef[] = [
-  { sourcePath: 'ground/ground.jpg', exportPath: 'assets/ground/ground.jpg', category: 'ground', role: 'ground_diffuse' },
-  { sourcePath: 'ground/ground-normal.png', exportPath: 'assets/ground/ground-normal.png', category: 'ground', role: 'ground_normal' },
-  { sourcePath: 'ground/ground_heightMap.png', exportPath: 'assets/ground/ground_heightMap.png', category: 'ground', role: 'ground_heightmap' },
+  { sourcePath: 'textures/environment/ground.jpg', exportPath: 'assets/ground/ground.jpg', category: 'ground', role: 'ground_diffuse' },
+  { sourcePath: 'textures/environment/ground-normal.png', exportPath: 'assets/ground/ground-normal.png', category: 'ground', role: 'ground_normal' },
+  { sourcePath: 'textures/environment/ground_heightMap.png', exportPath: 'assets/ground/ground_heightMap.png', category: 'ground', role: 'ground_heightmap' },
 ];
 
 const CORE_CONTAINERS: AssetDef[] = [
@@ -94,11 +94,11 @@ const CORE_QUEST_PROPS: AssetDef[] = [
 ];
 
 const CORE_AUDIO: AssetDef[] = [
-  { sourcePath: 'freesound/ambient/medieval_village_atmosphere_wav_578072.mp3', exportPath: 'assets/audio/ambient/medieval_village.mp3', category: 'audio', role: 'ambient_medieval' },
-  { sourcePath: 'freesound/ambient/soft_wind_459977.mp3', exportPath: 'assets/audio/ambient/wind.mp3', category: 'audio', role: 'ambient_wind' },
-  { sourcePath: 'freesound/footstep/footstep_on_stone_197778.mp3', exportPath: 'assets/audio/footstep/stone.mp3', category: 'audio', role: 'footstep_stone' },
-  { sourcePath: 'freesound/interact/door_creak_wav_219499.mp3', exportPath: 'assets/audio/interact/door.mp3', category: 'audio', role: 'interact_door' },
-  { sourcePath: 'freesound/interact/open_button_2_264447.mp3', exportPath: 'assets/audio/interact/button.mp3', category: 'audio', role: 'interact_button' },
+  { sourcePath: 'audio/ambient/medieval_village_atmosphere_wav_578072.mp3', exportPath: 'assets/audio/ambient/medieval_village.mp3', category: 'audio', role: 'ambient_medieval' },
+  { sourcePath: 'audio/ambient/soft_wind_459977.mp3', exportPath: 'assets/audio/ambient/wind.mp3', category: 'audio', role: 'ambient_wind' },
+  { sourcePath: 'audio/footstep/footstep_on_stone_197778.mp3', exportPath: 'assets/audio/footstep/stone.mp3', category: 'audio', role: 'footstep_stone' },
+  { sourcePath: 'audio/effects/door_creak_wav_219499.mp3', exportPath: 'assets/audio/interact/door.mp3', category: 'audio', role: 'interact_door' },
+  { sourcePath: 'audio/effects/open_button_2_264447.mp3', exportPath: 'assets/audio/interact/button.mp3', category: 'audio', role: 'interact_button' },
 ];
 
 // ─────────────────────────────────────────────
@@ -430,6 +430,134 @@ export async function bundleCoreAssets(engine: TargetEngine = 'babylon'): Promis
       });
       totalSizeBytes += buffer.length;
       console.log(`[AssetBundler] Bundled: ${def.sourcePath} (${buffer.length} bytes)`);
+
+      // For .gltf files, also bundle companion .bin files referenced in the buffers array
+      if (def.sourcePath.endsWith('.gltf')) {
+        try {
+          const gltfJson = JSON.parse(buffer.toString('utf8'));
+          let gltfModified = false;
+          for (const buf of gltfJson.buffers || []) {
+            if (buf.uri && !buf.uri.startsWith('data:')) {
+              // Search for .bin: 1) next to the .gltf, 2) in polyhaven source dirs, 3) recursive search
+              const binName = buf.uri;
+              const binNextToGltf = path.join(path.dirname(fullPath), binName);
+              let binSourcePath: string | null = null;
+
+              if (fs.existsSync(binNextToGltf)) {
+                binSourcePath = binNextToGltf;
+              } else {
+                // Search polyhaven directories for the .bin file
+                const searchDirs = [
+                  path.join(basePath, 'models', 'props', 'polyhaven'),
+                  path.join(basePath, 'models', 'furniture', 'polyhaven'),
+                  path.join(basePath, 'models', 'containers'),
+                  path.join(basePath, 'models', 'markers'),
+                ];
+                for (const searchDir of searchDirs) {
+                  if (!fs.existsSync(searchDir)) continue;
+                  // Recursive find
+                  const findBin = (dir: string): string | null => {
+                    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                      if (entry.isDirectory()) {
+                        const found = findBin(path.join(dir, entry.name));
+                        if (found) return found;
+                      } else if (entry.name === binName) {
+                        return path.join(dir, entry.name);
+                      }
+                    }
+                    return null;
+                  };
+                  const found = findBin(searchDir);
+                  if (found) { binSourcePath = found; break; }
+                }
+              }
+
+              if (binSourcePath) {
+                const binBuffer = fs.readFileSync(binSourcePath);
+                const binExportPath = path.join(path.dirname(def.exportPath), binName);
+                assets.push({ exportPath: binExportPath, buffer: binBuffer, category: def.category, role: def.role + '_bin' });
+                totalSizeBytes += binBuffer.length;
+                console.log(`[AssetBundler] Bundled companion: ${binName} (${binBuffer.length} bytes)`);
+              } else {
+                // Last resort: embed the buffer as base64 data URI in the .gltf itself
+                console.warn(`[AssetBundler] .bin not found for ${def.sourcePath}: ${binName} — searching failed, embedding would require the file to exist`);
+              }
+            }
+          }
+          // Also bundle companion textures referenced in the images array
+          // Downscale references from 8k/4k to 1k for smaller export size
+          for (const img of gltfJson.images || []) {
+            if (img.uri && !img.uri.startsWith('data:')) {
+              const uri1k = img.uri.replace(/_\d+k\.jpg$/, '_1k.jpg');
+              const origFilename = path.basename(img.uri);
+              const filename1k = path.basename(uri1k);
+
+              // Search for texture: next to gltf, then in polyhaven subdirs
+              const searchLocations = [
+                // Next to the .gltf file
+                path.join(path.dirname(fullPath), uri1k),
+                path.join(path.dirname(fullPath), img.uri),
+              ];
+
+              // Also search polyhaven directories recursively for the texture file
+              const polyhavenDirs = [
+                path.join(basePath, 'models', 'props', 'polyhaven'),
+                path.join(basePath, 'models', 'furniture', 'polyhaven'),
+              ];
+              const findTexture = (dir: string, name: string): string | null => {
+                if (!fs.existsSync(dir)) return null;
+                for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                  if (entry.isDirectory()) {
+                    const found = findTexture(path.join(dir, entry.name), name);
+                    if (found) return found;
+                  } else if (entry.name === name) {
+                    return path.join(dir, entry.name);
+                  }
+                }
+                return null;
+              };
+
+              let texSource: string | null = null;
+              // Try direct paths first
+              for (const loc of searchLocations) {
+                if (fs.existsSync(loc)) { texSource = loc; break; }
+              }
+              // If not found, search polyhaven dirs for 1k version first, then original
+              if (!texSource) {
+                for (const phDir of polyhavenDirs) {
+                  texSource = findTexture(phDir, filename1k);
+                  if (texSource) break;
+                  texSource = findTexture(phDir, origFilename);
+                  if (texSource) break;
+                }
+              }
+
+              if (texSource) {
+                const texBuffer = fs.readFileSync(texSource);
+                const usedFilename = path.basename(texSource);
+                // Determine the URI to use in the gltf (preserve textures/ subdir if present)
+                const texSubdir = img.uri.includes('/') ? img.uri.substring(0, img.uri.lastIndexOf('/') + 1) : '';
+                const usedUri = texSubdir + usedFilename;
+                const texExportPath = path.join(path.dirname(def.exportPath), usedUri);
+                assets.push({ exportPath: texExportPath, buffer: texBuffer, category: def.category, role: def.role + '_tex' });
+                totalSizeBytes += texBuffer.length;
+                // Rewrite the gltf to reference the found version
+                if (usedUri !== img.uri) {
+                  img.uri = usedUri;
+                  gltfModified = true;
+                }
+                console.log(`[AssetBundler] Bundled texture: ${usedUri} (${texBuffer.length} bytes)`);
+              } else {
+                console.warn(`[AssetBundler] Missing texture for ${def.sourcePath}: ${img.uri}`);
+              }
+            }
+          }
+          // If any image URIs were rewritten, update the gltf buffer in the asset list
+          const updatedGltf = JSON.stringify(gltfJson);
+          const idx = assets.findIndex(a => a.exportPath === def.exportPath);
+          if (idx >= 0) assets[idx].buffer = Buffer.from(updatedGltf, 'utf8');
+        } catch { /* not valid JSON or no buffers — skip */ }
+      }
     } catch (err) {
       console.warn(`[AssetBundler] Failed to read ${def.sourcePath}:`, (err as Error).message);
     }

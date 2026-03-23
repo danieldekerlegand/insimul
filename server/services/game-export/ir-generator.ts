@@ -586,7 +586,8 @@ function parseDisposition(character: Character): number {
 
 export async function generateWorldIR(
   worldId: string,
-  engine: TargetEngine = 'babylon'
+  engine: TargetEngine = 'babylon',
+  options?: { aiProvider?: 'cloud' | 'local' }
 ): Promise<WorldIR> {
   console.log(`[Export] Starting IR generation for world ${worldId}...`);
   
@@ -649,6 +650,18 @@ export async function generateWorldIR(
   console.log(`[Export] Fetching assets and building manifest...`);
   const assetStartTime = Date.now();
   const assetCollectionId = world.selectedAssetCollectionId;
+  let world3DConfig: any = null;
+  // Maps MongoDB asset IDs → export-relative file paths so the exported game
+  // can resolve texture/model references without an API server
+  const assetIdToPath: Record<string, string> = {};
+  try {
+    const { getWorld3DConfigForWorld } = await import(/* webpackIgnore: true */ '../asset-collection-resolver.js' as any);
+    world3DConfig = await getWorld3DConfigForWorld(worldId);
+    console.log(`[Export] ✓ getWorld3DConfigForWorld`);
+  } catch (e) {
+    console.warn(`[Export] ⚠ Failed to load world3DConfig:`, (e as Error).message);
+  }
+
   const [collectionSnapshot, worldAssets] = await Promise.all([
     assetCollectionId ? loadCollectionSnapshot(assetCollectionId).then(r => { console.log(`[Export] ✓ loadCollectionSnapshot`); return r; }) : Promise.resolve(null),
     storage.getVisualAssetsByWorld(worldId).then(r => { console.log(`[Export] ✓ getVisualAssetsByWorld`); return r; }),
@@ -658,7 +671,19 @@ export async function generateWorldIR(
   console.log(`[Export] Building asset manifest...`);
   const { manifest: assetManifest } = await buildWorldAssetManifest(worldId, engine, world);
   console.log(`[Export] ✓ Asset manifest built`);
-  
+
+  // Build asset ID → file path mapping from visual assets
+  for (const asset of worldAssets) {
+    const id = asset.id || (asset as any)._id?.toString();
+    if (id && asset.filePath) {
+      // Convert absolute server paths to relative export paths
+      let exportPath = asset.filePath;
+      if (exportPath.startsWith('/')) exportPath = '.' + exportPath;
+      assetIdToPath[id] = exportPath;
+    }
+  }
+  console.log(`[Export] Built asset ID mapping: ${Object.keys(assetIdToPath).length} entries`);
+
   const assetTime = Date.now() - assetStartTime;
   console.log(`[Export] Asset fetching and manifest completed in ${assetTime}ms`);
 
@@ -1218,16 +1243,17 @@ export async function generateWorldIR(
     };
   }).filter((ctx): ctx is NPCDialogueContext => ctx !== null);
 
-  const aiProviderEnv = process.env.AI_PROVIDER?.toLowerCase();
+  const aiProviderChoice = options?.aiProvider || (process.env.AI_PROVIDER?.toLowerCase() === 'local' ? 'local' : 'cloud');
+  const isLocal = aiProviderChoice === 'local';
   const aiConfig: AIConfigIR = {
-    apiMode: aiProviderEnv === 'local' ? 'local' : 'insimul',
+    apiMode: isLocal ? 'local' : 'insimul',
     insimulEndpoint: '/api/gemini/chat',
     geminiModel: 'gemini-2.5-flash',
     geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
     voiceEnabled: true,
     defaultVoice: 'Kore',
-    localModelPath: aiProviderEnv === 'local' ? (process.env.LOCAL_MODEL_PATH || '') : undefined,
-    localModelName: aiProviderEnv === 'local' ? (process.env.LOCAL_MODEL_NAME || 'phi-4-mini-q4') : undefined,
+    localModelPath: isLocal ? (process.env.LOCAL_MODEL_PATH || '') : undefined,
+    localModelName: isLocal ? (process.env.LOCAL_MODEL_NAME || 'phi-4-mini-q4') : undefined,
   };
 
   // ── 7. Assets ──
@@ -1276,6 +1302,8 @@ export async function generateWorldIR(
       exportVersion: world.version ?? 1,
       seed,
       selectedAssetCollectionId: assetCollectionId || null,
+      world3DConfig: world3DConfig || {},
+      assetIdToPath,
     },
 
     geography: {
@@ -1321,6 +1349,7 @@ export async function generateWorldIR(
         stackable: item.stackable !== false,
         maxStack: item.maxStack || 99,
         objectRole: item.objectRole || null,
+        visualAssetId: item.visualAssetId || null,
         effects: item.effects || null,
         lootWeight: item.lootWeight || 0,
         tags: item.tags || [],
@@ -1664,30 +1693,52 @@ async function buildKnowledgeBase(
     parts.push('');
   }
 
-  // Prolog content from rules
+  // Prolog content from rules (validate each individually, skip broken ones)
   let hasContent = false;
-  const ruleContents = rules.filter(r => r.content).map(r => r.content);
-  if (ruleContents.length > 0) {
+  const rulesWithContent = rules.filter(r => r.content);
+  if (rulesWithContent.length > 0) {
     parts.push('% === Rules ===');
-    parts.push(ruleContents.join('\n\n'));
+    for (const rule of rulesWithContent) {
+      if (hasBalancedParens(rule.content)) {
+        parts.push(rule.content);
+      } else {
+        console.warn(`[IR Export] Skipping rule "${rule.id}" with syntax error`);
+        parts.push(`% SKIPPED: rule ${rule.id} — syntax error (unbalanced parens)`);
+      }
+    }
     parts.push('');
     hasContent = true;
   }
 
   // Prolog content from actions
-  const actionContents = actions.filter(a => a.content).map(a => a.content!);
-  if (actionContents.length > 0) {
+  const actionsWithContent = actions.filter(a => a.content);
+  if (actionsWithContent.length > 0) {
     parts.push('% === Actions ===');
-    parts.push(actionContents.join('\n\n'));
+    for (const action of actionsWithContent) {
+      if (hasBalancedParens(action.content!)) {
+        parts.push(action.content!);
+      } else {
+        console.warn(`[IR Export] Skipping action "${action.id}" with syntax error`);
+        parts.push(`% SKIPPED: action ${action.id} — syntax error (unbalanced parens)`);
+      }
+    }
     parts.push('');
     hasContent = true;
   }
 
   // Prolog content from quests
-  const questContents = quests.filter(q => q.content).map(q => q.content!);
-  if (questContents.length > 0) {
+  const questsWithContent = quests.filter(q => q.content);
+  if (questsWithContent.length > 0) {
     parts.push('% === Quests ===');
-    parts.push(questContents.join('\n\n'));
+    for (const quest of questsWithContent) {
+      if (hasBalancedParens(quest.content!)) {
+        parts.push(quest.content!);
+      } else {
+        const label = quest.title || quest.id;
+        console.warn(`[IR Export] Skipping quest "${label}" (${quest.id}) with syntax error`);
+        parts.push(`% SKIPPED: quest ${quest.id} "${quest.title || ''}" — syntax error (unbalanced parens)`);
+      }
+    }
     parts.push('');
     hasContent = true;
   }
@@ -1718,6 +1769,30 @@ async function buildKnowledgeBase(
   }
 
   return knowledgeBase;
+}
+
+/**
+ * Quick syntactic pre-check for a Prolog content block.
+ * Catches unbalanced parens and obvious comma issues that cause tau-prolog
+ * to fail the entire KB parse.
+ */
+function hasBalancedParens(content: string): boolean {
+  // Strip comments and quoted strings before checking
+  const stripped = content
+    .replace(/%[^\n]*/g, '')        // line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '') // block comments
+    .replace(/'[^']*'/g, "''")      // single-quoted atoms
+    .replace(/"[^"]*"/g, '""');     // double-quoted strings
+  let depth = 0;
+  for (const ch of stripped) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (depth < 0) return false;
+  }
+  if (depth !== 0) return false;
+  // Check for empty arguments: (,  ,) or ,,
+  if (/\(\s*,|,\s*\)|,\s*,/.test(stripped)) return false;
+  return true;
 }
 
 function sanitizeAtom(str: string): string {

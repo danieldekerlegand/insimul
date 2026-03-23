@@ -553,6 +553,7 @@ export class LanguageProgressTracker {
    * in prior sessions is available immediately.
    */
   public async loadFromServer(): Promise<boolean> {
+    if (typeof window !== 'undefined' && window.location?.protocol === 'file:') return false;
     const { playerId, worldId, playthroughId } = this.progress;
     const url = `/api/language-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}`
       + (playthroughId ? `?playthroughId=${encodeURIComponent(playthroughId)}` : '');

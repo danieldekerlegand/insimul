@@ -48,7 +48,7 @@ function generatePackageJson(ir: WorldIR, options: BabylonExportOptions): string
     author: 'InSimul',
     main: isElectron ? 'electron/main.js' : undefined,
     scripts: {
-      dev: isElectron ? 'vite & electron . --dev' : 'vite',
+      dev: isElectron ? 'vite build && electron .' : 'vite',
       build: 'vite build',
       'build:web': 'vite build',
       'package:web': 'npm run build && cd dist && zip -r ../web-build.zip .',
@@ -62,6 +62,7 @@ function generatePackageJson(ir: WorldIR, options: BabylonExportOptions): string
       '@babylonjs/gui': '^7.0.0',
       '@babylonjs/loaders': '^7.0.0',
       '@babylonjs/materials': '^7.0.0',
+      'tau-prolog': '^0.3.4',
     },
     devDependencies: {
       typescript: '^5.4.0',

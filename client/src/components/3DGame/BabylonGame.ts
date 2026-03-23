@@ -67,6 +67,7 @@ import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldSc
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
 import { FullscreenMap } from "@/components/3DGame/FullscreenMap.ts";
+import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
 import { renderWorldCanvas } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { TerrainRenderer } from "@/components/3DGame/TerrainRenderer.ts";
@@ -468,6 +469,7 @@ export class BabylonGame {
   private waterRenderer: WaterRenderer | null = null;
   private worldScaleManager: WorldScaleManager | null = null;
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
+  private minimap: BabylonMinimap | null = null;
   private fullscreenMap: FullscreenMap | null = null;
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
@@ -1565,6 +1567,18 @@ export class BabylonGame {
     // Initialize texture manager
     this.textureManager = new TextureManager(scene);
 
+    // In exported games, provide the asset ID → file path map so TextureManager
+    // can resolve MongoDB asset IDs to local files without an API server
+    if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
+      try {
+        const ds = this.dataSource as any;
+        const idMap = ds.worldIR?.meta?.assetIdToPath;
+        if (idMap && typeof idMap === 'object') {
+          this.textureManager.setAssetIdMap(idMap);
+        }
+      } catch { /* not a FileDataSource — ignore */ }
+    }
+
     // Initialize audio manager
     this.audioManager = new AudioManager(scene);
 
@@ -2198,6 +2212,9 @@ export class BabylonGame {
 
     // Initialize building info display
     this.buildingInfoDisplay = new BuildingInfoDisplay(scene, this.guiManager.advancedTexture);
+
+    // Initialize minimap
+    this.minimap = new BabylonMinimap(scene, this.guiManager.advancedTexture, this.terrainSize || 512);
 
     // Initialize full-screen map
     this.fullscreenMap = new FullscreenMap(this.guiManager.advancedTexture);
@@ -2846,6 +2863,8 @@ export class BabylonGame {
         }
       },
       onStartConversation: async (npc1Id: string, npc2Id: string, topic?: string): Promise<ConversationResult | null> => {
+        // In exported games without a running AI server, skip NPC-NPC conversations
+        if (typeof window !== 'undefined' && (window.location?.protocol === 'file:' || !this.config.authToken)) return null;
         try {
           const response = await fetch(`/api/worlds/${this.config.worldId}/npc-npc-conversation`, {
             method: 'POST',
@@ -3596,6 +3615,36 @@ export class BabylonGame {
       }
     }
 
+    // Auto-populate templates from items with visualAssetId (asset-first items)
+    if (this.worldItems.length > 0) {
+      for (const item of this.worldItems) {
+        if (item.visualAssetId && item.objectRole && !this.objectModelTemplates.has(item.objectRole)) {
+          const asset = findAssetById(item.visualAssetId);
+          const template = await loadModelTemplate(asset);
+          if (template) {
+            applyModelScaling(template, 'objectModels', item.objectRole);
+            template.computeWorldMatrix(true);
+            const kids = template.getChildMeshes(false);
+            let oMin = new Vector3(Infinity, Infinity, Infinity);
+            let oMax = new Vector3(-Infinity, -Infinity, -Infinity);
+            for (const kid of kids) {
+              kid.computeWorldMatrix(true);
+              const bi = kid.getBoundingInfo();
+              oMin = Vector3.Minimize(oMin, bi.boundingBox.minimumWorld);
+              oMax = Vector3.Maximize(oMax, bi.boundingBox.maximumWorld);
+            }
+            if (isFinite(oMin.x)) {
+              const h = oMax.y - oMin.y;
+              if (h > 0.001) {
+                this.objectModelOriginalHeights.set(item.objectRole, h);
+              }
+            }
+            this.objectModelTemplates.set(item.objectRole, template);
+          }
+        }
+      }
+    }
+
     // Quest object models: preload templates for quest items (collectible, marker, container, etc.)
     if (this.questObjectManager && config3D.questObjectModels) {
       for (const [role, id] of Object.entries(config3D.questObjectModels)) {
@@ -3761,6 +3810,14 @@ export class BabylonGame {
         const lotById = new Map<string, any>();
         for (const lot of lots) {
           lotById.set(lot.id, lot);
+        }
+
+        // Normalize lot positions: support both flat (positionX/positionZ) and nested (position.x/position.z) formats
+        for (const l of lots) {
+          if (l.positionX == null && l.position?.x != null) {
+            l.positionX = l.position.x;
+            l.positionZ = l.position.z ?? l.position.y ?? 0;
+          }
         }
 
         // Check if DB lots have world-space positions
@@ -10450,6 +10507,22 @@ export class BabylonGame {
    * Called on world load and after quest completions.
    */
   private async fetchMainQuestJournalData(): Promise<void> {
+    // In exported games (file:// protocol or no auth token), build journal from local quest data
+    if (typeof window !== 'undefined' && (window.location?.protocol === 'file:' || !this.config.authToken)) {
+      const mainQuests = (this.quests || []).filter((q: any) => q.questType === 'main_quest');
+      this.mainQuestJournalData = {
+        currentChapterId: mainQuests[0]?.id ?? null,
+        totalXPEarned: 0,
+        chapters: mainQuests.map((q: any, i: number) => ({
+          id: q.id, title: q.title, description: q.description,
+          order: q.questChainOrder ?? i, status: i === 0 ? 'active' : 'locked',
+          objectives: q.objectives || [],
+        })),
+        playerCefrLevel: this.playerCefrLevel,
+        investigationBoard: null, caseNotes: [],
+      };
+      return;
+    }
     try {
       const worldId = this.config.worldId;
       const playerId = this.config.userId || 'player';
@@ -10474,6 +10547,7 @@ export class BabylonGame {
    * Fetch quest portfolio and learning journal data from the server.
    */
   private async fetchPortfolioData(): Promise<void> {
+    if (typeof window !== 'undefined' && (window.location?.protocol === 'file:' || !this.config.authToken)) return;
     try {
       const worldId = this.config.worldId;
       const playerName = this.config.userId || 'Player';

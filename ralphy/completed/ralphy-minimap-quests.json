@@ -1,0 +1,40 @@
+{
+  "tasks": [
+    {
+      "title": "Diagnose and fix minimap causing game load failure",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "The minimap preview has started causing the game to fail to load entirely. (1) In BabylonGame.ts, locate the minimap initialization at approximately line 2185 where BabylonMinimap is created. (2) Add try-catch around the minimap initialization and all minimap-related calls to prevent minimap errors from crashing the game. (3) Check BabylonMinimap.ts constructor and initialization for: excessive memory allocation (large render targets or canvases), synchronous blocking operations during scene setup, errors in MinimapTerrainRenderer that propagate up, GUI texture conflicts with the main advancedTexture. (4) Check if MinimapTerrainRenderer.ts is attempting to render the entire terrain at load time which could be too expensive. (5) Add deferred initialization: delay minimap creation until after the main scene is fully loaded and the first frame is rendered. (6) Add error boundaries so minimap failures are logged but do not prevent game loading. (7) Test with various world sizes to ensure the minimap doesn't cause memory issues on larger worlds."
+    },
+    {
+      "title": "Revise minimap to show correct top-down world overview",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "The minimap should show a top-down image of the overall world. (1) In BabylonMinimap.ts and MinimapTerrainRenderer.ts, implement a proper top-down rendering approach: create a secondary orthographic camera positioned above the world center, pointing straight down. (2) Render the terrain, roads, buildings (as colored footprints), water features, and vegetation (as green dots) from this top-down perspective into an off-screen render target. (3) Use the render target texture as the minimap background. (4) The minimap should show: green for terrain/grass, brown/gray for roads, colored rectangles for building footprints (different colors by category: residential=blue, commercial=yellow, civic=white, industrial=orange), blue for water features. (5) Re-render the minimap background only when the world changes significantly (building added/removed), not every frame. (6) Overlay dynamic markers (player, NPCs, quest objectives) on top of the static background. (7) The player's position should be centered in the minimap with the world scrolling around them, or optionally show the full world with the player as a bright marker."
+    },
+    {
+      "title": "Ensure every quest objective has a minimap marker with location",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Every quest objective must show a marker on the minimap indicating where the player needs to go. Currently, markers only appear when locationPosition is set, and many objectives lack this. (1) In quest-seed-generator.ts, enhance the objective enrichment to ALWAYS set a locationPosition for every objective type. (2) For visit_location/discover_location: set locationPosition to the target location's coordinates (already done). (3) For talk_to_npc/complete_conversation/build_friendship/escort_npc: query the target NPC's current position and set locationPosition to that. Since NPCs move, mark these as dynamic. (4) For collect_item/deliver_item/identify_object/examine_object/read_sign/point_and_name: find an instance of the target item in the world and set locationPosition to its coordinates. If the item is in a seller's inventory, point to the seller's business location. (5) For order_food/haggle_price: point to the relevant merchant/business. (6) For craft_item: point to the relevant crafting station or workshop. (7) For defeat_enemies: point to the area where enemies spawn. (8) For generic objectives like 'collect X swords', scan the world for any matching item and point to the nearest one. (9) Add a fallback: if no specific location can be determined, point to the quest giver NPC."
+    },
+    {
+      "title": "Implement dynamic minimap markers for moving NPC objectives",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Quest objectives tied to NPCs need markers that update as the NPC moves. (1) In QuestMinimapMarkers.ts, add support for a 'dynamic' marker flag that indicates the marker position should be updated each frame. (2) For NPC-associated objectives (talk_to_npc, escort_npc, etc.), store the target NPC's ID along with the marker. (3) In the extractObjectiveMarkers() function, when an objective is NPC-associated, look up the NPC's current world position from the game's NPC tracking system and update the marker position accordingly. (4) In BabylonMinimap.ts, update the marker rendering loop to reposition dynamic markers each frame based on their associated entity's current position. (5) Add a visual distinction for dynamic markers (e.g., a small arrow or pulsing effect) so the player knows the target is moving. (6) For item collection objectives, update the marker if the nearest matching item changes (e.g., one was picked up, point to the next nearest)."
+    },
+    {
+      "title": "Add minimap marker for item objectives including seller inventories",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Item-related quest objectives (collect, deliver, identify, etc.) should show markers pointing to relevant items. (1) When generating quest objectives for item collection, scan the world for all instances of the target item type. (2) Include items in the world (on the ground, in buildings) AND items in seller/merchant inventories. (3) For items in seller inventories, the marker should point to the seller's business location with a distinct icon or color (gold for purchasable items). (4) For items on the ground or in interiors, point directly to the item's position. (5) If multiple instances exist, point to the nearest one to the player. (6) In the minimap, show these item markers with the gold color already defined for item objectives (#FFD700). (7) When an item is collected, remove its marker and point to the next nearest instance if the objective is not yet complete."
+    },
+    {
+      "title": "Add minimap expand/full-screen toggle with legend",
+      "completed": true,
+      "parallel_group": 4,
+      "description": "Enhance the minimap with better usability features. (1) The minimap should have three size modes: collapsed (icon only), normal (50x50 or configurable small size), and expanded (200x200 or larger). (2) Add a click-to-expand behavior that toggles between normal and expanded. (3) In expanded mode, show a legend explaining marker colors and shapes: cyan diamond = location objective, green circle = NPC objective, gold circle = item objective, blue dot = player, red dot = enemy, etc. (4) In expanded mode, show building labels on hover. (5) Ensure the minimap is always interactive: clicking on a quest marker in expanded mode should set it as the active tracked objective. (6) Add a compass direction indicator (N/S/E/W) on the minimap edges."
+    }
+  ]
+}

@@ -9,11 +9,12 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Download, Package, CheckCircle2, AlertCircle, Loader2, FileText, Code2, Database, Settings, Radio } from 'lucide-react';
+import { Download, Package, CheckCircle2, AlertCircle, Loader2, FileText, Code2, Database, Settings, Radio, Cpu, Cloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type EngineType = 'babylon' | 'unreal' | 'unity' | 'godot';
 type BabylonMode = 'web' | 'electron';
+type AIProviderChoice = 'cloud' | 'local';
 
 interface ExportStep {
   label: string;
@@ -110,6 +111,12 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
   const [isDone, setIsDone] = useState(false);
   const { toast } = useToast();
 
+  // AI provider choice
+  const [aiProvider, setAiProvider] = useState<AIProviderChoice>('cloud');
+
+  // Build executable option (Electron only)
+  const [buildExecutable, setBuildExecutable] = useState(false);
+
   // Telemetry configuration state
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const [telemetryServerUrl, setTelemetryServerUrl] = useState(window.location.origin);
@@ -195,6 +202,12 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
       const body: any = { format: 'zip' };
       if (selectedEngine === 'babylon') {
         body.mode = babylonMode;
+      }
+      if (aiProvider !== 'cloud') {
+        body.aiProvider = aiProvider;
+      }
+      if (buildExecutable && selectedEngine === 'babylon') {
+        body.buildExecutable = true;
       }
       if (telemetryEnabled) {
         body.telemetry = {
@@ -287,7 +300,7 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
     } finally {
       setIsExporting(false);
     }
-  }, [selectedEngine, babylonMode, worldId, worldName, reset, advanceSteps, toast]);
+  }, [selectedEngine, babylonMode, aiProvider, buildExecutable, worldId, worldName, reset, advanceSteps, toast]);
 
   const engineInfo = ENGINE_OPTIONS.find(e => e.value === selectedEngine)!;
 
@@ -355,6 +368,59 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* AI Provider Selector */}
+          {!isExporting && !isDone && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">AI Provider</label>
+              <Select value={aiProvider} onValueChange={(v) => setAiProvider(v as AIProviderChoice)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cloud">
+                    <span className="flex items-center gap-2">
+                      <Cloud className="w-4 h-4" />
+                      <span>Cloud (Gemini API)</span>
+                      <span className="text-xs text-muted-foreground ml-1">— Requires internet</span>
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="local">
+                    <span className="flex items-center gap-2">
+                      <Cpu className="w-4 h-4" />
+                      <span>Local (llama.cpp + Piper + Whisper)</span>
+                      <span className="text-xs text-muted-foreground ml-1">— Fully offline</span>
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {aiProvider === 'local' && (
+                <p className="text-xs text-muted-foreground">
+                  The exported game will bundle local AI models for text generation, TTS, and STT. This increases export size by ~2.5 GB.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Build Executable Toggle (Electron only) */}
+          {selectedEngine === 'babylon' && babylonMode === 'electron' && !isExporting && !isDone && (
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="build-executable" className="text-sm font-medium flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5" />
+                  Build Executable
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Compile and package the app (slower export, but verifies the build works)
+                </p>
+              </div>
+              <Switch
+                id="build-executable"
+                checked={buildExecutable}
+                onCheckedChange={setBuildExecutable}
+              />
             </div>
           )}
 

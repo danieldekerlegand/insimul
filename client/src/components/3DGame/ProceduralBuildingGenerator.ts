@@ -693,7 +693,10 @@ export class ProceduralBuildingGenerator {
           m.parent = null;
           m.bakeCurrentTransformIntoVertices();
         }
-        const merged = Mesh.MergeMeshes(meshes, true, true, undefined, false, false);
+        // Filter out meshes with no vertices (e.g. empty placeholder nodes)
+        const validMeshes = meshes.filter(m => m.getTotalVertices() > 0);
+        if (validMeshes.length < 2) return;
+        const merged = Mesh.MergeMeshes(validMeshes, true, true, undefined, false, false);
         if (merged) {
           merged.parent = parent;
           merged.isPickable = false;

@@ -882,7 +882,7 @@ export class FileDataSource implements DataSource {
     try {
       this.worldIR = await readDataFile('data/world_ir.json');
 
-      const [characters, npcs, quests, actions, rules, geography, theme, assetManifest, aiConfig, dialogueContexts] = await Promise.all([
+      const [characters, npcs, quests, actions, rules, geography, theme, assetManifest, aiConfig, dialogueContexts, buildings] = await Promise.all([
         readDataFile('data/characters.json').catch(() => []),
         readDataFile('data/npcs.json').catch(() => []),
         readDataFile('data/quests.json').catch(() => []),
@@ -893,6 +893,7 @@ export class FileDataSource implements DataSource {
         readDataFile('data/asset-manifest.json').catch(() => ({})),
         readDataFile('data/ai_config.json').catch(() => null),
         readDataFile('data/dialogue_contexts.json').catch(() => []),
+        readDataFile('data/buildings.json').catch(() => []),
       ]);
 
       this.worldData = {
@@ -907,6 +908,7 @@ export class FileDataSource implements DataSource {
         assetManifest,
         aiConfig,
         dialogueContexts,
+        buildings,
       };
     } catch (error) {
       console.error('Failed to load world data:', error);
@@ -998,7 +1000,7 @@ export class FileDataSource implements DataSource {
       prop: 'prop',
     };
 
-    return manifest.assets
+    const assets = manifest.assets
       .filter((a: any) => !a.role.endsWith('_bin') && !a.role.startsWith('roof_') && !a.role.includes('_tex_'))
       .map((a: any) => {
         const ext = a.exportPath.split('.').pop()?.toLowerCase() || '';
@@ -1023,6 +1025,30 @@ export class FileDataSource implements DataSource {
           mimeType,
         };
       });
+
+    // Add virtual asset entries for MongoDB asset IDs found in the IR's assetIdToPath map.
+    // This allows world3DConfig texture IDs (which are MongoDB ObjectIDs) to match
+    // assets in the worldAssets list.
+    const idMap = this.worldIR?.meta?.assetIdToPath as Record<string, string> | undefined;
+    if (idMap) {
+      const existingIds = new Set(assets.map((a: any) => a.id));
+      for (const [mongoId, filePath] of Object.entries(idMap)) {
+        if (existingIds.has(mongoId)) continue;
+        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        const isTexture = ['png', 'jpg', 'jpeg'].includes(ext);
+        assets.push({
+          id: mongoId,
+          name: mongoId,
+          assetType: isTexture ? 'texture_wall' : 'model',
+          filePath: filePath.startsWith('.') ? filePath : './' + filePath,
+          fileName: filePath.split('/').pop() || mongoId,
+          fileSize: 0,
+          mimeType: isTexture ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'model/gltf-binary',
+        });
+      }
+    }
+
+    return assets;
   }
 
   async loadConfig3D(worldId: string): Promise<any> {
@@ -1112,7 +1138,7 @@ export class FileDataSource implements DataSource {
       (a: any) => { const ext = a.exportPath.split('.').pop()?.toLowerCase(); return ext === 'png' || ext === 'jpg' || ext === 'jpeg'; }
     );
 
-    return {
+    const config: any = {
       buildingModels: Object.keys(buildingModels).length > 0 ? buildingModels : undefined,
       natureModels: Object.keys(natureModels).length > 0 ? natureModels : undefined,
       objectModels: Object.keys(objectModels).length > 0 ? objectModels : undefined,
@@ -1124,6 +1150,27 @@ export class FileDataSource implements DataSource {
       wallTextureId: buildingTexture?.role,
       roofTextureId: buildingTexture?.role,
     };
+
+    // Merge world3DConfig from IR — this has the full asset collection settings
+    // including procedural building presets, texture IDs, and type overrides.
+    // Texture IDs are MongoDB ObjectIDs which TextureManager.loadTextureById
+    // resolves via the assetIdToPath map (also from the IR).
+    const irConfig = this.worldIR?.meta?.world3DConfig;
+    if (irConfig) {
+      // Procedural building config (style presets with colors, textures, architecture)
+      if (irConfig.proceduralBuildings) config.proceduralBuildings = irConfig.proceduralBuildings;
+      // Per-building-type overrides (e.g., Restaurant → colonial_warm preset)
+      if (irConfig.buildingTypeOverrides) config.buildingTypeOverrides = irConfig.buildingTypeOverrides;
+      // Global texture IDs (fall back to manifest-derived if not present)
+      if (irConfig.wallTextureId) config.wallTextureId = irConfig.wallTextureId;
+      if (irConfig.roofTextureId) config.roofTextureId = irConfig.roofTextureId;
+      // Model scaling overrides
+      if (irConfig.modelScaling) config.modelScaling = irConfig.modelScaling;
+      // Audio assets config
+      if (irConfig.audioAssets) config.audioAssets = irConfig.audioAssets;
+    }
+
+    return config;
   }
 
   async loadTruths(worldId: string, _playthroughId?: string): Promise<any[]> {
@@ -1158,8 +1205,23 @@ export class FileDataSource implements DataSource {
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {
     await this.waitForData();
+    // First check if settlement has businesses directly
     const settlement = this.worldData?.geography?.settlements?.find((s: any) => s.id === settlementId);
-    return settlement?.businesses || [];
+    if (settlement?.businesses?.length) return settlement.businesses;
+    // Fall back to deriving from buildings data
+    const buildings = (this.worldData?.buildings || []).filter(
+      (b: any) => b.settlementId === settlementId && b.businessId
+    );
+    return buildings.map((b: any) => ({
+      id: b.businessId || b.id,
+      settlementId: b.settlementId,
+      businessType: b.spec?.buildingRole || 'Shop',
+      name: b.spec?.buildingRole || 'Business',
+      ownerId: b.occupantIds?.[0] || null,
+      employees: b.occupantIds?.slice(1) || [],
+      lotId: b.lotId,
+      position: b.position,
+    }));
   }
 
   async loadSettlementLots(settlementId: string): Promise<any[]> {
@@ -1170,8 +1232,22 @@ export class FileDataSource implements DataSource {
 
   async loadSettlementResidences(settlementId: string): Promise<any[]> {
     await this.waitForData();
+    // First check if settlement has residences directly
     const settlement = this.worldData?.geography?.settlements?.find((s: any) => s.id === settlementId);
-    return settlement?.residences || [];
+    if (settlement?.residences?.length) return settlement.residences;
+    // Fall back to deriving from buildings data
+    const buildings = (this.worldData?.buildings || []).filter(
+      (b: any) => b.settlementId === settlementId && b.residenceId
+    );
+    return buildings.map((b: any) => ({
+      id: b.residenceId || b.id,
+      settlementId: b.settlementId,
+      residenceType: b.spec?.buildingRole || 'House',
+      name: b.spec?.buildingRole || 'Residence',
+      occupantIds: b.occupantIds || [],
+      lotId: b.lotId,
+      position: b.position,
+    }));
   }
 
   async payFines(_playthroughId: string, settlementId: string): Promise<any> {

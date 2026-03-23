@@ -759,6 +759,7 @@ export const items = pgTable("items", {
   // World type (for base templates)
   worldType: text("world_type"), // medieval-fantasy, cyberpunk, sci-fi-space, etc.
   objectRole: text("object_role"), // maps to asset collection objectModels key
+  visualAssetId: text("visual_asset_id"), // direct reference to visual asset ID
 
   // Taxonomy
   category: text("category"), // broad grouping: melee_weapon, ranged_weapon, light_armor, heavy_armor, potion, ingredient, building_material, etc.

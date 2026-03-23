@@ -4,10 +4,11 @@
 
 import * as fsSync from 'fs';
 import * as path from 'path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join as joinPath, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'module';
+import { execSync } from 'node:child_process';
 
 const TEMPLATES_DIR = joinPath(dirname(fileURLToPath(import.meta.url)), 'templates');
 
@@ -59,6 +60,29 @@ async function copySharedTypes(): Promise<GeneratedFile[]> {
   }
 
   walkDir(sharedDir, '');
+
+  // Rewrite asset-paths.ts for export: absolute paths → relative (./assets/...)
+  // In-app paths like '/assets/models/characters/legacy/...' become './assets/player/...'
+  // to match the export's bundled asset layout
+  const assetPathsIdx = files.findIndex(f => f.path.endsWith('shared/asset-paths.ts'));
+  console.log(`[Export] asset-paths.ts rewrite: found at index ${assetPathsIdx} (searched ${files.length} shared files)`);
+  if (assetPathsIdx >= 0) {
+    let content = files[assetPathsIdx].content;
+    // Ground textures: /assets/textures/environment/ → ./assets/ground/
+    content = content.replace(/['"]\/assets\/textures\/environment\/ground\.jpg['"]/g, "'./assets/ground/ground.jpg'");
+    content = content.replace(/['"]\/assets\/textures\/environment\/ground-normal\.png['"]/g, "'./assets/ground/ground-normal.png'");
+    content = content.replace(/['"]\/assets\/textures\/environment\/ground_heightMap\.png['"]/g, "'./assets/ground/ground_heightMap.png'");
+    // Player model: /assets/models/characters/legacy/ → ./assets/player/
+    content = content.replace(/['"]\/assets\/models\/characters\/legacy\/Vincent-frontFacing\.babylon['"]/g, "'./assets/player/Vincent-frontFacing.babylon'");
+    // NPC model: /assets/models/characters/legacy/ → ./assets/npc/
+    content = content.replace(/['"]\/assets\/models\/characters\/legacy\/starterAvatars\.babylon['"]/g, "'./assets/npc/starterAvatars.babylon'");
+    // Footstep sound
+    content = content.replace(/['"]\/assets\/audio\/effects\/footstep_carpet_000\.ogg['"]/g, "'./assets/audio/footstep/stone.mp3'");
+    // Make all remaining /assets/ paths relative
+    content = content.replace(/['"]\/assets\//g, "'./assets/");
+    files[assetPathsIdx].content = content;
+  }
+
   console.log(`[Export] Copied ${files.length} files from shared`);
   return files;
 }
@@ -114,7 +138,7 @@ export async function exportBabylonProject(
   
   // 1. Generate the World IR
   console.log('[Export] Starting Babylon.js export for world:', worldId);
-  const ir = await generateWorldIR(worldId);
+  const ir = await generateWorldIR(worldId, 'babylon', { aiProvider: options.aiProvider });
   
   // 2. Generate data files
   console.log('[Export] Generating data files...');
@@ -131,7 +155,19 @@ export async function exportBabylonProject(
     '/tmp/export'
   );
   const gameFiles = await gameFileCopier.copyAllFiles();
-  
+
+  // 4. Copy client/src/lib/ utility files (used by VR and audio systems)
+  const libDir = path.join(get3DGamePath(), '..', '..', 'lib');
+  const libFiles: GeneratedFile[] = [];
+  if (fsSync.existsSync(libDir)) {
+    for (const entry of fsSync.readdirSync(libDir)) {
+      if (entry.endsWith('.ts') && !entry.endsWith('.d.ts') && !entry.endsWith('.test.ts')) {
+        const content = fsSync.readFileSync(path.join(libDir, entry), 'utf-8');
+        libFiles.push({ path: `src/lib/${entry}`, content });
+      }
+    }
+  }
+
   // 5. Copy shared types
   console.log('[Export] Copying shared types...');
   const sharedTypesFiles = await copySharedTypes();
@@ -194,6 +230,7 @@ export async function exportBabylonProject(
     ...dataFiles,
     ...sceneFiles,
     ...gameFiles,
+    ...libFiles,
     ...sharedTypesFiles,
     ...telemetryFiles,
     ...pluginFiles,
@@ -201,29 +238,117 @@ export async function exportBabylonProject(
     ...projectFiles,
     { path: 'public/data/asset-manifest.json', content: manifestJson },
   ];
+
+  // Rewrite asset paths for export: absolute → relative, remap to bundled locations
+  for (const file of allFiles) {
+    if (file.path.endsWith('asset-paths.ts')) {
+      console.log(`[Export] Rewriting asset paths in ${file.path}`);
+      let c = file.content;
+      c = c.replace(/['"]\/assets\/textures\/environment\/ground\.jpg['"]/g, "'./assets/ground/ground.jpg'");
+      c = c.replace(/['"]\/assets\/textures\/environment\/ground-normal\.png['"]/g, "'./assets/ground/ground-normal.png'");
+      c = c.replace(/['"]\/assets\/textures\/environment\/ground_heightMap\.png['"]/g, "'./assets/ground/ground_heightMap.png'");
+      c = c.replace(/['"]\/assets\/models\/characters\/legacy\/Vincent-frontFacing\.babylon['"]/g, "'./assets/player/Vincent-frontFacing.babylon'");
+      c = c.replace(/['"]\/assets\/models\/characters\/legacy\/starterAvatars\.babylon['"]/g, "'./assets/npc/starterAvatars.babylon'");
+      c = c.replace(/['"]\/assets\/audio\/effects\/footstep_carpet_000\.ogg['"]/g, "'./assets/audio/footstep/stone.mp3'");
+      // Make all remaining absolute /assets/ paths relative
+      c = c.replace(/(["'])\/assets\//g, "$1./assets/");
+      file.content = c;
+    }
+  }
   
-  // Create ZIP archive
+  // ── Build step (optional): write to disk, npm install, vite build, electron-builder ──
+  if (options.buildExecutable) {
+    const tmpDir = joinPath(require('os').tmpdir(), `insimul-export-${Date.now()}`);
+    console.log(`[Export] Writing project to ${tmpDir}...`);
+
+    // Write all source files
+    for (const file of allFiles) {
+      const filePath = joinPath(tmpDir, file.path);
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, file.content, 'utf8');
+    }
+
+    // Write binary assets
+    for (const asset of assetBundle.assets) {
+      const assetPath = joinPath(tmpDir, 'public', asset.exportPath);
+      mkdirSync(dirname(assetPath), { recursive: true });
+      writeFileSync(assetPath, asset.buffer);
+    }
+
+    // Install dependencies
+    console.log('[Export] Running npm install...');
+    try {
+      execSync('npm install --prefer-offline', { cwd: tmpDir, stdio: 'pipe', timeout: 120_000 });
+    } catch (installErr: any) {
+      console.error('[Export] npm install failed:', installErr.stderr?.toString().slice(-500));
+      throw new Error(`Export build failed during npm install: ${installErr.message}`);
+    }
+
+    // Vite build
+    console.log('[Export] Running vite build...');
+    try {
+      execSync('npx vite build', { cwd: tmpDir, stdio: 'pipe', timeout: 120_000 });
+    } catch (buildErr: any) {
+      const stderr = buildErr.stderr?.toString() || '';
+      const stdout = buildErr.stdout?.toString() || '';
+      console.error('[Export] vite build failed:', stderr.slice(-1000) || stdout.slice(-1000));
+      throw new Error(`Export build failed during vite build: ${stderr.slice(-500) || stdout.slice(-500)}`);
+    }
+    console.log('[Export] vite build succeeded');
+
+    // Electron-builder (electron mode only)
+    if (options.mode === 'electron') {
+      console.log('[Export] Running electron-builder...');
+      try {
+        execSync('npx electron-builder --dir', { cwd: tmpDir, stdio: 'pipe', timeout: 300_000 });
+      } catch (ebErr: any) {
+        console.warn('[Export] electron-builder failed (non-fatal, falling back to source ZIP):', ebErr.message?.slice(0, 200));
+        // Fall through to ZIP the built project instead
+      }
+    }
+
+    console.log('[Export] Build complete, creating ZIP from built project...');
+
+    // ZIP the entire project directory (including dist/ and release/)
+    if (!archiver) archiver = require('archiver');
+    const zipBuffer = await new Promise<Buffer>((resolve, reject) => {
+      const archive = archiver('zip');
+      const chunks: Buffer[] = [];
+      archive.on('data', (chunk: Buffer) => chunks.push(chunk));
+      archive.on('end', () => resolve(Buffer.concat(chunks)));
+      archive.on('error', reject);
+      archive.directory(tmpDir, false);
+      archive.finalize();
+    });
+
+    // Clean up temp directory
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+
+    return zipBuffer;
+  }
+
+  // ── Standard path: create ZIP archive from in-memory files ──
   console.log('[Export] Creating ZIP archive...');
   if (!archiver) {
     archiver = require('archiver');
   }
-  
+
   return new Promise((resolve, reject) => {
     const archive = archiver('zip');
     const chunks: Buffer[] = [];
-    
+
     archive.on('data', (chunk: Buffer) => {
       chunks.push(chunk);
     });
-    
+
     archive.on('end', () => {
       resolve(Buffer.concat(chunks));
     });
-    
+
     archive.on('error', (err: Error) => {
       reject(err);
     });
-    
+
     // Add all files to archive
     for (const file of allFiles) {
       if (file.isBinary) {
@@ -232,12 +357,12 @@ export async function exportBabylonProject(
         archive.append(file.content, { name: file.path });
       }
     }
-    
+
     // Add assets - include for both web and electron modes
     for (const asset of assetBundle.assets) {
       archive.append(asset.buffer, { name: `public/${asset.exportPath}` });
     }
-    
+
     archive.finalize();
   });
 }

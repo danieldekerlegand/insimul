@@ -26,84 +26,10 @@ export class GameFileCopier {
 
   async copyAllFiles(): Promise<GeneratedFile[]> {
     const files: GeneratedFile[] = [];
-    
-    // Define the file structure to copy
-    const filesToCopy = [
-      // Core files
-      { src: 'BabylonGame.ts', dest: 'src/BabylonGame.ts' },
-      { src: 'DataSource.ts', dest: 'src/DataSource.ts' },
-      { src: 'TextureManager.ts', dest: 'src/TextureManager.ts' },
-      { src: 'AudioManager.ts', dest: 'src/AudioManager.ts' },
-      { src: 'CameraManager.ts', dest: 'src/CameraManager.ts' },
-      { src: 'CharacterController.ts', dest: 'src/CharacterController.ts' },
-      { src: 'HealthBar.ts', dest: 'src/HealthBar.ts' },
-      
-      // World generation
-      { src: 'WorldScaleManager.ts', dest: 'src/WorldScaleManager.ts' },
-      { src: 'ProceduralBuildingGenerator.ts', dest: 'src/ProceduralBuildingGenerator.ts' },
-      { src: 'ProceduralNatureGenerator.ts', dest: 'src/ProceduralNatureGenerator.ts' },
-      { src: 'ProceduralDungeonGenerator.ts', dest: 'src/ProceduralDungeonGenerator.ts' },
-      { src: 'RoadGenerator.ts', dest: 'src/RoadGenerator.ts' },
-      
-      // Game systems
-      { src: 'actions/ActionManager.ts', dest: 'src/actions/ActionManager.ts' },
-      { src: 'actions/index.ts', dest: 'src/actions/index.ts' },
-      { src: 'RuleEnforcer.ts', dest: 'src/RuleEnforcer.ts' },
-      { src: 'CombatSystem.ts', dest: 'src/CombatSystem.ts' },
-      { src: 'RangedCombatSystem.ts', dest: 'src/RangedCombatSystem.ts' },
-      { src: 'FightingCombatSystem.ts', dest: 'src/FightingCombatSystem.ts' },
-      { src: 'TurnBasedCombatSystem.ts', dest: 'src/TurnBasedCombatSystem.ts' },
-      { src: 'CraftingSystem.ts', dest: 'src/CraftingSystem.ts' },
-      { src: 'ResourceSystem.ts', dest: 'src/ResourceSystem.ts' },
-      { src: 'RunManager.ts', dest: 'src/RunManager.ts' },
-      
-      // VR Components
-      { src: 'VRManager.ts', dest: 'src/VRManager.ts' },
-      { src: 'VRAccessibilityManager.ts', dest: 'src/VRAccessibilityManager.ts' },
-      { src: 'VRChatPanel.ts', dest: 'src/VRChatPanel.ts' },
-      { src: 'VRCombatAdapter.ts', dest: 'src/VRCombatAdapter.ts' },
-      { src: 'VRComfortSettings.ts', dest: 'src/VRComfortSettings.ts' },
-      { src: 'VRHUDManager.ts', dest: 'src/VRHUDManager.ts' },
-      { src: 'VRHandTrackingManager.ts', dest: 'src/VRHandTrackingManager.ts' },
-      { src: 'VRInteractionManager.ts', dest: 'src/VRInteractionManager.ts' },
-      { src: 'VRUIPanel.ts', dest: 'src/VRUIPanel.ts' },
-      { src: 'VRVocabularyLabels.ts', dest: 'src/VRVocabularyLabels.ts' },
-      
-      // UI Systems
-      { src: 'BabylonGUIManager.ts', dest: 'src/BabylonGUIManager.ts' },
-      { src: 'BabylonChatPanel.ts', dest: 'src/BabylonChatPanel.ts' },
-      { src: 'BabylonDialogueActions.ts', dest: 'src/BabylonDialogueActions.ts' },
-      { src: 'BabylonInventory.ts', dest: 'src/BabylonInventory.ts' },
-      { src: 'BabylonMinimap.ts', dest: 'src/BabylonMinimap.ts' },
-      { src: 'BabylonQuestTracker.ts', dest: 'src/BabylonQuestTracker.ts' },
-      { src: 'BabylonRadialMenu.ts', dest: 'src/BabylonRadialMenu.ts' },
-      { src: 'BabylonRulesPanel.ts', dest: 'src/BabylonRulesPanel.ts' },
-      { src: 'CombatUI.ts', dest: 'src/CombatUI.ts' },
-      { src: 'GameMenuSystem.ts', dest: 'src/GameMenuSystem.ts' },
-      { src: 'GenreUIManager.ts', dest: 'src/GenreUIManager.ts' },
-      
-      // Building systems
-      { src: 'BuildingInfoDisplay.ts', dest: 'src/BuildingInfoDisplay.ts' },
-      { src: 'BuildingInteriorGenerator.ts', dest: 'src/BuildingInteriorGenerator.ts' },
-      { src: 'BuildingPlacementSystem.ts', dest: 'src/BuildingPlacementSystem.ts' },
-      
-      // Quest systems
-      { src: 'QuestObjectManager.ts', dest: 'src/QuestObjectManager.ts' },
-      { src: 'QuestIndicatorManager.ts', dest: 'src/QuestIndicatorManager.ts' },
-      { src: 'QuestWaypointManager.ts', dest: 'src/QuestWaypointManager.ts' },
-      
-      // NPC systems
-      { src: 'NPCTalkingIndicator.ts', dest: 'src/NPCTalkingIndicator.ts' },
-      { src: 'NPCAmbientConversationManager.ts', dest: 'src/NPCAmbientConversationManager.ts' },
-      
-      // Types
-      { src: 'types/actions.ts', dest: 'src/types/actions.ts' },
-      { src: 'types/index.ts', dest: 'src/types/index.ts' },
-      
-      // Utilities
-      { src: 'DebugLabelUtils.ts', dest: 'src/DebugLabelUtils.ts' },
-      { src: 'LanguageProgressTracker.ts', dest: 'src/LanguageProgressTracker.ts' },
-    ];
+
+    // Dynamically discover all .ts files in the 3DGame directory
+    // instead of maintaining a hardcoded list that goes stale
+    const filesToCopy = this.discoverGameFiles();
 
     // Copy each file with modifications
     for (const file of filesToCopy) {
@@ -117,11 +43,6 @@ export class GameFileCopier {
           
           // Special handling for BabylonGame.ts to fix asset paths
           if (file.src === 'BabylonGame.ts') {
-            // Inject ASSET_ROOT constant for Electron file:// protocol compatibility
-            modifiedContent = modifiedContent.replace(
-              /^(const FOOTSTEP_SOUND_URL = .+;)$/m,
-              `$1\n// Use relative asset root when running from file:// (Electron production build)\nconst ASSET_ROOT = (typeof window !== 'undefined' && window.location?.protocol === 'file:') ? './' : '/';`
-            );
             // Fix rootUrl construction to use ASSET_ROOT instead of hardcoded '/'
             modifiedContent = modifiedContent.replace(
               "rootUrl = '/' + cleanPath.substring(0, lastSlash + 1);",
@@ -149,23 +70,6 @@ export class GameFileCopier {
               "if (overrideAsset && overrideAsset.filePath && !overrideAsset.filePath.endsWith('.babylon')) {"
             );
 
-            // Fix model URL constants to use './' prefix (works in both web and Electron file://)
-            // and point to the actual paths the asset bundler exports them to.
-            modifiedContent = modifiedContent.replace(
-              /const PLAYER_MODEL_URL = "\/assets\/player\/Vincent-frontFacing\.babylon";/g,
-              'const PLAYER_MODEL_URL = "./assets/player/Vincent-frontFacing.babylon";'
-            );
-
-            modifiedContent = modifiedContent.replace(
-              /const NPC_MODEL_URL = "\/assets\/npc\/starterAvatars\.babylon";/g,
-              'const NPC_MODEL_URL = "./assets/npc/starterAvatars.babylon";'
-            );
-
-            modifiedContent = modifiedContent.replace(
-              /const FOOTSTEP_SOUND_URL = "\/assets\/footstep_carpet_000\.ogg";/g,
-              'const FOOTSTEP_SOUND_URL = "./assets/audio/footstep/stone.mp3";'
-            );
-
             // Fix ground texture paths (absolute → relative)
             modifiedContent = modifiedContent.replace(
               /new Texture\("\/assets\/ground\/ground\.jpg"/g,
@@ -184,12 +88,12 @@ export class GameFileCopier {
 
             // Fix NPC SceneLoader call to use proper rootUrl/fileName split
             modifiedContent = modifiedContent.replace(
-              /result = await SceneLoader\.ImportMeshAsync\("", "", NPC_MODEL_URL, this\.scene\);/g,
+              /const result = await SceneLoader\.ImportMeshAsync\("", "", NPC_MODEL_URL, this\.scene\);/g,
               `const npcRootUrl = "./assets/npc/";
-const npcFileName = "starterAvatars.babylon";
-result = await SceneLoader.ImportMeshAsync("", npcRootUrl, npcFileName, this.scene);`
+        const npcFileName = "starterAvatars.babylon";
+        const result = await SceneLoader.ImportMeshAsync("", npcRootUrl, npcFileName, this.scene);`
             );
-            
+
           }
 
           // Special handling for TextureManager.ts to fix asset paths on file:// protocol
@@ -471,12 +375,62 @@ export const ACTION_UI_CONFIGS: { [key: string]: ActionUIConfig } = {};
     return files;
   }
 
+  /**
+   * Dynamically discover all .ts files in the 3DGame directory and subdirectories.
+   * This replaces the previous hardcoded file list which went stale as new files were added.
+   */
+  private discoverGameFiles(): { src: string; dest: string }[] {
+    const result: { src: string; dest: string }[] = [];
+
+    const scan = (dir: string, relPrefix: string) => {
+      if (!fs.existsSync(dir)) return;
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith('.') || entry.name === '__tests__' || entry.name.endsWith('.test.ts')) continue;
+        const absPath = path.join(dir, entry.name);
+        const relPath = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+          scan(absPath, relPath);
+        } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) && !entry.name.endsWith('.d.ts')) {
+          result.push({ src: relPath, dest: `src/${relPath}` });
+        }
+      }
+    };
+
+    scan(this.sourceDir, '');
+    return result;
+  }
+
   private async modifyFileForExport(content: string, filename: string): Promise<string> {
     let modified = content;
 
     // Rewrite @/components/3DGame/* imports → relative (files are co-located in src/)
-    modified = modified.replace(/from "@\/components\/3DGame\//g, 'from "./');
+    // Handles both static `from "@/components/3DGame/..."` and dynamic `import('@/components/3DGame/...')`
+    modified = modified.replace(/@\/components\/3DGame\//g, './');
     modified = modified.replace(/from "@\/contexts\/AuthContext"/g, '// from "@/contexts/AuthContext"');
+
+    // Strip dev-only imports that aren't bundled in the export
+    modified = modified.replace(/^import\s+["']@babylonjs\/inspector["'];?\s*$/gm, '// @babylonjs/inspector removed — dev-only, not bundled in export');
+
+    // Rewrite relative ../../../../shared/ paths → ./shared/ (shared/ is copied to src/shared/)
+    // Preserve the original quote style to avoid mismatched quotes
+    modified = modified.replace(/from (["'])(?:\.\.\/)+shared\//g, "from $1./shared/");
+
+    // After all import rewrites, inject ASSET_ROOT for BabylonGame.ts
+    if (filename === 'BabylonGame.ts') {
+      // Insert ASSET_ROOT after the last import statement
+      const lines = modified.split('\n');
+      let lastImportIdx = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('import ') || lines[i].startsWith('} from ')) lastImportIdx = i;
+      }
+      if (lastImportIdx >= 0) {
+        lines.splice(lastImportIdx + 1, 0, '',
+          "// Use relative asset root for exported games (works in both Vite dev and Electron file://)",
+          "const ASSET_ROOT = './';");
+        modified = lines.join('\n');
+      }
+    }
 
     return modified;
   }
