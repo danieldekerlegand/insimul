@@ -56,6 +56,7 @@ function generatePackageJson(ir: WorldIR, options: BabylonExportOptions): string
       preview: 'vite preview',
       electron: isElectron ? 'electron .' : undefined,
       'electron:dev': isElectron ? 'concurrently "npm run dev" "wait-on http://localhost:5173 && electron . --dev"' : undefined,
+      postinstall: isElectron ? 'electron-rebuild' : undefined,
     },
     dependencies: {
       '@babylonjs/core': '^7.0.0',
@@ -63,6 +64,9 @@ function generatePackageJson(ir: WorldIR, options: BabylonExportOptions): string
       '@babylonjs/loaders': '^7.0.0',
       '@babylonjs/materials': '^7.0.0',
       'tau-prolog': '^0.3.4',
+      ...(isElectron && {
+        'node-llama-cpp': '^3.18.1',
+      }),
     },
     devDependencies: {
       typescript: '^5.4.0',
@@ -70,6 +74,7 @@ function generatePackageJson(ir: WorldIR, options: BabylonExportOptions): string
       ...(isElectron && {
         electron: '^30.0.0',
         'electron-builder': '^24.0.0',
+        'electron-rebuild': '^3.6.0',
         'concurrently': '^8.0.0',
         'wait-on': '^7.0.0',
       }),
@@ -86,6 +91,8 @@ function generatePackageJson(ir: WorldIR, options: BabylonExportOptions): string
           'dist/**/*',
           'electron/main.js',
           'electron/preload.js',
+          'electron/ai-service.js',
+          'node_modules/node-llama-cpp/**/*',
           'package.json',
         ],
         extraMetadata: {
@@ -396,6 +403,14 @@ function generateElectronPreload(): string {
 }
 
 // ─────────────────────────────────────────────
+// Electron AI Service (only for Electron mode)
+// ─────────────────────────────────────────────
+
+function generateElectronAIService(): string {
+  return loadTemplate('electron-ai-service.js');
+}
+
+// ─────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────
 
@@ -414,6 +429,7 @@ export function generateProjectFiles(ir: WorldIR, options: BabylonExportOptions 
     files.push(
       { path: 'electron/main.js', content: generateElectronMain(ir) },
       { path: 'electron/preload.js', content: generateElectronPreload() },
+      { path: 'electron/ai-service.js', content: generateElectronAIService() },
     );
   }
   
