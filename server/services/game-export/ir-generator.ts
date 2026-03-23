@@ -510,12 +510,40 @@ function getCombatSettings(style: CombatStyle) {
 // ─────────────────────────────────────────────
 
 const DEFAULT_SURVIVAL_NEEDS: NeedConfig[] = [
-  { id: 'hunger', name: 'Hunger', icon: '🍖', maxValue: 100, startValue: 80, decayRate: 0.15, criticalThreshold: 15, damageRate: 0.5, warningThreshold: 30 },
-  { id: 'thirst', name: 'Thirst', icon: '💧', maxValue: 100, startValue: 90, decayRate: 0.2, criticalThreshold: 10, damageRate: 0.8, warningThreshold: 25 },
-  { id: 'temperature', name: 'Temperature', icon: '🌡️', maxValue: 100, startValue: 50, decayRate: 0, criticalThreshold: 10, damageRate: 0.3, warningThreshold: 20 },
-  { id: 'stamina', name: 'Stamina', icon: '⚡', maxValue: 100, startValue: 100, decayRate: 0, criticalThreshold: 5, damageRate: 0, warningThreshold: 20 },
-  { id: 'sleep', name: 'Sleep', icon: '😴', maxValue: 100, startValue: 100, decayRate: 0.08, criticalThreshold: 10, damageRate: 0.2, warningThreshold: 25 },
+  { id: 'hunger', name: 'Hunger', icon: '🍖', maxValue: 100, startValue: 80, decayRate: 0.15, criticalThreshold: 15, damageRate: 2, warningThreshold: 30 },
+  { id: 'thirst', name: 'Thirst', icon: '💧', maxValue: 100, startValue: 90, decayRate: 0.25, criticalThreshold: 15, damageRate: 3, warningThreshold: 30 },
+  { id: 'temperature', name: 'Temperature', icon: '🌡️', maxValue: 100, startValue: 50, decayRate: 0, criticalThreshold: 10, damageRate: 1.5, warningThreshold: 20 },
+  { id: 'stamina', name: 'Stamina', icon: '⚡', maxValue: 100, startValue: 100, decayRate: 0, criticalThreshold: 10, damageRate: 0, warningThreshold: 25 },
+  { id: 'sleep', name: 'Sleep', icon: '😴', maxValue: 100, startValue: 100, decayRate: 0.08, criticalThreshold: 10, damageRate: 0.5, warningThreshold: 25 },
 ];
+
+function buildSurvivalIR(): SurvivalIR {
+  return {
+    needs: DEFAULT_SURVIVAL_NEEDS,
+    damageConfig: {
+      enabled: true,
+      tickMode: 'continuous',
+      globalDamageMultiplier: 1,
+    },
+    temperatureConfig: {
+      environmentDriven: true,
+      comfortZone: { min: 20, max: 80 },
+      criticalAtBothExtremes: true,
+    },
+    staminaConfig: {
+      actionDriven: true,
+      recoveryRate: 2,
+    },
+    modifierPresets: [
+      { id: 'near_campfire', name: 'Near Campfire', needType: 'temperature', rateMultiplier: 0, duration: 0, source: 'environment' },
+      { id: 'sheltered', name: 'Sheltered', needType: 'temperature', rateMultiplier: 0.5, duration: 0, source: 'environment' },
+      { id: 'well_fed', name: 'Well Fed', needType: 'hunger', rateMultiplier: 0.5, duration: 300000, source: 'consumable' },
+      { id: 'dehydrated', name: 'Dehydrated', needType: 'thirst', rateMultiplier: 1.5, duration: 120000, source: 'status_effect' },
+      { id: 'exhausted', name: 'Exhausted', needType: 'sleep', rateMultiplier: 2, duration: 180000, source: 'status_effect' },
+      { id: 'resting', name: 'Resting', needType: 'stamina', rateMultiplier: 0, duration: 0, source: 'action' },
+    ],
+  };
+}
 
 // ─────────────────────────────────────────────
 // Default resource definitions (matches ResourceSystem.ts)
@@ -1418,7 +1446,7 @@ export async function generateWorldIR(
     },
 
     survival: genreConfig.features.crafting || gameType === 'survival'
-      ? { needs: DEFAULT_SURVIVAL_NEEDS }
+      ? buildSurvivalIR()
       : null,
 
     resources: genreConfig.features.resources || gameType === 'survival'

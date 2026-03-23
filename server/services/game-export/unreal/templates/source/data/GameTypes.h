@@ -509,6 +509,65 @@ struct FInsimulNeedState
 };
 
 /**
+ * Survival damage configuration.
+ * Mirrors SurvivalDamageConfig from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulSurvivalDamageConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEnabled = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TickMode = TEXT("continuous");
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float GlobalDamageMultiplier = 1.f;
+};
+
+/**
+ * Temperature configuration.
+ * Mirrors TemperatureConfig from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulTemperatureConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEnvironmentDriven = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float ComfortZoneMin = 20.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float ComfortZoneMax = 80.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bCriticalAtBothExtremes = true;
+};
+
+/**
+ * Stamina configuration.
+ * Mirrors StaminaConfig from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulStaminaConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bActionDriven = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float RecoveryRate = 2.f;
+};
+
+/**
+ * Survival modifier preset.
+ * Mirrors SurvivalModifierPreset from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulSurvivalModifierPreset
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulNeedType NeedType = EInsimulNeedType::Hunger;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float RateMultiplier = 1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Duration = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Source;
+};
+
+/**
  * Survival event types.
  * Mirrors SurvivalEvent from types.ts.
  */

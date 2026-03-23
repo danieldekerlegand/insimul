@@ -24,6 +24,7 @@ import type {
   LootSpawn,
   TrapSpawn,
   TileType,
+  NeedType,
   NeedConfig,
   ResourceType,
   WaterFeatureType,
@@ -939,7 +940,52 @@ export interface CombatIR {
 // ─────────────────────────────────────────────
 
 export interface SurvivalIR {
+  /** Per-need configuration (decay rates, thresholds, damage rates) */
   needs: NeedConfig[];
+  /** How depleted needs cause health damage */
+  damageConfig: SurvivalDamageConfig;
+  /** Temperature-specific behavior (environment-driven, bidirectional critical) */
+  temperatureConfig: TemperatureConfig;
+  /** Stamina-specific behavior (action-driven, not time-based) */
+  staminaConfig: StaminaConfig;
+  /** Predefined modifier templates for common survival scenarios */
+  modifierPresets: SurvivalModifierPreset[];
+}
+
+export interface SurvivalDamageConfig {
+  /** Whether depleted needs cause health damage */
+  enabled: boolean;
+  /** Damage ticks per second when a need is at zero (continuous in update loop) */
+  tickMode: 'continuous';
+  /** Global multiplier applied to all need damageRates */
+  globalDamageMultiplier: number;
+}
+
+export interface TemperatureConfig {
+  /** Temperature is driven by environment, not time-based decay */
+  environmentDriven: boolean;
+  /** Comfort zone where no warnings/damage occur (0–100 scale) */
+  comfortZone: { min: number; max: number };
+  /** Whether critical state applies at both low AND high extremes */
+  criticalAtBothExtremes: boolean;
+}
+
+export interface StaminaConfig {
+  /** Stamina is consumed by actions rather than decaying over time */
+  actionDriven: boolean;
+  /** Passive recovery rate per second when resting */
+  recoveryRate: number;
+}
+
+export interface SurvivalModifierPreset {
+  id: string;
+  name: string;
+  needType: NeedType;
+  /** Multiplier applied to the need's decay rate (< 1 slows decay, > 1 speeds it up) */
+  rateMultiplier: number;
+  /** Duration in ms; 0 means permanent until removed */
+  duration: number;
+  source: string;
 }
 
 // ─────────────────────────────────────────────
