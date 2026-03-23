@@ -77,9 +77,8 @@ export class SettlementNoticeBoard {
     const { settlementId, settlementName, position, articles } = config;
 
     const root = new TransformNode(`noticeboard_root_${settlementId}`, this.scene);
-    // Offset 5 units from center to avoid overlapping the settlement signpost
+    // Position is now provided by the town square generator (at the square edge)
     root.position = position.clone();
-    root.position.x += 5;
 
     const meshes: Mesh[] = [];
 

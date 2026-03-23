@@ -48,6 +48,7 @@ export class ExteriorItemManager {
   private objectModelOriginalHeights: Map<string, number>;
   private objectModelScaleHints: Map<string, number>;
   private getGroundHeight: (x: number, z: number) => number;
+  private isPointBlocked: ((x: number, z: number) => boolean) | null = null;
 
   constructor(
     scene: Scene,
@@ -61,6 +62,14 @@ export class ExteriorItemManager {
     this.objectModelOriginalHeights = objectModelOriginalHeights;
     this.objectModelScaleHints = objectModelScaleHints;
     this.getGroundHeight = getGroundHeight;
+  }
+
+  /**
+   * Set a callback that returns true if a position is blocked (on a road or inside a building).
+   * Items at blocked positions will be nudged to a nearby valid location.
+   */
+  public setPositionValidator(isBlocked: (x: number, z: number) => boolean): void {
+    this.isPointBlocked = isBlocked;
   }
 
   /**
@@ -116,8 +125,23 @@ export class ExteriorItemManager {
     }
     if (!mesh) return null;
 
-    const groundY = this.getGroundHeight(pos.x, pos.z);
-    mesh.position = new Vector3(pos.x, groundY + 0.15, pos.z);
+    // Nudge items off roads and out of buildings
+    let finalX = pos.x;
+    let finalZ = pos.z;
+    if (this.isPointBlocked && this.isPointBlocked(finalX, finalZ)) {
+      const nudged = this.findNearbyValidPosition(finalX, finalZ);
+      if (nudged) {
+        finalX = nudged.x;
+        finalZ = nudged.z;
+      } else {
+        // No valid position found — skip this item entirely
+        mesh.dispose();
+        return null;
+      }
+    }
+
+    const groundY = this.getGroundHeight(finalX, finalZ);
+    mesh.position = new Vector3(finalX, groundY + 0.15, finalZ);
 
     mesh.isPickable = true;
     mesh.checkCollisions = true;
@@ -189,6 +213,29 @@ export class ExteriorItemManager {
     mat.specularColor = new Color3(0.15, 0.15, 0.15);
     mesh.material = mat;
     return mesh;
+  }
+
+  /**
+   * Try to find a nearby position that isn't on a road or inside a building.
+   * Tries concentric rings of offsets, returning the first valid position.
+   */
+  private findNearbyValidPosition(x: number, z: number): { x: number; z: number } | null {
+    if (!this.isPointBlocked) return { x, z };
+    // Try 8 directions at increasing distances
+    const directions = [
+      { dx: 1, dz: 0 }, { dx: -1, dz: 0 }, { dx: 0, dz: 1 }, { dx: 0, dz: -1 },
+      { dx: 0.7, dz: 0.7 }, { dx: -0.7, dz: 0.7 }, { dx: 0.7, dz: -0.7 }, { dx: -0.7, dz: -0.7 },
+    ];
+    for (const dist of [5, 10, 15, 20]) {
+      for (const dir of directions) {
+        const tx = x + dir.dx * dist;
+        const tz = z + dir.dz * dist;
+        if (!this.isPointBlocked(tx, tz)) {
+          return { x: tx, z: tz };
+        }
+      }
+    }
+    return null;
   }
 
   public dispose(): void {

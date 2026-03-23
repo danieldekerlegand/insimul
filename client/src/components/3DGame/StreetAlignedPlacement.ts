@@ -18,7 +18,7 @@ import { Vector3 } from '@babylonjs/core';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
-export type ZoneType = 'commercial' | 'residential';
+export type ZoneType = 'commercial' | 'residential' | 'park';
 
 export interface StreetSegment {
   id: string;
@@ -278,8 +278,13 @@ export function generateStreetAlignedLots(
 
   const lots: PlacedLot[] = [];
   const SETBACK = 8; // perpendicular distance from street center to building
-  const SPAWN_CLEAR_RADIUS = 15;
   const TERRAIN_MARGIN = 5;
+
+  // ── Compute center block bounds for park designation ──────────────────
+  // For even grid sizes (4, 6), the block grid is odd (3×3, 5×5),
+  // giving a single center block that becomes the town square / park.
+  // The center block is bounded by the two middle streets in each direction.
+  const centerBlockBounds = computeCenterBlockBounds(center, radius, streets);
 
   // Distribute lot budget across streets proportional to their length
   const streetLengths = streets.map(s => vec2Len(s.to.x - s.from.x, s.to.z - s.from.z));
@@ -371,14 +376,14 @@ export function generateStreetAlignedLots(
         lx = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, lx));
         lz = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, lz));
 
-        // Skip if too close to spawn
-        const dFromCenter = vec2Len(lx - center.x, lz - center.z);
-        if (dFromCenter >= SPAWN_CLEAR_RADIUS) {
+        {
           // Corner lots face the more important intersecting street;
           // non-corner lots face their own street normally.
           const leftFacing = isCorner && cornerFacingAngle !== null
             ? cornerFacingAngle
             : streetAngle - Math.PI / 2;
+          // Lots inside the center block become park lots (grass/trees, no buildings)
+          const isInPark = isInsideCenterBlock(lx, lz, centerBlockBounds);
           lots.push({
             position: new Vector3(lx, 0, lz),
             facingAngle: leftFacing,
@@ -387,7 +392,7 @@ export function generateStreetAlignedLots(
             nearIntersection,
             onMainStreet: street.isMainStreet,
             isCorner,
-            zone: 'residential', // default; sortLotsForZoning assigns final zones
+            zone: isInPark ? 'park' : 'residential',
           });
           houseOdd += 2;
         }
@@ -401,11 +406,11 @@ export function generateStreetAlignedLots(
         rx = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, rx));
         rz = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, rz));
 
-        const dFromCenter = vec2Len(rx - center.x, rz - center.z);
-        if (dFromCenter >= SPAWN_CLEAR_RADIUS) {
+        {
           const rightFacing = isCorner && cornerFacingAngle !== null
             ? cornerFacingAngle
             : streetAngle + Math.PI / 2;
+          const isInPark = isInsideCenterBlock(rx, rz, centerBlockBounds);
           lots.push({
             position: new Vector3(rx, 0, rz),
             facingAngle: rightFacing,
@@ -414,7 +419,7 @@ export function generateStreetAlignedLots(
             nearIntersection,
             onMainStreet: street.isMainStreet,
             isCorner,
-            zone: 'residential', // default; sortLotsForZoning assigns final zones
+            zone: isInPark ? 'park' : 'residential',
           });
           houseEven += 2;
         }
@@ -536,8 +541,12 @@ export function resolveCornerFacing(
  * @returns lots reordered: businesses-friendly first, then residential
  */
 export function sortLotsForZoning(lots: PlacedLot[], bizCount: number): PlacedLot[] {
+  // Separate park lots — they keep their zone and don't participate in zoning
+  const parkLots = lots.filter(l => l.zone === 'park');
+  const zonableLots = lots.filter(l => l.zone !== 'park');
+
   // Score: higher = more commercial
-  const scored = lots.map((lot, i) => ({
+  const scored = zonableLots.map((lot, i) => ({
     lot,
     idx: i,
     score: (lot.nearIntersection ? 2 : 0) + (lot.onMainStreet ? 1 : 0),
@@ -545,10 +554,69 @@ export function sortLotsForZoning(lots: PlacedLot[], bizCount: number): PlacedLo
   scored.sort((a, b) => b.score - a.score);
 
   // Assign zones: first bizCount lots are commercial, rest are residential
-  return scored.map((s, i) => ({
+  const zoned = scored.map((s, i) => ({
     ...s.lot,
     zone: (i < bizCount ? 'commercial' : 'residential') as ZoneType,
   }));
+
+  return [...zoned, ...parkLots];
+}
+
+// ── Center block helpers ────────────────────────────────────────────────────
+
+interface CenterBlockBounds {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+/**
+ * Compute the bounding rectangle of the center block in the street grid.
+ * For even grid sizes (4, 6), the block grid is odd (3×3, 5×5) with a
+ * single center block. The center block is the area between the two
+ * middle streets in each direction.
+ */
+function computeCenterBlockBounds(
+  center: Vector3,
+  radius: number,
+  streets: StreetSegment[],
+): CenterBlockBounds | null {
+  // Reconstruct the grid geometry from the settlement parameters.
+  // The grid is generated with even sizes (4, 6) in StreetNetworkLayout.
+  const gridSize = radius < 50 ? 4 : 6;
+  const spacing = (radius * 1.4) / gridSize;
+  const halfGrid = ((gridSize - 1) * spacing) / 2;
+
+  // The center block for an even G-sized grid has (G-1) blocks per axis.
+  // Center block index = floor((G-1)/2) = floor(blockCount/2).
+  // For G=4: blockCount=3, centerIdx=1 → nodes [1,2] in each axis
+  // For G=6: blockCount=5, centerIdx=2 → nodes [2,3] in each axis
+  const blockCount = gridSize - 1;
+  const centerIdx = Math.floor(blockCount / 2);
+
+  // Grid nodes at centerIdx and centerIdx+1 bound the center block
+  const nodeMin = centerIdx;
+  const nodeMax = centerIdx + 1;
+
+  const minX = center.x - halfGrid + nodeMin * spacing;
+  const maxX = center.x - halfGrid + nodeMax * spacing;
+  const minZ = center.z - halfGrid + nodeMin * spacing;
+  const maxZ = center.z - halfGrid + nodeMax * spacing;
+
+  return { minX, maxX, minZ, maxZ };
+}
+
+/** Check whether a point falls inside the center block rectangle. */
+function isInsideCenterBlock(x: number, z: number, bounds: CenterBlockBounds | null): boolean {
+  if (!bounds) return false;
+  return x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ;
+}
+
+/** Get the center block bounds for use by external systems (e.g., TownSquareGenerator). */
+export { type CenterBlockBounds };
+export function getCenterBlockBounds(center: Vector3, radius: number): CenterBlockBounds | null {
+  return computeCenterBlockBounds(center, radius, []);
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────

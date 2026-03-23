@@ -37,6 +37,13 @@ interface Edge {
   distance: number;
 }
 
+/** Stored segment line for point-on-road queries. */
+interface StoredSegment {
+  ax: number; az: number;
+  bx: number; bz: number;
+  halfWidth: number;
+}
+
 export class RoadGenerator {
   private scene: Scene;
   private roadMeshes: Mesh[] = [];
@@ -47,6 +54,9 @@ export class RoadGenerator {
   // Road appearance
   private roadColor: Color3 = new Color3(0.32, 0.28, 0.22); // Packed dirt/gravel default
   private roadTexture: Texture | null = null;
+
+  /** Flat list of segment lines used for isPointOnRoad queries. */
+  private storedSegments: StoredSegment[] = [];
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -98,6 +108,10 @@ export class RoadGenerator {
       if (mesh) {
         segments.push({ from, to, mesh });
         this.roadMeshes.push(mesh);
+        this.storedSegments.push({
+          ax: from.x, az: from.z, bx: to.x, bz: to.z,
+          halfWidth: this.roadWidth / 2,
+        });
       }
     }
 
@@ -153,6 +167,16 @@ export class RoadGenerator {
         `street_${seg.id}`, seg.waypoints, sampleHeight, seg.width
       );
       if (mesh) this.roadMeshes.push(mesh);
+
+      // Store consecutive waypoint pairs for point-on-road queries
+      const halfW = seg.width / 2;
+      for (let wi = 0; wi < seg.waypoints.length - 1; wi++) {
+        const wa = seg.waypoints[wi];
+        const wb = seg.waypoints[wi + 1];
+        this.storedSegments.push({
+          ax: wa.x, az: wa.z, bx: wb.x, bz: wb.z, halfWidth: halfW,
+        });
+      }
 
       // Yellow center stripe (dashed)
       const dashes = this.createDashedCenterLine(
@@ -845,6 +869,11 @@ export class RoadGenerator {
       const mesh = this.createRoadSegment(segId, street.from, street.to, sampleHeight, width);
       if (mesh) {
         this.roadMeshes.push(mesh);
+        this.storedSegments.push({
+          ax: street.from.x, az: street.from.z,
+          bx: street.to.x, bz: street.to.z,
+          halfWidth: width / 2,
+        });
       }
     }
   }
@@ -1172,6 +1201,29 @@ export class RoadGenerator {
    */
   public getRoadMeshes(): Mesh[] {
     return [...this.roadMeshes];
+  }
+
+  /**
+   * Check whether a world-space point falls on or near any road/street surface.
+   * Uses stored segment lines and a perpendicular distance test.
+   * @param margin Extra clearance beyond the road edge (default 2 units for sidewalk)
+   */
+  public isPointOnRoad(x: number, z: number, margin: number = 2): boolean {
+    for (const seg of this.storedSegments) {
+      const dx = seg.bx - seg.ax;
+      const dz = seg.bz - seg.az;
+      const lenSq = dx * dx + dz * dz;
+      if (lenSq < 0.001) continue;
+      // Project point onto segment line, clamped to [0, 1]
+      const t = Math.max(0, Math.min(1,
+        ((x - seg.ax) * dx + (z - seg.az) * dz) / lenSq
+      ));
+      const px = seg.ax + t * dx;
+      const pz = seg.az + t * dz;
+      const dist = Math.sqrt((x - px) * (x - px) + (z - pz) * (z - pz));
+      if (dist < seg.halfWidth + margin) return true;
+    }
+    return false;
   }
 
   /**

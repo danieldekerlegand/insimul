@@ -108,6 +108,8 @@ import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudi
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
 import { BabylonNoticeBoardPanel, type NoticeArticle } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
 import { SettlementNoticeBoard } from "@/components/3DGame/SettlementNoticeBoard.ts";
+import { createTownSquare } from "@/components/3DGame/TownSquareGenerator.ts";
+import { getCenterBlockBounds } from "@/components/3DGame/StreetAlignedPlacement.ts";
 import { generateSettlementNotices, type NPCAuthorInfo } from "@/components/3DGame/NoticeGenerator.ts";
 import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
 import { generateQuestSuggestions, selectQuestForNPC } from "@/components/3DGame/DynamicQuestBoard.ts";
@@ -163,6 +165,7 @@ import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, getClothingColorForMesh, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.ts";
+import { InteractionPromptSystem } from "@/components/3DGame/InteractionPromptSystem.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { NPCModularAssembler, deriveBodyType as deriveModularBodyType } from "@/components/3DGame/NPCModularAssembler.ts";
@@ -704,6 +707,9 @@ export class BabylonGame {
 
   // NPC Interaction Prompt — shows contextual prompts when looking at NPCs
   private npcInteractionPrompt: NPCInteractionPrompt | null = null;
+
+  // Unified interaction prompt — world-space billboard for all interactables
+  private interactionPrompt: InteractionPromptSystem | null = null;
 
   // World Object Action Manager — wires identify/examine/point-and-name/read-sign to world objects
   private worldObjectActionManager: WorldObjectActionManager | null = null;
@@ -1445,7 +1451,7 @@ export class BabylonGame {
     // Initialize NPC accessory & occupation-visual system
     this.npcAccessorySystem = new NPCAccessorySystem(scene);
 
-    // Initialize NPC interaction prompt (look-at based contextual prompts)
+    // Initialize NPC interaction prompt (look-at based contextual prompts) — LEGACY HUD
     this.npcInteractionPrompt = new NPCInteractionPrompt(scene);
     this.npcInteractionPrompt.setConversationPartnerCallback((npcId) => {
       return this.ambientConversationManager?.getConversationPartner(npcId) ?? null;
@@ -1454,12 +1460,27 @@ export class BabylonGame {
       return this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
     });
 
+    // Initialize unified interaction prompt (world-space billboard for all interactables)
+    this.interactionPrompt = new InteractionPromptSystem(scene);
+    this.interactionPrompt.setConversationPartnerCallback((npcId) => {
+      return this.ambientConversationManager?.getConversationPartner(npcId) ?? null;
+    });
+    this.interactionPrompt.setQuestIndicatorCallback((npcId) => {
+      return this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
+    });
+    this.interactionPrompt.setIsSignObjectCallback((objectRole) => {
+      return this.worldObjectActionManager?.isSignObject(objectRole) ?? false;
+    });
+
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
     // Initialize NPC modular assembler (procedural body-part construction)
     this.npcModularAssembler = new NPCModularAssembler(scene);
     // Initialize Quaternius NPC loader (composite body+hair+outfit models)
     this.quaterniusNPCLoader = new QuaterniusNPCLoader(scene);
+
+    // Share the world prop mesh array with the interaction prompt system
+    this.interactionPrompt?.setWorldPropSource(this.worldPropMeshes);
 
     // Initialize world object action manager (examine, identify, point-and-name, read sign)
     this.worldObjectActionManager = new WorldObjectActionManager(this.eventBus);
@@ -1664,6 +1685,40 @@ export class BabylonGame {
     const pickInfo = this.scene.pickWithRay(ray, (mesh) => mesh.name === "ground");
     const y = pickInfo?.hit && pickInfo.pickedPoint ? pickInfo.pickedPoint.y : 0;
     return new Vector3(x, y, z);
+  }
+
+  /**
+   * Place a simple procedural tree at a position (used for park lots in the town square block).
+   */
+  private placeTreeAtPosition(scene: Scene, position: Vector3, settlementId: string): void {
+    const treeId = `park_tree_${settlementId}_${Math.random().toString(36).slice(2, 6)}`;
+    const trunk = MeshBuilder.CreateCylinder(
+      `${treeId}_trunk`,
+      { height: 3, diameter: 0.4, tessellation: 8 },
+      scene,
+    );
+    trunk.position = position.clone();
+    trunk.position.y += 1.5;
+    const trunkMat = new StandardMaterial(`${treeId}_trunk_mat`, scene);
+    trunkMat.diffuseColor = new Color3(0.35, 0.22, 0.1);
+    trunkMat.specularColor = Color3.Black();
+    trunk.material = trunkMat;
+
+    const crown = MeshBuilder.CreateSphere(
+      `${treeId}_crown`,
+      { diameter: 3.5, segments: 8 },
+      scene,
+    );
+    crown.position = new Vector3(0, 2.2, 0);
+    crown.parent = trunk;
+    const crownMat = new StandardMaterial(`${treeId}_crown_mat`, scene);
+    crownMat.diffuseColor = new Color3(0.15, 0.4, 0.12);
+    crownMat.specularColor = Color3.Black();
+    crown.material = crownMat;
+
+    trunk.isPickable = false;
+    trunk.checkCollisions = true;
+    this.worldPropMeshes.push(trunk);
   }
 
   private async initializeSystems(): Promise<void> {
@@ -3183,6 +3238,9 @@ export class BabylonGame {
     // Disable BuildingEntrySystem's own keyboard handler — BabylonGame handles
     // E-key entry/exit directly to support interior scene switching.
     this.buildingEntrySystem.disableKeyboard();
+    // Disable BuildingEntrySystem's door proximity prompt — the unified
+    // InteractionPromptSystem now shows "[G]: Enter Building" billboards.
+    this.buildingEntrySystem.disableDoorPrompt();
 
     // Wire InteriorNPCManager into BuildingEntrySystem for automatic NPC placement
     this.buildingEntrySystem.setInteriorNPCManager(
@@ -3289,6 +3347,12 @@ export class BabylonGame {
           this.objectModelScaleHints,
           (x: number, z: number) => this.projectToGround(x, z).y,
         );
+        // Validate item positions against roads and buildings
+        this.exteriorItemManager.setPositionValidator((x, z) => {
+          if (this.isPointInsideAnyBuilding(x, z)) return true;
+          if (this.roadGenerator?.isPointOnRoad(x, z)) return true;
+          return false;
+        });
         const extMeshes = this.exteriorItemManager.spawnItems(this.worldItems);
         this.worldPropMeshes.push(...extMeshes);
       }
@@ -3985,11 +4049,20 @@ export class BabylonGame {
             lotStreetNames.length > 0 ? lotStreetNames : undefined,
             existingStreetNetwork,
           );
-          fallbackLotPositions = streetLayout.lots.map((l) => ({
+          // Separate park lots from buildable lots
+          const buildableLots = streetLayout.lots.filter((l) => l.zone !== 'park');
+          const parkLots = streetLayout.lots.filter((l) => l.zone === 'park');
+          fallbackLotPositions = buildableLots.map((l) => ({
             position: this.projectToGround(l.position.x, l.position.z),
             facingAngle: l.facingAngle,
             zone: l.zone,
           }));
+
+          // Place trees at park lot positions (center block = town square park)
+          for (const parkLot of parkLots) {
+            const treePos = this.projectToGround(parkLot.position.x, parkLot.position.z);
+            this.placeTreeAtPosition(scene, treePos, settlement.id);
+          }
         }
 
         // Compute re-centering offset: lot positions are in server local-space
@@ -4154,6 +4227,7 @@ export class BabylonGame {
             mesh: building,
             metadata: building.metadata,
           });
+          this.interactionPrompt?.registerBuilding({ id: business.id, name: business.name, mesh: building });
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -4288,6 +4362,7 @@ export class BabylonGame {
             mesh: building,
             metadata: building.metadata,
           });
+          this.interactionPrompt?.registerBuilding({ id: residence.id, name: 'Residence', mesh: building });
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -4478,6 +4553,7 @@ export class BabylonGame {
               mesh: building,
               metadata: building.metadata,
             });
+            this.interactionPrompt?.registerBuilding({ id: bizId, name: biz.name, mesh: building });
 
             this.buildingInfoDisplay?.registerBuilding(building);
             autoFillIdx++;
@@ -4566,6 +4642,7 @@ export class BabylonGame {
             mesh: building,
             metadata: building.metadata,
           });
+          this.interactionPrompt?.registerBuilding({ id: genericResId, name: 'Residence', mesh: building });
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -4718,36 +4795,31 @@ export class BabylonGame {
           console.log(`[Spawn] Player spawn set to edge of town: (${spawnEdge.x.toFixed(1)}, ${spawnEdge.y.toFixed(1)}, ${spawnEdge.z.toFixed(1)}), offset=${offsetDist.toFixed(1)} from center (${settlementCenter.x.toFixed(1)}, ${settlementCenter.z.toFixed(1)})`);
         }
 
-        // Flat disc on the ground as a subtle marker
-        const settlementMarker = MeshBuilder.CreateDisc(
-          `settlement_marker_${settlement.id}`,
-          { radius: 1.5, tessellation: 24 },
-          scene
-        );
-        settlementMarker.position = settlementCenter.clone();
-        settlementMarker.position.y += 0.08;
-        settlementMarker.rotation.x = Math.PI / 2;
-        settlementMarker.isPickable = true;
+        // ── Town Square ──────────────────────────────────────────────────────
+        // Creates a decorated plaza at the settlement center with a central feature,
+        // benches, lamps, and structured positions for civic objects.
+        const sampleH = (x: number, z: number) => this.projectToGround(x, z).y;
+        const centerBlockBounds = getCenterBlockBounds(settlementCenter, scaledSettlement.radius);
+        const townSquare = createTownSquare(scene, {
+          settlementId: settlement.id,
+          settlementName: settlement.name,
+          center: settlementCenter,
+          worldType: this.config.worldType || '',
+          sampleHeight: sampleH,
+          blockBounds: centerBlockBounds,
+        });
+        // Track all square meshes for disposal
+        for (const m of townSquare.meshes) {
+          this.worldPropMeshes.push(m);
+        }
 
-        settlementMarker.metadata = {
-          ...(settlementMarker.metadata || {}),
-          settlementId: settlement.id
-        };
-
-        const markerMat = new StandardMaterial(`settlement_marker_mat_${settlement.id}`, scene);
-        markerMat.diffuseColor = new Color3(0.6, 0.5, 0.3);
-        markerMat.emissiveColor = new Color3(0.2, 0.15, 0.05);
-        markerMat.alpha = 0.4;
-        markerMat.specularColor = Color3.Black();
-        settlementMarker.material = markerMat;
-
-        // Signpost: thin pole + name plate (stored for disposal)
+        // Settlement signpost at the town square edge
         const signPole = MeshBuilder.CreateCylinder(
           `settlement_sign_pole_${settlement.id}`,
           { height: 3, diameter: 0.15, tessellation: 8 },
           scene
         );
-        signPole.position = settlementCenter.clone();
+        signPole.position = townSquare.signPosition.clone();
         signPole.position.y += 1.5;
         signPole.isPickable = false;
 
@@ -4763,7 +4835,7 @@ export class BabylonGame {
           { width: 3, height: 0.8 },
           scene
         );
-        signPlate.position = settlementCenter.clone();
+        signPlate.position = townSquare.signPosition.clone();
         signPlate.position.y += 3.2;
         signPlate.billboardMode = Mesh.BILLBOARDMODE_Y;
         signPlate.isPickable = false;
@@ -4795,50 +4867,26 @@ export class BabylonGame {
         signPlate.material = signMat;
         this.worldPropMeshes.push(signPlate);
 
-        // Phase 4: Billboard impostor for distant settlement — the signplate
-        // already has BILLBOARDMODE_Y and the settlement name. Add LOD levels
-        // to the signpost so it remains visible at distance while buildings cull.
-        signPlate.addLODLevel(300, null); // Hide at extreme distance
-        signPole.addLODLevel(200, null);  // Hide pole at 200u
-        settlementMarker.addLODLevel(200, null); // Hide disc at 200u
+        signPlate.addLODLevel(300, null);
+        signPole.addLODLevel(200, null);
 
-        // Spawn a small cluster of world-type-specific props around the settlement center
-        if (this.objectModelTemplates.size > 0) {
-          const preferredRoles = ["chest", "data_pad", "lantern"];
+        // Use the town square root as the settlement marker for the map
+        const settlementMarker = townSquare.root as any as Mesh;
+
+        // Spawn world-type-specific props at structured town square positions
+        if (this.objectModelTemplates.size > 0 && townSquare.propPositions.length > 0) {
           const availableRoles = Array.from(this.objectModelTemplates.keys());
+          const rolesToSpawn = availableRoles.slice(0, townSquare.propPositions.length);
 
-          const rolesToSpawn: string[] = [];
-          for (const role of preferredRoles) {
-            if (availableRoles.includes(role)) {
-              rolesToSpawn.push(role);
-            }
-          }
-          for (const role of availableRoles) {
-            if (rolesToSpawn.length >= 3) break;
-            if (!rolesToSpawn.includes(role)) {
-              rolesToSpawn.push(role);
-            }
-          }
-
-          const count = rolesToSpawn.length;
-          for (let idx = 0; idx < count; idx++) {
+          for (let idx = 0; idx < Math.min(rolesToSpawn.length, townSquare.propPositions.length); idx++) {
             const role = rolesToSpawn[idx];
             const template = this.objectModelTemplates.get(role);
             if (!template) continue;
 
-            const angle = (Math.PI * 2 * idx) / count + Math.random() * 0.5;
-            const radius = 4 + Math.random() * 8;
-            const offsetX = Math.cos(angle) * radius;
-            const offsetZ = Math.sin(angle) * radius;
-
-            const groundPos = this.projectToGround(
-              settlementCenter.x + offsetX,
-              settlementCenter.z + offsetZ
-            );
-            groundPos.y += 0.3;
+            const propPos = townSquare.propPositions[idx].clone();
+            propPos.y += 0.3;
 
             let propInstance: Mesh | null = null;
-            // glTF root nodes have 0 vertices — use instantiateHierarchy
             if (template.getTotalVertices() === 0 && template.getChildMeshes().length > 0) {
               const root = template.instantiateHierarchy(
                 null,
@@ -4854,12 +4902,11 @@ export class BabylonGame {
               propInstance = template.clone(`prop_${role}_${settlement.id}_${idx}`) as Mesh;
             }
             if (!propInstance) continue;
-            propInstance.position = groundPos;
+            propInstance.position = propPos;
             propInstance.isVisible = true;
             propInstance.setEnabled(true);
             propInstance.checkCollisions = true;
             propInstance.isPickable = true;
-            // Use stored scaleHint if available; fall back to target/originalH
             const propScaleHint = this.objectModelScaleHints.get(role);
             let propAbsScale: number;
             if (propScaleHint != null && propScaleHint > 0) {
@@ -4877,11 +4924,7 @@ export class BabylonGame {
               propAbsScale = propTarget / propOrigH;
             }
             propInstance.scaling.set(propAbsScale, propAbsScale, propAbsScale);
-            propInstance.metadata = {
-              ...(propInstance.metadata || {}),
-              objectRole: role,
-            };
-            // Ensure child meshes (glTF hierarchies) are also pickable, collidable, and carry objectRole
+            propInstance.metadata = { ...(propInstance.metadata || {}), objectRole: role };
             propInstance.getChildMeshes().forEach(child => {
               child.isPickable = true;
               child.checkCollisions = true;
@@ -4901,7 +4944,7 @@ export class BabylonGame {
           scaledSettlement.radius
         );
 
-        // Place physical notice board at settlement center
+        // Place physical notice board at town square edge
         if (this.settlementNoticeBoard) {
           const settlementNPCs: NPCAuthorInfo[] = (this.characters || [])
             .filter((c: any) => c.settlementId === settlement.id || c.currentLocation === settlement.id)
@@ -4912,13 +4955,20 @@ export class BabylonGame {
               occupation: c.occupation || undefined,
             }));
           const articles = generateSettlementNotices(settlement.id, settlement.name, settlementNPCs);
-          this.settlementNoticeBoard.createBoard({
+          const boardNode = this.settlementNoticeBoard.createBoard({
             settlementId: settlement.id,
             settlementName: settlement.name,
-            position: settlementCenter.clone(),
+            position: townSquare.noticeBoardPosition.clone(),
             articles,
             playerFluency: 0,
           });
+          // Register notice board with unified interaction prompt
+          if (boardNode && this.interactionPrompt) {
+            const boardMesh = boardNode instanceof Mesh ? boardNode : boardNode.getChildMeshes()[0] as Mesh;
+            if (boardMesh) {
+              this.interactionPrompt.registerNoticeBoard(boardMesh, settlement.id, 'Notice Board');
+            }
+          }
         }
       } catch (error) {
         console.error(`Failed to generate buildings for settlement ${settlement.name}:`, error);
@@ -5415,8 +5465,9 @@ export class BabylonGame {
       const propX = bldgPos.x + toCenter.x * 4 + perpX * sideOffset;
       const propZ = bldgPos.z + toCenter.z * 4 + perpZ * sideOffset;
 
-      // Skip if the prop would land inside a building
+      // Skip if the prop would land inside a building or on a road
       if (this.isPointInsideAnyBuilding(propX, propZ)) continue;
+      if (this.roadGenerator?.isPointOnRoad(propX, propZ)) continue;
 
       const propY = sampleHeight(propX, propZ);
 
@@ -6798,6 +6849,8 @@ export class BabylonGame {
       if (this.npcInteractionPrompt) {
         this.npcInteractionPrompt.registerNPC({ id: character.id, name: npcName, mesh: root });
       }
+      // Register with unified interaction prompt (world-space billboard)
+      this.interactionPrompt?.registerNPC({ id: character.id, name: npcName, mesh: root });
 
       this.npcMeshes.set(character.id, npcInstance);
 
@@ -8238,11 +8291,14 @@ export class BabylonGame {
         if (pos.z > half) pos.z = half;
       }
 
-      // Update NPC interaction prompt (throttled to every 100ms)
+      // Update interaction prompts (throttled to every 100ms)
       this._interactionPromptTimer += dt;
       if (this._interactionPromptTimer >= 100) {
         this._interactionPromptTimer = 0;
-        this.npcInteractionPrompt?.update();
+        // Legacy HUD prompt (will be removed once unified prompt is stable)
+        // this.npcInteractionPrompt?.update();
+        // Unified world-space interaction prompt
+        this.interactionPrompt?.update();
       }
 
       // Door trigger check removed — player exits by pressing E.
@@ -9627,7 +9683,7 @@ export class BabylonGame {
       return;
     }
 
-    // G - Interact with nearest NPC (selects + opens chat) or exit conversation
+    // G - Universal interact: dispatch based on what the player is looking at
     if (event.code === KEY_NPC_INTERACT && !event.repeat) {
       event.preventDefault();
       if (this.conversationNPCId) {
@@ -9642,13 +9698,13 @@ export class BabylonGame {
         // Check if an NPC is approaching and accept their conversation
         const accepted = await this.npcInitiatedConversationController?.acceptApproach();
         if (!accepted) {
-          // Otherwise, try to interact with nearest NPC
-          await this.handleProximityInteraction();
+          // Dispatch based on unified interaction prompt target
+          await this.handleUnifiedInteraction();
         }
       }
     }
 
-    // Enter - Enter/exit nearest building
+    // Enter - Enter/exit nearest building (legacy fallback)
     if (event.code === KEY_BUILDING_INTERACT && !event.repeat) {
       event.preventDefault();
       await this.handleBuildingInteraction();
@@ -9696,7 +9752,7 @@ export class BabylonGame {
       this.chatPanel?.startPushToTalk();
     }
 
-    // X - Examine nearest object (target-language label)
+    // X - Examine nearest object (legacy fallback, G now handles this too)
     if (event.code === KEY_EXAMINE_OBJECT && !event.repeat) {
       event.preventDefault();
       this.handleExamineObject();
@@ -9776,6 +9832,66 @@ export class BabylonGame {
 
       // Default: open chat directly
       await this.handleOpenChat();
+    }
+  }
+
+  /**
+   * Unified G-key interaction dispatcher. Checks what the player is looking at
+   * via the InteractionPromptSystem and routes to the appropriate handler.
+   * Falls back to proximity-based NPC interaction if no target is in view.
+   */
+  private async handleUnifiedInteraction(): Promise<void> {
+    const target = this.interactionPrompt?.getCurrentTarget();
+
+    if (!target) {
+      // Fallback: old proximity-based NPC interaction
+      await this.handleProximityInteraction();
+      return;
+    }
+
+    switch (target.type) {
+      case 'npc': {
+        // Select and talk to the NPC
+        this.setSelectedNPC(target.id);
+        // If inside a business building, show business interaction menu
+        if (this.isInsideBuilding && this.currentBuildingBusinessType && this.interiorNPCManager) {
+          const placedNPC = this.interiorNPCManager.getPlacedNPC(target.id);
+          if (placedNPC) {
+            await this.handleBusinessInteraction(placedNPC);
+            return;
+          }
+        }
+        await this.handleOpenChat();
+        break;
+      }
+
+      case 'npc_eavesdrop': {
+        // Activate eavesdrop on the conversation
+        this.ambientConversationManager?.activateEavesdrop();
+        break;
+      }
+
+      case 'building': {
+        // Enter the building
+        await this.handleBuildingInteraction();
+        break;
+      }
+
+      case 'sign':
+      case 'object': {
+        // Examine/read the object
+        this.handleExamineObject();
+        break;
+      }
+
+      case 'notice_board': {
+        // Open the notice board panel
+        this.noticeBoardPanel?.show();
+        break;
+      }
+
+      default:
+        await this.handleProximityInteraction();
     }
   }
 
@@ -12780,6 +12896,11 @@ export class BabylonGame {
     if (this.npcInteractionPrompt) {
       this.npcInteractionPrompt.dispose();
       this.npcInteractionPrompt = null;
+    }
+    // Clean up unified interaction prompt
+    if (this.interactionPrompt) {
+      this.interactionPrompt.dispose();
+      this.interactionPrompt = null;
     }
     // Clean up world object action manager
     if (this.worldObjectActionManager) {

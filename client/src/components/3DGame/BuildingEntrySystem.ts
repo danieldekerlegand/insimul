@@ -133,6 +133,17 @@ export class BuildingEntrySystem {
   }
 
   /**
+   * Disable the door proximity prompt UI. The unified InteractionPromptSystem
+   * now handles showing "[G]: Enter Building" billboards.
+   */
+  disableDoorPrompt(): void {
+    this._doorPromptDisabled = true;
+    this.hidePrompt();
+  }
+
+  private _doorPromptDisabled = false;
+
+  /**
    * Register a building for entry detection.
    * Must be called for each building that supports entry.
    */
@@ -406,6 +417,8 @@ export class BuildingEntrySystem {
    * Check player proximity to all registered doors and show/hide prompt.
    */
   private updateDoorProximity(): void {
+    if (this._doorPromptDisabled) return;
+
     const playerPos = this.callbacks.getPlayerPosition();
     if (!playerPos) {
       this.hidePrompt();

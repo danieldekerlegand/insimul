@@ -91,8 +91,10 @@ function generateGridLayout(config: StreetLayoutConfig): StreetNetwork {
   const { centerX, centerZ, radius, settlementId } = config;
   const names = config.streetNames?.length ? config.streetNames : [...NS_NAMES, ...EW_NAMES];
 
-  // Scale grid size to settlement radius
-  const gridSize = radius < 40 ? 3 : radius < 70 ? 4 : 5;
+  // Scale grid size to settlement radius.
+  // Use even grid sizes (4, 6) so the number of blocks is odd (3×3=9, 5×5=25),
+  // giving us a single center block for the town square / park.
+  const gridSize = radius < 50 ? 4 : 6;
   const spacing = (radius * 1.4) / gridSize;
   const halfGrid = ((gridSize - 1) * spacing) / 2;
 
