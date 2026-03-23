@@ -15,6 +15,7 @@ import {
   type SaveConflict,
 } from './SaveConflictResolver';
 import type { GameSaveState } from '@shared/game-engine/types';
+import type { VisualAsset } from '@shared/schema';
 
 export interface DataSource {
   /** Playthrough-scoped quest overlay. When set, loadQuests merges overlay
@@ -77,6 +78,10 @@ export interface DataSource {
   markPlaythroughInitialized(playthroughId: string): Promise<void>;
   loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
   updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
+  /** Fetch full asset metadata by ID. Returns null if not found. */
+  resolveAssetById(assetId: string): Promise<VisualAsset | null>;
+  /** Return a loadable URL/path for an asset without fetching full metadata. Returns null if unknown. */
+  resolveAssetUrl(assetId: string): string | null;
 }
 
 /**
@@ -616,6 +621,20 @@ export class ApiDataSource implements DataSource {
       body: JSON.stringify({ fromCharacterId, toCharacterId, ...data }),
     });
     return res.ok ? await res.json() : null;
+  }
+
+  async resolveAssetById(assetId: string): Promise<VisualAsset | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/assets/${assetId}`, { headers: this.getHeaders() });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  resolveAssetUrl(assetId: string): string | null {
+    return `${this.baseUrl}/api/assets/${assetId}`;
   }
 }
 
@@ -1591,6 +1610,38 @@ export class FileDataSource implements DataSource {
 
   async updatePlaythroughRelationship(_playthroughId: string, _fromCharacterId: string, _toCharacterId: string, _data: { type: string; strength: number; cause?: string }): Promise<any> {
     return null; // No server in exported mode
+  }
+
+  async resolveAssetById(assetId: string): Promise<VisualAsset | null> {
+    await this.waitForData();
+    // Check the assetIdToPath map from the IR
+    const idMap = this.worldIR?.meta?.assetIdToPath as Record<string, string> | undefined;
+    if (idMap && idMap[assetId]) {
+      const filePath = idMap[assetId];
+      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      const isTexture = ['png', 'jpg', 'jpeg'].includes(ext);
+      return {
+        id: assetId,
+        name: assetId,
+        assetType: isTexture ? 'texture_wall' : 'model',
+        filePath: filePath.startsWith('.') ? filePath : './' + filePath,
+        fileName: filePath.split('/').pop() || assetId,
+        fileSize: 0,
+        mimeType: isTexture ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'model/gltf-binary',
+      } as unknown as VisualAsset;
+    }
+    // Fall back to searching loaded assets by ID
+    const assets = await this.loadAssets('');
+    return assets.find((a: any) => a.id === assetId) || null;
+  }
+
+  resolveAssetUrl(assetId: string): string | null {
+    const idMap = this.worldIR?.meta?.assetIdToPath as Record<string, string> | undefined;
+    if (idMap && idMap[assetId]) {
+      const p = idMap[assetId];
+      return p.startsWith('.') ? p : './' + p;
+    }
+    return null;
   }
 }
 

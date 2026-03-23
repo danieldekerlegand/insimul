@@ -114,6 +114,54 @@ func load_assets() -> Array:
 			})
 	return assets_arr
 
+## Resolve full asset metadata by ID. Checks the assetIdToPath map first,
+## then falls back to the loaded asset manifest.
+## Returns an empty Dictionary if not found.
+## Mirrors DataSource.resolveAssetById() in the Babylon.js client.
+func resolve_asset_by_id(asset_id: String) -> Dictionary:
+	_ensure_world_ir()
+	var meta: Dictionary = _world_ir.get("meta", {})
+	var id_map: Dictionary = meta.get("assetIdToPath", {})
+	if id_map.has(asset_id):
+		var file_path: String = str(id_map[asset_id])
+		var ext: String = file_path.get_extension().to_lower()
+		var is_texture: bool = ext in ["png", "jpg", "jpeg"]
+		var asset_type: String = "texture_wall" if is_texture else "model"
+		var mime: String
+		if is_texture:
+			mime = "image/jpeg" if ext == "jpg" else ("image/%s" % ext)
+		else:
+			mime = "model/gltf-binary"
+		return {
+			"id": asset_id,
+			"name": asset_id,
+			"assetType": asset_type,
+			"filePath": file_path if file_path.begins_with(".") else ("./" + file_path),
+			"fileName": file_path.get_file(),
+			"fileSize": 0,
+			"mimeType": mime,
+		}
+	# Fall back to loaded assets
+	var assets: Array = load_assets()
+	for a in assets:
+		if str(a.get("id", "")) == asset_id:
+			return a
+	return {}
+
+
+## Return a loadable file path for an asset without loading full metadata.
+## Returns empty string if the asset ID is not in the assetIdToPath map.
+## Mirrors DataSource.resolveAssetUrl() in the Babylon.js client.
+func resolve_asset_url(asset_id: String) -> String:
+	_ensure_world_ir()
+	var meta: Dictionary = _world_ir.get("meta", {})
+	var id_map: Dictionary = meta.get("assetIdToPath", {})
+	if id_map.has(asset_id):
+		var p: String = str(id_map[asset_id])
+		return p if p.begins_with(".") else ("./" + p)
+	return ""
+
+
 func load_config_3d() -> Dictionary:
 	var config: Dictionary = _load_json("3d_config.json")
 

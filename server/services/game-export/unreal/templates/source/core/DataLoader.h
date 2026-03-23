@@ -122,6 +122,13 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Insimul|DataLoader")
     FString ResolveAssetIdToPath(const FString& AssetId) const;
 
+    /** Resolve full asset metadata by ID.
+     *  Checks the assetIdToPath map first, then falls back to the loaded
+     *  asset manifest. Returns a JSON object with id, name, assetType,
+     *  filePath, fileName, fileSize, mimeType — or empty string if not found. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString ResolveAssetById(const FString& AssetId);
+
     /** Load theme.json. */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadTheme();

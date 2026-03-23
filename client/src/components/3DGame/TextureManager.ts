@@ -1,5 +1,6 @@
 import { Scene, StandardMaterial, Texture } from "@babylonjs/core";
 import type { VisualAsset } from "@shared/schema";
+import type { DataSource } from "./DataSource";
 
 /**
  * TextureManager handles loading and applying AI-generated textures
@@ -9,6 +10,7 @@ export class TextureManager {
   private scene: Scene;
   private textureCache: Map<string, Texture> = new Map();
   private assetCache: Map<string, VisualAsset> = new Map();
+  private dataSource: DataSource | null = null;
 
   // Maps MongoDB asset IDs → local file paths (populated from IR in exported games)
   private assetIdToPath: Record<string, string> = {};
@@ -25,6 +27,11 @@ export class TextureManager {
   /** Set the asset ID → file path mapping (used by exported games to resolve textures without an API) */
   setAssetIdMap(map: Record<string, string>): void {
     this.assetIdToPath = map;
+  }
+
+  /** Set the data source for resolving assets without direct API calls. */
+  setDataSource(ds: DataSource): void {
+    this.dataSource = ds;
   }
 
   /**
@@ -170,7 +177,9 @@ export class TextureManager {
   }
 
   /**
-   * Load texture by asset ID
+   * Load texture by asset ID.
+   * Uses the DataSource to resolve asset metadata when available,
+   * falling back to cached assets or the assetIdToPath map.
    */
   async loadTextureById(assetId: string): Promise<Texture | null> {
     try {
@@ -190,18 +199,15 @@ export class TextureManager {
       // Check if we have the asset cached
       let asset = this.assetCache.get(assetId);
 
-      // If not, fetch it (only in-app — skip for file:// protocol)
-      if (!asset) {
-        if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
-          return null;
+      // If not, resolve via DataSource
+      if (!asset && this.dataSource) {
+        asset = (await this.dataSource.resolveAssetById(assetId)) ?? undefined;
+        if (asset) {
+          this.assetCache.set(assetId, asset);
         }
-        const response = await fetch(`/api/assets/${assetId}`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch asset ${assetId}`);
-        }
-        asset = await response.json();
-        this.assetCache.set(assetId, asset);
       }
+
+      if (!asset) return null;
 
       return this.loadTexture(asset);
     } catch (error) {
