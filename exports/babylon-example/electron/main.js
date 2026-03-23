@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const { join } = require('node:path');
 const path = require('node:path');
 const fs = require('node:fs');
+const { initAIService } = require('./ai-service');
 
 // The built directory structure
 // ├─┬ dist
@@ -74,7 +75,10 @@ ipcMain.handle('read-file', (event, relativePath) => {
 });
 
 // This method will be called when Electron has finished initialization
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await initAIService(app);
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
