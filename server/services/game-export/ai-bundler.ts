@@ -103,6 +103,14 @@ function getAIExportPrefix(engine: AITargetEngine): string {
   }
 }
 
+/**
+ * Get the correct AI model export prefix for a target engine.
+ * Public alias for use by other modules.
+ */
+export function getEngineAIPrefix(engine: AITargetEngine): string {
+  return getAIExportPrefix(engine);
+}
+
 // ─────────────────────────────────────────────
 // Bundle AI models
 // ─────────────────────────────────────────────

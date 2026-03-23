@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { WorldIR, CharacterIR, NPCIR } from '@shared/game-engine/ir-types';
+import type { WorldIR, CharacterIR, NPCIR, ModelPackIR } from '@shared/game-engine/ir-types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGES_DIR = join(__dirname, '..', '..', '..', 'packages');
@@ -34,14 +34,25 @@ export interface AIModelPaths {
   stt?: string;
 }
 
+export interface AIProviderConfig {
+  /** Which AI provider the exported game should use */
+  provider: 'cloud' | 'local';
+  /** Path prefix where model files are placed in the export */
+  modelBasePath: string;
+  /** Model pack details (null when provider is 'cloud') */
+  modelPack: ModelPackIR | null;
+  /** Explicit model paths for Godot exports (res:// prefixed) */
+  aiModelPaths?: AIModelPaths;
+}
+
 export interface InsimulPluginConfig {
   serverUrl: string;
   wsUrl: string;
   worldId: string;
   apiKey: string;
   characterMappings: CharacterMapping[];
-  aiProvider: 'local' | 'cloud';
-  aiModelPaths?: AIModelPaths;
+  /** AI provider configuration for the exported game */
+  aiProvider: AIProviderConfig;
 }
 
 // ─────────────────────────────────────────────
@@ -67,11 +78,11 @@ function buildCharacterMappings(ir: WorldIR): CharacterMapping[] {
   return mappings;
 }
 
-function buildPluginConfig(ir: WorldIR, aiModelPaths?: AIModelPaths): InsimulPluginConfig {
+function buildPluginConfig(ir: WorldIR, aiModelPaths?: AIModelPaths, modelPack?: ModelPackIR | null): InsimulPluginConfig {
   const serverUrl = process.env.INSIMUL_SERVER_URL || 'http://localhost:5000';
   const wsUrl = process.env.INSIMUL_WS_URL || 'ws://localhost:50052';
   const apiKey = process.env.INSIMUL_API_KEY || '';
-  const aiProvider = aiModelPaths ? 'local' : 'cloud';
+  const hasLocalModels = aiModelPaths != null || modelPack?.enabled === true;
 
   return {
     serverUrl,
@@ -79,8 +90,12 @@ function buildPluginConfig(ir: WorldIR, aiModelPaths?: AIModelPaths): InsimulPlu
     worldId: ir.meta.worldId,
     apiKey,
     characterMappings: buildCharacterMappings(ir),
-    aiProvider: aiProvider as 'local' | 'cloud',
-    aiModelPaths,
+    aiProvider: {
+      provider: hasLocalModels ? 'local' : 'cloud',
+      modelBasePath: hasLocalModels ? 'ai' : '',
+      modelPack: modelPack ?? null,
+      aiModelPaths,
+    },
   };
 }
 
@@ -108,8 +123,8 @@ function readDirRecursive(baseDir: string, relPrefix: string = ''): PluginFile[]
 // Babylon.js SDK bundling
 // ─────────────────────────────────────────────
 
-export function bundleBabylonPlugin(ir: WorldIR): PluginFile[] {
-  const config = buildPluginConfig(ir);
+export function bundleBabylonPlugin(ir: WorldIR, modelPack?: ModelPackIR | null): PluginFile[] {
+  const config = buildPluginConfig(ir, undefined, modelPack);
   const sdkDir = join(PACKAGES_DIR, 'insimul-sdk-js', 'src');
   const files: PluginFile[] = [];
 
@@ -140,6 +155,8 @@ export const INSIMUL_CONFIG = {
   wsUrl: ${JSON.stringify(config.wsUrl)},
   worldId: ${JSON.stringify(config.worldId)},
   apiKey: ${JSON.stringify(config.apiKey)},
+  aiProvider: ${JSON.stringify(config.aiProvider.provider)},
+  aiModelBasePath: ${JSON.stringify(config.aiProvider.modelBasePath)},
 } as const;
 
 export interface CharacterMapping {
@@ -170,8 +187,8 @@ export function getCharacterIdsByRole(role: string): string[] {
 // Unity plugin bundling
 // ─────────────────────────────────────────────
 
-export function bundleUnityPlugin(ir: WorldIR): PluginFile[] {
-  const config = buildPluginConfig(ir);
+export function bundleUnityPlugin(ir: WorldIR, modelPack?: ModelPackIR | null): PluginFile[] {
+  const config = buildPluginConfig(ir, undefined, modelPack);
   const pluginDir = join(PACKAGES_DIR, 'insimul-plugin-unity');
   const files: PluginFile[] = [];
 
@@ -224,6 +241,8 @@ namespace Insimul
         public const string WsUrl = ${JSON.stringify(config.wsUrl)};
         public const string WorldId = ${JSON.stringify(config.worldId)};
         public const string ApiKey = ${JSON.stringify(config.apiKey)};
+        public const string AIProvider = ${JSON.stringify(config.aiProvider.provider)};
+        public const string AIModelBasePath = ${JSON.stringify(config.aiProvider.modelBasePath)};
 
         public static readonly List<CharacterMapping> CharacterMappings = new List<CharacterMapping>
         {
@@ -280,8 +299,8 @@ function generateGodotConfig(config: InsimulPluginConfig): string {
 
   // AI model path constants (only when local provider is configured)
   let aiSection = '';
-  if (config.aiProvider === 'local' && config.aiModelPaths) {
-    const mp = config.aiModelPaths;
+  const mp = config.aiProvider.aiModelPaths;
+  if (config.aiProvider.provider === 'local' && mp) {
     aiSection += `\nconst AI_PROVIDER: String = "local"`;
     aiSection += `\nconst AI_LLM_MODEL_PATH: String = ${JSON.stringify(mp.llm ?? '')}`;
     aiSection += `\nconst AI_STT_MODEL_PATH: String = ${JSON.stringify(mp.stt ?? '')}`;
@@ -334,8 +353,8 @@ static func get_character_ids_by_role(role: String) -> Array[String]:
 // Unreal plugin bundling
 // ─────────────────────────────────────────────
 
-export function bundleUnrealPlugin(ir: WorldIR): PluginFile[] {
-  const config = buildPluginConfig(ir);
+export function bundleUnrealPlugin(ir: WorldIR, modelPack?: ModelPackIR | null): PluginFile[] {
+  const config = buildPluginConfig(ir, undefined, modelPack);
   const pluginDir = join(PACKAGES_DIR, 'insimul-plugin-unreal');
   const files: PluginFile[] = [];
 
@@ -375,6 +394,8 @@ ServerUrl=${config.serverUrl}
 WsUrl=${config.wsUrl}
 WorldId=${config.worldId}
 ApiKey=${config.apiKey}
+AIProvider=${config.aiProvider.provider}
+AIModelBasePath=${config.aiProvider.modelBasePath}
 `;
 
   for (let i = 0; i < config.characterMappings.length; i++) {
@@ -401,6 +422,8 @@ namespace InsimulExportConfig
     inline const FString WsUrl = TEXT(${JSON.stringify(config.wsUrl)});
     inline const FString WorldId = TEXT(${JSON.stringify(config.worldId)});
     inline const FString ApiKey = TEXT(${JSON.stringify(config.apiKey)});
+    inline const FString AIProvider = TEXT(${JSON.stringify(config.aiProvider.provider)});
+    inline const FString AIModelBasePath = TEXT(${JSON.stringify(config.aiProvider.modelBasePath)});
 
     struct FCharacterMapping
     {
