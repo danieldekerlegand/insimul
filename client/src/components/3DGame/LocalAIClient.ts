@@ -1,37 +1,19 @@
 /**
- * LocalAIClient
+ * LocalAIClient — Client-side abstraction for local AI via Electron IPC.
  *
- * Renderer-side abstraction over Electron IPC AI capabilities.
- * Hides window.electronAPI details so game code can call generate(),
- * generateStream(), textToSpeech(), and speechToText() without
- * knowing whether it's running in Electron or not.
+ * Wraps `window.electronAPI` AI methods so game code can use local LLM
+ * inference, TTS, and STT without knowing about IPC details.
  *
- * All methods throw if AI is not available — callers should check
- * isAvailable() first.
+ * When not running in Electron or when AI is not loaded, `isAvailable()`
+ * returns false and callers should fall back to server-side APIs.
+ *
+ * Provides both static methods (for one-off calls like NPC conversation
+ * generation) and instance methods (for ConversationClient integration).
  */
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      readFile?: (path: string) => Promise<string>;
-      aiAvailable?: boolean;
-      aiGenerate?: (prompt: string, options?: LocalAIGenerateOptions) => Promise<string>;
-      aiGenerateStream?: (
-        prompt: string,
-        options: LocalAIGenerateOptions | undefined,
-        onChunk: (token: string) => void,
-      ) => Promise<string>;
-      aiTTS?: (text: string, voice?: string, speed?: number) => Promise<ArrayBuffer | null>;
-      aiSTT?: (audioBuffer: ArrayBuffer, languageHint?: string) => Promise<{ text: string }>;
-      aiStatus?: () => Promise<LocalAIStatus>;
-    };
-  }
-}
-
 export interface LocalAIGenerateOptions {
-  systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
 }
@@ -43,29 +25,100 @@ export interface LocalAIStatus {
   gpuType: string;
 }
 
+declare global {
+  interface Window {
+    electronAPI?: {
+      readFile?: (path: string) => Promise<string>;
+      aiAvailable?: boolean;
+      aiGenerate?: (prompt: string, systemPrompt?: string, options?: LocalAIGenerateOptions) => Promise<string>;
+      aiGenerateStream?: (
+        prompt: string,
+        systemPrompt?: string,
+        options?: LocalAIGenerateOptions,
+        onToken?: (token: string) => void,
+      ) => Promise<string>;
+      aiTTS?: (text: string, voice?: string, speed?: number) => Promise<ArrayBuffer | null>;
+      aiSTT?: (audioBuffer: ArrayBuffer, languageHint?: string) => Promise<{ text: string }>;
+      aiStatus?: () => Promise<LocalAIStatus>;
+    };
+  }
+}
+
 // ── Client ──────────────────────────────────────────────────────────────────
 
 export class LocalAIClient {
   /**
-   * Returns true if running in Electron with AI models loaded.
+   * Check whether local AI is available (running in Electron with AI loaded).
    */
   static isAvailable(): boolean {
-    if (typeof window === 'undefined') return false;
-    return window.electronAPI?.aiAvailable === true;
+    return !!(
+      typeof window !== 'undefined' &&
+      window.electronAPI?.aiAvailable &&
+      window.electronAPI?.aiGenerate
+    );
   }
 
   private assertAvailable(): void {
     if (!LocalAIClient.isAvailable()) {
-      throw new Error('LocalAIClient: AI is not available. Check isAvailable() before calling.');
+      throw new Error('Local AI is not available');
     }
   }
 
+  // ── Static methods (for one-off usage) ──────────────────────────────────
+
   /**
-   * Generate a complete text response.
+   * Generate a full response from the local LLM.
+   * Throws if not available — callers should check `isAvailable()` first.
    */
-  async generate(prompt: string, systemPrompt?: string, options?: Omit<LocalAIGenerateOptions, 'systemPrompt'>): Promise<string> {
+  static async generate(
+    prompt: string,
+    systemPrompt?: string,
+    options?: LocalAIGenerateOptions,
+  ): Promise<string> {
+    if (!this.isAvailable()) {
+      throw new Error('Local AI is not available');
+    }
+    return window.electronAPI!.aiGenerate!(prompt, systemPrompt, options);
+  }
+
+  /**
+   * Stream tokens from the local LLM.
+   * Returns the full accumulated text. Calls `onToken` for each chunk.
+   */
+  static async generateStream(
+    prompt: string,
+    systemPrompt?: string,
+    options?: LocalAIGenerateOptions,
+    onToken?: (token: string) => void,
+  ): Promise<string> {
+    if (!this.isAvailable()) {
+      throw new Error('Local AI is not available');
+    }
+    if (window.electronAPI!.aiGenerateStream) {
+      return window.electronAPI!.aiGenerateStream(prompt, systemPrompt, options, onToken);
+    }
+    // Fall back to non-streaming generate
+    const result = await window.electronAPI!.aiGenerate!(prompt, systemPrompt, options);
+    onToken?.(result);
+    return result;
+  }
+
+  /**
+   * Query AI status (model name, GPU info).
+   */
+  static async getStatus(): Promise<LocalAIStatus | null> {
+    if (typeof window === 'undefined' || !window.electronAPI?.aiStatus) return null;
+    return window.electronAPI.aiStatus();
+  }
+
+  // ── Instance methods (for ConversationClient integration) ───────────────
+
+  /**
+   * Generate a complete text response (instance version).
+   */
+  async generate(prompt: string, systemPrompt?: string, options?: LocalAIGenerateOptions): Promise<string> {
     this.assertAvailable();
-    return window.electronAPI!.aiGenerate!(prompt, { ...options, systemPrompt });
+    return window.electronAPI!.aiGenerate!(prompt, systemPrompt, options);
   }
 
   /**
@@ -74,15 +127,16 @@ export class LocalAIClient {
   async generateStream(
     prompt: string,
     systemPrompt?: string,
-    options?: Omit<LocalAIGenerateOptions, 'systemPrompt'>,
+    options?: LocalAIGenerateOptions,
     onToken?: (token: string) => void,
   ): Promise<string> {
     this.assertAvailable();
-    return window.electronAPI!.aiGenerateStream!(
-      prompt,
-      { ...options, systemPrompt },
-      onToken ?? (() => {}),
-    );
+    if (window.electronAPI!.aiGenerateStream) {
+      return window.electronAPI!.aiGenerateStream(prompt, systemPrompt, options, onToken);
+    }
+    const result = await window.electronAPI!.aiGenerate!(prompt, systemPrompt, options);
+    onToken?.(result);
+    return result;
   }
 
   /**

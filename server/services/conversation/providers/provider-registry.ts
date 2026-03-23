@@ -7,6 +7,7 @@
 
 import type { IStreamingLLMProvider, StreamingLLMProviderFactory } from './llm-provider.js';
 import { GeminiStreamingProvider } from './gemini-provider.js';
+import { LocalStreamingProvider } from './local-streaming-provider.js';
 
 const providers = new Map<string, StreamingLLMProviderFactory>();
 
@@ -41,3 +42,4 @@ export function listProviders(): string[] {
 
 // Register built-in providers
 registerProvider('gemini', () => new GeminiStreamingProvider());
+registerProvider('local', () => new LocalStreamingProvider());

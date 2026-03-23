@@ -3405,15 +3405,27 @@ app.get("/api/rules", async (req, res) => {
 
       const { initiateConversation } = await import('./services/conversation/npc-conversation-engine.js');
       const { updateRelationship } = await import('./extensions/tott/social-dynamics-system.js');
+      const { getProvider, listProviders } = await import('./services/conversation/providers/provider-registry.js');
 
       const environment = (gameHour !== undefined || weather || season)
         ? { gameHour, weather, season }
         : undefined;
 
+      // Try to get a streaming LLM provider for richer conversations
+      let llmProvider;
+      try {
+        if (listProviders().length > 0) {
+          llmProvider = getProvider();
+        }
+      } catch {
+        // No provider available — will use fallback templates
+      }
+
       const result = await initiateConversation(npc1Id, npc2Id, worldId, {
         topic,
         maxExchanges,
         environment,
+        llmProvider,
       });
 
       // Persist relationship changes
