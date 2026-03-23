@@ -107,6 +107,19 @@ export interface DataSource {
   getPortfolio(worldId: string, playerName: string): Promise<any | null>;
   loadReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null>;
   syncReadingProgress(data: { playerId: string; worldId: string; playthroughId?: string; quizAnswers: any[]; totalCorrect: number; totalAttempted: number }): Promise<void>;
+  /** Load active AI generation jobs for a world (queued + processing). */
+  loadGenerationJobs(worldId: string): Promise<GenerationJobSummary[]>;
+}
+
+/** Lightweight summary of an AI generation job for loading screen display. */
+export interface GenerationJobSummary {
+  id: string;
+  jobType: string;
+  assetType: string | null;
+  status: string;
+  progress: number;
+  completedCount: number;
+  batchSize: number;
 }
 
 /** Result from an NPC-NPC conversation */
@@ -899,6 +912,34 @@ export class ApiDataSource implements DataSource {
       headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
       body: JSON.stringify(data),
     });
+  }
+
+  async loadGenerationJobs(worldId: string): Promise<GenerationJobSummary[]> {
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/api/worlds/${encodeURIComponent(worldId)}/generation-jobs?status=processing`,
+        { headers: this.getHeaders() },
+      );
+      if (!res.ok) return [];
+      const jobs: any[] = await res.json();
+      // Also fetch queued jobs
+      const queuedRes = await fetch(
+        `${this.baseUrl}/api/worlds/${encodeURIComponent(worldId)}/generation-jobs?status=queued`,
+        { headers: this.getHeaders() },
+      );
+      const queuedJobs: any[] = queuedRes.ok ? await queuedRes.json() : [];
+      return [...jobs, ...queuedJobs].map((j) => ({
+        id: j.id,
+        jobType: j.jobType ?? 'unknown',
+        assetType: j.assetType ?? null,
+        status: j.status ?? 'unknown',
+        progress: j.progress ?? 0,
+        completedCount: j.completedCount ?? 0,
+        batchSize: j.batchSize ?? 1,
+      }));
+    } catch {
+      return [];
+    }
   }
 }
 
@@ -2116,6 +2157,10 @@ export class FileDataSource implements DataSource {
 
   async syncReadingProgress(): Promise<void> {
     // No-op in exported mode
+  }
+
+  async loadGenerationJobs(): Promise<GenerationJobSummary[]> {
+    return []; // No AI generation in exported mode
   }
 }
 

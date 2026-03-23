@@ -146,7 +146,7 @@ import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData }
 import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { SaveIndicator } from "@/components/3DGame/SaveIndicator.ts";
-import { DataSource, ApiDataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
+import { DataSource, ApiDataSource, createDataSource, type GenerationJobSummary } from "@/components/3DGame/DataSource.ts";
 import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
 import { RelationshipManager } from "@/components/3DGame/RelationshipManager.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
@@ -778,6 +778,8 @@ export class BabylonGame {
   private _loadingOverlay: HTMLDivElement | null = null;
   private _loadingText: HTMLDivElement | null = null;
   private _loadingBar: HTMLDivElement | null = null;
+  private _aiStatusText: HTMLDivElement | null = null;
+  private _aiStatusPollTimer: ReturnType<typeof setInterval> | null = null;
 
   private showLoadingScreen(): void {
     // Ensure the canvas parent is a positioning context so the overlay covers it exactly
@@ -799,9 +801,13 @@ export class BabylonGame {
     this._loadingBar = document.createElement('div');
     this._loadingBar.style.cssText = 'width:0%;height:100%;background:#4a9;border-radius:3px;transition:width 0.2s;';
 
+    this._aiStatusText = document.createElement('div');
+    this._aiStatusText.style.cssText = 'color:#8b8;font:12px sans-serif;margin-top:12px;min-height:16px;opacity:0;transition:opacity 0.3s;';
+
     barContainer.appendChild(this._loadingBar);
     this._loadingOverlay.appendChild(this._loadingText);
     this._loadingOverlay.appendChild(barContainer);
+    this._loadingOverlay.appendChild(this._aiStatusText);
     parent?.appendChild(this._loadingOverlay);
   }
 
@@ -810,7 +816,55 @@ export class BabylonGame {
     if (this._loadingBar) this._loadingBar.style.width = `${Math.min(100, progress)}%`;
   }
 
+  /** Format AI generation jobs into a human-readable status string. */
+  private formatAIStatus(jobs: GenerationJobSummary[]): string {
+    if (jobs.length === 0) return '';
+    const processing = jobs.filter((j) => j.status === 'processing');
+    const queued = jobs.filter((j) => j.status === 'queued');
+    const parts: string[] = [];
+    if (processing.length > 0) {
+      const totalCompleted = processing.reduce((s, j) => s + j.completedCount, 0);
+      const totalItems = processing.reduce((s, j) => s + j.batchSize, 0);
+      const types = Array.from(new Set(processing.map((j) => j.assetType).filter(Boolean)));
+      const typeLabel = types.length > 0 ? types.join(', ') : 'assets';
+      parts.push(`AI generating ${typeLabel}: ${totalCompleted}/${totalItems}`);
+    }
+    if (queued.length > 0) {
+      parts.push(`${queued.length} queued`);
+    }
+    return parts.join(' · ');
+  }
+
+  /** Start polling AI generation job status during loading. */
+  private startAIStatusPolling(): void {
+    this.stopAIStatusPolling();
+    // Do an immediate check, then poll every 3 seconds
+    this.pollAIStatus();
+    this._aiStatusPollTimer = setInterval(() => this.pollAIStatus(), 3000);
+  }
+
+  private async pollAIStatus(): Promise<void> {
+    try {
+      const jobs = await this.dataSource.loadGenerationJobs(this.config.worldId);
+      const statusText = this.formatAIStatus(jobs);
+      if (this._aiStatusText) {
+        this._aiStatusText.textContent = statusText;
+        this._aiStatusText.style.opacity = statusText ? '1' : '0';
+      }
+    } catch {
+      // Silently ignore polling errors
+    }
+  }
+
+  private stopAIStatusPolling(): void {
+    if (this._aiStatusPollTimer) {
+      clearInterval(this._aiStatusPollTimer);
+      this._aiStatusPollTimer = null;
+    }
+  }
+
   private hideLoadingScreen(): void {
+    this.stopAIStatusPolling();
     if (this._loadingOverlay) {
       this._loadingOverlay.style.transition = 'opacity 0.4s';
       this._loadingOverlay.style.opacity = '0';
@@ -819,6 +873,7 @@ export class BabylonGame {
         this._loadingOverlay = null;
         this._loadingText = null;
         this._loadingBar = null;
+        this._aiStatusText = null;
       }, 400);
     }
   }
@@ -854,6 +909,8 @@ export class BabylonGame {
 
       this.updateLoadingScreen('Loading world data...', 20);
       await this.loadWorldData();
+      // Start polling AI generation status in the background
+      this.startAIStatusPolling();
       this.updateLoadingScreen('Generating world...', 30);
       await this.generateProceduralWorld();
       this.updateLoadingScreen('Starting playthrough...', 50);
