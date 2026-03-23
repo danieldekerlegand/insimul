@@ -771,6 +771,10 @@ func complete_assessment(_session_id: String, _total_score: float, _max_score: f
 func get_player_assessments(_player_id: String, _world_id: String) -> Array:
 	return []
 
+## Check if conversation streaming service is available (always false in exported mode).
+func check_conversation_health() -> bool:
+	return false  # No conversation service in exported mode
+
 # ── Playthroughs index helpers ─────────────────────────────────
 
 const PLAYTHROUGHS_INDEX_PATH := "user://insimul_playthroughs.json"

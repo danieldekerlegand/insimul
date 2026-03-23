@@ -22,6 +22,7 @@ import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
 import { ConversationClient } from "./ConversationClient";
 import type { ConversationState } from "./ConversationClient";
+import type { DataSource } from "./DataSource";
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
 import { LipSyncController } from "./LipSyncController";
@@ -381,6 +382,9 @@ export class BabylonChatPanel {
     // Create conversation client (reuses session across same character)
     if (!this.conversationClient) {
       this.conversationClient = new ConversationClient();
+      if (this._dataSource) {
+        this.conversationClient.setDataSource(this._dataSource);
+      }
     }
     this.conversationClient.setCharacter(character.id, character.worldId);
 
@@ -553,6 +557,9 @@ export class BabylonChatPanel {
           learningLang,
           this.playthroughId || undefined
         );
+        if (this._dataSource) {
+          this.languageTracker.setDataSource(this._dataSource);
+        }
         // Load persisted progress from server, then start tracking conversation
         this.languageTracker.loadFromServer().then(() => {
           this.languageTracker?.startServerSync(60_000);
@@ -2873,6 +2880,11 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
     this.persistentLanguageTracker = tracker;
   }
   private persistentLanguageTracker: import('./LanguageProgressTracker').LanguageProgressTracker | null = null;
+  private _dataSource: DataSource | null = null;
+
+  public setDataSource(ds: DataSource): void {
+    this._dataSource = ds;
+  }
 
   public setPlaythroughId(id: string) {
     this.playthroughId = id;

@@ -101,6 +101,7 @@ export interface DataSource {
   submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any>;
   completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any>;
   getPlayerAssessments(playerId: string, worldId: string): Promise<any[]>;
+  checkConversationHealth(baseUrl?: string): Promise<boolean>;
 }
 
 /** Result from an NPC-NPC conversation */
@@ -821,6 +822,18 @@ export class ApiDataSource implements DataSource {
       { headers: this.getHeaders() },
     );
     return res.ok ? await res.json() : [];
+  }
+
+  async checkConversationHealth(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/conversation/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -2014,6 +2027,10 @@ export class FileDataSource implements DataSource {
     } catch {
       return [];
     }
+  }
+
+  async checkConversationHealth(): Promise<boolean> {
+    return false; // No conversation service in exported mode
   }
 }
 

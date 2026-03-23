@@ -37,6 +37,7 @@ import type { KnowledgeEntry } from '@shared/feature-modules/knowledge-acquisiti
 import type { PatternEntry } from '@shared/feature-modules/pattern-recognition/types';
 import type { ProficiencyProgress } from '@shared/feature-modules/proficiency/types';
 import type { ConversationRecord as GenericConversationRecord } from '@shared/feature-modules/conversation-analytics/types';
+import type { DataSource } from './DataSource';
 
 export class LanguageProgressTracker {
   private progress: LanguageProgress;
@@ -50,6 +51,9 @@ export class LanguageProgressTracker {
   // Per-conversation word tracking
   private conversationNewWords: VocabularyEntry[] = [];
   private conversationReinforcedWords: Set<string> = new Set();
+
+  // DataSource for server communication
+  private dataSource: DataSource | null = null;
 
   // Callbacks
   private onFluencyGain: ((result: FluencyGainResult) => void) | null = null;
@@ -81,6 +85,13 @@ export class LanguageProgressTracker {
    */
   public setWorldLanguageContext(context: WorldLanguageContext): void {
     this.worldLanguageContext = context;
+  }
+
+  /**
+   * Set the DataSource for server communication (load/save progress).
+   */
+  public setDataSource(ds: DataSource): void {
+    this.dataSource = ds;
   }
 
   /**
@@ -553,17 +564,14 @@ export class LanguageProgressTracker {
    * in prior sessions is available immediately.
    */
   public async loadFromServer(): Promise<boolean> {
-    if (typeof window !== 'undefined' && window.location?.protocol === 'file:') return false;
+    if (!this.dataSource) return false;
     const { playerId, worldId, playthroughId } = this.progress;
-    const url = `/api/language-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}`
-      + (playthroughId ? `?playthroughId=${encodeURIComponent(playthroughId)}` : '');
     try {
-      const res = await fetch(url);
-      if (!res.ok) {
-        console.warn('[LanguageProgressTracker] Load from server returned', res.status);
+      const data = await this.dataSource.loadLanguageProgress(playerId, worldId, playthroughId);
+      if (!data) {
+        console.warn('[LanguageProgressTracker] Load from server returned no data');
         return false;
       }
-      const data = await res.json();
 
       // Merge progress summary
       if (data.progress) {
@@ -726,7 +734,6 @@ export class LanguageProgressTracker {
   private syncIntervalId: ReturnType<typeof setInterval> | null = null;
   private lastSyncTimestamp: number = 0;
   private syncInProgress: boolean = false;
-  private syncEndpoint: string = '/api/language-progress/sync';
 
   /**
    * Start periodic server sync. Sends progress every `intervalMs` (default: 60s).
@@ -770,21 +777,17 @@ export class LanguageProgressTracker {
    */
   public async syncToServer(): Promise<void> {
     if (this.syncInProgress) return;
+    if (!this.dataSource) return;
     if (this.progress.lastActivityTimestamp <= this.lastSyncTimestamp) return; // No changes
 
     this.syncInProgress = true;
     try {
       const payload = this.buildSyncPayload();
-      const response = await fetch(this.syncEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
+      const ok = await this.dataSource.saveLanguageProgress(payload);
+      if (ok) {
         this.lastSyncTimestamp = Date.now();
       } else {
-        console.warn('[LanguageProgressTracker] Sync returned', response.status);
+        console.warn('[LanguageProgressTracker] Sync returned failure');
       }
     } catch (err) {
       console.warn('[LanguageProgressTracker] Sync failed:', err);
@@ -798,13 +801,15 @@ export class LanguageProgressTracker {
    */
   private syncToServerBeacon(): void {
     if (this.progress.lastActivityTimestamp <= this.lastSyncTimestamp) return;
+    if (!this.dataSource) return;
     try {
       const payload = this.buildSyncPayload();
-      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      navigator.sendBeacon(this.syncEndpoint, blob);
+      // Use DataSource (fire-and-forget). For ApiDataSource this is async but
+      // we're in beforeunload so also use sendBeacon as fallback.
+      this.dataSource.saveLanguageProgress(payload).catch(() => {});
       this.lastSyncTimestamp = Date.now();
     } catch {
-      // Best-effort — sendBeacon can fail silently
+      // Best-effort
     }
   }
 

@@ -10,6 +10,7 @@
  */
 
 import type { AudioChunkOutput, FacialData } from '@shared/proto/conversation.ts';
+import type { DataSource } from './DataSource';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -50,10 +51,18 @@ export class ConversationClient {
   private state: ConversationState = 'idle';
   private abortController: AbortController | null = null;
   private _available: boolean | null = null; // null = unknown
+  private dataSource: DataSource | null = null;
 
   constructor(options: ConversationClientOptions = {}) {
     this.baseUrl = options.baseUrl || '';
     this.sessionId = options.sessionId || `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /**
+   * Set the DataSource for health checks.
+   */
+  setDataSource(ds: DataSource): void {
+    this.dataSource = ds;
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -81,14 +90,18 @@ export class ConversationClient {
    */
   async isAvailable(): Promise<boolean> {
     if (this._available !== null) return this._available;
-    try {
-      const res = await fetch(`${this.baseUrl}/api/conversation/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
-      this._available = res.ok;
-    } catch {
-      this._available = false;
+    if (this.dataSource) {
+      this._available = await this.dataSource.checkConversationHealth();
+    } else {
+      try {
+        const res = await fetch(`${this.baseUrl}/api/conversation/health`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000),
+        });
+        this._available = res.ok;
+      } catch {
+        this._available = false;
+      }
     }
     return this._available;
   }

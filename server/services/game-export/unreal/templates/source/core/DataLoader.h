@@ -421,6 +421,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString GetPlayerAssessments(const FString& PlayerId, const FString& WorldId);
 
+    /** Check if conversation streaming service is available (always false in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool CheckConversationHealth();
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */

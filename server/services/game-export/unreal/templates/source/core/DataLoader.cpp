@@ -1110,3 +1110,9 @@ FString UDataLoader::GetPlayerAssessments(const FString& PlayerId, const FString
 {
     return TEXT("[]");
 }
+
+bool UDataLoader::CheckConversationHealth()
+{
+    // No conversation streaming service in exported mode
+    return false;
+}

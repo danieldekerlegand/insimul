@@ -9,17 +9,25 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { LanguageProgressTracker } from '../LanguageProgressTracker';
+import type { DataSource } from '../DataSource';
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+function createMockDs(): DataSource & { loadLanguageProgress: ReturnType<typeof vi.fn>; saveLanguageProgress: ReturnType<typeof vi.fn> } {
+  return {
+    loadLanguageProgress: vi.fn().mockResolvedValue(null),
+    saveLanguageProgress: vi.fn().mockResolvedValue(true),
+    checkConversationHealth: vi.fn().mockResolvedValue(false),
+  } as any;
+}
 
 describe('LanguageProgressTracker.loadFromServer', () => {
   let tracker: LanguageProgressTracker;
+  let mockDs: ReturnType<typeof createMockDs>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     tracker = new LanguageProgressTracker('player1', 'world1', 'Spanish', 'pt1');
+    mockDs = createMockDs();
+    tracker.setDataSource(mockDs);
   });
 
   afterEach(() => {
@@ -27,59 +35,56 @@ describe('LanguageProgressTracker.loadFromServer', () => {
   });
 
   it('should load vocabulary from server into empty tracker', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: {
-          overallFluency: 35,
-          totalConversations: 5,
-          totalWordsLearned: 10,
-          streakDays: 2,
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: {
+        overallFluency: 35,
+        totalConversations: 5,
+        totalWordsLearned: 10,
+        streakDays: 2,
+      },
+      vocabulary: [
+        {
+          word: 'hola',
+          meaning: 'hello',
+          category: 'greetings',
+          timesEncountered: 8,
+          timesUsedCorrectly: 5,
+          timesUsedIncorrectly: 1,
+          lastEncountered: 1000,
+          masteryLevel: 'familiar',
         },
-        vocabulary: [
-          {
-            word: 'hola',
-            meaning: 'hello',
-            category: 'greetings',
-            timesEncountered: 8,
-            timesUsedCorrectly: 5,
-            timesUsedIncorrectly: 1,
-            lastEncountered: 1000,
-            masteryLevel: 'familiar',
-          },
-          {
-            word: 'gracias',
-            meaning: 'thank you',
-            category: 'greetings',
-            timesEncountered: 3,
-            timesUsedCorrectly: 2,
-            timesUsedIncorrectly: 0,
-            lastEncountered: 2000,
-            masteryLevel: 'learning',
-          },
-        ],
-        grammarPatterns: [
-          {
-            pattern: 'subject-verb agreement',
-            correctUsages: 4,
-            incorrectUsages: 2,
-            masteryLevel: 'learning',
-            examples: ['Yo soy estudiante'],
-          },
-        ],
-        conversations: [
-          {
-            id: 'conv_100',
-            characterId: 'npc1',
-            characterName: 'Maria',
-            timestamp: 100,
-            turns: 6,
-            wordsUsed: ['hola', 'gracias'],
-            targetLanguagePercentage: 40,
-            fluencyGained: 5,
-          },
-        ],
-      }),
+        {
+          word: 'gracias',
+          meaning: 'thank you',
+          category: 'greetings',
+          timesEncountered: 3,
+          timesUsedCorrectly: 2,
+          timesUsedIncorrectly: 0,
+          lastEncountered: 2000,
+          masteryLevel: 'learning',
+        },
+      ],
+      grammarPatterns: [
+        {
+          pattern: 'subject-verb agreement',
+          correctUsages: 4,
+          incorrectUsages: 2,
+          masteryLevel: 'learning',
+          examples: ['Yo soy estudiante'],
+        },
+      ],
+      conversations: [
+        {
+          id: 'conv_100',
+          characterId: 'npc1',
+          characterName: 'Maria',
+          timestamp: 100,
+          turns: 6,
+          wordsUsed: ['hola', 'gracias'],
+          targetLanguagePercentage: 40,
+          fluencyGained: 5,
+        },
+      ],
     });
 
     await tracker.loadFromServer();
@@ -110,41 +115,33 @@ describe('LanguageProgressTracker.loadFromServer', () => {
     expect(patterns[0].timesUsedIncorrectly).toBe(2);
   });
 
-  it('should fetch with correct URL including playthroughId', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: null,
-        vocabulary: [],
-        grammarPatterns: [],
-        conversations: [],
-      }),
+  it('should call DataSource with correct parameters including playthroughId', async () => {
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: null,
+      vocabulary: [],
+      grammarPatterns: [],
+      conversations: [],
     });
 
     await tracker.loadFromServer();
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      '/api/language-progress/player1/world1?playthroughId=pt1'
-    );
+    expect(mockDs.loadLanguageProgress).toHaveBeenCalledWith('player1', 'world1', 'pt1');
   });
 
-  it('should fetch without playthroughId when not set', async () => {
+  it('should call DataSource without playthroughId when not set', async () => {
     const noPtTracker = new LanguageProgressTracker('player1', 'world1', 'Spanish');
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: null,
-        vocabulary: [],
-        grammarPatterns: [],
-        conversations: [],
-      }),
+    const noPtDs = createMockDs();
+    noPtTracker.setDataSource(noPtDs);
+    noPtDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: null,
+      vocabulary: [],
+      grammarPatterns: [],
+      conversations: [],
     });
 
     await noPtTracker.loadFromServer();
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      '/api/language-progress/player1/world1'
-    );
+    expect(noPtDs.loadLanguageProgress).toHaveBeenCalledWith('player1', 'world1', undefined);
     noPtTracker.dispose();
   });
 
@@ -152,31 +149,28 @@ describe('LanguageProgressTracker.loadFromServer', () => {
     // Add a local word first
     tracker.addVocabularyWord('hola', 'hello', 'greetings', true);
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: { overallFluency: 20 },
-        vocabulary: [
-          {
-            word: 'hola',
-            meaning: 'hello',
-            category: 'greetings',
-            timesEncountered: 15, // more than local
-            timesUsedCorrectly: 10,
-            masteryLevel: 'mastered',
-          },
-          {
-            word: 'adios',
-            meaning: 'goodbye',
-            category: 'greetings',
-            timesEncountered: 5,
-            timesUsedCorrectly: 3,
-            masteryLevel: 'learning',
-          },
-        ],
-        grammarPatterns: [],
-        conversations: [],
-      }),
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: { overallFluency: 20 },
+      vocabulary: [
+        {
+          word: 'hola',
+          meaning: 'hello',
+          category: 'greetings',
+          timesEncountered: 15, // more than local
+          timesUsedCorrectly: 10,
+          masteryLevel: 'mastered',
+        },
+        {
+          word: 'adios',
+          meaning: 'goodbye',
+          category: 'greetings',
+          timesEncountered: 5,
+          timesUsedCorrectly: 3,
+          masteryLevel: 'learning',
+        },
+      ],
+      grammarPatterns: [],
+      conversations: [],
     });
 
     await tracker.loadFromServer();
@@ -201,22 +195,19 @@ describe('LanguageProgressTracker.loadFromServer', () => {
       tracker.addVocabularyWord('hola', 'hello', 'greetings', true);
     }
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: {},
-        vocabulary: [
-          {
-            word: 'hola',
-            meaning: 'hello',
-            timesEncountered: 5, // fewer than local
-            timesUsedCorrectly: 2,
-            masteryLevel: 'learning',
-          },
-        ],
-        grammarPatterns: [],
-        conversations: [],
-      }),
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: {},
+      vocabulary: [
+        {
+          word: 'hola',
+          meaning: 'hello',
+          timesEncountered: 5, // fewer than local
+          timesUsedCorrectly: 2,
+          masteryLevel: 'learning',
+        },
+      ],
+      grammarPatterns: [],
+      conversations: [],
     });
 
     await tracker.loadFromServer();
@@ -226,7 +217,7 @@ describe('LanguageProgressTracker.loadFromServer', () => {
   });
 
   it('should handle server error gracefully', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+    mockDs.loadLanguageProgress.mockResolvedValueOnce(null);
 
     // Should not throw
     await tracker.loadFromServer();
@@ -237,7 +228,7 @@ describe('LanguageProgressTracker.loadFromServer', () => {
   });
 
   it('should handle network failure gracefully', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('Network error'));
+    mockDs.loadLanguageProgress.mockRejectedValueOnce(new Error('Network error'));
 
     await tracker.loadFromServer();
 
@@ -245,29 +236,26 @@ describe('LanguageProgressTracker.loadFromServer', () => {
   });
 
   it('should merge grammar patterns from server', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: {},
-        vocabulary: [],
-        grammarPatterns: [
-          {
-            pattern: 'past tense',
-            correctUsages: 8,
-            incorrectUsages: 1,
-            masteryLevel: 'mastered',
-            examples: ['Yo comí'],
-            explanations: ['Regular -er verbs use -í'],
-          },
-          {
-            pattern: 'gender agreement',
-            correctUsages: 3,
-            incorrectUsages: 4,
-            masteryLevel: 'learning',
-          },
-        ],
-        conversations: [],
-      }),
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: {},
+      vocabulary: [],
+      grammarPatterns: [
+        {
+          pattern: 'past tense',
+          correctUsages: 8,
+          incorrectUsages: 1,
+          masteryLevel: 'mastered',
+          examples: ['Yo comí'],
+          explanations: ['Regular -er verbs use -í'],
+        },
+        {
+          pattern: 'gender agreement',
+          correctUsages: 3,
+          incorrectUsages: 4,
+          masteryLevel: 'learning',
+        },
+      ],
+      conversations: [],
     });
 
     await tracker.loadFromServer();
@@ -285,17 +273,14 @@ describe('LanguageProgressTracker.loadFromServer', () => {
   });
 
   it('should deduplicate conversations by ID', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: {},
-        vocabulary: [],
-        grammarPatterns: [],
-        conversations: [
-          { id: 'conv_1', characterId: 'npc1', timestamp: 100, turns: 5 },
-          { id: 'conv_2', characterId: 'npc2', timestamp: 200, turns: 3 },
-        ],
-      }),
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: {},
+      vocabulary: [],
+      grammarPatterns: [],
+      conversations: [
+        { id: 'conv_1', characterId: 'npc1', timestamp: 100, turns: 5 },
+        { id: 'conv_2', characterId: 'npc2', timestamp: 200, turns: 3 },
+      ],
     });
 
     await tracker.loadFromServer();
@@ -305,17 +290,14 @@ describe('LanguageProgressTracker.loadFromServer', () => {
   });
 
   it('should recompute totalCorrectUsages from loaded vocabulary', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: { totalCorrectUsages: 0 }, // server might have stale value
-        vocabulary: [
-          { word: 'hola', meaning: 'hello', timesEncountered: 10, timesUsedCorrectly: 7, masteryLevel: 'familiar' },
-          { word: 'adios', meaning: 'bye', timesEncountered: 5, timesUsedCorrectly: 3, masteryLevel: 'learning' },
-        ],
-        grammarPatterns: [],
-        conversations: [],
-      }),
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: { totalCorrectUsages: 0 }, // server might have stale value
+      vocabulary: [
+        { word: 'hola', meaning: 'hello', timesEncountered: 10, timesUsedCorrectly: 7, masteryLevel: 'familiar' },
+        { word: 'adios', meaning: 'bye', timesEncountered: 5, timesUsedCorrectly: 3, masteryLevel: 'learning' },
+      ],
+      grammarPatterns: [],
+      conversations: [],
     });
 
     await tracker.loadFromServer();
@@ -328,19 +310,18 @@ describe('LanguageProgressTracker.loadFromServer', () => {
 describe('Persistent tracker provides data without active conversation', () => {
   it('should return vocabulary data from loaded server data', async () => {
     const tracker = new LanguageProgressTracker('player1', 'world1', 'Spanish');
+    const mockDs = createMockDs();
+    tracker.setDataSource(mockDs);
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: { overallFluency: 45 },
-        vocabulary: [
-          { word: 'casa', meaning: 'house', timesEncountered: 12, timesUsedCorrectly: 8, masteryLevel: 'familiar', category: 'general' },
-        ],
-        grammarPatterns: [
-          { pattern: 'ser vs estar', correctUsages: 5, incorrectUsages: 2, masteryLevel: 'learning' },
-        ],
-        conversations: [],
-      }),
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: { overallFluency: 45 },
+      vocabulary: [
+        { word: 'casa', meaning: 'house', timesEncountered: 12, timesUsedCorrectly: 8, masteryLevel: 'familiar', category: 'general' },
+      ],
+      grammarPatterns: [
+        { pattern: 'ser vs estar', correctUsages: 5, incorrectUsages: 2, masteryLevel: 'learning' },
+      ],
+      conversations: [],
     });
 
     await tracker.loadFromServer();
@@ -361,18 +342,17 @@ describe('Persistent tracker provides data without active conversation', () => {
 
   it('should accumulate conversation data across multiple conversations', async () => {
     const tracker = new LanguageProgressTracker('player1', 'world1', 'Spanish');
+    const mockDs = createMockDs();
+    tracker.setDataSource(mockDs);
 
     // Load initial data
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        progress: { overallFluency: 10, totalConversations: 1, totalWordsLearned: 2 },
-        vocabulary: [
-          { word: 'hola', meaning: 'hello', timesEncountered: 3, timesUsedCorrectly: 2, masteryLevel: 'learning' },
-        ],
-        grammarPatterns: [],
-        conversations: [],
-      }),
+    mockDs.loadLanguageProgress.mockResolvedValueOnce({
+      progress: { overallFluency: 10, totalConversations: 1, totalWordsLearned: 2 },
+      vocabulary: [
+        { word: 'hola', meaning: 'hello', timesEncountered: 3, timesUsedCorrectly: 2, masteryLevel: 'learning' },
+      ],
+      grammarPatterns: [],
+      conversations: [],
     });
     await tracker.loadFromServer();
 

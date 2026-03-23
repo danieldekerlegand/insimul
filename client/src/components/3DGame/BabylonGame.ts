@@ -2064,6 +2064,7 @@ export class BabylonGame {
 
     // Initialize chat panel
     this.chatPanel = new BabylonChatPanel(this.guiManager.advancedTexture, scene);
+    this.chatPanel.setDataSource(this.dataSource);
     // Initialize chat panel UI (hidden until player talks to an NPC)
     this.chatPanel.initialize();
 
@@ -3384,6 +3385,7 @@ export class BabylonGame {
           targetLangName,
           this.config.playthroughId || undefined
         );
+        this.languageProgressTracker.setDataSource(this.dataSource);
         // Share with chat panel so conversations accumulate into the persistent tracker
         if (this.chatPanel) {
           this.chatPanel.setPersistentLanguageTracker(this.languageProgressTracker);
