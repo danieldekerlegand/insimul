@@ -73,15 +73,17 @@ export class TextureManager {
   }
 
   /**
-   * Fetch available textures for a world from the API
+   * Fetch available textures for a world via DataSource
    */
   async fetchWorldTextures(worldId: string): Promise<VisualAsset[]> {
+    if (!this.dataSource) {
+      console.warn('[TextureManager] No DataSource set — cannot fetch world textures');
+      return [];
+    }
     try {
-      const response = await fetch(`/api/worlds/${worldId}/assets?assetType=texture_ground,texture_wall,texture_material`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch textures: ${response.statusText}`);
-      }
-      const assets: VisualAsset[] = await response.json();
+      const allAssets: VisualAsset[] = await this.dataSource.loadAssets(worldId);
+      const textureTypes = ['texture_ground', 'texture_wall', 'texture_material'];
+      const assets = allAssets.filter(a => textureTypes.includes(a.assetType));
 
       // Cache the assets
       assets.forEach(asset => {
@@ -96,15 +98,16 @@ export class TextureManager {
   }
 
   /**
-   * Fetch textures by specific type
+   * Fetch textures by specific type via DataSource
    */
   async fetchTexturesByType(worldId: string, textureType: 'ground' | 'wall' | 'material'): Promise<VisualAsset[]> {
+    if (!this.dataSource) {
+      console.warn('[TextureManager] No DataSource set — cannot fetch textures by type');
+      return [];
+    }
     try {
-      const response = await fetch(`/api/worlds/${worldId}/assets?assetType=texture_${textureType}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${textureType} textures: ${response.statusText}`);
-      }
-      const assets: VisualAsset[] = await response.json();
+      const allAssets: VisualAsset[] = await this.dataSource.loadAssets(worldId);
+      const assets = allAssets.filter(a => a.assetType === `texture_${textureType}`);
 
       // Cache the assets
       assets.forEach(asset => {
