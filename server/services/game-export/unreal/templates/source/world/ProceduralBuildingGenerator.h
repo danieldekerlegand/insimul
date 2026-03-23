@@ -248,7 +248,9 @@ private:
     void AddDoor(USceneComponent* Parent, float Width, float Depth, int32 Floors,
                  FLinearColor DoorColor, UMaterialInterface* BaseMaterial);
 
-    /** Propagate LOD cull distance to child components that don't already have one. */
+    /** Propagate LOD cull distance to child components that don't already have one.
+     *  Also filters out mesh components with zero vertices before batching,
+     *  mirroring the Babylon.js mesh merge pre-filter (getTotalVertices() > 0). */
     void PropagateChildLOD();
 
     /** Stored procedural building configuration JSON. */

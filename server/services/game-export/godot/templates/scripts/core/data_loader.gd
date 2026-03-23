@@ -80,10 +80,68 @@ func load_base_resources() -> Dictionary:
 func load_assets() -> Array:
 	var manifest: Dictionary = load_asset_manifest()
 	var assets_arr: Array = manifest.get("assets", [])
+
+	# Add virtual asset entries for MongoDB asset IDs found in the IR's assetIdToPath map.
+	# This allows world3DConfig texture IDs (which are MongoDB ObjectIDs) to match
+	# assets in the worldAssets list.
+	_ensure_world_ir()
+	var meta: Dictionary = _world_ir.get("meta", {})
+	var id_map: Dictionary = meta.get("assetIdToPath", {})
+	if id_map.size() > 0:
+		var existing_ids := {}
+		for a in assets_arr:
+			existing_ids[str(a.get("id", ""))] = true
+		for mongo_id in id_map:
+			if existing_ids.has(mongo_id):
+				continue
+			var file_path: String = str(id_map[mongo_id])
+			var ext: String = file_path.get_extension().to_lower()
+			var is_texture: bool = ext in ["png", "jpg", "jpeg"]
+			var asset_type: String = "texture_wall" if is_texture else "model"
+			var mime: String
+			if is_texture:
+				mime = "image/jpeg" if ext == "jpg" else ("image/%s" % ext)
+			else:
+				mime = "model/gltf-binary"
+			assets_arr.append({
+				"id": mongo_id,
+				"name": mongo_id,
+				"assetType": asset_type,
+				"filePath": file_path if file_path.begins_with(".") else ("./" + file_path),
+				"fileName": file_path.get_file(),
+				"fileSize": 0,
+				"mimeType": mime,
+			})
 	return assets_arr
 
 func load_config_3d() -> Dictionary:
-	return _load_json("3d_config.json")
+	var config: Dictionary = _load_json("3d_config.json")
+
+	# Merge world3DConfig from IR — this has the full asset collection settings
+	# including procedural building presets, texture IDs, and type overrides.
+	# Texture IDs are MongoDB ObjectIDs which the asset ID-to-path map resolves.
+	_ensure_world_ir()
+	var meta: Dictionary = _world_ir.get("meta", {})
+	var ir_config: Dictionary = meta.get("world3DConfig", {})
+	if ir_config.size() > 0:
+		# Procedural building config (style presets with colors, textures, architecture)
+		if ir_config.has("proceduralBuildings"):
+			config["proceduralBuildings"] = ir_config["proceduralBuildings"]
+		# Per-building-type overrides (e.g., Restaurant -> colonial_warm preset)
+		if ir_config.has("buildingTypeOverrides"):
+			config["buildingTypeOverrides"] = ir_config["buildingTypeOverrides"]
+		# Global texture IDs (fall back to manifest-derived if not present)
+		if ir_config.has("wallTextureId"):
+			config["wallTextureId"] = ir_config["wallTextureId"]
+		if ir_config.has("roofTextureId"):
+			config["roofTextureId"] = ir_config["roofTextureId"]
+		# Model scaling overrides
+		if ir_config.has("modelScaling"):
+			config["modelScaling"] = ir_config["modelScaling"]
+		# Audio assets config
+		if ir_config.has("audioAssets"):
+			config["audioAssets"] = ir_config["audioAssets"]
+	return config
 
 # ── Array loaders ───────────────────────────────────────────────
 
@@ -142,13 +200,35 @@ func load_character(character_id: String) -> Dictionary:
 # ── Settlement sub-data ────────────────────────────────────────
 
 ## Load businesses for a specific settlement.
+## Falls back to deriving from buildings data if settlement has no businesses.
 func load_settlement_businesses(settlement_id: String) -> Array:
 	_ensure_geography()
 	var settlements: Array = _geography.get("settlements", [])
 	for s in settlements:
 		if str(s.get("id", "")) == settlement_id:
-			return s.get("businesses", [])
-	return []
+			var businesses: Array = s.get("businesses", [])
+			if businesses.size() > 0:
+				return businesses
+	# Fall back to deriving from buildings data
+	var all_buildings: Array = load_buildings()
+	var result: Array = []
+	for b in all_buildings:
+		if str(b.get("settlementId", "")) == settlement_id and b.get("businessId", "") != "":
+			var spec: Dictionary = b.get("spec", {})
+			var occupants: Array = b.get("occupantIds", [])
+			var owner_id = occupants[0] if occupants.size() > 0 else null
+			var employees: Array = occupants.slice(1) if occupants.size() > 1 else []
+			result.append({
+				"id": b.get("businessId", b.get("id", "")),
+				"settlementId": b.get("settlementId", ""),
+				"businessType": spec.get("buildingRole", "Shop"),
+				"name": spec.get("buildingRole", "Business"),
+				"ownerId": owner_id,
+				"employees": employees,
+				"lotId": b.get("lotId", ""),
+				"position": b.get("position", {}),
+			})
+	return result
 
 ## Load lots for a specific settlement.
 func load_settlement_lots(settlement_id: String) -> Array:
@@ -160,13 +240,31 @@ func load_settlement_lots(settlement_id: String) -> Array:
 	return []
 
 ## Load residences for a specific settlement.
+## Falls back to deriving from buildings data if settlement has no residences.
 func load_settlement_residences(settlement_id: String) -> Array:
 	_ensure_geography()
 	var settlements: Array = _geography.get("settlements", [])
 	for s in settlements:
 		if str(s.get("id", "")) == settlement_id:
-			return s.get("residences", [])
-	return []
+			var residences: Array = s.get("residences", [])
+			if residences.size() > 0:
+				return residences
+	# Fall back to deriving from buildings data
+	var all_buildings: Array = load_buildings()
+	var result: Array = []
+	for b in all_buildings:
+		if str(b.get("settlementId", "")) == settlement_id and b.get("residenceId", "") != "":
+			var spec: Dictionary = b.get("spec", {})
+			result.append({
+				"id": b.get("residenceId", b.get("id", "")),
+				"settlementId": b.get("settlementId", ""),
+				"residenceType": spec.get("buildingRole", "House"),
+				"name": spec.get("buildingRole", "Residence"),
+				"occupantIds": b.get("occupantIds", []),
+				"lotId": b.get("lotId", ""),
+				"position": b.get("position", {}),
+			})
+	return result
 
 # ── Local state management ────────────────────────────────────
 # Inventories, quest progress, merchant stock, and fines are tracked

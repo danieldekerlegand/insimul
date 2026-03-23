@@ -570,6 +570,19 @@ namespace Insimul.World
                     AddBalcony(building, width, depth, totalHeight, floorHeight, style);
             }
 
+            // Filter out child meshes with no vertices (e.g. empty placeholder nodes)
+            // before static batching and LOD setup. Mirrors Babylon.js mesh merge filtering.
+            var meshFilters = building.GetComponentsInChildren<MeshFilter>();
+            foreach (var mf in meshFilters)
+            {
+                if (mf.sharedMesh == null || mf.sharedMesh.vertexCount == 0)
+                {
+                    var emptyRenderer = mf.GetComponent<Renderer>();
+                    if (emptyRenderer != null) emptyRenderer.enabled = false;
+                    mf.gameObject.SetActive(false);
+                }
+            }
+
             // Mark as static for batching and add LOD culling
             building.isStatic = true;
 

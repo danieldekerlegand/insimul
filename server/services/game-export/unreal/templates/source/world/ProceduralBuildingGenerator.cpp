@@ -403,10 +403,23 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
 
     // Propagate LOD cull distance to all child components so unmerged children
     // (e.g. door, roof) don't remain visible when the parent building is LOD-hidden.
+    // Filter out any mesh components with zero vertices before batching/merging.
+    // This mirrors the Babylon.js ProceduralBuildingGenerator which filters meshes
+    // via getTotalVertices() > 0 before MergeMeshes to skip empty placeholder nodes.
     TArray<USceneComponent*> Children;
     GetRootComponent()->GetChildrenComponents(true, Children);
     for (auto* Child : Children)
     {
+        if (auto* MeshComp = Cast<UStaticMeshComponent>(Child))
+        {
+            // Skip components with no geometry (empty placeholders)
+            if (MeshComp->GetStaticMesh() && MeshComp->GetStaticMesh()->GetNumVertices(0) == 0)
+            {
+                UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Removing zero-vertex mesh component from building"));
+                MeshComp->DestroyComponent();
+                continue;
+            }
+        }
         if (auto* PrimComp = Cast<UPrimitiveComponent>(Child))
         {
             if (PrimComp->LDMaxDrawDistance <= 0.f)

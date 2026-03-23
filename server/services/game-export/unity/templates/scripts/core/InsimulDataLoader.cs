@@ -127,6 +127,72 @@ namespace Insimul.Core
         public static T LoadSurvivalConfig<T>() => LoadSingle<T>(DataRoot + "survival");
         public static T LoadBaseResources<T>() => LoadSingle<T>(DataRoot + "base_resources");
 
+        // ── Asset ID-to-path mapping from IR metadata ────────────────────
+
+        /// <summary>
+        /// Builds a mapping from MongoDB asset IDs to file paths using the
+        /// IR's meta.assetIdToPath. This allows world3DConfig texture IDs
+        /// (which are MongoDB ObjectIDs) to resolve to actual file paths.
+        /// Matches FileDataSource.loadAssets() virtual asset entry logic.
+        /// </summary>
+        public static Dictionary<string, string> LoadAssetIdToPathMap()
+        {
+            var map = new Dictionary<string, string>();
+            var json = Resources.Load<TextAsset>(DataRoot + "world_ir");
+            if (json == null) return map;
+
+            // Parse the assetIdToPath from meta using a lightweight wrapper
+            var ir = JsonUtility.FromJson<WorldIRAssetIdWrapper>(json.text);
+            if (ir?.meta?.assetIdToPath == null) return map;
+            foreach (var entry in ir.meta.assetIdToPath)
+            {
+                if (!string.IsNullOrEmpty(entry.key) && !string.IsNullOrEmpty(entry.value))
+                    map[entry.key] = entry.value;
+            }
+            return map;
+        }
+
+        /// <summary>
+        /// Load config3D with IR world3DConfig merged on top.
+        /// Matches FileDataSource.loadConfig3D() merge logic — IR config
+        /// overrides manifest-derived values for proceduralBuildings,
+        /// buildingTypeOverrides, wallTextureId, roofTextureId,
+        /// modelScaling, and audioAssets.
+        /// </summary>
+        public static InsimulConfig3D LoadConfig3DMerged()
+        {
+            var config = LoadSingle<InsimulConfig3D>(DataRoot + "config3d");
+            if (config == null) config = new InsimulConfig3D();
+
+            // Merge world3DConfig from IR
+            var json = Resources.Load<TextAsset>(DataRoot + "world_ir");
+            if (json == null) return config;
+
+            var ir = JsonUtility.FromJson<WorldIRConfig3DWrapper>(json.text);
+            var irConfig = ir?.meta?.world3DConfig;
+            if (irConfig == null) return config;
+
+            // Procedural building config (style presets with colors, textures, architecture)
+            if (!string.IsNullOrEmpty(irConfig.proceduralBuildings))
+                config.proceduralBuildings = irConfig.proceduralBuildings;
+            // Per-building-type overrides (e.g., Restaurant -> colonial_warm preset)
+            if (!string.IsNullOrEmpty(irConfig.buildingTypeOverrides))
+                config.buildingTypeOverrides = irConfig.buildingTypeOverrides;
+            // Global texture IDs (fall back to manifest-derived if not present)
+            if (!string.IsNullOrEmpty(irConfig.wallTextureId))
+                config.wallTextureId = irConfig.wallTextureId;
+            if (!string.IsNullOrEmpty(irConfig.roofTextureId))
+                config.roofTextureId = irConfig.roofTextureId;
+            // Model scaling overrides
+            if (!string.IsNullOrEmpty(irConfig.modelScaling))
+                config.modelScaling = irConfig.modelScaling;
+            // Audio assets config
+            if (!string.IsNullOrEmpty(irConfig.audioAssets))
+                config.audioAssets = irConfig.audioAssets;
+
+            return config;
+        }
+
         // ── Character lookup ──────────────────────────────────────────────
 
         /// <summary>
@@ -148,10 +214,37 @@ namespace Insimul.Core
         /// <summary>
         /// Load businesses for a specific settlement.
         /// Scans all businesses and filters by settlementId.
+        /// Falls back to deriving from buildings data if no direct businesses found.
+        /// Matches FileDataSource.loadSettlementBusinesses() fallback logic.
         /// </summary>
         public static T[] LoadSettlementBusinesses<T>(string settlementId) where T : class
         {
-            return LoadFilteredArray<T>(DataRoot + "businesses", settlementId);
+            var direct = LoadFilteredArray<T>(DataRoot + "businesses", settlementId);
+            if (direct != null && direct.Length > 0) return direct;
+
+            // Fallback: derive businesses from buildings data
+            var buildings = LoadArray<InsimulBuildingData>(DataRoot + "buildings");
+            if (buildings == null || buildings.Length == 0) return new T[0];
+
+            var results = new List<T>();
+            foreach (var b in buildings)
+            {
+                if (b.settlementId == settlementId && !string.IsNullOrEmpty(b.businessId))
+                {
+                    // Create a derived business entry via JSON round-trip
+                    string json = JsonUtility.ToJson(new InsimulDerivedBusiness
+                    {
+                        id = !string.IsNullOrEmpty(b.businessId) ? b.businessId : b.id,
+                        settlementId = b.settlementId,
+                        businessType = !string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "Shop",
+                        name = !string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "Business",
+                        lotId = b.lotId
+                    });
+                    var item = JsonUtility.FromJson<T>(json);
+                    if (item != null) results.Add(item);
+                }
+            }
+            return results.ToArray();
         }
 
         /// <summary>
@@ -164,10 +257,36 @@ namespace Insimul.Core
 
         /// <summary>
         /// Load residences for a specific settlement.
+        /// Falls back to deriving from buildings data if no direct residences found.
+        /// Matches FileDataSource.loadSettlementResidences() fallback logic.
         /// </summary>
         public static T[] LoadSettlementResidences<T>(string settlementId) where T : class
         {
-            return LoadFilteredArray<T>(DataRoot + "residences", settlementId);
+            var direct = LoadFilteredArray<T>(DataRoot + "residences", settlementId);
+            if (direct != null && direct.Length > 0) return direct;
+
+            // Fallback: derive residences from buildings data
+            var buildings = LoadArray<InsimulBuildingData>(DataRoot + "buildings");
+            if (buildings == null || buildings.Length == 0) return new T[0];
+
+            var results = new List<T>();
+            foreach (var b in buildings)
+            {
+                if (b.settlementId == settlementId && !string.IsNullOrEmpty(b.residenceId))
+                {
+                    string json = JsonUtility.ToJson(new InsimulDerivedResidence
+                    {
+                        id = !string.IsNullOrEmpty(b.residenceId) ? b.residenceId : b.id,
+                        settlementId = b.settlementId,
+                        residenceType = !string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "House",
+                        name = !string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "Residence",
+                        lotId = b.lotId
+                    });
+                    var item = JsonUtility.FromJson<T>(json);
+                    if (item != null) results.Add(item);
+                }
+            }
+            return results.ToArray();
         }
 
         // ── Entity inventory (local stub) ─────────────────────────────────
@@ -413,5 +532,93 @@ namespace Insimul.Core
         public int stock;
         public int maxStock;
         public float restockRate;
+    }
+
+    // ── Config3D data class for IR merge ──────────────────────────────────
+
+    [Serializable]
+    public class InsimulConfig3D
+    {
+        public string proceduralBuildings;
+        public string buildingTypeOverrides;
+        public string wallTextureId;
+        public string roofTextureId;
+        public string modelScaling;
+        public string audioAssets;
+        public string buildingModels;
+        public string natureModels;
+        public string objectModels;
+        public string questObjectModels;
+        public string characterModels;
+        public string playerModels;
+        public string groundTextureId;
+        public string roadTextureId;
+    }
+
+    // ── IR wrapper classes for asset ID and config3D extraction ───────────
+
+    [Serializable]
+    public class WorldIRAssetIdWrapper
+    {
+        public WorldIRMetaAssetId meta;
+    }
+
+    [Serializable]
+    public class WorldIRMetaAssetId
+    {
+        public AssetIdEntry[] assetIdToPath;
+    }
+
+    [Serializable]
+    public class AssetIdEntry
+    {
+        public string key;
+        public string value;
+    }
+
+    [Serializable]
+    public class WorldIRConfig3DWrapper
+    {
+        public WorldIRMetaConfig3D meta;
+    }
+
+    [Serializable]
+    public class WorldIRMetaConfig3D
+    {
+        public InsimulConfig3D world3DConfig;
+    }
+
+    // ── Building data class for settlement fallback derivation ────────────
+
+    [Serializable]
+    public class InsimulBuildingData
+    {
+        public string id;
+        public string settlementId;
+        public string businessId;
+        public string residenceId;
+        public string buildingRole;
+        public string lotId;
+        public string[] occupantIds;
+    }
+
+    [Serializable]
+    public class InsimulDerivedBusiness
+    {
+        public string id;
+        public string settlementId;
+        public string businessType;
+        public string name;
+        public string lotId;
+    }
+
+    [Serializable]
+    public class InsimulDerivedResidence
+    {
+        public string id;
+        public string settlementId;
+        public string residenceType;
+        public string name;
+        public string lotId;
     }
 }

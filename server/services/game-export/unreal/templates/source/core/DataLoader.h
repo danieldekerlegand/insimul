@@ -109,9 +109,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadBaseResources();
 
-    /** Load 3D configuration (derived from asset manifest). */
+    /** Load 3D configuration (derived from asset manifest).
+     *  Merges world3DConfig from WorldIR metadata including:
+     *  proceduralBuildings, buildingTypeOverrides, wallTextureId,
+     *  roofTextureId, modelScaling, and audioAssets. */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadConfig3D();
+
+    /** Resolve an asset ID (MongoDB ObjectID) to its export file path.
+     *  Uses the assetIdToPath map from WorldIR metadata. Returns empty
+     *  string if the ID is not found in the map. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Insimul|DataLoader")
+    FString ResolveAssetIdToPath(const FString& AssetId) const;
 
     /** Load theme.json. */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
@@ -122,6 +131,8 @@ public:
     /**
      * Load businesses for a settlement.
      * Reads from the settlements data and filters by SettlementId.
+     * Falls back to deriving businesses from buildings.json if the
+     * settlement has no embedded businesses array.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadSettlementBusinesses(const FString& SettlementId);
@@ -130,7 +141,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadSettlementLots(const FString& SettlementId);
 
-    /** Load residences for a settlement. */
+    /**
+     * Load residences for a settlement.
+     * Falls back to deriving residences from buildings.json if the
+     * settlement has no embedded residences array.
+     */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadSettlementResidences(const FString& SettlementId);
 
@@ -290,6 +305,23 @@ private:
      */
     FString LoadDataFile(const FString& Filename) const;
 
+    /** Parse and cache the WorldIR JSON for metadata access (assetIdToPath, world3DConfig). */
+    void EnsureWorldIRCached();
+
+    /** Derive business entries from buildings.json for a settlement.
+     *  Filters buildings by settlementId and businessId presence. */
+    FString DeriveBusinessesFromBuildings(const FString& SettlementId) const;
+
+    /** Derive residence entries from buildings.json for a settlement.
+     *  Filters buildings by settlementId and residenceId presence. */
+    FString DeriveResidencesFromBuildings(const FString& SettlementId) const;
+
     /** Cached Content/Data path resolved once at initialization. */
     FString DataDirectory;
+
+    /** Cached WorldIR JSON object for metadata access. */
+    TSharedPtr<FJsonObject> CachedWorldIR;
+
+    /** Asset ID to file path map from WorldIR meta.assetIdToPath. */
+    TMap<FString, FString> AssetIdToPathMap;
 };

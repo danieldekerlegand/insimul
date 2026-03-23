@@ -491,6 +491,19 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	notifier.aabb = AABB(Vector3(-width / 2, 0, -depth / 2), Vector3(width, total_height + 1.0, depth))
 	building.add_child(notifier)
 
+	# Filter out child MeshInstance3D nodes with no vertices (e.g. empty placeholder
+	# nodes). Mirrors the Babylon.js validMeshes filter that skips getTotalVertices() == 0.
+	for child in building.get_children():
+		if child is MeshInstance3D:
+			var vertex_count := 0
+			if child.mesh != null:
+				for si in range(child.mesh.get_surface_count()):
+					var arrays = child.mesh.surface_get_arrays(si)
+					if arrays.size() > 0 and arrays[Mesh.ARRAY_VERTEX] != null:
+						vertex_count += arrays[Mesh.ARRAY_VERTEX].size()
+			if vertex_count == 0:
+				child.queue_free()
+
 	# Propagate LOD cull distance to all child meshes so unmerged children
 	# (e.g. door, roof) don't remain visible when the parent building is LOD-hidden.
 	for child in building.get_children():

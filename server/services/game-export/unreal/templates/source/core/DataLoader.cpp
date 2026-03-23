@@ -1,6 +1,11 @@
 #include "DataLoader.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 void UDataLoader::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -46,6 +51,9 @@ FString UDataLoader::LoadWorldIR()
     if (!Result.IsEmpty())
     {
         bIsInitialized = true;
+        // Cache WorldIR metadata (assetIdToPath, world3DConfig) for use by
+        // LoadConfig3D, ResolveAssetIdToPath, and settlement fallback logic.
+        EnsureWorldIRCached();
     }
     return Result;
 }
@@ -146,8 +154,37 @@ FString UDataLoader::LoadBaseResources()
 FString UDataLoader::LoadConfig3D()
 {
     // 3D config is derived from asset manifest in Babylon.js source.
-    // For Unreal, we load the asset manifest which contains model mappings.
-    return LoadDataFile(TEXT("asset-manifest.json"));
+    // For Unreal, we load the asset manifest and merge world3DConfig from WorldIR.
+    FString ManifestJson = LoadDataFile(TEXT("asset-manifest.json"));
+
+    // Merge world3DConfig from IR metadata — this contains procedural building
+    // presets, per-type overrides, texture IDs, model scaling, and audio assets.
+    // Mirrors DataSource.ts loadConfig3D() which merges IR config properties:
+    //   proceduralBuildings, buildingTypeOverrides, wallTextureId, roofTextureId,
+    //   modelScaling, audioAssets
+    EnsureWorldIRCached();
+    if (CachedWorldIR.IsValid())
+    {
+        const TSharedPtr<FJsonObject>* MetaObj;
+        if (CachedWorldIR->TryGetObjectField(TEXT("meta"), MetaObj))
+        {
+            const TSharedPtr<FJsonObject>* Config3DObj;
+            if ((*MetaObj)->TryGetObjectField(TEXT("world3DConfig"), Config3DObj))
+            {
+                // Serialize the world3DConfig section and append it as a wrapper
+                // so callers can access both manifest and IR config
+                FString Config3DJson;
+                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Config3DJson);
+                FJsonSerializer::Serialize(Config3DObj->ToSharedRef(), Writer);
+                UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadConfig3D: merged world3DConfig from IR (%d chars)"), Config3DJson.Len());
+
+                // Return combined JSON: { "manifest": ..., "world3DConfig": ... }
+                return FString::Printf(TEXT("{\"manifest\":%s,\"world3DConfig\":%s}"), *ManifestJson, *Config3DJson);
+            }
+        }
+    }
+
+    return ManifestJson;
 }
 
 FString UDataLoader::LoadTheme()
@@ -160,9 +197,51 @@ FString UDataLoader::LoadTheme()
 FString UDataLoader::LoadSettlementBusinesses(const FString& SettlementId)
 {
     // In exported games, settlement sub-data is embedded in the geography file.
-    // Parse and filter here as a convenience.
-    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadSettlementBusinesses(%s) — parse from geography"), *SettlementId);
-    return LoadDataFile(TEXT("geography.json"));
+    // Try geography first; if settlement has no embedded businesses, fall back
+    // to deriving from buildings.json (mirrors DataSource.ts behavior).
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadSettlementBusinesses(%s)"), *SettlementId);
+
+    FString GeoJson = LoadDataFile(TEXT("geography.json"));
+    if (GeoJson.IsEmpty())
+    {
+        return DeriveBusinessesFromBuildings(SettlementId);
+    }
+
+    // Parse geography and check if settlement has businesses
+    TSharedPtr<FJsonObject> GeoObj;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(GeoJson);
+    if (FJsonSerializer::Deserialize(Reader, GeoObj) && GeoObj.IsValid())
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Settlements;
+        if (GeoObj->TryGetArrayField(TEXT("settlements"), Settlements))
+        {
+            for (const auto& Val : *Settlements)
+            {
+                const TSharedPtr<FJsonObject>* SettObj;
+                if (Val->TryGetObject(SettObj))
+                {
+                    FString Id;
+                    (*SettObj)->TryGetStringField(TEXT("id"), Id);
+                    if (Id == SettlementId)
+                    {
+                        const TArray<TSharedPtr<FJsonValue>>* Businesses;
+                        if ((*SettObj)->TryGetArrayField(TEXT("businesses"), Businesses) && Businesses->Num() > 0)
+                        {
+                            // Serialize just the businesses array
+                            FString Result;
+                            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Result);
+                            FJsonSerializer::Serialize(*Businesses, Writer);
+                            return Result;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to deriving from buildings data
+    return DeriveBusinessesFromBuildings(SettlementId);
 }
 
 FString UDataLoader::LoadSettlementLots(const FString& SettlementId)
@@ -173,8 +252,50 @@ FString UDataLoader::LoadSettlementLots(const FString& SettlementId)
 
 FString UDataLoader::LoadSettlementResidences(const FString& SettlementId)
 {
-    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadSettlementResidences(%s) — parse from geography"), *SettlementId);
-    return LoadDataFile(TEXT("geography.json"));
+    // Try geography first; if settlement has no embedded residences, fall back
+    // to deriving from buildings.json (mirrors DataSource.ts behavior).
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadSettlementResidences(%s)"), *SettlementId);
+
+    FString GeoJson = LoadDataFile(TEXT("geography.json"));
+    if (GeoJson.IsEmpty())
+    {
+        return DeriveResidencesFromBuildings(SettlementId);
+    }
+
+    // Parse geography and check if settlement has residences
+    TSharedPtr<FJsonObject> GeoObj;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(GeoJson);
+    if (FJsonSerializer::Deserialize(Reader, GeoObj) && GeoObj.IsValid())
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Settlements;
+        if (GeoObj->TryGetArrayField(TEXT("settlements"), Settlements))
+        {
+            for (const auto& Val : *Settlements)
+            {
+                const TSharedPtr<FJsonObject>* SettObj;
+                if (Val->TryGetObject(SettObj))
+                {
+                    FString Id;
+                    (*SettObj)->TryGetStringField(TEXT("id"), Id);
+                    if (Id == SettlementId)
+                    {
+                        const TArray<TSharedPtr<FJsonValue>>* Residences;
+                        if ((*SettObj)->TryGetArrayField(TEXT("residences"), Residences) && Residences->Num() > 0)
+                        {
+                            FString Result;
+                            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Result);
+                            FJsonSerializer::Serialize(*Residences, Writer);
+                            return Result;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to deriving from buildings data
+    return DeriveResidencesFromBuildings(SettlementId);
 }
 
 // ── Inventory / Transfer ──────────────────────────────────────────────
@@ -294,6 +415,181 @@ FString UDataLoader::LoadGeography()
 FString UDataLoader::LoadAssetManifest()
 {
     return LoadDataFile(TEXT("asset-manifest.json"));
+}
+
+// ── WorldIR caching & asset ID resolution ─────────────────────────────
+
+void UDataLoader::EnsureWorldIRCached()
+{
+    if (CachedWorldIR.IsValid()) return;
+
+    FString IRJson = LoadDataFile(TEXT("WorldIR.json"));
+    if (IRJson.IsEmpty()) return;
+
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(IRJson);
+    TSharedPtr<FJsonObject> Parsed;
+    if (!FJsonSerializer::Deserialize(Reader, Parsed) || !Parsed.IsValid()) return;
+
+    CachedWorldIR = Parsed;
+
+    // Populate assetIdToPath map from meta.assetIdToPath
+    const TSharedPtr<FJsonObject>* MetaObj;
+    if (CachedWorldIR->TryGetObjectField(TEXT("meta"), MetaObj))
+    {
+        const TSharedPtr<FJsonObject>* IdMapObj;
+        if ((*MetaObj)->TryGetObjectField(TEXT("assetIdToPath"), IdMapObj))
+        {
+            for (const auto& Pair : (*IdMapObj)->Values)
+            {
+                FString Path;
+                if (Pair.Value->TryGetString(Path))
+                {
+                    AssetIdToPathMap.Add(Pair.Key, Path);
+                }
+            }
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Cached %d assetIdToPath entries from WorldIR"), AssetIdToPathMap.Num());
+        }
+    }
+}
+
+FString UDataLoader::ResolveAssetIdToPath(const FString& AssetId) const
+{
+    if (const FString* Path = AssetIdToPathMap.Find(AssetId))
+    {
+        return *Path;
+    }
+    return FString();
+}
+
+// ── Buildings fallback helpers ────────────────────────────────────────
+
+FString UDataLoader::DeriveBusinessesFromBuildings(const FString& SettlementId) const
+{
+    // Mirrors DataSource.ts: filter buildings by settlementId + businessId,
+    // then project into business-like objects.
+    FString BuildingsJson = LoadDataFile(TEXT("buildings.json"));
+    if (BuildingsJson.IsEmpty()) return TEXT("[]");
+
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(BuildingsJson);
+    TArray<TSharedPtr<FJsonValue>> Buildings;
+    if (!FJsonSerializer::Deserialize(Reader, Buildings)) return TEXT("[]");
+
+    TArray<TSharedPtr<FJsonValue>> Results;
+    for (const auto& Val : Buildings)
+    {
+        const TSharedPtr<FJsonObject>* BldgObj;
+        if (!Val->TryGetObject(BldgObj)) continue;
+
+        FString BSettId;
+        (*BldgObj)->TryGetStringField(TEXT("settlementId"), BSettId);
+        if (BSettId != SettlementId) continue;
+
+        FString BusinessId;
+        if (!(*BldgObj)->TryGetStringField(TEXT("businessId"), BusinessId) || BusinessId.IsEmpty()) continue;
+
+        // Derive business entry from building data
+        TSharedPtr<FJsonObject> Biz = MakeShared<FJsonObject>();
+        FString BldgId;
+        (*BldgObj)->TryGetStringField(TEXT("id"), BldgId);
+        Biz->SetStringField(TEXT("id"), BusinessId.IsEmpty() ? BldgId : BusinessId);
+        Biz->SetStringField(TEXT("settlementId"), SettlementId);
+
+        // Extract buildingRole from spec object
+        FString Role = TEXT("Shop");
+        const TSharedPtr<FJsonObject>* SpecObj;
+        if ((*BldgObj)->TryGetObjectField(TEXT("spec"), SpecObj))
+        {
+            (*SpecObj)->TryGetStringField(TEXT("buildingRole"), Role);
+        }
+        Biz->SetStringField(TEXT("businessType"), Role);
+        Biz->SetStringField(TEXT("name"), Role);
+
+        // occupantIds: first is owner, rest are employees
+        const TArray<TSharedPtr<FJsonValue>>* OccupantIds;
+        if ((*BldgObj)->TryGetArrayField(TEXT("occupantIds"), OccupantIds) && OccupantIds->Num() > 0)
+        {
+            FString OwnerId;
+            (*OccupantIds)[0]->TryGetString(OwnerId);
+            Biz->SetStringField(TEXT("ownerId"), OwnerId);
+
+            TArray<TSharedPtr<FJsonValue>> Employees;
+            for (int32 i = 1; i < OccupantIds->Num(); ++i)
+            {
+                Employees.Add((*OccupantIds)[i]);
+            }
+            Biz->SetArrayField(TEXT("employees"), Employees);
+        }
+
+        Results.Add(MakeShared<FJsonValueObject>(Biz));
+    }
+
+    FString ResultJson;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultJson);
+    FJsonSerializer::Serialize(Results, Writer);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Derived %d businesses from buildings for settlement %s"), Results.Num(), *SettlementId);
+    return ResultJson;
+}
+
+FString UDataLoader::DeriveResidencesFromBuildings(const FString& SettlementId) const
+{
+    // Mirrors DataSource.ts: filter buildings by settlementId + residenceId,
+    // then project into residence-like objects.
+    FString BuildingsJson = LoadDataFile(TEXT("buildings.json"));
+    if (BuildingsJson.IsEmpty()) return TEXT("[]");
+
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(BuildingsJson);
+    TArray<TSharedPtr<FJsonValue>> Buildings;
+    if (!FJsonSerializer::Deserialize(Reader, Buildings)) return TEXT("[]");
+
+    TArray<TSharedPtr<FJsonValue>> Results;
+    for (const auto& Val : Buildings)
+    {
+        const TSharedPtr<FJsonObject>* BldgObj;
+        if (!Val->TryGetObject(BldgObj)) continue;
+
+        FString BSettId;
+        (*BldgObj)->TryGetStringField(TEXT("settlementId"), BSettId);
+        if (BSettId != SettlementId) continue;
+
+        FString ResidenceId;
+        if (!(*BldgObj)->TryGetStringField(TEXT("residenceId"), ResidenceId) || ResidenceId.IsEmpty()) continue;
+
+        // Derive residence entry from building data
+        TSharedPtr<FJsonObject> Res = MakeShared<FJsonObject>();
+        FString BldgId;
+        (*BldgObj)->TryGetStringField(TEXT("id"), BldgId);
+        Res->SetStringField(TEXT("id"), ResidenceId.IsEmpty() ? BldgId : ResidenceId);
+        Res->SetStringField(TEXT("settlementId"), SettlementId);
+
+        // Extract buildingRole from spec object
+        FString Role = TEXT("House");
+        const TSharedPtr<FJsonObject>* SpecObj;
+        if ((*BldgObj)->TryGetObjectField(TEXT("spec"), SpecObj))
+        {
+            (*SpecObj)->TryGetStringField(TEXT("buildingRole"), Role);
+        }
+        Res->SetStringField(TEXT("residenceType"), Role);
+        Res->SetStringField(TEXT("name"), Role);
+
+        // occupantIds
+        const TArray<TSharedPtr<FJsonValue>>* OccupantIds;
+        if ((*BldgObj)->TryGetArrayField(TEXT("occupantIds"), OccupantIds))
+        {
+            Res->SetArrayField(TEXT("occupantIds"), *OccupantIds);
+        }
+        else
+        {
+            Res->SetArrayField(TEXT("occupantIds"), TArray<TSharedPtr<FJsonValue>>());
+        }
+
+        Results.Add(MakeShared<FJsonValueObject>(Res));
+    }
+
+    FString ResultJson;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultJson);
+    FJsonSerializer::Serialize(Results, Writer);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Derived %d residences from buildings for settlement %s"), Results.Num(), *SettlementId);
+    return ResultJson;
 }
 
 // ── Save / Load ────────────────────────────────────────────────────────
