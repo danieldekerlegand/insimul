@@ -136,6 +136,8 @@ import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo 
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
+import { generateLocalNpcConversation } from "@/components/3DGame/LocalNpcConversation.ts";
+import { LocalAIClient } from "@/components/3DGame/LocalAIClient.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
 import { InteriorSceneManager, getInteriorModelPath } from "@/components/3DGame/InteriorSceneManager.ts";
 import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITURE_SIZE_MAP, type OutdoorFurnitureType } from "@/components/3DGame/OutdoorFurnitureGenerator.ts";
@@ -3019,7 +3021,16 @@ export class BabylonGame {
         }
       },
       onStartConversation: async (npc1Id: string, npc2Id: string, topic?: string): Promise<ConversationResult | null> => {
-        // In exported games without a running AI server, skip NPC-NPC conversations
+        // Try local AI first (Electron offline mode)
+        if (LocalAIClient.isAvailable()) {
+          const npc1Data = this.npcMeshes.get(npc1Id)?.characterData;
+          const npc2Data = this.npcMeshes.get(npc2Id)?.characterData;
+          if (npc1Data && npc2Data) {
+            const result = await generateLocalNpcConversation(npc1Data, npc2Data, topic);
+            if (result) return result;
+          }
+        }
+        // Fall back to server API
         if (typeof window !== 'undefined' && (window.location?.protocol === 'file:' || !this.config.authToken)) return null;
         try {
           return await this.dataSource.startNpcNpcConversation(this.config.worldId, npc1Id, npc2Id, topic);
@@ -10068,16 +10079,34 @@ export class BabylonGame {
     _npc1Name: string, _npc2Name: string
   ): Promise<void> {
     try {
-      // Use the rich conversation API (Gemini-powered, target language)
-      const data = await this.dataSource.simulateRichConversation(this.config.worldId, npc1Id, npc2Id, 6);
+      // Try local AI first, then fall back to server
+      let utterances: Array<{ speaker: string; text: string; gender?: string }> | null = null;
 
-      if (!data || !this.isEavesdropping) {
+      if (LocalAIClient.isAvailable()) {
+        const npc1Data = this.npcMeshes.get(npc1Id)?.characterData;
+        const npc2Data = this.npcMeshes.get(npc2Id)?.characterData;
+        if (npc1Data && npc2Data) {
+          const result = await generateLocalNpcConversation(npc1Data, npc2Data);
+          if (result) {
+            utterances = result.exchanges.map(ex => ({
+              speaker: ex.speakerName,
+              text: ex.text,
+              gender: (ex.speakerId === npc1Id ? npc1Data.gender : npc2Data.gender) ?? 'neutral',
+            }));
+          }
+        }
+      }
+
+      if (!utterances) {
+        const data = await this.dataSource.simulateRichConversation(this.config.worldId, npc1Id, npc2Id, 6);
+        utterances = data?.utterances ?? null;
+      }
+
+      if (!utterances || !this.isEavesdropping) {
         this.chatPanel?.addSystemMessage('You could not make out what they were saying.');
         this.endEavesdrop();
         return;
       }
-
-      const utterances = data.utterances;
 
       if (!utterances || !Array.isArray(utterances) || utterances.length === 0) {
         this.chatPanel?.addSystemMessage('The conversation seems to have ended before you could listen in.');
