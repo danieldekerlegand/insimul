@@ -419,6 +419,7 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 
 	# Porch
 	if has_porch:
+		var has_balcony: bool = style.get("has_ironwork_balcony", false) or style.get("has_balcony", false)
 		var porch_spec := {
 			"width": width,
 			"depth": porch_depth_val,
@@ -427,7 +428,9 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 			"total_height": total_height,
 			"front_z": depth / 2.0,
 			"mat_type": mat_type,
-			"porch_texture_id": style.get("porch_texture_id", "")
+			"porch_texture_id": style.get("porch_texture_id", ""),
+			"floors": floors,
+			"has_balcony": has_balcony
 		}
 		_create_porch(building, porch_spec)
 
@@ -471,9 +474,16 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	if resolved_roof_tex != null:
 		var roof_mat := _get_shared_material("roof_%s_%s" % [style.get("name", ""), roof_tex_key], Color.WHITE)
 		roof_mat.albedo_texture = resolved_roof_tex
+		# Custom vertex geometry (gable/hip) has mixed triangle winding, so
+		# disable backface culling to ensure both sides render correctly.
+		roof_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		roof.material_override = roof_mat
 	else:
-		roof.material_override = _get_shared_material("roof", roof_color)
+		var roof_solid_mat := _get_shared_material("roof", roof_color)
+		# Custom vertex geometry (gable/hip) has mixed triangle winding, so
+		# disable backface culling to ensure both sides render correctly.
+		roof_solid_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		roof.material_override = roof_solid_mat
 	building.add_child(roof)
 
 	# Windows with optional shutters
@@ -599,7 +609,15 @@ func _create_porch(building: MeshInstance3D, spec: Dictionary) -> void:
 	var front_z: float = spec.get("front_z", 5.0)
 	var mat_type_str: String = spec.get("mat_type", "wood")
 	var porch_tex_id: String = spec.get("porch_texture_id", "")
+	var floors: int = spec.get("floors", 1)
+	var has_balcony: bool = spec.get("has_balcony", false)
 	var ground_y := -total_height / 2.0
+
+	# Dynamic porch post height: match the first-floor ceiling
+	var floor_height := 4.0
+	var has_balcony_above := has_balcony and floors > 1
+	var porch_ceiling_y := floor_height + elevation
+	var post_height := porch_ceiling_y - elevation
 
 	# Porch deck material: prefer texture, fall back to color
 	var porch_deck_mat: StandardMaterial3D
@@ -646,6 +664,31 @@ func _create_porch(building: MeshInstance3D, spec: Dictionary) -> void:
 			step.position = Vector3(0, sy, sz)
 			step.material_override = step_mat
 			building.add_child(step)
+
+	# Porch posts
+	var post_count := maxi(2, floori(porch_width / 4.0))
+	var post_mat := _get_shared_material("porch_post", Color(0.45, 0.3, 0.2), mat_type_str)
+	for pi in range(post_count):
+		var post := MeshInstance3D.new()
+		var post_box := BoxMesh.new()
+		post_box.size = Vector3(0.15, post_height, 0.15)
+		post.mesh = post_box
+		post.name = "PorchPost_%d" % pi
+		var px := -porch_width / 2.0 + (porch_width / float(post_count - 1)) * pi if post_count > 1 else 0.0
+		post.position = Vector3(px, ground_y - elevation + post_height / 2.0, front_z + porch_depth)
+		post.material_override = post_mat
+		building.add_child(post)
+
+	# Thin overhang when upper floor exists but no balcony covers the porch
+	if floors > 1 and not has_balcony_above:
+		var overhang := MeshInstance3D.new()
+		var overhang_box := BoxMesh.new()
+		overhang_box.size = Vector3(porch_width + 0.5, 0.15, porch_depth + 0.3)
+		overhang.mesh = overhang_box
+		overhang.name = "PorchOverhang"
+		overhang.position = Vector3(0, ground_y - elevation + porch_ceiling_y, front_z + porch_depth / 2.0)
+		overhang.material_override = _get_shared_material("porch_overhang", Color(0.4, 0.28, 0.18), mat_type_str)
+		building.add_child(overhang)
 
 
 ## Add windows to each floor, with optional shutters from style.

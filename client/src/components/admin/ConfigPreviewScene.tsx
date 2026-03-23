@@ -9,6 +9,8 @@ import { useRef, useEffect, useCallback } from "react";
 interface ConfigPreviewSceneProps {
   /** Asset file path (relative) to load as a 3D model */
   modelPath?: string;
+  /** Additional model paths to load and attach to the root (for composite preview) */
+  additionalModelPaths?: string[];
   /** Ground color as hex string */
   groundColor?: string;
   /** Whether to show a ground disc */
@@ -26,8 +28,12 @@ interface ConfigPreviewSceneProps {
   buildProcedural?: (scene: any, BABYLON: any) => void;
 }
 
+// Names of meshes that are part of the scene infrastructure (not user content)
+const INFRASTRUCTURE_NAMES = new Set(["ground", "cam", "hemi", "dir"]);
+
 export function ConfigPreviewScene({
   modelPath,
+  additionalModelPaths,
   groundColor = "#4a5568",
   showGround = true,
   autoRotate = true,
@@ -39,7 +45,14 @@ export function ConfigPreviewScene({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
   const sceneRef = useRef<any>(null);
+  const babylonRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
+  const buildProceduralRef = useRef(buildProcedural);
 
+  // Keep ref up to date without triggering re-setup
+  buildProceduralRef.current = buildProcedural;
+
+  // One-time engine/scene setup (only depends on structural props)
   const setup = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -47,6 +60,7 @@ export function ConfigPreviewScene({
     // Dynamic import to avoid SSR issues
     const BABYLON = await import("@babylonjs/core");
     await import("@babylonjs/loaders/glTF");
+    babylonRef.current = BABYLON;
 
     // Cleanup previous
     if (engineRef.current) {
@@ -64,6 +78,7 @@ export function ConfigPreviewScene({
     const camera = new BABYLON.ArcRotateCamera(
       "cam", Math.PI / 4, Math.PI / 3, 5, BABYLON.Vector3.Zero(), scene
     );
+    cameraRef.current = camera;
     camera.attachControl(canvas, true);
     camera.lowerRadiusLimit = 1;
     camera.upperRadiusLimit = 20;
@@ -99,18 +114,17 @@ export function ConfigPreviewScene({
       onSceneReady(scene, engine);
     }
 
-    // Procedural mesh builder
-    if (buildProcedural) {
-      buildProcedural(scene, BABYLON);
-      // Frame all meshes
-      const meshes = scene.meshes.filter((m: any) => m.name !== "ground");
+    // Build procedural meshes (initial)
+    if (buildProceduralRef.current) {
+      buildProceduralRef.current(scene, BABYLON);
+      const meshes = scene.meshes.filter((m: any) => !INFRASTRUCTURE_NAMES.has(m.name));
       if (meshes.length > 0) {
         frameMeshes(camera, meshes, BABYLON);
       }
     }
 
     // Load model if provided
-    if (modelPath && !buildProcedural) {
+    if (modelPath && !buildProceduralRef.current) {
       try {
         const fullPath = modelPath.startsWith('/') ? modelPath : `/${modelPath}`;
         const pathParts = fullPath.split('/');
@@ -118,13 +132,34 @@ export function ConfigPreviewScene({
         const rootUrl = pathParts.join('/') + '/';
         const result = await BABYLON.SceneLoader.ImportMeshAsync("", rootUrl, fileName, scene);
         if (result.meshes.length > 0) {
-          // Remove environment/ground meshes from loaded model
           result.meshes.forEach((m: any) => {
             const name = m.name.toLowerCase();
             if (name.includes("environment") || name.includes("__root__ground") || name === "ground") {
               m.dispose();
             }
           });
+
+          // Load and attach additional models (for composite character preview)
+          const rootMesh = result.meshes.find((m: any) => !m.isDisposed());
+          if (rootMesh && additionalModelPaths && additionalModelPaths.length > 0) {
+            for (const addPath of additionalModelPaths) {
+              try {
+                const addFull = addPath.startsWith('/') ? addPath : `/${addPath}`;
+                const addParts = addFull.split('/');
+                const addFile = addParts.pop() || '';
+                const addRoot = addParts.join('/') + '/';
+                const addResult = await BABYLON.SceneLoader.ImportMeshAsync("", addRoot, addFile, scene);
+                if (addResult.meshes.length > 0) {
+                  const addMesh = addResult.meshes[0];
+                  addMesh.parent = rootMesh;
+                  addMesh.position = BABYLON.Vector3.Zero();
+                }
+              } catch (addErr) {
+                console.warn("ConfigPreviewScene: Failed to load additional model", addPath, addErr);
+              }
+            }
+          }
+
           const remaining = scene.meshes.filter((m: any) => m.name !== "ground" && !m.isDisposed());
           frameMeshes(camera, remaining, BABYLON);
         }
@@ -142,14 +177,48 @@ export function ConfigPreviewScene({
       window.removeEventListener("resize", resize);
       scene.dispose();
       engine.dispose();
+      engineRef.current = null;
+      sceneRef.current = null;
+      babylonRef.current = null;
+      cameraRef.current = null;
     };
-  }, [modelPath, groundColor, showGround, autoRotate, buildProcedural]);
+  // Structural props only — buildProcedural excluded to avoid flicker
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelPath, JSON.stringify(additionalModelPaths), groundColor, showGround, autoRotate]);
 
+  // Initial setup
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     setup().then(fn => { cleanup = fn; });
     return () => { cleanup?.(); };
   }, [setup]);
+
+  // Rebuild procedural meshes when buildProcedural changes (without recreating engine)
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const BABYLON = babylonRef.current;
+    const camera = cameraRef.current;
+    if (!scene || !BABYLON || !camera || !buildProcedural) return;
+
+    // Remove all non-infrastructure meshes and their materials
+    const toRemove = scene.meshes.filter((m: any) => !INFRASTRUCTURE_NAMES.has(m.name));
+    for (const mesh of toRemove) {
+      if (mesh.material && !mesh.material.name.startsWith("ground")) {
+        mesh.material.dispose();
+      }
+      mesh.dispose();
+    }
+
+    // Build new procedural meshes
+    buildProcedural(scene, BABYLON);
+
+    // Re-frame camera
+    const meshes = scene.meshes.filter((m: any) => !INFRASTRUCTURE_NAMES.has(m.name));
+    if (meshes.length > 0) {
+      frameMeshes(camera, meshes, BABYLON);
+    }
+  }, [buildProcedural]);
 
   return (
     <div className={`relative rounded-lg border overflow-hidden bg-muted/30 ${className}`} style={{ height }}>

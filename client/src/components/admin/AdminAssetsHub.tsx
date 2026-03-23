@@ -53,6 +53,8 @@ const WORLD_TYPES = [
   { value: "historical-medieval", label: "Historical Medieval" },
   { value: "historical-renaissance", label: "Historical Renaissance" },
   { value: "historical-victorian", label: "Historical Victorian" },
+  { value: "creole-colonial", label: "Creole Colonial" },
+  { value: "tropical-pirate", label: "Tropical Pirate" },
   { value: "wild-west", label: "Wild West" },
   { value: "modern-realistic", label: "Modern Realistic" },
   { value: "superhero", label: "Superhero" },
@@ -311,8 +313,9 @@ export function AdminAssetsHub() {
     return result;
   }, [browseMode, displayAssets, assetSearchQuery, assetTypeFilter]);
 
-  // Extract category from asset name parenthetical, e.g. "wooden_crate_02 (chest)" -> "chest"
+  // Get asset category: prefer DB category field, fall back to name parenthetical
   const getAssetCategory = (asset: VisualAsset): string => {
+    if ((asset as any).category) return (asset as any).category;
     const match = asset.name.match(/\(([^)]+)\)\s*$/);
     return match ? match[1].trim() : 'uncategorized';
   };

@@ -310,6 +310,7 @@ export function ConfigDetailPanel({
                     value={cfg?.textureId}
                     placeholder="Select Texture"
                     className="h-7 text-xs"
+                    assetTypeFilter={['texture_ground', 'texture_material', 'texture_wall']}
                     onSelect={(asset) => onUpdateGround?.(selection.groundType, { textureId: asset.id, mode: 'asset' })}
                     onClear={() => onUpdateGround?.(selection.groundType, { textureId: undefined })}
                   />
@@ -380,9 +381,10 @@ export function ConfigDetailPanel({
                 <Label className="text-[10px]">Model Asset</Label>
                 <AssetSelect
                   value={cfg?.assetId}
-                  placeholder="Select Model"
+                  placeholder="Select Character Model"
                   className="h-7 text-xs"
                   modelsOnly
+                  assetTypeFilter={['model_character', 'model_player']}
                   onSelect={(asset) => onUpdateCharacter?.(selection.section, selection.role, { assetId: asset.id })}
                   onClear={() => onUpdateCharacter?.(selection.section, selection.role, { assetId: undefined })}
                 />
@@ -479,6 +481,7 @@ export function ConfigDetailPanel({
                   placeholder="Select Model"
                   className="h-7 text-xs"
                   modelsOnly
+                  assetTypeFilter={['model_nature', 'model_tree', 'model_3d', 'model_prop']}
                   onSelect={(asset) => onUpdateNature?.(selection.group, selection.item, { assetId: asset.id })}
                   onClear={() => onUpdateNature?.(selection.group, selection.item, { assetId: undefined })}
                 />
@@ -536,6 +539,7 @@ export function ConfigDetailPanel({
                   placeholder="Select Model"
                   className="h-7 text-xs"
                   modelsOnly
+                  assetTypeFilter={['model_prop', 'model_quest_item', 'model_3d']}
                   onSelect={(asset) => onUpdateItem?.(selection.group, selection.item, { assetId: asset.id })}
                   onClear={() => onUpdateItem?.(selection.group, selection.item, { assetId: undefined })}
                 />

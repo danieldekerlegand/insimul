@@ -41,6 +41,8 @@ const WORLD_TYPES = [
   { value: "historical-medieval", label: "Historical Medieval" },
   { value: "historical-renaissance", label: "Historical Renaissance" },
   { value: "historical-victorian", label: "Historical Victorian" },
+  { value: "creole-colonial", label: "Creole Colonial" },
+  { value: "tropical-pirate", label: "Tropical Pirate" },
   { value: "wild-west", label: "Wild West" },
   { value: "modern-realistic", label: "Modern Realistic" },
   { value: "superhero", label: "Superhero" },

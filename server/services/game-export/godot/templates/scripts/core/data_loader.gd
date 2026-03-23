@@ -356,15 +356,42 @@ func pay_fines(settlement_id: String) -> Dictionary:
 	_fines_paid[settlement_id] = 0
 	return {"success": true, "finesPaid": amount}
 
-## List existing playthroughs. Returns empty array for exported games.
+## List existing playthroughs from the persistent index file.
 func list_playthroughs() -> Array:
-	return []
+	return _load_playthroughs_index()
 
 ## Start a new playthrough with a unique local ID.
+## Generates an ID like "local-1679500000-a3f2b1", persists to index, and sets _playthrough_id.
 func start_playthrough(playthrough_name: String) -> Dictionary:
-	if _playthrough_id.is_empty():
-		_playthrough_id = "exported-%d" % Time.get_unix_time_from_system()
-	return {"id": _playthrough_id, "name": playthrough_name}
+	var timestamp := int(Time.get_unix_time_from_system())
+	var random_hex := "%06x" % (randi() & 0xFFFFFF)
+	var new_id := "local-%d-%s" % [timestamp, random_hex]
+	_playthrough_id = new_id
+
+	var now_iso := Time.get_datetime_string_from_system(true)
+	var entry := {
+		"id": new_id,
+		"name": playthrough_name,
+		"status": "active",
+		"createdAt": now_iso,
+		"lastPlayedAt": now_iso,
+		"playtime": 0,
+	}
+
+	var index := _load_playthroughs_index()
+	index.append(entry)
+	_save_playthroughs_index(index)
+
+	print("[Insimul] start_playthrough: created %s (%s)" % [new_id, playthrough_name])
+	return entry
+
+## Look up a specific playthrough by ID from the index.
+func get_playthrough(playthrough_id: String) -> Dictionary:
+	var index := _load_playthroughs_index()
+	for entry in index:
+		if str(entry.get("id", "")) == playthrough_id:
+			return entry
+	return {}
 
 # ── Single-object loaders ──────────────────────────────────────
 
@@ -406,29 +433,39 @@ func load_geography() -> Dictionary:
 
 # ── Save / Load ───────────────────────────────────────────────
 
-## Save game state dictionary to a numbered slot (0-2).
-## Writes to user://insimul_save_<slot_index>.json.
-func save_game_state(slot_index: int, game_state: Dictionary) -> bool:
+## Save game state dictionary to a numbered slot (0-2), scoped per playthrough.
+## Writes to user://insimul_save_<playthrough_id>_<slot_index>.json.
+## Also updates the lastPlayedAt timestamp in the playthroughs index.
+func save_game_state(slot_index: int, game_state: Dictionary, playthrough_id: String = "") -> bool:
 	if slot_index < 0 or slot_index > 2:
 		push_warning("[Insimul] save_game_state: invalid slot %d (must be 0-2)" % slot_index)
 		return false
-	var save_path := "user://insimul_save_%d.json" % slot_index
+	var pt_id := playthrough_id if not playthrough_id.is_empty() else _playthrough_id
+	if pt_id.is_empty():
+		push_warning("[Insimul] save_game_state: no playthrough_id set")
+		return false
+	var save_path := "user://insimul_save_%s_%d.json" % [pt_id, slot_index]
 	var json := JSON.stringify(game_state)
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
 		push_error("[Insimul] save_game_state: could not open %s for writing" % save_path)
 		return false
 	file.store_string(json)
-	print("[Insimul] save_game_state: saved to slot %d" % slot_index)
+	_update_last_played(pt_id)
+	print("[Insimul] save_game_state: saved to slot %d (playthrough %s)" % [slot_index, pt_id])
 	return true
 
-## Load game state dictionary from a numbered slot (0-2).
+## Load game state dictionary from a numbered slot (0-2), scoped per playthrough.
 ## Returns empty dictionary if no save exists.
-func load_game_state(slot_index: int) -> Dictionary:
+func load_game_state(slot_index: int, playthrough_id: String = "") -> Dictionary:
 	if slot_index < 0 or slot_index > 2:
 		push_warning("[Insimul] load_game_state: invalid slot %d (must be 0-2)" % slot_index)
 		return {}
-	var save_path := "user://insimul_save_%d.json" % slot_index
+	var pt_id := playthrough_id if not playthrough_id.is_empty() else _playthrough_id
+	if pt_id.is_empty():
+		push_warning("[Insimul] load_game_state: no playthrough_id set")
+		return {}
+	var save_path := "user://insimul_save_%s_%d.json" % [pt_id, slot_index]
 	if not FileAccess.file_exists(save_path):
 		return {}
 	var file := FileAccess.open(save_path, FileAccess.READ)
@@ -439,38 +476,50 @@ func load_game_state(slot_index: int) -> Dictionary:
 	if error != OK:
 		push_error("[Insimul] load_game_state: JSON parse error in slot %d" % slot_index)
 		return {}
-	print("[Insimul] load_game_state: loaded slot %d" % slot_index)
+	print("[Insimul] load_game_state: loaded slot %d (playthrough %s)" % [slot_index, pt_id])
 	return json.data if json.data is Dictionary else {}
 
-## Delete game state from a numbered slot (0-2).
+## Delete game state from a numbered slot (0-2), scoped per playthrough.
 ## Returns true if the file was deleted or did not exist.
-func delete_game_state(slot_index: int) -> bool:
+func delete_game_state(slot_index: int, playthrough_id: String = "") -> bool:
 	if slot_index < 0 or slot_index > 2:
 		push_warning("[Insimul] delete_game_state: invalid slot %d (must be 0-2)" % slot_index)
 		return false
-	var save_path := "user://insimul_save_%d.json" % slot_index
+	var pt_id := playthrough_id if not playthrough_id.is_empty() else _playthrough_id
+	if pt_id.is_empty():
+		push_warning("[Insimul] delete_game_state: no playthrough_id set")
+		return false
+	var save_path := "user://insimul_save_%s_%d.json" % [pt_id, slot_index]
 	if FileAccess.file_exists(save_path):
 		DirAccess.remove_absolute(save_path)
-	print("[Insimul] delete_game_state: deleted slot %d" % slot_index)
+	print("[Insimul] delete_game_state: deleted slot %d (playthrough %s)" % [slot_index, pt_id])
 	return true
 
-## Save quest progress dictionary to a dedicated file.
+## Save quest progress dictionary to a dedicated file, scoped per playthrough.
 ## Returns true on success.
-func save_quest_progress(quest_progress: Dictionary) -> bool:
-	var save_path := "user://insimul_quest_progress.json"
+func save_quest_progress(quest_progress: Dictionary, playthrough_id: String = "") -> bool:
+	var pt_id := playthrough_id if not playthrough_id.is_empty() else _playthrough_id
+	if pt_id.is_empty():
+		push_warning("[Insimul] save_quest_progress: no playthrough_id set")
+		return false
+	var save_path := "user://insimul_quest_progress_%s.json" % pt_id
 	var json := JSON.stringify(quest_progress)
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
 		push_error("[Insimul] save_quest_progress: could not open %s for writing" % save_path)
 		return false
 	file.store_string(json)
-	print("[Insimul] save_quest_progress: saved")
+	print("[Insimul] save_quest_progress: saved (playthrough %s)" % pt_id)
 	return true
 
-## Load quest progress dictionary from the dedicated file.
+## Load quest progress dictionary from the dedicated file, scoped per playthrough.
 ## Returns empty dictionary if no quest progress has been saved.
-func load_quest_progress() -> Dictionary:
-	var save_path := "user://insimul_quest_progress.json"
+func load_quest_progress(playthrough_id: String = "") -> Dictionary:
+	var pt_id := playthrough_id if not playthrough_id.is_empty() else _playthrough_id
+	if pt_id.is_empty():
+		push_warning("[Insimul] load_quest_progress: no playthrough_id set")
+		return {}
+	var save_path := "user://insimul_quest_progress_%s.json" % pt_id
 	if not FileAccess.file_exists(save_path):
 		return {}
 	var file := FileAccess.open(save_path, FileAccess.READ)
@@ -481,7 +530,7 @@ func load_quest_progress() -> Dictionary:
 	if error != OK:
 		push_error("[Insimul] load_quest_progress: JSON parse error")
 		return {}
-	print("[Insimul] load_quest_progress: loaded")
+	print("[Insimul] load_quest_progress: loaded (playthrough %s)" % pt_id)
 	return json.data if json.data is Dictionary else {}
 
 # ── Playthrough relationships ─────────────────────────────────
@@ -493,6 +542,43 @@ func load_playthrough_relationships() -> Array:
 ## Update a playthrough relationship (no-op in exported mode).
 func update_playthrough_relationship(_from_id: String, _to_id: String, _type: String, _strength: float) -> bool:
 	return false  # No server in exported mode
+
+# ── Playthroughs index helpers ─────────────────────────────────
+
+const PLAYTHROUGHS_INDEX_PATH := "user://insimul_playthroughs.json"
+
+## Load the playthroughs index from disk. Returns an Array of playthrough entries.
+func _load_playthroughs_index() -> Array:
+	if not FileAccess.file_exists(PLAYTHROUGHS_INDEX_PATH):
+		return []
+	var file := FileAccess.open(PLAYTHROUGHS_INDEX_PATH, FileAccess.READ)
+	if file == null:
+		return []
+	var json := JSON.new()
+	var error := json.parse(file.get_as_text())
+	if error != OK:
+		push_error("[Insimul] _load_playthroughs_index: JSON parse error")
+		return []
+	return json.data if json.data is Array else []
+
+## Save the playthroughs index array to disk.
+func _save_playthroughs_index(index: Array) -> void:
+	var json := JSON.stringify(index)
+	var file := FileAccess.open(PLAYTHROUGHS_INDEX_PATH, FileAccess.WRITE)
+	if file == null:
+		push_error("[Insimul] _save_playthroughs_index: could not open %s for writing" % PLAYTHROUGHS_INDEX_PATH)
+		return
+	file.store_string(json)
+
+## Update the lastPlayedAt timestamp for a playthrough in the index.
+func _update_last_played(pt_id: String) -> void:
+	var index := _load_playthroughs_index()
+	var now_iso := Time.get_datetime_string_from_system(true)
+	for entry in index:
+		if str(entry.get("id", "")) == pt_id:
+			entry["lastPlayedAt"] = now_iso
+			break
+	_save_playthroughs_index(index)
 
 # ── Internal caching ──────────────────────────────────────────
 

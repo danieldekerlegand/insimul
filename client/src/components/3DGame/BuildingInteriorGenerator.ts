@@ -502,27 +502,29 @@ export class BuildingInteriorGenerator {
     const bt = (businessType || buildingType || '').toLowerCase();
 
     if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
-      return { width: 18, depth: 16, height: 5 };
+      return { width: 22, depth: 28, height: 5 };
+    } else if (bt.includes('restaurant') || bt.includes('bakery') || bt.includes('cafe')) {
+      return { width: 20, depth: 26, height: 5 };
     } else if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
-      return { width: 14, depth: 14, height: 4.5 };
+      return { width: 18, depth: 24, height: 4.5 };
     } else if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) {
-      return { width: 16, depth: 14, height: 5 };
+      return { width: 20, depth: 24, height: 5 };
     } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
-      return { width: 20, depth: 24, height: 8 };
+      return { width: 24, depth: 32, height: 8 };
     } else if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
-      return { width: 18, depth: 18, height: 5 };
+      return { width: 22, depth: 26, height: 5 };
     } else if (bt.includes('residence_large') || bt.includes('mansion')) {
-      return { width: 16, depth: 16, height: 4.5 };
+      return { width: 22, depth: 28, height: 4.5 };
     } else if (bt.includes('residence_medium')) {
-      return { width: 12, depth: 12, height: 4 };
+      return { width: 18, depth: 22, height: 4 };
     } else if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) {
-      return { width: 9, depth: 9, height: 3.5 };
+      return { width: 14, depth: 18, height: 3.5 };
     } else if (bt.includes('warehouse') || bt.includes('storage')) {
-      return { width: 20, depth: 16, height: 6 };
+      return { width: 24, depth: 28, height: 6 };
     }
 
     // Default
-    return { width: 10, depth: 10, height: 4 };
+    return { width: 16, depth: 20, height: 4 };
   }
 
   /**
@@ -1222,7 +1224,15 @@ export class BuildingInteriorGenerator {
     // Resolve furniture set template if configured
     const furnitureTemplate = this.resolveFurnitureTemplate(config);
 
+    // Only generate procedural furniture for rooms that specifically need it
+    // (bar counters, shop counters). Other rooms are left empty for asset-based
+    // furniture placement from the FurnitureModelLoader or asset collection.
+    const furnishedRoomFunctions = new Set(['tavern_main', 'tavern_kitchen']);
+
     for (const room of rooms) {
+      // Skip furniture for most rooms — they'll be furnished via asset models
+      if (!furnitureTemplate && !furnishedRoomFunctions.has(room.function)) continue;
+
       const specs = furnitureTemplate
         ? this.getFurnitureFromTemplate(furnitureTemplate, room)
         : this.getFurnitureForRoom(room);

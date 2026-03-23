@@ -87,6 +87,117 @@ export const bodies: GenderedAssetEntry[] = [
     gender: 'female',
     ...asset('char_superhero_female_fullbody'),
   },
+  // ── Individual character models (complete body + outfit, no separate assembly needed) ──
+  // Male
+  {
+    id: 'char_male_adventurer',
+    displayName: 'Male Adventurer',
+    gender: 'male',
+    ...asset('char_male_adventurer'),
+  },
+  {
+    id: 'char_male_beach',
+    displayName: 'Male Beach',
+    gender: 'male',
+    ...asset('char_male_beach'),
+  },
+  {
+    id: 'char_male_casual',
+    displayName: 'Male Casual',
+    gender: 'male',
+    ...asset('char_male_casual'),
+  },
+  {
+    id: 'char_male_casual_hoodie',
+    displayName: 'Male Casual Hoodie',
+    gender: 'male',
+    ...asset('char_male_casual_hoodie'),
+  },
+  {
+    id: 'char_male_farmer',
+    displayName: 'Male Farmer',
+    gender: 'male',
+    ...asset('char_male_farmer'),
+  },
+  {
+    id: 'char_male_king',
+    displayName: 'Male King',
+    gender: 'male',
+    ...asset('char_male_king'),
+  },
+  {
+    id: 'char_male_punk',
+    displayName: 'Male Punk',
+    gender: 'male',
+    ...asset('char_male_punk'),
+  },
+  {
+    id: 'char_male_suit',
+    displayName: 'Male Suit',
+    gender: 'male',
+    ...asset('char_male_suit'),
+  },
+  {
+    id: 'char_male_swat',
+    displayName: 'Male SWAT',
+    gender: 'male',
+    ...asset('char_male_swat'),
+  },
+  {
+    id: 'char_male_worker',
+    displayName: 'Male Worker',
+    gender: 'male',
+    ...asset('char_male_worker'),
+  },
+  // Female
+  {
+    id: 'char_female_adventurer',
+    displayName: 'Female Adventurer',
+    gender: 'female',
+    ...asset('char_female_adventurer'),
+  },
+  {
+    id: 'char_female_casual',
+    displayName: 'Female Casual',
+    gender: 'female',
+    ...asset('char_female_casual'),
+  },
+  {
+    id: 'char_female_formal',
+    displayName: 'Female Formal',
+    gender: 'female',
+    ...asset('char_female_formal'),
+  },
+  {
+    id: 'char_female_punk',
+    displayName: 'Female Punk',
+    gender: 'female',
+    ...asset('char_female_punk'),
+  },
+  {
+    id: 'char_female_suit',
+    displayName: 'Female Suit',
+    gender: 'female',
+    ...asset('char_female_suit'),
+  },
+  {
+    id: 'char_female_soldier',
+    displayName: 'Female Soldier',
+    gender: 'female',
+    ...asset('char_female_soldier'),
+  },
+  {
+    id: 'char_female_worker',
+    displayName: 'Female Worker',
+    gender: 'female',
+    ...asset('char_female_worker'),
+  },
+  {
+    id: 'char_female_medieval',
+    displayName: 'Female Medieval',
+    gender: 'female',
+    ...asset('char_female_medieval'),
+  },
 ];
 
 // ─── Hair ────────────────────────────────────────────────────────────────────

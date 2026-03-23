@@ -85,8 +85,19 @@ const ROLE_OUTFIT_MAP: Record<NPCRole, string[]> = {
 
 // --- Selection functions ---
 
+/** IDs that start with these prefixes are complete characters (outfit baked in) */
+const COMPLETE_CHARACTER_PREFIX = 'char_male_' as const;
+const COMPLETE_CHARACTER_PREFIX_F = 'char_female_' as const;
+
+/** Check whether a body entry is a complete character model (no separate outfit/hair needed) */
+export function isCompleteCharacterModel(bodyId: string): boolean {
+  return bodyId.startsWith(COMPLETE_CHARACTER_PREFIX) ||
+    bodyId.startsWith(COMPLETE_CHARACTER_PREFIX_F);
+}
+
 /**
  * Select a quaternius NPC configuration deterministically based on character attributes.
+ * Prefers complete character models (outfit baked in) for visual consistency.
  */
 export function selectQuaterniusConfig(
   characterId: string,
@@ -95,9 +106,21 @@ export function selectQuaterniusConfig(
 ): QuaterniusNPCConfig {
   const hash = hashString(characterId);
 
-  // Select body
-  const genderBodies = bodies.filter((b) => b.gender === gender);
+  // Prefer complete character models (outfit baked in, no floating artifacts)
+  const completeCharacters = bodies.filter(
+    (b) => b.gender === gender && isCompleteCharacterModel(b.id),
+  );
+  const genderBodies = completeCharacters.length > 0
+    ? completeCharacters
+    : bodies.filter((b) => b.gender === gender);
   const body = genderBodies[hash % genderBodies.length];
+
+  // For complete character models, skip hair and outfit — they're baked in
+  if (isCompleteCharacterModel(body.id)) {
+    // Still need an outfit entry for the config type, but it won't be loaded
+    const dummyOutfit = outfits.filter((o) => o.gender === gender && o.part === 'full')[0];
+    return { body, hair: null, outfit: dummyOutfit };
+  }
 
   // Select hair (prefer rigged for animation compatibility)
   const genderHair = hair.filter(
@@ -138,6 +161,10 @@ export function normalizeToQuaterniusGender(gender?: string): Gender {
  * Build a cache key for a quaternius NPC configuration.
  */
 export function buildCacheKey(config: QuaterniusNPCConfig): string {
+  // Complete character models only need the body ID as cache key
+  if (isCompleteCharacterModel(config.body.id)) {
+    return `quat_${config.body.id}`;
+  }
   const parts = [config.body.id, config.outfit.id];
   if (config.hair) parts.push(config.hair.id);
   return `quat_${parts.join('+')}`;
@@ -178,24 +205,27 @@ export class QuaterniusNPCLoader {
     const root = this.cloneMesh(bodyTemplate, `quat_npc_${characterId}`);
     if (!root) return null;
 
-    // Load and attach outfit
-    const outfitTemplate = await this.loadPart(config.outfit.id, config.outfit.path);
-    if (outfitTemplate) {
-      const outfitClone = this.cloneMesh(outfitTemplate, `quat_outfit_${characterId}`);
-      if (outfitClone) {
-        outfitClone.parent = root;
-        outfitClone.position = Vector3.Zero();
+    // For complete character models, skip outfit/hair — they're baked into the body mesh
+    if (!isCompleteCharacterModel(config.body.id)) {
+      // Load and attach outfit
+      const outfitTemplate = await this.loadPart(config.outfit.id, config.outfit.path);
+      if (outfitTemplate) {
+        const outfitClone = this.cloneMesh(outfitTemplate, `quat_outfit_${characterId}`);
+        if (outfitClone) {
+          outfitClone.parent = root;
+          outfitClone.position = Vector3.Zero();
+        }
       }
-    }
 
-    // Load and attach hair
-    if (config.hair) {
-      const hairTemplate = await this.loadPart(config.hair.id, config.hair.path);
-      if (hairTemplate) {
-        const hairClone = this.cloneMesh(hairTemplate, `quat_hair_${characterId}`);
-        if (hairClone) {
-          hairClone.parent = root;
-          hairClone.position = Vector3.Zero();
+      // Load and attach hair
+      if (config.hair) {
+        const hairTemplate = await this.loadPart(config.hair.id, config.hair.path);
+        if (hairTemplate) {
+          const hairClone = this.cloneMesh(hairTemplate, `quat_hair_${characterId}`);
+          if (hairClone) {
+            hairClone.parent = root;
+            hairClone.position = Vector3.Zero();
+          }
         }
       }
     }
@@ -317,11 +347,17 @@ export class QuaterniusNPCLoader {
       root.setEnabled(false);
       root.name = `__quat_part_${partId}`;
 
+      // Stop all auto-playing animation groups from the GLTF import
+      const animGroups = result.animationGroups || [];
+      for (const ag of animGroups) {
+        ag.stop();
+      }
+
       const template: PartTemplate = {
         sourceMesh: root,
         allMeshes: result.meshes,
         skeleton: result.skeletons?.[0] ?? null,
-        animationGroups: result.animationGroups || [],
+        animationGroups: animGroups,
       };
 
       this.partTemplates.set(partId, template);
@@ -374,14 +410,30 @@ export class QuaterniusNPCLoader {
       }
     }
 
-    // Clone animation groups
+    // Clone animation groups, retarget to the cloned skeleton, and keep original names
+    // so the CharacterController can find them by name (e.g. "Walk", "Idle", "Run")
     const animationGroups: any[] = [];
     for (const ag of template.animationGroups) {
-      if (ag && typeof ag.clone === 'function') {
-        animationGroups.push(ag.clone(`${ag.name}_${characterId}`));
-      } else {
-        animationGroups.push(ag);
+      if (!ag || typeof ag.clone !== 'function') continue;
+      const clonedAg = ag.clone(`${ag.name}_${characterId}`);
+      clonedAg.stop(); // Ensure not auto-playing
+
+      // Retarget the animation to the cloned skeleton's bones
+      if (skeleton && clonedAg.targetedAnimations) {
+        for (const ta of clonedAg.targetedAnimations) {
+          if (ta.target?.name) {
+            // Find the corresponding bone in the cloned skeleton
+            const bone = skeleton.bones.find((b: any) => b.name === ta.target.name);
+            if (bone) {
+              ta.target = bone;
+            }
+          }
+        }
       }
+
+      // Also register with the original base name so CharacterController can find it
+      clonedAg.name = ag.name;
+      animationGroups.push(clonedAg);
     }
 
     return { root, skeleton, animationGroups };

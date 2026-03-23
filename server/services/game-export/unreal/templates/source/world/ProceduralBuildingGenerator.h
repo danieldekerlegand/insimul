@@ -234,7 +234,8 @@ private:
     /** Create a porch with foundation, deck, steps, and posts. */
     void CreatePorch(USceneComponent* Parent, float BuildingWidth, float BuildingDepth,
                      float PorchDepth, int32 PorchSteps, float PorchElevation,
-                     FLinearColor Color, UMaterialInterface* BaseMaterial);
+                     FLinearColor Color, UMaterialInterface* BaseMaterial,
+                     int32 Floors, bool bHasBalcony);
 
     /** Add shutters flanking a window. */
     void AddShutters(USceneComponent* Parent, FVector WindowPosition, float WindowWidth,

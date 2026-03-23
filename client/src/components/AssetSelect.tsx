@@ -19,6 +19,8 @@ export interface AssetSelectProps {
   entityId?: string;
   /** Only show 3D model assets */
   modelsOnly?: boolean;
+  /** Filter to specific asset types (e.g. ['model_character', 'model_player']) */
+  assetTypeFilter?: string[];
   /** Placeholder text */
   placeholder?: string;
   /** Additional CSS classes for the trigger */
@@ -47,6 +49,7 @@ export function AssetSelect({
   entityType,
   entityId,
   modelsOnly = false,
+  assetTypeFilter,
   placeholder = 'Select asset...',
   className,
   disabled,
@@ -87,7 +90,10 @@ export function AssetSelect({
     enabled: !collectionId || !!collection,
   });
 
-  const assets = modelsOnly ? rawAssets.filter(isModelAsset) : rawAssets;
+  let assets = modelsOnly ? rawAssets.filter(isModelAsset) : rawAssets;
+  if (assetTypeFilter?.length) {
+    assets = assets.filter(a => assetTypeFilter.includes(a.assetType));
+  }
 
   const handleValueChange = (selectedId: string) => {
     if (selectedId === CLEAR_VALUE) {

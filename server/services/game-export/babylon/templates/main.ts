@@ -50,11 +50,15 @@ if (!canvas) throw new Error('Canvas not found');
 const engine = new Engine(canvas, true);
 const dataSource = createDataSource();
 
+// API URL for cloud saves — set during export, or empty for offline-only mode
+const API_URL = '{{API_URL}}';
+
 const game = new BabylonGame(canvas, {
   worldId: '{{WORLD_ID}}',
   worldName: '{{WORLD_NAME}}',
   worldType: '{{WORLD_TYPE}}',
   dataSource: dataSource,
+  apiUrl: API_URL || undefined,
 });
 
 // Timeout: if init takes longer than 3 minutes, surface a message

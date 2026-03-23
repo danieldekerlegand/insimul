@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette } from "lucide-react";
 import { BUILDING_CATEGORY_GROUPINGS, getCategoryForType, type BuildingCategory } from "@shared/game-engine/building-categories";
 import { AssetSelect } from "../AssetSelect";
+import { AssetDropdown } from "./AssetDropdown";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 import type {
   UnifiedBuildingTypeConfig,
@@ -85,6 +86,12 @@ export function humanize(s: string): string {
 
 import type { ConfigSelection } from "./config-selection";
 import { getBuildingDefaults } from "@shared/game-engine/building-defaults";
+import {
+  MATERIAL_PRESETS,
+  ARCHITECTURE_PRESETS,
+  applyMaterialPreset,
+  applyArchitecturePreset,
+} from "@shared/game-engine/building-preset-definitions";
 
 interface BuildingConfigurationPanelProps {
   collection: AssetCollection;
@@ -342,6 +349,125 @@ function isOverridden(
   return field in overrides && overrides[field] !== undefined;
 }
 
+// ─── Grouped Config Helpers ──────────────────────────────────────────────────
+
+function ConfigSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="group border rounded bg-muted/10" open>
+      <summary className="flex items-center gap-1 px-2 py-1 cursor-pointer select-none text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:bg-muted/30">
+        <ChevronRight className="w-3 h-3 transition-transform group-open:rotate-90" />
+        {title}
+      </summary>
+      <div className="px-2 pb-2 pt-1 space-y-1.5">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function ColorAndTexture({
+  label, colorField, textureField, getResolved, overrides, categoryPreset, assets, setOverride, resetField,
+}: {
+  label: string;
+  colorField: 'roofColor' | 'windowColor' | 'doorColor';
+  textureField: 'roofTextureId' | 'wallTextureId' | 'doorTextureId' | 'windowTextureId' | 'balconyTextureId' | 'ironworkTextureId' | 'porchTextureId' | 'shutterTextureId' | 'floorTextureId';
+  getResolved: <K extends keyof ProceduralStylePreset>(field: K) => ProceduralStylePreset[K] | undefined;
+  overrides: Partial<ProceduralStylePreset> | undefined;
+  categoryPreset: ProceduralStylePreset | undefined;
+  assets: VisualAsset[];
+  setOverride: (partial: Partial<ProceduralStylePreset>) => void;
+  resetField: (field: keyof ProceduralStylePreset) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div>
+        <div className="flex items-center gap-0.5">
+          <Label className="text-[10px]">{label} Color</Label>
+          {isOverridden(overrides, colorField) && (
+            <button className="text-muted-foreground hover:text-foreground" onClick={() => resetField(colorField)} title="Reset to category">
+              <RotateCcw className="w-2 h-2" />
+            </button>
+          )}
+        </div>
+        <input
+          type="color"
+          value={colorToHex(getResolved(colorField) || { r: 0.5, g: 0.5, b: 0.5 })}
+          onChange={e => setOverride({ [colorField]: hexToColor(e.target.value) })}
+          className="w-full h-6 rounded border cursor-pointer p-0"
+        />
+        {!isOverridden(overrides, colorField) && categoryPreset && (
+          <p className="text-[8px] text-muted-foreground">(inherited)</p>
+        )}
+      </div>
+      <TextureRow label={`${label} Texture`} field={textureField} getResolved={getResolved} overrides={overrides} assets={assets} setOverride={setOverride} resetField={resetField} />
+    </div>
+  );
+}
+
+function TextureRow({
+  label, field, getResolved, overrides, assets, setOverride, resetField,
+}: {
+  label: string;
+  field: keyof ProceduralStylePreset;
+  getResolved: <K extends keyof ProceduralStylePreset>(field: K) => ProceduralStylePreset[K] | undefined;
+  overrides: Partial<ProceduralStylePreset> | undefined;
+  assets: VisualAsset[];
+  setOverride: (partial: Partial<ProceduralStylePreset>) => void;
+  resetField: (field: keyof ProceduralStylePreset) => void;
+}) {
+  const textureId = getResolved(field) as string | undefined;
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label className="text-[10px]">{label}</Label>
+        {isOverridden(overrides, field) && (
+          <button className="text-muted-foreground hover:text-foreground" onClick={() => resetField(field)} title="Reset to category">
+            <RotateCcw className="w-2 h-2" />
+          </button>
+        )}
+      </div>
+      <AssetDropdown
+        assets={assets}
+        value={textureId}
+        onChange={(id) => setOverride({ [field]: id || undefined } as any)}
+        filter="texture"
+        placeholder="Not set (using color)"
+        className="h-6 text-[10px]"
+      />
+    </div>
+  );
+}
+
+function FeatureToggle({
+  label, field, getResolved, overrides, setOverride, resetField,
+}: {
+  label: string;
+  field: 'hasBalcony' | 'hasIronworkBalcony' | 'hasPorch' | 'hasShutters';
+  getResolved: <K extends keyof ProceduralStylePreset>(field: K) => ProceduralStylePreset[K] | undefined;
+  overrides: Partial<ProceduralStylePreset> | undefined;
+  setOverride: (partial: Partial<ProceduralStylePreset>) => void;
+  resetField: (field: keyof ProceduralStylePreset) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <label className="flex items-center gap-1 text-[10px] cursor-pointer flex-1">
+        <input
+          type="checkbox"
+          checked={!!getResolved(field)}
+          onChange={e => setOverride({ [field]: e.target.checked || undefined })}
+          className="w-3 h-3"
+        />
+        {label}
+      </label>
+      {isOverridden(overrides, field) && (
+        <button className="text-muted-foreground hover:text-foreground" onClick={() => resetField(field)} title="Reset">
+          <RotateCcw className="w-2 h-2" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function BuildingTypeDetailPanel({
   typeName,
   config,
@@ -477,7 +603,7 @@ export function BuildingTypeDetailPanel({
 
       {/* ── Procedural Mode ── */}
       {!interiorOnly && mode === "procedural" && (
-        <div className="space-y-2" data-testid={`procedural-config-${typeName}`}>
+        <div className="space-y-1.5" data-testid={`procedural-config-${typeName}`}>
           {/* Reset all */}
           {hasAnyOverrides && (
             <div className="flex justify-end">
@@ -487,196 +613,238 @@ export function BuildingTypeDetailPanel({
             </div>
           )}
 
-          {/* Material + Architecture */}
-          <div className="grid grid-cols-2 gap-1.5">
-            <OverridableSelect
-              label="Material"
-              field="materialType"
-              value={getResolved('materialType')}
-              options={MATERIAL_TYPES.map(m => ({ value: m, label: m }))}
-              isOverridden={isOverridden(overrides, 'materialType')}
-              categoryName={categoryPreset ? 'category' : undefined}
-              onChange={v => setOverride({ materialType: v as MaterialType })}
-              onReset={() => resetField('materialType')}
-            />
-            <OverridableSelect
-              label="Architecture"
-              field="architectureStyle"
-              value={getResolved('architectureStyle')}
-              options={ARCH_STYLES.map(a => ({ value: a, label: a }))}
-              isOverridden={isOverridden(overrides, 'architectureStyle')}
-              categoryName={categoryPreset ? 'category' : undefined}
-              onChange={v => setOverride({ architectureStyle: v as ArchitectureStyle })}
-              onReset={() => resetField('architectureStyle')}
-            />
-          </div>
-
-          {/* Roof style */}
-          <OverridableSelect
-            label="Roof Style"
-            field="roofStyle"
-            value={getResolved('roofStyle') || 'default'}
-            options={[
-              { value: 'default', label: 'Default (from architecture)' },
-              ...ROOF_STYLES.map(r => ({ value: r, label: r.replace(/_/g, ' ') })),
-            ]}
-            isOverridden={isOverridden(overrides, 'roofStyle')}
-            categoryName={categoryPreset ? 'category' : undefined}
-            onChange={v => setOverride({ roofStyle: v === 'default' ? undefined : v as RoofStyle })}
-            onReset={() => resetField('roofStyle')}
-          />
-
-          {/* Wall Colors */}
-          <div>
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px]">
-                Wall Colors
-                {!isOverridden(overrides, 'baseColors') && categoryPreset && (
-                  <span className="text-muted-foreground ml-1 font-normal">(inherited)</span>
-                )}
-              </Label>
-              <div className="flex gap-0.5">
-                {isOverridden(overrides, 'baseColors') && (
-                  <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => resetField('baseColors')} title="Reset to category">
-                    <RotateCcw className="w-2.5 h-2.5" />
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => {
-                  const current = getResolved('baseColors') || [{ r: 0.7, g: 0.7, b: 0.7 }];
-                  setOverride({ baseColors: [...current, { r: 0.7, g: 0.7, b: 0.7 }] });
-                }}>
-                  <Plus className="w-2.5 h-2.5" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {(getResolved('baseColors') || [{ r: 0.8, g: 0.75, b: 0.65 }]).map((c, i) => (
-                <div key={i} className="relative group">
-                  <input
-                    type="color"
-                    value={colorToHex(c)}
-                    onChange={e => {
-                      const colors = [...(getResolved('baseColors') || [])];
-                      colors[i] = hexToColor(e.target.value);
-                      setOverride({ baseColors: colors });
-                    }}
-                    className="w-6 h-6 rounded border cursor-pointer p-0"
-                  />
-                  {(getResolved('baseColors') || []).length > 1 && (
-                    <button
-                      className="absolute -top-1 -right-1 w-3 h-3 bg-destructive text-white rounded-full text-[8px] leading-none hidden group-hover:flex items-center justify-center"
-                      onClick={() => {
-                        const colors = (getResolved('baseColors') || []).filter((_, j) => j !== i);
-                        setOverride({ baseColors: colors });
-                      }}
-                    >
-                      &times;
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Roof / Window / Door colors */}
-          <div className="grid grid-cols-3 gap-1.5">
-            {([
-              ['Roof', 'roofColor'] as const,
-              ['Window', 'windowColor'] as const,
-              ['Door', 'doorColor'] as const,
-            ]).map(([label, field]) => (
-              <div key={field}>
-                <div className="flex items-center gap-0.5">
-                  <Label className="text-[10px]">{label}</Label>
-                  {isOverridden(overrides, field) && (
-                    <button className="text-muted-foreground hover:text-foreground" onClick={() => resetField(field)} title="Reset to category">
-                      <RotateCcw className="w-2 h-2" />
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="color"
-                  value={colorToHex(getResolved(field) || { r: 0.5, g: 0.5, b: 0.5 })}
-                  onChange={e => setOverride({ [field]: hexToColor(e.target.value) })}
-                  className="w-full h-6 rounded border cursor-pointer p-0"
-                />
-                {!isOverridden(overrides, field) && categoryPreset && (
-                  <p className="text-[8px] text-muted-foreground">(inherited)</p>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Features */}
-          <div className="space-y-1">
-            <p className="text-[10px] font-semibold text-muted-foreground">Features</p>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-              {([
-                ['Balcony', 'hasBalcony'] as const,
-                ['Ironwork Balcony', 'hasIronworkBalcony'] as const,
-                ['Front Porch', 'hasPorch'] as const,
-                ['Shutters', 'hasShutters'] as const,
-              ]).map(([label, field]) => (
-                <div key={field} className="flex items-center gap-1">
-                  <label className="flex items-center gap-1 text-[10px] cursor-pointer flex-1">
-                    <input
-                      type="checkbox"
-                      checked={!!getResolved(field)}
-                      onChange={e => setOverride({ [field]: e.target.checked || undefined })}
-                      className="w-3 h-3"
-                    />
-                    {label}
-                  </label>
-                  {isOverridden(overrides, field) && (
-                    <button className="text-muted-foreground hover:text-foreground" onClick={() => resetField(field)} title="Reset">
-                      <RotateCcw className="w-2 h-2" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Porch options (conditional) */}
-          {getResolved('hasPorch') && (
+          {/* ── Material & Architecture Quick Presets ── */}
+          <ConfigSection title="Style Presets">
+            <p className="text-[9px] text-muted-foreground -mt-0.5 mb-1">
+              Changing a preset resets its related fields to defaults. Further edits below create a modified variant.
+            </p>
             <div className="grid grid-cols-2 gap-1.5">
               <div>
-                <Label className="text-[10px]">Porch Depth</Label>
-                <Input
-                  type="number"
-                  className="h-5 text-[10px]"
-                  value={getResolved('porchDepth') ?? 3}
-                  onChange={e => setOverride({ porchDepth: parseFloat(e.target.value) || 3 })}
-                />
+                <Label className="text-[10px]">Material</Label>
+                <Select
+                  value={getResolved('materialType') || 'wood'}
+                  onValueChange={v => {
+                    const applied = applyMaterialPreset(overrides || {}, v as MaterialType);
+                    onUpdate({ ...config, mode: 'procedural', styleOverrides: applied });
+                  }}
+                >
+                  <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MATERIAL_TYPES.map(m => {
+                      const mp = MATERIAL_PRESETS[m];
+                      return (
+                        <SelectItem key={m} value={m}>
+                          <span className="flex items-center gap-1.5">
+                            <span
+                              className="inline-block w-3 h-3 rounded-sm border"
+                              style={{ backgroundColor: `rgb(${mp.baseColors[0].r * 255},${mp.baseColors[0].g * 255},${mp.baseColors[0].b * 255})` }}
+                            />
+                            {mp.label}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <Label className="text-[10px]">Porch Steps</Label>
-                <Input
-                  type="number"
-                  className="h-5 text-[10px]"
-                  value={getResolved('porchSteps') ?? 3}
-                  onChange={e => setOverride({ porchSteps: parseInt(e.target.value) || 3 })}
-                />
+                <Label className="text-[10px]">Architecture</Label>
+                <Select
+                  value={getResolved('architectureStyle') || 'colonial'}
+                  onValueChange={v => {
+                    const applied = applyArchitecturePreset(overrides || {}, v as ArchitectureStyle);
+                    onUpdate({ ...config, mode: 'procedural', styleOverrides: applied });
+                  }}
+                >
+                  <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ARCH_STYLES.map(a => {
+                      const ap = ARCHITECTURE_PRESETS[a];
+                      return (
+                        <SelectItem key={a} value={a}>
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground text-[9px]">{ap.roofStyle}</span>
+                            {ap.label}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          )}
+          </ConfigSection>
 
-          {/* Shutter color (conditional) */}
-          {getResolved('hasShutters') && (
+          {/* ── Roof ── */}
+          <ConfigSection title="Roof">
+            <OverridableSelect
+              label="Roof Style"
+              field="roofStyle"
+              value={getResolved('roofStyle') || 'default'}
+              options={[
+                { value: 'default', label: 'Default (from architecture)' },
+                ...ROOF_STYLES.map(r => ({ value: r, label: r.replace(/_/g, ' ') })),
+              ]}
+              isOverridden={isOverridden(overrides, 'roofStyle')}
+              categoryName={categoryPreset ? 'category' : undefined}
+              onChange={v => setOverride({ roofStyle: v === 'default' ? undefined : v as RoofStyle })}
+              onReset={() => resetField('roofStyle')}
+            />
+            <ColorAndTexture
+              label="Roof"
+              colorField="roofColor"
+              textureField="roofTextureId"
+              getResolved={getResolved}
+              overrides={overrides}
+              categoryPreset={categoryPreset}
+              assets={assets}
+              setOverride={setOverride}
+              resetField={resetField}
+            />
+          </ConfigSection>
+
+          {/* ── Walls ── */}
+          <ConfigSection title="Walls">
             <div>
-              <Label className="text-[10px]">Shutter Color</Label>
-              <input
-                type="color"
-                value={colorToHex(getResolved('shutterColor') || getResolved('doorColor') || { r: 0.4, g: 0.3, b: 0.2 })}
-                onChange={e => setOverride({ shutterColor: hexToColor(e.target.value) })}
-                className="w-full h-6 rounded border cursor-pointer p-0"
-              />
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px]">
+                  Wall Colors
+                  {!isOverridden(overrides, 'baseColors') && categoryPreset && (
+                    <span className="text-muted-foreground ml-1 font-normal">(inherited)</span>
+                  )}
+                </Label>
+                <div className="flex gap-0.5">
+                  {isOverridden(overrides, 'baseColors') && (
+                    <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => resetField('baseColors')} title="Reset to category">
+                      <RotateCcw className="w-2.5 h-2.5" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => {
+                    const current = getResolved('baseColors') || [{ r: 0.7, g: 0.7, b: 0.7 }];
+                    setOverride({ baseColors: [...current, { r: 0.7, g: 0.7, b: 0.7 }] });
+                  }}>
+                    <Plus className="w-2.5 h-2.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {(getResolved('baseColors') || [{ r: 0.8, g: 0.75, b: 0.65 }]).map((c, i) => (
+                  <div key={i} className="relative group">
+                    <input
+                      type="color"
+                      value={colorToHex(c)}
+                      onChange={e => {
+                        const colors = [...(getResolved('baseColors') || [])];
+                        colors[i] = hexToColor(e.target.value);
+                        setOverride({ baseColors: colors });
+                      }}
+                      className="w-6 h-6 rounded border cursor-pointer p-0"
+                    />
+                    {(getResolved('baseColors') || []).length > 1 && (
+                      <button
+                        className="absolute -top-1 -right-1 w-3 h-3 bg-destructive text-white rounded-full text-[8px] leading-none hidden group-hover:flex items-center justify-center"
+                        onClick={() => {
+                          const colors = (getResolved('baseColors') || []).filter((_, j) => j !== i);
+                          setOverride({ baseColors: colors });
+                        }}
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+            <TextureRow label="Wall Texture" field="wallTextureId" getResolved={getResolved} overrides={overrides} assets={assets} setOverride={setOverride} resetField={resetField} />
+          </ConfigSection>
 
-          {/* Dimension overrides */}
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">Dimensions</p>
+          {/* ── Windows ── */}
+          <ConfigSection title="Windows">
+            <ColorAndTexture
+              label="Window"
+              colorField="windowColor"
+              textureField="windowTextureId"
+              getResolved={getResolved}
+              overrides={overrides}
+              categoryPreset={categoryPreset}
+              assets={assets}
+              setOverride={setOverride}
+              resetField={resetField}
+            />
+            <FeatureToggle label="Shutters" field="hasShutters" getResolved={getResolved} overrides={overrides} setOverride={setOverride} resetField={resetField} />
+            {getResolved('hasShutters') && (
+              <>
+                <div>
+                  <Label className="text-[10px]">Shutter Color</Label>
+                  <input
+                    type="color"
+                    value={colorToHex(getResolved('shutterColor') || getResolved('doorColor') || { r: 0.4, g: 0.3, b: 0.2 })}
+                    onChange={e => setOverride({ shutterColor: hexToColor(e.target.value) })}
+                    className="w-full h-6 rounded border cursor-pointer p-0"
+                  />
+                </div>
+                <TextureRow label="Shutter Texture" field="shutterTextureId" getResolved={getResolved} overrides={overrides} assets={assets} setOverride={setOverride} resetField={resetField} />
+              </>
+            )}
+          </ConfigSection>
+
+          {/* ── Doors ── */}
+          <ConfigSection title="Doors">
+            <ColorAndTexture
+              label="Door"
+              colorField="doorColor"
+              textureField="doorTextureId"
+              getResolved={getResolved}
+              overrides={overrides}
+              categoryPreset={categoryPreset}
+              assets={assets}
+              setOverride={setOverride}
+              resetField={resetField}
+            />
+          </ConfigSection>
+
+          {/* ── Balcony & Porch ── */}
+          <ConfigSection title="Balcony & Porch">
+            <div className="space-y-1">
+              <FeatureToggle label="Balcony" field="hasBalcony" getResolved={getResolved} overrides={overrides} setOverride={setOverride} resetField={resetField} />
+              {getResolved('hasBalcony') && (
+                <TextureRow label="Balcony Texture" field="balconyTextureId" getResolved={getResolved} overrides={overrides} assets={assets} setOverride={setOverride} resetField={resetField} />
+              )}
+              <FeatureToggle label="Ironwork Balcony" field="hasIronworkBalcony" getResolved={getResolved} overrides={overrides} setOverride={setOverride} resetField={resetField} />
+              {getResolved('hasIronworkBalcony') && (
+                <TextureRow label="Ironwork Texture" field="ironworkTextureId" getResolved={getResolved} overrides={overrides} assets={assets} setOverride={setOverride} resetField={resetField} />
+              )}
+              <FeatureToggle label="Front Porch" field="hasPorch" getResolved={getResolved} overrides={overrides} setOverride={setOverride} resetField={resetField} />
+              {getResolved('hasPorch') && (
+                <>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <Label className="text-[10px]">Porch Depth</Label>
+                      <Input
+                        type="number"
+                        className="h-5 text-[10px]"
+                        value={getResolved('porchDepth') ?? 3}
+                        onChange={e => setOverride({ porchDepth: parseFloat(e.target.value) || 3 })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Porch Steps</Label>
+                      <Input
+                        type="number"
+                        className="h-5 text-[10px]"
+                        value={getResolved('porchSteps') ?? 3}
+                        onChange={e => setOverride({ porchSteps: parseInt(e.target.value) || 3 })}
+                      />
+                    </div>
+                  </div>
+                  <TextureRow label="Porch Texture" field="porchTextureId" getResolved={getResolved} overrides={overrides} assets={assets} setOverride={setOverride} resetField={resetField} />
+                </>
+              )}
+            </div>
+          </ConfigSection>
+
+          {/* ── Dimensions ── */}
+          <ConfigSection title="Dimensions">
             <div className="grid grid-cols-3 gap-1">
               {([
                 ['Floors', 'floors'],
@@ -702,41 +870,7 @@ export function BuildingTypeDetailPanel({
                 );
               })}
             </div>
-          </div>
-
-          {/* Exterior Textures */}
-          <div className="space-y-1">
-            <p className="text-[10px] font-semibold text-muted-foreground">Textures</p>
-            {([
-              ['Wall Texture', 'wallTextureId'] as const,
-              ['Roof Texture', 'roofTextureId'] as const,
-              ['Door Texture', 'doorTextureId'] as const,
-              ['Window Texture', 'windowTextureId'] as const,
-            ]).map(([label, field]) => {
-              const textureId = getResolved(field as any) as string | undefined;
-              const textureName = textureId ? (assets.find(a => a.id === textureId)?.name ?? 'Selected') : null;
-              return (
-                <div key={field} className="flex items-center justify-between rounded border px-2 py-1">
-                  <div className="min-w-0 mr-2">
-                    <p className="text-[10px] font-medium">{label}</p>
-                    <p className="text-[9px] text-muted-foreground truncate">{textureName ?? 'Not set (using color)'}</p>
-                  </div>
-                  <div className="flex gap-0.5 shrink-0">
-                    {isOverridden(overrides, field as any) && (
-                      <button className="text-muted-foreground hover:text-foreground" onClick={() => resetField(field as any)} title="Reset">
-                        <RotateCcw className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                    {textureId && (
-                      <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setOverride({ [field]: undefined } as any)}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          </ConfigSection>
         </div>
       )}
 
@@ -857,19 +991,77 @@ function InlineCategoryPresetEditor({
             <Input className="h-6 text-xs" value={preset.name} onChange={e => onUpdate({ name: e.target.value })} />
           </div>
 
+          <p className="text-[9px] text-muted-foreground">
+            Changing a preset applies its defaults. Further edits create a modified variant.
+          </p>
           <div className="grid grid-cols-2 gap-1.5">
             <div>
               <Label className="text-[10px]">Material</Label>
-              <Select value={preset.materialType} onValueChange={v => onUpdate({ materialType: v as MaterialType })}>
+              <Select value={preset.materialType} onValueChange={v => {
+                const mp = MATERIAL_PRESETS[v as MaterialType];
+                onUpdate({
+                  materialType: mp.materialType,
+                  baseColors: [...mp.baseColors],
+                  roofColor: { ...mp.roofColor },
+                  doorColor: { ...mp.doorColor },
+                  windowColor: { ...mp.windowColor },
+                  shutterColor: { ...mp.shutterColor },
+                  wallTextureId: undefined,
+                  roofTextureId: undefined,
+                  doorTextureId: undefined,
+                  windowTextureId: undefined,
+                  shutterTextureId: undefined,
+                });
+              }}>
                 <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent>{MATERIAL_TYPES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {MATERIAL_TYPES.map(m => {
+                    const mp = MATERIAL_PRESETS[m];
+                    return (
+                      <SelectItem key={m} value={m}>
+                        <span className="flex items-center gap-1.5">
+                          <span className="inline-block w-3 h-3 rounded-sm border"
+                            style={{ backgroundColor: `rgb(${mp.baseColors[0].r * 255},${mp.baseColors[0].g * 255},${mp.baseColors[0].b * 255})` }} />
+                          {mp.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-[10px]">Architecture</Label>
-              <Select value={preset.architectureStyle} onValueChange={v => onUpdate({ architectureStyle: v as ArchitectureStyle })}>
+              <Select value={preset.architectureStyle} onValueChange={v => {
+                const ap = ARCHITECTURE_PRESETS[v as ArchitectureStyle];
+                onUpdate({
+                  architectureStyle: ap.architectureStyle,
+                  roofStyle: ap.roofStyle,
+                  hasBalcony: ap.hasBalcony,
+                  hasIronworkBalcony: ap.hasIronworkBalcony,
+                  hasPorch: ap.hasPorch,
+                  hasShutters: ap.hasShutters,
+                  porchDepth: ap.porchDepth,
+                  porchSteps: ap.porchSteps,
+                  balconyTextureId: undefined,
+                  ironworkTextureId: undefined,
+                  porchTextureId: undefined,
+                });
+              }}>
                 <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent>{ARCH_STYLES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {ARCH_STYLES.map(a => {
+                    const ap = ARCHITECTURE_PRESETS[a];
+                    return (
+                      <SelectItem key={a} value={a}>
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground text-[9px]">{ap.roofStyle}</span>
+                          {ap.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
               </Select>
             </div>
           </div>

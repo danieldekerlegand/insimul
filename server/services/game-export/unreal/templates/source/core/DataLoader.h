@@ -187,16 +187,29 @@ public:
     FString PayFines(const FString& SettlementId);
 
     /**
-     * List existing playthroughs. Returns JSON array of playthrough objects.
+     * List existing playthroughs. Scans SaveGames directory for playthrough
+     * metadata from the insimul_playthroughs.json index file.
+     * Returns JSON array of playthrough objects with id, name, status,
+     * createdAt, lastPlayedAt.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString ListPlaythroughs();
 
     /**
-     * Start a new playthrough. Returns JSON with unique playthrough ID and name.
+     * Start a new playthrough. Generates a unique ID (local-{timestamp}-{random}),
+     * persists metadata to the insimul_playthroughs.json index file,
+     * and sets CurrentPlaythroughId.
+     * Returns JSON with unique playthrough ID and name.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString StartPlaythrough(const FString& PlaythroughName);
+
+    /**
+     * Look up a specific playthrough by ID from the index file.
+     * Returns JSON object with playthrough metadata, or empty string if not found.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetPlaythrough(const FString& PlaythroughId);
 
     // ── Character lookup ──────────────────────────────────────────────
 
@@ -243,40 +256,45 @@ public:
     // ── Save / Load ────────────────────────────────────────────────────
 
     /**
-     * Save game state JSON to a numbered slot (0-2).
-     * Writes to Saved/SaveGames/insimul_save_<SlotIndex>.json.
+     * Save game state JSON to a numbered slot (0-2), scoped to a playthrough.
+     * Writes to Saved/SaveGames/insimul_save_{PlaythroughId}_{SlotIndex}.json.
+     * If PlaythroughId is empty, falls back to CurrentPlaythroughId.
      * Returns true on success.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
-    bool SaveGameState(int32 SlotIndex, const FString& GameStateJSON);
+    bool SaveGameState(int32 SlotIndex, const FString& GameStateJSON, const FString& PlaythroughId = TEXT(""));
 
     /**
-     * Load game state JSON from a numbered slot (0-2).
+     * Load game state JSON from a numbered slot (0-2), scoped to a playthrough.
+     * If PlaythroughId is empty, falls back to CurrentPlaythroughId.
      * Returns empty string if the slot has no save data.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
-    FString LoadGameState(int32 SlotIndex);
+    FString LoadGameState(int32 SlotIndex, const FString& PlaythroughId = TEXT(""));
 
     /**
-     * Delete game state from a numbered slot (0-2).
+     * Delete game state from a numbered slot (0-2), scoped to a playthrough.
+     * If PlaythroughId is empty, falls back to CurrentPlaythroughId.
      * Returns true if the file was deleted or did not exist.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
-    bool DeleteGameState(int32 SlotIndex);
+    bool DeleteGameState(int32 SlotIndex, const FString& PlaythroughId = TEXT(""));
 
     /**
-     * Save quest progress JSON to a dedicated file.
+     * Save quest progress JSON to a dedicated file, scoped to a playthrough.
+     * If PlaythroughId is empty, falls back to CurrentPlaythroughId.
      * Returns true on success.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
-    bool SaveQuestProgress(const FString& QuestProgressJSON);
+    bool SaveQuestProgress(const FString& QuestProgressJSON, const FString& PlaythroughId = TEXT(""));
 
     /**
-     * Load quest progress JSON from the dedicated file.
+     * Load quest progress JSON from the dedicated file, scoped to a playthrough.
+     * If PlaythroughId is empty, falls back to CurrentPlaythroughId.
      * Returns empty string if no quest progress has been saved.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
-    FString LoadQuestProgress();
+    FString LoadQuestProgress(const FString& PlaythroughId = TEXT(""));
 
     // ── Playthrough relationships ─────────────────────────────────────
 
@@ -316,6 +334,15 @@ private:
      *  Filters buildings by settlementId and residenceId presence. */
     FString DeriveResidencesFromBuildings(const FString& SettlementId) const;
 
+    /** Resolve the effective playthrough ID. Falls back to CurrentPlaythroughId if input is empty. */
+    FString ResolvePlaythroughId(const FString& PlaythroughId) const;
+
+    /** Load the playthroughs index file. Returns parsed JSON array. */
+    TArray<TSharedPtr<FJsonValue>> LoadPlaythroughIndex() const;
+
+    /** Save the playthroughs index file. */
+    bool SavePlaythroughIndex(const TArray<TSharedPtr<FJsonValue>>& Playthroughs) const;
+
     /** Cached Content/Data path resolved once at initialization. */
     FString DataDirectory;
 
@@ -324,4 +351,7 @@ private:
 
     /** Asset ID to file path map from WorldIR meta.assetIdToPath. */
     TMap<FString, FString> AssetIdToPathMap;
+
+    /** The currently active playthrough ID, set by StartPlaythrough. */
+    FString CurrentPlaythroughId;
 };

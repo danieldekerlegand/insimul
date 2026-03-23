@@ -89,7 +89,7 @@ export class ApiDataSource implements DataSource {
   private lastKnownServerState: Map<string, GameSaveState> = new Map();
   private conflictDialogHandler: ConflictDialogHandler | null = null;
 
-  constructor(private authToken: string) {
+  constructor(private authToken: string, private baseUrl: string = '') {
     this.saveQueue = new SaveQueue((op) => this.executeQueuedOp(op));
     this.saveQueue.onConflict((op) => this.handleConflict(op));
     this.saveQueue.init().catch((err) =>
@@ -147,7 +147,7 @@ export class ApiDataSource implements DataSource {
   private async fetchServerState(worldId: string, playthroughId: string, slotIndex: number): Promise<GameSaveState | null> {
     try {
       const res = await fetch(
-        `/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
+        `${this.baseUrl}/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
         { headers: this.getHeaders() },
       );
       if (!res.ok) return null;
@@ -160,7 +160,7 @@ export class ApiDataSource implements DataSource {
 
   /** Save directly to the API (bypassing queue). */
   private async directSave(worldId: string, playthroughId: string, slotIndex: number, state: GameSaveState): Promise<void> {
-    const res = await fetch(`/api/worlds/${worldId}/game-state`, {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/game-state`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
       body: JSON.stringify({ playthroughId, slotIndex, state }),
@@ -194,45 +194,45 @@ export class ApiDataSource implements DataSource {
           );
         }
 
-        url = `/api/worlds/${worldId}/game-state`;
+        url = `${this.baseUrl}/api/worlds/${worldId}/game-state`;
         body = JSON.stringify({ playthroughId, slotIndex, state });
         break;
       }
       case 'updateQuest': {
         const { questId, data } = op.payload;
-        url = `/api/quests/${questId}`;
+        url = `${this.baseUrl}/api/quests/${questId}`;
         method = 'PUT';
         body = JSON.stringify(data);
         break;
       }
       case 'transferItem': {
         const { worldId, transfer } = op.payload;
-        url = `/api/worlds/${worldId}/inventory/transfer`;
+        url = `${this.baseUrl}/api/worlds/${worldId}/inventory/transfer`;
         body = JSON.stringify(transfer);
         break;
       }
       case 'payFines': {
         const { playthroughId, settlementId } = op.payload;
-        url = `/api/playthroughs/${playthroughId}/reputations/settlement/${settlementId}/pay-fines`;
+        url = `${this.baseUrl}/api/playthroughs/${playthroughId}/reputations/settlement/${settlementId}/pay-fines`;
         body = '{}';
         break;
       }
       case 'saveQuestProgress': {
         const { playthroughId: ptId, questProgress } = op.payload;
-        url = `/api/playthroughs/${ptId}/quest-progress`;
+        url = `${this.baseUrl}/api/playthroughs/${ptId}/quest-progress`;
         method = 'PUT';
         body = JSON.stringify({ questProgress });
         break;
       }
       case 'saveConversation': {
         const { playthroughId: ptId2, conversation } = op.payload;
-        url = `/api/playthroughs/${ptId2}/conversations`;
+        url = `${this.baseUrl}/api/playthroughs/${ptId2}/conversations`;
         body = JSON.stringify(conversation);
         break;
       }
       case 'updateConversation': {
         const { playthroughId: ptId3, conversationId, updates } = op.payload;
-        url = `/api/playthroughs/${ptId3}/conversations/${conversationId}`;
+        url = `${this.baseUrl}/api/playthroughs/${ptId3}/conversations/${conversationId}`;
         method = 'PATCH';
         body = JSON.stringify(updates);
         break;
@@ -268,93 +268,93 @@ export class ApiDataSource implements DataSource {
   }
 
   async loadWorld(worldId: string): Promise<any> {
-    const res = await fetch(`/api/worlds/${worldId}`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : {};
   }
 
   async loadCharacters(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/characters`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/characters`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadActions(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/actions`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/actions`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadBaseActions(): Promise<any[]> {
-    const res = await fetch(`/api/actions/base`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/actions/base`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadQuests(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/quests`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests`, { headers: this.getHeaders() });
     const baseQuests = res.ok ? await res.json() : [];
     return this.questOverlay ? this.questOverlay.mergeQuests(baseQuests) : baseQuests;
   }
 
   async loadSettlements(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/settlements`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/settlements`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadRules(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/rules?worldId=${worldId}`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/rules?worldId=${worldId}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadBaseRules(): Promise<any[]> {
-    const res = await fetch(`/api/rules/base`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/rules/base`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadCountries(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/countries`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/countries`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadStates(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/states`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/states`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadBaseResources(worldId: string): Promise<any> {
-    const res = await fetch(`/api/worlds/${worldId}/base-resources/config`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/base-resources/config`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : {};
   }
 
   async loadAssets(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/assets`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/assets`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadConfig3D(worldId: string): Promise<any> {
-    const res = await fetch(`/api/worlds/${worldId}/3d-config`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/3d-config`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : {};
   }
 
   async loadTruths(worldId: string, playthroughId?: string): Promise<any[]> {
     const url = playthroughId
-      ? `/api/worlds/${worldId}/truth?playthroughId=${encodeURIComponent(playthroughId)}`
-      : `/api/worlds/${worldId}/truth`;
+      ? `${this.baseUrl}/api/worlds/${worldId}/truth?playthroughId=${encodeURIComponent(playthroughId)}`
+      : `${this.baseUrl}/api/worlds/${worldId}/truth`;
     const res = await fetch(url, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadCharacter(characterId: string): Promise<any> {
-    const res = await fetch(`/api/characters/${characterId}`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/characters/${characterId}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
   }
 
   async listPlaythroughs(worldId: string, authToken: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/playthroughs`, {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/playthroughs`, {
       headers: { 'Authorization': `Bearer ${authToken}` },
     });
     return res.ok ? await res.json() : [];
   }
 
   async startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any> {
-    const res = await fetch(`/api/worlds/${worldId}/playthroughs/start`, {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/playthroughs/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -375,23 +375,23 @@ export class ApiDataSource implements DataSource {
   }
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {
-    const res = await fetch(`/api/settlements/${settlementId}/businesses`);
+    const res = await fetch(`${this.baseUrl}/api/settlements/${settlementId}/businesses`);
     return res.ok ? await res.json() : [];
   }
 
   async loadSettlementLots(settlementId: string): Promise<any[]> {
-    const res = await fetch(`/api/settlements/${settlementId}/lots`);
+    const res = await fetch(`${this.baseUrl}/api/settlements/${settlementId}/lots`);
     return res.ok ? await res.json() : [];
   }
 
   async loadSettlementResidences(settlementId: string): Promise<any[]> {
-    const res = await fetch(`/api/settlements/${settlementId}/residences`);
+    const res = await fetch(`${this.baseUrl}/api/settlements/${settlementId}/residences`);
     return res.ok ? await res.json() : [];
   }
 
   async payFines(playthroughId: string, settlementId: string): Promise<any> {
     const res = await fetch(
-      `/api/playthroughs/${playthroughId}/reputations/settlement/${settlementId}/pay-fines`,
+      `${this.baseUrl}/api/playthroughs/${playthroughId}/reputations/settlement/${settlementId}/pay-fines`,
       {
         method: 'POST',
         headers: {
@@ -404,12 +404,12 @@ export class ApiDataSource implements DataSource {
   }
 
   async getEntityInventory(worldId: string, entityId: string): Promise<any> {
-    const res = await fetch(`/api/worlds/${worldId}/entities/${entityId}/inventory`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/entities/${entityId}/inventory`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : { entityId, items: [], gold: 0 };
   }
 
   async transferItem(worldId: string, transfer: any): Promise<any> {
-    const res = await fetch(`/api/worlds/${worldId}/inventory/transfer`, {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/inventory/transfer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
       body: JSON.stringify(transfer),
@@ -418,17 +418,17 @@ export class ApiDataSource implements DataSource {
   }
 
   async getMerchantInventory(worldId: string, merchantId: string): Promise<any> {
-    const res = await fetch(`/api/worlds/${worldId}/merchants/${merchantId}/inventory`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/merchants/${merchantId}/inventory`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
   }
 
   async loadWorldItems(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/items`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/items`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async loadContainers(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/containers`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/containers`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
@@ -437,12 +437,12 @@ export class ApiDataSource implements DataSource {
     if (location.businessId) params.set('businessId', location.businessId);
     if (location.residenceId) params.set('residenceId', location.residenceId);
     if (location.lotId) params.set('lotId', location.lotId);
-    const res = await fetch(`/api/worlds/${worldId}/containers/by-location?${params}`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/containers/by-location?${params}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async updateContainer(containerId: string, data: any): Promise<any> {
-    const res = await fetch(`/api/containers/${containerId}`, {
+    const res = await fetch(`${this.baseUrl}/api/containers/${containerId}`, {
       method: 'PUT',
       headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -451,7 +451,7 @@ export class ApiDataSource implements DataSource {
   }
 
   async transferContainerItem(containerId: string, transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any> {
-    const res = await fetch(`/api/containers/${containerId}/transfer`, {
+    const res = await fetch(`${this.baseUrl}/api/containers/${containerId}/transfer`, {
       method: 'POST',
       headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(transfer),
@@ -461,7 +461,7 @@ export class ApiDataSource implements DataSource {
 
   async loadPrologContent(worldId: string): Promise<string | null> {
     try {
-      const res = await fetch(`/api/prolog/tau/export/${worldId}`, { headers: this.getHeaders() });
+      const res = await fetch(`${this.baseUrl}/api/prolog/tau/export/${worldId}`, { headers: this.getHeaders() });
       if (res.ok) {
         const data = await res.json();
         return data.content || null;
@@ -480,7 +480,7 @@ export class ApiDataSource implements DataSource {
 
   async loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null> {
     const res = await fetch(
-      `/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
+      `${this.baseUrl}/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
       { headers: this.getHeaders() }
     );
     if (!res.ok) return null;
@@ -497,7 +497,7 @@ export class ApiDataSource implements DataSource {
 
   async deleteGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<void> {
     const res = await fetch(
-      `/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
+      `${this.baseUrl}/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
       { method: 'DELETE', headers: this.getHeaders() }
     );
     if (!res.ok) {
@@ -515,7 +515,7 @@ export class ApiDataSource implements DataSource {
 
   async loadQuestProgress(playthroughId: string): Promise<any | null> {
     const res = await fetch(
-      `/api/playthroughs/${playthroughId}/quest-progress`,
+      `${this.baseUrl}/api/playthroughs/${playthroughId}/quest-progress`,
       { headers: this.getHeaders() }
     );
     if (!res.ok) return null;
@@ -525,7 +525,7 @@ export class ApiDataSource implements DataSource {
 
   async loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null> {
     try {
-      const res = await fetch(`/api/worlds/${worldId}/geography`, { headers: this.getHeaders() });
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/geography`, { headers: this.getHeaders() });
       if (res.ok) {
         const data = await res.json();
         return data || null;
@@ -536,7 +536,7 @@ export class ApiDataSource implements DataSource {
 
   async loadAIConfig(worldId: string): Promise<any | null> {
     try {
-      const res = await fetch(`/api/worlds/${worldId}/export/ir`, { headers: this.getHeaders() });
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/export/ir`, { headers: this.getHeaders() });
       if (res.ok) {
         const ir = await res.json();
         return ir.aiConfig || null;
@@ -547,7 +547,7 @@ export class ApiDataSource implements DataSource {
 
   async loadDialogueContexts(worldId: string): Promise<any[]> {
     try {
-      const res = await fetch(`/api/worlds/${worldId}/export/ir`, { headers: this.getHeaders() });
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/export/ir`, { headers: this.getHeaders() });
       if (res.ok) {
         const ir = await res.json();
         return ir.systems?.dialogueContexts || [];
@@ -558,7 +558,7 @@ export class ApiDataSource implements DataSource {
 
   async saveConversation(playthroughId: string, conversation: any): Promise<any> {
     const res = await fetch(
-      `/api/playthroughs/${playthroughId}/conversations`,
+      `${this.baseUrl}/api/playthroughs/${playthroughId}/conversations`,
       {
         method: 'POST',
         headers: this.getHeaders(),
@@ -571,7 +571,7 @@ export class ApiDataSource implements DataSource {
 
   async updateConversation(playthroughId: string, conversationId: string, updates: any): Promise<any> {
     const res = await fetch(
-      `/api/playthroughs/${playthroughId}/conversations/${conversationId}`,
+      `${this.baseUrl}/api/playthroughs/${playthroughId}/conversations/${conversationId}`,
       {
         method: 'PATCH',
         headers: this.getHeaders(),
@@ -585,7 +585,7 @@ export class ApiDataSource implements DataSource {
   async getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]> {
     const query = npcCharacterId ? `?npcCharacterId=${npcCharacterId}` : '';
     const res = await fetch(
-      `/api/playthroughs/${playthroughId}/conversations${query}`,
+      `${this.baseUrl}/api/playthroughs/${playthroughId}/conversations${query}`,
       { headers: this.getHeaders() }
     );
     if (!res.ok) return [];
@@ -593,24 +593,24 @@ export class ApiDataSource implements DataSource {
   }
 
   async getPlaythrough(playthroughId: string): Promise<any | null> {
-    const res = await fetch(`/api/playthroughs/${playthroughId}`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
   }
 
   async markPlaythroughInitialized(playthroughId: string): Promise<void> {
-    await fetch(`/api/playthroughs/${playthroughId}/mark-initialized`, {
+    await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}/mark-initialized`, {
       method: 'POST',
       headers: this.getHeaders(),
     });
   }
 
   async loadPlaythroughRelationships(playthroughId: string): Promise<any[]> {
-    const res = await fetch(`/api/playthroughs/${playthroughId}/relationships`, { headers: this.getHeaders() });
+    const res = await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}/relationships`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
   async updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any> {
-    const res = await fetch(`/api/playthroughs/${playthroughId}/relationships`, {
+    const res = await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}/relationships`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
       body: JSON.stringify({ fromCharacterId, toCharacterId, ...data }),
@@ -650,26 +650,55 @@ export interface LocalStateData {
 }
 
 const LOCAL_STATE_KEY = 'insimul_local_state';
+const LOCAL_PLAYTHROUGHS_KEY = 'insimul_local_playthroughs';
+
+export interface LocalPlaythroughMeta {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastPlayedAt: string;
+  playtime: number;
+}
 
 export class LocalGameState {
   private state: LocalStateData;
+  private storageKey: string;
 
-  constructor(private storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = localStorage) {
-    this.state = this.load();
+  constructor(
+    private storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = localStorage,
+    playthroughId?: string,
+  ) {
+    // Migrate old single-playthrough format if needed
+    LocalGameState.migrateIfNeeded(storage);
+
+    if (playthroughId) {
+      this.storageKey = `${LOCAL_STATE_KEY}_${playthroughId}`;
+      this.state = this.load(playthroughId);
+    } else {
+      this.storageKey = LOCAL_STATE_KEY;
+      this.state = this.load();
+    }
     this.persist();
   }
 
-  private load(): LocalStateData {
+  private load(expectedId?: string): LocalStateData {
     try {
-      const raw = this.storage.getItem(LOCAL_STATE_KEY);
-      if (raw) return JSON.parse(raw);
+      const raw = this.storage.getItem(this.storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // If we're loading for a specific ID, ensure it matches
+        if (expectedId && parsed.playthroughId !== expectedId) {
+          parsed.playthroughId = expectedId;
+        }
+        return parsed;
+      }
     } catch { /* corrupted data, start fresh */ }
-    return this.defaultState();
+    return this.defaultState(expectedId);
   }
 
-  private defaultState(): LocalStateData {
+  private defaultState(playthroughId?: string): LocalStateData {
     return {
-      playthroughId: `exported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      playthroughId: playthroughId || `exported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       playthroughName: '',
       questUpdates: {},
       inventories: {},
@@ -681,7 +710,7 @@ export class LocalGameState {
 
   private persist(): void {
     try {
-      this.storage.setItem(LOCAL_STATE_KEY, JSON.stringify(this.state));
+      this.storage.setItem(this.storageKey, JSON.stringify(this.state));
     } catch (err) {
       console.error('[LocalGameState] Failed to persist:', err);
     }
@@ -692,7 +721,107 @@ export class LocalGameState {
   startPlaythrough(name: string): { id: string; name: string } {
     this.state.playthroughName = name;
     this.persist();
+    // Update lastPlayedAt in index
+    LocalGameState.updatePlaythroughMeta(this.storage, this.state.playthroughId, { lastPlayedAt: new Date().toISOString() });
     return { id: this.state.playthroughId, name };
+  }
+
+  // ─── Static methods for multi-playthrough management ──────────────────
+
+  /** Migrate old single-playthrough format to the new indexed format. */
+  static migrateIfNeeded(storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>): void {
+    try {
+      const index = storage.getItem(LOCAL_PLAYTHROUGHS_KEY);
+      if (index) return; // Already migrated
+
+      const old = storage.getItem(LOCAL_STATE_KEY);
+      if (!old) return; // Nothing to migrate
+
+      const oldState: LocalStateData = JSON.parse(old);
+      if (!oldState.playthroughId) return;
+
+      // Move old data to new keyed location
+      const newKey = `${LOCAL_STATE_KEY}_${oldState.playthroughId}`;
+      storage.setItem(newKey, old);
+
+      // Create index with the single entry
+      const meta: LocalPlaythroughMeta = {
+        id: oldState.playthroughId,
+        name: oldState.playthroughName || 'Playthrough',
+        createdAt: new Date().toISOString(),
+        lastPlayedAt: new Date().toISOString(),
+        playtime: 0,
+      };
+      storage.setItem(LOCAL_PLAYTHROUGHS_KEY, JSON.stringify([meta]));
+
+      // Migrate save slots: rename insimul_save_X → insimul_save_<id>_X
+      for (let i = 0; i < 3; i++) {
+        const oldSaveKey = `insimul_save_${i}`;
+        const savedData = storage.getItem(oldSaveKey);
+        if (savedData) {
+          storage.setItem(`insimul_save_${oldState.playthroughId}_${i}`, savedData);
+          storage.removeItem(oldSaveKey);
+        }
+      }
+
+      // Migrate quest progress
+      const oldQP = storage.getItem('insimul_quest_progress');
+      if (oldQP) {
+        storage.setItem(`insimul_quest_progress_${oldState.playthroughId}`, oldQP);
+        storage.removeItem('insimul_quest_progress');
+      }
+
+      // Remove old flat key (data has been moved)
+      storage.removeItem(LOCAL_STATE_KEY);
+    } catch (err) {
+      console.error('[LocalGameState] Migration failed:', err);
+    }
+  }
+
+  /** List all local playthroughs, sorted by lastPlayedAt descending. */
+  static listPlaythroughs(storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>): LocalPlaythroughMeta[] {
+    try {
+      const raw = storage.getItem(LOCAL_PLAYTHROUGHS_KEY);
+      if (!raw) return [];
+      const list: LocalPlaythroughMeta[] = JSON.parse(raw);
+      return list.sort((a, b) =>
+        new Date(b.lastPlayedAt).getTime() - new Date(a.lastPlayedAt).getTime()
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  /** Create a new playthrough entry and return its metadata. */
+  static createPlaythrough(
+    storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
+    name: string,
+  ): LocalPlaythroughMeta {
+    const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const now = new Date().toISOString();
+    const meta: LocalPlaythroughMeta = { id, name, createdAt: now, lastPlayedAt: now, playtime: 0 };
+
+    const list = LocalGameState.listPlaythroughs(storage);
+    list.push(meta);
+    storage.setItem(LOCAL_PLAYTHROUGHS_KEY, JSON.stringify(list));
+
+    return meta;
+  }
+
+  /** Update metadata for a specific playthrough in the index. */
+  static updatePlaythroughMeta(
+    storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
+    playthroughId: string,
+    updates: Partial<Pick<LocalPlaythroughMeta, 'lastPlayedAt' | 'playtime' | 'name'>>,
+  ): void {
+    try {
+      const list = LocalGameState.listPlaythroughs(storage);
+      const entry = list.find(p => p.id === playthroughId);
+      if (entry) {
+        Object.assign(entry, updates);
+        storage.setItem(LOCAL_PLAYTHROUGHS_KEY, JSON.stringify(list));
+      }
+    } catch { /* ignore */ }
   }
 
   updateQuest(questId: string, data: any): void {
@@ -871,11 +1000,19 @@ export class FileDataSource implements DataSource {
   public questOverlay: PlaythroughQuestOverlay | null = null;
   private worldData: any = null;
   private worldIR: any = null;
-  readonly localState: LocalGameState;
+  localState: LocalGameState;
+  private _storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
   constructor(storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>) {
-    this.localState = new LocalGameState(storage);
+    this._storage = storage || localStorage;
+    // Don't initialize a specific playthrough yet — let the menu handle that
+    this.localState = new LocalGameState(this._storage);
     this.loadWorldData();
+  }
+
+  /** Switch the active playthrough (creates a new LocalGameState scoped to the given ID). */
+  switchPlaythrough(playthroughId: string): void {
+    this.localState = new LocalGameState(this._storage, playthroughId);
   }
 
   private async loadWorldData(): Promise<void> {
@@ -1188,11 +1325,23 @@ export class FileDataSource implements DataSource {
   }
 
   async listPlaythroughs(_worldId: string, _authToken: string): Promise<any[]> {
-    return [];
+    const metas = LocalGameState.listPlaythroughs(this._storage);
+    return metas.map(m => ({
+      id: m.id,
+      name: m.name,
+      status: 'active',
+      lastPlayedAt: m.lastPlayedAt,
+      createdAt: m.createdAt,
+      playtime: m.playtime || 0,
+      actionsCount: 0,
+      source: 'local' as const,
+    }));
   }
 
   async startPlaythrough(_worldId: string, _authToken: string, playthroughName: string): Promise<any> {
-    return this.localState.startPlaythrough(playthroughName);
+    const meta = LocalGameState.createPlaythrough(this._storage, playthroughName);
+    this.switchPlaythrough(meta.id);
+    return { id: meta.id, name: meta.name };
   }
 
   async updateQuest(questId: string, data: any): Promise<void> {
@@ -1325,38 +1474,45 @@ export class FileDataSource implements DataSource {
     return null;
   }
 
-  async saveGameState(_worldId: string, _playthroughId: string, slotIndex: number, state: any): Promise<void> {
+  async saveGameState(_worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void> {
+    const ptId = playthroughId || this.localState.getPlaythroughId();
     try {
-      localStorage.setItem(`insimul_save_${slotIndex}`, JSON.stringify(state));
+      localStorage.setItem(`insimul_save_${ptId}_${slotIndex}`, JSON.stringify(state));
+      // Update lastPlayedAt in index
+      LocalGameState.updatePlaythroughMeta(this._storage, ptId, { lastPlayedAt: new Date().toISOString() });
     } catch (err) {
       console.error('Failed to save game state to localStorage:', err);
     }
   }
 
-  async loadGameState(_worldId: string, _playthroughId: string, slotIndex: number): Promise<any | null> {
+  async loadGameState(_worldId: string, playthroughId: string, slotIndex: number): Promise<any | null> {
+    const ptId = playthroughId || this.localState.getPlaythroughId();
     try {
-      const raw = localStorage.getItem(`insimul_save_${slotIndex}`);
+      const raw = localStorage.getItem(`insimul_save_${ptId}_${slotIndex}`);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
   }
 
-  async deleteGameState(_worldId: string, _playthroughId: string, slotIndex: number): Promise<void> {
-    localStorage.removeItem(`insimul_save_${slotIndex}`);
+  async deleteGameState(_worldId: string, playthroughId: string, slotIndex: number): Promise<void> {
+    const ptId = playthroughId || this.localState.getPlaythroughId();
+    localStorage.removeItem(`insimul_save_${ptId}_${slotIndex}`);
   }
 
-  async saveQuestProgress(_playthroughId: string, questProgress: any): Promise<void> {
+  async saveQuestProgress(playthroughId: string, questProgress: any): Promise<void> {
+    const ptId = playthroughId || this.localState.getPlaythroughId();
     try {
-      localStorage.setItem('insimul_quest_progress', JSON.stringify(questProgress));
+      localStorage.setItem(`insimul_quest_progress_${ptId}`, JSON.stringify(questProgress));
     } catch (err) {
       console.error('Failed to save quest progress to localStorage:', err);
     }
   }
 
-  async loadQuestProgress(_playthroughId: string): Promise<any | null> {
+  async loadQuestProgress(playthroughId: string): Promise<any | null> {
+    const ptId = playthroughId || this.localState.getPlaythroughId();
     try {
-      const raw = localStorage.getItem('insimul_quest_progress');
+      const raw = localStorage.getItem(`insimul_quest_progress_${ptId}`);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -1411,8 +1567,18 @@ export class FileDataSource implements DataSource {
     } catch { return []; }
   }
 
-  async getPlaythrough(_playthroughId: string): Promise<any | null> {
-    return null;
+  async getPlaythrough(playthroughId: string): Promise<any | null> {
+    const metas = LocalGameState.listPlaythroughs(this._storage);
+    const meta = metas.find(m => m.id === playthroughId);
+    if (!meta) return null;
+    return {
+      id: meta.id,
+      name: meta.name,
+      status: 'active',
+      createdAt: meta.createdAt,
+      lastPlayedAt: meta.lastPlayedAt,
+      playtime: meta.playtime || 0,
+    };
   }
 
   async markPlaythroughInitialized(_playthroughId: string): Promise<void> {
@@ -1431,17 +1597,17 @@ export class FileDataSource implements DataSource {
 /**
  * Factory to create the appropriate data source
  */
-export function createDataSource(authToken?: string): DataSource {
+export function createDataSource(authToken?: string, baseUrl?: string): DataSource {
   // Check if we're in an exported environment (no API available)
   if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
     return new FileDataSource();
   }
-  
+
   // Check if we have an auth token (Insimul environment)
   if (authToken) {
-    return new ApiDataSource(authToken);
+    return new ApiDataSource(authToken, baseUrl);
   }
-  
+
   // Default to file-based for safety
   return new FileDataSource();
 }

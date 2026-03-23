@@ -144,7 +144,7 @@ import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData }
 import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { SaveIndicator } from "@/components/3DGame/SaveIndicator.ts";
-import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
+import { DataSource, ApiDataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
 import { RelationshipManager } from "@/components/3DGame/RelationshipManager.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
@@ -166,7 +166,7 @@ import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.t
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { NPCModularAssembler, deriveBodyType as deriveModularBodyType } from "@/components/3DGame/NPCModularAssembler.ts";
-import { QuaterniusNPCLoader, normalizeToQuaterniusGender } from "@/components/3DGame/QuaterniusNPCLoader.ts";
+import { QuaterniusNPCLoader, normalizeToQuaterniusGender, selectQuaterniusConfig, isCompleteCharacterModel } from "@/components/3DGame/QuaterniusNPCLoader.ts";
 import { selectNPCModel, type NPCGender } from "@/components/3DGame/NPCModelVariety.ts";
 import { QuestOfferPanel } from "@/components/3DGame/QuestOfferPanel.ts";
 import type { QuestOfferData } from "@/components/3DGame/QuestOfferPanel.ts";
@@ -349,6 +349,8 @@ interface BabylonGameConfig {
   playthroughId?: string;
   onBack?: () => void;
   dataSource?: DataSource;
+  /** API server URL for cloud saves in standalone/Electron mode (e.g., 'http://localhost:8080') */
+  apiUrl?: string;
 }
 
 function computeWorldVisualTheme(worldType?: string): WorldVisualTheme {
@@ -603,6 +605,8 @@ export class BabylonGame {
   private playthroughId: string | null = null;
   private languageProgressTracker: LanguageProgressTracker | null = null;
   private titleScreen: MainMenuScreen | null = null;
+  /** Secondary API-based data source for cloud saves (used when signed in from standalone mode). */
+  private cloudDataSource: ApiDataSource | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private relationshipManager: RelationshipManager | null = null;
   private currentReputation: any | null = null;
@@ -831,7 +835,10 @@ export class BabylonGame {
       });
 
       // If no playthroughId was provided, show the playthrough selection menu
-      if (!this.config.playthroughId && this.config.authToken) {
+      if (!this.config.playthroughId) {
+        // Try to restore a previous cloud session from localStorage
+        await this.tryRestoreCloudSession();
+
         this.hideLoadingScreen();
         const selectedId = await this.showPlaythroughSelectionMenu();
         if (!selectedId) return; // User went back
@@ -896,6 +903,36 @@ export class BabylonGame {
   }
 
   /**
+   * Try to restore a cloud session from a previously saved auth token.
+   * Only applicable in standalone/Electron mode with an apiUrl configured.
+   */
+  private async tryRestoreCloudSession(): Promise<void> {
+    const apiUrl = this.config.apiUrl;
+    if (!apiUrl) return;
+
+    const savedToken = localStorage.getItem('insimul_token');
+    if (!savedToken) return;
+
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/verify`, {
+        headers: { Authorization: `Bearer ${savedToken}` },
+      });
+      if (res.ok) {
+        this.config.authToken = savedToken;
+        this.cloudDataSource = new ApiDataSource(savedToken, apiUrl);
+        console.log('[BabylonGame] Restored cloud session from saved token');
+      } else {
+        // Token expired or invalid
+        localStorage.removeItem('insimul_token');
+        localStorage.removeItem('insimul_username');
+      }
+    } catch {
+      // Server unreachable — proceed offline silently
+      console.log('[BabylonGame] Could not reach API server — playing offline');
+    }
+  }
+
+  /**
    * Show the playthrough selection/creation menu and wait for the user to pick one.
    * Returns the selected playthrough ID, or null if the user cancelled (went back).
    */
@@ -916,35 +953,74 @@ export class BabylonGame {
       }
     }
 
+    // Determine which data source to use for new game creation
+    const getActiveDataSource = (): DataSource => {
+      // If signed in with cloud, prefer cloud for new playthroughs
+      if (this.cloudDataSource && this.config.authToken) return this.cloudDataSource;
+      return this.dataSource;
+    };
+
     return new Promise<string | null>((resolve) => {
       this.titleScreen = new MainMenuScreen(
         this.guiManager!.advancedTexture,
         worldName || 'Untitled World',
         {
           getPlaythroughs: async (): Promise<PlaythroughInfo[]> => {
+            const results: PlaythroughInfo[] = [];
+
+            // Always get local playthroughs
             try {
-              const list = await this.dataSource.listPlaythroughs(
+              const localList = await this.dataSource.listPlaythroughs(
                 this.config.worldId,
                 this.config.authToken || '',
               );
-              return list.map((p: any) => ({
-                id: p.id,
-                name: p.name || 'Playthrough',
-                status: p.status,
-                lastPlayedAt: p.lastPlayedAt,
-                createdAt: p.createdAt,
-                playtime: p.playtime || 0,
-                actionsCount: p.actionsCount || 0,
-              }));
+              for (const p of localList) {
+                results.push({
+                  id: p.id,
+                  name: p.name || 'Playthrough',
+                  status: p.status || 'active',
+                  lastPlayedAt: p.lastPlayedAt,
+                  createdAt: p.createdAt,
+                  playtime: p.playtime || 0,
+                  actionsCount: p.actionsCount || 0,
+                  source: 'local',
+                });
+              }
             } catch (err) {
-              console.error('[BabylonGame] Failed to list playthroughs:', err);
-              return [];
+              console.error('[BabylonGame] Failed to list local playthroughs:', err);
             }
+
+            // If signed in, also fetch cloud playthroughs
+            if (this.cloudDataSource && this.config.authToken) {
+              try {
+                const cloudList = await this.cloudDataSource.listPlaythroughs(
+                  this.config.worldId,
+                  this.config.authToken,
+                );
+                for (const p of cloudList) {
+                  results.push({
+                    id: p.id,
+                    name: p.name || 'Playthrough',
+                    status: p.status || 'active',
+                    lastPlayedAt: p.lastPlayedAt,
+                    createdAt: p.createdAt,
+                    playtime: p.playtime || 0,
+                    actionsCount: p.actionsCount || 0,
+                    source: 'cloud',
+                  });
+                }
+              } catch (err) {
+                console.error('[BabylonGame] Failed to list cloud playthroughs:', err);
+              }
+            }
+
+            return results;
           },
           onNewGame: async (): Promise<string | null> => {
             const playthroughName = `${this.config.worldName || 'World'} Playthrough`;
+            const ds = getActiveDataSource();
             try {
-              const playthrough = await this.dataSource.startPlaythrough(
+              const playthrough = await ds.startPlaythrough(
                 this.config.worldId,
                 this.config.authToken || '',
                 playthroughName,
@@ -966,9 +1042,48 @@ export class BabylonGame {
           onBack: () => {
             this.titleScreen?.dispose();
             this.titleScreen = null;
-            this.config.onBack?.();
+            // In standalone/Electron mode, close the window
+            if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
+              window.close();
+            } else {
+              this.config.onBack?.();
+            }
             resolve(null);
           },
+
+          // ── Cloud save sign-in callbacks (only active when apiUrl is set) ──
+          ...(this.config.apiUrl ? {
+            onSignIn: async (username: string, password: string) => {
+              const apiUrl = this.config.apiUrl!;
+              try {
+                const res = await fetch(`${apiUrl}/api/auth/login`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ username, password }),
+                });
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({ message: 'Login failed' }));
+                  return { success: false, error: err.message || 'Login failed' };
+                }
+                const data = await res.json();
+                this.config.authToken = data.token;
+                localStorage.setItem('insimul_token', data.token);
+                localStorage.setItem('insimul_username', data.user?.username || username);
+                this.cloudDataSource = new ApiDataSource(data.token, apiUrl);
+                return { success: true };
+              } catch {
+                return { success: false, error: 'Could not connect to server' };
+              }
+            },
+            onSignOut: () => {
+              this.config.authToken = undefined;
+              this.cloudDataSource = null;
+              localStorage.removeItem('insimul_token');
+              localStorage.removeItem('insimul_username');
+            },
+            isSignedIn: () => !!(this.config.authToken && this.cloudDataSource),
+            getUsername: () => localStorage.getItem('insimul_username'),
+          } : {}),
         },
       );
       this.titleScreen.show();
@@ -3293,8 +3408,8 @@ export class BabylonGame {
       }
 
       // Apply world textures (ground, and potentially settlements/roads) from visual assets
-      if (this.textureManager && this.worldAssets.length > 0) {
-        this.applyWorldTexturesFromAssets();
+      if (this.textureManager) {
+        await this.applyWorldTexturesFromAssets();
       }
 
       // Initialize audio manager with audio config from asset collection
@@ -3523,12 +3638,29 @@ export class BabylonGame {
       if (this.textureManager) {
         this.buildingGenerator.setTextureManager(this.textureManager);
 
-        // Pre-load per-preset textures (wallTextureId / roofTextureId on each style preset)
+        // Pre-load ALL texture IDs from style presets and per-type overrides
         const presets = this.world3DConfig.proceduralBuildings.stylePresets || [];
         const textureIds = new Set<string>();
+        const collectTextureIds = (obj: Record<string, any>) => {
+          for (const key of Object.keys(obj)) {
+            if (key.endsWith('TextureId') && typeof obj[key] === 'string' && obj[key]) {
+              textureIds.add(obj[key] as string);
+            }
+          }
+        };
         for (const preset of presets) {
-          if (preset.wallTextureId) textureIds.add(preset.wallTextureId);
-          if (preset.roofTextureId) textureIds.add(preset.roofTextureId);
+          collectTextureIds(preset);
+        }
+        // Also collect from per-building-type styleOverrides
+        const typeOverrides = this.world3DConfig.proceduralBuildings.buildingTypeOverrides || {};
+        for (const override of Object.values(typeOverrides)) {
+          if (override && typeof override === 'object') collectTextureIds(override);
+        }
+        // And from buildingTypeConfigs styleOverrides
+        if (this.world3DConfig.buildingTypeConfigs) {
+          for (const cfg of Object.values(this.world3DConfig.buildingTypeConfigs)) {
+            if ((cfg as any)?.styleOverrides) collectTextureIds((cfg as any).styleOverrides);
+          }
         }
         for (const assetId of textureIds) {
           const asset = worldAssets.find((a) => a.id === assetId);
@@ -4569,10 +4701,21 @@ export class BabylonGame {
           scaledSettlement.position.x,
           scaledSettlement.position.z
         );
+        // Add settlement center to avoidance list so trees don't spawn on the sign
+        allBuildingPositions.push(settlementCenter.clone());
 
-        // Store first settlement position for player spawn
+        // Store first settlement spawn — offset from center to avoid spawning
+        // inside the settlement sign or buildings
         if (!this.firstSettlementSpawnPosition && i === 0) {
-          this.firstSettlementSpawnPosition = settlementCenter.clone();
+          // Always offset from center by at least the settlement radius
+          const offsetDist = Math.max(scaledSettlement.radius || 30, 30);
+          const spawnEdge = this.projectToGround(
+            settlementCenter.x + offsetDist,
+            settlementCenter.z
+          );
+          spawnEdge.y += 0.5;
+          this.firstSettlementSpawnPosition = spawnEdge;
+          console.log(`[Spawn] Player spawn set to edge of town: (${spawnEdge.x.toFixed(1)}, ${spawnEdge.y.toFixed(1)}, ${spawnEdge.z.toFixed(1)}), offset=${offsetDist.toFixed(1)} from center (${settlementCenter.x.toFixed(1)}, ${settlementCenter.z.toFixed(1)})`);
         }
 
         // Flat disc on the ground as a subtle marker
@@ -4980,6 +5123,8 @@ export class BabylonGame {
       // Skip ground (needed for raycasts), sky dome, player, and NPC meshes
       if (skipNames.has(name)) continue;
       if (name.startsWith('npc_') || name.startsWith('player')) continue;
+      // Skip template prototype meshes — they must stay disabled (instances reference them)
+      if (name.startsWith('template_')) continue;
 
       // Identify static meshes: trees, rocks, grass, flowers, buildings,
       // roads, settlement markers, signs, street furniture, props
@@ -5013,14 +5158,20 @@ export class BabylonGame {
           nonPickableCount++;
         }
 
-        // Ensure mesh doesn't force itself into the active list
-        mesh.alwaysSelectAsActiveMesh = false;
+        // Roads are lightweight and should always be visible — skip chunk culling
+        const isRoad = name.includes('road') || name.includes('street') || name.includes('sidewalk') || name.includes('crosswalk') || name.includes('walkway');
+        if (isRoad) {
+          mesh.alwaysSelectAsActiveMesh = true;
+        } else {
+          // Ensure mesh doesn't force itself into the active list
+          mesh.alwaysSelectAsActiveMesh = false;
 
-        // Register with chunk manager for distance culling
-        // Skip child meshes of parented hierarchies (parent handles enable/disable)
-        if (!mesh.parent) {
-          this.chunkManager.registerMesh(mesh);
-          chunkedCount++;
+          // Register with chunk manager for distance culling
+          // Skip child meshes of parented hierarchies (parent handles enable/disable)
+          if (!mesh.parent) {
+            this.chunkManager.registerMesh(mesh);
+            chunkedCount++;
+          }
         }
       }
     }
@@ -5836,11 +5987,17 @@ export class BabylonGame {
     // Attach quest overlay to WorldStateManager for save/load serialization
     this.worldStateManager?.setQuestOverlay(this.questOverlay);
 
-    if (!this.config.authToken || !this.config.worldId) return;
+    if (!this.config.worldId) return;
 
     // Use pre-selected playthrough ID if provided
     if (this.config.playthroughId) {
       this.playthroughId = this.config.playthroughId;
+
+      // Switch FileDataSource to the selected playthrough for scoped saves
+      if ('switchPlaythrough' in this.dataSource) {
+        (this.dataSource as any).switchPlaythrough(this.config.playthroughId);
+      }
+
       this.initReputationManager();
 
       // Check if this is an editor-created playthrough that needs initialization
@@ -6146,16 +6303,41 @@ export class BabylonGame {
         controller.setJumpSpeed(6);
         controller.setTurnSpeed(60);
 
-        controller.setIdleAnim("idle", 1, true);
-        controller.setWalkAnim("walk", 1, true);
-        controller.setRunAnim("run", 1.2, true);
-        controller.setTurnLeftAnim("turnLeft", 0.5, true);
-        controller.setTurnRightAnim("turnRight", 0.5, true);
-        controller.setWalkBackAnim("walkBack", 0.5, true);
-        controller.setIdleJumpAnim("idleJump", 0.5, false);
-        controller.setRunJumpAnim("runJump", 0.6, false);
-        controller.setFallAnim("fall", 2, false);
-        controller.setSlideBackAnim("slideBack", 1, false);
+        // Wire animations: use animation groups for GLB models, ranges for .babylon
+        if (result.animationGroups && result.animationGroups.length > 0) {
+          // GLB format — map animation groups by name
+          const agByName: Record<string, any> = {};
+          for (const ag of result.animationGroups) {
+            agByName[ag.name] = ag;
+            ag.stop(); // Stop all groups initially
+          }
+          const agMap: Record<string, any> = {};
+          if (agByName['idle']) agMap['idle'] = agByName['idle'];
+          if (agByName['walk']) agMap['walk'] = agByName['walk'];
+          if (agByName['run']) agMap['run'] = agByName['run'];
+          if (agByName['turnLeft']) agMap['turnLeft'] = agByName['turnLeft'];
+          if (agByName['turnRight']) agMap['turnRight'] = agByName['turnRight'];
+          if (agByName['walkBack']) agMap['walkBack'] = agByName['walkBack'];
+          if (agByName['idleJump']) agMap['idleJump'] = agByName['idleJump'];
+          if (agByName['runJump']) agMap['runJump'] = agByName['runJump'];
+          if (agByName['fall']) agMap['fall'] = agByName['fall'];
+          if (agByName['slideBack']) agMap['slideBack'] = agByName['slideBack'];
+          if (agByName['strafeLeft']) agMap['strafeLeft'] = agByName['strafeLeft'];
+          if (agByName['strafeRight']) agMap['strafeRight'] = agByName['strafeRight'];
+          controller.setAnimationGroups(agMap);
+        } else {
+          // .babylon format — use skeleton animation ranges
+          controller.setIdleAnim("idle", 1, true);
+          controller.setWalkAnim("walk", 1, true);
+          controller.setRunAnim("run", 1.2, true);
+          controller.setTurnLeftAnim("turnLeft", 0.5, true);
+          controller.setTurnRightAnim("turnRight", 0.5, true);
+          controller.setWalkBackAnim("walkBack", 0.5, true);
+          controller.setIdleJumpAnim("idleJump", 0.5, false);
+          controller.setRunJumpAnim("runJump", 0.6, false);
+          controller.setFallAnim("fall", 2, false);
+          controller.setSlideBackAnim("slideBack", 1, false);
+        }
 
         // Determine footstep sound URL from asset collection or fallback to hardcoded
         let footstepSoundUrl = FOOTSTEP_SOUND_URL;
@@ -6438,16 +6620,9 @@ export class BabylonGame {
       let animationGroups: any[] = [];
       let instancedBillboard: Mesh | null = null;
       let usedModularAssembly = false;
+      let usedCompleteCharacterModel = false;
 
-      // Primary path: modular NPC assembly from procedural body parts
-      if (this.npcModularAssembler) {
-        const bodyType = deriveModularBodyType(character.physicalTraits, character.occupation);
-        const assembled = this.npcModularAssembler.assemble(character.id, role, bodyType);
-        root = assembled.root;
-        usedModularAssembly = true;
-      }
-
-      // Tier 2: Try Quaternius composite model (body + hair + outfit)
+      // Primary path: Quaternius character models (complete body + outfit baked in)
       if (!root && this.quaterniusNPCLoader?.hasAssets()) {
         const quatGender = normalizeToQuaterniusGender(character.gender);
         const quatResult = await this.quaterniusNPCLoader.loadForCharacter(
@@ -6458,7 +6633,18 @@ export class BabylonGame {
         if (quatResult) {
           root = quatResult.root;
           animationGroups = quatResult.animationGroups;
+          // Check if this was a complete character model (outfit/hair baked in)
+          const quatConfig = selectQuaterniusConfig(character.id, quatGender, role);
+          usedCompleteCharacterModel = isCompleteCharacterModel(quatConfig.body.id);
         }
+      }
+
+      // Tier 2: modular NPC assembly from procedural body parts
+      if (!root && this.npcModularAssembler) {
+        const bodyType = deriveModularBodyType(character.physicalTraits, character.occupation);
+        const assembled = this.npcModularAssembler.assemble(character.id, role, bodyType);
+        root = assembled.root;
+        usedModularAssembly = true;
       }
 
       // Fallback: Try world-level NPC override (role+gender specific, with fallback chain)
@@ -6518,9 +6704,10 @@ export class BabylonGame {
       root.position = spawnPos;
 
       // Phase 8B: Apply procedural appearance variation for visual distinction
-      // Modular assembly already has appearance baked in; only generate for billboard use
+      // Complete character models and modular assembly have appearance baked in;
+      // only generate appearance data for billboard/accessory use without modifying meshes
       let appearance: NPCAppearance;
-      if (usedModularAssembly) {
+      if (usedModularAssembly || usedCompleteCharacterModel) {
         appearance = generateNPCAppearance(character.id, role);
       } else {
         const allNpcMeshes = [root, ...root.getChildMeshes()];
@@ -6537,17 +6724,30 @@ export class BabylonGame {
         controller.setStepOffset(0.75);
         controller.setSlopeLimit(15, 75);
         
-        // Set up animations
-        controller.setIdleAnim("idle", 1, true);
-        controller.setWalkAnim("walk", 1, true);
-        controller.setRunAnim("run", 1.2, true);
-        controller.setTurnLeftAnim("turnLeft", 0.5, true);
-        controller.setTurnRightAnim("turnRight", 0.5, true);
-        controller.setWalkBackAnim("walkBack", 0.5, true);
-        controller.setIdleJumpAnim("idleJump", 0.5, false);
-        controller.setRunJumpAnim("runJump", 0.6, false);
-        controller.setFallAnim("fall", 2, false);
-        controller.setSlideBackAnim("slideBack", 1, false);
+        // Set up animations — find AnimationGroup objects by name
+        // GLTF models register animation groups on the scene; the CharacterController
+        // requires AnimationGroup objects (not strings) when _isAG is true.
+        const findAG = (name: string) => {
+          // First check the NPC's own animation groups (cloned per-NPC)
+          const own = animationGroups.find((ag: any) => ag.name === name);
+          if (own) return own;
+          // Fallback: search scene animation groups (may be shared)
+          return this.scene?.animationGroups?.find((ag: any) => ag.name === name) ?? null;
+        };
+
+        const idleAG = findAG("Idle") || findAG("Idle_Neutral") || findAG("idle");
+        const walkAG = findAG("Walk") || findAG("walk");
+        const runAG = findAG("Run") || findAG("run");
+        const turnLeftAG = findAG("Run_Left") || findAG("turnLeft");
+        const turnRightAG = findAG("Run_Right") || findAG("turnRight");
+        const walkBackAG = findAG("Run_Back") || findAG("walkBack");
+
+        if (idleAG) controller.setIdleAnim(idleAG, 1, true);
+        if (walkAG) controller.setWalkAnim(walkAG, 1, true);
+        if (runAG) controller.setRunAnim(runAG, 1.2, true);
+        if (turnLeftAG) controller.setTurnLeftAnim(turnLeftAG, 0.5, true);
+        if (turnRightAG) controller.setTurnRightAnim(turnRightAG, 0.5, true);
+        if (walkBackAG) controller.setWalkBackAnim(walkBackAG, 0.5, true);
         
         // Disable keyboard control - NPCs are controlled programmatically
         controller.enableKeyBoard(false);
@@ -6582,7 +6782,8 @@ export class BabylonGame {
       npcInstance.billboardLOD = instancedBillboard || this.createNPCBillboard(npcName, role, root.position, appearance);
 
       // Attach occupation-based accessories (hats, tools, etc.)
-      if (this.npcAccessorySystem) {
+      // Skip for complete character models — they have appearance baked in
+      if (this.npcAccessorySystem && !usedCompleteCharacterModel) {
         this.npcAccessorySystem.attachAccessories(
           character.id,
           root,
@@ -7110,50 +7311,146 @@ export class BabylonGame {
     this.playerMesh.setEnabled(false);
     const interiorScene = this.interiorSceneManager.getInteriorScene();
 
-    // Create first-person camera BEFORE switching scenes to avoid
+    // Create third-person camera BEFORE switching scenes to avoid
     // "No camera defined" errors in the render loop
     let spawnPos = new Vector3(0, 1.6, 0);
-    this.interiorCamera = new FreeCamera('interior_camera', spawnPos, interiorScene);
-    interiorScene.activeCamera = this.interiorCamera;
+    const interiorArcCam = new ArcRotateCamera('interior_camera', -Math.PI / 2, Math.PI / 3, 8, spawnPos, interiorScene);
+    interiorArcCam.attachControl(this.engine!.getRenderingCanvas(), true);
+    this.interiorCamera = interiorArcCam as any; // Store for later cleanup
+    interiorScene.activeCamera = interiorArcCam;
 
     // Now safe to switch — interior scene has an active camera
     this.interiorSceneManager.switchToInterior();
 
-    // Try to load a GLB interior model for this building type
-    const interiorModelPath = getInteriorModelPath(buildingType, businessType);
+    // Determine interior type: check asset collection config first, then building data
+    // Only use GLB models if the asset collection explicitly provides interior assets
+    const buildingInfo = this.buildingData.get(buildingId);
+    const interiorAssetPath = buildingInfo?.metadata?.interiorAssetPath || null;
 
-    if (interiorModelPath) {
-      console.log(`[Interior] Loading GLB interior: ${interiorModelPath} for ${businessType || buildingType}`);
+    if (interiorAssetPath) {
+      // Asset collection specifies a specific interior model for this building
+      console.log(`[Interior] Loading asset interior: ${interiorAssetPath} for ${businessType || buildingType}`);
       try {
-        const { spawnPosition, meshCount } = await this.interiorSceneManager.loadInteriorModel(interiorModelPath);
+        const { spawnPosition, meshCount } = await this.interiorSceneManager.loadInteriorModel(interiorAssetPath);
         spawnPos = spawnPosition;
-        console.log(`[Interior] GLB interior loaded: ${meshCount} meshes`);
+        console.log(`[Interior] Asset interior loaded: ${meshCount} meshes`);
       } catch (err) {
-        console.warn('[Interior] Failed to load GLB interior, falling back to procedural:', err);
-        // Fall back to procedural
+        console.warn('[Interior] Failed to load asset interior, falling back to procedural:', err);
         spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
       }
     } else {
-      // No model mapped — use procedural generation
-      console.log(`[Interior] No GLB mapped for ${businessType || buildingType}, using procedural`);
+      // Default: procedural interior generation (respects asset collection config)
+      console.log(`[Interior] Using procedural interior for ${businessType || buildingType}`);
       spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
     }
 
-    // Update camera position to final spawn point
-    this.interiorCamera.position = spawnPos;
-    this.interiorCamera.rotation.y = Math.PI;
-    this.interiorCamera.minZ = 0.1;
-    this.interiorCamera.speed = 0.5;
-    this.interiorCamera.angularSensibility = 3000;
-    this.interiorCamera.checkCollisions = true;
-    this.interiorCamera.ellipsoid = new Vector3(0.4, 0.8, 0.4);
-    this.interiorCamera.applyGravity = true;
-    this.interiorCamera.keysUp = [87];    // W
-    this.interiorCamera.keysDown = [83];  // S
-    this.interiorCamera.keysLeft = [65];  // A
-    this.interiorCamera.keysRight = [68]; // D
-    this.interiorCamera.attachControl(this.engine!.getRenderingCanvas(), true);
-    interiorScene.activeCamera = this.interiorCamera;
+    // Update camera target to final spawn point (third-person orbits around this point)
+    const arcCam = interiorScene.activeCamera as ArcRotateCamera;
+    arcCam.target = spawnPos;
+    arcCam.alpha = -Math.PI / 2; // Behind the player (facing into the room)
+    arcCam.beta = Math.PI / 3;
+    arcCam.radius = 8;
+    arcCam.lowerRadiusLimit = 3;
+    arcCam.upperRadiusLimit = 15;
+    arcCam.lowerBetaLimit = 0.3;
+    arcCam.upperBetaLimit = Math.PI / 2.2;
+    arcCam.minZ = 0.1;
+    arcCam.checkCollisions = false;
+    arcCam.panningSensibility = 0; // Disable panning
+    arcCam.keysUp = [];
+    arcCam.keysDown = [];
+    arcCam.keysLeft = [];
+    arcCam.keysRight = [];
+
+    // Load the player model into the interior scene with full animations
+    try {
+      let playerModelUrl = PLAYER_MODEL_URL;
+      let playerRootUrl = '';
+      let playerFileName = playerModelUrl;
+      const playerModelId = this.world3DConfig?.playerModels?.default;
+      if (playerModelId && this.worldAssets?.length) {
+        const playerAsset = this.worldAssets.find((a: any) => a.id === playerModelId);
+        if (playerAsset?.filePath) {
+          const cleanPath = playerAsset.filePath.replace(/^\//, '');
+          const lastSlash = cleanPath.lastIndexOf('/');
+          playerRootUrl = lastSlash >= 0 ? '/' + cleanPath.substring(0, lastSlash + 1) : '/';
+          playerFileName = lastSlash >= 0 ? cleanPath.substring(lastSlash + 1) : cleanPath;
+        }
+      }
+      if (!playerRootUrl) {
+        const cleanPath = playerModelUrl.replace(/^\//, '');
+        const lastSlash = cleanPath.lastIndexOf('/');
+        playerRootUrl = '/' + cleanPath.substring(0, lastSlash + 1);
+        playerFileName = cleanPath.substring(lastSlash + 1);
+      }
+
+      const result = await SceneLoader.ImportMeshAsync('', playerRootUrl, playerFileName, interiorScene);
+      const interiorPlayerMesh = (this.selectPlayerMesh(result.meshes) || result.meshes[0]) as Mesh;
+
+      // Apply same scaling as overworld player
+      const playerScale = this.world3DConfig?.modelScaling?.['playerModels.default'];
+      interiorPlayerMesh.scaling = playerScale
+        ? new Vector3(playerScale.x, playerScale.y, playerScale.z)
+        : new Vector3(1, 1, 1);
+
+      interiorPlayerMesh.position = spawnPos.clone();
+      // Don't set initial rotation — CharacterController with faceForward=true handles facing
+      interiorPlayerMesh.checkCollisions = true;
+      interiorPlayerMesh.ellipsoid = new Vector3(0.5, 1, 0.5);
+      interiorPlayerMesh.ellipsoidOffset = new Vector3(0, 1, 0);
+
+      // Set up character controller for interior movement
+      const interiorController = new CharacterController(interiorPlayerMesh, arcCam, interiorScene, undefined, false);
+      interiorController.setMode(0);
+      interiorController.setCameraTarget(new Vector3(0, 1.6, 0));
+      interiorController.setNoFirstPerson(true);
+      interiorController.setStepOffset(0.4);
+      interiorController.setSlopeLimit(15, 75);
+      interiorController.setWalkSpeed(1.5);
+      interiorController.setRunSpeed(3);
+      interiorController.setLeftSpeed(1.5);
+      interiorController.setRightSpeed(1.5);
+      interiorController.setJumpSpeed(4);
+      interiorController.setTurnSpeed(60);
+      interiorController.setTurningOff(false);
+      interiorController.enableKeyBoard(true);
+
+      // Wire animations (GLB animation groups or .babylon skeleton ranges)
+      if (result.animationGroups?.length) {
+        const agByName: Record<string, any> = {};
+        for (const ag of result.animationGroups) { agByName[ag.name] = ag; ag.stop(); }
+        const agMap: Record<string, any> = {};
+        for (const name of ['idle','walk','run','turnLeft','turnRight','walkBack','idleJump','runJump','fall','slideBack','strafeLeft','strafeRight']) {
+          if (agByName[name]) agMap[name] = agByName[name];
+        }
+        interiorController.setAnimationGroups(agMap);
+      } else {
+        interiorController.setIdleAnim('idle', 1, true);
+        interiorController.setWalkAnim('walk', 1, true);
+        interiorController.setRunAnim('run', 1.2, true);
+        interiorController.setTurnLeftAnim('turnLeft', 0.5, true);
+        interiorController.setTurnRightAnim('turnRight', 0.5, true);
+        interiorController.setWalkBackAnim('walkBack', 0.5, true);
+      }
+
+      interiorController.setCameraElasticity(true);
+      interiorController.start();
+
+      arcCam.target = interiorPlayerMesh.position.add(new Vector3(0, 1.6, 0));
+      arcCam.radius = 6;
+      arcCam.lowerRadiusLimit = 2;
+      arcCam.upperRadiusLimit = 10;
+
+      // Store for cleanup
+      (this as any)._interiorPlayerMesh = interiorPlayerMesh;
+      (this as any)._interiorPlayerController = interiorController;
+    } catch (e) {
+      console.warn('[Interior] Failed to load interior player, using capsule fallback:', e);
+      const interiorPlayerMesh = MeshBuilder.CreateCapsule('interior_player', { height: 1.8, radius: 0.3 }, interiorScene);
+      interiorPlayerMesh.position = spawnPos.clone();
+      arcCam.target = interiorPlayerMesh.position;
+      (this as any)._interiorPlayerMesh = interiorPlayerMesh;
+    }
 
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
@@ -7196,8 +7493,10 @@ export class BabylonGame {
       buildingId, buildingType, businessType, doorWorldPos
     );
     this.activeInterior = interior;
+    // Spawn a few paces inside the room (door is at -Z wall, room center is at position)
     const spawnPos = interior.doorPosition.clone();
-    spawnPos.y += 1.6;
+    spawnPos.y = interior.position.y; // Floor level
+    spawnPos.z += 4; // Step into the room (away from door, toward +Z)
     return spawnPos;
   }
 
@@ -7249,6 +7548,18 @@ export class BabylonGame {
 
     // Clean up interior scene resources
     if (this.interiorSceneManager) {
+      // Dispose the interior player controller and mesh
+      const interiorPlayerCtrl = (this as any)._interiorPlayerController;
+      if (interiorPlayerCtrl) {
+        interiorPlayerCtrl.stop();
+        (this as any)._interiorPlayerController = null;
+      }
+      const interiorPlayer = (this as any)._interiorPlayerMesh;
+      if (interiorPlayer) {
+        interiorPlayer.dispose();
+        (this as any)._interiorPlayerMesh = null;
+      }
+
       // Dispose the interior camera
       this.interiorCamera?.detachControl();
       this.interiorCamera?.dispose();
@@ -7905,6 +8216,9 @@ export class BabylonGame {
     // Throttled NPC ground snapping, minimap updates, and chunk culling
     this.renderObserver = this.scene.onBeforeRenderObservable.add(() => {
       const dt = this.scene?.getEngine().getDeltaTime() || 16;
+
+      // Update quest indicator positions (world-space, tracking NPC meshes)
+      this.questIndicatorManager?.updatePositions();
 
       // Update weather system (rain, clouds, fog)
       if (this.weatherSystem) {
@@ -12621,16 +12935,26 @@ export class BabylonGame {
     this.isInsideBuilding = false;
   }
 
-  private applyWorldTexturesFromAssets(): void {
-    if (!this.textureManager || !this.worldAssets || this.worldAssets.length === 0) {
+  private async applyWorldTexturesFromAssets(): Promise<void> {
+    if (!this.textureManager) {
       return;
     }
 
+    // Helper: find asset in worldAssets, or fetch it directly by ID as fallback
+    const findAsset = async (id: string | undefined): Promise<VisualAsset | undefined> => {
+      if (!id) return undefined;
+      const local = this.worldAssets.find((a) => a.id === id);
+      if (local) return local;
+      // Asset not in worldAssets — fetch directly so config changes are always reflected
+      try {
+        const res = await fetch(`/api/assets/${id}`);
+        if (res.ok) return await res.json();
+      } catch { /* fall through */ }
+      return undefined;
+    };
 
     // Prefer an explicit ground texture from 3D config, otherwise first texture_ground asset
-    let groundAsset = this.world3DConfig?.groundTextureId
-      ? this.worldAssets.find((a) => a.id === this.world3DConfig!.groundTextureId)
-      : undefined;
+    let groundAsset = await findAsset(this.world3DConfig?.groundTextureId);
 
     if (!groundAsset) {
       groundAsset = this.worldAssets.find((a) => a.assetType === "texture_ground");
@@ -12646,14 +12970,11 @@ export class BabylonGame {
       if (groundMesh?.material) {
         (groundMesh.material as StandardMaterial).diffuseColor = new Color3(1, 1, 1);
       }
-    } else {
     }
 
     // Prefer an explicit road texture from 3D config, otherwise first texture_material asset,
     // finally fall back to the ground texture if nothing else is available
-    let roadAsset = this.world3DConfig?.roadTextureId
-      ? this.worldAssets.find((a) => a.id === this.world3DConfig!.roadTextureId)
-      : undefined;
+    let roadAsset = await findAsset(this.world3DConfig?.roadTextureId);
 
     if (!roadAsset) {
       roadAsset = this.worldAssets.find((a) => a.assetType === "texture_material");

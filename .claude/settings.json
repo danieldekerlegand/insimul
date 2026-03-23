@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"JSON.parse\\(require\\(''fs''\\).readFileSync\\(''shared/game-engine/world-type-presets/historical-ancient.json'',''utf8''\\)\\)\")",
+      "Bash(node -e \"JSON.parse\\(require\\(''fs''\\).readFileSync\\(''shared/game-engine/world-type-presets/creole-colonial.json'',''utf8''\\)\\)\")",
+      "Bash(curl -s http://localhost:5000/api/worlds)",
+      "Bash(curl -s http://localhost:3000/api/worlds)",
+      "Bash(curl -s http://localhost:5173/api/worlds)",
+      "Bash(curl -sv http://localhost:8080/api/worlds)",
+      "Bash(curl -s http://localhost:8000/api/worlds)",
+      "Bash(curl -sv http://localhost:8000/api/worlds)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/src -type f \\\\\\(-name *CharacterLoader* -o -name *NPCManger* -o -name *CharacterMesh* -o -name *loader* \\\\\\))",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul -name asset-manifest.json -o -name asset-paths.ts -o -name asset*.json)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul -type f -name asset-manifest* -o -name *export*manifest*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/public/assets/models -type d -name *character* -o -type d -name *npc* -o -type d -name *player*)",
+      "Read(//Users/danieldekerlegand/Downloads/Quaternius/**)",
+      "Bash(find ~/Downloads/Quaternius -type f \\\\\\(-name *.glb -o -name *.gltf -o -name *.fbx -o -name *.obj \\\\\\))"
+    ]
+  }
+}

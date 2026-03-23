@@ -947,6 +947,9 @@ export class ProceduralBuildingGenerator {
         m.emissiveColor = rc.scale(0.35);
       }
       m.specularColor = Color3.Black();
+      // Custom vertex geometry (gable/hip) has mixed triangle winding;
+      // disable back-face culling so all roof faces render from every angle.
+      m.backFaceCulling = false;
       return m;
     });
     roof.material = roofMat;
@@ -1062,7 +1065,7 @@ export class ProceduralBuildingGenerator {
       // Right slope (1,2,5) — triangle
       1, 5, 2,
       // Back slope (2,3,4,5) — trapezoid
-      2, 3, 4,  2, 4, 5,
+      2, 4, 3,  2, 5, 4,
       // Left slope (3,0,4) — triangle
       3, 0, 4,
       // Bottom (hidden but prevents z-fighting)
@@ -1121,8 +1124,11 @@ export class ProceduralBuildingGenerator {
       });
     }
 
+    const totalHeight = spec.floors * floorHeight;
     for (let floor = 0; floor < spec.floors; floor++) {
-      const y = floor * floorHeight + floorHeight / 2;
+      // Building mesh origin is at its vertical center, so ground level
+      // in local space is -totalHeight/2 (same offset used by addDoor).
+      const y = -totalHeight / 2 + floor * floorHeight + floorHeight / 2;
 
       // Front and back windows
       for (const [side, zSign, rotY] of [
@@ -1481,9 +1487,22 @@ export class ProceduralBuildingGenerator {
       step.checkCollisions = true;
     }
 
-    // --- Porch posts (columns) ---
+    // --- Porch posts and overhang ---
+    // For single-story buildings the main roof extends over the porch, so
+    // posts reach from the porch floor to the roof eave (first floor ceiling).
+    // For multi-story buildings the main roof is far above; if there is a
+    // second-floor balcony the posts support that slab, otherwise we add a
+    // dedicated porch overhang at first-floor height so the posts connect
+    // to something real.
+    const floorHeight = 4;
+    const hasBalconyAbove = spec.hasBalcony && spec.floors > 1;
+    // Target Y the posts should reach (world-space)
+    const porchCeilingY = hasBalconyAbove
+      ? floorHeight + porchFloorY          // underside of 2nd-floor balcony slab
+      : floorHeight + porchFloorY;          // first-floor ceiling / roof eave
+    const postHeight = porchCeilingY - porchFloorY;
+
     const postCount = Math.max(2, Math.floor(spec.width / 4));
-    const postHeight = 3.5;
     const postMatKey = `porch_post_${spec.style.name}`;
     const postMat = this.getSharedMaterial(postMatKey, () => {
       const m = new StandardMaterial(postMatKey, this.scene);
@@ -1504,9 +1523,24 @@ export class ProceduralBuildingGenerator {
       post.material = postMat;
     }
 
-    // --- Porch roof overhang ---
-    // (The main roof now extends to cover the porch, but we keep a thin
-    //  soffit/fascia visible under the roof eave for visual weight.)
+    // --- Porch overhang for multi-story buildings without a balcony ---
+    // Without a balcony slab above, add a thin roof/overhang at first-floor
+    // height so the posts visually support something.
+    if (spec.floors > 1 && !hasBalconyAbove) {
+      const overhangThickness = 0.15;
+      const overhang = MeshBuilder.CreateBox(
+        `porch_overhang_${spec.id}`,
+        { width: spec.width + 0.5, height: overhangThickness, depth: porchDepth + 0.3 },
+        this.scene
+      );
+      overhang.position = new Vector3(
+        0,
+        porchCeilingY + overhangThickness / 2,
+        spec.depth / 2 + porchDepth / 2,
+      );
+      overhang.parent = porchParent;
+      overhang.material = porchMat;
+    }
 
     return porchParent;
   }

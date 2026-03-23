@@ -31,7 +31,7 @@ function defaultGroundTypeConfig(): GroundTypeConfig {
   return { mode: "procedural", color: { r: 0.35, g: 0.55, b: 0.3 }, tiling: 4 };
 }
 
-export function GroundConfigPanel({ config, onUpdate, selection, onSelect }: GroundConfigPanelProps) {
+export function GroundConfigPanel({ config, onUpdate, selection, onSelect, assets }: GroundConfigPanelProps) {
   const [customTypes, setCustomTypes] = useState<string[]>(
     config?.custom ? Object.keys(config.custom) : []
   );
@@ -104,7 +104,7 @@ export function GroundConfigPanel({ config, onUpdate, selection, onSelect }: Gro
               <div className="flex items-center gap-1.5">
                 {typeCfg?.mode === 'asset' && typeCfg.textureId ? (
                   (() => {
-                    const asset = assets.find(a => a.id === typeCfg.textureId);
+                    const asset = assets?.find(a => a.id === typeCfg.textureId);
                     return asset ? (
                       <img src={`/${asset.filePath}`} alt="" className="w-3 h-3 rounded-sm border object-cover" />
                     ) : (

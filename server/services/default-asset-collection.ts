@@ -73,7 +73,8 @@ export async function getOrCreateDefaultCollectionForWorldType(
   const worldTypeFallback: Record<string, string> = {
     // Legacy DB entries with renamed worldType values
     'western-frontier':       'wild-west',
-    'historical':             'historical-ancient',
+    'historical':             'historical-medieval',
+    'french-louisiana':       'creole-colonial',      // Renamed world type
 
     // Thematic fallbacks if own base collection is missing
     'low-fantasy':            'medieval-fantasy',
@@ -88,7 +89,8 @@ export async function getOrCreateDefaultCollectionForWorldType(
     'dieselpunk':             'post-apocalyptic',
     'modern-realistic':       'generic',
     'modern':                 'generic',              // Legacy alias
-    'tropical-pirate':        'historical-medieval',
+    'tropical-pirate':        'medieval-fantasy',
+    'creole-colonial':        'historical-victorian',
   };
 
   const fallbackWorldType = worldTypeFallback[normalizedType] || 'generic';

@@ -128,27 +128,27 @@ export class InteriorSceneManager {
   /** Create the interior scene with appropriate lighting. */
   private createInteriorScene(): Scene {
     const scene = new Scene(this.engine);
-    scene.clearColor = new Color4(0.05, 0.04, 0.03, 1); // Dark interior ambiance
+    scene.clearColor = new Color4(0.15, 0.13, 0.12, 1); // Warm dark background
 
-    // Ambient light — soft overhead illumination
+    // Ambient light — bright enough to see the interior clearly
     const ambient = new HemisphericLight(
       'interior_ambient',
       new Vector3(0, 1, 0),
       scene
     );
-    ambient.intensity = 0.6;
-    ambient.diffuse = new Color3(1.0, 0.95, 0.85); // Warm tone
-    ambient.groundColor = new Color3(0.15, 0.12, 0.1);
+    ambient.intensity = 1.2;
+    ambient.diffuse = new Color3(1.0, 0.95, 0.9); // Warm tone
+    ambient.groundColor = new Color3(0.3, 0.25, 0.2); // Moderate floor bounce
 
-    // Point light at center — simulates a central lamp/fireplace
+    // Point light at center — simulates central lamp or overhead light
     const centerLight = new PointLight(
       'interior_center_light',
-      new Vector3(0, 3, 0),
+      new Vector3(0, 3.5, 0),
       scene
     );
-    centerLight.intensity = 0.8;
-    centerLight.diffuse = new Color3(1.0, 0.85, 0.6);
-    centerLight.range = 30;
+    centerLight.intensity = 1.5;
+    centerLight.diffuse = new Color3(1.0, 0.9, 0.75);
+    centerLight.range = 40;
 
     // Collisions and gravity for the interior scene
     scene.collisionsEnabled = true;

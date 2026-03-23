@@ -41,9 +41,28 @@ namespace Insimul.Core
     ///   rules.json, geography.json, theme.json, asset-manifest.json,
     ///   knowledge-base.pl, items.json
     /// </summary>
+    /// <summary>
+    /// Metadata for a single playthrough entry, stored in the playthroughs index file.
+    /// </summary>
+    [Serializable]
+    public class PlaythroughEntry
+    {
+        public string id;
+        public string name;
+        public long createdAt;
+        public long lastPlayedAt;
+    }
+
+    [Serializable]
+    public class PlaythroughIndex
+    {
+        public List<PlaythroughEntry> playthroughs = new List<PlaythroughEntry>();
+    }
+
     public static class InsimulDataLoader
     {
         private const string DataRoot = "Data/";
+        private static string currentPlaythroughId = "";
 
         public static T[] LoadArray<T>(string resourcePath)
         {
@@ -324,22 +343,97 @@ namespace Insimul.Core
 
         // ── Playthrough management ────────────────────────────────────────
 
+        private static string PlaythroughIndexPath =>
+            Application.persistentDataPath + "/insimul_playthroughs.json";
+
         /// <summary>
-        /// List existing playthroughs. Returns empty array for exported games.
+        /// List existing playthroughs from the persistent index file.
+        /// Returns an array of PlaythroughEntry metadata.
         /// </summary>
-        public static string[] ListPlaythroughs()
+        public static PlaythroughEntry[] ListPlaythroughs()
         {
-            return new string[0];
+            if (!System.IO.File.Exists(PlaythroughIndexPath))
+            {
+                return new PlaythroughEntry[0];
+            }
+            try
+            {
+                string json = System.IO.File.ReadAllText(PlaythroughIndexPath);
+                var index = JsonUtility.FromJson<PlaythroughIndex>(json);
+                return index?.playthroughs?.ToArray() ?? new PlaythroughEntry[0];
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[Insimul] ListPlaythroughs failed: {e.Message}");
+                return new PlaythroughEntry[0];
+            }
         }
 
         /// <summary>
-        /// Start a new playthrough with a local ID.
+        /// Start a new playthrough with a unique local ID.
+        /// Persists entry to the playthroughs index file and sets currentPlaythroughId.
         /// </summary>
         public static string StartPlaythrough(string playthroughName)
         {
-            string id = $"exported-{System.DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            long timestamp = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string random = UnityEngine.Random.Range(100000, 999999).ToString();
+            string id = $"local-{timestamp}-{random}";
+
+            var entry = new PlaythroughEntry
+            {
+                id = id,
+                name = playthroughName,
+                createdAt = timestamp,
+                lastPlayedAt = timestamp
+            };
+
+            // Load existing index or create new
+            PlaythroughIndex index;
+            if (System.IO.File.Exists(PlaythroughIndexPath))
+            {
+                try
+                {
+                    string existing = System.IO.File.ReadAllText(PlaythroughIndexPath);
+                    index = JsonUtility.FromJson<PlaythroughIndex>(existing) ?? new PlaythroughIndex();
+                }
+                catch
+                {
+                    index = new PlaythroughIndex();
+                }
+            }
+            else
+            {
+                index = new PlaythroughIndex();
+            }
+
+            index.playthroughs.Add(entry);
+
+            try
+            {
+                System.IO.File.WriteAllText(PlaythroughIndexPath, JsonUtility.ToJson(index, true));
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[Insimul] StartPlaythrough: failed to persist index: {e.Message}");
+            }
+
+            currentPlaythroughId = id;
             Debug.Log($"[Insimul] StartPlaythrough({playthroughName}) => {id}");
-            return $"{{\"id\":\"{id}\",\"name\":\"{playthroughName}\"}}";
+            return JsonUtility.ToJson(entry);
+        }
+
+        /// <summary>
+        /// Look up a specific playthrough by ID from the index.
+        /// Returns null if not found.
+        /// </summary>
+        public static PlaythroughEntry GetPlaythrough(string playthroughId)
+        {
+            var all = ListPlaythroughs();
+            foreach (var entry in all)
+            {
+                if (entry.id == playthroughId) return entry;
+            }
+            return null;
         }
 
         // ── Text file loaders ─────────────────────────────────────────────
@@ -362,21 +456,33 @@ namespace Insimul.Core
         // ── Save / Load ──────────────────────────────────────────────────
 
         /// <summary>
-        /// Save game state to a numbered slot (0-2).
-        /// Writes to Application.persistentDataPath/insimul_save_{slotIndex}.json.
+        /// Resolve the effective playthrough ID: uses the provided value if non-empty,
+        /// otherwise falls back to currentPlaythroughId.
         /// </summary>
-        public static bool SaveGameState(int slotIndex, string gameStateJSON)
+        private static string ResolvePlaythroughId(string playthroughId)
+        {
+            if (!string.IsNullOrEmpty(playthroughId)) return playthroughId;
+            return currentPlaythroughId;
+        }
+
+        /// <summary>
+        /// Save game state to a numbered slot (0-2), scoped to a playthrough.
+        /// Writes to Application.persistentDataPath/insimul_save_{playthroughId}_{slotIndex}.json.
+        /// If playthroughId is null/empty, uses the stored currentPlaythroughId.
+        /// </summary>
+        public static bool SaveGameState(int slotIndex, string gameStateJSON, string playthroughId = null)
         {
             if (slotIndex < 0 || slotIndex > 2)
             {
                 Debug.LogWarning($"[Insimul] SaveGameState: invalid slot {slotIndex} (must be 0-2)");
                 return false;
             }
+            string ptId = ResolvePlaythroughId(playthroughId);
             try
             {
-                string savePath = Application.persistentDataPath + $"/insimul_save_{slotIndex}.json";
+                string savePath = Application.persistentDataPath + $"/insimul_save_{ptId}_{slotIndex}.json";
                 System.IO.File.WriteAllText(savePath, gameStateJSON);
-                Debug.Log($"[Insimul] SaveGameState: saved to slot {slotIndex}");
+                Debug.Log($"[Insimul] SaveGameState: saved to slot {slotIndex} for playthrough {ptId}");
                 return true;
             }
             catch (System.Exception e)
@@ -387,17 +493,19 @@ namespace Insimul.Core
         }
 
         /// <summary>
-        /// Load game state from a numbered slot (0-2).
+        /// Load game state from a numbered slot (0-2), scoped to a playthrough.
+        /// If playthroughId is null/empty, uses the stored currentPlaythroughId.
         /// Returns null if no save exists in that slot.
         /// </summary>
-        public static string LoadGameState(int slotIndex)
+        public static string LoadGameState(int slotIndex, string playthroughId = null)
         {
             if (slotIndex < 0 || slotIndex > 2)
             {
                 Debug.LogWarning($"[Insimul] LoadGameState: invalid slot {slotIndex} (must be 0-2)");
                 return null;
             }
-            string savePath = Application.persistentDataPath + $"/insimul_save_{slotIndex}.json";
+            string ptId = ResolvePlaythroughId(playthroughId);
+            string savePath = Application.persistentDataPath + $"/insimul_save_{ptId}_{slotIndex}.json";
             if (!System.IO.File.Exists(savePath))
             {
                 return null;
@@ -405,7 +513,7 @@ namespace Insimul.Core
             try
             {
                 string json = System.IO.File.ReadAllText(savePath);
-                Debug.Log($"[Insimul] LoadGameState: loaded slot {slotIndex}");
+                Debug.Log($"[Insimul] LoadGameState: loaded slot {slotIndex} for playthrough {ptId}");
                 return json;
             }
             catch (System.Exception e)
@@ -416,16 +524,18 @@ namespace Insimul.Core
         }
 
         /// <summary>
-        /// Save quest progress JSON to a dedicated file.
+        /// Save quest progress JSON to a dedicated file, scoped to a playthrough.
+        /// If playthroughId is null/empty, uses the stored currentPlaythroughId.
         /// Returns true on success.
         /// </summary>
-        public static bool SaveQuestProgress(string questProgressJSON)
+        public static bool SaveQuestProgress(string questProgressJSON, string playthroughId = null)
         {
-            string savePath = Application.persistentDataPath + "/insimul_quest_progress.json";
+            string ptId = ResolvePlaythroughId(playthroughId);
+            string savePath = Application.persistentDataPath + $"/insimul_quest_progress_{ptId}.json";
             try
             {
                 System.IO.File.WriteAllText(savePath, questProgressJSON);
-                Debug.Log("[Insimul] SaveQuestProgress: saved");
+                Debug.Log($"[Insimul] SaveQuestProgress: saved for playthrough {ptId}");
                 return true;
             }
             catch (System.Exception e)
@@ -436,12 +546,14 @@ namespace Insimul.Core
         }
 
         /// <summary>
-        /// Load quest progress JSON from the dedicated file.
+        /// Load quest progress JSON from the dedicated file, scoped to a playthrough.
+        /// If playthroughId is null/empty, uses the stored currentPlaythroughId.
         /// Returns null if no quest progress has been saved.
         /// </summary>
-        public static string LoadQuestProgress()
+        public static string LoadQuestProgress(string playthroughId = null)
         {
-            string savePath = Application.persistentDataPath + "/insimul_quest_progress.json";
+            string ptId = ResolvePlaythroughId(playthroughId);
+            string savePath = Application.persistentDataPath + $"/insimul_quest_progress_{ptId}.json";
             if (!System.IO.File.Exists(savePath))
             {
                 return null;
@@ -449,7 +561,7 @@ namespace Insimul.Core
             try
             {
                 string json = System.IO.File.ReadAllText(savePath);
-                Debug.Log("[Insimul] LoadQuestProgress: loaded");
+                Debug.Log($"[Insimul] LoadQuestProgress: loaded for playthrough {ptId}");
                 return json;
             }
             catch (System.Exception e)

@@ -118,11 +118,12 @@ function get3DGamePath(): string {
   return path.join(currentDir, '..', '..', '..', '..', 'client', 'src', 'components', '3DGame');
 }
 
-function generateMainEntry(ir: WorldIR): string {
+function generateMainEntry(ir: WorldIR, apiUrl?: string): string {
   return loadTemplate('main.ts', {
     WORLD_ID:   ir.meta.worldId,
     WORLD_NAME: ir.meta.worldName,
     WORLD_TYPE: ir.meta.worldType || 'fantasy',
+    API_URL:    apiUrl || '',
   });
 }
 
@@ -180,7 +181,7 @@ export async function exportBabylonProject(
   // DataSource.ts and index.ts are provided by game-file-copier from the 3DGame source
   const mainEntryFile: GeneratedFile = {
     path: 'src/main.ts',
-    content: generateMainEntry(ir)
+    content: generateMainEntry(ir, options.apiUrl)
   };
   
   // 10. Bundle assets from the world's selected collection

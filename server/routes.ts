@@ -4900,12 +4900,13 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
       
       // Step 0: Generate grammars FIRST so name generation can use them
       try {
-        if (customLabel && customPrompt && isGeminiConfigured()) {
-          console.log(`📝 Step 0: Generating custom grammars for "${customLabel}"...`);
+        if ((customLabel || customPrompt) && isGeminiConfigured()) {
+          const grammarLabel = customLabel || worldType || 'custom';
+          console.log(`📝 Step 0: Generating custom grammars for "${grammarLabel}"...`);
           progressTracker.updateProgress(taskId, 'grammars', 'Generating procedural name grammars...', 7);
           const { grammarGenerator } = await import("./services/grammar-generator.js");
           const generatedGrammars = await grammarGenerator.generateCustomGrammars(
-            customLabel, customPrompt, worldTargetLanguage || undefined,
+            grammarLabel, customPrompt || '', worldTargetLanguage || undefined,
             { worldName, worldDescription: enrichedDescription, worldType, gameType, targetLanguage: worldTargetLanguage || undefined, customPrompt },
             (message, batchIndex, totalBatches) => {
               const batchProgress = 7 + Math.round((batchIndex / totalBatches) * 3);
@@ -4916,11 +4917,11 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             await storage.createGrammar({
               worldId, name: grammar.name, description: grammar.description,
               grammar: grammar.grammar, tags: grammar.tags,
-              worldType: customLabel, gameType, isActive: true,
+              worldType: grammarLabel, gameType, isActive: true,
             });
             numGrammars++;
           }
-          console.log(`✅ Generated ${numGrammars} custom grammars for ${customLabel}`);
+          console.log(`✅ Generated ${numGrammars} custom grammars for ${grammarLabel}`);
         } else if (worldType) {
           console.log(`📝 Step 0: Seeding grammars for ${worldType}...`);
           progressTracker.updateProgress(taskId, 'grammars', `Seeding grammars for ${worldType}`, 7);

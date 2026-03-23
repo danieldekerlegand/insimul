@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Shuffle, Save, Trash2 } from 'lucide-react';
+import { Shuffle, Save, Trash2, Plus, RotateCcw } from 'lucide-react';
 import { ConfigPreviewScene } from './ConfigPreviewScene';
 import {
   type NPCDesignState,
@@ -100,15 +100,10 @@ export function NPCDesignerPanel({ config, onUpdate }: NPCDesignerPanelProps) {
         key={modelPaths.join('|')}
         height={220}
         showGround
-        buildProcedural={modelPaths.length > 0 ? undefined : undefined}
         modelPath={modelPaths[0]}
+        additionalModelPaths={modelPaths.slice(1)}
         className="rounded-lg"
       />
-      {modelPaths.length > 1 && (
-        <p className="text-[9px] text-muted-foreground text-center">
-          Preview shows body model. Full composition visible in game.
-        </p>
-      )}
 
       {/* Randomize */}
       <Button variant="outline" size="sm" className="w-full h-7 text-xs" onClick={handleRandomize}>
@@ -250,6 +245,9 @@ export function NPCDesignerPanel({ config, onUpdate }: NPCDesignerPanelProps) {
       {Object.keys(presets).length > 0 && (
         <div className="space-y-1">
           <Label className="text-[10px]">Saved Presets</Label>
+          <p className="text-[9px] text-muted-foreground">
+            The game engine will randomly pick from these presets when spawning NPCs.
+          </p>
           <div className="space-y-0.5">
             {Object.entries(presets).map(([key, preset]) => (
               <div key={key} className="flex items-center justify-between text-[10px] px-1.5 py-1 rounded hover:bg-muted/40 group">
@@ -265,6 +263,88 @@ export function NPCDesignerPanel({ config, onUpdate }: NPCDesignerPanelProps) {
           </div>
         </div>
       )}
+
+      {/* World Color Palettes */}
+      <div className="border-t pt-3 mt-3 space-y-2">
+        <Label className="text-xs font-semibold">World Color Palettes</Label>
+        <p className="text-[9px] text-muted-foreground">
+          Default color pools used when randomizing NPC appearances across the world.
+        </p>
+        <PaletteEditor
+          label="Clothing Colors"
+          colors={cfg.npcClothingPalette || []}
+          defaults={DEFAULT_CLOTHING_PALETTE}
+          onChange={(colors) => onUpdate({ ...cfg, npcClothingPalette: colors })}
+        />
+        <PaletteEditor
+          label="Skin Tones"
+          colors={cfg.npcSkinTonePalette || []}
+          defaults={DEFAULT_SKIN_TONE_PALETTE}
+          onChange={(colors) => onUpdate({ ...cfg, npcSkinTonePalette: colors })}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Palette Editor ─────────────────────────────────────────────────────────
+
+const DEFAULT_CLOTHING_PALETTE = [
+  "#8B4513", "#2F4F4F", "#8B0000", "#191970", "#556B2F",
+  "#4B0082", "#CD853F", "#A0522D", "#DAA520", "#708090",
+];
+const DEFAULT_SKIN_TONE_PALETTE = [
+  "#FFDFC4", "#F0C8A0", "#D4A574", "#C68642", "#8D5524",
+  "#6B3A2A", "#4A2511", "#3B1F0E",
+];
+
+function PaletteEditor({
+  label,
+  colors,
+  defaults,
+  onChange,
+}: {
+  label: string;
+  colors: string[];
+  defaults: string[];
+  onChange: (colors: string[]) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-[10px]">{label}</Label>
+        <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => onChange(defaults)}>
+          <RotateCcw className="w-3 h-3 mr-0.5" /> Defaults
+        </Button>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {colors.map((color, i) => (
+          <div key={i} className="relative group">
+            <input
+              type="color"
+              className="w-5 h-5 rounded cursor-pointer border"
+              value={color}
+              onChange={(e) => {
+                const updated = [...colors];
+                updated[i] = e.target.value;
+                onChange(updated);
+              }}
+            />
+            <button
+              className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full hidden group-hover:flex items-center justify-center"
+              onClick={() => onChange(colors.filter((_, j) => j !== i))}
+            >
+              <Trash2 className="w-2 h-2 text-white" />
+            </button>
+          </div>
+        ))}
+        <button
+          className="w-5 h-5 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/60 transition-colors"
+          onClick={() => onChange([...colors, "#808080"])}
+        >
+          <Plus className="w-3 h-3 text-muted-foreground" />
+        </button>
+      </div>
     </div>
   );
 }

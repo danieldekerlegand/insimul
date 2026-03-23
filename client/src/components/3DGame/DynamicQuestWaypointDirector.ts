@@ -312,6 +312,10 @@ export class DynamicQuestWaypointDirector {
       }
     }
 
+    console.warn(
+      `[DynamicQuestWaypointDirector] Could not resolve position for objective "${objective.id}" (type: ${objective.type}) in quest "${quest.title || quest.id}". ` +
+      `npcId=${objective.npcId || 'none'}, locationName=${objective.locationName || 'none'}, npcPositions=${npcPositions.length}, buildingData=${buildingData.size}`
+    );
     return null;
   }
 

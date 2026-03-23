@@ -200,8 +200,10 @@ export function registerExportRoutes(app: Express): void {
 
         const aiProvider = req.body.aiProvider || undefined;
         const buildExecutable = req.body.buildExecutable === true;
+        // Auto-detect API URL for cloud saves in standalone mode
+        const apiUrl = req.body.apiUrl || (mode === 'electron' ? `${req.protocol}://${req.get('host')}` : undefined);
         console.log(`[Export] Generating Babylon.js ${mode} project for world ${worldId}${aiProvider ? ` (AI: ${aiProvider})` : ''}${buildExecutable ? ' (building executable)' : ''}...`);
-        const zipBuffer = await exportBabylonProject(worldId, { mode, telemetry: telemetryConfig, aiProvider, buildExecutable });
+        const zipBuffer = await exportBabylonProject(worldId, { mode, telemetry: telemetryConfig, aiProvider, buildExecutable, apiUrl });
 
         // Get world IR for filename
         const ir = await generateWorldIR(worldId);

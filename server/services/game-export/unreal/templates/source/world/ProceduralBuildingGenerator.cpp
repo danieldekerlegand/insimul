@@ -348,7 +348,8 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
         if (CurrentStyle.bHasPorch)
         {
             CreatePorch(GetRootComponent(), Width, Depth, CurrentStyle.PorchDepth,
-                        CurrentStyle.PorchSteps, PorchElevation, BaseColor, nullptr);
+                        CurrentStyle.PorchSteps, PorchElevation, BaseColor, nullptr,
+                        Floors, CurrentStyle.bHasIronworkBalcony);
         }
         return;
     }
@@ -367,7 +368,8 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
     if (CurrentStyle.bHasPorch)
     {
         CreatePorch(GetRootComponent(), Width, Depth, CurrentStyle.PorchDepth,
-                    CurrentStyle.PorchSteps, PorchElevation, BaseColor, nullptr);
+                    CurrentStyle.PorchSteps, PorchElevation, BaseColor, nullptr,
+                    Floors, CurrentStyle.bHasIronworkBalcony);
     }
 
     // Porch setback: push all geometry back in local -Z so the porch + stairs
@@ -669,6 +671,9 @@ void AProceduralBuildingGenerator::CreateGableRoofMesh(USceneComponent* Parent,
     // Gable roof: two sloping planes meeting at a ridge along the depth axis
     UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Gable roof: %.1fx%.1f height=%.1f"), Width, Depth, Height);
 
+    // NOTE: Material should be two-sided (no back-face culling) because custom
+    // vertex geometry has mixed triangle winding order.
+
     // Vertex positions for a gable roof:
     // Ridge runs along the depth (front-to-back) axis at the center of width
     // Two triangular faces on each end, two rectangular slopes on each side
@@ -682,6 +687,9 @@ void AProceduralBuildingGenerator::CreateHipRoofMesh(USceneComponent* Parent,
     // Hip roof: four sloping planes meeting at a ridge
     UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Hip roof: %.1fx%.1f height=%.1f"), Width, Depth, Height);
 
+    // NOTE: Material should be two-sided (no back-face culling) because custom
+    // vertex geometry has mixed triangle winding order.
+
     // Vertex positions for a hip roof:
     // Ridge is shorter than the building length, with four sloping faces
     // Each corner rises to meet the ridge rather than forming a gable triangle
@@ -690,7 +698,8 @@ void AProceduralBuildingGenerator::CreateHipRoofMesh(USceneComponent* Parent,
 
 void AProceduralBuildingGenerator::CreatePorch(USceneComponent* Parent,
     float BuildingWidth, float BuildingDepth, float PorchDepth, int32 PorchSteps,
-    float PorchElevation, FLinearColor Color, UMaterialInterface* BaseMaterial)
+    float PorchElevation, FLinearColor Color, UMaterialInterface* BaseMaterial,
+    int32 Floors, bool bHasBalcony)
 {
     UE_LOG(LogTemp, Log, TEXT("[Insimul] Creating porch: width=%.1f porchDepth=%.1f steps=%d elevation=%.1f"),
         BuildingWidth, PorchDepth, PorchSteps, PorchElevation);
@@ -713,8 +722,29 @@ void AProceduralBuildingGenerator::CreatePorch(USceneComponent* Parent,
 
     // Posts: vertical columns at porch corners supporting a potential overhang
     const float PostRadius = 0.1f;
-    const float PostHeight = 2.8f;
-    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Porch posts: radius=%.2f height=%.1f"), PostRadius, PostHeight);
+    const float FloorHeight = 4.0f;
+    const bool bHasBalconyAbove = bHasBalcony && Floors > 1;
+    const float PorchFloorY = PorchElevation;
+    const float PorchCeilingY = FloorHeight + PorchElevation;
+    const float PostHeight = PorchCeilingY - PorchFloorY;
+    const int32 PostCount = FMath::Max(2, FMath::FloorToInt(BuildingWidth / 4.0f));
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Porch posts: count=%d radius=%.2f height=%.1f"), PostCount, PostRadius, PostHeight);
+
+    for (int32 i = 0; i < PostCount; ++i)
+    {
+        float T = (PostCount > 1) ? static_cast<float>(i) / (PostCount - 1) : 0.5f;
+        float PostX = -BuildingWidth / 2.0f + T * BuildingWidth;
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Porch post %d: x=%.2f"), i, PostX);
+    }
+
+    // Add a porch overhang for multi-story buildings without a balcony above
+    if (Floors > 1 && !bHasBalconyAbove)
+    {
+        // Add a thin roof/overhang at first-floor height so posts visually support something
+        const float OverhangThickness = 0.15f;
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Porch overhang: %.1fx%.1f at y=%.2f"),
+            BuildingWidth + 0.5f, PorchDepth + 0.3f, PorchCeilingY + OverhangThickness / 2.0f);
+    }
 }
 
 void AProceduralBuildingGenerator::AddShutters(USceneComponent* Parent, FVector WindowPosition,

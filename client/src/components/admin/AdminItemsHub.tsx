@@ -27,6 +27,7 @@ interface BaseItem {
   weight?: number;
   worldType?: string;
   objectRole?: string;
+  visualAssetId?: string;
   category?: string;
   material?: string;
   baseType?: string;
@@ -49,7 +50,9 @@ const ITEM_TYPE_LABELS: Record<string, string> = {
   weapon: 'Weapons', armor: 'Armor', consumable: 'Consumables',
   food: 'Food', drink: 'Drinks', tool: 'Tools',
   material: 'Materials', collectible: 'Collectibles', key: 'Keys',
-  quest: 'Quest Items',
+  quest: 'Quest Items', container: 'Containers', decoration: 'Decorations',
+  document: 'Documents', equipment: 'Equipment', accessory: 'Accessories',
+  ammunition: 'Ammunition', furniture: 'Furniture',
 };
 
 const RARITY_COLORS: Record<string, string> = {
@@ -68,6 +71,8 @@ export function AdminItemsHub() {
   const [searchQuery, setSearchQuery] = useState("");
   const [worldTypeFilter, setWorldTypeFilter] = useState<string>("all");
   const [selectedItem, setSelectedItem] = useState<BaseItem | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState("");
 
   // Right panel
   const [expandedSection, setExpandedSection] = useState<'preview' | 'details' | null>('preview');
@@ -106,18 +111,27 @@ export function AdminItemsHub() {
     },
   });
 
-  // Resolve objectRole → VisualAsset for preview
-  const resolveObjectRoleAsset = (objectRole: string | undefined | null): VisualAsset | null => {
-    if (!objectRole) return null;
-    // Try medieval-fantasy collection first, then any base collection
+  // Resolve item → VisualAsset for preview (checks visualAssetId first, then objectRole collections)
+  const resolveItemAsset = (item: any): VisualAsset | null => {
+    // Strategy 1: Direct visualAssetId lookup (asset-first items)
+    if (item?.visualAssetId) {
+      const asset = allAssets.find(a => a.id === item.visualAssetId);
+      if (asset) return asset;
+    }
+    // Strategy 2: objectRole → collection objectModels lookup
+    if (!item?.objectRole) return null;
     for (const col of collections) {
-      const assetId = (col.objectModels || {} as Record<string, string>)[objectRole];
+      const assetId = (col.objectModels || {} as Record<string, string>)[item.objectRole];
       if (assetId) {
         const asset = allAssets.find(a => a.id === assetId);
         if (asset) return asset;
       }
     }
     return null;
+  };
+  // Keep backward compat alias
+  const resolveObjectRoleAsset = (objectRole: string | undefined | null): VisualAsset | null => {
+    return resolveItemAsset({ objectRole });
   };
 
   // Find which collection holds a given role's mapping (or pick the first props/weapons/furniture base collection)
@@ -129,6 +143,21 @@ export function AdminItemsHub() {
     // Fall back to "Base Props & Objects" or first base collection
     return collections.find(c => c.name === 'Base Props & Objects') || collections[0] || null;
   };
+
+  // Mutation to update item fields (name, description, etc.)
+  const updateItem = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<BaseItem> }) => {
+      const res = await apiRequest('PUT', `/api/items/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/base-items'] });
+      toast({ title: 'Item Updated', description: 'Base item has been updated.' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to update', description: err.message, variant: 'destructive' });
+    },
+  });
 
   // Mutation to update objectModels mapping on a collection
   const updateAssetMapping = useMutation({
@@ -300,7 +329,7 @@ export function AdminItemsHub() {
       );
     }
 
-    const asset = resolveObjectRoleAsset(selectedItem.objectRole);
+    const asset = resolveItemAsset(selectedItem);
     const isModel = asset && (asset.filePath?.endsWith('.glb') || asset.filePath?.endsWith('.gltf') || asset.mimeType === 'model/gltf-binary');
 
     return (
@@ -309,7 +338,39 @@ export function AdminItemsHub() {
         <div className="px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">{selectedItem.icon || '📦'}</span>
-            <h2 className="text-lg font-bold">{selectedItem.name}</h2>
+            {editingName ? (
+              <form className="flex items-center gap-1 flex-1" onSubmit={(e) => {
+                e.preventDefault();
+                if (editNameValue.trim() && editNameValue !== selectedItem.name) {
+                  updateItem.mutate({ id: selectedItem.id, data: { name: editNameValue.trim() } });
+                  setSelectedItem({ ...selectedItem, name: editNameValue.trim() });
+                }
+                setEditingName(false);
+              }}>
+                <Input
+                  value={editNameValue}
+                  onChange={(e) => setEditNameValue(e.target.value)}
+                  className="h-7 text-lg font-bold"
+                  autoFocus
+                  onBlur={() => {
+                    if (editNameValue.trim() && editNameValue !== selectedItem.name) {
+                      updateItem.mutate({ id: selectedItem.id, data: { name: editNameValue.trim() } });
+                      setSelectedItem({ ...selectedItem, name: editNameValue.trim() });
+                    }
+                    setEditingName(false);
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setEditingName(false); }}
+                />
+              </form>
+            ) : (
+              <h2
+                className="text-lg font-bold cursor-pointer hover:text-primary/80 transition-colors"
+                onClick={() => { setEditingName(true); setEditNameValue(selectedItem.name); }}
+                title="Click to rename"
+              >
+                {selectedItem.name}
+              </h2>
+            )}
             <Badge variant="secondary" className="text-xs capitalize">{selectedItem.itemType}</Badge>
             {selectedItem.rarity && selectedItem.rarity !== 'common' && (
               <Badge variant="outline" className={`text-xs capitalize ${RARITY_COLORS[selectedItem.rarity] || ''}`}>{selectedItem.rarity}</Badge>
@@ -435,7 +496,7 @@ export function AdminItemsHub() {
   const renderRight = () => {
     if (!selectedItem) return null;
 
-    const asset = resolveObjectRoleAsset(selectedItem.objectRole);
+    const asset = resolveItemAsset(selectedItem);
     type SectionId = 'preview' | 'details';
     const sections: { id: SectionId; label: string; icon: any }[] = [
       { id: 'preview', label: 'Asset', icon: ImageIcon },

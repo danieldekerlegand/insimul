@@ -11,4 +11,6 @@ export interface BabylonExportOptions {
   aiProvider?: AIProviderChoice;
   /** When true, run npm install + vite build (+ electron-builder for electron mode) and return the built artifact */
   buildExecutable?: boolean;
+  /** API server URL for cloud saves in standalone/Electron mode (e.g., 'http://localhost:8080') */
+  apiUrl?: string;
 }

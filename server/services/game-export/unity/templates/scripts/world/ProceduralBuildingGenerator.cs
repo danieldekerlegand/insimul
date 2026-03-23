@@ -541,12 +541,17 @@ namespace Insimul.World
             // Windows with optional shutters
             AddWindows(building, width, depth, floors, totalHeight, style);
 
+            // Determine balcony status early — needed by both porch and balcony logic
+            bool hasBalcony = style.hasIronworkBalcony;
+            if (!hasBalcony && BUILDING_TYPES.TryGetValue(role ?? "", out var bldTypeDefaults))
+                hasBalcony = bldTypeDefaults.hasBalcony;
+
             // Porch
             if (style.hasPorch)
             {
                 float pDepth = style.porchDepth > 0 ? style.porchDepth : 3f;
                 int pSteps = style.porchSteps > 0 ? style.porchSteps : 3;
-                AddPorch(building, width, depth, porchElevation, pDepth, pSteps, style);
+                AddPorch(building, width, depth, porchElevation, pDepth, pSteps, floors, hasBalcony, style);
 
                 // Porch setback: push all geometry back in local -Z so the porch + stairs
                 // don't cover the sidewalk. Shift by 3/4 of the total porch extension.
@@ -563,9 +568,6 @@ namespace Insimul.World
             // Balcony (with ironwork support)
             if (floors >= 2)
             {
-                bool hasBalcony = style.hasIronworkBalcony;
-                if (!hasBalcony && BUILDING_TYPES.TryGetValue(role ?? "", out var typeDefaults))
-                    hasBalcony = typeDefaults.hasBalcony;
                 if (hasBalcony)
                     AddBalcony(building, width, depth, totalHeight, floorHeight, style);
             }
@@ -629,7 +631,10 @@ namespace Insimul.World
             roof.transform.rotation = Quaternion.Euler(0, rotation, 0);
             roof.transform.SetParent(building.transform);
 
-            // Resolve roof texture: prefer per-preset texture, fall back to global, then solid color
+            // Resolve roof texture: prefer per-preset texture, fall back to global, then solid color.
+            // NOTE: Custom vertex geometry (gable/hip) has mixed triangle winding so the
+            // roof material should be two-sided. In Unity set material.doubleSidedGI = true
+            // and ensure the shader uses Cull Off to render both faces.
             var roofRenderer = roof.GetComponent<Renderer>();
             if (roofRenderer != null)
             {
@@ -644,11 +649,14 @@ namespace Insimul.World
                 {
                     var roofMat = GetSharedMaterial($"roof_{style.name}_{roofTexKey}", Color.white);
                     roofMat.mainTexture = resolvedRoofTex;
+                    roofMat.doubleSidedGI = true;
                     roofRenderer.sharedMaterial = roofMat;
                 }
                 else
                 {
-                    roofRenderer.sharedMaterial = GetSharedMaterial("roof", roofColor);
+                    var roofMat = GetSharedMaterial("roof", roofColor);
+                    roofMat.doubleSidedGI = true;
+                    roofRenderer.sharedMaterial = roofMat;
                 }
             }
             roof.isStatic = true;
@@ -807,7 +815,8 @@ namespace Insimul.World
         }
 
         private void AddPorch(GameObject building, float width, float depth,
-            float porchElevation, float porchDepth, int porchSteps, BuildingStylePreset style)
+            float porchElevation, float porchDepth, int porchSteps,
+            int floors, bool hasBalcony, BuildingStylePreset style)
         {
             float groundY = -building.transform.localScale.y / 2f;
 
@@ -832,6 +841,44 @@ namespace Insimul.World
             var deckMat = GetSharedMaterial("porch_deck", style.doorColor * 1.2f);
             deck.GetComponent<Renderer>().sharedMaterial = deckMat;
             deck.isStatic = true;
+
+            // Porch posts — height calculated from floor height and balcony presence
+            float floorHeight = 4f;
+            bool hasBalconyAbove = hasBalcony && floors > 1;
+            float porchCeilingY = floorHeight + porchElevation;
+            float postHeight = porchCeilingY - porchElevation;
+            int postCount = Mathf.Max(2, Mathf.FloorToInt(width / 4f));
+            float postThickness = 0.15f;
+            var postMat = GetSharedMaterial("porch_post", style.baseColor * 0.85f);
+
+            for (int p = 0; p < postCount; p++)
+            {
+                float xOffset = -width / 2f + (width / (postCount + 1)) * (p + 1);
+                var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                post.name = $"Porch_Post_{p}";
+                post.transform.localScale = new Vector3(postThickness, postHeight, postThickness);
+                post.transform.localPosition = new Vector3(xOffset,
+                    groundY - porchElevation + porchElevation + postHeight / 2f,
+                    depth / 2f + porchDepth - postThickness / 2f);
+                post.transform.SetParent(building.transform, false);
+                post.GetComponent<Renderer>().sharedMaterial = postMat;
+                post.isStatic = true;
+            }
+
+            // Thin overhang above porch when upper floors exist but no balcony covers it
+            if (floors > 1 && !hasBalconyAbove)
+            {
+                float overhangThickness = 0.15f;
+                var overhang = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                overhang.name = "Porch_Overhang";
+                overhang.transform.localScale = new Vector3(width + 0.5f, overhangThickness, porchDepth + 0.3f);
+                overhang.transform.localPosition = new Vector3(0,
+                    groundY - porchElevation + porchCeilingY,
+                    depth / 2f + porchDepth / 2f);
+                overhang.transform.SetParent(building.transform, false);
+                overhang.GetComponent<Renderer>().sharedMaterial = GetSharedMaterial("porch_overhang", style.roofColor);
+                overhang.isStatic = true;
+            }
 
             // Steps leading up to porch
             if (porchSteps > 0 && porchElevation > 0)

@@ -33,7 +33,8 @@ function charName(c: Character): string {
 }
 
 function getNPCs(characters: Character[]): Character[] {
-  return characters.filter(c => c.status === 'active');
+  // Include characters with status 'active' or null (null means not explicitly deactivated)
+  return characters.filter(c => c.status === 'active' || c.status === null || c.status === undefined);
 }
 
 function getLocationNames(settlements: Settlement[]): string[] {
@@ -41,17 +42,25 @@ function getLocationNames(settlements: Settlement[]): string[] {
   return names.length > 0 ? names : ['Town Square', 'Market', 'Village Center'];
 }
 
-/** Compute center position from a settlement's boundary polygon, or return null. */
+/** Compute center position from a settlement's boundary polygon, position field, or return null. */
 function getSettlementCenter(settlement: Settlement): { x: number; y: number; z: number } | null {
+  // Try boundary polygon first (most accurate)
   const poly = (settlement as any).boundaryPolygon as Array<{ x: number; z: number }> | undefined;
-  if (!poly || poly.length === 0) return null;
-  const sumX = poly.reduce((s, p) => s + p.x, 0);
-  const sumZ = poly.reduce((s, p) => s + p.z, 0);
-  return {
-    x: sumX / poly.length,
-    y: (settlement as any).elevation ?? 0,
-    z: sumZ / poly.length,
-  };
+  if (poly && poly.length > 0) {
+    const sumX = poly.reduce((s, p) => s + p.x, 0);
+    const sumZ = poly.reduce((s, p) => s + p.z, 0);
+    return {
+      x: sumX / poly.length,
+      y: (settlement as any).elevation ?? 0,
+      z: sumZ / poly.length,
+    };
+  }
+  // Fall back to settlement.position field
+  const pos = (settlement as any).position as { x: number; y: number; z: number } | undefined;
+  if (pos && typeof pos.x === 'number' && typeof pos.z === 'number') {
+    return { x: pos.x, y: pos.y ?? 0, z: pos.z };
+  }
+  return null;
 }
 
 /** Build a map from settlement name → world-space position. */
@@ -63,6 +72,25 @@ function buildLocationPositionMap(settlements: Settlement[]): Map<string, { x: n
     if (pos) map.set(s.name, pos);
   }
   return map;
+}
+
+/** Build a map from settlement ID → world-space position (for NPC location resolution). */
+function buildSettlementIdPositionMap(settlements: Settlement[]): Map<string, { x: number; y: number; z: number }> {
+  const map = new Map<string, { x: number; y: number; z: number }>();
+  for (const s of settlements) {
+    const pos = getSettlementCenter(s);
+    if (pos) map.set(s.id, pos);
+  }
+  return map;
+}
+
+/** Resolve an NPC's position by looking up their currentLocation (settlement ID) in the settlement map. */
+function resolveNpcPosition(
+  npc: Character,
+  settlementIdPositions: Map<string, { x: number; y: number; z: number }>,
+): { x: number; y: number; z: number } | null {
+  if (!npc.currentLocation) return null;
+  return settlementIdPositions.get(npc.currentLocation) ?? null;
 }
 
 // ── Seed quest definitions per type ──────────────────────────────────────────
@@ -168,7 +196,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npcs = pickN(ctx.npcs, 3);
         if (npcs.length === 0) return [obj('obj_0', 'talk_to_npc', 'Talk to 3 different residents', { requiredCount: 3 })];
         return npcs.map((npc, i) => obj(`obj_${i}`, 'talk_to_npc', `Talk to ${charName(npc)}`, {
-          target: charName(npc), npcId: npc.id,
+          target: charName(npc), npcId: npc.id, npcName: charName(npc),
         }));
       },
     },
@@ -183,7 +211,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'complete_conversation',
           npc ? `Have a 3-turn conversation with ${charName(npc)}` : 'Have a 3-turn conversation with any NPC',
-          { target: npc ? charName(npc) : undefined, requiredCount: 3 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 3 },
         )];
       },
     },
@@ -198,7 +226,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'complete_conversation',
           npc ? `Have a 6-turn conversation with ${charName(npc)}` : 'Have a 6-turn conversation with any NPC',
-          { target: npc ? charName(npc) : undefined, requiredCount: 6 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 6 },
         )];
       },
     },
@@ -213,7 +241,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'introduce_self',
           npc ? `Introduce yourself to ${charName(npc)} in ${ctx.targetLanguage}` : `Introduce yourself in ${ctx.targetLanguage}`,
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined },
         )];
       },
     },
@@ -228,7 +256,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'build_friendship',
           npc ? `Have 3 conversations with ${charName(npc)} to build a friendship` : 'Have 3 conversations with a local to build a friendship',
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id, requiredCount: 3 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 3 },
         )];
       },
     },
@@ -245,7 +273,7 @@ function buildSeedQuests(): SeedQuestDef[] {
           obj('obj_0', 'collect_item', 'Find a gift item'),
           obj('obj_1', 'give_gift',
             npc ? `Present the gift to ${charName(npc)}` : 'Present the gift to a local resident',
-            { target: npc ? charName(npc) : undefined, npcId: npc?.id },
+            { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined },
           ),
         ];
       },
@@ -372,10 +400,15 @@ function buildSeedQuests(): SeedQuestDef[] {
       difficulty: 'intermediate',
       xp: 30,
       extraTags: ['grammar'],
-      buildObjectives: (ctx) => [
-        obj('obj_0', 'complete_conversation', 'Have a conversation with any NPC (3 turns minimum)', { requiredCount: 3 }),
-        obj('obj_1', 'use_vocabulary', `Use 5 ${ctx.targetLanguage} words correctly in context`, { requiredCount: 5 }),
-      ],
+      buildObjectives: (ctx) => {
+        const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
+        return [
+          obj('obj_0', 'complete_conversation',
+            npc ? `Have a conversation with ${charName(npc)} (3 turns minimum)` : 'Have a conversation with any NPC (3 turns minimum)',
+            { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 3 }),
+          obj('obj_1', 'use_vocabulary', `Use 5 ${ctx.targetLanguage} words correctly in context`, { requiredCount: 5 }),
+        ];
+      },
     },
     {
       objectiveType: 'write_response',
@@ -415,7 +448,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'listening_comprehension',
           npc ? `Listen to ${charName(npc)}'s story and answer 2 questions correctly` : 'Listen to a story and answer 2 questions correctly',
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id, requiredCount: 2 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 2 },
         )];
       },
     },
@@ -430,7 +463,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'listen_and_repeat',
           npc ? `Listen to ${charName(npc)} and repeat 3 phrases` : 'Listen and repeat 3 phrases from an NPC',
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id, requiredCount: 3 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 3 },
         )];
       },
     },
@@ -445,7 +478,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'listen_and_repeat',
           npc ? `Listen to ${charName(npc)} and repeat 6 phrases` : 'Listen and repeat 6 phrases from NPCs',
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id, requiredCount: 6 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 6 },
         )];
       },
     },
@@ -556,7 +589,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'ask_for_directions',
           npc ? `Ask ${charName(npc)} for directions in ${ctx.targetLanguage}` : `Ask an NPC for directions in ${ctx.targetLanguage}`,
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id, requiredCount: 2 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 2 },
         )];
       },
     },
@@ -577,7 +610,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npcs = pickN(ctx.npcs, 2);
         if (npcs.length === 0) return [obj('obj_0', 'talk_to_npc', 'Talk to 2 locals about their culture', { requiredCount: 2 })];
         return npcs.map((npc, i) => obj(`obj_${i}`, 'talk_to_npc', `Talk to ${charName(npc)} about local customs`, {
-          target: charName(npc), npcId: npc.id,
+          target: charName(npc), npcId: npc.id, npcName: charName(npc),
         }));
       },
     },
@@ -655,7 +688,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'complete_conversation',
           npc ? `Tell ${charName(npc)} a story about yourself (5 turns)` : 'Tell an NPC a story about yourself (5 turns)',
-          { target: npc ? charName(npc) : undefined, requiredCount: 5 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 5 },
         )];
       },
     },
@@ -675,10 +708,10 @@ function buildSeedQuests(): SeedQuestDef[] {
         ];
         return [
           obj('obj_0', 'listen_and_repeat', `Listen to ${charName(npcs[0])} tell a story and repeat key phrases`, {
-            target: charName(npcs[0]), npcId: npcs[0].id, requiredCount: 3,
+            target: charName(npcs[0]), npcId: npcs[0].id, npcName: charName(npcs[0]), requiredCount: 3,
           }),
           obj('obj_1', 'complete_conversation', `Retell the story to ${charName(npcs[1])} (5 turns)`, {
-            target: charName(npcs[1]), requiredCount: 5,
+            target: charName(npcs[1]), npcId: npcs[1].id, npcName: charName(npcs[1]), requiredCount: 5,
           }),
         ];
       },
@@ -700,7 +733,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'order_food',
           npc ? `Order food from ${charName(npc)} in ${ctx.targetLanguage}` : `Order food in ${ctx.targetLanguage}`,
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined },
         )];
       },
     },
@@ -716,7 +749,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
         return [obj('obj_0', 'haggle_price',
           npc ? `Negotiate a price with ${charName(npc)} in ${ctx.targetLanguage}` : `Negotiate a price in ${ctx.targetLanguage}`,
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined },
         )];
       },
     },
@@ -728,10 +761,15 @@ function buildSeedQuests(): SeedQuestDef[] {
       difficulty: 'intermediate',
       xp: 35,
       extraTags: ['commerce', 'daily-life'],
-      buildObjectives: (ctx) => [
-        obj('obj_0', 'order_food', `Order food in ${ctx.targetLanguage}`, { requiredCount: 3 }),
-        obj('obj_1', 'use_vocabulary', `Use 3 food-related ${ctx.targetLanguage} words`, { requiredCount: 3 }),
-      ],
+      buildObjectives: (ctx) => {
+        const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
+        return [
+          obj('obj_0', 'order_food',
+            npc ? `Order food from ${charName(npc)} in ${ctx.targetLanguage}` : `Order food in ${ctx.targetLanguage}`,
+            { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 3 }),
+          obj('obj_1', 'use_vocabulary', `Use 3 food-related ${ctx.targetLanguage} words`, { requiredCount: 3 }),
+        ];
+      },
     },
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -760,7 +798,7 @@ function buildSeedQuests(): SeedQuestDef[] {
           obj('obj_0', 'collect_item', 'Pick up the delivery package'),
           obj('obj_1', 'deliver_item',
             npc ? `Deliver the package to ${charName(npc)}` : 'Deliver the package to the recipient',
-            { target: npc ? charName(npc) : undefined, npcId: npc?.id },
+            { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined },
           ),
         ];
       },
@@ -800,7 +838,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         const dest = pick(ctx.locations);
         return [obj('obj_0', 'escort_npc',
           npc ? `Escort ${charName(npc)} to ${dest}` : `Escort the traveler to ${dest}`,
-          { target: npc ? charName(npc) : undefined, npcId: npc?.id },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined },
         )];
       },
     },
@@ -824,7 +862,7 @@ function buildSeedQuests(): SeedQuestDef[] {
           obj('obj_0', 'visit_location', `Visit ${loc}`, { target: loc }),
           obj('obj_1', 'talk_to_npc',
             npc ? `Talk to ${charName(npc)}` : 'Talk to a local',
-            { target: npc ? charName(npc) : undefined, npcId: npc?.id },
+            { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined },
           ),
           obj('obj_2', 'collect_vocabulary', 'Collect 2 vocabulary words', { requiredCount: 2 }),
         ];
@@ -845,7 +883,7 @@ function buildSeedQuests(): SeedQuestDef[] {
           obj('obj_0', 'visit_location', `Go to ${loc}`, { target: loc }),
           obj('obj_1', 'complete_conversation',
             npc ? `Have a 3-turn conversation with ${charName(npc)}` : 'Have a 3-turn conversation',
-            { target: npc ? charName(npc) : undefined, requiredCount: 3 },
+            { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 3 },
           ),
           obj('obj_2', 'use_vocabulary', `Use 3 ${ctx.targetLanguage} words in conversation`, { requiredCount: 3 }),
           obj('obj_3', 'identify_object', `Identify 1 object by its ${ctx.targetLanguage} name`),
@@ -871,7 +909,7 @@ function buildSeedQuests(): SeedQuestDef[] {
         objectives.push(obj(`obj_${nextIdx + 1}`, 'examine_object', 'Examine 2 objects', { requiredCount: 2 }));
         objectives.push(obj(`obj_${nextIdx + 2}`, 'complete_conversation',
           npc ? `Have a conversation with ${charName(npc)} (4 turns)` : 'Have a conversation (4 turns)',
-          { target: npc ? charName(npc) : undefined, requiredCount: 4 },
+          { target: npc ? charName(npc) : undefined, npcId: npc?.id, npcName: npc ? charName(npc) : undefined, requiredCount: 4 },
         ));
         objectives.push(obj(`obj_${nextIdx + 3}`, 'use_vocabulary', `Use 5 ${ctx.targetLanguage} words`, { requiredCount: 5 }));
         return objectives;
@@ -902,7 +940,15 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
   const npcs = getNPCs(characters);
   const locations = getLocationNames(settlements);
   const locationPositions = buildLocationPositionMap(settlements);
+  const settlementIdPositions = buildSettlementIdPositionMap(settlements);
   const targetLanguage = world.targetLanguage || 'English';
+
+  // Build NPC ID → position map for resolving NPC-targeted objectives
+  const npcPositionMap = new Map<string, { x: number; y: number; z: number }>();
+  for (const npc of npcs) {
+    const pos = resolveNpcPosition(npc, settlementIdPositions);
+    if (pos) npcPositionMap.set(npc.id, pos);
+  }
 
   const ctx: SeedQuestContext = { world, npcs, locations, locationPositions, targetLanguage };
 
@@ -934,6 +980,11 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
         }
       }
 
+      // For NPC-targeted objectives, resolve position from NPC's settlement
+      if (!objective.locationPosition && objective.npcId && npcPositionMap.has(objective.npcId)) {
+        objective.locationPosition = { ...npcPositionMap.get(objective.npcId)! };
+      }
+
       // Enrich navigation waypoints with positions
       if (objective.navigationWaypoints) {
         for (const wp of objective.navigationWaypoints) {
@@ -952,9 +1003,10 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
     }
 
     // Fallback pass: ensure every objective has a locationPosition.
-    // Use the first resolved quest-level position, or pick a random settlement center.
+    // Use the first resolved quest-level position, NPC position, or pick a random settlement center.
     const fallbackPosition = questLocationPosition
-      ?? (locationPositions.size > 0 ? Array.from(locationPositions.values())[0] : null);
+      ?? (locationPositions.size > 0 ? Array.from(locationPositions.values())[0] : null)
+      ?? (settlementIdPositions.size > 0 ? Array.from(settlementIdPositions.values())[0] : null);
 
     if (fallbackPosition) {
       for (const objective of objectives) {
@@ -982,8 +1034,8 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       experienceReward: def.xp,
       rewards: { xp: def.xp, fluency: Math.round(def.xp / 5) },
       tags: ['seed', `objective-type:${def.objectiveType}`, `category:${def.questType}`, ...(def.extraTags || [])],
-      ...(questLocationName ? { locationName: questLocationName } : {}),
-      ...(questLocationPosition ? { locationPosition: questLocationPosition } : {}),
+      locationName: questLocationName ?? (fallbackPosition ? locations[0] : null),
+      locationPosition: questLocationPosition ?? fallbackPosition ?? null,
     };
 
     // Generate Prolog content
@@ -1006,6 +1058,10 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
   if (isLanguageLearningWorld(world)) {
     const cityName = locations[0] || 'the city';
 
+    // Resolve a default assessment position (first settlement or any available position)
+    const assessmentPosition = (locationPositions.size > 0 ? Array.from(locationPositions.values())[0] : null)
+      ?? (settlementIdPositions.size > 0 ? Array.from(settlementIdPositions.values())[0] : null);
+
     // Arrival Assessment
     const arrivalData = buildArrivalAssessmentQuest({
       worldId: world.id,
@@ -1015,6 +1071,18 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
     });
     arrivalData.status = 'active'; // Immediately active when a player starts a new game
     arrivalData.assignedTo = 'unassigned';
+    // Enrich arrival assessment objectives with position data
+    if (assessmentPosition && arrivalData.objectives) {
+      for (const obj of arrivalData.objectives as any[]) {
+        if (!obj.locationPosition) {
+          obj.locationPosition = { ...assessmentPosition };
+        }
+      }
+    }
+    if (assessmentPosition) {
+      (arrivalData as any).locationPosition = assessmentPosition;
+      (arrivalData as any).locationName = cityName;
+    }
     quests.push(arrivalData as InsertQuest);
 
     // Departure Assessment
@@ -1027,6 +1095,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       currentCount: 0,
       completed: false,
       assessmentPhaseId: phase.id,
+      ...(assessmentPosition ? { locationPosition: { ...assessmentPosition } } : {}),
     }));
 
     const departureQuest: InsertQuest = {
@@ -1043,6 +1112,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       rewards: { xp: 50, fluency: 5, cefrAssessment: true },
       status: 'available',
       tags: ['assessment', 'departure', 'non-skippable', 'non-abandonable'],
+      ...(assessmentPosition ? { locationPosition: assessmentPosition, locationName: cityName } : {}),
     } as InsertQuest;
     quests.push(departureQuest);
   }

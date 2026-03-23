@@ -15,6 +15,10 @@ interface QuestIndicator {
   mesh: Mesh;
   type: QuestIndicatorType;
   npcId: string;
+  /** The NPC mesh to track (indicator is NOT parented to avoid scale issues) */
+  trackedMesh: Mesh;
+  /** Height offset above the NPC mesh */
+  heightOffset: number;
 }
 
 interface Quest {
@@ -49,10 +53,15 @@ export class QuestIndicatorManager {
     npcs: Map<string, { mesh: Mesh; character: Character }>,
     quests: Quest[]
   ): void {
+    let created = 0;
+    let sample: { id: string; occupation: string | undefined; type: QuestIndicatorType } | null = null;
     npcs.forEach((npcData, npcId) => {
       const indicatorType = this.getIndicatorType(npcData.character, quests);
+      if (indicatorType) created++;
+      if (!sample) sample = { id: npcId, occupation: npcData.character?.occupation, type: indicatorType };
       this.setIndicator(npcId, npcData.mesh, indicatorType);
     });
+    console.log(`[QuestIndicatorManager] Updated ${npcs.size} NPCs, ${created} indicators created, ${quests.length} quests, sample NPC:`, sample);
   }
 
   /**
@@ -164,22 +173,40 @@ export class QuestIndicatorManager {
   }
 
   /**
-   * Create a quest indicator above an NPC
+   * Create a quest indicator above an NPC.
+   * Indicators are positioned in world space (NOT parented to the NPC mesh)
+   * to avoid rendering issues from models with negative scale values.
    */
   private createIndicator(npcId: string, npcMesh: Mesh, type: QuestIndicatorType): void {
     const indicatorConfig = this.getIndicatorConfig(type);
     if (!indicatorConfig) return;
 
-    // Create a plane for the indicator
+    // Compute height offset from mesh bounds
+    let heightOffset = this.indicatorHeight;
+    try {
+      npcMesh.computeWorldMatrix(true);
+      const bi = npcMesh.getHierarchyBoundingVectors(true);
+      const modelHeight = bi.max.y - bi.min.y;
+      if (modelHeight > 0.1) {
+        heightOffset = modelHeight + 0.5;
+      }
+    } catch {
+      // Fall back to default
+    }
+
+    // Create a plane for the indicator (world-space, not parented)
     const indicator = MeshBuilder.CreatePlane(
       `quest_indicator_${npcId}`,
       { width: 0.8, height: 0.8 },
       this.scene
     );
 
-    // Position above NPC
-    indicator.parent = npcMesh;
-    indicator.position = new Vector3(0, this.indicatorHeight, 0);
+    // Position in world space above the NPC
+    indicator.position = new Vector3(
+      npcMesh.position.x,
+      npcMesh.position.y + heightOffset,
+      npcMesh.position.z,
+    );
     indicator.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
     // Create dynamic texture for the symbol
@@ -194,7 +221,7 @@ export class QuestIndicatorManager {
     // Draw the indicator symbol
     const ctx = dynamicTexture.getContext() as CanvasRenderingContext2D;
     ctx.clearRect(0, 0, textureResolution, textureResolution);
-    
+
     // Draw background circle
     ctx.beginPath();
     ctx.arc(64, 64, 50, 0, Math.PI * 2);
@@ -219,24 +246,8 @@ export class QuestIndicatorManager {
     material.emissiveTexture = dynamicTexture;
     material.useAlphaFromDiffuseTexture = true;
     material.disableLighting = true;
+    material.backFaceCulling = false;
     indicator.material = material;
-
-    // Add floating animation
-    const floatAnim = new Animation(
-      `quest_indicator_float_${npcId}`,
-      'position.y',
-      30,
-      Animation.ANIMATIONTYPE_FLOAT,
-      Animation.ANIMATIONLOOPMODE_CYCLE
-    );
-
-    floatAnim.setKeys([
-      { frame: 0, value: this.indicatorHeight },
-      { frame: 30, value: this.indicatorHeight + 0.2 },
-      { frame: 60, value: this.indicatorHeight }
-    ]);
-
-    indicator.animations.push(floatAnim);
 
     // Add pulse (scale) animation for 'available' and 'turn_in' to draw attention
     if (type === 'available' || type === 'turn_in') {
@@ -255,19 +266,34 @@ export class QuestIndicatorManager {
         { frame: 0, value: baseScale },
         { frame: 20, value: peakScale },
         { frame: 40, value: baseScale },
-        { frame: 60, value: baseScale }, // pause at base before next cycle
+        { frame: 60, value: baseScale },
       ]);
 
       indicator.animations.push(pulseAnim);
+      this.scene.beginAnimation(indicator, 0, 60, true);
     }
 
-    this.scene.beginAnimation(indicator, 0, 60, true);
-
-    // Store indicator
+    // Store indicator with tracking info
     this.indicators.set(npcId, {
       mesh: indicator,
       type,
-      npcId
+      npcId,
+      trackedMesh: npcMesh,
+      heightOffset,
+    });
+  }
+
+  /**
+   * Update indicator positions to follow their tracked NPC meshes.
+   * Call this each frame from the render loop.
+   */
+  public updatePositions(): void {
+    this.indicators.forEach((indicator) => {
+      if (indicator.trackedMesh && !indicator.trackedMesh.isDisposed()) {
+        indicator.mesh.position.x = indicator.trackedMesh.position.x;
+        indicator.mesh.position.y = indicator.trackedMesh.position.y + indicator.heightOffset;
+        indicator.mesh.position.z = indicator.trackedMesh.position.z;
+      }
     });
   }
 

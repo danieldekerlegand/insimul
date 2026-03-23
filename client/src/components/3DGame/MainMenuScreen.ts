@@ -28,6 +28,8 @@ export interface PlaythroughInfo {
   createdAt: string;
   playtime: number;
   actionsCount: number;
+  /** Where this playthrough lives: 'local' (localStorage) or 'cloud' (API server) */
+  source?: "local" | "cloud";
 }
 
 export interface MainMenuCallbacks {
@@ -39,6 +41,17 @@ export interface MainMenuCallbacks {
   onContinue: (playthroughId: string) => void;
   /** Go back to the editor / world list */
   onBack: () => void;
+  /** Sign in to cloud saves (optional — only in standalone/electron mode) */
+  onSignIn?: (
+    username: string,
+    password: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  /** Sign out of cloud saves */
+  onSignOut?: () => void;
+  /** Check if the user is currently signed in */
+  isSignedIn?: () => boolean;
+  /** Get the currently signed-in username */
+  getUsername?: () => string | null;
 }
 
 // ─── Colors ─────────────────────────────────────────────────────────────────
@@ -105,7 +118,10 @@ export class MainMenuScreen {
   private overlay: Rectangle | null = null;
   private playthroughs: PlaythroughInfo[] = [];
   private _isOpen = false;
-  private _view: "main" | "load" | "controls" = "main";
+  private _view: "main" | "load" | "controls" | "signin" = "main";
+
+  // HTML-based sign-in overlay elements
+  private signInOverlay: HTMLDivElement | null = null;
 
   // Animated star background
   private stars: Star[] = [];
@@ -145,9 +161,17 @@ export class MainMenuScreen {
   hide(): void {
     this._isOpen = false;
     this.stopStarAnimation();
+    this.removeSignInOverlay();
     if (this.overlay) {
       this.advancedTexture.removeControl(this.overlay);
       this.overlay = null;
+    }
+  }
+
+  private removeSignInOverlay(): void {
+    if (this.signInOverlay) {
+      this.signInOverlay.remove();
+      this.signInOverlay = null;
     }
   }
 
@@ -279,12 +303,17 @@ export class MainMenuScreen {
     // Start animated background
     this.initStarField();
 
+    // Clean up HTML overlay when switching views
+    this.removeSignInOverlay();
+
     if (this._view === "main") {
       this.renderMainView();
     } else if (this._view === "load") {
       this.renderLoadView();
     } else if (this._view === "controls") {
       this.renderControlsView();
+    } else if (this._view === "signin") {
+      this.renderSignInView();
     }
   }
 
@@ -415,8 +444,67 @@ export class MainMenuScreen {
       },
     );
 
+    // ── Cloud saves sign-in status ──
+    this.addSpacer(container, "24px");
+
+    if (this.callbacks.onSignIn) {
+      const signedIn = this.callbacks.isSignedIn?.() ?? false;
+
+      if (signedIn) {
+        const username = this.callbacks.getUsername?.() || "User";
+        const signedInRow = new StackPanel("signedInRow");
+        signedInRow.isVertical = false;
+        signedInRow.height = "24px";
+        signedInRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        container.addControl(signedInRow);
+
+        const statusText = new TextBlock("signedInStatus", `Signed in as ${username}`);
+        statusText.color = COLORS.accentGreen;
+        statusText.fontSize = 12;
+        statusText.width = "200px";
+        statusText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        signedInRow.addControl(statusText);
+
+        const signOutBtn = Button.CreateSimpleButton("signOutBtn", "Sign Out");
+        signOutBtn.width = "80px";
+        signOutBtn.height = "22px";
+        signOutBtn.color = COLORS.textMuted;
+        signOutBtn.background = "transparent";
+        signOutBtn.thickness = 0;
+        signOutBtn.fontSize = 11;
+        signOutBtn.onPointerClickObservable.add(() => {
+          this.callbacks.onSignOut?.();
+          this.buildUI(); // Refresh to show signed-out state
+        });
+        signedInRow.addControl(signOutBtn);
+      } else {
+        const signInBtn = Button.CreateSimpleButton(
+          "cloudSignInBtn",
+          "Sign In for Cloud Saves",
+        );
+        signInBtn.width = "220px";
+        signInBtn.height = "28px";
+        signInBtn.color = COLORS.accent;
+        signInBtn.background = "transparent";
+        signInBtn.thickness = 0;
+        signInBtn.fontSize = 12;
+        signInBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        signInBtn.onPointerEnterObservable.add(() => {
+          signInBtn.color = "#FFFFFF";
+        });
+        signInBtn.onPointerOutObservable.add(() => {
+          signInBtn.color = COLORS.accent;
+        });
+        signInBtn.onPointerClickObservable.add(() => {
+          this._view = "signin";
+          this.buildUI();
+        });
+        container.addControl(signInBtn);
+      }
+    }
+
     // Version / footer
-    this.addSpacer(container, "40px");
+    this.addSpacer(container, "16px");
     const footer = new TextBlock("footer", "Press any button to begin");
     footer.color = COLORS.textMuted;
     footer.fontSize = 12;
@@ -633,6 +721,37 @@ export class MainMenuScreen {
     name.left = "16px";
     inner.addControl(name);
 
+    // Source badge (local/cloud)
+    if (pt.source) {
+      const badge = new Rectangle(`ptBadge_${pt.id}`);
+      badge.width = "52px";
+      badge.height = "18px";
+      badge.thickness = 1;
+      badge.cornerRadius = 4;
+      badge.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      badge.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      badge.top = "8px";
+      badge.left = "-12px";
+      badge.color =
+        pt.source === "cloud"
+          ? "rgba(66, 133, 244, 0.5)"
+          : "rgba(154, 160, 166, 0.5)";
+      badge.background =
+        pt.source === "cloud"
+          ? "rgba(66, 133, 244, 0.12)"
+          : "rgba(154, 160, 166, 0.08)";
+      card.addControl(badge);
+
+      const badgeText = new TextBlock(
+        `ptBadgeTxt_${pt.id}`,
+        pt.source === "cloud" ? "Cloud" : "Local",
+      );
+      badgeText.color =
+        pt.source === "cloud" ? COLORS.accent : COLORS.textSecondary;
+      badgeText.fontSize = 10;
+      badge.addControl(badgeText);
+    }
+
     // Details line
     const details: string[] = [];
     if (pt.status) details.push(pt.status);
@@ -752,6 +871,128 @@ export class MainMenuScreen {
     spacer.thickness = 0;
     spacer.background = "transparent";
     parent.addControl(spacer);
+  }
+
+  // ─── Sign-in view (HTML overlay for text input) ────────────────────────
+
+  private renderSignInView(): void {
+    if (!this.overlay) return;
+
+    // Show a "Signing In..." message in the Babylon overlay
+    const container = new StackPanel("signInBgContainer");
+    container.width = "420px";
+    container.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    this.overlay.addControl(container);
+
+    this.addSubViewHeader(container, "Sign In");
+
+    // Create an HTML overlay for the form (better text input than Babylon GUI)
+    this.removeSignInOverlay();
+
+    const overlay = document.createElement("div");
+    overlay.id = "insimul-signin-overlay";
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000; pointer-events: none;
+    `;
+
+    const form = document.createElement("div");
+    form.style.cssText = `
+      pointer-events: all; background: rgba(12, 14, 24, 0.95);
+      border: 1px solid rgba(66, 133, 244, 0.3); border-radius: 12px;
+      padding: 32px; width: 360px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    `;
+
+    const inputStyle = `
+      width: 100%; padding: 10px 12px; margin: 6px 0 16px 0;
+      background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px; color: #E8EAED; font-size: 14px; outline: none;
+      box-sizing: border-box;
+    `;
+
+    form.innerHTML = `
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="color: #9AA0A6; font-size: 13px;">
+          Sign in to your Insimul account to access cloud saves
+        </div>
+      </div>
+      <label style="color: #9AA0A6; font-size: 12px; display: block;">Username</label>
+      <input id="signin-username" type="text" autocomplete="username"
+             style="${inputStyle}" placeholder="Enter username" />
+      <label style="color: #9AA0A6; font-size: 12px; display: block;">Password</label>
+      <input id="signin-password" type="password" autocomplete="current-password"
+             style="${inputStyle}" placeholder="Enter password" />
+      <div id="signin-error" style="color: #EA4335; font-size: 12px; min-height: 20px; margin-bottom: 8px;"></div>
+      <button id="signin-submit" style="
+        width: 100%; padding: 10px; background: #4285F4; color: white; border: none;
+        border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+        margin-bottom: 12px;
+      ">Sign In</button>
+      <button id="signin-cancel" style="
+        width: 100%; padding: 8px; background: transparent; color: #9AA0A6; border: none;
+        border-radius: 6px; font-size: 13px; cursor: pointer;
+      ">Cancel</button>
+    `;
+
+    overlay.appendChild(form);
+    document.body.appendChild(overlay);
+    this.signInOverlay = overlay;
+
+    // Focus the username input
+    setTimeout(() => {
+      const usernameInput = document.getElementById("signin-username") as HTMLInputElement | null;
+      usernameInput?.focus();
+    }, 100);
+
+    // Wire up events
+    const submitBtn = document.getElementById("signin-submit");
+    const cancelBtn = document.getElementById("signin-cancel");
+    const errorDiv = document.getElementById("signin-error");
+    const passwordInput = document.getElementById("signin-password") as HTMLInputElement | null;
+
+    const doSubmit = async () => {
+      const username = (document.getElementById("signin-username") as HTMLInputElement)?.value?.trim();
+      const password = (document.getElementById("signin-password") as HTMLInputElement)?.value;
+
+      if (!username || !password) {
+        if (errorDiv) errorDiv.textContent = "Please enter both username and password.";
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.textContent = "Signing in...";
+        (submitBtn as HTMLButtonElement).disabled = true;
+      }
+
+      const result = await this.callbacks.onSignIn?.(username, password);
+      if (result?.success) {
+        this.removeSignInOverlay();
+        // Re-fetch playthroughs with new credentials and go back to main
+        try {
+          this.playthroughs = await this.callbacks.getPlaythroughs();
+        } catch { /* ignore */ }
+        this._view = "main";
+        this.buildUI();
+      } else {
+        if (errorDiv) errorDiv.textContent = result?.error || "Sign-in failed. Please try again.";
+        if (submitBtn) {
+          submitBtn.textContent = "Sign In";
+          (submitBtn as HTMLButtonElement).disabled = false;
+        }
+      }
+    };
+
+    submitBtn?.addEventListener("click", doSubmit);
+    cancelBtn?.addEventListener("click", () => {
+      this._view = "main";
+      this.buildUI();
+    });
+    passwordInput?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doSubmit();
+    });
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────

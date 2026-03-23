@@ -345,16 +345,71 @@ FString UDataLoader::PayFines(const FString& SettlementId)
 
 FString UDataLoader::ListPlaythroughs()
 {
-    // Exported games run locally — return empty array (no server-side playthroughs).
     UE_LOG(LogTemp, Log, TEXT("[Insimul] ListPlaythroughs()"));
-    return TEXT("[]");
+
+    TArray<TSharedPtr<FJsonValue>> Playthroughs = LoadPlaythroughIndex();
+
+    FString ResultJson;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultJson);
+    FJsonSerializer::Serialize(Playthroughs, Writer);
+    return ResultJson;
 }
 
 FString UDataLoader::StartPlaythrough(const FString& PlaythroughName)
 {
-    // TODO: Generate unique playthrough ID and persist to local state.
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] StartPlaythrough(%s)"), *PlaythroughName);
-    return FString::Printf(TEXT("{\"id\":\"exported-playthrough\",\"name\":\"%s\"}"), *PlaythroughName);
+    // Generate unique ID: local-{timestamp}-{random}
+    const int64 Timestamp = FDateTime::UtcNow().ToUnixTimestamp();
+    const int32 Random = FMath::RandRange(1000, 9999);
+    const FString NewId = FString::Printf(TEXT("local-%lld-%d"), Timestamp, Random);
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] StartPlaythrough(%s) -> %s"), *PlaythroughName, *NewId);
+
+    // Set as current playthrough
+    CurrentPlaythroughId = NewId;
+
+    // Build metadata object
+    TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+    const FString NowISO = FDateTime::UtcNow().ToIso8601();
+    Entry->SetStringField(TEXT("id"), NewId);
+    Entry->SetStringField(TEXT("name"), PlaythroughName);
+    Entry->SetStringField(TEXT("status"), TEXT("active"));
+    Entry->SetStringField(TEXT("createdAt"), NowISO);
+    Entry->SetStringField(TEXT("lastPlayedAt"), NowISO);
+
+    // Persist to index
+    TArray<TSharedPtr<FJsonValue>> Playthroughs = LoadPlaythroughIndex();
+    Playthroughs.Add(MakeShared<FJsonValueObject>(Entry));
+    SavePlaythroughIndex(Playthroughs);
+
+    // Return the new playthrough as JSON
+    FString ResultJson;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultJson);
+    FJsonSerializer::Serialize(Entry.ToSharedRef(), Writer);
+    return ResultJson;
+}
+
+FString UDataLoader::GetPlaythrough(const FString& PlaythroughId)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] GetPlaythrough(%s)"), *PlaythroughId);
+
+    TArray<TSharedPtr<FJsonValue>> Playthroughs = LoadPlaythroughIndex();
+    for (const auto& Val : Playthroughs)
+    {
+        const TSharedPtr<FJsonObject>* Obj;
+        if (Val->TryGetObject(Obj))
+        {
+            FString Id;
+            (*Obj)->TryGetStringField(TEXT("id"), Id);
+            if (Id == PlaythroughId)
+            {
+                FString ResultJson;
+                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultJson);
+                FJsonSerializer::Serialize(Obj->ToSharedRef(), Writer);
+                return ResultJson;
+            }
+        }
+    }
+    return FString();
 }
 
 // ── Character lookup ──────────────────────────────────────────────────
@@ -594,85 +649,163 @@ FString UDataLoader::DeriveResidencesFromBuildings(const FString& SettlementId) 
 
 // ── Save / Load ────────────────────────────────────────────────────────
 
-bool UDataLoader::SaveGameState(int32 SlotIndex, const FString& GameStateJSON)
+bool UDataLoader::SaveGameState(int32 SlotIndex, const FString& GameStateJSON, const FString& PlaythroughId)
 {
     if (SlotIndex < 0 || SlotIndex > 2)
     {
         UE_LOG(LogTemp, Warning, TEXT("[Insimul] SaveGameState: invalid slot %d (must be 0-2)"), SlotIndex);
         return false;
     }
+    const FString EffectiveId = ResolvePlaythroughId(PlaythroughId);
     const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
-    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%d.json"), SlotIndex);
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%s_%d.json"), *EffectiveId, SlotIndex);
     if (!FFileHelper::SaveStringToFile(GameStateJSON, *SavePath))
     {
         UE_LOG(LogTemp, Warning, TEXT("[Insimul] SaveGameState: failed to write %s"), *SavePath);
         return false;
     }
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] SaveGameState: saved to slot %d (%d chars)"), SlotIndex, GameStateJSON.Len());
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] SaveGameState: saved to playthrough %s slot %d (%d chars)"), *EffectiveId, SlotIndex, GameStateJSON.Len());
+
+    // Update lastPlayedAt in index
+    TArray<TSharedPtr<FJsonValue>> Playthroughs = LoadPlaythroughIndex();
+    for (const auto& Val : Playthroughs)
+    {
+        const TSharedPtr<FJsonObject>* Obj;
+        if (Val->TryGetObject(Obj))
+        {
+            FString Id;
+            (*Obj)->TryGetStringField(TEXT("id"), Id);
+            if (Id == EffectiveId)
+            {
+                (*Obj)->SetStringField(TEXT("lastPlayedAt"), FDateTime::UtcNow().ToIso8601());
+                break;
+            }
+        }
+    }
+    SavePlaythroughIndex(Playthroughs);
+
     return true;
 }
 
-FString UDataLoader::LoadGameState(int32 SlotIndex)
+FString UDataLoader::LoadGameState(int32 SlotIndex, const FString& PlaythroughId)
 {
     if (SlotIndex < 0 || SlotIndex > 2)
     {
         UE_LOG(LogTemp, Warning, TEXT("[Insimul] LoadGameState: invalid slot %d (must be 0-2)"), SlotIndex);
         return FString();
     }
+    const FString EffectiveId = ResolvePlaythroughId(PlaythroughId);
     const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
-    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%d.json"), SlotIndex);
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%s_%d.json"), *EffectiveId, SlotIndex);
     FString Contents;
     if (!FFileHelper::LoadFileToString(Contents, *SavePath))
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadGameState: no save in slot %d"), SlotIndex);
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadGameState: no save for playthrough %s slot %d"), *EffectiveId, SlotIndex);
         return FString();
     }
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadGameState: loaded slot %d (%d chars)"), SlotIndex, Contents.Len());
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadGameState: loaded playthrough %s slot %d (%d chars)"), *EffectiveId, SlotIndex, Contents.Len());
     return Contents;
 }
 
-bool UDataLoader::DeleteGameState(int32 SlotIndex)
+bool UDataLoader::DeleteGameState(int32 SlotIndex, const FString& PlaythroughId)
 {
     if (SlotIndex < 0 || SlotIndex > 2)
     {
         UE_LOG(LogTemp, Warning, TEXT("[Insimul] DeleteGameState: invalid slot %d (must be 0-2)"), SlotIndex);
         return false;
     }
+    const FString EffectiveId = ResolvePlaythroughId(PlaythroughId);
     const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
-    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%d.json"), SlotIndex);
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%s_%d.json"), *EffectiveId, SlotIndex);
     if (IFileManager::Get().FileExists(*SavePath))
     {
         IFileManager::Get().Delete(*SavePath);
     }
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] DeleteGameState: deleted slot %d"), SlotIndex);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] DeleteGameState: deleted playthrough %s slot %d"), *EffectiveId, SlotIndex);
     return true;
 }
 
-bool UDataLoader::SaveQuestProgress(const FString& QuestProgressJSON)
+bool UDataLoader::SaveQuestProgress(const FString& QuestProgressJSON, const FString& PlaythroughId)
 {
+    const FString EffectiveId = ResolvePlaythroughId(PlaythroughId);
     const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
-    const FString SavePath = SaveDir / TEXT("insimul_quest_progress.json");
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_quest_progress_%s.json"), *EffectiveId);
     if (!FFileHelper::SaveStringToFile(QuestProgressJSON, *SavePath))
     {
         UE_LOG(LogTemp, Warning, TEXT("[Insimul] SaveQuestProgress: failed to write %s"), *SavePath);
         return false;
     }
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] SaveQuestProgress: saved (%d chars)"), QuestProgressJSON.Len());
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] SaveQuestProgress: saved for playthrough %s (%d chars)"), *EffectiveId, QuestProgressJSON.Len());
     return true;
 }
 
-FString UDataLoader::LoadQuestProgress()
+FString UDataLoader::LoadQuestProgress(const FString& PlaythroughId)
 {
+    const FString EffectiveId = ResolvePlaythroughId(PlaythroughId);
     const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
-    const FString SavePath = SaveDir / TEXT("insimul_quest_progress.json");
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_quest_progress_%s.json"), *EffectiveId);
     FString Contents;
     if (!FFileHelper::LoadFileToString(Contents, *SavePath))
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadQuestProgress: no saved quest progress"));
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadQuestProgress: no saved quest progress for playthrough %s"), *EffectiveId);
         return FString();
     }
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadQuestProgress: loaded (%d chars)"), Contents.Len());
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadQuestProgress: loaded for playthrough %s (%d chars)"), *EffectiveId, Contents.Len());
     return Contents;
+}
+
+// ── Playthrough index helpers ─────────────────────────────────────────
+
+FString UDataLoader::ResolvePlaythroughId(const FString& PlaythroughId) const
+{
+    if (!PlaythroughId.IsEmpty())
+    {
+        return PlaythroughId;
+    }
+    if (!CurrentPlaythroughId.IsEmpty())
+    {
+        return CurrentPlaythroughId;
+    }
+    return TEXT("default");
+}
+
+TArray<TSharedPtr<FJsonValue>> UDataLoader::LoadPlaythroughIndex() const
+{
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+    const FString IndexPath = SaveDir / TEXT("insimul_playthroughs.json");
+    FString Contents;
+    if (!FFileHelper::LoadFileToString(Contents, *IndexPath))
+    {
+        return TArray<TSharedPtr<FJsonValue>>();
+    }
+
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Contents);
+    TArray<TSharedPtr<FJsonValue>> Result;
+    if (!FJsonSerializer::Deserialize(Reader, Result))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] LoadPlaythroughIndex: failed to parse %s"), *IndexPath);
+        return TArray<TSharedPtr<FJsonValue>>();
+    }
+    return Result;
+}
+
+bool UDataLoader::SavePlaythroughIndex(const TArray<TSharedPtr<FJsonValue>>& Playthroughs) const
+{
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+    // Ensure SaveGames directory exists
+    IFileManager::Get().MakeDirectory(*SaveDir, true);
+    const FString IndexPath = SaveDir / TEXT("insimul_playthroughs.json");
+
+    FString JsonStr;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonStr);
+    FJsonSerializer::Serialize(Playthroughs, Writer);
+
+    if (!FFileHelper::SaveStringToFile(JsonStr, *IndexPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] SavePlaythroughIndex: failed to write %s"), *IndexPath);
+        return false;
+    }
+    return true;
 }
 
 FString UDataLoader::LoadPlaythroughRelationships()

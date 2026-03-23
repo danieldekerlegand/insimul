@@ -347,9 +347,10 @@ export const COLLECTION_TEMPLATES: Record<string, CollectionTemplate> = {
   'cyberpunk': cyberpunk,
   'historical-ancient': historical,
   'post-apocalyptic': postApocalyptic,
-  'western-frontier': western,
   'tropical-pirate': tropical,
   'steampunk': steampunk,
+  // creole-colonial shares the tropical template's maritime/colonial props
+  'creole-colonial': tropical,
 };
 
 /**

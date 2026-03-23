@@ -426,6 +426,8 @@ function buildProceduralPlaceholder(
     tex.uScale = 2;
     tex.vScale = 2;
     mat.diffuseTexture = tex;
+    // Texture is multiplied by diffuseColor — use white so texture shows true color
+    mat.diffuseColor = new BABYLON.Color3(1, 1, 1);
   }
 
   const hasPorch = preset?.hasPorch ?? defaults?.hasPorch ?? false;
@@ -459,6 +461,7 @@ function buildProceduralPlaceholder(
   if (doorTexturePath) {
     const tex = new BABYLON.Texture(doorTexturePath, scene);
     doorMat.diffuseTexture = tex;
+    doorMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
   }
   const doorH = Math.min(floorHeight * 0.7, 0.4);
   const doorW = doorH * 0.5;
@@ -476,6 +479,7 @@ function buildProceduralPlaceholder(
   if (windowTexturePath) {
     const tex = new BABYLON.Texture(windowTexturePath, scene);
     windowMat.diffuseTexture = tex;
+    windowMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
   }
 
   const winH = floorHeight * 0.35;
@@ -499,11 +503,13 @@ function buildProceduralPlaceholder(
   const roofMat = new BABYLON.StandardMaterial('roofMat', scene);
   roofMat.diffuseColor = roofColor;
   roofMat.specularColor = BABYLON.Color3.Black();
+  roofMat.backFaceCulling = false; // custom vertex geometry has mixed winding
   if (roofTexturePath) {
     const tex = new BABYLON.Texture(roofTexturePath, scene);
     tex.uScale = 2;
     tex.vScale = 2;
     roofMat.diffuseTexture = tex;
+    roofMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
   }
 
   const roofStyle = preset?.roofStyle ?? 'gable';

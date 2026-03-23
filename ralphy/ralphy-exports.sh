@@ -1,3 +1,5 @@
+ralphy --parallel --max-parallel 3 --json ralphy/ralphy-datasource-abstraction.json && \
+ralphy --parallel --max-parallel 3 --json ralphy/ralphy-electron-ai-bridge.json && \
 ralphy --parallel --max-parallel 4 --json ralphy/ralphy-export-foundation.json && \
 ralphy --parallel --max-parallel 3 --json ralphy/ralphy-export-godot.json && \
 ralphy --parallel --max-parallel 3 --json ralphy/ralphy-export-unity.json && \

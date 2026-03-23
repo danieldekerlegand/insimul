@@ -39,8 +39,8 @@ export const KAYKIT_BUILDINGS_BASE = 'assets/models/buildings/kaykit';
 
 // ─── Legacy / fallback models (absolute paths for client-side loading) ───────
 
-/** Legacy player model (Babylon format) */
-export const PLAYER_MODEL_URL = '/assets/models/characters/legacy/Vincent-frontFacing.babylon';
+/** Legacy player model (GLB format) */
+export const PLAYER_MODEL_URL = '/assets/models/characters/legacy/Vincent-frontFacing.glb';
 
 /** Legacy NPC model (Babylon format) */
 export const NPC_DEFAULT_MODEL_URL = '/assets/models/characters/legacy/starterAvatars.babylon';
@@ -178,7 +178,7 @@ export const CORE_AUDIO: AssetDef[] = [
  * The copier replaces absolute paths in BabylonGame.ts with relative ones.
  */
 export const EXPORT_PATH_REWRITES: { from: string; to: string }[] = [
-  { from: PLAYER_MODEL_URL, to: './assets/player/Vincent-frontFacing.babylon' },
+  { from: PLAYER_MODEL_URL, to: './assets/player/Vincent-frontFacing.glb' },
   { from: NPC_DEFAULT_MODEL_URL, to: './assets/npc/starterAvatars.babylon' },
   { from: FOOTSTEP_SOUND_URL, to: './assets/audio/footstep/stone.mp3' },
   { from: GROUND_DIFFUSE_URL, to: './assets/ground/ground.jpg' },

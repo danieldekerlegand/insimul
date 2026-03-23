@@ -23,6 +23,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      // Allow cross-origin requests to the Insimul API server for cloud saves
+      webSecurity: false,
     },
   });
 

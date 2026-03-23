@@ -172,6 +172,8 @@ Return the grammar as JSON:`;
     const ctx = worldContext || {};
     let contextBlock = '';
     if (ctx.worldName) contextBlock += `World Name: ${ctx.worldName}\n`;
+    if (ctx.worldType) contextBlock += `World Type: ${ctx.worldType}\n`;
+    if (customLabel !== ctx.worldType) contextBlock += `World Type Label: ${customLabel}\n`;
     if (ctx.worldDescription) contextBlock += `World Description: ${ctx.worldDescription}\n`;
     if (ctx.countryName) contextBlock += `Country: ${ctx.countryName}${ctx.countryDescription ? ` — ${ctx.countryDescription}` : ''}\n`;
     if (ctx.governmentType) contextBlock += `Government: ${ctx.governmentType}\n`;

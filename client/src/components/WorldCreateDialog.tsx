@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,51 +26,53 @@ const createWorldFormSchema = insertWorldSchema.extend({
 type CreateWorldForm = z.infer<typeof createWorldFormSchema>;
 
 export const WORLD_TYPES = [
-  { value: 'medieval-fantasy', label: 'Medieval Fantasy', description: 'Knights, castles, magic, and dragons' },
-  { value: 'high-fantasy', label: 'High Fantasy', description: 'Epic quests, multiple races, powerful magic' },
-  { value: 'low-fantasy', label: 'Low Fantasy', description: 'Realistic with subtle magical elements' },
-  { value: 'dark-fantasy', label: 'Dark Fantasy', description: 'Gothic horror with supernatural elements' },
-  { value: 'urban-fantasy', label: 'Urban Fantasy', description: 'Modern city with hidden magical world' },
-  { value: 'sci-fi-space', label: 'Space Opera', description: 'Interstellar travel, alien civilizations, galactic empires' },
-  { value: 'cyberpunk', label: 'Cyberpunk', description: 'High tech, low life, corporate dystopia' },
-  { value: 'post-apocalyptic', label: 'Post-Apocalyptic', description: 'Survival in a devastated world' },
-  { value: 'steampunk', label: 'Steampunk', description: 'Victorian era with advanced steam technology' },
-  { value: 'dieselpunk', label: 'Dieselpunk', description: '1920s-1950s aesthetic with advanced diesel tech' },
   { value: 'historical-ancient', label: 'Ancient Civilizations', description: 'Rome, Greece, Egypt, or other ancient cultures' },
+  { value: 'creole-colonial', label: 'Creole Colonial', description: 'New Orleans French Quarter — ironwork balconies, stucco facades, live oaks' },
+  { value: 'cyberpunk', label: 'Cyberpunk', description: 'High tech, low life, corporate dystopia' },
+  { value: 'dark-fantasy', label: 'Dark Fantasy', description: 'Gothic horror with supernatural elements' },
+  { value: 'dieselpunk', label: 'Dieselpunk', description: '1920s-1950s aesthetic with advanced diesel tech' },
+  { value: 'high-fantasy', label: 'High Fantasy', description: 'Epic quests, multiple races, powerful magic' },
   { value: 'historical-medieval', label: 'Historical Medieval', description: 'Realistic medieval Europe or Asia' },
+  { value: 'horror', label: 'Horror', description: 'Supernatural terrors and psychological dread' },
+  { value: 'low-fantasy', label: 'Low Fantasy', description: 'Realistic with subtle magical elements' },
+  { value: 'medieval-fantasy', label: 'Medieval Fantasy', description: 'Knights, castles, magic, and dragons' },
+  { value: 'modern-realistic', label: 'Modern Realistic', description: 'Contemporary world with real-world issues' },
+  { value: 'mythological', label: 'Mythological', description: 'Gods, myths, and legendary creatures' },
+  { value: 'post-apocalyptic', label: 'Post-Apocalyptic', description: 'Survival in a devastated world' },
   { value: 'historical-renaissance', label: 'Renaissance', description: 'Art, science, and political intrigue' },
+  { value: 'solarpunk', label: 'Solarpunk', description: 'Optimistic future with sustainable technology' },
+  { value: 'sci-fi-space', label: 'Space Opera', description: 'Interstellar travel, alien civilizations, galactic empires' },
+  { value: 'steampunk', label: 'Steampunk', description: 'Victorian era with advanced steam technology' },
+  { value: 'superhero', label: 'Superhero', description: 'Powered individuals protecting society' },
+  { value: 'tropical-pirate', label: 'Tropical Pirate', description: 'Caribbean port towns, treasure hunts, and sea adventures' },
+  { value: 'urban-fantasy', label: 'Urban Fantasy', description: 'Modern city with hidden magical world' },
   { value: 'historical-victorian', label: 'Victorian Era', description: 'Industrial revolution, colonialism, social change' },
   { value: 'wild-west', label: 'Wild West', description: 'Cowboys, outlaws, frontier towns' },
-  { value: 'modern-realistic', label: 'Modern Realistic', description: 'Contemporary world with real-world issues' },
-  { value: 'superhero', label: 'Superhero', description: 'Powered individuals protecting society' },
-  { value: 'horror', label: 'Horror', description: 'Supernatural terrors and psychological dread' },
-  { value: 'mythological', label: 'Mythological', description: 'Gods, myths, and legendary creatures' },
-  { value: 'solarpunk', label: 'Solarpunk', description: 'Optimistic future with sustainable technology' },
 ];
 
 export const GAME_TYPES = [
-  { value: 'rpg', label: 'RPG', description: 'Character progression, quests, and story-driven gameplay' },
   { value: 'action', label: 'Action', description: 'Fast-paced combat and reflexes' },
+  { value: 'adventure', label: 'Adventure', description: 'Exploration and narrative-focused gameplay' },
+  { value: 'city-building', label: 'City-Building', description: 'Urban planning and infrastructure management' },
+  { value: 'educational', label: 'Educational', description: 'Learning through interactive experiences' },
   { value: 'fighting', label: 'Fighting', description: 'One-on-one combat with various characters' },
+  { value: 'language-learning', label: 'Language Learning', description: 'Vocabulary, grammar, and cultural immersion for any language' },
   { value: 'platformer', label: 'Platformer', description: 'Jumping and navigating through levels' },
+  { value: 'puzzle', label: 'Puzzle', description: 'Logic and problem-solving challenges' },
+  { value: 'roguelike', label: 'Roguelike', description: 'Procedural generation with permadeath' },
+  { value: 'rpg', label: 'RPG', description: 'Character progression, quests, and story-driven gameplay' },
+  { value: 'sandbox', label: 'Sandbox', description: 'Open-world exploration and creativity' },
+  { value: 'shooter', label: 'Shooter', description: 'Ranged combat and precision aiming' },
+  { value: 'simulation', label: 'Simulation', description: 'Realistic systems and life simulation' },
   { value: 'strategy', label: 'Strategy', description: 'Tactical decision-making and resource management' },
   { value: 'survival', label: 'Survival', description: 'Resource gathering, crafting, and staying alive' },
-  { value: 'shooter', label: 'Shooter', description: 'Ranged combat and precision aiming' },
-  { value: 'sandbox', label: 'Sandbox', description: 'Open-world exploration and creativity' },
-  { value: 'city-building', label: 'City-Building', description: 'Urban planning and infrastructure management' },
-  { value: 'simulation', label: 'Simulation', description: 'Realistic systems and life simulation' },
-  { value: 'puzzle', label: 'Puzzle', description: 'Logic and problem-solving challenges' },
-  { value: 'language-learning', label: 'Language Learning', description: 'Vocabulary, grammar, and cultural immersion for any language' },
-  { value: 'educational', label: 'Educational', description: 'Learning through interactive experiences' },
-  { value: 'adventure', label: 'Adventure', description: 'Exploration and narrative-focused gameplay' },
-  { value: 'roguelike', label: 'Roguelike', description: 'Procedural generation with permadeath' },
 ];
 
 export const LANGUAGES = [
-  'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Polish',
-  'Chinese (Mandarin)', 'Japanese', 'Korean', 'Arabic', 'Hebrew', 'Hindi', 'Bengali',
-  'Turkish', 'Greek', 'Swedish', 'Norwegian', 'Danish', 'Finnish', 'Czech', 'Hungarian',
-  'Romanian', 'Thai', 'Vietnamese', 'Indonesian', 'Swahili'
+  'Arabic', 'Bengali', 'Chinese (Mandarin)', 'Czech', 'Danish', 'Dutch', 'Finnish', 'French',
+  'German', 'Greek', 'Hebrew', 'Hindi', 'Hungarian', 'Indonesian', 'Italian', 'Japanese',
+  'Korean', 'Norwegian', 'Polish', 'Portuguese', 'Romanian', 'Russian', 'Spanish', 'Swahili',
+  'Swedish', 'Thai', 'Turkish', 'Vietnamese'
 ];
 
 // --- Per-Country Configuration ---
@@ -221,13 +222,13 @@ function CountryConfigPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="plains">Plains</SelectItem>
+              <SelectItem value="coast">Coast</SelectItem>
+              <SelectItem value="desert">Desert</SelectItem>
+              <SelectItem value="forest">Forest</SelectItem>
               <SelectItem value="hills">Hills</SelectItem>
               <SelectItem value="mountains">Mountains</SelectItem>
-              <SelectItem value="coast">Coast</SelectItem>
+              <SelectItem value="plains">Plains</SelectItem>
               <SelectItem value="river">River</SelectItem>
-              <SelectItem value="forest">Forest</SelectItem>
-              <SelectItem value="desert">Desert</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -380,7 +381,6 @@ interface WorldCreateDialogProps {
 export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, open: controlledOpen, onOpenChange }: WorldCreateDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [creationMode, setCreationMode] = useState<'blank' | 'procedural'>('blank');
-  const [inputMode, setInputMode] = useState<'preset' | 'custom'>('preset');
   const [selectedWorldType, setSelectedWorldType] = useState(WORLD_TYPES[0].value);
   const [selectedGameType, setSelectedGameType] = useState<string | undefined>(undefined);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
@@ -460,17 +460,12 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     if (missingLearningTarget) return;
 
     const generateContent = creationMode === 'procedural';
-    const worldType = inputMode === 'preset' ? selectedWorldType : undefined;
-    const prompt = inputMode === 'custom' ? customPrompt : undefined;
-    const label = inputMode === 'custom' ? customLabel : undefined;
+    const worldType = selectedWorldType;
+    const prompt = customPrompt || undefined;
+    const label = customLabel || undefined;
 
-    // For blank worlds with custom description, store it as description
-    if (creationMode === 'blank' && inputMode === 'custom' && customPrompt && !data.description) {
-      data.description = customPrompt;
-    }
-
-    // For procedural worlds with custom description, store as description too
-    if (creationMode === 'procedural' && inputMode === 'custom' && customPrompt) {
+    // Store custom description as world description
+    if (customPrompt && !data.description) {
       data.description = customPrompt;
     }
 
@@ -510,7 +505,6 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     form.reset();
     // Reset all state
     setCreationMode('blank');
-    setInputMode('preset');
     setSelectedWorldType(WORLD_TYPES[0].value);
     setSelectedGameType(undefined);
     setEnabledModules([]);
@@ -604,75 +598,63 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
             )}
           </div>
 
-          {/* World Theme (merged with Description) */}
+          {/* World Theme */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">World Theme</CardTitle>
               <CardDescription>
                 {creationMode === 'procedural'
-                  ? 'Choose a preset genre or describe your world — this guides AI content generation'
-                  : 'Describe your world\'s setting, theme, and key characteristics'}
+                  ? 'Choose a preset genre and optionally add a custom description to guide AI content generation'
+                  : 'Choose a world type and describe your world\'s setting, theme, and key characteristics'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as any)}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="preset">Preset World Types</TabsTrigger>
-                  <TabsTrigger value="custom">Custom Description</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="preset" className="space-y-2">
-                  <Label>World Type</Label>
-                  <Select value={selectedWorldType} onValueChange={setSelectedWorldType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {WORLD_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <div>
-                            <div className="font-medium">{type.label}</div>
-                            <div className="text-xs text-muted-foreground">{type.description}</div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TabsContent>
-
-                <TabsContent value="custom" className="space-y-3">
-                  {creationMode === 'procedural' && (
-                    <div className="space-y-2">
-                      <Label>Custom World Type Label</Label>
-                      <Input
-                        value={customLabel}
-                        onChange={(e) => setCustomLabel(e.target.value)}
-                        placeholder="e.g., Maritime Pirate World, Steampunk Western"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        A short label for your custom world type (used for grammar generation)
-                      </p>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label>{creationMode === 'procedural' ? 'Custom World Description' : 'Description'}</Label>
-                    <Textarea
-                      value={customPrompt}
-                      onChange={(e) => setCustomPrompt(e.target.value)}
-                      placeholder={creationMode === 'procedural'
-                        ? "Describe the type of world you want to generate. For example: 'A maritime world where pirate guilds control trade routes and sea monsters are real...'"
-                        : "Describe your world's setting, theme, and key characteristics..."
-                      }
-                      rows={4}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {creationMode === 'procedural'
-                        ? 'Detailed description guiding AI generation of names, cultures, and content'
-                        : 'This description will be stored with your world'}
-                    </p>
-                  </div>
-                </TabsContent>
-              </Tabs>
+              <div className="space-y-2">
+                <Label>World Type</Label>
+                <Select value={selectedWorldType} onValueChange={setSelectedWorldType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {WORLD_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        <div>
+                          <div className="font-medium">{type.label}</div>
+                          <div className="text-xs text-muted-foreground">{type.description}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>World Type Label</Label>
+                <Input
+                  value={customLabel}
+                  onChange={(e) => setCustomLabel(e.target.value)}
+                  placeholder="e.g., Maritime Pirate World, Steampunk Western"
+                />
+                <p className="text-xs text-muted-foreground">
+                  A more specific name for your world's theme — refines the selected genre for richer generation
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>{creationMode === 'procedural' ? 'World Description' : 'Description'}</Label>
+                <Textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder={creationMode === 'procedural'
+                    ? "Describe your world in detail. For example: 'A maritime world where pirate guilds control trade routes and sea monsters are real...'"
+                    : "Describe your world's setting, theme, and key characteristics..."
+                  }
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {creationMode === 'procedural'
+                    ? 'Detailed description to guide AI generation of names, cultures, and content'
+                    : 'This description will be stored with your world'}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
