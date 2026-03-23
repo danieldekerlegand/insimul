@@ -441,27 +441,24 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
   }
 
   // NPC dialogue contexts (pre-built system prompts for AI chat)
+  // Exported as both DT_ format and DataLoader-compatible name
   if (ir.systems.dialogueContexts?.length > 0) {
-    files.push({
-      path: `${base}/DT_DialogueContexts.json`,
-      content: JSON.stringify(ir.systems.dialogueContexts, null, 2),
-    });
+    const contextJson = JSON.stringify(ir.systems.dialogueContexts, null, 2);
+    files.push({ path: `${base}/DT_DialogueContexts.json`, content: contextJson });
+    files.push({ path: `${base}/dialogue-contexts.json`, content: contextJson });
   }
 
-  // AI configuration
+  // AI configuration — exported as both names for DataLoader compatibility
   if (ir.aiConfig) {
-    files.push({
-      path: `${base}/AIConfig.json`,
-      content: JSON.stringify(ir.aiConfig, null, 2),
-    });
+    const configJson = JSON.stringify(ir.aiConfig, null, 2);
+    files.push({ path: `${base}/AIConfig.json`, content: configJson });
+    files.push({ path: `${base}/ai-config.json`, content: configJson });
   }
 
-  // Prolog knowledge base
+  // Prolog knowledge base — both names for DataLoader compatibility
   if (ir.systems.knowledgeBase) {
-    files.push({
-      path: `${base}/KnowledgeBase.pl`,
-      content: ir.systems.knowledgeBase,
-    });
+    files.push({ path: `${base}/KnowledgeBase.pl`, content: ir.systems.knowledgeBase });
+    files.push({ path: `${base}/knowledge_base.pl`, content: ir.systems.knowledgeBase });
   }
 
   return files;
