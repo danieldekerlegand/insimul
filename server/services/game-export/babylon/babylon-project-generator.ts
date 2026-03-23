@@ -395,6 +395,10 @@ function generateElectronPreload(): string {
   return loadTemplate('electron-preload.js');
 }
 
+function generateElectronAIService(): string {
+  return loadTemplate('electron-ai-service.js');
+}
+
 // ─────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────
@@ -414,6 +418,7 @@ export function generateProjectFiles(ir: WorldIR, options: BabylonExportOptions 
     files.push(
       { path: 'electron/main.js', content: generateElectronMain(ir) },
       { path: 'electron/preload.js', content: generateElectronPreload() },
+      { path: 'electron/ai-service.js', content: generateElectronAIService() },
     );
   }
   
