@@ -61,8 +61,10 @@ import type {
   ResourceDefinitionIR,
   NPCDialogueContext,
   AIConfigIR,
+  TerrainFeatureIR,
 } from '@shared/game-engine/ir-types';
 import { computeElevationProfile } from '../../generators/settlement-elevation';
+import { TerrainGenerator, type TerrainType, type TerrainFeature } from '../../generators/terrain-generator';
 import { getNPCReasoningRules } from '@shared/prolog/npc-reasoning';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
@@ -724,6 +726,26 @@ export async function generateWorldIR(
     centerX: 0, centerZ: 0,
   };
 
+  // ── 3a. Generate terrain heightmap & features ──
+  // Determine dominant terrain type from settlements, default to 'plains'
+  const dominantTerrain = inferDominantTerrain(settlements);
+  const terrainGenerator = new TerrainGenerator();
+  const TERRAIN_RESOLUTION = 128;
+  const heightmap = terrainGenerator.generateHeightmap({
+    seed,
+    width: terrainSize,
+    height: terrainSize,
+    terrainType: dominantTerrain,
+    resolution: TERRAIN_RESOLUTION,
+  });
+  const stampedFeatures = terrainGenerator.stampFeatures(heightmap, dominantTerrain, seed);
+  const slopeMap = terrainGenerator.deriveSlopeMap(heightmap);
+
+  // Convert stamped features to IR format (grid coords → world coords)
+  const terrainFeatureIRs: TerrainFeatureIR[] = stampedFeatures.map(f =>
+    terrainFeatureToIR(f, TERRAIN_RESOLUTION, terrainSize),
+  );
+
   // Distribute countries in grid
   const countryBoundsArr = distributeInGrid(countries.length, worldBounds, 20);
   const countryIRs: CountryIR[] = countries.map((c, i) => ({
@@ -911,16 +933,12 @@ export async function generateWorldIR(
       allRoadIRs.push(road);
     }
 
-    // Compute elevation profile from heightmap if available
-    const worldHeightmap = (world as any).heightmap as number[][] | undefined;
-    const elevationProfile: ElevationProfileIR | null =
-      worldHeightmap && Array.isArray(worldHeightmap) && worldHeightmap.length > 0
-        ? computeElevationProfile(
-            { centerX: placed.position.x, centerZ: placed.position.z, radius: placed.radius },
-            worldHeightmap,
-            terrainSize / 2,
-          )
-        : null;
+    // Compute elevation profile from the generated heightmap
+    const elevationProfile: ElevationProfileIR | null = computeElevationProfile(
+      { centerX: placed.position.x, centerZ: placed.position.z, radius: placed.radius },
+      heightmap,
+      terrainSize / 2,
+    );
 
     settlementIRs.push({
       id: s.id,
@@ -1308,7 +1326,9 @@ export async function generateWorldIR(
 
     geography: {
       terrainSize,
-      terrainFeatures: [],
+      heightmap,
+      slopeMap,
+      terrainFeatures: terrainFeatureIRs,
       countries: countryIRs,
       states: stateIRs,
       settlements: settlementIRs,
@@ -1806,4 +1826,66 @@ function sanitizeAtom(str: string): string {
 
 function escapeAtom(str: string): string {
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+// ─────────────────────────────────────────────
+// Terrain helpers
+// ─────────────────────────────────────────────
+
+/** Map from TerrainGenerator FeatureType to TerrainFeatureIR featureType */
+const FEATURE_TYPE_MAP: Record<string, TerrainFeatureIR['featureType']> = {
+  peak: 'mountain',
+  valley: 'valley',
+  canyon: 'canyon',
+  cliff: 'cliff',
+  mesa: 'mesa',
+  crater: 'crater',
+};
+
+/**
+ * Convert a TerrainFeature (grid coords) to TerrainFeatureIR (world coords).
+ */
+function terrainFeatureToIR(
+  f: TerrainFeature,
+  resolution: number,
+  terrainSize: number,
+): TerrainFeatureIR {
+  const half = terrainSize / 2;
+  return {
+    id: f.id,
+    name: f.name,
+    featureType: FEATURE_TYPE_MAP[f.type] || 'hill',
+    position: {
+      x: (f.position.x / resolution) * terrainSize - half,
+      y: f.elevation * 20, // match default elevationScale
+      z: (f.position.z / resolution) * terrainSize - half,
+    },
+    radius: (f.radius / resolution) * terrainSize,
+    elevation: f.elevation,
+    description: null,
+  };
+}
+
+/**
+ * Infer the dominant terrain type from settlements.
+ * Falls back to 'plains' if no settlements or no terrain data.
+ */
+function inferDominantTerrain(settlements: any[]): TerrainType {
+  const validTypes = new Set<string>([
+    'plains', 'hills', 'mountains', 'coast', 'river', 'forest', 'desert',
+  ]);
+  const counts = new Map<string, number>();
+  for (const s of settlements) {
+    const t = s.terrain;
+    if (t && validTypes.has(t)) {
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+  }
+  if (counts.size === 0) return 'plains';
+  let best = 'plains';
+  let bestCount = 0;
+  counts.forEach((c, t) => {
+    if (c > bestCount) { best = t; bestCount = c; }
+  });
+  return best as TerrainType;
 }
