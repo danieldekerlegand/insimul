@@ -322,6 +322,49 @@ FString UDataLoader::TransferItem(const FString& TransferJSON)
     return TEXT("{\"success\":true}");
 }
 
+FString UDataLoader::GetPlayerInventory(const FString& WorldId, const FString& PlayerId)
+{
+    // Delegates to GetEntityInventory — WorldId is unused in exported mode.
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetPlayerInventory(%s, %s)"), *WorldId, *PlayerId);
+    return GetEntityInventory(PlayerId);
+}
+
+FString UDataLoader::GetContainerContents(const FString& ContainerId)
+{
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetContainerContents(%s)"), *ContainerId);
+
+    FString ContainersJson = LoadDataFile(TEXT("containers.json"));
+    if (ContainersJson.IsEmpty())
+    {
+        return TEXT("{}");
+    }
+
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ContainersJson);
+    TArray<TSharedPtr<FJsonValue>> Containers;
+    if (!FJsonSerializer::Deserialize(Reader, Containers))
+    {
+        return TEXT("{}");
+    }
+
+    for (const auto& Val : Containers)
+    {
+        const TSharedPtr<FJsonObject>* ContObj;
+        if (!Val->TryGetObject(ContObj)) continue;
+
+        FString Id;
+        (*ContObj)->TryGetStringField(TEXT("id"), Id);
+        if (Id == ContainerId)
+        {
+            FString Result;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Result);
+            FJsonSerializer::Serialize(ContObj->ToSharedRef(), Writer);
+            return Result;
+        }
+    }
+
+    return TEXT("{}");
+}
+
 FString UDataLoader::GetMerchantInventory(const FString& MerchantId)
 {
     // TODO: Check local state cache first. If not cached, look up NPC occupation

@@ -63,6 +63,8 @@ export interface DataSource {
   }): Promise<any>;
   getMerchantInventory(worldId: string, merchantId: string): Promise<any>;
   loadPrologContent(worldId: string): Promise<string | null>;
+  getPlayerInventory(worldId: string, playerId: string): Promise<any>;
+  getContainerContents(containerId: string): Promise<any>;
   loadWorldItems(worldId: string): Promise<any[]>;
   loadContainers(worldId: string): Promise<any[]>;
   loadContainersByLocation(worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<any[]>;
@@ -490,6 +492,15 @@ export class ApiDataSource implements DataSource {
 
   async getMerchantInventory(worldId: string, merchantId: string): Promise<any> {
     const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/merchants/${merchantId}/inventory`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : null;
+  }
+
+  async getPlayerInventory(worldId: string, playerId: string): Promise<any> {
+    return this.getEntityInventory(worldId, playerId);
+  }
+
+  async getContainerContents(containerId: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/containers/${containerId}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
   }
 
@@ -1703,6 +1714,15 @@ export class FileDataSource implements DataSource {
     };
     this.localState.setMerchantInventory(merchantId, inventory);
     return inventory;
+  }
+
+  async getPlayerInventory(_worldId: string, playerId: string): Promise<any> {
+    return this.localState.getInventory(playerId);
+  }
+
+  async getContainerContents(_containerId: string): Promise<any> {
+    // Exported games don't have server-side containers; return null
+    return null;
   }
 
   async loadPrologContent(worldId: string): Promise<string | null> {
