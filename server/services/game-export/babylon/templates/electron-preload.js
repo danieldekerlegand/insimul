@@ -55,13 +55,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
 
-  // Text-to-speech: returns ArrayBuffer of audio data, or null if unavailable
-  aiTTS: (text, voice, speed) => ipcRenderer.invoke('ai:tts', { text, voice, speed }),
+  // Text-to-speech via Piper: returns ArrayBuffer of audio data, or null if unavailable
+  aiTTS: (text, voice, speed, languageCode) =>
+    ipcRenderer.invoke('ai:tts', { text, voice, speed, languageCode }),
 
   // Speech-to-text: accepts ArrayBuffer of audio, returns { text, language? }
   aiSTT: (audioBuffer, languageHint) =>
     ipcRenderer.invoke('ai:stt', { audio: audioBuffer, languageHint }),
 
-  // AI status: returns { loaded, modelName, gpuLayers, gpuType }
+  // AI status: returns { loaded, modelName, gpuLayers, gpuType, ttsAvailable, ... }
   aiStatus: () => ipcRenderer.invoke('ai:status'),
 });

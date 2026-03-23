@@ -402,6 +402,10 @@ function generateElectronPreload(): string {
   return loadTemplate('electron-preload.js');
 }
 
+function generateElectronAIService(): string {
+  return loadTemplate('electron-ai-service.js');
+}
+
 // ─────────────────────────────────────────────
 // Electron AI Service (only for Electron mode)
 // ─────────────────────────────────────────────
