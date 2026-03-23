@@ -636,12 +636,16 @@ export interface NPCDialogueContext {
 }
 
 export interface AIConfigIR {
-  apiMode: 'insimul' | 'gemini';
+  apiMode: 'insimul' | 'gemini' | 'local';
   insimulEndpoint: string;
   geminiModel: string;
   geminiApiKeyPlaceholder: string;
   voiceEnabled: boolean;
   defaultVoice: string;
+  /** When apiMode is 'local', path to bundled model files */
+  localModelPath?: string;
+  /** When apiMode is 'local', model name identifier */
+  localModelName?: string;
 }
 
 export interface RuleIR {

@@ -1200,13 +1200,16 @@ export async function generateWorldIR(
     };
   }).filter((ctx): ctx is NPCDialogueContext => ctx !== null);
 
+  const aiProviderEnv = process.env.AI_PROVIDER?.toLowerCase();
   const aiConfig: AIConfigIR = {
-    apiMode: 'insimul',
+    apiMode: aiProviderEnv === 'local' ? 'local' : 'insimul',
     insimulEndpoint: '/api/gemini/chat',
     geminiModel: 'gemini-2.5-flash',
     geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
     voiceEnabled: true,
     defaultVoice: 'Kore',
+    localModelPath: aiProviderEnv === 'local' ? (process.env.LOCAL_MODEL_PATH || '') : undefined,
+    localModelName: aiProviderEnv === 'local' ? (process.env.LOCAL_MODEL_NAME || 'phi-4-mini-q4') : undefined,
   };
 
   // ── 7. Assets ──
