@@ -11,6 +11,7 @@
 
 import type { AudioChunkOutput, FacialData } from '@shared/proto/conversation.ts';
 import type { DataSource } from './DataSource';
+import type { LocalAIClient } from './LocalAIClient';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,10 @@ export interface ConversationClientOptions {
   baseUrl?: string;
   /** Session ID — auto-generated if not provided */
   sessionId?: string;
+  /** Optional local AI client for offline Electron exports */
+  localAI?: LocalAIClient;
+  /** System prompt builder for local AI — receives characterId/worldId, returns prompt */
+  systemPromptBuilder?: (characterId: string, worldId: string) => string;
 }
 
 // ── Class ───────────────────────────────────────────────────────────────────
@@ -52,10 +57,27 @@ export class ConversationClient {
   private abortController: AbortController | null = null;
   private _available: boolean | null = null; // null = unknown
   private dataSource: DataSource | null = null;
+  private localAI: LocalAIClient | null = null;
+  private systemPromptBuilder: ((characterId: string, worldId: string) => string) | null = null;
+  private _aborted = false;
 
   constructor(options: ConversationClientOptions = {}) {
     this.baseUrl = options.baseUrl || '';
     this.sessionId = options.sessionId || `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.localAI = options.localAI ?? null;
+    this.systemPromptBuilder = options.systemPromptBuilder ?? null;
+  }
+
+  setLocalAI(localAI: LocalAIClient): void {
+    this.localAI = localAI;
+  }
+
+  setSystemPromptBuilder(builder: (characterId: string, worldId: string) => string): void {
+    this.systemPromptBuilder = builder;
+  }
+
+  private useLocalAI(): boolean {
+    return this.localAI !== null;
   }
 
   /**
@@ -85,10 +107,11 @@ export class ConversationClient {
   }
 
   /**
-   * Check if the conversation streaming service is available.
-   * Caches the result for the session lifetime.
+   * Check if conversation is available (local AI or remote service).
+   * Caches the remote result for the session lifetime.
    */
   async isAvailable(): Promise<boolean> {
+    if (this.useLocalAI()) return true;
     if (this._available !== null) return this._available;
     if (this.dataSource) {
       this._available = await this.dataSource.checkConversationHealth();
@@ -107,12 +130,17 @@ export class ConversationClient {
   }
 
   /**
-   * Send a text message and receive streaming responses via SSE.
+   * Send a text message and receive streaming responses.
+   * Routes through local AI when available, otherwise uses HTTP SSE.
    * Returns the full accumulated response text.
    */
   async sendText(text: string, languageCode: string = 'en'): Promise<string> {
     if (!this.characterId || !this.worldId) {
       throw new Error('ConversationClient: character and world must be set before sending');
+    }
+
+    if (this.useLocalAI()) {
+      return this.sendTextLocal(text, languageCode);
     }
 
     this.abort(); // cancel any in-flight request
@@ -148,11 +176,16 @@ export class ConversationClient {
 
   /**
    * Send recorded audio for STT + LLM + TTS pipeline.
+   * Routes through local AI when available (STT first, then text flow).
    * Returns the full accumulated response text.
    */
   async sendAudio(audioBlob: Blob, languageCode: string = 'en'): Promise<string> {
     if (!this.characterId || !this.worldId) {
       throw new Error('ConversationClient: character and world must be set before sending');
+    }
+
+    if (this.useLocalAI()) {
+      return this.sendAudioLocal(audioBlob, languageCode);
     }
 
     this.abort();
@@ -188,6 +221,7 @@ export class ConversationClient {
 
   /** Cancel any in-flight request */
   abort(): void {
+    this._aborted = true;
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
@@ -212,6 +246,87 @@ export class ConversationClient {
 
   dispose(): void {
     this.abort();
+  }
+
+  // ── Local AI paths ─────────────────────────────────────────────────────
+
+  private async sendTextLocal(text: string, _languageCode: string): Promise<string> {
+    this._aborted = false;
+    this.setState('thinking');
+
+    try {
+      const systemPrompt = this.systemPromptBuilder
+        ? this.systemPromptBuilder(this.characterId, this.worldId)
+        : undefined;
+
+      let fullText = '';
+      const result = await this.localAI!.generateStream(
+        text,
+        systemPrompt,
+        undefined,
+        (token: string) => {
+          if (this._aborted) return;
+          fullText += token;
+          this.setState('speaking');
+          this.callbacks.onTextChunk?.(token, false);
+        },
+      );
+
+      if (this._aborted) return '';
+
+      // Final text chunk
+      fullText = result || fullText;
+      this.callbacks.onTextChunk?.('', true);
+
+      // Generate TTS audio if available
+      await this.generateLocalTTS(fullText);
+
+      this.callbacks.onComplete?.(fullText);
+      this.setState('idle');
+      return fullText;
+    } catch (err: any) {
+      if (this._aborted) return '';
+      this.setState('error');
+      this.callbacks.onError?.(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  }
+
+  private async sendAudioLocal(audioBlob: Blob, languageCode: string): Promise<string> {
+    this._aborted = false;
+    this.setState('thinking');
+
+    try {
+      const { text: transcribed } = await this.localAI!.speechToText(audioBlob, languageCode);
+      if (this._aborted) return '';
+      if (!transcribed) {
+        this.setState('idle');
+        return '';
+      }
+      // Route through local text flow (setState is handled inside)
+      return await this.sendTextLocal(transcribed, languageCode);
+    } catch (err: any) {
+      if (this._aborted) return '';
+      this.setState('error');
+      this.callbacks.onError?.(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  }
+
+  private async generateLocalTTS(text: string): Promise<void> {
+    if (this._aborted || !this.callbacks.onAudioChunk) return;
+    try {
+      const audioBuffer = await this.localAI!.textToSpeech(text);
+      if (this._aborted || !audioBuffer) return;
+      this.callbacks.onAudioChunk({
+        data: new Uint8Array(audioBuffer),
+        encoding: 3, // MP3
+        sampleRate: 24000,
+        durationMs: 0,
+      });
+    } catch {
+      // TTS failure is non-fatal — text still works
+    }
   }
 
   // ── Internal ────────────────────────────────────────────────────────────
