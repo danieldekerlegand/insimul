@@ -27,6 +27,7 @@ import { generateWorldIR } from '../ir-generator';
 import { generateBabylonTelemetryIntegration } from '../babylon-telemetry-integration';
 import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { bundleBabylonPlugin } from '../plugin-bundler';
+import { bundleAIModels, type AIBundleResult } from '../ai-bundler';
 import type { BabylonExportOptions } from './types';
 
 // createRequire needed for ESM projects.
@@ -222,6 +223,14 @@ export async function exportBabylonProject(
     console.log('[Export] Babylon.js telemetry integration included');
   }
 
+  // Bundle AI models when local AI is selected
+  let aiBundleResult: AIBundleResult | null = null;
+  if (options.aiProvider === 'local') {
+    console.log('[Export] Bundling local AI models...');
+    aiBundleResult = await bundleAIModels('babylon');
+    console.log(`[Export] AI bundle: ${aiBundleResult.assets.length} files, ${Math.round(aiBundleResult.totalSizeBytes / 1024 / 1024)}MB`);
+  }
+
   // Bundle Insimul SDK plugin
   console.log('[Export] Bundling Insimul SDK...');
   const pluginFiles: GeneratedFile[] = bundleBabylonPlugin(ir).map(f => ({ path: f.path, content: f.content }));
@@ -274,6 +283,15 @@ export async function exportBabylonProject(
       const assetPath = joinPath(tmpDir, 'public', asset.exportPath);
       mkdirSync(dirname(assetPath), { recursive: true });
       writeFileSync(assetPath, asset.buffer);
+    }
+
+    // Write AI model assets
+    if (aiBundleResult) {
+      for (const asset of aiBundleResult.assets) {
+        const assetPath = joinPath(tmpDir, 'public', asset.exportPath);
+        mkdirSync(dirname(assetPath), { recursive: true });
+        writeFileSync(assetPath, asset.buffer);
+      }
     }
 
     // Install dependencies
@@ -362,6 +380,13 @@ export async function exportBabylonProject(
     // Add assets - include for both web and electron modes
     for (const asset of assetBundle.assets) {
       archive.append(asset.buffer, { name: `public/${asset.exportPath}` });
+    }
+
+    // Add AI model assets
+    if (aiBundleResult) {
+      for (const asset of aiBundleResult.assets) {
+        archive.append(asset.buffer, { name: `public/${asset.exportPath}` });
+      }
     }
 
     archive.finalize();

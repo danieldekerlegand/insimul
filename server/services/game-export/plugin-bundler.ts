@@ -154,12 +154,14 @@ export const INSIMUL_CONFIG = {
 } as const;
 
 export interface AIConfig {
-  apiMode: 'insimul' | 'gemini';
+  apiMode: 'insimul' | 'gemini' | 'local';
   insimulEndpoint: string;
   geminiModel: string;
   geminiApiKeyPlaceholder: string;
   voiceEnabled: boolean;
   defaultVoice: string;
+  localModelPath?: string;
+  localModelName?: string;
 }
 
 export const AI_CONFIG: AIConfig = ${JSON.stringify(config.aiConfig || {
