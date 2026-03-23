@@ -94,6 +94,19 @@ export interface DataSource {
   resolveAssetById(assetId: string): Promise<VisualAsset | null>;
   /** Return a loadable URL/path for an asset without fetching full metadata. Returns null if unknown. */
   resolveAssetUrl(assetId: string): string | null;
+  startNpcNpcConversation(worldId: string, npc1Id: string, npc2Id: string, topic?: string): Promise<NpcConversationResult | null>;
+  createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any>;
+  submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any>;
+  completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any>;
+  getPlayerAssessments(playerId: string, worldId: string): Promise<any[]>;
+}
+
+/** Result from an NPC-NPC conversation */
+export interface NpcConversationResult {
+  exchanges: Array<{ speakerId: string; speakerName: string; text: string }>;
+  relationshipDelta: { friendshipChange: number; trustChange: number; romanceSpark: number };
+  topic: string;
+  languageUsed: string;
 }
 
 /**
@@ -737,8 +750,66 @@ export class ApiDataSource implements DataSource {
     }
   }
 
+  async startNpcNpcConversation(worldId: string, npc1Id: string, npc2Id: string, topic?: string): Promise<NpcConversationResult | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/npc-npc-conversation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+        body: JSON.stringify({ npc1Id, npc2Id, topic }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        exchanges: data.exchanges ?? [],
+        relationshipDelta: data.relationshipDelta ?? { friendshipChange: 0, trustChange: 0, romanceSpark: 0 },
+        topic: data.topic ?? 'small_talk',
+        languageUsed: data.languageUsed ?? 'English',
+      };
+    } catch {
+      return null;
+    }
+  }
+
   resolveAssetUrl(assetId: string): string | null {
     return `${this.baseUrl}/api/assets/${assetId}`;
+  }
+
+  async createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/assessments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`Failed to create assessment session: ${res.status}`);
+    return res.json();
+  }
+
+  async submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/assessments/${sessionId}/phases/${phaseId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`Failed to submit assessment phase: ${res.status}`);
+    return res.json();
+  }
+
+  async completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/assessments/${sessionId}/complete`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`Failed to complete assessment: ${res.status}`);
+    return res.json();
+  }
+
+  async getPlayerAssessments(playerId: string, worldId: string): Promise<any[]> {
+    const res = await fetch(
+      `${this.baseUrl}/api/assessments/player/${playerId}?worldId=${encodeURIComponent(worldId)}`,
+      { headers: this.getHeaders() },
+    );
+    return res.ok ? await res.json() : [];
   }
 }
 
@@ -1879,6 +1950,50 @@ export class FileDataSource implements DataSource {
       return p.startsWith('.') ? p : './' + p;
     }
     return null;
+  }
+
+  async startNpcNpcConversation(_worldId: string, _npc1Id: string, _npc2Id: string, _topic?: string): Promise<NpcConversationResult | null> {
+    return null; // No AI server in exported mode
+  }
+
+  async createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any> {
+    const id = `local-assessment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const session = { id, ...data, status: 'in_progress', phases: [], createdAt: new Date().toISOString() };
+    try {
+      const key = `insimul_assessments_${data.worldId}`;
+      const existing = JSON.parse(this._storage.getItem(key) || '[]');
+      existing.push(session);
+      this._storage.setItem(key, JSON.stringify(existing));
+    } catch { /* storage full or unavailable */ }
+    return session;
+  }
+
+  async submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any> {
+    const result = { sessionId, phaseId, ...data, submittedAt: new Date().toISOString() };
+    try {
+      const key = `insimul_assessment_phases_${sessionId}`;
+      const existing = JSON.parse(this._storage.getItem(key) || '[]');
+      existing.push(result);
+      this._storage.setItem(key, JSON.stringify(existing));
+    } catch { /* storage full or unavailable */ }
+    return result;
+  }
+
+  async completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any> {
+    const result = { sessionId, ...data, status: 'complete', completedAt: new Date().toISOString() };
+    try {
+      this._storage.setItem(`insimul_assessment_complete_${sessionId}`, JSON.stringify(result));
+    } catch { /* storage full or unavailable */ }
+    return result;
+  }
+
+  async getPlayerAssessments(_playerId: string, worldId: string): Promise<any[]> {
+    try {
+      const key = `insimul_assessments_${worldId}`;
+      return JSON.parse(this._storage.getItem(key) || '[]');
+    } catch {
+      return [];
+    }
   }
 }
 

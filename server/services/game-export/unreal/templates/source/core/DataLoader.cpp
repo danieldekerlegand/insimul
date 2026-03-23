@@ -1035,3 +1035,35 @@ FString UDataLoader::GetLanguages()
     }
     return TEXT("[]");
 }
+
+// ── NPC Conversation & Assessments ────────────────────────────────
+
+FString UDataLoader::StartNpcNpcConversation(const FString& Npc1Id, const FString& Npc2Id, const FString& Topic)
+{
+    // No AI server in exported mode
+    return TEXT("");
+}
+
+FString UDataLoader::CreateAssessmentSession(const FString& PlayerId, const FString& WorldId, const FString& AssessmentType)
+{
+    // Store locally via SaveGame in a real implementation; stub for now
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] CreateAssessmentSession: stub in exported mode"));
+    return TEXT("{}");
+}
+
+FString UDataLoader::SubmitAssessmentPhase(const FString& SessionId, const FString& PhaseId, const FString& DataJson)
+{
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] SubmitAssessmentPhase: stub in exported mode"));
+    return TEXT("{}");
+}
+
+FString UDataLoader::CompleteAssessment(const FString& SessionId, float TotalScore, float MaxScore, const FString& CefrLevel)
+{
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] CompleteAssessment: stub in exported mode"));
+    return TEXT("{}");
+}
+
+FString UDataLoader::GetPlayerAssessments(const FString& PlayerId, const FString& WorldId)
+{
+    return TEXT("[]");
+}

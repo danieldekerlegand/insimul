@@ -385,6 +385,28 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString GetLanguages();
 
+    // ── NPC Conversation & Assessments ────────────────────────────────
+
+    /** Start an NPC-NPC conversation (returns empty — no AI server in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString StartNpcNpcConversation(const FString& Npc1Id, const FString& Npc2Id, const FString& Topic);
+
+    /** Create an assessment session (stored locally). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString CreateAssessmentSession(const FString& PlayerId, const FString& WorldId, const FString& AssessmentType);
+
+    /** Submit results for an assessment phase (stored locally). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString SubmitAssessmentPhase(const FString& SessionId, const FString& PhaseId, const FString& DataJson);
+
+    /** Complete an assessment session (stored locally). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString CompleteAssessment(const FString& SessionId, float TotalScore, float MaxScore, const FString& CefrLevel);
+
+    /** Get player's assessment history for a world (returns local data). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetPlayerAssessments(const FString& PlayerId, const FString& WorldId);
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */

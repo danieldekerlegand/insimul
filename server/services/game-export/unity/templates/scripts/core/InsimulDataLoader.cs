@@ -586,6 +586,38 @@ namespace Insimul.Core
             return false;
         }
 
+        // ── NPC Conversation & Assessments ────────────────────────────────
+
+        /// <summary>Start an NPC-NPC conversation (returns null — no AI server in exported mode).</summary>
+        public static string StartNpcNpcConversation(string npc1Id, string npc2Id, string topic = null)
+        {
+            return null; // No AI server in exported mode
+        }
+
+        /// <summary>Create an assessment session (stub in exported mode).</summary>
+        public static string CreateAssessmentSession(string playerId, string worldId, string assessmentType)
+        {
+            return "{}"; // Stub — store via PlayerPrefs in a real implementation
+        }
+
+        /// <summary>Submit results for an assessment phase (stub in exported mode).</summary>
+        public static string SubmitAssessmentPhase(string sessionId, string phaseId, string dataJson)
+        {
+            return "{}";
+        }
+
+        /// <summary>Complete an assessment session (stub in exported mode).</summary>
+        public static string CompleteAssessment(string sessionId, float totalScore, float maxScore = 0, string cefrLevel = null)
+        {
+            return "{}";
+        }
+
+        /// <summary>Get player's assessment history for a world (returns empty array in exported mode).</summary>
+        public static string GetPlayerAssessments(string playerId, string worldId)
+        {
+            return "[]";
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static T[] LoadFilteredArray<T>(string resourcePath, string settlementId) where T : class
