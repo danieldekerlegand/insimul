@@ -77,6 +77,10 @@ export interface DataSource {
   markPlaythroughInitialized(playthroughId: string): Promise<void>;
   loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
   updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
+  loadLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any>;
+  saveLanguageProgress(data: { playerId: string; worldId: string; playthroughId?: string; progress: Record<string, unknown>; vocabulary: Array<Record<string, unknown>>; grammarPatterns: Array<Record<string, unknown>>; conversations: Array<Record<string, unknown>> }): Promise<void>;
+  getLanguageProfile(worldId: string, playerId: string): Promise<any>;
+  getLanguages(worldId: string): Promise<any[]>;
 }
 
 /**
@@ -616,6 +620,36 @@ export class ApiDataSource implements DataSource {
       body: JSON.stringify({ fromCharacterId, toCharacterId, ...data }),
     });
     return res.ok ? await res.json() : null;
+  }
+
+  async loadLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any> {
+    const query = playthroughId ? `?playthroughId=${encodeURIComponent(playthroughId)}` : '';
+    const res = await fetch(
+      `${this.baseUrl}/api/language-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}${query}`,
+      { headers: this.getHeaders() },
+    );
+    return res.ok ? await res.json() : null;
+  }
+
+  async saveLanguageProgress(data: { playerId: string; worldId: string; playthroughId?: string; progress: Record<string, unknown>; vocabulary: Array<Record<string, unknown>>; grammarPatterns: Array<Record<string, unknown>>; conversations: Array<Record<string, unknown>> }): Promise<void> {
+    await fetch(`${this.baseUrl}/api/language-progress/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getLanguageProfile(worldId: string, playerId: string): Promise<any> {
+    const res = await fetch(
+      `${this.baseUrl}/api/worlds/${worldId}/players/${playerId}/language-profile`,
+      { headers: this.getHeaders() },
+    );
+    return res.ok ? await res.json() : null;
+  }
+
+  async getLanguages(worldId: string): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/languages`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
   }
 }
 
@@ -1591,6 +1625,44 @@ export class FileDataSource implements DataSource {
 
   async updatePlaythroughRelationship(_playthroughId: string, _fromCharacterId: string, _toCharacterId: string, _data: { type: string; strength: number; cause?: string }): Promise<any> {
     return null; // No server in exported mode
+  }
+
+  async loadLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any> {
+    const key = `insimul_lang_progress_${playerId}_${worldId}` + (playthroughId ? `_${playthroughId}` : '');
+    try {
+      const raw = this._storage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveLanguageProgress(data: { playerId: string; worldId: string; playthroughId?: string; progress: Record<string, unknown>; vocabulary: Array<Record<string, unknown>>; grammarPatterns: Array<Record<string, unknown>>; conversations: Array<Record<string, unknown>> }): Promise<void> {
+    const key = `insimul_lang_progress_${data.playerId}_${data.worldId}` + (data.playthroughId ? `_${data.playthroughId}` : '');
+    try {
+      this._storage.setItem(key, JSON.stringify(data));
+    } catch (err) {
+      console.error('[FileDataSource] Failed to save language progress:', err);
+    }
+  }
+
+  async getLanguageProfile(worldId: string, playerId: string): Promise<any> {
+    // Build a profile from locally stored progress
+    const progress = await this.loadLanguageProgress(playerId, worldId);
+    if (!progress) return null;
+    return {
+      playerId,
+      worldId,
+      overallFluency: progress.progress?.overallFluency ?? 0,
+      vocabularyCount: Array.isArray(progress.vocabulary) ? progress.vocabulary.length : 0,
+      grammarPatternCount: Array.isArray(progress.grammarPatterns) ? progress.grammarPatterns.length : 0,
+      conversationCount: Array.isArray(progress.conversations) ? progress.conversations.length : 0,
+    };
+  }
+
+  async getLanguages(_worldId: string): Promise<any[]> {
+    await this.waitForData();
+    return this.worldIR?.languages || [];
   }
 }
 

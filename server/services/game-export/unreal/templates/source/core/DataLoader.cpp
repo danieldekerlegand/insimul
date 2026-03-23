@@ -820,3 +820,39 @@ bool UDataLoader::UpdatePlaythroughRelationship(const FString& FromCharacterId, 
     UE_LOG(LogTemp, Verbose, TEXT("[Insimul] UpdatePlaythroughRelationship: no-op in exported mode"));
     return false;
 }
+
+// ── Language progress ────────────────────────────────────────────────
+
+FString UDataLoader::LoadLanguageProgress(const FString& PlayerId, const FString& WorldId)
+{
+    // No server in exported mode — return null JSON
+    return TEXT("null");
+}
+
+void UDataLoader::SaveLanguageProgress(const FString& JsonData)
+{
+    // No server in exported mode — no-op
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] SaveLanguageProgress: no-op in exported mode"));
+}
+
+FString UDataLoader::GetLanguageProfile(const FString& WorldId, const FString& PlayerId)
+{
+    // No server in exported mode — return null JSON
+    return TEXT("null");
+}
+
+FString UDataLoader::GetLanguages()
+{
+    EnsureWorldIRCached();
+    if (!CachedWorldIR.IsValid()) return TEXT("[]");
+
+    const TArray<TSharedPtr<FJsonValue>>* Languages = nullptr;
+    if (CachedWorldIR->TryGetArrayField(TEXT("languages"), Languages))
+    {
+        FString Out;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+        FJsonSerializer::Serialize(*Languages, Writer);
+        return Out;
+    }
+    return TEXT("[]");
+}

@@ -306,6 +306,24 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     bool UpdatePlaythroughRelationship(const FString& FromCharacterId, const FString& ToCharacterId, const FString& Type, float Strength);
 
+    // ── Language progress ──────────────────────────────────────────────
+
+    /** Load persisted language progress for a player (returns empty in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadLanguageProgress(const FString& PlayerId, const FString& WorldId);
+
+    /** Save language progress data (no-op in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    void SaveLanguageProgress(const FString& JsonData);
+
+    /** Get a language profile summary for a player (returns empty in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetLanguageProfile(const FString& WorldId, const FString& PlayerId);
+
+    /** Get all languages defined in the world. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetLanguages();
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */
