@@ -543,6 +543,28 @@ func load_playthrough_relationships() -> Array:
 func update_playthrough_relationship(_from_id: String, _to_id: String, _type: String, _strength: float) -> bool:
 	return false  # No server in exported mode
 
+# ── NPC Conversation & Assessments ────────────────────────────
+
+## Start an NPC-NPC conversation (returns empty — no AI server in exported mode).
+func start_npc_npc_conversation(_npc1_id: String, _npc2_id: String, _topic: String = "") -> Dictionary:
+	return {}  # No AI server in exported mode
+
+## Create an assessment session (stub in exported mode).
+func create_assessment_session(_player_id: String, _world_id: String, _assessment_type: String) -> Dictionary:
+	return {}
+
+## Submit results for an assessment phase (stub in exported mode).
+func submit_assessment_phase(_session_id: String, _phase_id: String, _data: Dictionary = {}) -> Dictionary:
+	return {}
+
+## Complete an assessment session (stub in exported mode).
+func complete_assessment(_session_id: String, _total_score: float, _max_score: float = 0.0, _cefr_level: String = "") -> Dictionary:
+	return {}
+
+## Get player's assessment history for a world (returns empty in exported mode).
+func get_player_assessments(_player_id: String, _world_id: String) -> Array:
+	return []
+
 # ── Playthroughs index helpers ─────────────────────────────────
 
 const PLAYTHROUGHS_INDEX_PATH := "user://insimul_playthroughs.json"
