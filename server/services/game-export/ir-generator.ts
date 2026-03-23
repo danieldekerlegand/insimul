@@ -1470,6 +1470,8 @@ export async function generateWorldIR(
       tags: (a.tags as string[]) || [],
     }));
 
+  const animationAssets = buildAnimationIRs(worldAssets);
+
   // ── 8. Assemble final IR ──
   const combatStyle = (genreConfig.combatStyle || 'melee') as CombatStyle;
 
@@ -1574,7 +1576,7 @@ export async function generateWorldIR(
       textures: textureAssets,
       models: modelAssets,
       audio: audioAssets,
-      animations: [],
+      animations: animationAssets,
     },
 
     player: {
@@ -2053,4 +2055,41 @@ function inferDominantTerrain(settlements: any[]): TerrainType {
     if (c > bestCount) { best = t; bestCount = c; }
   });
   return best as TerrainType;
+}
+
+// ── Exported helpers for testing ──
+
+const ANIMATION_TYPES = ['idle', 'walk', 'run', 'talk', 'listen', 'work', 'sit', 'eat', 'wave', 'sleep'] as const;
+const LOOPING_ANIM_TYPES = new Set(['idle', 'walk', 'run', 'talk', 'listen', 'work', 'sit', 'eat', 'sleep']);
+
+export function buildAnimationIRs(assets: any[]): AnimationReferenceIR[] {
+  return assets
+    .filter(a => a.assetType?.includes('animation'))
+    .map(a => {
+      const tags = (a.tags as string[]) || [];
+      const meta = (a.metadata as Record<string, any>) || {};
+      const animationType = meta.animationType || tags.find((t: string) =>
+        (ANIMATION_TYPES as readonly string[]).includes(t)
+      ) || 'idle';
+      const ext = (a.filePath || '').split('.').pop()?.toLowerCase() || 'glb';
+      const format = ['glb', 'gltf', 'babylon'].includes(ext) ? ext : 'glb';
+
+      return {
+        name: a.name || animationType,
+        animationType,
+        assetRef: {
+          id: a.id,
+          role: tags[0] || 'animation',
+          babylonPath: a.filePath || '',
+          assetType: a.assetType || 'animation',
+          tags,
+        },
+        frameRange: (meta.frameRange as [number, number]) || [0, 1],
+        loop: meta.loop != null ? Boolean(meta.loop) : LOOPING_ANIM_TYPES.has(animationType),
+        speedRatio: typeof meta.speedRatio === 'number' ? meta.speedRatio : 1.0,
+        format,
+        skeletonType: meta.skeletonType || 'humanoid',
+        isMixamo: Boolean(meta.isMixamo),
+      };
+    });
 }

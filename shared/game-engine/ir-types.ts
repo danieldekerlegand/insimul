@@ -881,11 +881,19 @@ export interface AssetReferenceIR {
 
 export interface AnimationReferenceIR {
   name: string;
-  /** Animation type: idle, walk, run, attack, etc. */
+  /** Animation type/category: idle, walk, run, talk, work, etc. */
   animationType: string;
   assetRef: AssetReferenceIR;
   frameRange: [number, number];
   loop: boolean;
+  /** Playback speed multiplier (default 1.0) */
+  speedRatio: number;
+  /** File format: glb, gltf, babylon */
+  format: string;
+  /** Skeleton type this animation targets (e.g., 'humanoid', 'mixamo') */
+  skeletonType: string;
+  /** Whether this is a Mixamo-sourced animation */
+  isMixamo: boolean;
 }
 
 // ─────────────────────────────────────────────

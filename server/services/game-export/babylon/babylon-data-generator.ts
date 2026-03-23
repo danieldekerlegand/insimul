@@ -201,6 +201,14 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Animations
+  if (ir.assets.animations.length > 0) {
+    files.push({
+      path: 'public/data/animations.json',
+      content: JSON.stringify(ir.assets.animations, null, 2),
+    });
+  }
+
   // NPC dialogue contexts (pre-built system prompts for AI chat)
   if (ir.systems.dialogueContexts?.length > 0) {
     files.push({
