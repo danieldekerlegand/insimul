@@ -667,6 +667,27 @@ func update_playthrough_relationship(_from_id: String, _to_id: String, _type: St
 func get_reputations() -> Array:
 	return []  # No server in exported mode
 
+# ── Language progress ─────────────────────────────────────────
+
+## Load persisted language progress for a player (empty in exported mode).
+func load_language_progress(_player_id: String, _world_id: String) -> Variant:
+	return null  # No server in exported mode
+
+## Save language progress data (no-op in exported mode).
+func save_language_progress(_data: Dictionary) -> void:
+	pass  # No server in exported mode
+
+## Get a language profile summary for a player (empty in exported mode).
+func get_language_profile(_world_id: String, _player_id: String) -> Variant:
+	return null  # No server in exported mode
+
+## Get all languages defined in the world.
+func get_languages() -> Array:
+	_ensure_world_ir()
+	if _world_ir.has("languages") and _world_ir["languages"] is Array:
+		return _world_ir["languages"]
+	return []
+
 # ── Playthroughs index helpers ─────────────────────────────────
 
 const PLAYTHROUGHS_INDEX_PATH := "user://insimul_playthroughs.json"
