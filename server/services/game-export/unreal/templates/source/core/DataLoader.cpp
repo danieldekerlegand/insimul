@@ -623,6 +623,72 @@ FString UDataLoader::ResolveAssetIdToPath(const FString& AssetId) const
     return FString();
 }
 
+FString UDataLoader::ResolveAssetById(const FString& AssetId)
+{
+    EnsureWorldIRCached();
+
+    // Check assetIdToPath map first
+    FString FilePath = ResolveAssetIdToPath(AssetId);
+    if (!FilePath.IsEmpty())
+    {
+        FString Ext = FPaths::GetExtension(FilePath).ToLower();
+        bool bIsTexture = (Ext == TEXT("png") || Ext == TEXT("jpg") || Ext == TEXT("jpeg"));
+        FString AssetType = bIsTexture ? TEXT("texture_wall") : TEXT("model");
+        FString MimeType;
+        if (bIsTexture)
+        {
+            MimeType = (Ext == TEXT("jpg")) ? TEXT("image/jpeg") : FString::Printf(TEXT("image/%s"), *Ext);
+        }
+        else
+        {
+            MimeType = TEXT("model/gltf-binary");
+        }
+        if (!FilePath.StartsWith(TEXT(".")))
+        {
+            FilePath = TEXT("./") + FilePath;
+        }
+
+        TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
+        Obj->SetStringField(TEXT("id"), AssetId);
+        Obj->SetStringField(TEXT("name"), AssetId);
+        Obj->SetStringField(TEXT("assetType"), AssetType);
+        Obj->SetStringField(TEXT("filePath"), FilePath);
+        Obj->SetStringField(TEXT("fileName"), FPaths::GetCleanFilename(FilePath));
+        Obj->SetNumberField(TEXT("fileSize"), 0);
+        Obj->SetStringField(TEXT("mimeType"), MimeType);
+
+        FString Output;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+        FJsonSerializer::Serialize(Obj, Writer);
+        return Output;
+    }
+
+    // Fall back to searching loaded assets
+    FString AssetsJson = LoadDataFile(TEXT("asset-manifest.json"));
+    if (AssetsJson.IsEmpty()) return FString();
+
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(AssetsJson);
+    TSharedPtr<FJsonObject> ManifestObj;
+    if (!FJsonSerializer::Deserialize(Reader, ManifestObj)) return FString();
+
+    const TArray<TSharedPtr<FJsonValue>>* AssetsArray;
+    if (!ManifestObj->TryGetArrayField(TEXT("assets"), AssetsArray)) return FString();
+
+    for (const auto& Val : *AssetsArray)
+    {
+        const TSharedPtr<FJsonObject>* AssetObj;
+        if (Val->TryGetObject(AssetObj) && (*AssetObj)->GetStringField(TEXT("role")) == AssetId)
+        {
+            FString Output;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+            FJsonSerializer::Serialize(*AssetObj, Writer);
+            return Output;
+        }
+    }
+
+    return FString();
+}
+
 // ── Buildings fallback helpers ────────────────────────────────────────
 
 FString UDataLoader::DeriveBusinessesFromBuildings(const FString& SettlementId) const
