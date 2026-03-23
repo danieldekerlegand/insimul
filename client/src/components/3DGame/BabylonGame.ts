@@ -1260,11 +1260,8 @@ export class BabylonGame {
   private async fetchPlaythroughMeta(): Promise<void> {
     if (!this.playthroughId || !this.config.authToken) return;
     try {
-      const res = await fetch(`/api/playthroughs/${this.playthroughId}`, {
-        headers: { Authorization: `Bearer ${this.config.authToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await this.dataSource.getPlaythrough(this.playthroughId);
+      if (data) {
         this.playthroughMeta = {
           id: data.id,
           name: data.name || this.config.worldName + ' Playthrough',
@@ -1283,15 +1280,8 @@ export class BabylonGame {
   private async patchPlaythrough(updates: Record<string, any>): Promise<boolean> {
     if (!this.playthroughId || !this.config.authToken) return false;
     try {
-      const res = await fetch(`/api/playthroughs/${this.playthroughId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.authToken}`,
-        },
-        body: JSON.stringify(updates),
-      });
-      return res.ok;
+      const result = await this.dataSource.updatePlaythrough(this.playthroughId, updates);
+      return result != null;
     } catch {
       return false;
     }
@@ -1324,10 +1314,7 @@ export class BabylonGame {
   private async handleDeletePlaythrough(): Promise<void> {
     if (!this.playthroughId || !this.config.authToken) return;
     try {
-      await fetch(`/api/playthroughs/${this.playthroughId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${this.config.authToken}` },
-      });
+      await this.dataSource.deletePlaythrough(this.playthroughId);
     } catch {
       // Best-effort
     }
@@ -2801,11 +2788,8 @@ export class BabylonGame {
         // Try to unlock next chapter if CEFR-gated
         const worldId = this.config.worldId;
         const playerId = this.config.userId || 'player';
-        fetch(`/api/worlds/${worldId}/main-quest/${playerId}/try-unlock`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cefrLevel: event.cefrLevel }),
-        }).then(() => this.fetchMainQuestJournalData()).catch(() => {});
+        this.dataSource.tryUnlockMainQuest(worldId, playerId, event.cefrLevel)
+          .then(() => this.fetchMainQuestJournalData()).catch(() => {});
       }
     });
     // When the conversation assessment phase starts, pick the nearest NPC and highlight it
@@ -3038,19 +3022,7 @@ export class BabylonGame {
         // In exported games without a running AI server, skip NPC-NPC conversations
         if (typeof window !== 'undefined' && (window.location?.protocol === 'file:' || !this.config.authToken)) return null;
         try {
-          const response = await fetch(`/api/worlds/${this.config.worldId}/npc-npc-conversation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ npc1Id, npc2Id, topic }),
-          });
-          if (!response.ok) return null;
-          const data = await response.json();
-          return {
-            exchanges: data.exchanges ?? [],
-            relationshipDelta: data.relationshipDelta ?? { friendshipChange: 0, trustChange: 0, romanceSpark: 0 },
-            topic: data.topic ?? 'small_talk',
-            languageUsed: data.languageUsed ?? 'English',
-          };
+          return await this.dataSource.startNpcNpcConversation(this.config.worldId, npc1Id, npc2Id, topic);
         } catch {
           return null;
         }
@@ -10097,24 +10069,14 @@ export class BabylonGame {
   ): Promise<void> {
     try {
       // Use the rich conversation API (Gemini-powered, target language)
-      const response = await fetch('/api/conversations/simulate-rich', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          char1Id: npc1Id,
-          char2Id: npc2Id,
-          worldId: this.config.worldId,
-          turnCount: 6,
-        }),
-      });
+      const data = await this.dataSource.simulateRichConversation(this.config.worldId, npc1Id, npc2Id, 6);
 
-      if (!response.ok || !this.isEavesdropping) {
+      if (!data || !this.isEavesdropping) {
         this.chatPanel?.addSystemMessage('You could not make out what they were saying.');
         this.endEavesdrop();
         return;
       }
 
-      const data = await response.json();
       const utterances = data.utterances;
 
       if (!utterances || !Array.isArray(utterances) || utterances.length === 0) {
@@ -10139,14 +10101,9 @@ export class BabylonGame {
         try {
           const targetLanguage = getTargetLanguage(this.worldData) ||
             (this.worldData as any)?.targetLanguage || null;
-          const ttsResponse = await fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, voice, gender, targetLanguage }),
-          });
+          const audioBlob = await this.dataSource.textToSpeech(text, voice, gender, targetLanguage);
 
-          if (ttsResponse.ok && this.isEavesdropping) {
-            const audioBlob = await ttsResponse.blob();
+          if (audioBlob && this.isEavesdropping) {
             await new Promise<void>((resolve) => {
               const audio = new Audio(URL.createObjectURL(audioBlob));
               audio.onended = () => { URL.revokeObjectURL(audio.src); resolve(); };
@@ -10249,10 +10206,8 @@ export class BabylonGame {
    */
   private async fetchQuestGuidance(npcId: string, worldId: string): Promise<void> {
     try {
-      const res = await fetch(`/api/worlds/${worldId}/quests/npc-guidance/${npcId}`);
-      if (!res.ok) return;
-      const guidance = await res.json();
-      if (guidance.hasGuidance && guidance.systemPromptAddition) {
+      const guidance = await this.dataSource.getNpcQuestGuidance(worldId, npcId);
+      if (guidance?.hasGuidance && guidance.systemPromptAddition) {
         this.chatPanel.setQuestGuidancePrompt(guidance.systemPromptAddition);
       }
     } catch (e) {
@@ -10959,10 +10914,8 @@ export class BabylonGame {
     try {
       const worldId = this.config.worldId;
       const playerId = this.config.userId || 'player';
-      const cefrParam = this.playerCefrLevel ? `?cefrLevel=${this.playerCefrLevel}` : '';
-      const res = await fetch(`/api/worlds/${worldId}/main-quest/${playerId}${cefrParam}`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await this.dataSource.getMainQuestJournal(worldId, playerId, this.playerCefrLevel);
+      if (!data) return;
       this.mainQuestJournalData = {
         currentChapterId: data.state?.currentChapterId ?? null,
         totalXPEarned: data.state?.totalXPEarned ?? 0,
@@ -10984,9 +10937,10 @@ export class BabylonGame {
     try {
       const worldId = this.config.worldId;
       const playerName = this.config.userId || 'Player';
-      const res = await fetch(`/api/worlds/${worldId}/portfolio/${encodeURIComponent(playerName)}`);
-      if (!res.ok) return;
-      this.portfolioData = await res.json();
+      const data = await this.dataSource.getPortfolio(worldId, playerName);
+      if (data) {
+        this.portfolioData = data;
+      }
     } catch {
       // Non-critical — portfolio will show empty state
     }
@@ -10999,13 +10953,9 @@ export class BabylonGame {
     try {
       const worldId = this.config.worldId;
       const playerId = this.config.userId || 'player';
-      const res = await fetch(`/api/worlds/${worldId}/main-quest/${playerId}/record-completion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questType, cefrLevel: this.playerCefrLevel }),
-      });
-      if (!res.ok) return;
-      const { result } = await res.json();
+      const response = await this.dataSource.recordMainQuestCompletion(worldId, playerId, questType, this.playerCefrLevel);
+      if (!response) return;
+      const { result } = response;
       if (result?.chapterAdvance?.advanced) {
         this.guiManager?.showToast({
           title: `Chapter Complete: ${result.chapterAdvance.completedChapterTitle}`,
@@ -13070,11 +13020,8 @@ export class BabylonGame {
       const local = this.worldAssets.find((a) => a.id === id);
       if (local) return local;
       // Asset not in worldAssets — fetch directly so config changes are always reflected
-      try {
-        const res = await fetch(`/api/assets/${id}`);
-        if (res.ok) return await res.json();
-      } catch { /* fall through */ }
-      return undefined;
+      const resolved = await this.dataSource.resolveAssetById(id);
+      return resolved ?? undefined;
     };
 
     // Prefer an explicit ground texture from 3D config, otherwise first texture_ground asset
@@ -13245,12 +13192,9 @@ export class BabylonGame {
     const playerId = this.config.userId || 'player';
     const worldId = this.config.worldId;
     const ptId = this.playthroughId || undefined;
-    const url = `/api/reading-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}${ptId ? `?playthroughId=${encodeURIComponent(ptId)}` : ''}`;
     try {
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.quizAnswers && Array.isArray(data.quizAnswers)) {
+      const data = await this.dataSource.loadReadingProgress(playerId, worldId, ptId);
+      if (data?.quizAnswers && Array.isArray(data.quizAnswers)) {
         this.readingProgressQuizAnswers = data.quizAnswers;
         this.readingProgressAnsweredIds = new Set(data.quizAnswers.map((a: any) => a.articleId));
       }
@@ -13276,17 +13220,13 @@ export class BabylonGame {
     const ptId = this.playthroughId || undefined;
 
     try {
-      await fetch('/api/reading-progress/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId,
-          worldId,
-          ...(ptId ? { playthroughId: ptId } : {}),
-          quizAnswers: this.readingProgressQuizAnswers,
-          totalCorrect: this.readingProgressQuizAnswers.filter(a => a.correct).length,
-          totalAttempted: this.readingProgressQuizAnswers.length,
-        }),
+      await this.dataSource.syncReadingProgress({
+        playerId,
+        worldId,
+        ...(ptId ? { playthroughId: ptId } : {}),
+        quizAnswers: this.readingProgressQuizAnswers,
+        totalCorrect: this.readingProgressQuizAnswers.filter(a => a.correct).length,
+        totalAttempted: this.readingProgressQuizAnswers.length,
       });
     } catch (err) {
       console.warn('[BabylonGame] Failed to sync reading progress:', err);

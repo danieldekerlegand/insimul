@@ -102,6 +102,11 @@ export interface DataSource {
   completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any>;
   getPlayerAssessments(playerId: string, worldId: string): Promise<any[]>;
   checkConversationHealth(baseUrl?: string): Promise<boolean>;
+  simulateRichConversation(worldId: string, char1Id: string, char2Id: string, turnCount?: number): Promise<{ utterances: Array<{ speaker: string; text: string; gender?: string }> } | null>;
+  textToSpeech(text: string, voice: string, gender: string, targetLanguage?: string | null): Promise<Blob | null>;
+  getPortfolio(worldId: string, playerName: string): Promise<any | null>;
+  loadReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null>;
+  syncReadingProgress(data: { playerId: string; worldId: string; playthroughId?: string; quizAnswers: any[]; totalCorrect: number; totalAttempted: number }): Promise<void>;
 }
 
 /** Result from an NPC-NPC conversation */
@@ -834,6 +839,66 @@ export class ApiDataSource implements DataSource {
     } catch {
       return false;
     }
+  }
+
+  async simulateRichConversation(worldId: string, char1Id: string, char2Id: string, turnCount = 6): Promise<{ utterances: Array<{ speaker: string; text: string; gender?: string }> } | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/conversations/simulate-rich`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+        body: JSON.stringify({ char1Id, char2Id, worldId, turnCount }),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  async textToSpeech(text: string, voice: string, gender: string, targetLanguage?: string | null): Promise<Blob | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+        body: JSON.stringify({ text, voice, gender, targetLanguage }),
+      });
+      if (!res.ok) return null;
+      return await res.blob();
+    } catch {
+      return null;
+    }
+  }
+
+  async getPortfolio(worldId: string, playerName: string): Promise<any | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/portfolio/${encodeURIComponent(playerName)}`, { headers: this.getHeaders() });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  async loadReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
+    try {
+      const query = playthroughId ? `?playthroughId=${encodeURIComponent(playthroughId)}` : '';
+      const res = await fetch(
+        `${this.baseUrl}/api/reading-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}${query}`,
+        { headers: this.getHeaders() },
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  async syncReadingProgress(data: { playerId: string; worldId: string; playthroughId?: string; quizAnswers: any[]; totalCorrect: number; totalAttempted: number }): Promise<void> {
+    await fetch(`${this.baseUrl}/api/reading-progress/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(data),
+    });
   }
 }
 
@@ -2031,6 +2096,26 @@ export class FileDataSource implements DataSource {
 
   async checkConversationHealth(): Promise<boolean> {
     return false; // No conversation service in exported mode
+  }
+
+  async simulateRichConversation(): Promise<{ utterances: Array<{ speaker: string; text: string; gender?: string }> } | null> {
+    return null; // No AI service in exported mode
+  }
+
+  async textToSpeech(): Promise<Blob | null> {
+    return null; // No TTS service in exported mode
+  }
+
+  async getPortfolio(): Promise<any | null> {
+    return null; // No portfolio in exported mode
+  }
+
+  async loadReadingProgress(): Promise<any | null> {
+    return null; // No reading progress in exported mode
+  }
+
+  async syncReadingProgress(): Promise<void> {
+    // No-op in exported mode
   }
 }
 

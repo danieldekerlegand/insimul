@@ -66,14 +66,14 @@ export type FetchCategory =
  * that bypass the DataSource abstraction.
  */
 export const DIRECT_FETCH_CALLS: FetchCallSite[] = [
-  // ── BabylonGame.ts ──────────────────────────────────────────────
+  // ── BabylonGame.ts (only auth calls remain — all others migrated to DataSource) ──
   {
     file: 'BabylonGame.ts',
     line: 923,
     method: 'GET',
     endpoint: '/api/auth/verify',
     category: 'auth',
-    description: 'Verify auth token on game init',
+    description: 'Verify auth token on game init (pre-DataSource)',
   },
   {
     file: 'BabylonGame.ts',
@@ -81,111 +81,7 @@ export const DIRECT_FETCH_CALLS: FetchCallSite[] = [
     method: 'POST',
     endpoint: '/api/auth/login',
     category: 'auth',
-    description: 'Login with username/password from in-game prompt',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 1263,
-    method: 'PATCH',
-    endpoint: '/api/playthroughs/:playthroughId',
-    category: 'playthrough',
-    description: 'Auto-save playthrough state',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 1286,
-    method: 'PATCH',
-    endpoint: '/api/playthroughs/:playthroughId',
-    category: 'playthrough',
-    description: 'Save playthrough state (explicit save)',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 1327,
-    method: 'PATCH',
-    endpoint: '/api/playthroughs/:playthroughId',
-    category: 'playthrough',
-    description: 'Final save on game shutdown',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 2802,
-    method: 'POST',
-    endpoint: '/api/worlds/:worldId/main-quest/:playerId/try-unlock',
-    category: 'quest',
-    description: 'Try to unlock next main quest stage',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 3039,
-    method: 'POST',
-    endpoint: '/api/worlds/:worldId/npc-npc-conversation',
-    category: 'chat',
-    description: 'Generate NPC-to-NPC ambient conversation',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 10097,
-    method: 'POST',
-    endpoint: '/api/conversations/simulate-rich',
-    category: 'chat',
-    description: 'Simulate rich NPC conversation with audio',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 10139,
-    method: 'POST',
-    endpoint: '/api/tts',
-    category: 'tts',
-    description: 'TTS for simulated conversation lines',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 10249,
-    method: 'GET',
-    endpoint: '/api/worlds/:worldId/quests/npc-guidance/:npcId',
-    category: 'quest',
-    description: 'Get NPC quest guidance hints',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 10960,
-    method: 'GET',
-    endpoint: '/api/worlds/:worldId/main-quest/:playerId',
-    category: 'quest',
-    description: 'Load main quest progress',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 10984,
-    method: 'GET',
-    endpoint: '/api/worlds/:worldId/portfolio/:playerName',
-    category: 'quest',
-    description: 'Load player portfolio',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 10999,
-    method: 'POST',
-    endpoint: '/api/worlds/:worldId/main-quest/:playerId/record-completion',
-    category: 'quest',
-    description: 'Record main quest completion',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 13071,
-    method: 'GET',
-    endpoint: '/api/assets/:id',
-    category: 'asset',
-    description: 'Load individual asset by ID',
-  },
-  {
-    file: 'BabylonGame.ts',
-    line: 13276,
-    method: 'POST',
-    endpoint: '/api/reading-progress/sync',
-    category: 'reading',
-    description: 'Sync reading progress to server',
+    description: 'Login with username/password from in-game prompt (pre-DataSource)',
   },
 
   // ── BabylonChatPanel.ts ─────────────────────────────────────────
@@ -507,20 +403,18 @@ export const DIRECT_FETCH_CALLS: FetchCallSite[] = [
 // STATISTICS BY CATEGORY
 // ─────────────────────────────────────────────────────────────────────
 //
-//  chat:            7 calls (BabylonChatPanel×5, BabylonGame×1, VRChatPanel×1, ListeningComprehensionManager×1)
-//  quest:           8 calls (BabylonGame×4, BabylonChatPanel×2, BabylonQuestTracker×1, QuestCompletionManager×1)
+//  chat:            6 calls (BabylonChatPanel×5, VRChatPanel×1, ListeningComprehensionManager×1) — BabylonGame migrated to DataSource
+//  quest:           4 calls (BabylonChatPanel×2, BabylonQuestTracker×1, QuestCompletionManager×1) — BabylonGame migrated to DataSource
 //  assessment:      7 calls (NpcExamEngine×3, NpcListeningExamController×3, AssessmentEngine×3) — note overlap
-//  tts:             3 calls (BabylonGame×1, BabylonChatPanel×1, VRChatPanel×1)
+//  tts:             2 calls (BabylonChatPanel×1, VRChatPanel×1) — BabylonGame migrated to DataSource
 //  stt:             2 calls (BabylonChatPanel×2)
-//  playthrough:     3 calls (BabylonGame×3)
-//  asset:           4 calls (BabylonGame×1, TextureManager×3)
-//  auth:            2 calls (BabylonGame×2)
+//  asset:           3 calls (TextureManager×3) — BabylonGame migrated to DataSource
+//  auth:            2 calls (BabylonGame×2) — intentionally kept as direct fetch (pre-DataSource)
 //  world:           2 calls (BabylonChatPanel×2)
 //  conversation:    2 calls (BabylonChatPanel×1, HoverTranslationSystem×1)
 //  pronunciation:   1 call  (NpcExamEngine×1)
 //  xp:              1 call  (LanguageGamificationTracker×1)
 //  reputation:      1 call  (ReputationManager×1)
-//  reading:         1 call  (BabylonGame×1)
 //  grammar:         1 call  (BabylonChatPanel×1)
 //  onboarding:      2 calls (OnboardingLauncher×2)
 //
@@ -528,7 +422,7 @@ export const DIRECT_FETCH_CALLS: FetchCallSite[] = [
 // STATISTICS BY FILE
 // ─────────────────────────────────────────────────────────────────────
 //
-//  BabylonGame.ts:                    15 direct fetch calls
+//  BabylonGame.ts:                     2 direct fetch calls (auth only — 13 migrated to DataSource)
 //  BabylonChatPanel.ts:               14 direct fetch calls
 //  AssessmentEngine.ts:                3 direct fetch calls
 //  NpcExamEngine.ts:                   4 direct fetch calls
