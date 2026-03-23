@@ -393,6 +393,45 @@ func get_playthrough(playthrough_id: String) -> Dictionary:
 			return entry
 	return {}
 
+## Update playthrough metadata. Merges provided fields into the existing entry.
+## Returns true on success.
+func update_playthrough(playthrough_id: String, updates: Dictionary) -> bool:
+	var index := _load_playthroughs_index()
+	var found := false
+	for entry in index:
+		if str(entry.get("id", "")) == playthrough_id:
+			for key in updates:
+				entry[key] = updates[key]
+			entry["lastPlayedAt"] = Time.get_datetime_string_from_system(true)
+			found = true
+			break
+	if not found:
+		return false
+	_save_playthroughs_index(index)
+	return true
+
+## Delete a playthrough and all associated save data.
+## Returns true on success.
+func delete_playthrough(playthrough_id: String) -> bool:
+	# Remove save slot files
+	for i in range(10):
+		var save_path := "user://insimul_save_%s_%d.json" % [playthrough_id, i]
+		if FileAccess.file_exists(save_path):
+			DirAccess.remove_absolute(save_path)
+	# Remove quest progress
+	var quest_path := "user://insimul_quest_progress_%s.json" % playthrough_id
+	if FileAccess.file_exists(quest_path):
+		DirAccess.remove_absolute(quest_path)
+	# Remove from index
+	var index := _load_playthroughs_index()
+	var filtered := []
+	for entry in index:
+		if str(entry.get("id", "")) != playthrough_id:
+			filtered.append(entry)
+	_save_playthroughs_index(filtered)
+	print("[Insimul] delete_playthrough: removed %s" % playthrough_id)
+	return true
+
 # ── Single-object loaders ──────────────────────────────────────
 
 func load_theme() -> Dictionary:
@@ -542,6 +581,10 @@ func load_playthrough_relationships() -> Array:
 ## Update a playthrough relationship (no-op in exported mode).
 func update_playthrough_relationship(_from_id: String, _to_id: String, _type: String, _strength: float) -> bool:
 	return false  # No server in exported mode
+
+## Get all reputations for the current playthrough (empty in exported mode).
+func get_reputations() -> Array:
+	return []  # No server in exported mode
 
 # ── Playthroughs index helpers ─────────────────────────────────
 

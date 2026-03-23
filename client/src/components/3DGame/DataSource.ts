@@ -74,8 +74,11 @@ export interface DataSource {
   updateConversation(playthroughId: string, conversationId: string, updates: any): Promise<any>;
   getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]>;
   getPlaythrough(playthroughId: string): Promise<any | null>;
+  updatePlaythrough(playthroughId: string, data: any): Promise<any>;
+  deletePlaythrough(playthroughId: string): Promise<void>;
   markPlaythroughInitialized(playthroughId: string): Promise<void>;
   loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
+  getReputations(playthroughId: string): Promise<any[]>;
   updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
 }
 
@@ -597,6 +600,22 @@ export class ApiDataSource implements DataSource {
     return res.ok ? await res.json() : null;
   }
 
+  async updatePlaythrough(playthroughId: string, data: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(data),
+    });
+    return res.ok ? await res.json() : null;
+  }
+
+  async deletePlaythrough(playthroughId: string): Promise<void> {
+    await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+  }
+
   async markPlaythroughInitialized(playthroughId: string): Promise<void> {
     await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}/mark-initialized`, {
       method: 'POST',
@@ -606,6 +625,11 @@ export class ApiDataSource implements DataSource {
 
   async loadPlaythroughRelationships(playthroughId: string): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}/relationships`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
+  }
+
+  async getReputations(playthroughId: string): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/api/playthroughs/${playthroughId}/reputations`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
@@ -1581,12 +1605,37 @@ export class FileDataSource implements DataSource {
     };
   }
 
+  async updatePlaythrough(playthroughId: string, data: any): Promise<any> {
+    LocalGameState.updatePlaythroughMeta(this._storage, playthroughId, data);
+    const updated = await this.getPlaythrough(playthroughId);
+    return updated;
+  }
+
+  async deletePlaythrough(playthroughId: string): Promise<void> {
+    // Remove playthrough state data
+    this._storage.removeItem(`${LOCAL_STATE_KEY}_${playthroughId}`);
+    // Remove save slots
+    for (let i = 0; i < 10; i++) {
+      this._storage.removeItem(`insimul_save_${playthroughId}_${i}`);
+    }
+    // Remove quest progress
+    this._storage.removeItem(`insimul_quest_progress_${playthroughId}`);
+    // Remove from index
+    const list = LocalGameState.listPlaythroughs(this._storage);
+    const filtered = list.filter(m => m.id !== playthroughId);
+    this._storage.setItem(LOCAL_PLAYTHROUGHS_KEY, JSON.stringify(filtered));
+  }
+
   async markPlaythroughInitialized(_playthroughId: string): Promise<void> {
     // No-op for file-based data source
   }
 
   async loadPlaythroughRelationships(_playthroughId: string): Promise<any[]> {
     return []; // No server in exported mode
+  }
+
+  async getReputations(_playthroughId: string): Promise<any[]> {
+    return []; // No server in exported mode — reputations managed locally by ReputationManager
   }
 
   async updatePlaythroughRelationship(_playthroughId: string, _fromCharacterId: string, _toCharacterId: string, _data: { type: string; strength: number; cause?: string }): Promise<any> {
