@@ -320,6 +320,20 @@ function generateLootTables(ir: WorldIR): object[] {
   }));
 }
 
+function generateAnimations(ir: WorldIR): object[] {
+  return ir.assets.animations.map(a => ({
+    name: a.name,
+    animationType: a.animationType,
+    assetPath: a.assetRef.babylonPath,
+    frameRange: a.frameRange,
+    loop: a.loop,
+    speedRatio: a.speedRatio,
+    format: a.format,
+    skeletonType: a.skeletonType,
+    isMixamo: a.isMixamo,
+  }));
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -351,6 +365,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'truths', data: generateTruths(ir) },
     { name: 'items', data: generateItems(ir) },
     { name: 'loot_tables', data: generateLootTables(ir) },
+    { name: 'animations', data: generateAnimations(ir) },
   ];
 
   for (const table of tables) {
