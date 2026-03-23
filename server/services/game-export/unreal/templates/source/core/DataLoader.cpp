@@ -450,6 +450,75 @@ FString UDataLoader::GetPlaythrough(const FString& PlaythroughId)
     return FString();
 }
 
+bool UDataLoader::UpdatePlaythrough(const FString& PlaythroughId, const FString& UpdatesJSON)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] UpdatePlaythrough(%s)"), *PlaythroughId);
+
+    TSharedPtr<FJsonObject> Updates;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(UpdatesJSON);
+    if (!FJsonSerializer::Deserialize(Reader, Updates) || !Updates.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] UpdatePlaythrough: invalid JSON"));
+        return false;
+    }
+
+    TArray<TSharedPtr<FJsonValue>> Playthroughs = LoadPlaythroughIndex();
+    bool bFound = false;
+    for (const auto& Val : Playthroughs)
+    {
+        const TSharedPtr<FJsonObject>* Obj;
+        if (Val->TryGetObject(Obj))
+        {
+            FString Id;
+            (*Obj)->TryGetStringField(TEXT("id"), Id);
+            if (Id == PlaythroughId)
+            {
+                // Merge update fields into existing entry
+                for (const auto& Field : Updates->Values)
+                {
+                    (*Obj)->SetField(Field.Key, Field.Value);
+                }
+                bFound = true;
+                break;
+            }
+        }
+    }
+    if (!bFound) return false;
+    return SavePlaythroughIndex(Playthroughs);
+}
+
+bool UDataLoader::DeletePlaythrough(const FString& PlaythroughId)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] DeletePlaythrough(%s)"), *PlaythroughId);
+
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+
+    // Remove save slot files
+    for (int32 i = 0; i < 10; ++i)
+    {
+        const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%s_%d.json"), *PlaythroughId, i);
+        IFileManager::Get().Delete(*SavePath);
+    }
+    // Remove quest progress file
+    IFileManager::Get().Delete(*(SaveDir / FString::Printf(TEXT("insimul_quest_progress_%s.json"), *PlaythroughId)));
+    // Remove playthrough state file
+    IFileManager::Get().Delete(*(SaveDir / FString::Printf(TEXT("insimul_local_state_%s.json"), *PlaythroughId)));
+
+    // Remove from index
+    TArray<TSharedPtr<FJsonValue>> Playthroughs = LoadPlaythroughIndex();
+    Playthroughs.RemoveAll([&PlaythroughId](const TSharedPtr<FJsonValue>& Val) {
+        const TSharedPtr<FJsonObject>* Obj;
+        if (Val->TryGetObject(Obj))
+        {
+            FString Id;
+            (*Obj)->TryGetStringField(TEXT("id"), Id);
+            return Id == PlaythroughId;
+        }
+        return false;
+    });
+    return SavePlaythroughIndex(Playthroughs);
+}
+
 // ── Character lookup ──────────────────────────────────────────────────
 
 FString UDataLoader::LoadCharacter(const FString& CharacterId)
@@ -857,4 +926,10 @@ bool UDataLoader::UpdatePlaythroughRelationship(const FString& FromCharacterId, 
     // No server in exported mode — no-op
     UE_LOG(LogTemp, Verbose, TEXT("[Insimul] UpdatePlaythroughRelationship: no-op in exported mode"));
     return false;
+}
+
+FString UDataLoader::GetReputations()
+{
+    // No server in exported mode — return empty JSON array
+    return TEXT("[]");
 }

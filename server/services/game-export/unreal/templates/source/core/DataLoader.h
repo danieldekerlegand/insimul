@@ -245,6 +245,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString GetPlaythrough(const FString& PlaythroughId);
 
+    /**
+     * Update playthrough metadata (name, status, etc.).
+     * Merges the provided JSON fields into the existing entry.
+     * Returns true on success.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool UpdatePlaythrough(const FString& PlaythroughId, const FString& UpdatesJSON);
+
+    /**
+     * Delete a playthrough and all associated save data.
+     * Removes save slots, quest progress, and the index entry.
+     * Returns true on success.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool DeletePlaythrough(const FString& PlaythroughId);
+
     // ── Character lookup ──────────────────────────────────────────────
 
     /** Load a single character by ID from characters.json. */
@@ -339,6 +355,10 @@ public:
     /** Update a playthrough relationship (no-op in exported mode). */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     bool UpdatePlaythroughRelationship(const FString& FromCharacterId, const FString& ToCharacterId, const FString& Type, float Strength);
+
+    /** Get all reputations for the current playthrough (empty in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetReputations();
 
     // ── Status ─────────────────────────────────────────────────────────
 
