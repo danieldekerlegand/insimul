@@ -189,9 +189,15 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
 
   // AI configuration
   if (ir.aiConfig) {
+    const aiConfigExport = { ...ir.aiConfig };
+    // When apiMode is 'local', replace server-side absolute paths with
+    // relative export paths pointing to the bundled model files
+    if (aiConfigExport.apiMode === 'local') {
+      aiConfigExport.localModelPath = `./assets/ai/models/${aiConfigExport.localModelName || 'phi-4-mini-q4'}.gguf`;
+    }
     files.push({
       path: 'public/data/ai_config.json',
-      content: JSON.stringify(ir.aiConfig, null, 2),
+      content: JSON.stringify(aiConfigExport, null, 2),
     });
   }
 
