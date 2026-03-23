@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { WorldIR, CharacterIR, NPCIR, ModelPackIR } from '@shared/game-engine/ir-types';
+import type { WorldIR, CharacterIR, NPCIR, AIConfigIR, ModelPackIR } from '@shared/game-engine/ir-types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGES_DIR = join(__dirname, '..', '..', '..', 'packages');
@@ -51,8 +51,7 @@ export interface InsimulPluginConfig {
   worldId: string;
   apiKey: string;
   characterMappings: CharacterMapping[];
-  /** AI provider configuration for the exported game */
-  aiProvider: AIProviderConfig;
+  aiConfig: AIConfigIR | null;
 }
 
 // ─────────────────────────────────────────────
@@ -90,12 +89,7 @@ function buildPluginConfig(ir: WorldIR, aiModelPaths?: AIModelPaths, modelPack?:
     worldId: ir.meta.worldId,
     apiKey,
     characterMappings: buildCharacterMappings(ir),
-    aiProvider: {
-      provider: hasLocalModels ? 'local' : 'cloud',
-      modelBasePath: hasLocalModels ? 'ai' : '',
-      modelPack: modelPack ?? null,
-      aiModelPaths,
-    },
+    aiConfig: ir.aiConfig || null,
   };
 }
 
@@ -147,7 +141,7 @@ export function bundleBabylonPlugin(ir: WorldIR, modelPack?: ModelPackIR | null)
 function generateBabylonConfig(config: InsimulPluginConfig): string {
   return `/**
  * Insimul SDK Configuration — auto-generated during export.
- * Provides server connection details and character-to-NPC mappings.
+ * Provides server connection details, character-to-NPC mappings, and AI config.
  */
 
 export const INSIMUL_CONFIG = {
@@ -158,6 +152,24 @@ export const INSIMUL_CONFIG = {
   aiProvider: ${JSON.stringify(config.aiProvider.provider)},
   aiModelBasePath: ${JSON.stringify(config.aiProvider.modelBasePath)},
 } as const;
+
+export interface AIConfig {
+  apiMode: 'insimul' | 'gemini';
+  insimulEndpoint: string;
+  geminiModel: string;
+  geminiApiKeyPlaceholder: string;
+  voiceEnabled: boolean;
+  defaultVoice: string;
+}
+
+export const AI_CONFIG: AIConfig = ${JSON.stringify(config.aiConfig || {
+  apiMode: 'insimul',
+  insimulEndpoint: '/api/gemini/chat',
+  geminiModel: 'gemini-2.5-flash',
+  geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
+  voiceEnabled: true,
+  defaultVoice: 'Kore',
+}, null, 2)};
 
 export interface CharacterMapping {
   characterId: string;

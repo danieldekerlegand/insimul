@@ -68,6 +68,8 @@ export interface DataSource {
   saveQuestProgress(playthroughId: string, questProgress: any): Promise<void>;
   loadQuestProgress(playthroughId: string): Promise<any | null>;
   loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
+  loadAIConfig(worldId: string): Promise<any | null>;
+  loadDialogueContexts(worldId: string): Promise<any[]>;
   saveConversation(playthroughId: string, conversation: any): Promise<any>;
   updateConversation(playthroughId: string, conversationId: string, updates: any): Promise<any>;
   getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]>;
@@ -532,6 +534,28 @@ export class ApiDataSource implements DataSource {
     return null;
   }
 
+  async loadAIConfig(worldId: string): Promise<any | null> {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/export/ir`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const ir = await res.json();
+        return ir.aiConfig || null;
+      }
+    } catch { /* AI config not available */ }
+    return null;
+  }
+
+  async loadDialogueContexts(worldId: string): Promise<any[]> {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/export/ir`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const ir = await res.json();
+        return ir.systems?.dialogueContexts || [];
+      }
+    } catch { /* Dialogue contexts not available */ }
+    return [];
+  }
+
   async saveConversation(playthroughId: string, conversation: any): Promise<any> {
     const res = await fetch(
       `/api/playthroughs/${playthroughId}/conversations`,
@@ -858,7 +882,7 @@ export class FileDataSource implements DataSource {
     try {
       this.worldIR = await readDataFile('data/world_ir.json');
 
-      const [characters, npcs, quests, actions, rules, geography, theme, assetManifest] = await Promise.all([
+      const [characters, npcs, quests, actions, rules, geography, theme, assetManifest, aiConfig, dialogueContexts] = await Promise.all([
         readDataFile('data/characters.json').catch(() => []),
         readDataFile('data/npcs.json').catch(() => []),
         readDataFile('data/quests.json').catch(() => []),
@@ -867,6 +891,8 @@ export class FileDataSource implements DataSource {
         readDataFile('data/geography.json').catch(() => ({})),
         readDataFile('data/theme.json').catch(() => ({})),
         readDataFile('data/asset-manifest.json').catch(() => ({})),
+        readDataFile('data/ai_config.json').catch(() => null),
+        readDataFile('data/dialogue_contexts.json').catch(() => []),
       ]);
 
       this.worldData = {
@@ -879,6 +905,8 @@ export class FileDataSource implements DataSource {
         geography,
         theme,
         assetManifest,
+        aiConfig,
+        dialogueContexts,
       };
     } catch (error) {
       console.error('Failed to load world data:', error);
@@ -1264,6 +1292,16 @@ export class FileDataSource implements DataSource {
     const geo = this.worldData?.geography;
     if (!geo) return null;
     return { heightmap: geo.heightmap, terrainSize: geo.terrainSize };
+  }
+
+  async loadAIConfig(_worldId: string): Promise<any | null> {
+    await this.waitForData();
+    return this.worldData?.aiConfig || null;
+  }
+
+  async loadDialogueContexts(_worldId: string): Promise<any[]> {
+    await this.waitForData();
+    return this.worldData?.dialogueContexts || [];
   }
 
   async saveConversation(_playthroughId: string, conversation: any): Promise<any> {
