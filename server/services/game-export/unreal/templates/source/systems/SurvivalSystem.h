@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "../data/GameTypes.h"
 #include "SurvivalSystem.generated.h"
 
 /**
@@ -23,6 +24,18 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "Survival")
     int32 NeedCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Survival")
+    FInsimulSurvivalDamageConfig DamageConfig;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Survival")
+    FInsimulTemperatureConfig TemperatureConfig;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Survival")
+    FInsimulStaminaConfig StaminaConfig;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Survival")
+    TArray<FInsimulSurvivalModifierPreset> ModifierPresets;
 
     UFUNCTION(BlueprintCallable, Category = "Survival")
     float GetNeedValue(const FString& NeedId);

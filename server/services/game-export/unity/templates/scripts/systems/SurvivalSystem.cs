@@ -13,12 +13,21 @@ namespace Insimul.Systems
         public float maxValue;
         public float decayRate;
         public float criticalThreshold;
+        public float warningThreshold;
         public float damageRate;
+        public bool wasCritical;
+        public bool wasWarning;
     }
 
     public class SurvivalSystem : MonoBehaviour
     {
         private List<NeedState> _needs = new();
+        private bool _damageEnabled = true;
+        private float _globalDamageMultiplier = 1f;
+
+        public event System.Action<string, float> OnNeedWarning;
+        public event System.Action<string, float> OnNeedCritical;
+        public event System.Action<string, float> OnDamageFromNeed;
 
         public void LoadFromData(InsimulWorldIR worldData)
         {
@@ -30,9 +39,16 @@ namespace Insimul.Systems
                     id = need.id, name = need.name,
                     value = need.startValue, maxValue = need.maxValue,
                     decayRate = need.decayRate, criticalThreshold = need.criticalThreshold,
-                    damageRate = need.damageRate
+                    warningThreshold = need.warningThreshold, damageRate = need.damageRate
                 });
             }
+
+            if (worldData.survival.damageConfig != null)
+            {
+                _damageEnabled = worldData.survival.damageConfig.enabled;
+                _globalDamageMultiplier = worldData.survival.damageConfig.globalDamageMultiplier;
+            }
+
             Debug.Log($"[Insimul] SurvivalSystem loaded {_needs.Count} needs");
         }
 
@@ -44,6 +60,23 @@ namespace Insimul.Systems
                 {
                     need.value -= need.decayRate * Time.deltaTime;
                     need.value = Mathf.Clamp(need.value, 0f, need.maxValue);
+                }
+
+                bool isCritical = need.value <= need.criticalThreshold;
+                bool isWarning = need.value <= need.warningThreshold && !isCritical;
+
+                if (isCritical && !need.wasCritical)
+                    OnNeedCritical?.Invoke(need.id, need.value);
+                else if (isWarning && !need.wasWarning)
+                    OnNeedWarning?.Invoke(need.id, need.value);
+
+                need.wasCritical = isCritical;
+                need.wasWarning = isWarning;
+
+                if (_damageEnabled && need.value <= 0f && need.damageRate > 0f)
+                {
+                    float damage = need.damageRate * _globalDamageMultiplier * Time.deltaTime;
+                    OnDamageFromNeed?.Invoke(need.id, damage);
                 }
             }
         }
