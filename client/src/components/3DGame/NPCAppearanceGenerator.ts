@@ -8,8 +8,8 @@
 
 import { Color3, Vector3 } from '@babylonjs/core';
 
-/** Role types matching BabylonGame's NPCRole */
-export type NPCRole = 'guard' | 'merchant' | 'questgiver' | 'civilian';
+import type { NPCRole } from './NPCModelInstancer';
+export type { NPCRole };
 
 /** Body type archetype for proportion generation */
 export type BodyType = 'average' | 'stocky' | 'lean' | 'heavyset' | 'athletic';

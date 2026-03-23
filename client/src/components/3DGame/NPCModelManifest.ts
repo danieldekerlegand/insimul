@@ -9,7 +9,10 @@ import { characterModelUrl } from '@shared/asset-paths';
 export type NPCGender = 'male' | 'female' | 'nonbinary';
 export type NPCBodyType = 'average' | 'athletic' | 'heavy' | 'slim';
 export type NPCGenreCategory = 'fantasy' | 'scifi' | 'modern' | 'generic';
-export type NPCRoleType = 'civilian' | 'guard' | 'merchant' | 'questgiver';
+export type NPCRoleType =
+  | 'civilian' | 'guard' | 'soldier' | 'merchant' | 'questgiver'
+  | 'farmer' | 'blacksmith' | 'innkeeper' | 'priest' | 'teacher'
+  | 'doctor' | 'child' | 'elder' | 'noble' | 'beggar' | 'sailor';
 
 export interface NPCModelEntry {
   /** Absolute path from public root (e.g. /assets/characters/fantasy/npc_male_average.glb) */

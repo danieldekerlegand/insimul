@@ -281,6 +281,106 @@ namespace Insimul.World
             };
         }
 
+        /// <summary>
+        /// Apply subtype-specific style overrides (color tint, material/feature preferences)
+        /// on top of a base preset for the given building role.
+        /// Mirrors shared/game-engine/building-style-presets.ts applySubtypeOverride.
+        /// </summary>
+        public static BuildingStylePreset ApplySubtypeOverride(BuildingStylePreset basePreset, string role)
+        {
+            if (string.IsNullOrEmpty(role) || !SUBTYPE_HINTS.ContainsKey(role))
+                return basePreset;
+
+            var hint = SUBTYPE_HINTS[role];
+            var result = basePreset;
+
+            // Color tint
+            if (hint.tint != default)
+            {
+                result.baseColor = new Color(
+                    Mathf.Min(1f, basePreset.baseColor.r * hint.tint.r),
+                    Mathf.Min(1f, basePreset.baseColor.g * hint.tint.g),
+                    Mathf.Min(1f, basePreset.baseColor.b * hint.tint.b));
+            }
+
+            // Material preference: use preferred if base doesn't match
+            if (!string.IsNullOrEmpty(hint.preferredMaterial) && basePreset.materialType != hint.preferredMaterial)
+                result.materialType = hint.preferredMaterial;
+
+            // Feature overrides
+            if (hint.setPorch) { result.hasPorch = hint.hasPorch; result.porchDepth = hint.porchDepth; result.porchSteps = hint.porchSteps; }
+            if (hint.setShutters) result.hasShutters = hint.hasShutters;
+            if (hint.setBalcony) result.hasIronworkBalcony = hint.hasBalcony;
+
+            return result;
+        }
+
+        private struct SubtypeHint
+        {
+            public Color tint;
+            public string preferredMaterial;
+            public bool setPorch; public bool hasPorch; public float porchDepth; public int porchSteps;
+            public bool setShutters; public bool hasShutters;
+            public bool setBalcony; public bool hasBalcony;
+        }
+
+        private static readonly Dictionary<string, SubtypeHint> SUBTYPE_HINTS =
+            new Dictionary<string, SubtypeHint>
+        {
+            // ── Commercial: Food & Drink ──
+            { "Bakery",       new SubtypeHint { tint = new Color(1.15f,1f,0.85f), preferredMaterial = "brick", setShutters = true, hasShutters = true } },
+            { "Restaurant",   new SubtypeHint { tint = new Color(1.1f,0.95f,0.85f), preferredMaterial = "brick", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 2, setShutters = true, hasShutters = true } },
+            { "Bar",          new SubtypeHint { tint = new Color(0.8f,0.75f,0.7f), preferredMaterial = "wood", setPorch = true, hasPorch = false, setShutters = true, hasShutters = false } },
+            { "Brewery",      new SubtypeHint { tint = new Color(0.9f,0.85f,0.75f), preferredMaterial = "brick" } },
+            // ── Commercial: Retail ──
+            { "Shop",         new SubtypeHint { tint = new Color(1.05f,1.05f,1f), preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 1.5f, porchSteps = 1 } },
+            { "GroceryStore", new SubtypeHint { tint = new Color(1f,1.1f,0.95f), preferredMaterial = "brick", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 1 } },
+            { "JewelryStore", new SubtypeHint { tint = new Color(0.95f,0.95f,1.1f), preferredMaterial = "stone", setShutters = true, hasShutters = true } },
+            { "BookStore",    new SubtypeHint { tint = new Color(1f,0.95f,0.85f), preferredMaterial = "wood", setShutters = true, hasShutters = true } },
+            { "PawnShop",     new SubtypeHint { tint = new Color(0.9f,0.85f,0.8f), preferredMaterial = "wood" } },
+            { "HerbShop",     new SubtypeHint { tint = new Color(0.9f,1.1f,0.85f), preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 1.5f, porchSteps = 1 } },
+            // ── Commercial: Services ──
+            { "Bank",         new SubtypeHint { tint = new Color(0.95f,0.95f,0.95f), preferredMaterial = "stone", setPorch = true, hasPorch = true, porchDepth = 3, porchSteps = 4, setShutters = true, hasShutters = false } },
+            { "Hotel",        new SubtypeHint { tint = new Color(1.05f,1f,0.95f), preferredMaterial = "brick", setShutters = true, hasShutters = true, setBalcony = true, hasBalcony = true } },
+            { "Barbershop",   new SubtypeHint { tint = new Color(1f,1f,1.05f), preferredMaterial = "brick" } },
+            { "Tailor",       new SubtypeHint { tint = new Color(1.05f,0.95f,1.05f), preferredMaterial = "wood", setShutters = true, hasShutters = true } },
+            { "Bathhouse",    new SubtypeHint { tint = new Color(0.95f,1f,1.1f), preferredMaterial = "stone" } },
+            { "Pharmacy",     new SubtypeHint { tint = new Color(1f,1.05f,1.05f), preferredMaterial = "brick", setShutters = true, hasShutters = true } },
+            { "LawFirm",      new SubtypeHint { tint = new Color(0.9f,0.9f,0.9f), preferredMaterial = "stone", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 3 } },
+            // ── Civic ──
+            { "Church",       new SubtypeHint { preferredMaterial = "stone", setPorch = true, hasPorch = true, porchDepth = 3, porchSteps = 5 } },
+            { "TownHall",     new SubtypeHint { preferredMaterial = "stone", setPorch = true, hasPorch = true, porchDepth = 3, porchSteps = 4, setBalcony = true, hasBalcony = true } },
+            { "School",       new SubtypeHint { tint = new Color(1f,0.95f,0.9f), preferredMaterial = "brick", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 3 } },
+            { "University",   new SubtypeHint { preferredMaterial = "stone", setPorch = true, hasPorch = true, porchDepth = 3, porchSteps = 5 } },
+            { "Hospital",     new SubtypeHint { tint = new Color(1.15f,1.15f,1.15f), preferredMaterial = "stucco", setPorch = true, hasPorch = true, porchDepth = 3, porchSteps = 2 } },
+            { "PoliceStation", new SubtypeHint { tint = new Color(0.85f,0.85f,0.9f), preferredMaterial = "brick", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 3 } },
+            { "FireStation",  new SubtypeHint { tint = new Color(1.1f,0.85f,0.8f), preferredMaterial = "brick" } },
+            // ── Industrial ──
+            { "Factory",      new SubtypeHint { tint = new Color(0.85f,0.8f,0.75f), preferredMaterial = "metal" } },
+            { "Farm",         new SubtypeHint { tint = new Color(1.1f,1f,0.85f), preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 2 } },
+            { "Warehouse",    new SubtypeHint { tint = new Color(0.8f,0.8f,0.8f), preferredMaterial = "metal" } },
+            { "Blacksmith",   new SubtypeHint { tint = new Color(0.75f,0.7f,0.65f), preferredMaterial = "stone" } },
+            { "Carpenter",    new SubtypeHint { tint = new Color(1.05f,0.95f,0.8f), preferredMaterial = "wood" } },
+            { "Butcher",      new SubtypeHint { tint = new Color(1f,0.9f,0.85f), preferredMaterial = "brick" } },
+            // ── Maritime ──
+            { "Harbor",       new SubtypeHint { tint = new Color(0.9f,0.95f,1f), preferredMaterial = "wood" } },
+            { "Boatyard",     new SubtypeHint { tint = new Color(0.85f,0.9f,0.95f), preferredMaterial = "wood" } },
+            { "FishMarket",   new SubtypeHint { tint = new Color(0.95f,1f,1.05f), preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 1 } },
+            { "CustomsHouse", new SubtypeHint { tint = new Color(0.95f,0.95f,0.95f), preferredMaterial = "stone" } },
+            { "Lighthouse",   new SubtypeHint { tint = new Color(1.1f,1.1f,1.1f), preferredMaterial = "stone" } },
+            // ── Residential ──
+            { "house",        new SubtypeHint { preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 2, setShutters = true, hasShutters = true } },
+            { "apartment",    new SubtypeHint { preferredMaterial = "brick", setBalcony = true, hasBalcony = true } },
+            { "mansion",      new SubtypeHint { preferredMaterial = "stone", setPorch = true, hasPorch = true, porchDepth = 3, porchSteps = 4, setShutters = true, hasShutters = true, setBalcony = true, hasBalcony = true } },
+            { "cottage",      new SubtypeHint { tint = new Color(1.1f,1.05f,0.95f), preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 1.5f, porchSteps = 1, setShutters = true, hasShutters = true } },
+            { "townhouse",    new SubtypeHint { preferredMaterial = "brick", setShutters = true, hasShutters = true } },
+            { "mobile_home",  new SubtypeHint { preferredMaterial = "metal" } },
+            // ── Other/Legacy ──
+            { "Tavern",       new SubtypeHint { tint = new Color(1f,0.9f,0.8f), preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 2, setBalcony = true, hasBalcony = true } },
+            { "Inn",          new SubtypeHint { tint = new Color(1.05f,1f,0.9f), preferredMaterial = "wood", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 3, setShutters = true, hasShutters = true, setBalcony = true, hasBalcony = true } },
+            { "Library",      new SubtypeHint { preferredMaterial = "stone", setPorch = true, hasPorch = true, porchDepth = 2, porchSteps = 4 } }
+        };
+
         #endregion
 
         /// <summary>Register a prefab model for a building role. Matching roles use this
@@ -385,6 +485,8 @@ namespace Insimul.World
             float width, float depth, string role)
         {
             var style = _activeStyle.name != null ? _activeStyle : GetStyleForWorld("", "");
+            // Apply subtype-specific style overrides for this building role
+            style = ApplySubtypeOverride(style, role);
             float floorHeight = 3f;
             float totalHeight = floors * floorHeight;
 

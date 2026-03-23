@@ -228,7 +228,10 @@ const INITIAL_ENERGY = 100;
 // Types
 type SceneStatus = "idle" | "loading" | "ready" | "error";
 type NPCState = 'idle' | 'fleeing' | 'pursuing' | 'alert' | 'returning';
-type NPCRole = 'civilian' | 'guard' | 'merchant' | 'questgiver';
+type NPCRole =
+  | 'civilian' | 'guard' | 'soldier' | 'merchant' | 'questgiver'
+  | 'farmer' | 'blacksmith' | 'innkeeper' | 'priest' | 'teacher'
+  | 'doctor' | 'child' | 'elder' | 'noble' | 'beggar' | 'sailor';
 
 interface WorldCharacter {
   id: string;
@@ -6295,36 +6298,42 @@ export class BabylonGame {
     const occupation = (character.occupation || '').toLowerCase();
     const faction = (character.faction || '').toLowerCase();
     const quests = this.worldData?.quests || [];
+    const age = (character as any).age ?? 30;
 
     // Quest givers always take precedence
     if (quests.some((q) => q.giverCharacterId === character.id)) {
       return 'questgiver';
     }
 
-    const guardText = `${occupation} ${faction}`;
-    if (
-      guardText.includes('guard') ||
-      guardText.includes('soldier') ||
-      guardText.includes('watch') ||
-      guardText.includes('knight') ||
-      guardText.includes('militia') ||
-      guardText.includes('army') ||
-      guardText.includes('police')
-    ) {
-      return 'guard';
-    }
+    // Age-based roles
+    if (age < 14) return 'child';
+    if (age >= 65) return 'elder';
 
-    const merchantText = `${occupation} ${faction}`;
-    if (
-      merchantText.includes('merchant') ||
-      merchantText.includes('shop') ||
-      merchantText.includes('trader') ||
-      merchantText.includes('vendor') ||
-      merchantText.includes('market') ||
-      merchantText.includes('guild')
-    ) {
-      return 'merchant';
-    }
+    const text = `${occupation} ${faction}`;
+
+    // Military / enforcement
+    if (text.includes('guard') || text.includes('watch') || text.includes('police') || text.includes('sheriff')) return 'guard';
+    if (text.includes('soldier') || text.includes('knight') || text.includes('militia') || text.includes('army') || text.includes('warrior')) return 'soldier';
+
+    // Commerce
+    if (text.includes('merchant') || text.includes('shop') || text.includes('trader') || text.includes('vendor') || text.includes('market')) return 'merchant';
+
+    // Trades & labor
+    if (text.includes('farm') || text.includes('ranch') || text.includes('harvest') || text.includes('shepherd')) return 'farmer';
+    if (text.includes('smith') || text.includes('forge') || text.includes('armorer') || text.includes('weaponsmith')) return 'blacksmith';
+    if (text.includes('innkeep') || text.includes('barkeep') || text.includes('tavern') || text.includes('bartend')) return 'innkeeper';
+
+    // Learned professions
+    if (text.includes('priest') || text.includes('cleric') || text.includes('monk') || text.includes('clergy') || text.includes('pastor') || text.includes('chaplain')) return 'priest';
+    if (text.includes('teach') || text.includes('tutor') || text.includes('professor') || text.includes('scholar') || text.includes('librarian')) return 'teacher';
+    if (text.includes('doctor') || text.includes('physician') || text.includes('healer') || text.includes('apothecary') || text.includes('nurse') || text.includes('medic')) return 'doctor';
+
+    // Social classes
+    if (text.includes('noble') || text.includes('lord') || text.includes('lady') || text.includes('duke') || text.includes('baron') || text.includes('count') || text.includes('mayor')) return 'noble';
+    if (text.includes('beggar') || text.includes('vagrant') || text.includes('homeless') || text.includes('drifter')) return 'beggar';
+
+    // Maritime
+    if (text.includes('sailor') || text.includes('fisher') || text.includes('captain') || text.includes('navigator') || text.includes('boatswain')) return 'sailor';
 
     return 'civilian';
   }
@@ -7972,6 +7981,47 @@ export class BabylonGame {
         this.npcInitiatedConversationController.update(dt, 60000);
       }
 
+      // Update minimap markers at most every 250ms
+      this._minimapUpdateTimer += dt;
+      if (this._minimapUpdateTimer >= 250) {
+        this._minimapUpdateTimer = 0;
+        this.npcMeshes.forEach((instance, npcId) => {
+          if (!instance?.mesh) return;
+          const npcInfo = this.npcInfos.find((n) => n.id === npcId);
+          const label = npcInfo?.name ?? npcId;
+          let color: string | undefined;
+          switch (instance.role) {
+            case 'guard': case 'soldier': color = '#F44336'; break;
+            case 'merchant': color = '#4CAF50'; break;
+            case 'questgiver': color = '#FFC107'; break;
+            case 'noble': color = '#9C27B0'; break;
+            case 'priest': color = '#E8E0D0'; break;
+            case 'doctor': color = '#00BCD4'; break;
+            case 'innkeeper': color = '#FF9800'; break;
+            case 'farmer': color = '#8D6E63'; break;
+            case 'blacksmith': color = '#607D8B'; break;
+            case 'teacher': color = '#7E57C2'; break;
+            case 'sailor': color = '#1565C0'; break;
+            default: color = '#9E9E9E'; break;
+          }
+          this.minimap?.addMarker({
+            id: `npc_${npcId}`,
+            position: instance.mesh.position,
+            type: 'npc',
+            label,
+            color
+          });
+        });
+
+        if (this.playerMesh) {
+          this.minimap?.addMarker({
+            id: 'player',
+            position: this.playerMesh.position,
+            type: 'player',
+            label: 'You'
+          });
+        }
+      }
       // Phase 3: Update audio listener position for distance-based culling
       if (this.playerMesh && this.audioManager) {
         this.audioManager.setListenerPosition(this.playerMesh.position);

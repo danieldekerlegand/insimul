@@ -13,7 +13,8 @@
  * and pick one deterministically using a hash of the character ID.
  */
 
-export type NPCRole = 'civilian' | 'guard' | 'merchant' | 'questgiver';
+import type { NPCRole } from './NPCModelInstancer';
+export type { NPCRole };
 export type NPCGender = 'male' | 'female' | 'other';
 
 /**

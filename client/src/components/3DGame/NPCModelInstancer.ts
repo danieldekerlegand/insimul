@@ -22,7 +22,23 @@ import {
 
 // --- Types ---
 
-export type NPCRole = 'guard' | 'merchant' | 'questgiver' | 'civilian';
+export type NPCRole =
+  | 'guard'
+  | 'soldier'
+  | 'merchant'
+  | 'questgiver'
+  | 'civilian'
+  | 'farmer'
+  | 'blacksmith'
+  | 'innkeeper'
+  | 'priest'
+  | 'teacher'
+  | 'doctor'
+  | 'child'
+  | 'elder'
+  | 'noble'
+  | 'beggar'
+  | 'sailor';
 
 /** LOD distances for mesh-level LOD (Babylon.js built-in addLODLevel) */
 export const NPC_MESH_LOD = {
@@ -36,18 +52,42 @@ export const NPC_MESH_LOD = {
 
 /** Role-based tint colors applied to NPC materials */
 const ROLE_TINT_COLORS: Record<NPCRole, Color3> = {
-  guard: new Color3(0.85, 0.5, 0.45),
-  merchant: new Color3(0.85, 0.75, 0.45),
-  questgiver: new Color3(0.5, 0.65, 0.9),
-  civilian: new Color3(0.7, 0.7, 0.7),
+  guard: new Color3(0.85, 0.5, 0.45),       // warm red-brown (uniform)
+  soldier: new Color3(0.6, 0.45, 0.4),       // dark iron-brown (military)
+  merchant: new Color3(0.85, 0.75, 0.45),    // warm yellow-tan (wealth)
+  questgiver: new Color3(0.5, 0.65, 0.9),    // blue (attention-drawing)
+  civilian: new Color3(0.7, 0.7, 0.7),       // neutral grey
+  farmer: new Color3(0.65, 0.55, 0.35),      // earth brown
+  blacksmith: new Color3(0.4, 0.4, 0.45),    // dark sooty grey
+  innkeeper: new Color3(0.8, 0.6, 0.4),      // warm amber
+  priest: new Color3(0.9, 0.88, 0.8),        // cream/white
+  teacher: new Color3(0.55, 0.5, 0.65),      // muted purple-grey (scholarly)
+  doctor: new Color3(0.85, 0.85, 0.9),       // clean white-blue
+  child: new Color3(0.75, 0.7, 0.55),        // light warm (youthful)
+  elder: new Color3(0.6, 0.58, 0.55),        // muted dignified grey
+  noble: new Color3(0.7, 0.5, 0.75),         // rich purple
+  beggar: new Color3(0.55, 0.5, 0.4),        // dull brown
+  sailor: new Color3(0.45, 0.55, 0.7),       // navy blue
 };
 
 /** Billboard colors for far LOD */
 const ROLE_BILLBOARD_COLORS: Record<NPCRole, Color3> = {
   guard: new Color3(0.85, 0.4, 0.35),
+  soldier: new Color3(0.55, 0.4, 0.35),
   merchant: new Color3(0.85, 0.75, 0.35),
   questgiver: new Color3(0.4, 0.55, 0.9),
   civilian: new Color3(0.6, 0.6, 0.6),
+  farmer: new Color3(0.6, 0.5, 0.3),
+  blacksmith: new Color3(0.35, 0.35, 0.4),
+  innkeeper: new Color3(0.75, 0.55, 0.35),
+  priest: new Color3(0.85, 0.83, 0.75),
+  teacher: new Color3(0.5, 0.45, 0.6),
+  doctor: new Color3(0.8, 0.8, 0.85),
+  child: new Color3(0.7, 0.65, 0.5),
+  elder: new Color3(0.55, 0.53, 0.5),
+  noble: new Color3(0.65, 0.45, 0.7),
+  beggar: new Color3(0.5, 0.45, 0.35),
+  sailor: new Color3(0.4, 0.5, 0.65),
 };
 
 /** Stored template for a loaded model */

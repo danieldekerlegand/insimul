@@ -153,7 +153,10 @@ export interface WorldCharacter {
 }
 
 export type NPCState = 'idle' | 'fleeing' | 'pursuing' | 'alert' | 'returning';
-export type NPCRole = 'civilian' | 'guard' | 'merchant' | 'questgiver';
+export type NPCRole =
+  | 'civilian' | 'guard' | 'soldier' | 'merchant' | 'questgiver'
+  | 'farmer' | 'blacksmith' | 'innkeeper' | 'priest' | 'teacher'
+  | 'doctor' | 'child' | 'elder' | 'noble' | 'beggar' | 'sailor';
 
 export interface NPCDisplayInfo {
   id: string;

@@ -66,9 +66,21 @@ function hashString(str: string): number {
 
 const ROLE_OUTFIT_MAP: Record<NPCRole, string[]> = {
   guard: ['ranger'],
+  soldier: ['ranger'],
   merchant: ['peasant'],
   questgiver: ['ranger', 'peasant'],
   civilian: ['peasant'],
+  farmer: ['peasant'],
+  blacksmith: ['peasant'],
+  innkeeper: ['peasant'],
+  priest: ['peasant'],
+  teacher: ['peasant'],
+  doctor: ['peasant'],
+  child: ['peasant'],
+  elder: ['peasant'],
+  noble: ['ranger', 'peasant'],
+  beggar: ['peasant'],
+  sailor: ['ranger'],
 };
 
 // --- Selection functions ---

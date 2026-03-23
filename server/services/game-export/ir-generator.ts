@@ -544,8 +544,26 @@ function assignNPCRole(character: Character, quests: Quest[]): string {
   if (isQuestGiver) return 'questgiver';
 
   const occ = (character.occupation || '').toLowerCase();
-  if (occ.includes('guard') || occ.includes('soldier') || occ.includes('police')) return 'guard';
-  if (occ.includes('merchant') || occ.includes('trader') || occ.includes('shop')) return 'merchant';
+  const age = character.age ?? 30;
+
+  // Age-based roles
+  if (age < 14) return 'child';
+  if (age >= 65) return 'elder';
+
+  // Occupation-based roles
+  if (occ.includes('guard') || occ.includes('police') || occ.includes('sheriff') || occ.includes('watchman')) return 'guard';
+  if (occ.includes('soldier') || occ.includes('knight') || occ.includes('militia') || occ.includes('warrior')) return 'soldier';
+  if (occ.includes('merchant') || occ.includes('trader') || occ.includes('shop') || occ.includes('vendor')) return 'merchant';
+  if (occ.includes('farm') || occ.includes('ranch') || occ.includes('harvest') || occ.includes('shepherd')) return 'farmer';
+  if (occ.includes('smith') || occ.includes('forge') || occ.includes('armorer') || occ.includes('weaponsmith')) return 'blacksmith';
+  if (occ.includes('innkeep') || occ.includes('barkeep') || occ.includes('tavern') || occ.includes('bartend')) return 'innkeeper';
+  if (occ.includes('priest') || occ.includes('cleric') || occ.includes('monk') || occ.includes('clergy') || occ.includes('pastor') || occ.includes('chaplain')) return 'priest';
+  if (occ.includes('teach') || occ.includes('tutor') || occ.includes('professor') || occ.includes('scholar') || occ.includes('librarian')) return 'teacher';
+  if (occ.includes('doctor') || occ.includes('physician') || occ.includes('healer') || occ.includes('apothecary') || occ.includes('nurse') || occ.includes('medic')) return 'doctor';
+  if (occ.includes('noble') || occ.includes('lord') || occ.includes('lady') || occ.includes('duke') || occ.includes('baron') || occ.includes('count') || occ.includes('mayor')) return 'noble';
+  if (occ.includes('sailor') || occ.includes('fisher') || occ.includes('captain') || occ.includes('navigator') || occ.includes('boatswain')) return 'sailor';
+  if (occ.includes('beggar') || occ.includes('vagrant') || occ.includes('homeless') || occ.includes('drifter')) return 'beggar';
+
   return 'civilian';
 }
 

@@ -24,7 +24,10 @@ function assert(condition: boolean, message: string) {
 // Replicate the model resolution logic from BabylonGame.resolveNPCModelUrl
 // ---------------------------------------------------------------------------
 
-type NPCRole = 'civilian' | 'guard' | 'merchant' | 'questgiver';
+type NPCRole =
+  | 'civilian' | 'guard' | 'soldier' | 'merchant' | 'questgiver'
+  | 'farmer' | 'blacksmith' | 'innkeeper' | 'priest' | 'teacher'
+  | 'doctor' | 'child' | 'elder' | 'noble' | 'beggar' | 'sailor';
 
 interface MockAsset {
   id: string;

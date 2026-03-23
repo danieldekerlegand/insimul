@@ -18,7 +18,14 @@ interface CharacterConfigPanelProps {
 }
 
 const DEFAULT_PLAYER_ROLES = ["default", "male", "female"];
-const DEFAULT_NPC_ROLES = ["civilian_male", "civilian_female", "guard", "merchant", "noble"];
+const DEFAULT_NPC_ROLES = [
+  "civilian_male", "civilian_female",
+  "guard", "soldier",
+  "merchant", "farmer", "blacksmith", "innkeeper",
+  "priest", "teacher", "doctor",
+  "noble", "elder", "child",
+  "beggar", "sailor",
+];
 const DEFAULT_HAIR_STYLES = {
   male: ["short", "medium", "long", "bald", "mohawk"],
   female: ["long", "medium", "short", "ponytail", "braids", "bun"],

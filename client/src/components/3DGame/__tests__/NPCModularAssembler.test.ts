@@ -162,7 +162,11 @@ describe('NPCModularAssembler', () => {
 
   describe('roles', () => {
     it('handles all NPC roles', () => {
-      const roles = ['civilian', 'guard', 'merchant', 'questgiver'] as const;
+      const roles = [
+        'civilian', 'guard', 'soldier', 'merchant', 'questgiver',
+        'farmer', 'blacksmith', 'innkeeper', 'priest', 'teacher',
+        'doctor', 'child', 'elder', 'noble', 'beggar', 'sailor',
+      ] as const;
       for (const role of roles) {
         const result = assembler.assemble(`role-${role}`, role, 'average');
         expect(result.root).toBeInstanceOf(Mesh);
