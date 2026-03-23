@@ -35,6 +35,8 @@ function createMockDataSource(): DataSource {
     loadSettlementResidences: vi.fn().mockResolvedValue([]),
     payFines: vi.fn().mockResolvedValue(null),
     getEntityInventory: vi.fn().mockResolvedValue({ items: [], gold: 0 }),
+    getPlayerInventory: vi.fn().mockResolvedValue({ items: [], gold: 0 }),
+    getContainerContents: vi.fn().mockResolvedValue(null),
     transferItem: vi.fn().mockResolvedValue({ success: true }),
     getMerchantInventory: vi.fn().mockResolvedValue(null),
     loadPrologContent: vi.fn().mockResolvedValue(null),

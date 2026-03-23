@@ -167,6 +167,20 @@ public:
     FString TransferItem(const FString& TransferJSON);
 
     /**
+     * Get player inventory JSON. Delegates to GetEntityInventory.
+     * WorldId is accepted for interface compatibility but unused in exported mode.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetPlayerInventory(const FString& WorldId, const FString& PlayerId);
+
+    /**
+     * Get container contents JSON by container ID.
+     * Loads containers.json and returns the matching container's contents.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetContainerContents(const FString& ContainerId);
+
+    /**
      * Get merchant inventory JSON. Generates stock based on NPC occupation
      * if not already cached, then caches for subsequent calls.
      */

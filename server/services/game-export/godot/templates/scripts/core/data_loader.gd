@@ -287,6 +287,19 @@ func get_entity_inventory(entity_id: String) -> Dictionary:
 		return {"entityId": entity_id, "items": inv.get("items", []), "gold": inv.get("gold", 0)}
 	return {"entityId": entity_id, "items": [], "gold": 0}
 
+## Get player inventory. Delegates to get_entity_inventory.
+## world_id is accepted for interface compatibility but unused in exported mode.
+func get_player_inventory(world_id: String, player_id: String) -> Dictionary:
+	return get_entity_inventory(player_id)
+
+## Get container contents by container ID from containers.json.
+func get_container_contents(container_id: String) -> Dictionary:
+	var containers: Array = load_containers()
+	for c in containers:
+		if str(c.get("id", "")) == container_id:
+			return c
+	return {}
+
 ## Transfer an item between entities. Updates local inventory state.
 ## Supports buy/sell/steal/give/discard/quest_reward transaction types.
 func transfer_item(transfer: Dictionary) -> Dictionary:
