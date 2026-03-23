@@ -46,3 +46,6 @@ import './gemini-stt.js';
 import './gemini-native-audio.js';
 import './gemini-content.js';
 import './gemini-image.js';
+
+// Register local providers (side-effect imports)
+import './whisper-stt.js';
