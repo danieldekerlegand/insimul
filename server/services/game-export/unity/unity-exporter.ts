@@ -17,6 +17,7 @@ import { generateUnityTelemetryTemplate } from '../unity-telemetry-template';
 import type { ExportTelemetryConfig } from '../telemetry-config';
 import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { bundleUnityPlugin } from '../plugin-bundler';
+import { bundleAIModels, generateAIManifestJson, type AIProvider, type AIBundleResult } from '../ai-bundler';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -62,6 +63,7 @@ async function packageAsZip(
   projectName: string,
   files: GeneratedFile[],
   binaryAssets: BundledAsset[] = [],
+  aiBundle?: AIBundleResult | null,
 ): Promise<Buffer | null> {
   if (!archiver) return null;
 
@@ -83,6 +85,13 @@ async function packageAsZip(
       archive.append(asset.buffer, { name: `${projectName}/Assets/Resources/${asset.exportPath}` });
     }
 
+    // AI model files go into StreamingAssets so they're accessible at runtime via File.IO
+    if (aiBundle) {
+      for (const model of aiBundle.models) {
+        archive.append(model.buffer, { name: `${projectName}/Assets/StreamingAssets/${model.exportPath}` });
+      }
+    }
+
     archive.finalize();
   });
 }
@@ -96,6 +105,8 @@ async function packageAsZip(
  */
 export interface UnityExportOptions {
   telemetry?: ExportTelemetryConfig;
+  /** AI provider mode: 'local' bundles model files, 'cloud' uses remote API (default: 'cloud') */
+  aiProvider?: AIProvider;
 }
 
 export async function exportUnityProject(worldId: string, options?: UnityExportOptions): Promise<UnityExportResult> {
@@ -135,6 +146,19 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
     allFiles.push({ path: f.path, content: f.content });
   }
 
+  // 3d. Bundle AI models when local provider is requested
+  const aiProvider = options?.aiProvider ?? 'cloud';
+  let aiBundle: AIBundleResult | null = null;
+  if (aiProvider === 'local') {
+    console.log('[Export] Bundling local AI models for Unity...');
+    aiBundle = bundleAIModels({ provider: 'local' });
+    allFiles.push({
+      path: 'Assets/StreamingAssets/ai/ai-manifest.json',
+      content: generateAIManifestJson(aiBundle.manifest),
+    });
+    console.log(`[Export] AI bundle: ${aiBundle.models.length} models, ${(aiBundle.totalSizeBytes / 1024 / 1024).toFixed(1)} MB`);
+  }
+
   // 4. Bundle assets from the world's selected collection
   const engine: TargetEngine = 'unity';
   let assetBundle;
@@ -156,13 +180,14 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
 
   let zipBuffer: Buffer | null = null;
   try {
-    zipBuffer = await packageAsZip(projectName, allFiles, assetBundle.assets);
+    zipBuffer = await packageAsZip(projectName, allFiles, assetBundle.assets, aiBundle);
   } catch (err) {
     console.error('[UnityExporter] ZIP packaging failed:', err);
   }
 
   const textSizeBytes = allFiles.reduce((sum, f) => sum + Buffer.byteLength(f.content, 'utf8'), 0);
-  const totalSizeBytes = textSizeBytes + assetBundle.totalSizeBytes;
+  const aiSizeBytes = aiBundle?.totalSizeBytes ?? 0;
+  const totalSizeBytes = textSizeBytes + assetBundle.totalSizeBytes + aiSizeBytes;
   const elapsed = Date.now() - startTime;
 
   return {

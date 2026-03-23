@@ -18,6 +18,8 @@ import type { BundledAsset } from './asset-bundler';
 // Types
 // ─────────────────────────────────────────────
 
+export type AIProvider = 'cloud' | 'local';
+
 export interface AIBundleOptions {
   /** Include GGUF LLM model (default: true) */
   includeLLM?: boolean;
@@ -27,6 +29,19 @@ export interface AIBundleOptions {
   includeSTT?: boolean;
   /** Override voice names to bundle (default: all voices in PIPER_VOICES_DIR) */
   voices?: string[];
+}
+
+export interface AIModelEntry {
+  /** Relative path within the export's AI directory */
+  exportPath: string;
+  /** File buffer */
+  buffer: Buffer;
+  /** Size in bytes */
+  sizeBytes: number;
+  /** Model type */
+  type: 'llm' | 'tts' | 'stt';
+  /** Human-readable model name */
+  name: string;
 }
 
 export interface AIBundleManifest {
@@ -109,6 +124,49 @@ function getAIExportPrefix(engine: AITargetEngine): string {
  */
 export function getEngineAIPrefix(engine: AITargetEngine): string {
   return getAIExportPrefix(engine);
+}
+
+// ─────────────────────────────────────────────
+// Bundle estimation (from Unity branch)
+// ─────────────────────────────────────────────
+
+/**
+ * Build an AI bundle size estimate without reading full model files.
+ * Useful for displaying estimated sizes before download.
+ */
+export function getAIBundleEstimate(): { models: { name: string; type: string; path: string; sizeBytes: number }[]; totalSizeBytes: number } {
+  const models: { name: string; type: string; path: string; sizeBytes: number }[] = [];
+  let totalSizeBytes = 0;
+
+  const llmPath = resolveLLMModelPath();
+  if (llmPath && fs.existsSync(llmPath)) {
+    const size = fs.statSync(llmPath).size;
+    models.push({ name: process.env.LOCAL_MODEL_NAME || 'phi-4-mini-q4', type: 'llm', path: `ai/models/${path.basename(llmPath)}`, sizeBytes: size });
+    totalSizeBytes += size;
+  }
+
+  const voicesDir = resolvePiperVoicesDir();
+  if (voicesDir && fs.existsSync(voicesDir)) {
+    const files = fs.readdirSync(voicesDir).filter(f => f.endsWith('.onnx') || f.endsWith('.json'));
+    for (const file of files) {
+      const filePath = path.join(voicesDir, file);
+      if (fs.statSync(filePath).isFile()) {
+        const size = fs.statSync(filePath).size;
+        models.push({ name: file, type: 'tts', path: `ai/models/voices/${file}`, sizeBytes: size });
+        totalSizeBytes += size;
+      }
+    }
+  }
+
+  const whisperPath = resolveWhisperModelPath();
+  if (whisperPath && fs.existsSync(whisperPath)) {
+    const size = fs.statSync(whisperPath).size;
+    const modelSize = process.env.WHISPER_MODEL_SIZE || 'base';
+    models.push({ name: `whisper-${modelSize}`, type: 'stt', path: `ai/models/${path.basename(whisperPath)}`, sizeBytes: size });
+    totalSizeBytes += size;
+  }
+
+  return { models, totalSizeBytes };
 }
 
 // ─────────────────────────────────────────────

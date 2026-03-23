@@ -644,6 +644,10 @@ export interface AIConfigIR {
   defaultVoice: string;
   /** Optional model pack for offline/local AI inference */
   modelPack?: ModelPackIR | null;
+  /** When apiMode is 'local', path to bundled model files */
+  localModelPath?: string;
+  /** When apiMode is 'local', model name identifier */
+  localModelName?: string;
 }
 
 // ─────────────────────────────────────────────

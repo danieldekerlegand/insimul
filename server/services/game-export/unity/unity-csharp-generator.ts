@@ -178,6 +178,8 @@ function genServiceClasses(): GeneratedFile[] {
   const base = 'Assets/Scripts/Services';
   return [
     { path: `${base}/InsimulAIService.cs`, content: loadStaticTemplate('scripts/services/InsimulAIService.cs') },
+    { path: `${base}/LlamaNativePlugin.cs`, content: loadStaticTemplate('scripts/services/LlamaNativePlugin.cs') },
+    { path: `${base}/LocalAIService.cs`, content: loadStaticTemplate('scripts/services/LocalAIService.cs') },
   ];
 }
 
