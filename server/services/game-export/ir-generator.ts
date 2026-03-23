@@ -157,6 +157,143 @@ function calculateOptimalWorldSize(data: {
   return 2048;
 }
 
+// ─────────────────────────────────────────────
+// Quest Object Placement
+// ─────────────────────────────────────────────
+
+/** Map objective types to interaction types for quest objects */
+function objectiveTypeToInteraction(type: string): string {
+  switch (type) {
+    case 'visit_location':
+    case 'discover_location':
+      return 'trigger_zone';
+    case 'talk_to_npc':
+    case 'complete_conversation':
+    case 'conversation_initiation':
+    case 'build_friendship':
+    case 'give_gift':
+      return 'npc_interaction';
+    case 'collect_item':
+    case 'collect_text':
+    case 'collect_vocabulary':
+      return 'pickup';
+    case 'deliver_item':
+      return 'delivery_target';
+    case 'use_vocabulary':
+    case 'identify_object':
+    case 'pronunciation':
+      return 'language_challenge';
+    case 'craft_item':
+      return 'crafting_station';
+    case 'defeat_enemies':
+      return 'combat_zone';
+    case 'escort_npc':
+      return 'escort_waypoint';
+    default:
+      return 'interact';
+  }
+}
+
+/** Map objective types to default model asset keys */
+function objectiveTypeToModelKey(type: string): string | null {
+  switch (type) {
+    case 'visit_location':
+    case 'discover_location':
+      return 'quest_marker_location';
+    case 'collect_item':
+    case 'collect_text':
+      return 'quest_item_pickup';
+    case 'collect_vocabulary':
+    case 'use_vocabulary':
+    case 'identify_object':
+    case 'pronunciation':
+      return 'quest_marker_language';
+    case 'deliver_item':
+    case 'give_gift':
+      return 'quest_marker_delivery';
+    case 'defeat_enemies':
+      return 'quest_marker_combat';
+    case 'craft_item':
+      return 'quest_marker_crafting';
+    default:
+      return 'quest_marker_default';
+  }
+}
+
+/**
+ * Generate QuestObjectIR instances from quest objectives.
+ * Each objective that targets a location or item gets a placed object in the world.
+ */
+function generateQuestObjects(
+  questIRs: QuestIR[],
+  buildingIRs: BuildingIR[],
+  seed: string,
+): QuestObjectIR[] {
+  const rand = createSeededRandom(`${seed}_quest_objects`);
+  const questObjects: QuestObjectIR[] = [];
+
+  // Build a lookup of buildings by businessId for location-based placement
+  const buildingByBusinessId = new Map<string, BuildingIR>();
+  for (const b of buildingIRs) {
+    if (b.businessId) {
+      buildingByBusinessId.set(b.businessId, b);
+    }
+  }
+
+  for (const quest of questIRs) {
+    if (!quest.objectives || quest.objectives.length === 0) continue;
+
+    // Determine the quest's base position from its location or fall back to origin
+    const basePosition: Vec3 = quest.locationPosition
+      ? { x: quest.locationPosition.x, y: quest.locationPosition.y, z: quest.locationPosition.z }
+      : { x: 0, y: 0, z: 0 };
+
+    // If quest has a locationId, try to find a matching building for more precise placement
+    let buildingPosition: Vec3 | null = null;
+    if (quest.locationId) {
+      const building = buildingByBusinessId.get(quest.locationId);
+      if (building) {
+        buildingPosition = { ...building.position };
+      }
+    }
+
+    const anchorPos = buildingPosition || basePosition;
+
+    for (let i = 0; i < quest.objectives.length; i++) {
+      const obj = quest.objectives[i];
+      if (!obj || !obj.type) continue;
+
+      // Offset each objective slightly from the anchor so they don't overlap
+      const angle = (2 * Math.PI * i) / quest.objectives.length + rand() * 0.5;
+      const radius = 2 + rand() * 3; // 2-5 units from anchor
+      const position: Vec3 = {
+        x: anchorPos.x + Math.cos(angle) * radius,
+        y: anchorPos.y,
+        z: anchorPos.z + Math.sin(angle) * radius,
+      };
+
+      questObjects.push({
+        id: `qobj_${quest.id}_${i}`,
+        questId: quest.id,
+        objectType: obj.type,
+        position,
+        modelAssetKey: objectiveTypeToModelKey(obj.type),
+        interactionType: objectiveTypeToInteraction(obj.type),
+        metadata: {
+          objectiveIndex: i,
+          description: obj.description || null,
+          target: obj.target || null,
+          targetWords: obj.targetWords || null,
+          required: obj.required || null,
+          questTitle: quest.title,
+        },
+      });
+    }
+  }
+
+  return questObjects;
+}
+
 function distributeInGrid(
   count: number,
   bounds: BoundsIR,
@@ -1324,7 +1461,7 @@ export async function generateWorldIR(
       natureObjects: [], // Populated by engine at runtime from biome data
       animals: [],       // Populated by engine at runtime (ambient animal NPCs)
       dungeons: [],      // Populated on demand per genre
-      questObjects: [],  // Populated from quest objective data
+      questObjects: generateQuestObjects(questIRs, allBuildingIRs, seed)
     },
 
     systems: {
