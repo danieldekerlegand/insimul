@@ -23,6 +23,7 @@ import { scorePronunciation, formatPronunciationFeedback } from "@shared/languag
 import { ConversationClient } from "./ConversationClient";
 import type { ConversationState } from "./ConversationClient";
 import type { DataSource } from "./DataSource";
+import { LocalAIClient } from "./LocalAIClient";
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
 import { LipSyncController } from "./LipSyncController";
@@ -381,7 +382,9 @@ export class BabylonChatPanel {
 
     // Create conversation client (reuses session across same character)
     if (!this.conversationClient) {
-      this.conversationClient = new ConversationClient();
+      this.conversationClient = new ConversationClient({
+        localAI: LocalAIClient.isAvailable() ? new LocalAIClient() : undefined,
+      });
       if (this._dataSource) {
         this.conversationClient.setDataSource(this._dataSource);
       }

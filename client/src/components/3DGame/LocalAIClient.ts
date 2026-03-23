@@ -12,6 +12,24 @@
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+declare global {
+  interface Window {
+    electronAPI?: {
+      readFile?: (path: string) => Promise<string>;
+      aiAvailable?: boolean;
+      aiGenerate?: (prompt: string, options?: LocalAIGenerateOptions) => Promise<string>;
+      aiGenerateStream?: (
+        prompt: string,
+        options: LocalAIGenerateOptions | undefined,
+        onChunk: (token: string) => void,
+      ) => Promise<string>;
+      aiTTS?: (text: string, voice?: string, speed?: number) => Promise<ArrayBuffer | null>;
+      aiSTT?: (audioBuffer: ArrayBuffer, languageHint?: string) => Promise<{ text: string }>;
+      aiStatus?: () => Promise<LocalAIStatus>;
+    };
+  }
+}
+
 export interface LocalAIGenerateOptions {
   systemPrompt?: string;
   temperature?: number;
@@ -25,26 +43,6 @@ export interface LocalAIStatus {
   gpuType: string;
 }
 
-interface ElectronAIAPI {
-  aiAvailable: boolean;
-  aiGenerate(prompt: string, options?: { systemPrompt?: string; temperature?: number; maxTokens?: number }): Promise<string>;
-  aiGenerateStream(
-    prompt: string,
-    options: { systemPrompt?: string; temperature?: number; maxTokens?: number },
-    onChunk: (token: string) => void,
-  ): Promise<string>;
-  aiTTS(text: string, voice?: string, speed?: number): Promise<ArrayBuffer>;
-  aiSTT(audioBuffer: ArrayBuffer, languageHint?: string): Promise<{ text: string; language: string }>;
-  aiStatus(): Promise<LocalAIStatus>;
-}
-
-function getElectronAI(): ElectronAIAPI | null {
-  if (typeof window === 'undefined') return null;
-  const api = (window as any).electronAPI;
-  if (!api || !api.aiAvailable) return null;
-  return api as ElectronAIAPI;
-}
-
 // ── Client ──────────────────────────────────────────────────────────────────
 
 export class LocalAIClient {
@@ -52,72 +50,68 @@ export class LocalAIClient {
    * Returns true if running in Electron with AI models loaded.
    */
   static isAvailable(): boolean {
-    return getElectronAI() !== null;
+    if (typeof window === 'undefined') return false;
+    return window.electronAPI?.aiAvailable === true;
   }
 
-  private getAPI(): ElectronAIAPI {
-    const api = getElectronAI();
-    if (!api) {
+  private assertAvailable(): void {
+    if (!LocalAIClient.isAvailable()) {
       throw new Error('LocalAIClient: AI is not available. Check isAvailable() before calling.');
     }
-    return api;
   }
 
   /**
-   * Generate a complete text response (accumulates tokens from stream).
+   * Generate a complete text response.
    */
-  async generate(prompt: string, options: LocalAIGenerateOptions = {}): Promise<string> {
-    const api = this.getAPI();
-    return api.aiGenerate(prompt, {
-      systemPrompt: options.systemPrompt,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-    });
+  async generate(prompt: string, systemPrompt?: string, options?: Omit<LocalAIGenerateOptions, 'systemPrompt'>): Promise<string> {
+    this.assertAvailable();
+    return window.electronAPI!.aiGenerate!(prompt, { ...options, systemPrompt });
   }
 
   /**
-   * Stream tokens one at a time. Calls onToken for each token, returns full text.
+   * Stream tokens one by one via callback. Returns full accumulated text.
    */
   async generateStream(
     prompt: string,
-    options: LocalAIGenerateOptions = {},
+    systemPrompt?: string,
+    options?: Omit<LocalAIGenerateOptions, 'systemPrompt'>,
     onToken?: (token: string) => void,
   ): Promise<string> {
-    const api = this.getAPI();
-    return api.aiGenerateStream(
+    this.assertAvailable();
+    return window.electronAPI!.aiGenerateStream!(
       prompt,
-      {
-        systemPrompt: options.systemPrompt,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-      },
+      { ...options, systemPrompt },
       onToken ?? (() => {}),
     );
   }
 
   /**
-   * Convert text to speech audio. Returns a Blob with WAV audio data.
+   * Convert text to speech audio. Returns ArrayBuffer or null if TTS unavailable.
    */
-  async textToSpeech(text: string, voice?: string, speed?: number): Promise<Blob> {
-    const api = this.getAPI();
-    const buffer = await api.aiTTS(text, voice, speed);
-    return new Blob([buffer], { type: 'audio/wav' });
+  async textToSpeech(text: string, voice?: string, speed?: number): Promise<ArrayBuffer | null> {
+    this.assertAvailable();
+    if (!window.electronAPI!.aiTTS) return null;
+    return window.electronAPI!.aiTTS(text, voice, speed);
   }
 
   /**
-   * Convert audio blob to text via Whisper STT.
+   * Convert audio blob to text via local Whisper STT.
    */
-  async speechToText(audioBlob: Blob, languageHint?: string): Promise<{ text: string; language: string }> {
-    const api = this.getAPI();
+  async speechToText(audioBlob: Blob, languageHint?: string): Promise<{ text: string }> {
+    this.assertAvailable();
+    if (!window.electronAPI!.aiSTT) return { text: '' };
     const buffer = await audioBlob.arrayBuffer();
-    return api.aiSTT(buffer, languageHint);
+    return window.electronAPI!.aiSTT(buffer, languageHint);
   }
 
   /**
    * Get AI service status (model name, GPU info, etc.).
    */
   async getStatus(): Promise<LocalAIStatus> {
-    const api = this.getAPI();
-    return api.aiStatus();
+    this.assertAvailable();
+    if (!window.electronAPI!.aiStatus) {
+      throw new Error('LocalAIClient: aiStatus not available');
+    }
+    return window.electronAPI!.aiStatus();
   }
 }
