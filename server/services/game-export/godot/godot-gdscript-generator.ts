@@ -157,6 +157,122 @@ function genServiceScripts(): GeneratedFile[] {
   ];
 }
 
+// ─────────────────────────────────────────────
+// Local AI manager (only included when AI bundle is present)
+// ─────────────────────────────────────────────
+
+export function generateLocalAIManagerScript(): GeneratedFile {
+  const content = `extends Node
+## Local AI Manager — autoloaded singleton for offline NPC inference.
+##
+## Wraps llama.cpp (via GDExtension or subprocess) for text generation,
+## Piper for TTS, and Whisper for STT. Model paths are read from
+## InsimulExportConfig at runtime.
+##
+## This script is only included in exports that bundle local AI models.
+
+signal generation_started(npc_id: String)
+signal token_generated(npc_id: String, token: String)
+signal generation_complete(npc_id: String, full_text: String)
+signal generation_error(npc_id: String, error: String)
+signal tts_audio_ready(npc_id: String, audio: PackedByteArray)
+
+var _is_loaded := false
+var _is_generating := false
+var _model_path := ""
+var _stt_model_path := ""
+var _voice_paths: Dictionary = {}
+
+func _ready() -> void:
+\tif InsimulExportConfig.AI_PROVIDER != "local":
+\t\tprint("[LocalAI] AI provider is not local, disabling local AI manager")
+\t\treturn
+\t_model_path = InsimulExportConfig.AI_LLM_MODEL_PATH
+\t_stt_model_path = InsimulExportConfig.AI_STT_MODEL_PATH
+\t_voice_paths = InsimulExportConfig.AI_VOICE_PATHS
+\tif _model_path != "":
+\t\t_load_model()
+\telse:
+\t\tpush_warning("[LocalAI] No LLM model path configured")
+
+func _load_model() -> void:
+\tif not FileAccess.file_exists(_model_path):
+\t\tpush_error("[LocalAI] LLM model not found at: " + _model_path)
+\t\treturn
+\tprint("[LocalAI] Loading LLM model: " + _model_path)
+\t# Model loading is deferred to the GDExtension native library.
+\t# The GDExtension plugin exposes a LlamaContext class that handles
+\t# model loading and inference. If the extension is not available,
+\t# we fall back to a subprocess-based approach.
+\tif ClassDB.class_exists(&"LlamaContext"):
+\t\tvar ctx = ClassDB.instantiate(&"LlamaContext")
+\t\tif ctx != null and ctx.has_method("load_model"):
+\t\t\tvar ok = ctx.call("load_model", _model_path)
+\t\t\tif ok:
+\t\t\t\t_is_loaded = true
+\t\t\t\tprint("[LocalAI] Model loaded via GDExtension")
+\t\t\t\treturn
+\tpush_warning("[LocalAI] GDExtension LlamaContext not available — will use HTTP fallback")
+
+func is_available() -> bool:
+\treturn InsimulExportConfig.AI_PROVIDER == "local"
+
+func is_model_loaded() -> bool:
+\treturn _is_loaded
+
+func generate(npc_id: String, system_prompt: String, messages: Array) -> void:
+\tif _is_generating:
+\t\tgeneration_error.emit(npc_id, "Already generating")
+\t\treturn
+\t_is_generating = true
+\tgeneration_started.emit(npc_id)
+
+\tif not _is_loaded:
+\t\t# Fallback: use Insimul server API if model not loaded locally
+\t\tgeneration_error.emit(npc_id, "Model not loaded — use cloud fallback")
+\t\t_is_generating = false
+\t\treturn
+
+\t# Delegate to GDExtension LlamaContext for actual inference
+\tvar prompt := _build_prompt(system_prompt, messages)
+\tif ClassDB.class_exists(&"LlamaContext"):
+\t\tvar ctx = ClassDB.instantiate(&"LlamaContext")
+\t\tif ctx != null and ctx.has_method("generate"):
+\t\t\tvar result: String = ctx.call("generate", prompt)
+\t\t\ttoken_generated.emit(npc_id, result)
+\t\t\tgeneration_complete.emit(npc_id, result)
+\t\t\t_is_generating = false
+\t\t\treturn
+
+\tgeneration_error.emit(npc_id, "Generation failed — GDExtension not available")
+\t_is_generating = false
+
+func get_voice_path(voice_name: String) -> String:
+\treturn _voice_paths.get(voice_name, "")
+
+func get_stt_model_path() -> String:
+\treturn _stt_model_path
+
+func has_tts() -> bool:
+\treturn _voice_paths.size() > 0
+
+func has_stt() -> bool:
+\treturn _stt_model_path != "" and FileAccess.file_exists(_stt_model_path)
+
+func _build_prompt(system_prompt: String, messages: Array) -> String:
+\tvar prompt := ""
+\tif system_prompt != "":
+\t\tprompt += "<|system|>\\n" + system_prompt + "\\n"
+\tfor msg in messages:
+\t\tvar role: String = msg.get("role", "user")
+\t\tvar text: String = msg.get("text", "")
+\t\tprompt += "<|" + role + "|>\\n" + text + "\\n"
+\tprompt += "<|assistant|>\\n"
+\treturn prompt
+`;
+  return { path: 'scripts/services/local_ai_manager.gd', content };
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════

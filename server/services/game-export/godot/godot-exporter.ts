@@ -7,7 +7,7 @@
  */
 
 import { generateProjectFiles, type GeneratedFile } from './godot-project-generator';
-import { generateGDScriptFiles } from './godot-gdscript-generator';
+import { generateGDScriptFiles, generateLocalAIManagerScript } from './godot-gdscript-generator';
 import { generateDataFiles } from './godot-data-generator';
 import { generateSceneFiles } from './godot-scene-generator';
 import { generateWorldIR } from '../ir-generator';
@@ -17,6 +17,8 @@ import { generateGodotTelemetryTemplate } from '../godot-telemetry-template';
 import type { ExportTelemetryConfig } from '../telemetry-config';
 import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { bundleGodotPlugin } from '../plugin-bundler';
+import type { AIModelPaths } from '../plugin-bundler';
+import { bundleAIModels, type AIBundleOptions, type AIBundleManifest } from '../ai-bundler';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -43,6 +45,7 @@ export interface GodotExportResult {
     configFiles: number;
     totalSizeBytes: number;
     generationTimeMs: number;
+    aiBundle?: AIBundleManifest;
   };
 }
 
@@ -94,6 +97,8 @@ async function packageAsZip(
  */
 export interface GodotExportOptions {
   telemetry?: ExportTelemetryConfig;
+  /** Include local AI models (GGUF, Piper, Whisper) in the export */
+  aiBundle?: AIBundleOptions;
 }
 
 export async function exportGodotProject(worldId: string, options?: GodotExportOptions): Promise<GodotExportResult> {
@@ -126,9 +131,41 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
     console.log('[Export] Godot telemetry client included');
   }
 
-  // 3c. Bundle Insimul plugin
+  // 3c. Bundle AI models if requested
+  let aiBundleAssets: BundledAsset[] = [];
+  let aiBundleManifest: AIBundleManifest | undefined;
+  let aiModelPaths: AIModelPaths | undefined;
+
+  if (options?.aiBundle) {
+    console.log('[Export] Bundling AI models for Godot...');
+    const aiResult = await bundleAIModels('godot', options.aiBundle);
+    aiBundleAssets = aiResult.assets;
+    aiBundleManifest = aiResult.manifest;
+
+    // Build model paths for the plugin config (res:// prefixed for Godot)
+    aiModelPaths = {};
+    if (aiResult.manifest.llm) {
+      aiModelPaths.llm = `res://${aiResult.manifest.llm.modelPath}`;
+    }
+    if (aiResult.manifest.stt) {
+      aiModelPaths.stt = `res://${aiResult.manifest.stt.modelPath}`;
+    }
+    if (aiResult.manifest.tts) {
+      aiModelPaths.voices = {};
+      for (const [name, vpath] of Object.entries(aiResult.manifest.tts.voicePaths)) {
+        aiModelPaths.voices[name] = `res://${vpath}`;
+      }
+    }
+    console.log(`[Export] AI bundle: ${aiBundleAssets.length} files, ${Math.round(aiResult.totalSizeBytes / 1024 / 1024)}MB`);
+
+    // Include the local AI manager GDScript
+    allFiles.push(generateLocalAIManagerScript());
+    console.log('[Export] Local AI manager script included');
+  }
+
+  // 3d. Bundle Insimul plugin (with AI model paths if available)
   console.log('[Export] Bundling Insimul Godot plugin...');
-  const pluginFiles = bundleGodotPlugin(ir);
+  const pluginFiles = bundleGodotPlugin(ir, aiModelPaths);
   for (const f of pluginFiles) {
     allFiles.push({ path: f.path, content: f.content });
   }
@@ -152,15 +189,19 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
   const worldSafe = sanitiseName(ir.meta.worldName) || 'InsimulWorld';
   const projectName = `InsimulExport_${worldSafe}`;
 
+  // Merge all binary assets (game assets + AI models)
+  const allBinaryAssets = [...assetBundle.assets, ...aiBundleAssets];
+
   let zipBuffer: Buffer | null = null;
   try {
-    zipBuffer = await packageAsZip(projectName, allFiles, assetBundle.assets);
+    zipBuffer = await packageAsZip(projectName, allFiles, allBinaryAssets);
   } catch (err) {
     console.error('[GodotExporter] ZIP packaging failed:', err);
   }
 
   const textSizeBytes = allFiles.reduce((sum, f) => sum + Buffer.byteLength(f.content, 'utf8'), 0);
-  const totalSizeBytes = textSizeBytes + assetBundle.totalSizeBytes;
+  const aiBundleSizeBytes = aiBundleAssets.reduce((sum, a) => sum + a.buffer.length, 0);
+  const totalSizeBytes = textSizeBytes + assetBundle.totalSizeBytes + aiBundleSizeBytes;
   const elapsed = Date.now() - startTime;
 
   return {
@@ -174,6 +215,7 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
       configFiles: countByExtension(allFiles, '.godot', '.cfg', '.import'),
       totalSizeBytes,
       generationTimeMs: elapsed,
+      aiBundle: aiBundleManifest,
     },
   };
 }
