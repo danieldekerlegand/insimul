@@ -169,7 +169,7 @@ function genUIClasses(ir: WorldIR): GeneratedFile[] {
   const menuTokens: TokenMap = {
     GAME_TITLE: ir.meta.worldName,
   };
-  return [
+  const files: GeneratedFile[] = [
     { path: `${base}/HUDManager.cs`,      content: loadStaticTemplate('scripts/ui/HUDManager.cs') },
     { path: `${base}/QuestTrackerUI.cs`,  content: loadStaticTemplate('scripts/ui/QuestTrackerUI.cs') },
     { path: `${base}/GameMenuUI.cs`,      content: loadStaticTemplate('scripts/ui/GameMenuUI.cs') },
@@ -177,6 +177,13 @@ function genUIClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ChatPanel.cs`,       content: loadStaticTemplate('scripts/ui/ChatPanel.cs') },
     { path: `${base}/InventoryUI.cs`,    content: loadStaticTemplate('scripts/ui/InventoryUI.cs') },
   ];
+
+  const mapEnabled = ir.ui?.menuConfig?.mapScreen?.enabled !== false;
+  if (mapEnabled) {
+    files.push({ path: `${base}/WorldMapUI.cs`, content: loadStaticTemplate('scripts/ui/WorldMapUI.cs') });
+  }
+
+  return files;
 }
 
 // ─────────────────────────────────────────────
