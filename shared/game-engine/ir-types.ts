@@ -68,6 +68,12 @@ export interface WorldIR {
   /** Resource system configuration (if genre enables it) */
   resources: ResourcesIR | null;
 
+  /** Assessment configuration for pre/post/delayed testing (if educational) */
+  assessment: AssessmentIR | null;
+
+  /** Language learning configuration (if language-learning genre) */
+  languageLearning: LanguageLearningIR | null;
+
   /** AI configuration for NPC dialogue */
   aiConfig: AIConfigIR;
 }
@@ -1178,4 +1184,128 @@ export interface GatheringNodeIR {
   respawnTime: number;
   /** Visual scale multiplier (larger nodes = more resources) */
   scale: number;
+}
+
+// ─────────────────────────────────────────────
+// Assessment
+// ─────────────────────────────────────────────
+
+export type AssessmentInstrumentType = 'actfl_opi' | 'sus' | 'ssq' | 'ipq';
+export type AssessmentPhase = 'pre' | 'post' | 'delayed';
+export type AssessmentQuestionType = 'likert_5' | 'likert_7' | 'open_ended' | 'multiple_choice' | 'rating_scale';
+
+export interface AssessmentQuestionIR {
+  id: string;
+  text: string;
+  type: AssessmentQuestionType;
+  options: string[] | null;
+  scaleAnchors: { low: string; high: string } | null;
+  reverseScored: boolean;
+  subscale: string | null;
+  required: boolean;
+  difficulty: string | null;
+  targetLanguage: string | null;
+}
+
+export interface AssessmentInstrumentIR {
+  id: AssessmentInstrumentType;
+  name: string;
+  description: string;
+  version: string;
+  citation: string;
+  scoringMethod: 'mean' | 'sum' | 'weighted' | 'custom';
+  subscales: Array<{ id: string; name: string; questionIds: string[] }>;
+  scoreRange: { min: number; max: number };
+  estimatedMinutes: number;
+  questions: AssessmentQuestionIR[];
+}
+
+export interface AssessmentScheduleIR {
+  instruments: AssessmentInstrumentType[];
+  /** Delay in days between post-test and delayed test */
+  delayedTestDelayDays: number;
+  /** Target language for language-specific instruments */
+  targetLanguage: string | null;
+}
+
+export interface AssessmentIR {
+  /** Which instruments are bundled for this export */
+  instruments: AssessmentInstrumentIR[];
+  /** Default schedule configuration */
+  schedule: AssessmentScheduleIR;
+  /** Phases enabled for this export */
+  phases: AssessmentPhase[];
+}
+
+// ─────────────────────────────────────────────
+// Language Learning
+// ─────────────────────────────────────────────
+
+export type ProficiencyLevel = 'novice' | 'beginner' | 'intermediate' | 'advanced';
+
+export interface VocabularyItemIR {
+  id: string;
+  /** Word in the target language */
+  word: string;
+  /** Translation / meaning in the base language */
+  translation: string;
+  /** Semantic category (e.g., 'greetings', 'food', 'directions') */
+  category: string;
+  /** Minimum proficiency level to encounter this word */
+  proficiencyLevel: ProficiencyLevel;
+  /** Phonetic representation (IPA or simplified) */
+  pronunciation: string | null;
+  /** Optional audio asset key for pronunciation */
+  audioAssetKey: string | null;
+  /** Example sentence using the word */
+  exampleSentence: string | null;
+}
+
+export interface GrammarPatternIR {
+  id: string;
+  /** Pattern name (e.g., 'simple_greeting', 'past_tense') */
+  name: string;
+  /** Human-readable explanation */
+  description: string;
+  /** Template pattern with placeholders (e.g., '{subject} {verb} {object}') */
+  pattern: string;
+  /** Concrete example in the target language */
+  example: string;
+  /** Translation of the example */
+  exampleTranslation: string;
+  /** Minimum proficiency level */
+  proficiencyLevel: ProficiencyLevel;
+}
+
+export interface ProficiencyTierIR {
+  level: ProficiencyLevel;
+  /** Display name */
+  name: string;
+  /** XP threshold to reach this tier */
+  xpThreshold: number;
+  /** Vocabulary categories unlocked at this tier */
+  unlockedCategories: string[];
+  /** Grammar patterns unlocked at this tier */
+  unlockedPatternIds: string[];
+}
+
+export interface LanguageLearningIR {
+  /** Primary target language ID (references LanguageIR.id) */
+  targetLanguageId: string;
+  /** Base/instruction language code (e.g., 'en') */
+  baseLanguageCode: string;
+  /** Vocabulary items available in the game */
+  vocabulary: VocabularyItemIR[];
+  /** Grammar patterns taught through gameplay */
+  grammarPatterns: GrammarPatternIR[];
+  /** Proficiency tier definitions and progression */
+  proficiencyTiers: ProficiencyTierIR[];
+  /** Starting proficiency level for new players */
+  startingLevel: ProficiencyLevel;
+  /** XP awarded per correct vocabulary use */
+  xpPerVocabularyUse: number;
+  /** XP awarded per correct grammar pattern use */
+  xpPerGrammarUse: number;
+  /** Whether NPC dialogue adapts to player proficiency */
+  adaptiveDifficulty: boolean;
 }

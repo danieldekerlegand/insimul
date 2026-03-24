@@ -2086,6 +2086,10 @@ export async function generateWorldIR(
         }
       : null,
 
+    assessment: null,
+
+    languageLearning: null,
+
     aiConfig,
   };
 
