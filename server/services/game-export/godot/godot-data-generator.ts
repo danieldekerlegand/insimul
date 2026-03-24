@@ -375,6 +375,12 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // UI configuration (includes menu config)
+  files.push({
+    path: `${base}/ui.json`,
+    content: JSON.stringify(ir.ui, null, 2),
+  });
+
   // NPC dialogue contexts (pre-built system prompts for AI chat)
   if (ir.systems.dialogueContexts?.length > 0) {
     files.push({

@@ -657,6 +657,94 @@ struct FInsimulPlayerConfig
  * Mirrors UIConfig from types.ts.
  */
 USTRUCT(BlueprintType)
+struct FInsimulMenuButton
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Label;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Action;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Icon;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulSettingsEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Key;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Label;
+    /** slider, toggle, or dropdown */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Type;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString DefaultValue;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Options;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulSettingsCategory
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulSettingsEntry> Settings;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulMainMenu
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Title;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BackgroundImage;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulMenuButton> Buttons;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulPauseMenu
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulMenuButton> Buttons;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulSettingsMenu
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulSettingsCategory> Categories;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulInventoryScreen
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Slots = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Categories;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulMapScreen
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEnabled = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<float> ZoomLevels;
+};
+
+USTRUCT(BlueprintType)
+struct FInsimulMenuConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulMainMenu MainMenu;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulPauseMenu PauseMenu;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulSettingsMenu SettingsMenu;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulInventoryScreen InventoryScreen;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulMapScreen MapScreen;
+};
+
+USTRUCT(BlueprintType)
 struct FInsimulUIConfig
 {
     GENERATED_BODY()
@@ -667,6 +755,7 @@ struct FInsimulUIConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bShowAmmoCounter = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bShowCompass = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString GenreLayout;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulMenuConfig MenuConfig;
 };
 
 // ─── Building Materials & Architecture ───────────────────────────────────────

@@ -28,6 +28,7 @@ import type {
   AssetsIR,
   PlayerIR,
   UIIR,
+  MenuConfigIR,
   CombatIR,
   SurvivalIR,
   ResourcesIR,
@@ -642,6 +643,90 @@ function getCombatSettings(style: CombatStyle) {
     },
   };
   return presets[style] || presets['melee'];
+}
+
+// ─────────────────────────────────────────────
+// Menu configuration builder
+// ─────────────────────────────────────────────
+
+function buildMenuConfig(worldName: string, genreConfig: GenreConfig): MenuConfigIR {
+  const backgroundImages: Record<string, string> = {
+    action_rpg: 'ui/backgrounds/fantasy_landscape.jpg',
+    fps: 'ui/backgrounds/tactical_grid.jpg',
+    rts: 'ui/backgrounds/strategic_map.jpg',
+    platformer: 'ui/backgrounds/colorful_sky.jpg',
+    puzzle: 'ui/backgrounds/abstract_pattern.jpg',
+    minimal: 'ui/backgrounds/gradient.jpg',
+  };
+
+  const inventoryCategories: string[] = ['All'];
+  if (genreConfig.features.inventory) inventoryCategories.push('Equipment', 'Consumables', 'Materials', 'Quest Items');
+  if (genreConfig.features.crafting) inventoryCategories.push('Crafting');
+
+  return {
+    mainMenu: {
+      title: worldName,
+      backgroundImage: backgroundImages[genreConfig.uiLayout] ?? backgroundImages['minimal'],
+      buttons: [
+        { label: 'New Game', action: 'new_game' },
+        { label: 'Continue', action: 'continue' },
+        { label: 'Settings', action: 'open_settings' },
+        { label: 'Quit', action: 'quit' },
+      ],
+    },
+    pauseMenu: {
+      buttons: [
+        { label: 'Resume', action: 'resume' },
+        { label: 'Settings', action: 'open_settings' },
+        { label: 'Save', action: 'save_game' },
+        { label: 'Main Menu', action: 'main_menu' },
+        { label: 'Quit', action: 'quit' },
+      ],
+    },
+    settingsMenu: {
+      categories: [
+        {
+          name: 'Audio',
+          settings: [
+            { key: 'master_volume', label: 'Master Volume', type: 'slider', default: 80 },
+            { key: 'music_volume', label: 'Music Volume', type: 'slider', default: 70 },
+            { key: 'sfx_volume', label: 'SFX Volume', type: 'slider', default: 80 },
+            { key: 'mute', label: 'Mute All', type: 'toggle', default: false },
+          ],
+        },
+        {
+          name: 'Graphics',
+          settings: [
+            { key: 'quality', label: 'Quality', type: 'dropdown', default: 'medium', options: ['low', 'medium', 'high', 'ultra'] },
+            { key: 'resolution', label: 'Resolution', type: 'dropdown', default: '1920x1080', options: ['1280x720', '1920x1080', '2560x1440', '3840x2160'] },
+            { key: 'fullscreen', label: 'Fullscreen', type: 'toggle', default: true },
+          ],
+        },
+        {
+          name: 'Controls',
+          settings: [
+            { key: 'mouse_sensitivity', label: 'Mouse Sensitivity', type: 'slider', default: 50 },
+            { key: 'invert_y', label: 'Invert Y Axis', type: 'toggle', default: false },
+          ],
+        },
+        {
+          name: 'Language',
+          settings: [
+            { key: 'target_language', label: 'Target Language', type: 'dropdown', default: 'auto', options: ['auto'] },
+            { key: 'subtitles', label: 'Show Subtitles', type: 'toggle', default: true },
+          ],
+        },
+      ],
+    },
+    inventoryScreen: {
+      slots: genreConfig.features.inventory ? 40 : 0,
+      categories: inventoryCategories,
+    },
+    mapScreen: {
+      enabled: genreConfig.showMinimap,
+      zoomLevels: [0.5, 1, 2, 4],
+    },
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -1597,6 +1682,7 @@ export async function generateWorldIR(
       showAmmoCounter: genreConfig.showAmmoCounter,
       showCompass: genreConfig.showCompass,
       genreLayout: genreConfig.uiLayout,
+      menuConfig: buildMenuConfig(world.name, genreConfig),
     },
 
     combat: {
