@@ -22,6 +22,18 @@
     {
       "Name": "ProceduralMeshComponent",
       "Enabled": true
+    },
+    {
+      "Name": "InterchangeEditor",
+      "Enabled": true
+    },
+    {
+      "Name": "InterchangePlugins",
+      "Enabled": true
+    },
+    {
+      "Name": "GLTFImporter",
+      "Enabled": true
     }
   ]
 }
