@@ -10,6 +10,7 @@ import { generateProjectFiles, type GeneratedFile } from './unity-project-genera
 import { generateCSharpFiles } from './unity-csharp-generator';
 import { generateDataFiles } from './unity-data-generator';
 import { generateSceneFiles } from './unity-scene-generator';
+import { GuidRegistry, generateMetaFiles } from './unity-guid-manager';
 import { generateWorldIR } from '../ir-generator';
 import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
@@ -209,10 +210,18 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
  * Generate all Unity project files from an already-built IR.
  */
 export function generateUnityFilesFromIR(ir: WorldIR): GeneratedFile[] {
+  const registry = new GuidRegistry();
+
   const projectFiles = generateProjectFiles(ir);
   const csharpFiles = generateCSharpFiles(ir);
   const dataFiles = generateDataFiles(ir);
-  const sceneFiles = generateSceneFiles(ir);
+  const sceneFiles = generateSceneFiles(ir, registry);
 
-  return [...projectFiles, ...csharpFiles, ...dataFiles, ...sceneFiles];
+  const allFiles = [...projectFiles, ...csharpFiles, ...dataFiles, ...sceneFiles];
+
+  // Generate .meta files for all Assets/ files
+  const metaFiles = generateMetaFiles(allFiles, registry);
+  allFiles.push(...metaFiles);
+
+  return allFiles;
 }
