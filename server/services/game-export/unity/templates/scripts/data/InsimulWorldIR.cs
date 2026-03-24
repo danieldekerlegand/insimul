@@ -39,6 +39,7 @@ namespace Insimul.Data
         public float[][] heightmap;
         public float[][] slopeMap;
         public InsimulTerrainFeatureData[] terrainFeatures;
+        public InsimulBiomeZoneData[] biomeZones;
         public InsimulSettlementData[] settlements;
         public InsimulCountryData[] countries;
         public InsimulStateData[] states;

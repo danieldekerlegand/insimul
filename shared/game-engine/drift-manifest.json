@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "a68e1b4e662a7ae8b463e839c7c70cbe2a3af7f0980047830a4da320c0a2e571",
+      "hash": "3da3d32db2da53b80624b8f096aac9f12f1668347a24233bcfe47772a2fb151a",
       "engineMappings": [
         {
           "engine": "babylon",

@@ -67,9 +67,20 @@ import type {
   NPCDialogueContext,
   AIConfigIR,
   TerrainFeatureIR,
+  BiomeZoneIR,
+  BiomeZoneSpeciesIR,
 } from '@shared/game-engine/ir-types';
 import { computeElevationProfile } from '../../generators/settlement-elevation';
 import { TerrainGenerator, type TerrainType, type TerrainFeature } from '../../generators/terrain-generator';
+import {
+  getElevationZone,
+  getMoistureLevel,
+  getVegetationForZone,
+  estimateMoisture,
+  type BiomeType,
+  type ElevationZone,
+  type MoistureLevel,
+} from '@shared/game-engine/vegetation-zones';
 import { getNPCReasoningRules } from '@shared/prolog/npc-reasoning';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
@@ -1341,6 +1352,9 @@ export async function generateWorldIR(
     terrainFeatureToIR(f, TERRAIN_RESOLUTION, terrainSize),
   );
 
+  // ── 3b. Generate biome zones from heightmap ──
+  const biomeZoneIRs = generateBiomeZones(heightmap, dominantTerrain);
+
   // Distribute countries in grid
   const countryBoundsArr = distributeInGrid(countries.length, worldBounds, 20);
   const countryIRs: CountryIR[] = countries.map((c, i) => ({
@@ -1938,6 +1952,7 @@ export async function generateWorldIR(
       heightmap,
       slopeMap,
       terrainFeatures: terrainFeatureIRs,
+      biomeZones: biomeZoneIRs,
       countries: countryIRs,
       states: stateIRs,
       settlements: settlementIRs,
@@ -2501,6 +2516,90 @@ function inferDominantTerrain(settlements: any[]): TerrainType {
     if (c > bestCount) { best = t; bestCount = c; }
   });
   return best as TerrainType;
+}
+
+/**
+ * Map terrain types to BiomeType for the vegetation zone system.
+ */
+const TERRAIN_TO_BIOME: Record<string, BiomeType> = {
+  plains: 'plains',
+  hills: 'plains',
+  mountains: 'mountains',
+  coast: 'plains',
+  river: 'plains',
+  forest: 'forest',
+  desert: 'desert',
+};
+
+/**
+ * Generate biome zone data by sampling the heightmap.
+ * Each cell is classified by (biome, elevation, moisture) and zones are aggregated.
+ */
+export function generateBiomeZones(
+  heightmap: number[][],
+  dominantTerrain: TerrainType,
+): BiomeZoneIR[] {
+  const biome: BiomeType = TERRAIN_TO_BIOME[dominantTerrain] || 'plains';
+  const resolution = heightmap.length;
+  if (resolution === 0) return [];
+
+  const totalCells = resolution * resolution;
+
+  // Accumulate stats per zone key
+  const zoneStats = new Map<string, {
+    biome: BiomeType;
+    elevation: ElevationZone;
+    moisture: MoistureLevel;
+    cellCount: number;
+    elevationSum: number;
+    moistureSum: number;
+  }>();
+
+  for (let row = 0; row < resolution; row++) {
+    for (let col = 0; col < heightmap[row].length; col++) {
+      const elev = heightmap[row][col];
+      const moisture = estimateMoisture(dominantTerrain, elev);
+      const elevZone = getElevationZone(elev);
+      const moistLevel = getMoistureLevel(moisture);
+      const key = `${biome}:${elevZone}:${moistLevel}`;
+
+      let stats = zoneStats.get(key);
+      if (!stats) {
+        stats = { biome, elevation: elevZone, moisture: moistLevel, cellCount: 0, elevationSum: 0, moistureSum: 0 };
+        zoneStats.set(key, stats);
+      }
+      stats.cellCount++;
+      stats.elevationSum += elev;
+      stats.moistureSum += moisture;
+    }
+  }
+
+  // Convert to IR, sorted by coverage descending
+  const zones: BiomeZoneIR[] = [];
+  zoneStats.forEach((stats, key) => {
+    const species = getVegetationForZone(stats.biome, stats.elevation, stats.moisture);
+    zones.push({
+      id: key,
+      biome: stats.biome,
+      elevationZone: stats.elevation,
+      moistureLevel: stats.moisture,
+      cellCount: stats.cellCount,
+      coverageFraction: stats.cellCount / totalCells,
+      averageElevation: stats.elevationSum / stats.cellCount,
+      averageMoisture: stats.moistureSum / stats.cellCount,
+      species: species.map(s => ({
+        id: s.id,
+        name: s.name,
+        category: s.category,
+        density: s.density,
+        scaleRange: s.scaleRange,
+        ...(s.treeType ? { treeType: s.treeType } : {}),
+      })),
+    });
+  });
+
+  zones.sort((a, b) => b.coverageFraction - a.coverageFraction);
+  return zones;
 }
 
 // ── Exported helpers for testing ──

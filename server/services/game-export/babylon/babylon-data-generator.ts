@@ -82,6 +82,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
       heightmap: ir.geography.heightmap,
       slopeMap: ir.geography.slopeMap,
       terrainFeatures: ir.geography.terrainFeatures,
+      biomeZones: ir.geography.biomeZones,
       countries: ir.geography.countries,
       states: ir.geography.states,
       settlements: ir.geography.settlements,
