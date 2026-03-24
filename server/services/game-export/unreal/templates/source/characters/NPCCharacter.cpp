@@ -30,26 +30,61 @@ void ANPCCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    // Simple state machine
+    // Schedule-driven behavior: query game time and evaluate schedule
+    if (bHasSchedule)
+    {
+        UWorld* World = GetWorld();
+        if (World)
+        {
+            // Game time: 1 real second = 1 game minute by default
+            // GameTimeSeconds / 60 = game hours elapsed, mod 24 for hour of day
+            float GameSeconds = World->GetTimeSeconds();
+            float GameHour = FMath::Fmod(GameSeconds / 60.f, 24.f);
+            EvaluateSchedule(GameHour);
+        }
+    }
+
     switch (CurrentState)
     {
     case ENPCState::Idle:
-        // Stand at home position
+        // Stand at current position
         break;
     case ENPCState::Patrol:
-        // Move within PatrolRadius of HomePosition
+        // Wander within PatrolRadius of HomePosition
+        {
+            FVector Current = GetActorLocation();
+            FVector Offset = Current - HomePosition;
+            Offset.Z = 0.f;
+            if (Offset.Size() > PatrolRadius * 100.f)
+            {
+                // Walked too far — turn back toward home
+                FVector Dir = (HomePosition - Current).GetSafeNormal();
+                AddMovementInput(Dir, 0.5f);
+            }
+            else
+            {
+                // Wander in a random direction, changing occasionally
+                float Time = GetWorld()->GetTimeSeconds();
+                float Angle = FMath::Sin(Time * 0.3f + GetUniqueID()) * 180.f;
+                FVector WanderDir = FRotator(0.f, Angle, 0.f).Vector();
+                AddMovementInput(WanderDir, 0.3f);
+            }
+        }
+        break;
+    case ENPCState::ScheduleMove:
+        MoveTowardTarget(DeltaTime);
         break;
     case ENPCState::Talking:
-        // Face dialogue partner
+        // Face dialogue partner — handled by dialogue system
         break;
     case ENPCState::Fleeing:
-        // Move away from threat
+        // Move away from threat — handled by AI controller
         break;
     case ENPCState::Pursuing:
-        // Move toward target
+        // Move toward target — handled by AI controller
         break;
     case ENPCState::Alert:
-        // Look around
+        // Look around — idle with occasional rotation
         break;
     }
 }
@@ -68,9 +103,179 @@ void ANPCCharacter::InitFromData(const FString& InCharacterId, const FString& In
         *CharacterId, *HomePosition.ToString(), *NPCRole);
 }
 
+void ANPCCharacter::SetSchedule(const FNPCSchedule& InSchedule)
+{
+    Schedule = InSchedule;
+    bHasSchedule = Schedule.Blocks.Num() > 0;
+    CurrentBlockIndex = -1;
+    LastEvaluatedHour = -1.f;
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] NPC %s schedule set: %d blocks, wake=%.1f, bed=%.1f"),
+        *CharacterId, Schedule.Blocks.Num(), Schedule.WakeHour, Schedule.BedtimeHour);
+}
+
+void ANPCCharacter::EvaluateSchedule(float GameHour)
+{
+    // Only re-evaluate when the hour changes meaningfully (every ~6 game-minutes)
+    if (FMath::Abs(GameHour - LastEvaluatedHour) < 0.1f)
+    {
+        return;
+    }
+    LastEvaluatedHour = GameHour;
+
+    // Don't override dialogue state
+    if (CurrentState == ENPCState::Talking)
+    {
+        return;
+    }
+
+    int32 BlockIdx = FindBlockForHour(GameHour);
+    if (BlockIdx == CurrentBlockIndex)
+    {
+        return; // Same block, no change needed
+    }
+
+    CurrentBlockIndex = BlockIdx;
+
+    if (BlockIdx < 0)
+    {
+        // No block covers this hour — default to idle at home
+        CurrentState = ENPCState::Idle;
+        ScheduleTargetPosition = HomePosition;
+        return;
+    }
+
+    const FScheduleBlock& Block = Schedule.Blocks[BlockIdx];
+    ENPCState NewState = ActivityToState(Block.Activity);
+
+    // Determine target position based on activity
+    if (Block.Activity == EScheduleActivity::Sleep || Block.Activity == EScheduleActivity::IdleAtHome)
+    {
+        ScheduleTargetPosition = HomePosition;
+    }
+    else if (!Block.BuildingId.IsEmpty())
+    {
+        // BuildingId is set — would resolve to building position via lookup
+        // For now, use home position as fallback; building lookup is handled by GameMode
+        ScheduleTargetPosition = HomePosition;
+    }
+    else
+    {
+        // Outdoor activity (wander/socialize) — stay near home
+        ScheduleTargetPosition = HomePosition;
+    }
+
+    // If we need to move to a new location, enter ScheduleMove state first
+    FVector CurrentPos = GetActorLocation();
+    float DistToTarget = FVector::Dist2D(CurrentPos, ScheduleTargetPosition);
+
+    if (DistToTarget > 150.f) // More than 1.5m away (in cm)
+    {
+        CurrentState = ENPCState::ScheduleMove;
+    }
+    else
+    {
+        CurrentState = NewState;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] NPC %s schedule block %d: activity=%d, state=%d"),
+        *CharacterId, BlockIdx, (int32)Block.Activity, (int32)CurrentState);
+}
+
+int32 ANPCCharacter::FindBlockForHour(float Hour) const
+{
+    int32 BestIdx = -1;
+    int32 BestPriority = -1;
+
+    for (int32 i = 0; i < Schedule.Blocks.Num(); i++)
+    {
+        const FScheduleBlock& Block = Schedule.Blocks[i];
+        bool bInRange;
+
+        if (Block.StartHour <= Block.EndHour)
+        {
+            bInRange = (Hour >= Block.StartHour && Hour < Block.EndHour);
+        }
+        else
+        {
+            // Wraps midnight (e.g. 22:00 to 6:00)
+            bInRange = (Hour >= Block.StartHour || Hour < Block.EndHour);
+        }
+
+        if (bInRange && Block.Priority > BestPriority)
+        {
+            BestIdx = i;
+            BestPriority = Block.Priority;
+        }
+    }
+
+    return BestIdx;
+}
+
+ENPCState ANPCCharacter::ActivityToState(EScheduleActivity Activity) const
+{
+    switch (Activity)
+    {
+    case EScheduleActivity::Sleep:
+    case EScheduleActivity::IdleAtHome:
+        return ENPCState::Idle;
+    case EScheduleActivity::Work:
+    case EScheduleActivity::Eat:
+    case EScheduleActivity::Shop:
+        return ENPCState::Idle; // Idle at destination
+    case EScheduleActivity::Wander:
+        return ENPCState::Patrol;
+    case EScheduleActivity::Socialize:
+    case EScheduleActivity::VisitFriend:
+        return ENPCState::Idle; // Idle at friend's location
+    default:
+        return ENPCState::Idle;
+    }
+}
+
+void ANPCCharacter::MoveTowardTarget(float DeltaTime)
+{
+    FVector CurrentPos = GetActorLocation();
+    float Dist = FVector::Dist2D(CurrentPos, ScheduleTargetPosition);
+
+    if (Dist <= 150.f)
+    {
+        // Arrived — switch to the activity state
+        if (CurrentBlockIndex >= 0 && CurrentBlockIndex < Schedule.Blocks.Num())
+        {
+            CurrentState = ActivityToState(Schedule.Blocks[CurrentBlockIndex].Activity);
+        }
+        else
+        {
+            CurrentState = ENPCState::Idle;
+        }
+        return;
+    }
+
+    FVector Dir = (ScheduleTargetPosition - CurrentPos).GetSafeNormal2D();
+    AddMovementInput(Dir, 1.f);
+}
+
+EScheduleActivity ANPCCharacter::GetCurrentScheduleActivity() const
+{
+    if (CurrentBlockIndex >= 0 && CurrentBlockIndex < Schedule.Blocks.Num())
+    {
+        return Schedule.Blocks[CurrentBlockIndex].Activity;
+    }
+    return EScheduleActivity::Sleep;
+}
+
+FString ANPCCharacter::GetCurrentScheduleBuildingId() const
+{
+    if (CurrentBlockIndex >= 0 && CurrentBlockIndex < Schedule.Blocks.Num())
+    {
+        return Schedule.Blocks[CurrentBlockIndex].BuildingId;
+    }
+    return FString();
+}
+
 void ANPCCharacter::StartDialogue(AActor* Initiator)
 {
     CurrentState = ENPCState::Talking;
-    // TODO: Trigger dialogue subsystem with this NPC's data
     UE_LOG(LogTemp, Log, TEXT("[Insimul] NPC %s starting dialogue"), *CharacterId);
 }
