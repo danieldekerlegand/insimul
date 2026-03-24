@@ -312,6 +312,24 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 }
 
 // ─────────────────────────────────────────────
+// UI Widgets
+// ─────────────────────────────────────────────
+
+function genUIWidgets(ir: WorldIR): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+  const files: GeneratedFile[] = [];
+
+  // World map widget (always included when map screen is enabled or by default)
+  const mapEnabled = ir.ui?.menuConfig?.mapScreen?.enabled !== false;
+  if (mapEnabled) {
+    files.push({ path: `${base}/InsimulWorldMap.h`,   content: loadStaticTemplate('source/ui/InsimulWorldMap.h') });
+    files.push({ path: `${base}/InsimulWorldMap.cpp`, content: loadStaticTemplate('source/ui/InsimulWorldMap.cpp') });
+  }
+
+  return files;
+}
+
+// ─────────────────────────────────────────────
 // Asset Setup Scripts
 // ─────────────────────────────────────────────
 
@@ -336,6 +354,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genSystemClasses(ir),
     ...genServiceClasses(ir),
     ...genWorldGenerators(ir),
+    ...genUIWidgets(ir),
     ...genAssetScripts(),
   ];
 }
