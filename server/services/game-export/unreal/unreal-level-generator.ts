@@ -190,17 +190,55 @@ function buildLevelDescriptor(ir: WorldIR): LevelDescriptor {
   };
 }
 
+// ─────────────────────────────────────────────
+// Main Menu Level Descriptor
+// ─────────────────────────────────────────────
+
+interface MainMenuLevelDescriptor {
+  version: number;
+  levelType: 'main_menu';
+  worldName: string;
+  title: string;
+  backgroundImage: string;
+  buttons: { label: string; action: string }[];
+  settingsCategories: string[];
+  gameLevelName: string;
+}
+
+function buildMainMenuLevelDescriptor(ir: WorldIR): MainMenuLevelDescriptor {
+  const menu = ir.ui?.menuConfig;
+
+  return {
+    version: 1,
+    levelType: 'main_menu',
+    worldName: ir.meta.worldName,
+    title: menu?.mainMenu?.title ?? ir.meta.worldName,
+    backgroundImage: menu?.mainMenu?.backgroundImage ?? '',
+    buttons: (menu?.mainMenu?.buttons ?? []).map(b => ({
+      label: b.label,
+      action: b.action,
+    })),
+    settingsCategories: (menu?.settingsMenu?.categories ?? []).map(c => c.name),
+    gameLevelName: 'GameLevel',
+  };
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
 
 export function generateLevelFiles(ir: WorldIR): GeneratedFile[] {
   const descriptor = buildLevelDescriptor(ir);
+  const menuDescriptor = buildMainMenuLevelDescriptor(ir);
 
   return [
     {
       path: 'Content/Data/LevelDescriptor.json',
       content: JSON.stringify(descriptor, null, 2),
+    },
+    {
+      path: 'Content/Data/MainMenuLevel.json',
+      content: JSON.stringify(menuDescriptor, null, 2),
     },
   ];
 }

@@ -376,6 +376,29 @@ function genUIClasses(): GeneratedFile[] {
 }
 
 // ─────────────────────────────────────────────
+// UI Classes (Main Menu)
+// ─────────────────────────────────────────────
+
+function genUIClasses(ir: WorldIR): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+  const menu = ir.ui?.menuConfig;
+  const title = menu?.mainMenu?.title ?? ir.meta.worldName;
+  const bg = menu?.mainMenu?.backgroundImage ?? '';
+
+  const gameModeTokens: TokenMap = {
+    MENU_TITLE: title,
+    MENU_BACKGROUND: bg,
+  };
+
+  return [
+    { path: `${base}/InsimulMainMenuWidget.h`,      content: loadStaticTemplate('source/ui/InsimulMainMenuWidget.h') },
+    { path: `${base}/InsimulMainMenuWidget.cpp`,    content: loadStaticTemplate('source/ui/InsimulMainMenuWidget.cpp') },
+    { path: `${base}/InsimulMainMenuGameMode.h`,    content: loadTemplate('source/ui/InsimulMainMenuGameMode.h', gameModeTokens) },
+    { path: `${base}/InsimulMainMenuGameMode.cpp`,  content: loadStaticTemplate('source/ui/InsimulMainMenuGameMode.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
 // Asset Setup Scripts
 // ─────────────────────────────────────────────
 
@@ -402,6 +425,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genServiceClasses(ir),
     ...genUIClasses(),
     ...genWorldGenerators(ir),
+    ...genUIClasses(ir),
     ...genAssetScripts(),
   ];
 }
