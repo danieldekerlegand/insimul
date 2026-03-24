@@ -57,7 +57,7 @@ export function generateProjectFiles(ir: WorldIR): GeneratedFile[] {
 
   return [
     { path: 'project.godot',            content: loadTemplate('project/project.godot', projectTokens) },
-    { path: 'export_presets.cfg',       content: loadStaticTemplate('project/export_presets.cfg') },
+    { path: 'export_presets.cfg',       content: loadTemplate('project/export_presets.cfg', { WORLD_SAFE_NAME: sanitiseName(ir.meta.worldName) }) },
     { path: 'default_bus_layout.tres',  content: loadStaticTemplate('project/default_bus_layout.tres') },
     { path: 'icon.svg',                 content: loadStaticTemplate('project/icon.svg') },
     { path: '.gitignore',               content: loadStaticTemplate('project/.gitignore') },
