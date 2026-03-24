@@ -396,6 +396,23 @@ struct FInsimulResourceNodeData
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bDepleted = false;
 };
 
+/**
+ * Gathering node placement data (IR export).
+ * Mirrors GatheringNodeIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulGatheringNode
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulResourceType ResourceType = EInsimulResourceType::Wood;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector Position = FVector::ZeroVector;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MaxAmount = 5;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float RespawnTime = 60.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Scale = 1.f;
+};
+
 // ─── Crafting ────────────────────────────────────────────────────────────────
 
 /**

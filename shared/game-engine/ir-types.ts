@@ -1002,6 +1002,7 @@ export interface SurvivalModifierPreset {
 
 export interface ResourcesIR {
   definitions: ResourceDefinitionIR[];
+  gatheringNodes: GatheringNodeIR[];
 }
 
 export interface ResourceDefinitionIR {
@@ -1012,4 +1013,16 @@ export interface ResourceDefinitionIR {
   maxStack: number;
   gatherTime: number;
   respawnTime: number;
+}
+
+export interface GatheringNodeIR {
+  id: string;
+  resourceType: ResourceType;
+  position: Vec3;
+  /** Maximum harvestable amount before depletion */
+  maxAmount: number;
+  /** Time in ms for the node to respawn after depletion */
+  respawnTime: number;
+  /** Visual scale multiplier (larger nodes = more resources) */
+  scale: number;
 }

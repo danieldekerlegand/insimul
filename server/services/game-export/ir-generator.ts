@@ -59,6 +59,7 @@ import type {
   AssetReferenceIR,
   AnimationReferenceIR,
   ResourceDefinitionIR,
+  GatheringNodeIR,
   NPCDialogueContext,
   AIConfigIR,
   TerrainFeatureIR,
@@ -699,6 +700,96 @@ const DEFAULT_RESOURCE_DEFS: ResourceDefinitionIR[] = [
   { id: 'crystal', name: 'Crystal', icon: '💎', color: { r: 0.6, g: 0.4, b: 0.9 }, maxStack: 200, gatherTime: 5000, respawnTime: 300000 },
   { id: 'oil', name: 'Oil', icon: '🛢️', color: { r: 0.15, g: 0.15, b: 0.15 }, maxStack: 300, gatherTime: 3500, respawnTime: 240000 },
 ];
+
+// ─────────────────────────────────────────────
+// Resource gathering node generation
+// ─────────────────────────────────────────────
+
+/** Resource types mapped to biome-appropriate distribution weights */
+const RESOURCE_BIOME_WEIGHTS: Record<string, Partial<Record<string, number>>> = {
+  forest:    { wood: 5, food: 3, fiber: 3, water: 1 },
+  plains:    { food: 4, fiber: 4, stone: 2, water: 1 },
+  mountain:  { stone: 5, iron: 4, crystal: 2, gold: 1 },
+  desert:    { stone: 3, oil: 3, crystal: 2, gold: 1 },
+  swamp:     { water: 4, fiber: 3, food: 2, oil: 2 },
+  tundra:    { stone: 3, iron: 2, crystal: 2, water: 1 },
+  tropical:  { wood: 4, food: 5, fiber: 3, water: 2 },
+  default:   { wood: 3, stone: 3, food: 2, iron: 1, water: 1 },
+};
+
+/** Amount ranges per resource type [min, max] */
+const RESOURCE_AMOUNT_RANGES: Record<string, [number, number]> = {
+  wood: [3, 8], stone: [2, 6], iron: [1, 4], gold: [1, 2],
+  food: [2, 6], water: [3, 8], fiber: [2, 5], crystal: [1, 3], oil: [1, 3],
+};
+
+/**
+ * Generate gathering nodes scattered around settlements based on terrain/biome.
+ * Nodes are placed outside settlement radii but within reachable distance.
+ */
+export function generateGatheringNodes(
+  settlements: SettlementIR[],
+  resourceDefs: ResourceDefinitionIR[],
+  terrainSize: number,
+  seed: string,
+): GatheringNodeIR[] {
+  const rand = createSeededRandom(`${seed}_gathering_nodes`);
+  const nodes: GatheringNodeIR[] = [];
+  const half = terrainSize / 2;
+
+  // Nodes per settlement scales with terrain
+  const nodesPerSettlement = Math.max(5, Math.min(20, Math.floor(terrainSize / 100)));
+
+  for (const settlement of settlements) {
+    const biome = (settlement.terrain || 'default').toLowerCase();
+    const weights = RESOURCE_BIOME_WEIGHTS[biome] || RESOURCE_BIOME_WEIGHTS.default;
+
+    // Build weighted pool
+    const pool: { type: string; weight: number }[] = [];
+    let totalWeight = 0;
+    for (const [type, weight] of Object.entries(weights)) {
+      // Only include resource types that have a definition
+      if (resourceDefs.some(d => d.id === type)) {
+        pool.push({ type, weight: weight! });
+        totalWeight += weight!;
+      }
+    }
+    if (pool.length === 0 || totalWeight === 0) continue;
+
+    for (let i = 0; i < nodesPerSettlement; i++) {
+      // Weighted random selection
+      let roll = Math.abs(rand()) * totalWeight;
+      let selectedType = pool[0].type;
+      for (const entry of pool) {
+        roll -= entry.weight;
+        if (roll <= 0) { selectedType = entry.type; break; }
+      }
+
+      const def = resourceDefs.find(d => d.id === selectedType)!;
+      const range = RESOURCE_AMOUNT_RANGES[selectedType] || [1, 5];
+      const maxAmount = range[0] + Math.floor(Math.abs(rand()) * (range[1] - range[0] + 1));
+
+      // Place nodes in a ring around the settlement (1x-3x radius out)
+      const angle = Math.abs(rand()) * Math.PI * 2;
+      const dist = settlement.radius * (1 + Math.abs(rand()) * 2);
+      const x = Math.max(-half, Math.min(half, settlement.position.x + Math.cos(angle) * dist));
+      const z = Math.max(-half, Math.min(half, settlement.position.z + Math.sin(angle) * dist));
+
+      const scale = 0.8 + Math.abs(rand()) * 0.6; // 0.8 – 1.4
+
+      nodes.push({
+        id: `rnode_${settlement.id}_${i}`,
+        resourceType: selectedType as any,
+        position: { x, y: settlement.position.y, z },
+        maxAmount,
+        respawnTime: def.respawnTime,
+        scale,
+      });
+    }
+  }
+
+  return nodes;
+}
 
 // ─────────────────────────────────────────────
 // NPC assignment helpers
@@ -1609,7 +1700,10 @@ export async function generateWorldIR(
       : null,
 
     resources: genreConfig.features.resources || gameType === 'survival'
-      ? { definitions: DEFAULT_RESOURCE_DEFS }
+      ? {
+          definitions: DEFAULT_RESOURCE_DEFS,
+          gatheringNodes: generateGatheringNodes(settlementIRs, DEFAULT_RESOURCE_DEFS, terrainSize, seed),
+        }
       : null,
 
     aiConfig,

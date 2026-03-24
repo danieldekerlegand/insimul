@@ -391,6 +391,14 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Resources (definitions + gathering nodes)
+  if (ir.resources) {
+    files.push({
+      path: `${base}/resources.json`,
+      content: JSON.stringify(ir.resources, null, 2),
+    });
+  }
+
   // Prolog knowledge base
   if (ir.systems.knowledgeBase) {
     files.push({
