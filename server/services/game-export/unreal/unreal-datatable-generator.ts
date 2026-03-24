@@ -238,6 +238,26 @@ function generateWaterFeaturesDT(ir: WorldIR): object[] {
 }
 
 // ─────────────────────────────────────────────
+// Foliage Layer DataTable
+// ─────────────────────────────────────────────
+
+function generateFoliageLayersDT(ir: WorldIR): object[] {
+  return ir.geography.foliageLayers.map((l, i) => ({
+    Name: `foliage_${l.settlementId}_${l.type}_${i}`,
+    FoliageType: l.type,
+    Biome: l.biome,
+    SettlementId: l.settlementId,
+    Density: l.density,
+    ScaleRangeMin: l.scaleRange[0],
+    ScaleRangeMax: l.scaleRange[1],
+    MaxSlope: l.maxSlope,
+    ElevationRangeMin: l.elevationRange[0],
+    ElevationRangeMax: l.elevationRange[1],
+    InstanceCount: l.instances.length,
+  }));
+}
+
+// ─────────────────────────────────────────────
 // Lot DataTable
 // ─────────────────────────────────────────────
 
@@ -423,6 +443,7 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_Quests', data: generateQuestsDT(ir) },
     { name: 'DT_Settlements', data: generateSettlementsDT(ir) },
     { name: 'DT_WaterFeatures', data: generateWaterFeaturesDT(ir) },
+    { name: 'DT_FoliageLayers', data: generateFoliageLayersDT(ir) },
     { name: 'DT_Buildings', data: generateBuildingsDT(ir) },
     { name: 'DT_Lots', data: generateLotsDT(ir) },
     { name: 'DT_Grammars', data: generateGrammarsDT(ir) },
