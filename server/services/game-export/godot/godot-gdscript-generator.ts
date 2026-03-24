@@ -126,8 +126,23 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
     WATER_ALPHA:   0.7,
   };
 
+  const terrainTokens: TokenMap = {
+    TERRAIN_SIZE:   ir.geography.terrainSize,
+    HEIGHT_SCALE:   ir.geography.terrainSize * 0.15,
+    GROUND_COLOR_R: theme.groundColor.r,
+    GROUND_COLOR_G: theme.groundColor.g,
+    GROUND_COLOR_B: theme.groundColor.b,
+    SLOPE_COLOR_R:  Math.min(1, theme.groundColor.r + 0.2),
+    SLOPE_COLOR_G:  Math.min(1, theme.groundColor.g + 0.1),
+    SLOPE_COLOR_B:  Math.min(1, theme.groundColor.b + 0.05),
+    PEAK_COLOR_R:   0.85,
+    PEAK_COLOR_G:   0.85,
+    PEAK_COLOR_B:   0.85,
+  };
+
   return [
     { path: 'scripts/world/world_scale_manager.gd', content: loadTemplate('scripts/world/world_scale_manager.gd', worldScaleTokens) },
+    { path: 'scripts/world/terrain_generator.gd',   content: loadTemplate('scripts/world/terrain_generator.gd', terrainTokens) },
     { path: 'scripts/world/building_generator.gd',  content: loadTemplate('scripts/world/building_generator.gd', buildingTokens) },
     { path: 'scripts/world/road_generator.gd',      content: loadTemplate('scripts/world/road_generator.gd', roadTokens) },
     { path: 'scripts/world/water_generator.gd',     content: loadTemplate('scripts/world/water_generator.gd', waterTokens) },
