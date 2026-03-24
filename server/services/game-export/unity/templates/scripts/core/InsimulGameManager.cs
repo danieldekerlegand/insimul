@@ -81,6 +81,9 @@ namespace Insimul.Core
             var ruleSys = FindObjectOfType<Insimul.Systems.RuleEnforcer>();
             if (ruleSys != null) ruleSys.LoadFromData(WorldData);
 
+            var survivalSys = FindObjectOfType<Insimul.Systems.SurvivalSystem>();
+            if (survivalSys != null) survivalSys.LoadFromData(WorldData);
+
             Debug.Log("[Insimul] World spawning complete.");
         }
     }
