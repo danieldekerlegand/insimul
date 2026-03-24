@@ -326,6 +326,18 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 }
 
 // ─────────────────────────────────────────────
+// UI Widgets
+// ─────────────────────────────────────────────
+
+function genUIWidgets(): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+  return [
+    { path: `${base}/DialogueWidget.h`,   content: loadStaticTemplate('source/ui/DialogueWidget.h') },
+    { path: `${base}/DialogueWidget.cpp`, content: loadStaticTemplate('source/ui/DialogueWidget.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
 // Asset Setup Scripts
 // ─────────────────────────────────────────────
 
@@ -351,6 +363,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genUIWidgets(),
     ...genServiceClasses(ir),
     ...genWorldGenerators(ir),
+    ...genUIWidgets(),
     ...genAssetScripts(),
   ];
 }
