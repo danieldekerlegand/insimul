@@ -297,6 +297,47 @@ export interface CharacterIR {
   status: string | null;
 }
 
+/** Activity type for a schedule time block */
+export type ScheduleActivityType =
+  | 'sleep'
+  | 'work'
+  | 'eat'
+  | 'socialize'
+  | 'shop'
+  | 'wander'
+  | 'idle_at_home'
+  | 'visit_friend';
+
+/** A single time block in an NPC's daily schedule */
+export interface NPCScheduleBlockIR {
+  /** Start hour (0–23, fractional allowed, e.g. 7.5 = 7:30 AM) */
+  startHour: number;
+  /** End hour (0–23, fractional allowed) */
+  endHour: number;
+  /** What the NPC does during this block */
+  activity: ScheduleActivityType;
+  /** Building ID where this activity takes place (null = outdoors/wander) */
+  buildingId: string | null;
+  /** Priority: higher-priority blocks override lower ones */
+  priority: number;
+}
+
+/** A full daily schedule for an NPC, derived from personality traits */
+export interface NPCDailyScheduleIR {
+  /** Building ID of the NPC's home (residence) */
+  homeBuildingId: string | null;
+  /** Building ID of the NPC's workplace */
+  workBuildingId: string | null;
+  /** Building IDs of friends' residences the NPC may visit */
+  friendBuildingIds: string[];
+  /** Ordered time blocks covering a full 24-hour day */
+  blocks: NPCScheduleBlockIR[];
+  /** Personality-derived wake hour (e.g. 5.5–7) */
+  wakeHour: number;
+  /** Personality-derived bedtime hour (e.g. 20–23) */
+  bedtimeHour: number;
+}
+
 export interface NPCIR {
   /** Reference to CharacterIR.id */
   characterId: string;
@@ -314,6 +355,8 @@ export interface NPCIR {
   questIds: string[];
   /** Dialogue greeting (if any) */
   greeting: string | null;
+  /** Daily schedule derived from personality traits */
+  schedule: NPCDailyScheduleIR | null;
 }
 
 export interface BuildingIR {

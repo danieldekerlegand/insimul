@@ -49,6 +49,7 @@ function generateNPCs(ir: WorldIR): object[] {
     disposition: n.disposition,
     settlementId: n.settlementId || '',
     questIds: n.questIds,
+    schedule: n.schedule || null,
   }));
 }
 

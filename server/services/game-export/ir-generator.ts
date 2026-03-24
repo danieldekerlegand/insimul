@@ -39,6 +39,8 @@ import type {
   BoundsIR,
   CharacterIR,
   NPCIR,
+  NPCDailyScheduleIR,
+  NPCScheduleBlockIR,
   BuildingIR,
   BuildingSpecIR,
   BusinessIR,
@@ -853,6 +855,153 @@ function parseDisposition(character: Character): number {
 }
 
 // ═════════════════════════════════════════════
+// NPC Daily Schedule Builder
+// ═════════════════════════════════════════════
+
+/**
+ * Build a personality-driven daily schedule for an NPC.
+ *
+ * Mirrors the runtime NPCScheduleSystem logic so that exported games
+ * (Godot/Unity/Unreal) can reconstruct NPC routines without the
+ * Babylon.js client-side schedule system.
+ */
+export function buildNPCSchedule(
+  character: {
+    id: string;
+    personality?: { openness?: number; conscientiousness?: number; extroversion?: number; agreeableness?: number; neuroticism?: number } | null;
+    occupation?: string | null;
+    friendIds?: string[];
+  },
+  buildings: { id: string; settlementId: string; businessId: string | null; spec: { buildingRole: string } }[],
+  settlementId: string | null,
+): NPCDailyScheduleIR {
+  const p = {
+    openness: character.personality?.openness ?? 0.5,
+    conscientiousness: character.personality?.conscientiousness ?? 0.5,
+    extroversion: character.personality?.extroversion ?? 0.5,
+    agreeableness: character.personality?.agreeableness ?? 0.5,
+    neuroticism: character.personality?.neuroticism ?? 0.5,
+  };
+
+  const hasJob = !!(character.occupation);
+
+  // Find home and work buildings in the NPC's settlement
+  const settlementBuildings = settlementId
+    ? buildings.filter(b => b.settlementId === settlementId)
+    : buildings;
+
+  const residences = settlementBuildings.filter(b =>
+    b.spec.buildingRole.includes('residence')
+  );
+  const workplaces = settlementBuildings.filter(b =>
+    b.businessId != null && !b.spec.buildingRole.includes('residence')
+  );
+
+  // Assign home: first available residence
+  const homeBuildingId = residences.length > 0 ? residences[0].id : null;
+
+  // Assign workplace if employed
+  const workBuildingId = hasJob && workplaces.length > 0 ? workplaces[0].id : null;
+
+  // Friend buildings: other residences (up to 3)
+  const friendBuildingIds = residences
+    .filter(r => r.id !== homeBuildingId)
+    .slice(0, 3)
+    .map(r => r.id);
+
+  // Personality-derived wake/bed times (mirrors NPCScheduleSystem)
+  const wakeHour = Math.max(4, Math.min(7, 6 - (p.conscientiousness - 0.5)));
+  const bedtimeHour = Math.max(20, Math.min(23, 20 + (p.extroversion - 0.5) * 2 - (p.conscientiousness - 0.5)));
+
+  const blocks: NPCScheduleBlockIR[] = [];
+
+  // Sleep: bedtime → 24 and 0 → wake
+  blocks.push({ startHour: bedtimeHour, endHour: 24, activity: 'sleep', buildingId: homeBuildingId, priority: 0 });
+  blocks.push({ startHour: 0, endHour: wakeHour, activity: 'sleep', buildingId: homeBuildingId, priority: 0 });
+
+  if (hasJob && workBuildingId) {
+    // Employed schedule
+    const workStart = Math.max(wakeHour + 0.5, 8 - (p.conscientiousness - 0.5) * 0.5);
+    const lunchHour = (workStart + 17) / 2; // midpoint
+    const workEnd = Math.min(bedtimeHour - 1, 17 + (p.conscientiousness - 0.5) * 0.5);
+
+    // Morning at home
+    blocks.push({ startHour: wakeHour, endHour: workStart, activity: 'idle_at_home', buildingId: homeBuildingId, priority: 1 });
+    // Morning work
+    blocks.push({ startHour: workStart, endHour: lunchHour, activity: 'work', buildingId: workBuildingId, priority: 2 });
+    // Lunch
+    const lunchBuildingId = p.conscientiousness > 0.6 ? workBuildingId : null;
+    blocks.push({ startHour: lunchHour, endHour: lunchHour + 1, activity: 'eat', buildingId: lunchBuildingId, priority: 2 });
+    // Afternoon work
+    blocks.push({ startHour: lunchHour + 1, endHour: workEnd, activity: 'work', buildingId: workBuildingId, priority: 2 });
+    // Evening free time
+    const eveningActivity = pickEveningActivity(p);
+    const eveningBuildingId = eveningActivity === 'visit_friend' && friendBuildingIds.length > 0
+      ? friendBuildingIds[0]
+      : eveningActivity === 'idle_at_home' ? homeBuildingId
+      : null;
+    blocks.push({ startHour: workEnd, endHour: bedtimeHour, activity: eveningActivity, buildingId: eveningBuildingId, priority: 1 });
+  } else {
+    // Unemployed schedule
+    // Morning
+    const morningEnd = 10;
+    const morningActivity: NPCScheduleBlockIR['activity'] = p.neuroticism > 0.6 ? 'idle_at_home' : 'wander';
+    blocks.push({ startHour: wakeHour, endHour: morningEnd, activity: morningActivity, buildingId: morningActivity === 'idle_at_home' ? homeBuildingId : null, priority: 1 });
+    // Midday
+    blocks.push({ startHour: morningEnd, endHour: 12, activity: 'shop', buildingId: null, priority: 1 });
+    // Lunch
+    blocks.push({ startHour: 12, endHour: 13, activity: 'eat', buildingId: homeBuildingId, priority: 1 });
+    // Afternoon
+    const afternoonActivity = pickEveningActivity(p);
+    const afternoonBuildingId = afternoonActivity === 'visit_friend' && friendBuildingIds.length > 0
+      ? friendBuildingIds[0]
+      : afternoonActivity === 'idle_at_home' ? homeBuildingId
+      : null;
+    blocks.push({ startHour: 13, endHour: 17, activity: afternoonActivity, buildingId: afternoonBuildingId, priority: 1 });
+    // Evening
+    const eveningActivity = pickEveningActivity(p);
+    const eveningBuildingId = eveningActivity === 'idle_at_home' ? homeBuildingId : null;
+    blocks.push({ startHour: 17, endHour: bedtimeHour, activity: eveningActivity, buildingId: eveningBuildingId, priority: 1 });
+  }
+
+  // Sort blocks by startHour for consistent ordering
+  blocks.sort((a, b) => a.startHour - b.startHour);
+
+  return {
+    homeBuildingId,
+    workBuildingId,
+    friendBuildingIds,
+    blocks,
+    wakeHour,
+    bedtimeHour,
+  };
+}
+
+/**
+ * Pick an evening/free-time activity based on personality weights.
+ * Mirrors the NPCScheduleSystem's pickEveningGoal weighting.
+ */
+function pickEveningActivity(p: {
+  openness: number;
+  conscientiousness: number;
+  extroversion: number;
+  agreeableness: number;
+  neuroticism: number;
+}): NPCScheduleBlockIR['activity'] {
+  const socialWeight = p.extroversion * 0.5 + p.agreeableness * 0.3;
+  const exploreWeight = Math.max(0, p.openness * 0.4 - p.neuroticism * 0.2);
+  const homeWeight = (1 - p.extroversion) * 0.3 + p.neuroticism * 0.3 + (1 - p.openness) * 0.1;
+
+  if (socialWeight >= exploreWeight && socialWeight >= homeWeight) {
+    return p.agreeableness > 0.5 ? 'visit_friend' : 'socialize';
+  }
+  if (exploreWeight >= homeWeight) {
+    return 'wander';
+  }
+  return 'idle_at_home';
+}
+
+// ═════════════════════════════════════════════
 // Main IR Generator
 // ═════════════════════════════════════════════
 
@@ -1324,6 +1473,17 @@ export async function generateWorldIR(
       .filter(q => q.assignedByCharacterId === c.id)
       .map(q => q.id);
 
+    const schedule = buildNPCSchedule(
+      {
+        id: c.id,
+        personality: c.personality as any,
+        occupation: c.occupation,
+        friendIds: (c.friendIds as string[]) || [],
+      },
+      allBuildingIRs.map(b => ({ id: b.id, settlementId: b.settlementId, businessId: b.businessId, spec: b.spec })),
+      settlement?.id || null,
+    );
+
     return {
       characterId: c.id,
       role,
@@ -1333,6 +1493,7 @@ export async function generateWorldIR(
       settlementId: settlement?.id || null,
       questIds,
       greeting: null,
+      schedule,
     };
   });
 
