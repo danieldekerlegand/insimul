@@ -12,6 +12,7 @@ import { generateDataTableFiles } from './unreal-datatable-generator';
 import { generateLevelFiles } from './unreal-level-generator';
 import { generateWorldIR } from '../ir-generator';
 import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
+import { convertAssetsForUnreal } from './asset-converter';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { generateUnrealTelemetryTemplate } from '../unreal-telemetry-template';
 import type { ExportTelemetryConfig } from '../telemetry-config';
@@ -88,7 +89,11 @@ async function packageAsZip(
     }
 
     for (const asset of binaryAssets) {
-      archive.append(asset.buffer, { name: `${projectName}/Content/${asset.exportPath}` });
+      // Converted assets already have Content/ prefix; raw assets don't
+      const assetPath = asset.exportPath.startsWith('Content/')
+        ? asset.exportPath
+        : `Content/${asset.exportPath}`;
+      archive.append(asset.buffer, { name: `${projectName}/${assetPath}` });
     }
 
     archive.finalize();
@@ -168,21 +173,34 @@ export async function exportUnrealProject(worldId: string, options?: UnrealExpor
     content: generateAssetManifestJson(assetBundle.manifest),
   });
 
+  // 5. Convert assets for Unreal (GLB→FBX for animated, route to Content/ subdirs)
+  const conversionResult = convertAssetsForUnreal(assetBundle.assets);
+  console.log(`[Export] Asset conversion: ${conversionResult.stats.convertedToFbx} FBX, ${conversionResult.stats.staticModels} static, ${conversionResult.stats.textures} textures, ${conversionResult.stats.audio} audio`);
+
+  // Map converted assets back to BundledAsset format for ZIP packaging
+  const convertedBundledAssets: BundledAsset[] = conversionResult.assets.map(a => ({
+    exportPath: a.exportPath,
+    buffer: a.buffer,
+    category: a.category,
+    role: a.role,
+  }));
+
   // Do NOT bundle template .umap files — they have wrong internal package names.
 
-  // 4. Package
+  // 6. Package
   const worldSafe = sanitiseName(ir.meta.worldName) || 'InsimulWorld';
   const projectName = `InsimulExport_${worldSafe}`;
 
   let zipBuffer: Buffer | null = null;
   try {
-    zipBuffer = await packageAsZip(projectName, allFiles, assetBundle.assets);
+    zipBuffer = await packageAsZip(projectName, allFiles, convertedBundledAssets);
   } catch (err) {
     console.error('[UnrealExporter] ZIP packaging failed:', err);
   }
 
   const textSizeBytes = allFiles.reduce((sum, f) => sum + Buffer.byteLength(f.content, 'utf8'), 0);
-  const totalSizeBytes = textSizeBytes + assetBundle.totalSizeBytes;
+  const convertedSizeBytes = convertedBundledAssets.reduce((sum, a) => sum + a.buffer.length, 0);
+  const totalSizeBytes = textSizeBytes + convertedSizeBytes;
   const elapsed = Date.now() - startTime;
 
   return {
