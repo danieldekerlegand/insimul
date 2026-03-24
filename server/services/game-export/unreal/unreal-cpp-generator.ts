@@ -210,12 +210,23 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
 // UI Widgets
 // ─────────────────────────────────────────────
 
-function genUIWidgets(): GeneratedFile[] {
+function genUIWidgets(ir: WorldIR): GeneratedFile[] {
   const base = `Source/${M}/UI`;
-  return [
+  const files: GeneratedFile[] = [
     { path: `${base}/InsimulInventoryUI.h`,   content: loadStaticTemplate('source/ui/InsimulInventoryUI.h') },
     { path: `${base}/InsimulInventoryUI.cpp`, content: loadStaticTemplate('source/ui/InsimulInventoryUI.cpp') },
+    { path: `${base}/DialogueWidget.h`,   content: loadStaticTemplate('source/ui/DialogueWidget.h') },
+    { path: `${base}/DialogueWidget.cpp`, content: loadStaticTemplate('source/ui/DialogueWidget.cpp') },
   ];
+
+  // World map widget (always included when map screen is enabled or by default)
+  const mapEnabled = ir.ui?.menuConfig?.mapScreen?.enabled !== false;
+  if (mapEnabled) {
+    files.push({ path: `${base}/InsimulWorldMap.h`,   content: loadStaticTemplate('source/ui/InsimulWorldMap.h') });
+    files.push({ path: `${base}/InsimulWorldMap.cpp`, content: loadStaticTemplate('source/ui/InsimulWorldMap.cpp') });
+  }
+
+  return files;
 }
 
 // ─────────────────────────────────────────────
@@ -325,17 +336,6 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 `;
 }
 
-// ─────────────────────────────────────────────
-// UI Widgets
-// ─────────────────────────────────────────────
-
-function genUIWidgets(): GeneratedFile[] {
-  const base = `Source/${M}/UI`;
-  return [
-    { path: `${base}/DialogueWidget.h`,   content: loadStaticTemplate('source/ui/DialogueWidget.h') },
-    { path: `${base}/DialogueWidget.cpp`, content: loadStaticTemplate('source/ui/DialogueWidget.cpp') },
-  ];
-}
 
 // ─────────────────────────────────────────────
 // Asset Setup Scripts
@@ -360,10 +360,9 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genCoreClasses(ir),
     ...genCharacterClasses(ir),
     ...genSystemClasses(ir),
-    ...genUIWidgets(),
+    ...genUIWidgets(ir),
     ...genServiceClasses(ir),
     ...genWorldGenerators(ir),
-    ...genUIWidgets(),
     ...genAssetScripts(),
   ];
 }
