@@ -185,6 +185,11 @@ function genUIClasses(ir: WorldIR): GeneratedFile[] {
     files.push({ path: `${base}/WorldMapUI.cs`, content: loadStaticTemplate('scripts/ui/WorldMapUI.cs') });
   }
 
+  const dialogueEnabled = ir.ui?.menuConfig?.dialogueScreen?.enabled !== false;
+  if (dialogueEnabled) {
+    files.push({ path: `${base}/DialogueUI.cs`, content: loadStaticTemplate('scripts/ui/DialogueUI.cs') });
+  }
+
   return files;
 }
 
