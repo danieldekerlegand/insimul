@@ -35,6 +35,7 @@ function genDataStructs(): GeneratedFile[] {
     { path: `${base}/GameTypes.h`,     content: loadStaticTemplate('source/data/GameTypes.h') },
     { path: `${base}/LotData.h`,       content: loadStaticTemplate('source/data/LotData.h') },
     { path: `${base}/InfrastructureData.h`, content: loadStaticTemplate('source/data/InfrastructureData.h') },
+    { path: `${base}/ResourceData.h`,   content: loadStaticTemplate('source/data/ResourceData.h') },
   ];
 }
 
@@ -381,7 +382,7 @@ function genUIClasses(): GeneratedFile[] {
 // UI Classes (Main Menu)
 // ─────────────────────────────────────────────
 
-function genUIClasses(ir: WorldIR): GeneratedFile[] {
+function genMainMenuClasses(ir: WorldIR): GeneratedFile[] {
   const base = `Source/${M}/UI`;
   const menu = ir.ui?.menuConfig;
   const title = menu?.mainMenu?.title ?? ir.meta.worldName;
@@ -427,7 +428,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genServiceClasses(ir),
     ...genUIClasses(),
     ...genWorldGenerators(ir),
-    ...genUIClasses(ir),
+    ...genMainMenuClasses(ir),
     ...genAssetScripts(),
   ];
 }
