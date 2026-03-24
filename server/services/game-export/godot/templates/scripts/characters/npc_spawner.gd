@@ -74,6 +74,14 @@ func _spawn_npc(data: Dictionary) -> void:
 	npc.name = "NPC_%s" % data.get("characterId", "unknown")
 	add_child(npc)
 
+	# Attach animation controller
+	var anim_ctrl_script := load("res://scripts/characters/character_animation_controller.gd")
+	if anim_ctrl_script:
+		var anim_ctrl := Node.new()
+		anim_ctrl.set_script(anim_ctrl_script)
+		anim_ctrl.name = "AnimationController"
+		npc.add_child(anim_ctrl)
+
 	var script := load("res://scripts/characters/npc_controller.gd")
 	if script:
 		npc.set_script(script)

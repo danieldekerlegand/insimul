@@ -39,9 +39,10 @@ function genCharacterScripts(ir: WorldIR): GeneratedFile[] {
   };
 
   return [
-    { path: 'scripts/characters/player_controller.gd', content: loadTemplate('scripts/characters/player_controller.gd', playerTokens) },
-    { path: 'scripts/characters/npc_controller.gd',    content: loadStaticTemplate('scripts/characters/npc_controller.gd') },
-    { path: 'scripts/characters/npc_spawner.gd',       content: loadStaticTemplate('scripts/characters/npc_spawner.gd') },
+    { path: 'scripts/characters/player_controller.gd',             content: loadTemplate('scripts/characters/player_controller.gd', playerTokens) },
+    { path: 'scripts/characters/npc_controller.gd',                content: loadStaticTemplate('scripts/characters/npc_controller.gd') },
+    { path: 'scripts/characters/npc_spawner.gd',                   content: loadStaticTemplate('scripts/characters/npc_spawner.gd') },
+    { path: 'scripts/characters/character_animation_controller.gd', content: loadStaticTemplate('scripts/characters/character_animation_controller.gd') },
   ];
 }
 
