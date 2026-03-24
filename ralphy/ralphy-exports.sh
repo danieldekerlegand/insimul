@@ -1,1 +1,0 @@
-ralphy --parallel --max-parallel 3 --json ralphy/ralphy-export-godot.json

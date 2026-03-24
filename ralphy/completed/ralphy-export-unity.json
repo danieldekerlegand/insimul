@@ -68,19 +68,19 @@
     },
     {
       "title": "Complete survival system in Unity SurvivalSystem.cs",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "Unity SurvivalSystem is a 64-line stub. (1) Replace with full implementation processing needs each Update(). (2) Decay: need -= decayRatePerSecond * Time.deltaTime. (3) At warningThreshold: OnNeedWarning event, flashing HUD icon. (4) At criticalThreshold: CombatSystem.TakeDamage(damagePerSecond). (5) Recovery: Eat(itemId), Drink(itemId), Sleep(hours) consume inventory items. (6) Temperature by proximity to temperatureZones. (7) Load from Resources/Data/survivalConfig.json. (8) Integrate with HUDManager show/hide. Typecheck must pass."
     },
     {
       "title": "Complete resource gathering system for Unity export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "Unity ResourceSystem is a 29-line skeleton. (1) Replace with full implementation. (2) Load nodes from Resources/Data/resourceNodes.json. (3) Spawn: brown cylinder (wood), gray cube (stone), metallic sphere (iron), blue crystal, green bush (food). (4) Gather: within 2m + E → world-space Canvas progress bar → add to inventory. (5) Deplete after maxYield: gray material, reduced scale. (6) Respawn coroutine after respawnTimeSeconds. (7) Check toolRequired in inventory. Typecheck must pass."
     },
     {
       "title": "Create dialogue UI panel for Unity export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "ChatPanel.cs exists but is basic. Need proper RPG/educational interface. (1) Create/enhance unity/templates/scripts/ui/DialoguePanel.cs. (2) Bottom panel: NPC name, typewriter coroutine (30 chars/sec), response buttons. (3) Portrait placeholder (colored Image + initial Text). (4) Language learning: large target language, small translation, Listen button. (5) Responses after typewriter completes — up to 4. (6) Close with Escape/Goodbye, OnDialogueEnded event, restore timeScale. (7) Connect to InsimulDialogueSystem. (8) Slide-up animation. Typecheck must pass."
     },

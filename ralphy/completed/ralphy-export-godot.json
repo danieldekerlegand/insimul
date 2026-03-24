@@ -2,91 +2,91 @@
   "tasks": [
     {
       "title": "Generate terrain heightmap mesh in Godot terrain_generator.gd",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "Terrain is the biggest visual gap — the heightmap data exists in the IR but is never turned into geometry. (1) Create server/services/game-export/godot/templates/scripts/world/terrain_generator.gd template. (2) Read terrain data from level descriptor JSON (heightmap, terrainSize, slopeThresholds). (3) Generate a MeshInstance3D with ArrayMesh built from heightmap vertices, indices, normals, UVs. (4) Apply slope-based texturing via ShaderMaterial splatmap: grass below 0.3, rock 0.3-0.6, cliff above 0.6. (5) Add collision via StaticBody3D + ConcavePolygonShape3D. (6) Register as child node in main .tscn via godot-scene-generator.ts. (7) Center at world origin with proper scale. Typecheck must pass."
     },
     {
       "title": "Implement road mesh generation in Godot road_generator.gd",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "road_generator.gd is explicitly marked as TODO stub with 41 lines. (1) Replace the stub with full implementation. (2) Read road data from level descriptor: waypoints, widths, roadTypes. (3) Generate ribbon meshes along waypoints using ArrayMesh quad strips with configurable width. (4) Apply road materials: dirt (brown), stone (gray cobble), paved (dark gray). (5) Slight elevation offset (+0.05m) above terrain to prevent z-fighting. (6) Widen mesh at intersection points where multiple roads meet. (7) Generate UV coordinates for proper texture tiling along road length. Typecheck must pass."
     },
     {
       "title": "Implement vegetation scatter in Godot nature_generator.gd",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "nature_generator.gd currently just prints debug info in 13 lines — no vegetation placed. (1) Replace stub with full implementation. (2) Read nature objects from level descriptor (trees, rocks, bushes with positions, types, scales). (3) For each: load GLB from asset manifest or create procedural stand-ins (cone+cylinder for trees, sphere for bushes, box for rocks). (4) Biome color tinting: forest (deep green), plains (light green/yellow), desert (brown/tan), tundra (dark green/gray). (5) Use MultiMeshInstance3D for grass and small foliage to batch hundreds efficiently. (6) Collision on large objects only (trees, large rocks). (7) Randomize rotation and scale ±15% using seeded random. Typecheck must pass."
     },
     {
       "title": "Add character animation controller to Godot player and NPC controllers",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "No animation support in Godot templates — characters are static meshes. (1) In player_controller.gd, add AnimationPlayer/AnimationTree that plays based on movement state. (2) Animation state machine: Idle (speed < 0.1) → Walk (0.1-5.0) → Run (> 5.0), with Attack (on input), Interact (on trigger), Jump (on jump). (3) Use AnimationTree with BlendSpace1D for locomotion blending. (4) In npc_controller.gd, add matching state machine: Idle→idle, Patrol→walk, Fleeing→run, Talking→talk. (5) Graceful fallback if no animations loaded (skip calls, log warning once). (6) Read clip names from character data animationSets field. Typecheck must pass."
     },
     {
       "title": "Add minimap UI to Godot HUD",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "Godot export has no minimap — Unity has one, Godot should match. (1) Create server/services/game-export/godot/templates/scripts/ui/minimap.gd. (2) SubViewport with top-down Camera3D following player. (3) Display in TextureRect top-right corner (150x150 px with circular mask). (4) Colored dots: player (white), friendly NPCs (green), hostile (red), quest objectives (yellow pulsing), buildings (gray). (5) Compass ring showing N/S/E/W cardinal directions. (6) Zoom in/out (50m, 100m, 200m radius). (7) Register in .tscn and connect to HUD via godot-scene-generator.ts. Typecheck must pass."
     },
     {
       "title": "Create main menu scene for Godot export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "Godot export drops directly into the game with no main menu. (1) Create server/services/game-export/godot/templates/scripts/ui/main_menu.gd. (2) Generate main_menu.tscn via godot-scene-generator.ts: VBoxContainer, game title Label (world name), buttons for New Game, Continue, Settings, Quit. (3) New Game → get_tree().change_scene_to_file() to game scene. (4) Settings panel: audio volume slider, graphics quality dropdown, fullscreen toggle, mouse sensitivity slider. (5) Quit → get_tree().quit(). (6) Dark background with genre-appropriate accent colors from theme IR. (7) Set main_menu.tscn as run/main_scene in project.godot. Typecheck must pass."
     },
     {
       "title": "Create inventory UI screen for Godot export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "inventory_system.gd has 280 lines of logic but no UI. (1) Create server/services/game-export/godot/templates/scripts/ui/inventory_ui.gd. (2) Grid-based UI using GridContainer with ItemSlot scenes (TextureRect + Label stack count). (3) Toggle with Tab key — get_tree().paused = true while open. (4) Item details on selection: name, description, weight, effects. (5) Use and Drop buttons calling inventory_system.gd methods. (6) Player stats sidebar (health, energy, gold). (7) Category tabs: All, Weapons, Armor, Consumables, Quest Items, Materials. (8) Connect to inventory_system.gd for data. Typecheck must pass."
     },
     {
       "title": "Create quest journal UI for Godot export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "quest_system.gd has 581 lines of logic but no journal UI. (1) Create server/services/game-export/godot/templates/scripts/ui/quest_journal.gd. (2) Split-panel: quest list (ScrollContainer + VBoxContainer) on left, details on right. (3) Entries: quest name, description, completion %, priority indicator (main=gold, side=silver). (4) Details: full description, objectives with checkmarks, rewards preview, quest giver name. (5) Tab filters: Active, Completed, Failed, All. (6) Toggle with J key, pause game. (7) Highlight currently tracked quest, show objectives on HUD. (8) Connect to quest_system.gd. Typecheck must pass."
     },
     {
       "title": "Add full-screen world map to Godot export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "No world map exists — essential for open-world navigation. (1) Create server/services/game-export/godot/templates/scripts/ui/world_map.gd. (2) Full-screen Control rendering top-down world view. (3) Settlement markers (house icons) with name/population labels. (4) Road lines connecting settlements from waypoint data. (5) Quest markers (exclamation for available, question for turn-in). (6) Player position as pulsing arrow with facing direction. (7) Pan (click-drag) and zoom (scroll wheel) with smooth interpolation. (8) Toggle M key, pause game. Typecheck must pass."
     },
     {
       "title": "Complete survival system in Godot survival_system.gd",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "survival_system.gd is a 37-line stub. (1) Replace with full implementation processing all needs each _process. (2) Decay: each need decreases by decayRatePerSecond * delta. (3) At warningThreshold: emit signal, show flashing yellow HUD icon. (4) At criticalThreshold: apply damagePerSecondWhenCritical to health. (5) Recovery: eat(itemId) → hunger, drink(itemId) → thirst, sleep(duration) → sleep + partial stamina. (6) Temperature influenced by biome temperatureZones proximity. (7) Integrate with HUD: add survival bars (icons + progress bars) below health bar. (8) Load config from level descriptor survivalConfig section. Typecheck must pass."
     },
     {
       "title": "Complete resource system in Godot resource_system.gd",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "resource_system.gd is a 17-line empty skeleton. (1) Replace with full implementation. (2) Load resource node positions from level descriptor resourceNodes. (3) Spawn visuals: tree stumps (wood), rock piles (stone), ore veins (iron/crystal), bushes (fiber), water pools (water). (4) Gather: player within 2m + E key → progress bar → add to inventory. (5) Deplete after maxYield gathers — gray/transparent visual. (6) Respawn timer: restore after respawnTimeSeconds. (7) Check toolRequired before allowing gather. (8) Emit gather_complete and node_respawned signals. Typecheck must pass."
     },
     {
       "title": "Generate comprehensive .tscn scene files with full node hierarchy",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "Current .tscn generation is minimal. Full scene hierarchy eliminates manual setup. (1) In godot-scene-generator.ts, extend main.tscn to include child nodes: TerrainGenerator, RoadGenerator, NatureGenerator, WaterGenerator, BuildingGenerator, NPCSpawner. (2) Add CanvasLayer with HUD hierarchy: HealthBar, EnergyBar, GoldLabel, Minimap, SurvivalBars, QuestTracker, ChatPanel. (3) Add hidden UI nodes: InventoryUI, QuestJournal, WorldMap, GameMenu (visible=false). (4) Generate main_menu.tscn as separate scene. (5) Register autoloads in project.godot: EventBus, DataLoader, GameManager, ActionSystem, QuestSystem, RuleEnforcer, InventorySystem, CombatSystem, DialogueSystem, SurvivalSystem, ResourceSystem. (6) Proper ext_resource refs with UIDs. (7) Correct load_steps count. Typecheck must pass."
     },
     {
       "title": "Add export_presets.cfg with multi-platform targets",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "Godot export should be buildable for multiple platforms without manual config. (1) In godot-project-generator.ts, generate export_presets.cfg with 4 targets. (2) Windows Desktop: builds/windows/{name}.exe. (3) Linux/X11: builds/linux/{name}.x86_64. (4) macOS: builds/macos/{name}.app. (5) Web: builds/web/index.html — enables browser play. (6) All use Forward Plus rendering, default encryption. Typecheck must pass."
     },
     {
       "title": "Add NPC schedule-driven behavior to Godot npc_controller.gd",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "NPCs stand at spawn or patrol randomly. Schedules add life. (1) In npc_controller.gd, add schedule system reading NPC schedule array from character data. (2) Implement game clock (configurable day length, e.g. 20 real minutes = 1 game day). (3) Each _process, check hour against schedule entries — navigate to locationId building on change. (4) Use NavigationAgent3D to pathfind. (5) On arrival, play activity animation or idle. (6) Smooth transitions — walk, don't teleport. (7) Fall back to patrol if no schedule defined. (8) Expose game_clock as autoload signal for lighting/ambient systems. Typecheck must pass."
     },
     {
       "title": "Add polished dialogue UI panel to Godot export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "chat_panel.gd exists but is basic. Need proper RPG/educational dialogue interface. (1) Create/enhance server/services/game-export/godot/templates/scripts/ui/dialogue_panel.gd. (2) Bottom-of-screen panel: NPC name label, typewriter text (30 chars/sec), response buttons. (3) NPC portrait placeholder (colored rect + first initial). (4) Language learning mode: target language prominent, smaller translation below, Listen button emitting audio signal. (5) Response options after text completes — up to 4 choices. (6) Close with Escape or Goodbye button, emit dialogue_ended. (7) Connect to dialogue_system.gd. Typecheck must pass."
     }
