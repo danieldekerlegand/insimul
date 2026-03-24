@@ -37,5 +37,10 @@ func spawn_world() -> void:
 	RuleEnforcer.load_from_data(world_data)
 	InventorySystem.initialize()
 
+	# Initialize survival system (conditionally loaded)
+	var survival_system: Node = get_node_or_null("/root/SurvivalSystem")
+	if survival_system and survival_system.has_method("load_from_data"):
+		survival_system.load_from_data(world_data)
+
 	print("[Insimul] World spawning complete.")
 	world_spawned.emit()
