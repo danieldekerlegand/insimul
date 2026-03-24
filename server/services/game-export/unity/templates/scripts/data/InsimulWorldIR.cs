@@ -202,6 +202,17 @@ namespace Insimul.Data
     [Serializable] public class ResourcesData
     {
         public ResourceDefData[] definitions;
+        public GatheringNodeData[] nodes;
+    }
+
+    [Serializable] public class GatheringNodeData
+    {
+        public string id;
+        public string resourceType;
+        public Vec3Data position;
+        public int maxAmount;
+        public float respawnTime;
+        public float scale;
     }
 
     [Serializable] public class ResourceDefData
