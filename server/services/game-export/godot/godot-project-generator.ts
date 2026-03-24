@@ -21,6 +21,45 @@ function sanitiseName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
 }
 
+// ─────────────────────────────────────────────
+// Conditional autoload injection
+// ─────────────────────────────────────────────
+
+/**
+ * Injects conditional autoload entries into project.godot content.
+ * Adds survival, resource, and crafting system autoloads based on the IR.
+ */
+function injectConditionalAutoloads(content: string, ir: WorldIR): string {
+  const extraAutoloads: string[] = [];
+  const genre = ir.meta.genreConfig;
+
+  if (ir.survival != null) {
+    extraAutoloads.push('SurvivalSystem="*res://scripts/systems/survival_system.gd"');
+  }
+  if (genre.features.crafting) {
+    extraAutoloads.push('CraftingSystem="*res://scripts/systems/crafting_system.gd"');
+  }
+  if (genre.features.resources) {
+    extraAutoloads.push('ResourceSystem="*res://scripts/systems/resource_system.gd"');
+  }
+
+  if (extraAutoloads.length === 0) return content;
+
+  // Insert after the last existing autoload line (before the next [section])
+  const autoloadSection = content.indexOf('[autoload]');
+  if (autoloadSection === -1) return content;
+
+  // Find the next section header after [autoload]
+  const nextSection = content.indexOf('\n[', autoloadSection + 1);
+  const insertPos = nextSection !== -1 ? nextSection : content.length;
+
+  return (
+    content.slice(0, insertPos) +
+    extraAutoloads.map(a => a + '\n').join('') +
+    content.slice(insertPos)
+  );
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -55,8 +94,13 @@ export function generateProjectFiles(ir: WorldIR): GeneratedFile[] {
     INSIMUL_VERSION:  ir.meta.insimulVersion,
   };
 
+  const projectGodot = injectConditionalAutoloads(
+    loadTemplate('project/project.godot', projectTokens),
+    ir,
+  );
+
   return [
-    { path: 'project.godot',            content: loadTemplate('project/project.godot', projectTokens) },
+    { path: 'project.godot',            content: projectGodot },
     { path: 'export_presets.cfg',       content: loadStaticTemplate('project/export_presets.cfg') },
     { path: 'default_bus_layout.tres',  content: loadStaticTemplate('project/default_bus_layout.tres') },
     { path: 'icon.svg',                 content: loadStaticTemplate('project/icon.svg') },

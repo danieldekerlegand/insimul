@@ -1,16 +1,25 @@
 /**
  * Godot Scene Generator
  *
- * Generates a main .tscn scene file in Godot's text-based scene format.
- * This creates the root scene with DirectionalLight3D, Camera3D,
- * Player, and all world generator nodes wired up.
+ * Generates .tscn scene files in Godot's text-based scene format.
+ * Creates the root scene with DirectionalLight3D, Camera3D,
+ * Player, all world generator nodes, and full UI hierarchy.
  *
- * Also generates a JSON scene descriptor for runtime data loading
- * (similar to the Unreal/Unity approach).
+ * Also generates a JSON scene descriptor for runtime data loading.
  */
 
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import type { GeneratedFile } from './godot-project-generator';
+
+// ─────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────
+
+interface ExtResource {
+  id: number;
+  path: string;
+  type: string;
+}
 
 // ─────────────────────────────────────────────
 // .tscn generation
@@ -20,8 +29,8 @@ function generateMainTscn(ir: WorldIR): string {
   const theme = ir.theme.visualTheme;
   const sp = ir.player.startPosition;
 
-  // Count external resources (scripts)
-  const extResources = [
+  // Build external resources list dynamically
+  const extResources: ExtResource[] = [
     { id: 1, path: 'res://scripts/core/game_manager.gd', type: 'Script' },
     { id: 2, path: 'res://scripts/characters/player_controller.gd', type: 'Script' },
     { id: 3, path: 'res://scripts/world/world_scale_manager.gd', type: 'Script' },
@@ -33,21 +42,29 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 9, path: 'res://scripts/world/water_generator.gd', type: 'Script' },
     { id: 10, path: 'res://scripts/world/terrain_generator.gd', type: 'Script' },
     { id: 11, path: 'res://scripts/ui/world_map.gd', type: 'Script' },
+    { id: 12, path: 'res://scripts/ui/inventory_ui.gd', type: 'Script' },
+    { id: 13, path: 'res://scripts/ui/quest_journal_ui.gd', type: 'Script' },
+    { id: 14, path: 'res://scripts/ui/game_menu.gd', type: 'Script' },
+    { id: 15, path: 'res://scripts/ui/dialogue_panel.gd', type: 'Script' },
+    { id: 16, path: 'res://scripts/ui/quest_tracker_ui.gd', type: 'Script' },
+    { id: 17, path: 'res://scripts/ui/chat_panel.gd', type: 'Script' },
   ];
 
   const showMinimap = ir.ui?.showMinimap ?? false;
   if (showMinimap) {
-    extResources.push({ id: 12, path: 'res://scripts/ui/minimap.gd', type: 'Script' });
+    extResources.push({ id: 18, path: 'res://scripts/ui/minimap.gd', type: 'Script' });
   }
 
-  let tscn = `[gd_scene load_steps=${extResources.length + 3} format=3]\n\n`;
+  // Sub-resources: CapsuleMesh, CapsuleShape3D, Environment = 3
+  const subResourceCount = 3;
+  let tscn = `[gd_scene load_steps=${extResources.length + subResourceCount} format=3]\n\n`;
 
   // External resources
   for (const res of extResources) {
     tscn += `[ext_resource type="${res.type}" path="${res.path}" id="${res.id}"]\n`;
   }
 
-  // Sub-resources (capsule mesh for player, collision shape)
+  // Sub-resources (capsule mesh for player, collision shape, environment)
   tscn += `\n[sub_resource type="CapsuleMesh" id="sub_1"]\n`;
   tscn += `\n[sub_resource type="CapsuleShape3D" id="sub_2"]\n`;
   tscn += `\n[sub_resource type="Environment" id="sub_3"]\n`;
@@ -102,7 +119,6 @@ function generateMainTscn(ir: WorldIR): string {
   tscn += `\n[node name="NatureGenerator" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("6")\n`;
 
-  // Water generator
   tscn += `\n[node name="WaterGenerator" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("9")\n`;
 
@@ -110,16 +126,23 @@ function generateMainTscn(ir: WorldIR): string {
   tscn += `\n[node name="NPCSpawner" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("7")\n`;
 
-  // HUD
+  // ─── UI Layer ───────────────────────────────
+
+  // HUD (always-visible overlay)
   tscn += `\n[node name="HUD" type="CanvasLayer" parent="."]\n`;
   tscn += `script = ExtResource("8")\n`;
 
-  // World map (full-screen overlay, toggled with M key)
-  tscn += `\n[node name="WorldMap" type="CanvasLayer" parent="."]\n`;
-  tscn += `process_mode = 3\n`;
-  tscn += `script = ExtResource("11")\n`;
+  // Quest tracker (child of HUD, always visible)
+  tscn += `\n[node name="QuestTracker" type="Control" parent="HUD"]\n`;
+  tscn += `anchors_preset = 1\n`;
+  tscn += `anchor_left = 1.0\n`;
+  tscn += `anchor_right = 1.0\n`;
+  tscn += `offset_left = -300.0\n`;
+  tscn += `offset_bottom = 200.0\n`;
+  tscn += `grow_horizontal = 0\n`;
+  tscn += `script = ExtResource("16")\n`;
 
-  // Minimap (conditional)
+  // Minimap (conditional, child of HUD)
   if (showMinimap) {
     tscn += `\n[node name="Minimap" type="Control" parent="HUD"]\n`;
     tscn += `anchors_preset = 15\n`;
@@ -127,8 +150,97 @@ function generateMainTscn(ir: WorldIR): string {
     tscn += `anchor_bottom = 1.0\n`;
     tscn += `grow_horizontal = 2\n`;
     tscn += `grow_vertical = 2\n`;
-    tscn += `script = ExtResource("12")\n`;
+    tscn += `script = ExtResource("18")\n`;
   }
+
+  // World map (full-screen overlay, toggled with M key, pauses game)
+  tscn += `\n[node name="WorldMap" type="CanvasLayer" parent="."]\n`;
+  tscn += `layer = 10\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `visible = false\n`;
+  tscn += `script = ExtResource("11")\n`;
+
+  // Inventory UI (full-screen panel, toggled with Tab key, hidden by default)
+  tscn += `\n[node name="InventoryUI" type="CanvasLayer" parent="."]\n`;
+  tscn += `layer = 10\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `visible = false\n`;
+
+  tscn += `\n[node name="Panel" type="PanelContainer" parent="InventoryUI"]\n`;
+  tscn += `anchors_preset = 15\n`;
+  tscn += `anchor_right = 1.0\n`;
+  tscn += `anchor_bottom = 1.0\n`;
+  tscn += `grow_horizontal = 2\n`;
+  tscn += `grow_vertical = 2\n`;
+  tscn += `script = ExtResource("12")\n`;
+
+  // Quest journal (full-screen overlay, toggled with J key, hidden by default)
+  tscn += `\n[node name="QuestJournal" type="CanvasLayer" parent="."]\n`;
+  tscn += `layer = 10\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `visible = false\n`;
+  tscn += `script = ExtResource("13")\n`;
+
+  // Game menu (Esc overlay, hidden by default)
+  tscn += `\n[node name="GameMenu" type="CanvasLayer" parent="."]\n`;
+  tscn += `layer = 20\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `visible = false\n`;
+  tscn += `script = ExtResource("14")\n`;
+
+  tscn += `\n[node name="MenuPanel" type="PanelContainer" parent="GameMenu"]\n`;
+  tscn += `anchors_preset = 8\n`;
+  tscn += `anchor_left = 0.5\n`;
+  tscn += `anchor_top = 0.5\n`;
+  tscn += `anchor_right = 0.5\n`;
+  tscn += `anchor_bottom = 0.5\n`;
+  tscn += `offset_left = -200.0\n`;
+  tscn += `offset_top = -150.0\n`;
+  tscn += `offset_right = 200.0\n`;
+  tscn += `offset_bottom = 150.0\n`;
+  tscn += `visible = false\n`;
+
+  tscn += `\n[node name="VBoxContainer" type="VBoxContainer" parent="GameMenu/MenuPanel"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `theme_override_constants/separation = 12\n`;
+
+  tscn += `\n[node name="ResumeButton" type="Button" parent="GameMenu/MenuPanel/VBoxContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `text = "Resume"\n`;
+
+  tscn += `\n[node name="SettingsButton" type="Button" parent="GameMenu/MenuPanel/VBoxContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `text = "Settings"\n`;
+
+  tscn += `\n[node name="QuitButton" type="Button" parent="GameMenu/MenuPanel/VBoxContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `text = "Quit to Menu"\n`;
+
+  // Dialogue panel (bottom-of-screen dialogue, hidden by default)
+  tscn += `\n[node name="DialoguePanel" type="CanvasLayer" parent="."]\n`;
+  tscn += `layer = 15\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `visible = false\n`;
+  tscn += `script = ExtResource("15")\n`;
+
+  // Chat panel (NPC chat, hidden by default)
+  tscn += `\n[node name="ChatPanel" type="CanvasLayer" parent="."]\n`;
+  tscn += `layer = 15\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `visible = false\n`;
+
+  tscn += `\n[node name="Panel" type="PanelContainer" parent="ChatPanel"]\n`;
+  tscn += `anchors_preset = 7\n`;
+  tscn += `anchor_left = 0.5\n`;
+  tscn += `anchor_top = 1.0\n`;
+  tscn += `anchor_right = 0.5\n`;
+  tscn += `anchor_bottom = 1.0\n`;
+  tscn += `offset_left = -300.0\n`;
+  tscn += `offset_top = -250.0\n`;
+  tscn += `offset_right = 300.0\n`;
+  tscn += `grow_horizontal = 2\n`;
+  tscn += `grow_vertical = 0\n`;
+  tscn += `script = ExtResource("17")\n`;
 
   return tscn;
 }
@@ -145,8 +257,8 @@ function generateMainMenuTscn(ir: WorldIR): string {
     { id: 1, path: 'res://scripts/ui/main_menu.gd', type: 'Script' },
   ];
 
-  // Sub-resources: theme overrides for styling
-  const subResourceCount = 2; // font size for title + button panel stylebox
+  // Sub-resources: font size for title + button panel stylebox
+  const subResourceCount = 2;
   const loadSteps = extResources.length + subResourceCount;
 
   let tscn = `[gd_scene load_steps=${loadSteps} format=3]\n\n`;
