@@ -18,6 +18,7 @@ var current_state: NPCState = NPCState.IDLE
 
 var _patrol_timer := 0.0
 var _patrol_interval := 5.0
+var _anim_controller: Node = null
 
 func init_from_data(data: Dictionary) -> void:
 	character_id = data.get("characterId", "")
@@ -29,7 +30,14 @@ func init_from_data(data: Dictionary) -> void:
 	settlement_id = data.get("settlementId", "")
 	quest_ids.assign(data.get("questIds", []))
 	global_position = home_position
+	_anim_controller = _find_anim_controller()
 	print("[Insimul] NPC %s initialized at %s (role: %s)" % [character_id, home_position, role])
+
+func _find_anim_controller() -> Node:
+	for child in get_children():
+		if child.has_method("set_speed"):
+			return child
+	return null
 
 func _physics_process(delta: float) -> void:
 	match current_state:
@@ -47,6 +55,8 @@ func _physics_process(delta: float) -> void:
 			pass
 
 func _update_idle(delta: float) -> void:
+	if _anim_controller:
+		_anim_controller.set_speed(0.0)
 	_patrol_timer += delta
 	if _patrol_timer >= _patrol_interval:
 		_patrol_timer = 0.0
@@ -70,13 +80,19 @@ func _update_patrol(_delta: float) -> void:
 	var next_pos := nav_agent.get_next_path_position()
 	var direction := (next_pos - global_position).normalized()
 	velocity = direction * 2.0
+	if _anim_controller:
+		_anim_controller.set_speed(velocity.length())
 	move_and_slide()
 
 func start_dialogue(initiator: Node3D) -> void:
 	current_state = NPCState.TALKING
 	velocity = Vector3.ZERO
 	look_at(initiator.global_position, Vector3.UP)
+	if _anim_controller:
+		_anim_controller.set_talking(true)
 	print("[Insimul] NPC %s starting dialogue" % character_id)
 
 func end_dialogue() -> void:
+	if _anim_controller:
+		_anim_controller.set_talking(false)
 	current_state = NPCState.IDLE

@@ -16,6 +16,8 @@ var max_health: float
 var energy: float
 var gold: int
 
+var _anim_controller: Node = null
+
 @onready var camera_pivot: Node3D = $CameraPivot if has_node("CameraPivot") else null
 
 func _ready() -> void:
@@ -24,9 +26,17 @@ func _ready() -> void:
 	energy = initial_energy
 	gold = initial_gold
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	_anim_controller = _find_anim_controller()
+
+func _find_anim_controller() -> Node:
+	for child in get_children():
+		if child.has_method("set_speed"):
+			return child
+	return null
 
 func _physics_process(delta: float) -> void:
 	# Gravity
+	var was_on_floor := is_on_floor()
 	if not is_on_floor():
 		velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * gravity_mult * delta
 
@@ -51,6 +61,12 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	# Animation
+	if _anim_controller:
+		var horizontal_speed := Vector2(velocity.x, velocity.z).length()
+		_anim_controller.set_speed(horizontal_speed)
+		_anim_controller.set_grounded(is_on_floor())
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("attack"):
 		_on_attack()
@@ -60,9 +76,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED)
 
 func _on_attack() -> void:
-	# TODO: Trigger combat system
+	if _anim_controller:
+		_anim_controller.trigger_attack()
 	print("[Insimul] Player Attack")
 
 func _on_interact() -> void:
-	# TODO: Raycast for interactable objects
+	if _anim_controller:
+		_anim_controller.trigger_interact()
 	print("[Insimul] Player Interact")
