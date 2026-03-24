@@ -221,10 +221,10 @@ describe('Godot scene generator - minimap', () => {
     const ir = makeMinimalIR();
     const files = generateSceneFiles(ir);
     const tscn = files.find(f => f.path === 'scenes/main.tscn')!;
-    // minimap.gd is ext resource id 10
-    expect(tscn.content).toContain('script = ExtResource("10")');
+    // minimap.gd is ext resource id 18 (after all other UI scripts)
+    expect(tscn.content).toContain('path="res://scripts/ui/minimap.gd" id="18"');
     // And it's the Minimap node that uses it
     const minimapSection = tscn.content.split('[node name="Minimap"')[1];
-    expect(minimapSection).toContain('ExtResource("10")');
+    expect(minimapSection).toContain('ExtResource("18")');
   });
 });

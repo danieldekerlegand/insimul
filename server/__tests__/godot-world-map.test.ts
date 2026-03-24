@@ -338,7 +338,7 @@ describe('Godot scene generator - world map', () => {
     const files = generateSceneFiles(ir);
     const tscnFile = files.find(f => f.path === 'scenes/main.tscn')!;
 
-    // 10 ext resources + 3 sub resources = 13
-    expect(tscnFile.content).toContain('load_steps=13');
+    // 18 ext resources (including minimap) + 3 sub resources = 21
+    expect(tscnFile.content).toContain('load_steps=21');
   });
 });
