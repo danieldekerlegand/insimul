@@ -101,10 +101,42 @@ export interface GeographyIR {
   slopeMap?: number[][];
   /** Terrain features (mountains, valleys, canyons, etc.) */
   terrainFeatures: TerrainFeatureIR[];
+  /** Landscape biome zones derived from heightmap sampling */
+  biomeZones: BiomeZoneIR[];
   countries: CountryIR[];
   states: StateIR[];
   settlements: SettlementIR[];
   waterFeatures: WaterFeatureIR[];
+}
+
+export interface BiomeZoneIR {
+  /** Zone key: "biome:elevation:moisture" */
+  id: string;
+  biome: string;
+  elevationZone: string;
+  moistureLevel: string;
+  /** Number of heightmap cells that fall into this zone */
+  cellCount: number;
+  /** Fraction of total terrain area this zone covers [0,1] */
+  coverageFraction: number;
+  /** Average normalised elevation of cells in this zone */
+  averageElevation: number;
+  /** Average normalised moisture of cells in this zone */
+  averageMoisture: number;
+  /** Plant species available in this zone */
+  species: BiomeZoneSpeciesIR[];
+}
+
+export interface BiomeZoneSpeciesIR {
+  id: string;
+  name: string;
+  category: 'tree' | 'shrub' | 'groundcover' | 'flower' | 'grass';
+  /** Relative density weight (higher = more common) */
+  density: number;
+  /** Min/max scale multiplier for visual variety */
+  scaleRange: [number, number];
+  /** Tree type hint for biome style system */
+  treeType?: string;
 }
 
 export interface TerrainFeatureIR {

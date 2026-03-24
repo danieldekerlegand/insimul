@@ -320,6 +320,20 @@ function generateLootTables(ir: WorldIR): object[] {
   }));
 }
 
+function generateBiomeZones(ir: WorldIR): object[] {
+  return ir.geography.biomeZones.map(z => ({
+    id: z.id,
+    biome: z.biome,
+    elevationZone: z.elevationZone,
+    moistureLevel: z.moistureLevel,
+    cellCount: z.cellCount,
+    coverageFraction: z.coverageFraction,
+    averageElevation: z.averageElevation,
+    averageMoisture: z.averageMoisture,
+    species: z.species,
+  }));
+}
+
 function generateAnimations(ir: WorldIR): object[] {
   return ir.assets.animations.map(a => ({
     name: a.name,
@@ -365,6 +379,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'truths', data: generateTruths(ir) },
     { name: 'items', data: generateItems(ir) },
     { name: 'loot_tables', data: generateLootTables(ir) },
+    { name: 'biome_zones', data: generateBiomeZones(ir) },
     { name: 'animations', data: generateAnimations(ir) },
   ];
 
