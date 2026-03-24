@@ -445,6 +445,14 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Survival config
+  if (ir.survival) {
+    files.push({
+      path: `${base}/survival.json`,
+      content: JSON.stringify(ir.survival, null, 2),
+    });
+  }
+
   // Prolog knowledge base
   if (ir.systems.knowledgeBase) {
     files.push({
