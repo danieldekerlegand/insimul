@@ -4,6 +4,27 @@ using UnityEngine;
 namespace Insimul.Data
 {
     [Serializable]
+    public class ScheduleBlockData
+    {
+        public float startHour;
+        public float endHour;
+        public string activity;
+        public string buildingId;
+        public int priority;
+    }
+
+    [Serializable]
+    public class NPCScheduleData
+    {
+        public string homeBuildingId;
+        public string workBuildingId;
+        public string[] friendBuildingIds;
+        public ScheduleBlockData[] blocks;
+        public float wakeHour;
+        public float bedtimeHour;
+    }
+
+    [Serializable]
     public class InsimulNPCData
     {
         public string characterId;
@@ -14,6 +35,7 @@ namespace Insimul.Data
         public string settlementId;
         public string[] questIds;
         public string greeting;
+        public NPCScheduleData schedule;
     }
 
     [Serializable]

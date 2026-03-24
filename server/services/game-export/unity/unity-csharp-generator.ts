@@ -44,6 +44,7 @@ function genCoreClasses(): GeneratedFile[] {
   return [
     { path: `${base}/InsimulGameManager.cs`, content: loadStaticTemplate('scripts/core/InsimulGameManager.cs') },
     { path: `${base}/InsimulDataLoader.cs`,  content: loadStaticTemplate('scripts/core/InsimulDataLoader.cs') },
+    { path: `${base}/GameClock.cs`,          content: loadStaticTemplate('scripts/core/GameClock.cs') },
   ];
 }
 
