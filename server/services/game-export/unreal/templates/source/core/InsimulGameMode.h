@@ -8,6 +8,7 @@ class UStaticMesh;
 class UMaterial;
 class AInsimulMeshActor;
 class ANPCCharacter;
+class AProceduralTerrainGenerator;
 
 UCLASS()
 class INSIMULEXPORT_API AInsimulGameMode : public AGameModeBase
@@ -53,6 +54,7 @@ private:
     UPROPERTY() UStaticMesh* CylinderMesh;
     UPROPERTY() UMaterial* BaseMaterial;
     UPROPERTY() UTexture2D* GroundTexture;
+    UPROPERTY() AProceduralTerrainGenerator* TerrainGenerator;
 
     FVector WorldCenter = FVector::ZeroVector;
 };

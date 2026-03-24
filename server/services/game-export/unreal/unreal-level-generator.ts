@@ -39,6 +39,8 @@ interface LevelDescriptor {
 
 interface TerrainDesc {
   sizeUnreal: number; // cm
+  heightmapResolution: number; // grid dimension (e.g. 128)
+  elevationScale: number; // heightmap [0,1] * this = world meters
   groundColorLinear: [number, number, number];
   material: string | null;
   heightmap: number[][] | null;
@@ -119,6 +121,8 @@ function buildLevelDescriptor(ir: WorldIR): LevelDescriptor {
 
     terrain: {
       sizeUnreal: ir.geography.terrainSize * 100,
+      heightmapResolution: ir.geography.heightmap?.length ?? 0,
+      elevationScale: 20, // heightmap [0,1] * 20 = world meters
       groundColorLinear: [v.groundColor.r, v.groundColor.g, v.groundColor.b],
       material: null,
       heightmap: ir.geography.heightmap ?? null,

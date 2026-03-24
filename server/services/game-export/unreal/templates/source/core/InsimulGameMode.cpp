@@ -4,6 +4,7 @@
 #include "InsimulPlayerController.h"
 #include "../Characters/PlayerCharacter.h"
 #include "../Characters/NPCCharacter.h"
+#include "../World/ProceduralTerrainGenerator.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -294,57 +295,85 @@ void AInsimulGameMode::SetupLighting()
 
 void AInsimulGameMode::GenerateTerrain()
 {
-    // Centre ground plane at WorldCenter so it covers all buildings
-    float HalfSize = 200000.f; // 2 km radius
-    FVector GroundPos = FVector(WorldCenter.X, WorldCenter.Y, -50.f);
+    // Load LevelDescriptor.json to get terrain data with heightmap
+    FString LevelPath = FPaths::ProjectContentDir() / TEXT("Data/LevelDescriptor.json");
+    FString LevelJson;
+    TSharedPtr<FJsonObject> LevelObj;
 
-    FActorSpawnParameters Params;
-    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-    AInsimulMeshActor* Ground = GetWorld()->SpawnActor<AInsimulMeshActor>(
-        AInsimulMeshActor::StaticClass(), GroundPos, FRotator::ZeroRotator, Params);
-
-    if (!Ground)
+    bool bHasHeightmap = false;
+    if (FFileHelper::LoadFileToString(LevelJson, *LevelPath))
     {
-        UE_LOG(LogTemp, Error, TEXT("[Insimul] FAILED to spawn ground plane!"));
-        return;
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(LevelJson);
+        if (FJsonSerializer::Deserialize(Reader, LevelObj) && LevelObj.IsValid())
+        {
+            const TSharedPtr<FJsonObject>* TerrainPtr;
+            if (LevelObj->TryGetObjectField(TEXT("terrain"), TerrainPtr))
+            {
+                const TArray<TSharedPtr<FJsonValue>>* HmArr;
+                if ((*TerrainPtr)->TryGetArrayField(TEXT("heightmap"), HmArr) && HmArr->Num() > 0)
+                {
+                    bHasHeightmap = true;
+                }
+            }
+        }
     }
 
-    Ground->MeshComponent->SetStaticMesh(CubeMesh);
-    Ground->SetActorScale3D(FVector(HalfSize / 50.f, HalfSize / 50.f, 0.5f));
-    Ground->MeshComponent->SetVisibility(true);
-    Ground->MeshComponent->SetHiddenInGame(false);
-
-    // Apply ground texture if available
-    if (GroundTexture && BaseMaterial)
+    if (bHasHeightmap)
     {
-        UMaterialInstanceDynamic* GroundMat = UMaterialInstanceDynamic::Create(BaseMaterial, Ground);
-        if (GroundMat)
+        // Spawn ProceduralTerrainGenerator and build mesh from heightmap
+        FActorSpawnParameters Params;
+        Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        TerrainGenerator = GetWorld()->SpawnActor<AProceduralTerrainGenerator>(
+            AProceduralTerrainGenerator::StaticClass(),
+            FVector(WorldCenter.X, WorldCenter.Y, 0.f),
+            FRotator::ZeroRotator, Params);
+
+        if (TerrainGenerator)
         {
-            GroundMat->SetTextureParameterValue(TEXT("Texture"), GroundTexture);
-            GroundMat->SetVectorParameterValue(TEXT("Color"), FLinearColor::White); // Use white to show texture
-            Ground->MeshComponent->SetMaterial(0, GroundMat);
-            UE_LOG(LogTemp, Warning, TEXT("[Insimul] Ground plane with texture at %s — OK"), *GroundPos.ToString());
+            const TSharedPtr<FJsonObject>* TerrainPtr;
+            LevelObj->TryGetObjectField(TEXT("terrain"), TerrainPtr);
+            TerrainGenerator->GenerateFromJson(*TerrainPtr);
+            UE_LOG(LogTemp, Warning, TEXT("[Insimul] Terrain generated from heightmap at %s"),
+                *WorldCenter.ToString());
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("[Insimul] Failed to create ground material"));
+            UE_LOG(LogTemp, Error, TEXT("[Insimul] FAILED to spawn ProceduralTerrainGenerator!"));
         }
     }
     else
     {
-        // Fallback to solid color
-        if (BaseMaterial)
+        // Fallback: flat ground plane when no heightmap is available
+        float HalfSize = 200000.f;
+        FVector GroundPos = FVector(WorldCenter.X, WorldCenter.Y, -50.f);
+
+        FActorSpawnParameters Params;
+        Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        AInsimulMeshActor* Ground = GetWorld()->SpawnActor<AInsimulMeshActor>(
+            AInsimulMeshActor::StaticClass(), GroundPos, FRotator::ZeroRotator, Params);
+
+        if (Ground)
         {
-            UMaterialInstanceDynamic* GroundMat = UMaterialInstanceDynamic::Create(BaseMaterial, Ground);
-            if (GroundMat)
+            Ground->MeshComponent->SetStaticMesh(CubeMesh);
+            Ground->SetActorScale3D(FVector(HalfSize / 50.f, HalfSize / 50.f, 0.5f));
+            Ground->MeshComponent->SetVisibility(true);
+            Ground->MeshComponent->SetHiddenInGame(false);
+
+            if (BaseMaterial)
             {
-                GroundMat->SetVectorParameterValue(TEXT("Color"),
-                    FLinearColor({{GROUND_COLOR_R}}, {{GROUND_COLOR_G}}, {{GROUND_COLOR_B}}));
-                Ground->MeshComponent->SetMaterial(0, GroundMat);
+                UMaterialInstanceDynamic* GroundMat = UMaterialInstanceDynamic::Create(BaseMaterial, Ground);
+                if (GroundMat)
+                {
+                    GroundMat->SetVectorParameterValue(TEXT("Color"),
+                        FLinearColor({{GROUND_COLOR_R}}, {{GROUND_COLOR_G}}, {{GROUND_COLOR_B}}));
+                    Ground->MeshComponent->SetMaterial(0, GroundMat);
+                }
             }
+            UE_LOG(LogTemp, Warning, TEXT("[Insimul] Flat ground plane at %s — no heightmap available"),
+                *GroundPos.ToString());
         }
-        UE_LOG(LogTemp, Warning, TEXT("[Insimul] Ground plane (no texture) at %s — OK"), *GroundPos.ToString());
     }
 }
 
