@@ -2,55 +2,55 @@
   "tasks": [
     {
       "title": "Create Electron main process AI service module with node-llama-cpp",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "Create the core AI service that runs in Electron's main process. (1) Create electron/ai-service.js that exports initAIService(app). (2) On startup, read dist/data/ai_config.json to check if apiMode === 'local'. (3) When local, load node-llama-cpp with the bundled GGUF model (default path: ai/models/phi-4-mini-q4.gguf relative to app root). (4) GPU auto-detection: attempt Metal (macOS) or CUDA (Linux/Windows), fall back to CPU. (5) Model loads once at startup, stays in memory for the session. (6) Register IPC handlers: ai:generate (single completion with system prompt, temperature, maxTokens), ai:generate-stream (token-by-token streaming via webContents.send events), ai:status (returns { loaded, modelName, gpuLayers, gpuType }). (7) Implement concurrent request queuing — node-llama-cpp is single-threaded per model, so serialize requests with a simple FIFO queue. (8) If model loading fails, log the error and set aiAvailable = false (game continues without AI). (9) Call initAIService(app) from electron/main.js during app.whenReady(). (10) Add node-llama-cpp to package.json dependencies in the export project generator. (11) Use electron-rebuild or prebuild binaries to match Electron's Node.js version."
     },
     {
       "title": "Integrate Piper TTS into Electron AI service",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "Add text-to-speech to the Electron AI service using Piper. (1) In electron/ai-service.js, load Piper voice models from ai/models/voices/ directory. (2) Register ai:tts IPC handler that accepts { text, voice, speed } and returns ArrayBuffer (WAV or MP3). (3) Map voice names (Kore, Charon, Aoede, Puck) to Piper voice model files. (4) Support gender selection (male/female/neutral) via voice model selection. (5) Target latency: audio ready within ~500ms for a typical NPC sentence. (6) Reuse logic from server/services/ai/providers/local/piper-tts-provider.ts — adapt for Electron main process context. (7) Graceful failure: return null if Piper is not available, caller falls back to text-only. (8) Bundle piper-tts or onnxruntime-node as a dependency."
     },
     {
       "title": "Integrate Whisper STT into Electron AI service",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "Add speech-to-text to the Electron AI service using whisper.cpp. (1) In electron/ai-service.js, load Whisper model from ai/models/whisper-base.bin (or path from ai_config.json). (2) Register ai:stt IPC handler that accepts ArrayBuffer (WebM/WAV audio) and returns { text, language }. (3) Convert input audio to 16kHz WAV internally if needed (use ffmpeg-static or a lightweight audio converter). (4) Support language hint (BCP-47 codes) matching existing STT interface. (5) Auto-language detection when no hint provided. (6) Target latency: transcription within ~2 seconds for a typical player utterance. (7) Reuse logic from server/services/ai/providers/local/whisper-stt-provider.ts. (8) Graceful failure: return empty string if Whisper is not available."
     },
     {
       "title": "Create Electron preload bridge for AI capabilities",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "Expose AI capabilities to the renderer process securely via contextBridge. (1) In electron/preload.js, add to the existing contextBridge.exposeInMainWorld('electronAPI', ...): aiAvailable (boolean, resolved after model load via ipcRenderer.invoke('ai:status')), aiGenerate(prompt, options) wrapping ipcRenderer.invoke('ai:generate', ...), aiGenerateStream(prompt, options, onChunk) using ipcRenderer.on('ai:stream-token') for callbacks + ipcRenderer.invoke('ai:generate-stream') to start, aiTTS(text, voice, speed) wrapping ipcRenderer.invoke('ai:tts'), aiSTT(audioBuffer, languageHint) wrapping ipcRenderer.invoke('ai:stt'), aiStatus() wrapping ipcRenderer.invoke('ai:status'). (2) For streaming: register a listener on 'ai:stream-token' channel that calls the onChunk callback, and clean up the listener when the stream completes. (3) All IPC calls use contextBridge — no nodeIntegration. (4) Update the electron preload template in server/services/game-export/babylon/templates/electron-preload.js."
     },
     {
       "title": "Create renderer-side LocalAIClient abstraction",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "Create a client-side module that abstracts local AI calls so game code doesn't need Electron IPC details. (1) Create client/src/components/3DGame/LocalAIClient.ts with: static isAvailable() that checks window.electronAPI?.aiAvailable === true, generate(prompt, systemPrompt?, options?) that calls window.electronAPI.aiGenerate, generateStream(prompt, systemPrompt?, options?, onToken?) that calls window.electronAPI.aiGenerateStream, textToSpeech(text, voice?) that returns AudioBuffer or Blob, speechToText(audioBlob) that converts Blob to ArrayBuffer and calls window.electronAPI.aiSTT. (2) If not in Electron or AI not available, all methods throw a clear error. (3) generate() is a convenience wrapper that accumulates tokens from generateStream(). (4) textToSpeech() converts the returned ArrayBuffer to a format compatible with StreamingAudioPlayer. (5) The export game-file-copier should include this file automatically (it's in the 3DGame directory)."
     },
     {
       "title": "Wire ConversationClient to use LocalAIClient for player-NPC chat",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "Modify ConversationClient to route through local AI when available instead of HTTP SSE. (1) In client/src/components/3DGame/ConversationClient.ts, accept optional localAI parameter in constructor. (2) In sendText(): when local AI available, build system prompt from NPC personality/context (character data, dialogue context, language learning goals) and call localAI.generateStream() with onToken mapped to the existing onTextChunk callback. (3) On completion, call localAI.textToSpeech() and emit onAudioChunk. (4) In sendAudio(): when local AI available, call localAI.speechToText() first, then route transcribed text through sendText() logic. (5) State transitions (thinking → speaking → idle) must match the existing HTTP SSE flow. (6) onComplete callback fires with full accumulated text. (7) Preserve existing HTTP SSE path as fallback when localAI is null/unavailable. (8) In BabylonGame.ts where ConversationClient is created, pass LocalAIClient instance if available."
     },
     {
       "title": "Wire NPC-NPC ambient conversations to LocalAIClient",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "Enable NPC-NPC ambient conversations using local AI. (1) In BabylonGame.ts, find the onStartConversation(npc1Id, npc2Id, topic) callback that currently fetches /api/.../npc-npc-conversation. (2) When LocalAIClient.isAvailable(), build a system prompt describing both NPCs: names, personality traits (Big Five), occupation, current location, relationship to each other, and the conversation topic. (3) Use a structured output prompt requesting JSON with 2-4 exchange pairs. (4) Call localAI.generate() with the system prompt. (5) Parse the LLM response into ConversationResult shape: { exchanges: [{speaker, text}], relationshipDelta: {friendshipChange, trustChange, romanceSpark}, topic, languageUsed }. (6) Include the world's target language in the prompt so NPCs occasionally use vocabulary from the language being learned. (7) Fall back to null if local AI is not available or generation fails."
     },
     {
       "title": "Add AI loading status to game loading screen",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "Show AI loading progress during game startup. (1) In BabylonGame.init(), after engine initialization, check LocalAIClient.isAvailable(). (2) If available, add a loading step 'Loading AI model...' and query window.electronAPI.aiStatus() to get model name and GPU type. (3) Display status like 'AI: Phi-4-mini (Metal)' in the loading screen. (4) If AI not available after init, show a brief toast: 'AI: Offline — conversations unavailable'. (5) If AI loaded successfully, show brief toast: 'AI: Ready'. (6) Account for AI initialization in the loading progress bar (add it as one of the TOTAL_STEPS). (7) The AI service loads the model asynchronously in the main process, so the renderer should poll ai:status until loaded or failed."
     },
     {
       "title": "Verify AI model bundling in export pipeline",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "Ensure the export pipeline correctly bundles AI models when 'Local AI' is selected. (1) Verify that server/services/game-export/ai-bundler.ts is called when aiProvider === 'local' during Babylon.js Electron export. (2) Confirm GGUF model file (~2GB) is included in the export ZIP at ai/models/phi-4-mini-q4.gguf. (3) Confirm Piper voice model(s) (~50-100MB each) are at ai/models/voices/. (4) Confirm Whisper model (~150MB) is at ai/models/whisper-base.bin. (5) Verify ai_config.json has localModelPath pointing to the correct relative path. (6) Test that the Electron AI service can load all three models from the export directory structure. (7) Update the export dialog's size estimate when 'Local AI' is selected to show the additional ~2.5GB."
     }

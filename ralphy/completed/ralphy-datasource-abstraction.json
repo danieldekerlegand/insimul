@@ -2,73 +2,73 @@
   "tasks": [
     {
       "title": "Audit and catalog all direct fetch('/api/...') calls in 3DGame code",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "Find every direct API call in client/src/components/3DGame/ that bypasses the DataSource interface. There are approximately 59 fetch calls across ~40 unique endpoints in 9 files. (1) Grep all files in client/src/components/3DGame/*.ts for fetch(`/api/ patterns. (2) For each call, document: the file and line number, the HTTP method (GET/POST/PATCH), the endpoint path, what data it sends, what response it expects, whether it's critical (blocks game) or non-critical (enhances experience). (3) Group them into categories: world data loading, quest management, playthrough management, NPC interactions, inventory/trading, combat, assessments, language progress, asset loading. (4) Create a markdown report at docs/DATASOURCE_AUDIT.md listing all calls. (5) Identify which calls are already handled by the DataSource interface (loadWorld, loadCharacters, etc.) and which are NOT. (6) Also check TextureManager.ts, LanguageProgressTracker.ts, ConversationClient.ts, and any other files that make API calls."
     },
     {
       "title": "Extend DataSource interface with quest management methods",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "Add quest-related methods to the DataSource interface and implement them in both ApiDataSource and FileDataSource. Endpoints to cover: (1) GET /api/worlds/:worldId/quests — already exists as loadQuests(), verify. (2) PATCH /api/worlds/:worldId/quests/:questId — updateQuest(questId, data): save quest progress. For FileDataSource, persist to localStorage via LocalGameState. (3) POST /api/worlds/:worldId/quests/:questId/complete — completeQuest(questId): mark quest complete. For FileDataSource, update local state. (4) GET /api/worlds/:worldId/quests/npc-guidance/:npcId — getNpcQuestGuidance(npcId): get quest hints for an NPC. For FileDataSource, return guidance from quest objectives matching the NPC. (5) GET /api/worlds/:worldId/main-quest/:playerId — getMainQuestJournal(playerId): get main quest state. For FileDataSource, build from local quest data (already partially implemented). (6) POST /api/worlds/:worldId/main-quest/:playerId/try-unlock — tryUnlockMainQuest(playerId, cefrLevel). For FileDataSource, check CEFR level against quest requirements locally. (7) POST /api/worlds/:worldId/main-quest/:playerId/record-completion — recordMainQuestCompletion(playerId, questType). For FileDataSource, update local progress."
     },
     {
       "title": "Extend DataSource interface with playthrough management methods",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "Add playthrough lifecycle methods. (1) GET /api/worlds/:worldId/playthroughs — listPlaythroughs(worldId): already exists, verify. (2) POST /api/worlds/:worldId/playthroughs/start — startPlaythrough(worldId, name): create new playthrough. For FileDataSource, create in localStorage. (3) GET /api/playthroughs/:id — getPlaythrough(id): load playthrough data. For FileDataSource, read from localStorage. (4) PATCH /api/playthroughs/:id — updatePlaythrough(id, data): save playthrough state. For FileDataSource, persist to localStorage. (5) POST /api/playthroughs/:id/mark-initialized — markPlaythroughInitialized(id). For FileDataSource, set flag in localStorage. (6) GET /api/playthroughs/:id/relationships — getRelationships(playthroughId). For FileDataSource, return from localStorage or empty array. (7) GET /api/playthroughs/:id/reputations — getReputations(playthroughId). For FileDataSource, return from localStorage or empty array."
     },
     {
       "title": "Extend DataSource interface with inventory and trading methods",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "Add inventory, trading, and container interaction methods. (1) GET /api/worlds/:worldId/inventory/player — getPlayerInventory(worldId). For FileDataSource, return from LocalGameState. (2) POST /api/worlds/:worldId/inventory/transfer — transferItem(worldId, { fromEntityId, toEntityId, itemId, quantity }). For FileDataSource, update LocalGameState. (3) GET /api/worlds/:worldId/merchants/:merchantId/inventory — getMerchantInventory(worldId, merchantId). For FileDataSource, return from buildings.json seller data. (4) GET /api/containers/:containerId — getContainerContents(containerId). For FileDataSource, return from LocalGameState or initial building data. (5) POST /api/containers/:containerId/transfer — transferContainerItem(containerId, transfer). For FileDataSource, update LocalGameState. (6) GET /api/worlds/:worldId/items — getWorldItems(worldId): already exists as loadWorldItems(), verify."
     },
     {
       "title": "Extend DataSource interface with asset and texture resolution methods",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "Add asset resolution methods so TextureManager and ProceduralBuildingGenerator don't need direct API calls. (1) Add resolveAssetById(assetId: string): Promise<VisualAsset | null> to the DataSource interface. ApiDataSource: fetch('/api/assets/:id'). FileDataSource: look up in worldAssets list by id, or use assetIdToPath map. (2) Add resolveAssetUrl(assetId: string): string | null that returns a loadable URL/path without fetching full metadata. ApiDataSource: return '/api/assets/:id'. FileDataSource: return local file path from assetIdToPath. (3) Update TextureManager.loadTextureById to call dataSource.resolveAssetById instead of direct fetch. TextureManager needs a setDataSource(ds) method. (4) Update ProceduralBuildingGenerator.resolveTexture to use the TextureManager's updated method. (5) Remove all direct fetch('/api/assets/') calls from game code."
     },
     {
       "title": "Extend DataSource interface with language progress methods",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "Add language learning progress methods so LanguageProgressTracker doesn't need direct API calls. (1) Add loadLanguageProgress(playerId, worldId, playthroughId?): Promise<any> to DataSource. ApiDataSource: GET /api/language-progress/:playerId/:worldId. FileDataSource: return from localStorage. (2) Add saveLanguageProgress(data): Promise<void>. ApiDataSource: POST /api/language-progress/sync. FileDataSource: persist to localStorage. (3) Add getLanguageProfile(worldId, playerId): Promise<any>. ApiDataSource: GET /api/worlds/:worldId/players/:playerId/language-profile. FileDataSource: build from local progress data. (4) Add getLanguages(worldId): Promise<any[]>. ApiDataSource: GET /api/worlds/:worldId/languages. FileDataSource: return from geography data. (5) Update LanguageProgressTracker to accept DataSource and use these methods instead of direct fetch. (6) Remove all direct fetch('/api/language-progress/') calls."
     },
     {
       "title": "Extend DataSource interface with NPC conversation and assessment methods",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "Add conversation and assessment methods. (1) Add startNpcNpcConversation(worldId, npc1Id, npc2Id, topic): Promise<ConversationResult | null>. ApiDataSource: POST /api/worlds/:worldId/npc-npc-conversation. FileDataSource: return null (or delegate to LocalAIClient when available). (2) Add submitAssessmentPhase(sessionId, phaseId, data): Promise<any>. ApiDataSource: POST /api/assessments/:sessionId/phases/:phaseId. FileDataSource: store locally. (3) Add completeAssessment(sessionId): Promise<any>. ApiDataSource: POST /api/assessments/:sessionId/complete. FileDataSource: store locally. (4) Add getCharacterById(characterId): Promise<any>. ApiDataSource: GET /api/characters/:characterId. FileDataSource: look up in loaded characters array. Already partially implemented — verify. (5) Update BabylonGame.ts to use these methods instead of direct fetch calls."
     },
     {
       "title": "Migrate BabylonGame.ts to use DataSource for all API calls",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "Replace all remaining direct fetch('/api/...') calls in BabylonGame.ts with DataSource method calls. (1) Replace fetch('/api/worlds/${worldId}/3d-config') with dataSource.loadConfig3D() — already done. (2) Replace fetch('/api/worlds/${worldId}/portfolio/...') with dataSource.getPortfolio() or remove. (3) Replace fetch('/api/worlds/${worldId}/main-quest/...') with dataSource quest methods. (4) Replace fetch('/api/worlds/${worldId}/npc-npc-conversation') with dataSource.startNpcNpcConversation(). (5) Replace fetch('/api/playthroughs/...') calls with dataSource playthrough methods. (6) Replace fetch('/api/worlds/${worldId}/inventory/transfer') with dataSource.transferItem(). (7) Replace fetch('/api/containers/...') with dataSource container methods. (8) Replace fetch('/api/rules/base') with dataSource.loadBaseRules(). (9) Replace fetch('/api/actions/base') with dataSource.loadBaseActions(). (10) Replace fetch('/api/prolog/tau/export/...') with dataSource method or remove. (11) Verify zero direct fetch('/api/') calls remain in BabylonGame.ts."
     },
     {
       "title": "Migrate TextureManager and ProceduralBuildingGenerator to use DataSource",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "Remove direct API calls from texture and building systems. (1) TextureManager.ts: replace fetch('/api/assets/${assetId}') in loadTextureById with dataSource.resolveAssetById(). Add setDataSource(ds) method. BabylonGame passes the dataSource when creating TextureManager. (2) ProceduralBuildingGenerator.ts: its resolveTexture() calls textureManager.loadTextureById() which is already updated — verify the chain works. (3) Check if there are any other direct fetch calls in ProceduralBuildingGenerator.ts, BuildingInteriorGenerator.ts, or FurnitureModelLoader.ts. (4) Verify that in export mode, all texture/model resolution goes through the DataSource → assetIdToPath mapping → local file path chain."
     },
     {
       "title": "Migrate LanguageProgressTracker and ConversationClient to use DataSource",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "Remove direct API calls from language and conversation systems. (1) LanguageProgressTracker.ts: replace loadFromServer() fetch with dataSource.loadLanguageProgress(). Replace sync endpoint with dataSource.saveLanguageProgress(). Accept DataSource in constructor or via setter. (2) ConversationClient.ts: its sendText/sendAudio already go through HTTP SSE for in-app — keep that path but add LocalAIClient support (handled by the AI bridge task list). For the DataSource refactor, ensure the ConversationClient doesn't make any OTHER direct API calls. (3) BabylonChatPanel.ts: verify it only goes through ConversationClient, no direct fetch calls. (4) StreamingAudioPlayer.ts, LipSyncController.ts: verify no direct API calls."
     },
     {
       "title": "Add FileDataSource localStorage persistence for game state",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "The FileDataSource's LocalGameState needs to handle all runtime mutations that the server normally handles. (1) Quest progress: when a quest is completed or objectives updated, persist to localStorage keyed by worldId + playthroughId. (2) Inventory: player inventory changes (pickup, drop, buy, sell) persisted to localStorage. (3) Relationships: NPC relationship changes (friendship, trust) persisted. (4) Reputation: settlement reputation changes persisted. (5) Language progress: vocabulary learned, fluency scores persisted. (6) Playthrough state: current position, game time, active quests persisted. (7) Implement a save/load system: auto-save every 60 seconds + save on quit (beforeunload). (8) Implement save slots: allow multiple playthroughs with separate localStorage keys. (9) Show a save indicator in the UI when auto-saving."
     },
     {
       "title": "Remove all file:// protocol checks scattered throughout game code",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "After the DataSource abstraction is complete, remove all the ad-hoc file:// protocol checks we added as temporary fixes. (1) BabylonGame.ts: remove 'window.location?.protocol === file:' checks in fetchMainQuestJournalData, fetchPortfolioData, onStartConversation — these are now handled by the DataSource. (2) LanguageProgressTracker.ts: remove file:// check in loadFromServer — now goes through DataSource. (3) FurnitureModelLoader.ts: remove file:// check in loadAll — now handled by DataSource asset resolution. (4) TextureManager.ts: remove file:// check in loadTextureById — now uses DataSource.resolveAssetById. (5) DataSource.ts: the FileDataSource itself still needs to know it's offline, but all the consumers should be protocol-agnostic. (6) Verify the in-app game still works identically after removing the checks."
     }

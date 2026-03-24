@@ -618,6 +618,36 @@ namespace Insimul.Core
             return "[]";
         }
 
+        /// <summary>Simulate a rich conversation between two characters (no-op in exported mode).</summary>
+        public static string SimulateRichConversation(string worldId, string char1Id, string char2Id, int turnCount)
+        {
+            return null; // No AI server in exported mode
+        }
+
+        /// <summary>Text-to-speech synthesis (no-op in exported mode).</summary>
+        public static byte[] TextToSpeech(string text, string voice, string gender, string targetLanguage)
+        {
+            return null; // No TTS service in exported mode
+        }
+
+        /// <summary>Get player portfolio data (no-op in exported mode).</summary>
+        public static string GetPortfolio(string worldId, string playerName)
+        {
+            return null; // No server in exported mode
+        }
+
+        /// <summary>Load reading progress (no-op in exported mode).</summary>
+        public static string LoadReadingProgress(string playerId, string worldId, string playthroughId = null)
+        {
+            return null; // No server in exported mode
+        }
+
+        /// <summary>Sync reading progress (no-op in exported mode).</summary>
+        public static void SyncReadingProgress(string dataJSON)
+        {
+            // No-op in exported mode
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static T[] LoadFilteredArray<T>(string resourcePath, string settlementId) where T : class

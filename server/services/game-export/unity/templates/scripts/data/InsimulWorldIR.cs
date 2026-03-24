@@ -143,6 +143,10 @@ namespace Insimul.Data
     [Serializable] public class SurvivalData
     {
         public SurvivalNeedData[] needs;
+        public SurvivalDamageConfigData damageConfig;
+        public TemperatureConfigData temperatureConfig;
+        public StaminaConfigData staminaConfig;
+        public SurvivalModifierPresetData[] modifierPresets;
     }
 
     [Serializable] public class SurvivalNeedData
@@ -156,6 +160,42 @@ namespace Insimul.Data
         public float criticalThreshold;
         public float damageRate;
         public float warningThreshold;
+    }
+
+    [Serializable] public class SurvivalDamageConfigData
+    {
+        public bool enabled;
+        public string tickMode;
+        public float globalDamageMultiplier;
+    }
+
+    [Serializable] public class TemperatureConfigData
+    {
+        public bool environmentDriven;
+        public ComfortZoneData comfortZone;
+        public bool criticalAtBothExtremes;
+    }
+
+    [Serializable] public class ComfortZoneData
+    {
+        public float min;
+        public float max;
+    }
+
+    [Serializable] public class StaminaConfigData
+    {
+        public bool actionDriven;
+        public float recoveryRate;
+    }
+
+    [Serializable] public class SurvivalModifierPresetData
+    {
+        public string id;
+        public string name;
+        public string needType;
+        public float rateMultiplier;
+        public float duration;
+        public string source;
     }
 
     [Serializable] public class ResourcesData
