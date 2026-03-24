@@ -1059,6 +1059,7 @@ export interface MenuConfigIR {
   };
   pauseMenu: {
     buttons: MenuButtonIR[];
+    maxSaveSlots?: number;
   };
   settingsMenu: {
     categories: SettingsCategoryIR[];
