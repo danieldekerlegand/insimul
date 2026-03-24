@@ -152,7 +152,7 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
 }
 
 // ─────────────────────────────────────────────
-// UI scripts (fully static)
+// UI scripts
 // ─────────────────────────────────────────────
 
 function genUIScripts(ir: WorldIR): GeneratedFile[] {
@@ -167,15 +167,21 @@ function genUIScripts(ir: WorldIR): GeneratedFile[] {
     ROAD_COLOR_B:   theme.roadColor.b,
   };
 
+  const menuTitle = ir.ui?.menuConfig?.mainMenu?.title || ir.meta.worldName;
+  const mainMenuTokens: TokenMap = {
+    GAME_TITLE: menuTitle,
+  };
+
   const files: GeneratedFile[] = [
-    { path: 'scripts/ui/hud.gd',              content: loadStaticTemplate('scripts/ui/hud.gd') },
-    { path: 'scripts/ui/quest_tracker_ui.gd',  content: loadStaticTemplate('scripts/ui/quest_tracker_ui.gd') },
-    { path: 'scripts/ui/quest_journal_ui.gd',  content: loadStaticTemplate('scripts/ui/quest_journal_ui.gd') },
-    { path: 'scripts/ui/game_menu.gd',         content: loadStaticTemplate('scripts/ui/game_menu.gd') },
-    { path: 'scripts/ui/chat_panel.gd',        content: loadStaticTemplate('scripts/ui/chat_panel.gd') },
-    { path: 'scripts/ui/inventory_ui.gd',      content: loadStaticTemplate('scripts/ui/inventory_ui.gd') },
-    { path: 'scripts/ui/dialogue_panel.gd',    content: loadStaticTemplate('scripts/ui/dialogue_panel.gd') },
-    { path: 'scripts/ui/world_map.gd',         content: loadTemplate('scripts/ui/world_map.gd', worldMapTokens) },
+    { path: 'scripts/ui/main_menu.gd',         content: loadTemplate('scripts/ui/main_menu.gd', mainMenuTokens) },
+    { path: 'scripts/ui/hud.gd',               content: loadStaticTemplate('scripts/ui/hud.gd') },
+    { path: 'scripts/ui/quest_tracker_ui.gd',   content: loadStaticTemplate('scripts/ui/quest_tracker_ui.gd') },
+    { path: 'scripts/ui/quest_journal_ui.gd',   content: loadStaticTemplate('scripts/ui/quest_journal_ui.gd') },
+    { path: 'scripts/ui/game_menu.gd',          content: loadStaticTemplate('scripts/ui/game_menu.gd') },
+    { path: 'scripts/ui/chat_panel.gd',         content: loadStaticTemplate('scripts/ui/chat_panel.gd') },
+    { path: 'scripts/ui/inventory_ui.gd',       content: loadStaticTemplate('scripts/ui/inventory_ui.gd') },
+    { path: 'scripts/ui/dialogue_panel.gd',     content: loadStaticTemplate('scripts/ui/dialogue_panel.gd') },
+    { path: 'scripts/ui/world_map.gd',          content: loadTemplate('scripts/ui/world_map.gd', worldMapTokens) },
   ];
 
   if (ir.ui?.showMinimap) {

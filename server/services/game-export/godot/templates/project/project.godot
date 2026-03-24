@@ -5,7 +5,7 @@
 
 config/name="InsimulExport_{{WORLD_SAFE_NAME}}"
 config/description="{{WORLD_NAME}} — {{WORLD_TYPE}} world"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
 config/icon="res://icon.svg"
 
