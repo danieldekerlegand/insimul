@@ -6,6 +6,7 @@
  * - Core classes (GameMode, GameInstance, PlayerController)
  * - Character classes (Player, NPC)
  * - Game systems (Action, Combat, Quest, Inventory, Crafting, Resource, Survival, Dialogue, Rule)
+ * - UI classes (HUD widget with health, energy, gold, survival bars, compass)
  * - World generators (Building, Nature, Road, Dungeon, WorldScale)
  */
 
@@ -60,13 +61,21 @@ function genCoreClasses(ir: WorldIR): GeneratedFile[] {
     ROAD_COLOR_B:   cppFloat(theme.roadColor.b),
   };
 
+  const controllerTokens: TokenMap = {
+    PLAYER_MAX_ENERGY:  ir.player.initialEnergy,
+    SHOW_HEALTH_BAR:    ir.ui.showHealthBar ? 'true' : 'false',
+    SHOW_STAMINA_BAR:   ir.ui.showStaminaBar ? 'true' : 'false',
+    SHOW_COMPASS:       ir.ui.showCompass ? 'true' : 'false',
+    HAS_SURVIVAL:       ir.survival ? 'true' : 'false',
+  };
+
   return [
     { path: `${base}/InsimulGameInstance.h`,        content: loadStaticTemplate('source/core/InsimulGameInstance.h') },
     { path: `${base}/InsimulGameInstance.cpp`,      content: loadStaticTemplate('source/core/InsimulGameInstance.cpp') },
     { path: `${base}/InsimulMeshActor.h`,           content: loadStaticTemplate('source/core/InsimulMeshActor.h') },
     { path: `${base}/InsimulMeshActor.cpp`,         content: loadStaticTemplate('source/core/InsimulMeshActor.cpp') },
     { path: `${base}/InsimulPlayerController.h`,    content: loadStaticTemplate('source/core/InsimulPlayerController.h') },
-    { path: `${base}/InsimulPlayerController.cpp`,  content: loadStaticTemplate('source/core/InsimulPlayerController.cpp') },
+    { path: `${base}/InsimulPlayerController.cpp`,  content: loadTemplate('source/core/InsimulPlayerController.cpp', controllerTokens) },
     { path: `${base}/CreateLevelCommandlet.h`,      content: loadStaticTemplate('source/core/CreateLevelCommandlet.h') },
     { path: `${base}/CreateLevelCommandlet.cpp`,    content: loadStaticTemplate('source/core/CreateLevelCommandlet.cpp') },
     { path: `${base}/InsimulGameMode.h`,            content: loadStaticTemplate('source/core/InsimulGameMode.h') },
@@ -338,6 +347,18 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 
 
 // ─────────────────────────────────────────────
+// UI Classes
+// ─────────────────────────────────────────────
+
+function genUIClasses(): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+  return [
+    { path: `${base}/InsimulHUDWidget.h`,   content: loadStaticTemplate('source/ui/InsimulHUDWidget.h') },
+    { path: `${base}/InsimulHUDWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulHUDWidget.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
 // Asset Setup Scripts
 // ─────────────────────────────────────────────
 
@@ -362,6 +383,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genSystemClasses(ir),
     ...genUIWidgets(ir),
     ...genServiceClasses(ir),
+    ...genUIClasses(),
     ...genWorldGenerators(ir),
     ...genAssetScripts(),
   ];
