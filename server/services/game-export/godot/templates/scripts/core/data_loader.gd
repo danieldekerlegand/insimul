@@ -235,6 +235,12 @@ func load_dialogue_contexts() -> Array:
 func load_resources() -> Array:
 	return _load_json_array("resources.json")
 
+func load_foliage_layers() -> Array:
+	return _load_json_array("foliage_layers.json")
+
+func load_biome_zones() -> Array:
+	return _load_json_array("biome_zones.json")
+
 # ── Single-entity loaders ──────────────────────────────────────
 
 ## Load a single character by id. Scans characters.json.
