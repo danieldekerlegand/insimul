@@ -10,7 +10,9 @@ var is_in_dialogue := false
 var current_npc_id := ""
 var player_energy: float = 100.0
 
-var _chat_panel = null
+signal audio_requested(npc_id: String, text: String)
+
+var _dialogue_panel = null
 var _ai_config: Dictionary = {}
 var _dialogue_contexts: Array = []
 var _social_actions: Array = []
@@ -19,7 +21,7 @@ func _ready() -> void:
 	_load_dialogue_data()
 	_load_social_actions()
 	call_deferred("_setup_ai_service")
-	call_deferred("_setup_chat_panel")
+	call_deferred("_setup_dialogue_panel")
 
 func _load_dialogue_data() -> void:
 	var config_file = FileAccess.open("res://data/ai_config.json", FileAccess.READ)
@@ -46,22 +48,24 @@ func _setup_ai_service() -> void:
 	if ai:
 		ai.initialize(_ai_config, _dialogue_contexts)
 
-func _setup_chat_panel() -> void:
+func _setup_dialogue_panel() -> void:
 	var root = get_tree().root
-	_chat_panel = _find_chat_panel(root)
-	if _chat_panel == null:
-		var ChatPanelScript = load("res://scripts/ui/chat_panel.gd")
-		if ChatPanelScript:
-			_chat_panel = PanelContainer.new()
-			_chat_panel.set_script(ChatPanelScript)
-			root.add_child(_chat_panel)
-			_chat_panel.chat_closed.connect(_on_chat_closed)
+	_dialogue_panel = _find_dialogue_panel(root)
+	if _dialogue_panel == null:
+		var PanelScript = load("res://scripts/ui/dialogue_panel.gd")
+		if PanelScript:
+			var panel_node = Node.new()
+			panel_node.set_script(PanelScript)
+			root.add_child(panel_node)
+			_dialogue_panel = panel_node
+	if _dialogue_panel:
+		_dialogue_panel.dialogue_closed.connect(_on_panel_closed)
 
-func _find_chat_panel(node: Node):
-	if node.has_method("open_chat"):
+func _find_dialogue_panel(node: Node):
+	if node.has_method("open_dialogue"):
 		return node
 	for child in node.get_children():
-		var result = _find_chat_panel(child)
+		var result = _find_dialogue_panel(child)
 		if result:
 			return result
 	return null
@@ -74,8 +78,11 @@ func start_dialogue(npc_character_id: String) -> void:
 	current_npc_id = npc_character_id
 	dialogue_started.emit(npc_character_id)
 
-	if _chat_panel and _chat_panel.has_method("open_chat"):
-		_chat_panel.open_chat(npc_character_id)
+	if _dialogue_panel and _dialogue_panel.has_method("open_dialogue"):
+		_dialogue_panel.open_dialogue(npc_character_id)
+		var actions := get_available_actions()
+		if actions.size() > 0:
+			_dialogue_panel.show_responses(actions)
 
 	print("[Insimul] Dialogue started with NPC: %s" % npc_character_id)
 
@@ -85,12 +92,12 @@ func end_dialogue() -> void:
 	current_npc_id = ""
 	dialogue_ended.emit()
 
-	if _chat_panel and _chat_panel.has_method("close_chat"):
-		_chat_panel.close_chat()
+	if _dialogue_panel and _dialogue_panel.has_method("close_dialogue"):
+		_dialogue_panel.close_dialogue()
 
 	print("[Insimul] Dialogue ended with NPC: %s" % npc_id)
 
-func _on_chat_closed() -> void:
+func _on_panel_closed() -> void:
 	if is_in_dialogue:
 		end_dialogue()
 
