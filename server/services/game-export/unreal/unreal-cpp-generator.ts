@@ -377,7 +377,19 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 // UI Classes (HUD + Main Menu)
 // ─────────────────────────────────────────────
 
-function genMainMenuClasses(ir: WorldIR): GeneratedFile[] {
+function genHUDWidgets(): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+  return [
+    { path: `${base}/InsimulHUDWidget.h`,   content: loadStaticTemplate('source/ui/InsimulHUDWidget.h') },
+    { path: `${base}/InsimulHUDWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulHUDWidget.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
+// UI Classes (Main Menu)
+// ─────────────────────────────────────────────
+
+function genMenuClasses(ir: WorldIR): GeneratedFile[] {
   const base = `Source/${M}/UI`;
   const menu = ir.ui?.menuConfig;
   const title = menu?.mainMenu?.title ?? ir.meta.worldName;
@@ -389,8 +401,6 @@ function genMainMenuClasses(ir: WorldIR): GeneratedFile[] {
   };
 
   return [
-    { path: `${base}/InsimulHUDWidget.h`,   content: loadStaticTemplate('source/ui/InsimulHUDWidget.h') },
-    { path: `${base}/InsimulHUDWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulHUDWidget.cpp') },
     { path: `${base}/InsimulMainMenuWidget.h`,      content: loadStaticTemplate('source/ui/InsimulMainMenuWidget.h') },
     { path: `${base}/InsimulMainMenuWidget.cpp`,    content: loadStaticTemplate('source/ui/InsimulMainMenuWidget.cpp') },
     { path: `${base}/InsimulMainMenuGameMode.h`,    content: loadTemplate('source/ui/InsimulMainMenuGameMode.h', gameModeTokens) },
@@ -423,9 +433,9 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genSystemClasses(ir),
     ...genUIWidgets(ir),
     ...genServiceClasses(ir),
-    ...genUIClasses(ir),
+    ...genHUDWidgets(),
     ...genWorldGenerators(ir),
-    ...genMainMenuClasses(ir),
+    ...genMenuClasses(ir),
     ...genAssetScripts(),
   ];
 }

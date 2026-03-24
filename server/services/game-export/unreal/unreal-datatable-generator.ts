@@ -421,6 +421,43 @@ function generateLootTablesDT(ir: WorldIR): object[] {
   }));
 }
 
+// ─────────────────────────────────────────────
+// Survival Needs DataTable
+// ─────────────────────────────────────────────
+
+function generateSurvivalNeedsDT(ir: WorldIR): object[] {
+  if (!ir.survival) return [];
+  return ir.survival.needs.map(n => ({
+    Name: n.id,
+    NeedId: n.id,
+    NeedName: n.name,
+    Icon: n.icon,
+    MaxValue: n.maxValue,
+    StartValue: n.startValue,
+    DecayRate: n.decayRate,
+    CriticalThreshold: n.criticalThreshold,
+    WarningThreshold: n.warningThreshold,
+    DamageRate: n.damageRate,
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Survival Modifier Presets DataTable
+// ─────────────────────────────────────────────
+
+function generateSurvivalModifierPresetsDT(ir: WorldIR): object[] {
+  if (!ir.survival) return [];
+  return ir.survival.modifierPresets.map(m => ({
+    Name: m.id,
+    PresetId: m.id,
+    PresetName: m.name,
+    NeedType: m.needType,
+    RateMultiplier: m.rateMultiplier,
+    Duration: m.duration,
+    Source: m.source,
+  }));
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -453,6 +490,8 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_Businesses', data: generateBusinessesDT(ir) },
     { name: 'DT_Items', data: generateItemsDT(ir) },
     { name: 'DT_LootTables', data: generateLootTablesDT(ir) },
+    { name: 'DT_SurvivalNeeds', data: generateSurvivalNeedsDT(ir) },
+    { name: 'DT_SurvivalModifierPresets', data: generateSurvivalModifierPresetsDT(ir) },
   ];
 
   for (const table of tables) {
