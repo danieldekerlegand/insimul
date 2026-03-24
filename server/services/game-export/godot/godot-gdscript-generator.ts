@@ -156,6 +156,17 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
 // ─────────────────────────────────────────────
 
 function genUIScripts(ir: WorldIR): GeneratedFile[] {
+  const theme = ir.theme.visualTheme;
+  const worldMapTokens: TokenMap = {
+    TERRAIN_SIZE:   ir.geography.terrainSize,
+    GROUND_COLOR_R: theme.groundColor.r,
+    GROUND_COLOR_G: theme.groundColor.g,
+    GROUND_COLOR_B: theme.groundColor.b,
+    ROAD_COLOR_R:   theme.roadColor.r,
+    ROAD_COLOR_G:   theme.roadColor.g,
+    ROAD_COLOR_B:   theme.roadColor.b,
+  };
+
   const files: GeneratedFile[] = [
     { path: 'scripts/ui/hud.gd',              content: loadStaticTemplate('scripts/ui/hud.gd') },
     { path: 'scripts/ui/quest_tracker_ui.gd',  content: loadStaticTemplate('scripts/ui/quest_tracker_ui.gd') },
@@ -164,6 +175,7 @@ function genUIScripts(ir: WorldIR): GeneratedFile[] {
     { path: 'scripts/ui/chat_panel.gd',        content: loadStaticTemplate('scripts/ui/chat_panel.gd') },
     { path: 'scripts/ui/inventory_ui.gd',      content: loadStaticTemplate('scripts/ui/inventory_ui.gd') },
     { path: 'scripts/ui/dialogue_panel.gd',    content: loadStaticTemplate('scripts/ui/dialogue_panel.gd') },
+    { path: 'scripts/ui/world_map.gd',         content: loadTemplate('scripts/ui/world_map.gd', worldMapTokens) },
   ];
 
   if (ir.ui?.showMinimap) {

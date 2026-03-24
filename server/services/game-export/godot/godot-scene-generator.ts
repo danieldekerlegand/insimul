@@ -32,11 +32,12 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 8, path: 'res://scripts/ui/hud.gd', type: 'Script' },
     { id: 9, path: 'res://scripts/world/water_generator.gd', type: 'Script' },
     { id: 10, path: 'res://scripts/world/terrain_generator.gd', type: 'Script' },
+    { id: 11, path: 'res://scripts/ui/world_map.gd', type: 'Script' },
   ];
 
   const showMinimap = ir.ui?.showMinimap ?? false;
   if (showMinimap) {
-    extResources.push({ id: 10, path: 'res://scripts/ui/minimap.gd', type: 'Script' });
+    extResources.push({ id: 12, path: 'res://scripts/ui/minimap.gd', type: 'Script' });
   }
 
   let tscn = `[gd_scene load_steps=${extResources.length + 3} format=3]\n\n`;
@@ -113,6 +114,11 @@ function generateMainTscn(ir: WorldIR): string {
   tscn += `\n[node name="HUD" type="CanvasLayer" parent="."]\n`;
   tscn += `script = ExtResource("8")\n`;
 
+  // World map (full-screen overlay, toggled with M key)
+  tscn += `\n[node name="WorldMap" type="CanvasLayer" parent="."]\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `script = ExtResource("11")\n`;
+
   // Minimap (conditional)
   if (showMinimap) {
     tscn += `\n[node name="Minimap" type="Control" parent="HUD"]\n`;
@@ -121,7 +127,7 @@ function generateMainTscn(ir: WorldIR): string {
     tscn += `anchor_bottom = 1.0\n`;
     tscn += `grow_horizontal = 2\n`;
     tscn += `grow_vertical = 2\n`;
-    tscn += `script = ExtResource("10")\n`;
+    tscn += `script = ExtResource("12")\n`;
   }
 
   return tscn;
