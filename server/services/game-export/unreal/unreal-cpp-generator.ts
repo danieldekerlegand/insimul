@@ -99,6 +99,8 @@ function genCharacterClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/PlayerCharacter.cpp`, content: loadTemplate('source/characters/PlayerCharacter.cpp', playerCppTokens) },
     { path: `${base}/NPCCharacter.h`,      content: loadStaticTemplate('source/characters/NPCCharacter.h') },
     { path: `${base}/NPCCharacter.cpp`,    content: loadStaticTemplate('source/characters/NPCCharacter.cpp') },
+    { path: `${base}/InsimulAnimInstance.h`,   content: loadStaticTemplate('source/characters/InsimulAnimInstance.h') },
+    { path: `${base}/InsimulAnimInstance.cpp`, content: loadStaticTemplate('source/characters/InsimulAnimInstance.cpp') },
   ];
 }
 
