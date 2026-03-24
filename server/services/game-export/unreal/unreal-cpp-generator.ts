@@ -6,6 +6,7 @@
  * - Core classes (GameMode, GameInstance, PlayerController)
  * - Character classes (Player, NPC)
  * - Game systems (Action, Combat, Quest, Inventory, Crafting, Resource, Survival, Dialogue, Rule)
+ * - UI widgets (QuestJournal)
  * - World generators (Building, Nature, Road, Dungeon, WorldScale)
  */
 
@@ -312,6 +313,26 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 }
 
 // ─────────────────────────────────────────────
+// UI Widgets
+// ─────────────────────────────────────────────
+
+function genUIWidgets(ir: WorldIR): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+  const journal = ir.ui.questJournal;
+
+  const journalTokens: TokenMap = {
+    MAX_TRACKED_QUESTS: journal?.maxTrackedQuests ?? 3,
+    SHOW_QUEST_MARKERS: journal?.showQuestMarkers ? 'true' : 'false',
+    AUTO_TRACK_NEW: journal?.autoTrackNew ? 'true' : 'false',
+  };
+
+  return [
+    { path: `${base}/QuestJournalWidget.h`,   content: loadTemplate('source/ui/QuestJournalWidget.h', journalTokens) },
+    { path: `${base}/QuestJournalWidget.cpp`,  content: loadStaticTemplate('source/ui/QuestJournalWidget.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
 // Asset Setup Scripts
 // ─────────────────────────────────────────────
 
@@ -334,6 +355,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genCoreClasses(ir),
     ...genCharacterClasses(ir),
     ...genSystemClasses(ir),
+    ...genUIWidgets(ir),
     ...genServiceClasses(ir),
     ...genWorldGenerators(ir),
     ...genAssetScripts(),

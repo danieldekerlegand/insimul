@@ -1073,6 +1073,21 @@ export interface MenuConfigIR {
   };
 }
 
+export interface QuestJournalConfigIR {
+  /** Show the quest journal widget in the HUD */
+  enabled: boolean;
+  /** Maximum number of pinned/tracked quests shown in the HUD tracker */
+  maxTrackedQuests: number;
+  /** Show quest location markers on the minimap */
+  showQuestMarkers: boolean;
+  /** Auto-track newly accepted quests */
+  autoTrackNew: boolean;
+  /** Sort order for quest list: 'newest', 'oldest', 'difficulty', 'distance' */
+  sortOrder: 'newest' | 'oldest' | 'difficulty' | 'distance';
+  /** Category filters available in the journal */
+  categories: string[];
+}
+
 export interface UIIR {
   showMinimap: boolean;
   showHealthBar: boolean;
@@ -1081,6 +1096,7 @@ export interface UIIR {
   showCompass: boolean;
   genreLayout: string;
   menuConfig: MenuConfigIR;
+  questJournal: QuestJournalConfigIR;
 }
 
 // ─────────────────────────────────────────────

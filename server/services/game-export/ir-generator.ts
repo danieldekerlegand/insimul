@@ -2068,6 +2068,14 @@ export async function generateWorldIR(
       showCompass: genreConfig.showCompass,
       genreLayout: genreConfig.uiLayout,
       menuConfig: buildMenuConfig(world.name, genreConfig),
+      questJournal: {
+        enabled: true,
+        maxTrackedQuests: 3,
+        showQuestMarkers: genreConfig.showMinimap,
+        autoTrackNew: true,
+        sortOrder: 'newest',
+        categories: ['conversation', 'translation', 'vocabulary', 'grammar', 'cultural'],
+      },
     },
 
     combat: {
