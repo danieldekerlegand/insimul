@@ -205,6 +205,25 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
 }
 
 // ─────────────────────────────────────────────
+// UI Widgets
+// ─────────────────────────────────────────────
+
+function genUIWidgets(ir: WorldIR): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+
+  const minimapTokens: TokenMap = {
+    MINIMAP_SIZE: ir.ui?.showMinimap !== false ? 150 : 0,
+  };
+
+  return [
+    { path: `${base}/InsimulMinimap.h`,   content: loadTemplate('source/ui/InsimulMinimap.h', minimapTokens) },
+    { path: `${base}/InsimulMinimap.cpp`, content: loadStaticTemplate('source/ui/InsimulMinimap.cpp') },
+    { path: `${base}/InsimulHUD.h`,       content: loadStaticTemplate('source/ui/InsimulHUD.h') },
+    { path: `${base}/InsimulHUD.cpp`,     content: loadStaticTemplate('source/ui/InsimulHUD.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
 // Services
 // ─────────────────────────────────────────────
 
@@ -334,6 +353,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genCoreClasses(ir),
     ...genCharacterClasses(ir),
     ...genSystemClasses(ir),
+    ...genUIWidgets(ir),
     ...genServiceClasses(ir),
     ...genWorldGenerators(ir),
     ...genAssetScripts(),
