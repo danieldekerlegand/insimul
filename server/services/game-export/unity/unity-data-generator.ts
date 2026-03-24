@@ -298,6 +298,17 @@ function generateAnimations(ir: WorldIR): object[] {
   }));
 }
 
+function generateGatheringNodesData(ir: WorldIR): object[] {
+  return (ir.systems.resources?.gatheringNodes ?? []).map(n => ({
+    id: n.id,
+    resourceType: n.resourceType,
+    position: vec3(n.position),
+    maxAmount: n.maxAmount,
+    respawnTime: n.respawnTime,
+    scale: n.scale,
+  }));
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -329,6 +340,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'items', data: generateItems(ir) },
     { name: 'loot_tables', data: generateLootTables(ir) },
     { name: 'animations', data: generateAnimations(ir) },
+    { name: 'gathering_nodes', data: generateGatheringNodesData(ir) },
   ];
 
   for (const table of tables) {
