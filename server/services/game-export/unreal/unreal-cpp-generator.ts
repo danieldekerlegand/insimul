@@ -221,11 +221,19 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
 
 function genUIWidgets(ir: WorldIR): GeneratedFile[] {
   const base = `Source/${M}/UI`;
+  const minimapTokens: TokenMap = {
+    MINIMAP_SIZE: ir.ui?.showMinimap !== false ? 150 : 0,
+  };
+
   const files: GeneratedFile[] = [
     { path: `${base}/InsimulInventoryUI.h`,   content: loadStaticTemplate('source/ui/InsimulInventoryUI.h') },
     { path: `${base}/InsimulInventoryUI.cpp`, content: loadStaticTemplate('source/ui/InsimulInventoryUI.cpp') },
     { path: `${base}/DialogueWidget.h`,   content: loadStaticTemplate('source/ui/DialogueWidget.h') },
     { path: `${base}/DialogueWidget.cpp`, content: loadStaticTemplate('source/ui/DialogueWidget.cpp') },
+    { path: `${base}/InsimulMinimap.h`,   content: loadTemplate('source/ui/InsimulMinimap.h', minimapTokens) },
+    { path: `${base}/InsimulMinimap.cpp`, content: loadStaticTemplate('source/ui/InsimulMinimap.cpp') },
+    { path: `${base}/InsimulHUD.h`,       content: loadStaticTemplate('source/ui/InsimulHUD.h') },
+    { path: `${base}/InsimulHUD.cpp`,     content: loadStaticTemplate('source/ui/InsimulHUD.cpp') },
   ];
 
   // World map widget (always included when map screen is enabled or by default)
