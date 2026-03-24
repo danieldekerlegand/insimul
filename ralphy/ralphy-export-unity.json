@@ -50,19 +50,19 @@
     },
     {
       "title": "Create quest journal UI for Unity export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "QuestTrackerUI exists but is minimal HUD widget — no full journal. (1) Create unity/templates/scripts/ui/QuestJournalUI.cs. (2) Split: ScrollRect quest list left, details right. (3) Entries: name, completion bar, type icon (main=star, side=diamond). (4) Details: description, objectives with checkmarks, rewards, quest giver. (5) Tabs: Active, Completed, Failed, All. (6) Toggle J, pause. (7) Track button to set active tracked quest. (8) Connect to InsimulQuestSystem. Typecheck must pass."
     },
     {
       "title": "Create full-screen world map for Unity export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "MinimapUI exists but no full world map. Essential for open-world. (1) Create unity/templates/scripts/ui/WorldMapUI.cs. (2) Top-down 2D: RawImage with render texture or procedural drawing. (3) Settlement markers with name/population labels. (4) Road lines between settlements. (5) Quest markers: yellow exclamation (available), question (turn-in). (6) Player position as white arrow with facing. (7) Pan (click-drag) and zoom (scroll) with lerp. (8) Toggle M, pause. Typecheck must pass."
     },
     {
       "title": "Add NPC schedule-driven behavior to Unity NPCController",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "NPCs stand at spawn or patrol randomly. (1) In NPCController.cs, add schedule system reading from character data JSON. (2) Create GameClock.cs singleton: in-game time at 24x speed (20 min = 1 day), OnHourChanged event. (3) Each Update(), check hour vs schedule — set NavMeshAgent destination on change. (4) Walk between locations, don't teleport. (5) Idle at destination facing building entrance. (6) Fall back to patrol if building doesn't exist. (7) GameClock as MonoBehaviour singleton. (8) No-schedule NPCs use existing patrol. Typecheck must pass."
     },
