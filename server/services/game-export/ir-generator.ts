@@ -1612,6 +1612,10 @@ export async function generateWorldIR(
       ? { definitions: DEFAULT_RESOURCE_DEFS }
       : null,
 
+    assessment: null,
+
+    languageLearning: null,
+
     aiConfig,
   };
 

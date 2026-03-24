@@ -163,6 +163,22 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Assessment (if present)
+  if (ir.assessment) {
+    files.push({
+      path: 'public/data/assessment.json',
+      content: JSON.stringify(ir.assessment, null, 2),
+    });
+  }
+
+  // Language learning (if present)
+  if (ir.languageLearning) {
+    files.push({
+      path: 'public/data/language-learning.json',
+      content: JSON.stringify(ir.languageLearning, null, 2),
+    });
+  }
+
   // Grammars (for procedural text)
   if (ir.systems.grammars.length > 0) {
     files.push({

@@ -1128,3 +1128,118 @@ struct FStreetNetwork
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FStreetNode> Nodes;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FStreetSegment> Segments;
 };
+
+// ─── Assessment ─────────────────────────────────────────────────────────────
+
+/**
+ * Assessment question for pre/post/delayed testing.
+ * Mirrors AssessmentQuestionIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulAssessmentQuestion
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Text;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Type; // likert_5, likert_7, open_ended, multiple_choice, rating_scale
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Options;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ScaleAnchorLow;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ScaleAnchorHigh;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bReverseScored = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Subscale;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bRequired = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Difficulty;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetLanguage;
+};
+
+/**
+ * Assessment instrument subscale.
+ * Mirrors subscale entry from AssessmentInstrumentIR.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulAssessmentSubscale
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> QuestionIds;
+};
+
+/**
+ * Assessment instrument definition.
+ * Mirrors AssessmentInstrumentIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulAssessmentInstrument
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id; // actfl_opi, sus, ssq, ipq
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Version;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Citation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ScoringMethod; // mean, sum, weighted, custom
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulAssessmentSubscale> Subscales;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float ScoreMin = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float ScoreMax = 100.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 EstimatedMinutes = 5;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulAssessmentQuestion> Questions;
+};
+
+// ─── Language Learning ──────────────────────────────────────────────────────
+
+/**
+ * Vocabulary item for language learning.
+ * Mirrors VocabularyItemIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulVocabularyItem
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Word;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Translation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Category;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ProficiencyLevel; // novice, beginner, intermediate, advanced
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Pronunciation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AudioAssetKey;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExampleSentence;
+};
+
+/**
+ * Grammar pattern for language learning.
+ * Mirrors GrammarPatternIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulGrammarPattern
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Pattern;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Example;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExampleTranslation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ProficiencyLevel;
+};
+
+/**
+ * Proficiency tier for language learning progression.
+ * Mirrors ProficiencyTierIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulProficiencyTier
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Level; // novice, beginner, intermediate, advanced
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 XPThreshold = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> UnlockedCategories;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> UnlockedPatternIds;
+};

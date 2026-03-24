@@ -399,5 +399,21 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Assessment (if present)
+  if (ir.assessment) {
+    files.push({
+      path: `${base}/assessment.json`,
+      content: JSON.stringify(ir.assessment, null, 2),
+    });
+  }
+
+  // Language learning (if present)
+  if (ir.languageLearning) {
+    files.push({
+      path: `${base}/language_learning.json`,
+      content: JSON.stringify(ir.languageLearning, null, 2),
+    });
+  }
+
   return files;
 }
