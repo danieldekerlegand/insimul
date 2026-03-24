@@ -207,6 +207,18 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
 }
 
 // ─────────────────────────────────────────────
+// UI Widgets
+// ─────────────────────────────────────────────
+
+function genUIWidgets(): GeneratedFile[] {
+  const base = `Source/${M}/UI`;
+  return [
+    { path: `${base}/InsimulInventoryUI.h`,   content: loadStaticTemplate('source/ui/InsimulInventoryUI.h') },
+    { path: `${base}/InsimulInventoryUI.cpp`, content: loadStaticTemplate('source/ui/InsimulInventoryUI.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
 // Services
 // ─────────────────────────────────────────────
 
@@ -336,6 +348,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genCoreClasses(ir),
     ...genCharacterClasses(ir),
     ...genSystemClasses(ir),
+    ...genUIWidgets(),
     ...genServiceClasses(ir),
     ...genWorldGenerators(ir),
     ...genAssetScripts(),
