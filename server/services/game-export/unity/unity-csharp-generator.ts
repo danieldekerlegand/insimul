@@ -176,6 +176,7 @@ function genUIClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/MainMenuUI.cs`,      content: loadTemplate('scripts/ui/MainMenuUI.cs', menuTokens) },
     { path: `${base}/ChatPanel.cs`,       content: loadStaticTemplate('scripts/ui/ChatPanel.cs') },
     { path: `${base}/InventoryUI.cs`,    content: loadStaticTemplate('scripts/ui/InventoryUI.cs') },
+    { path: `${base}/QuestJournalUI.cs`, content: loadStaticTemplate('scripts/ui/QuestJournalUI.cs') },
   ];
 }
 

@@ -78,6 +78,7 @@ namespace Insimul.Systems
             if (quest == null || _activeQuestIds.Contains(questId)) return false;
             _activeQuestIds.Add(questId);
             Debug.Log($"[Insimul] Quest accepted: {quest.title}");
+            OnQuestAccepted?.Invoke(questId);
             return true;
         }
 
@@ -87,6 +88,7 @@ namespace Insimul.Systems
             _activeQuestIds.Remove(questId);
             _completedQuestIds.Add(questId);
             Debug.Log($"[Insimul] Quest completed: {questId}");
+            OnQuestCompleted?.Invoke(questId);
             return true;
         }
 
@@ -320,8 +322,20 @@ namespace Insimul.Systems
         }
 
         public InsimulQuestData GetQuest(string id) => _allQuests.Find(q => q.id == id);
+        public List<InsimulQuestData> GetAllQuests() => new List<InsimulQuestData>(_allQuests);
         public List<InsimulQuestData> GetActiveQuests() =>
             _allQuests.FindAll(q => _activeQuestIds.Contains(q.id));
+        public List<InsimulQuestData> GetCompletedQuests() =>
+            _allQuests.FindAll(q => _completedQuestIds.Contains(q.id));
+        public List<InsimulQuestData> GetAvailableQuests() =>
+            _allQuests.FindAll(q => !_activeQuestIds.Contains(q.id) && !_completedQuestIds.Contains(q.id));
+        public bool IsQuestActive(string id) => _activeQuestIds.Contains(id);
+        public bool IsQuestCompleted(string id) => _completedQuestIds.Contains(id);
+        public List<QuestObjective> GetObjectivesForQuest(string questId) =>
+            _objectives.FindAll(o => o.questId == questId);
+
+        public event Action<string> OnQuestAccepted;
+        public event Action<string> OnQuestCompleted;
 
         private Func<float, float, bool> _pointInBuildingCheck;
     }
