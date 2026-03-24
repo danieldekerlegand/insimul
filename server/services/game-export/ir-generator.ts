@@ -50,6 +50,7 @@ import type {
   NatureObjectIR,
   DungeonIR,
   QuestObjectIR,
+  AnimalIR,
   RuleIR,
   ActionIR,
   QuestIR,
@@ -294,6 +295,110 @@ function generateQuestObjects(
   }
 
   return questObjects;
+}
+
+// ─────────────────────────────────────────────
+// Animal population generation
+// ─────────────────────────────────────────────
+
+type AnimalSpecies = 'cat' | 'dog' | 'bird';
+
+interface SpeciesPreset {
+  species: AnimalSpecies;
+  color: Color3;
+  scale: number;
+  speed: number;
+  vocabularyWord: string;
+  vocabularyCategory: string;
+}
+
+const SPECIES_PRESETS: Record<AnimalSpecies, SpeciesPreset[]> = {
+  cat: [
+    { species: 'cat', color: { r: 0.2, g: 0.2, b: 0.2 }, scale: 1.0, speed: 1.2, vocabularyWord: 'cat', vocabularyCategory: 'animals' },
+    { species: 'cat', color: { r: 0.9, g: 0.5, b: 0.1 }, scale: 0.9, speed: 1.3, vocabularyWord: 'cat', vocabularyCategory: 'animals' },
+    { species: 'cat', color: { r: 0.95, g: 0.95, b: 0.9 }, scale: 1.1, speed: 1.1, vocabularyWord: 'cat', vocabularyCategory: 'animals' },
+    { species: 'cat', color: { r: 0.4, g: 0.35, b: 0.3 }, scale: 0.95, speed: 1.25, vocabularyWord: 'cat', vocabularyCategory: 'animals' },
+  ],
+  dog: [
+    { species: 'dog', color: { r: 0.55, g: 0.35, b: 0.15 }, scale: 1.0, speed: 1.8, vocabularyWord: 'dog', vocabularyCategory: 'animals' },
+    { species: 'dog', color: { r: 0.15, g: 0.15, b: 0.15 }, scale: 1.2, speed: 1.6, vocabularyWord: 'dog', vocabularyCategory: 'animals' },
+    { species: 'dog', color: { r: 0.9, g: 0.85, b: 0.7 }, scale: 0.8, speed: 2.0, vocabularyWord: 'dog', vocabularyCategory: 'animals' },
+    { species: 'dog', color: { r: 0.6, g: 0.3, b: 0.1 }, scale: 1.1, speed: 1.7, vocabularyWord: 'dog', vocabularyCategory: 'animals' },
+  ],
+  bird: [
+    { species: 'bird', color: { r: 0.8, g: 0.2, b: 0.2 }, scale: 1.0, speed: 2.5, vocabularyWord: 'bird', vocabularyCategory: 'animals' },
+    { species: 'bird', color: { r: 0.2, g: 0.4, b: 0.8 }, scale: 0.9, speed: 2.8, vocabularyWord: 'bird', vocabularyCategory: 'animals' },
+    { species: 'bird', color: { r: 0.3, g: 0.3, b: 0.3 }, scale: 1.1, speed: 2.3, vocabularyWord: 'bird', vocabularyCategory: 'animals' },
+    { species: 'bird', color: { r: 0.9, g: 0.8, b: 0.1 }, scale: 0.85, speed: 2.6, vocabularyWord: 'bird', vocabularyCategory: 'animals' },
+  ],
+};
+
+/** Determine animal counts for a settlement based on its population */
+export function getAnimalCounts(population: number): { cats: number; dogs: number; birds: number } {
+  if (population <= 0) return { cats: 0, dogs: 0, birds: 0 };
+  // Scale animals logarithmically with population: small towns get a few, cities get more
+  const base = Math.max(1, Math.floor(Math.log2(population)));
+  return {
+    cats: Math.min(base, 6),
+    dogs: Math.min(Math.max(1, base - 1), 5),
+    birds: Math.min(base + 1, 8),
+  };
+}
+
+/**
+ * Generate animal population for settlements.
+ * Animals are distributed around settlements, with counts scaling by population.
+ * Cats and dogs stay near buildings; birds can roam wider.
+ */
+export function generateAnimals(
+  settlementIRs: SettlementIR[],
+  seed: string,
+): AnimalIR[] {
+  const rand = createSeededRandom(`${seed}_animals`);
+  const animals: AnimalIR[] = [];
+
+  for (const settlement of settlementIRs) {
+    const counts = getAnimalCounts(settlement.population);
+    const cx = settlement.position.x;
+    const cz = settlement.position.z;
+    const r = settlement.radius;
+
+    const speciesList: { species: AnimalSpecies; count: number; wanderScale: number }[] = [
+      { species: 'cat', count: counts.cats, wanderScale: 0.6 },
+      { species: 'dog', count: counts.dogs, wanderScale: 0.7 },
+      { species: 'bird', count: counts.birds, wanderScale: 1.2 },
+    ];
+
+    for (const { species, count, wanderScale } of speciesList) {
+      const presets = SPECIES_PRESETS[species];
+      for (let i = 0; i < count; i++) {
+        const r01 = () => Math.abs(rand()); // ensure [0, 1) range
+        const preset = presets[Math.floor(r01() * presets.length) % presets.length];
+        // Place animals within settlement radius
+        const angle = r01() * Math.PI * 2;
+        const dist = r01() * r * 0.8; // Keep within 80% of radius
+        const x = cx + Math.cos(angle) * dist;
+        const z = cz + Math.sin(angle) * dist;
+        const wanderRadius = 5 + r01() * r * wanderScale * 0.3;
+
+        animals.push({
+          id: `animal_${settlement.id}_${species}_${i}`,
+          species,
+          position: { x, y: 0, z },
+          rotation: r01() * Math.PI * 2,
+          homePosition: { x, y: 0, z },
+          wanderRadius,
+          speed: preset.speed * (0.8 + r01() * 0.4), // ±20% speed variation
+          color: preset.color,
+          scale: preset.scale * (0.9 + r01() * 0.2), // ±10% scale variation
+          vocabularyWord: preset.vocabularyWord,
+          vocabularyCategory: preset.vocabularyCategory,
+        });
+      }
+    }
+  }
+
+  return animals;
 }
 
 function distributeInGrid(
@@ -1509,7 +1614,7 @@ export async function generateWorldIR(
       businesses: businessIRs,
       roads: allRoadIRs,
       natureObjects: [], // Populated by engine at runtime from biome data
-      animals: [],       // Populated by engine at runtime (ambient animal NPCs)
+      animals: generateAnimals(settlementIRs, seed),
       dungeons: [],      // Populated on demand per genre
       questObjects: generateQuestObjects(questIRs, allBuildingIRs, seed)
     },
