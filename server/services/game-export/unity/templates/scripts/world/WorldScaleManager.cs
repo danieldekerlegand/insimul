@@ -20,23 +20,17 @@ namespace Insimul.World
             RenderSettings.ambientSkyColor = skyColor;
             Camera.main.backgroundColor = skyColor;
 
-            // Generate flat terrain
-            GenerateTerrain();
+            // Generate terrain from heightmap or flat fallback
+            GenerateTerrain(worldData.geography.heightmap);
         }
 
-        private void GenerateTerrain()
+        private void GenerateTerrain(float[][] heightmap)
         {
-            var plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            plane.name = "Terrain";
-            plane.transform.localScale = new Vector3(terrainSize / 10f, 1f, terrainSize / 10f);
-            plane.transform.position = Vector3.zero;
+            var terrainGO = new GameObject("Terrain");
+            terrainGO.transform.position = Vector3.zero;
 
-            var renderer = plane.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material = new Material(Shader.Find("Standard"));
-                renderer.material.color = groundColor;
-            }
+            var meshGen = terrainGO.AddComponent<TerrainMeshGenerator>();
+            meshGen.GenerateFromHeightmap(heightmap, terrainSize, groundColor);
         }
 
         public const float SPAWN_CLEAR_RADIUS = 15f;

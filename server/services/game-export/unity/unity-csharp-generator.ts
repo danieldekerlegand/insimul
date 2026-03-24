@@ -148,6 +148,7 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
 
   return [
     { path: `${base}/WorldScaleManager.cs`,          content: loadTemplate('scripts/world/WorldScaleManager.cs', worldScaleTokens) },
+    { path: `${base}/TerrainMeshGenerator.cs`,       content: loadStaticTemplate('scripts/world/TerrainMeshGenerator.cs') },
     { path: `${base}/ProceduralBuildingGenerator.cs`, content: loadTemplate('scripts/world/ProceduralBuildingGenerator.cs', buildingTokens) },
     { path: `${base}/RoadGenerator.cs`,              content: loadTemplate('scripts/world/RoadGenerator.cs', roadTokens) },
     { path: `${base}/ProceduralNatureGenerator.cs`,  content: loadStaticTemplate('scripts/world/ProceduralNatureGenerator.cs') },
