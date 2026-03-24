@@ -68,6 +68,27 @@ static const TArray<FString> SCAVENGER_CATEGORIES = {
     TEXT("nature"), TEXT("body"), TEXT("professions"), TEXT("transportation"), TEXT("weather")
 };
 
+/**
+ * Lightweight quest summary for the journal widget.
+ */
+USTRUCT(BlueprintType)
+struct FQuestEntrySummary
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite) FString QuestId;
+    UPROPERTY(BlueprintReadWrite) FString Title;
+    UPROPERTY(BlueprintReadWrite) FString Description;
+    UPROPERTY(BlueprintReadWrite) FString QuestType;
+    UPROPERTY(BlueprintReadWrite) FString Difficulty;
+    UPROPERTY(BlueprintReadWrite) FString Status;
+    UPROPERTY(BlueprintReadWrite) FString AssignedBy;
+    UPROPERTY(BlueprintReadWrite) FString LocationName;
+    UPROPERTY(BlueprintReadWrite) int32 TotalObjectives = 0;
+    UPROPERTY(BlueprintReadWrite) int32 CompletedObjectives = 0;
+    UPROPERTY(BlueprintReadWrite) TArray<FString> Tags;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStoryTTS, const FString&, StoryText, const FString&, NpcId);
 
 /** Delegate to test whether a world-space XZ point falls inside a building footprint. */
@@ -202,6 +223,10 @@ public:
     /** Fired when a listening_comprehension objective starts and story should be spoken. */
     UPROPERTY(BlueprintAssignable, Category = "Quests")
     FOnStoryTTS OnStoryTTS;
+
+    /** Quest summaries for the journal widget. Populated during LoadFromIR. */
+    UPROPERTY(BlueprintReadOnly, Category = "Quests")
+    TArray<FQuestEntrySummary> QuestEntries;
 
 private:
     TArray<FQuestObjective> Objectives;

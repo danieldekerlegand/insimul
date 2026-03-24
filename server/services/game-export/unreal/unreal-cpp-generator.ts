@@ -6,7 +6,7 @@
  * - Core classes (GameMode, GameInstance, PlayerController)
  * - Character classes (Player, NPC)
  * - Game systems (Action, Combat, Quest, Inventory, Crafting, Resource, Survival, Dialogue, Rule)
- * - UI classes (HUD widget with health, energy, gold, survival bars, compass)
+ * - UI classes (HUD widget with health, energy, gold, survival bars, compass, quest journal)
  * - World generators (Building, Nature, Road, Dungeon, WorldScale)
  */
 
@@ -225,6 +225,13 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
     MINIMAP_SIZE: ir.ui?.showMinimap !== false ? 150 : 0,
   };
 
+  const journal = ir.ui.questJournal;
+  const journalTokens: TokenMap = {
+    MAX_TRACKED_QUESTS: journal?.maxTrackedQuests ?? 3,
+    SHOW_QUEST_MARKERS: journal?.showQuestMarkers ? 'true' : 'false',
+    AUTO_TRACK_NEW: journal?.autoTrackNew ? 'true' : 'false',
+  };
+
   const files: GeneratedFile[] = [
     { path: `${base}/InsimulInventoryUI.h`,   content: loadStaticTemplate('source/ui/InsimulInventoryUI.h') },
     { path: `${base}/InsimulInventoryUI.cpp`, content: loadStaticTemplate('source/ui/InsimulInventoryUI.cpp') },
@@ -234,6 +241,8 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/InsimulMinimap.cpp`, content: loadStaticTemplate('source/ui/InsimulMinimap.cpp') },
     { path: `${base}/InsimulHUD.h`,       content: loadStaticTemplate('source/ui/InsimulHUD.h') },
     { path: `${base}/InsimulHUD.cpp`,     content: loadStaticTemplate('source/ui/InsimulHUD.cpp') },
+    { path: `${base}/QuestJournalWidget.h`,   content: loadTemplate('source/ui/QuestJournalWidget.h', journalTokens) },
+    { path: `${base}/QuestJournalWidget.cpp`, content: loadStaticTemplate('source/ui/QuestJournalWidget.cpp') },
   ];
 
   // World map widget (always included when map screen is enabled or by default)
