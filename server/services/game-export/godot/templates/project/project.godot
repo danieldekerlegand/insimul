@@ -13,6 +13,7 @@ config/icon="res://icon.svg"
 
 GameManager="*res://scripts/core/game_manager.gd"
 DataLoader="*res://scripts/core/data_loader.gd"
+GameClock="*res://scripts/core/game_clock.gd"
 ActionSystem="*res://scripts/systems/action_system.gd"
 QuestSystem="*res://scripts/systems/quest_system.gd"
 CombatSystem="*res://scripts/systems/combat_system.gd"

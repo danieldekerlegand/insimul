@@ -20,6 +20,7 @@ function genCoreScripts(): GeneratedFile[] {
   return [
     { path: 'scripts/core/game_manager.gd', content: loadStaticTemplate('scripts/core/game_manager.gd') },
     { path: 'scripts/core/data_loader.gd',  content: loadStaticTemplate('scripts/core/data_loader.gd') },
+    { path: 'scripts/core/game_clock.gd',   content: loadStaticTemplate('scripts/core/game_clock.gd') },
   ];
 }
 
