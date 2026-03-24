@@ -195,7 +195,7 @@ function generateWaterFeatures(ir: WorldIR): object[] {
 }
 
 function generateFoliageLayers(ir: WorldIR): object[] {
-  return ir.geography.foliageLayers.map(l => ({
+  return (ir.geography.foliageLayers || []).map(l => ({
     type: l.type,
     biome: l.biome,
     settlement_id: l.settlementId,
@@ -345,7 +345,7 @@ function generateLootTables(ir: WorldIR): object[] {
 }
 
 function generateBiomeZones(ir: WorldIR): object[] {
-  return ir.geography.biomeZones.map(z => ({
+  return (ir.geography.biomeZones || []).map(z => ({
     id: z.id,
     biome: z.biome,
     elevationZone: z.elevationZone,
