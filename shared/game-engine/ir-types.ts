@@ -958,6 +958,45 @@ export interface PlayerIR {
 // UI
 // ─────────────────────────────────────────────
 
+export interface MenuButtonIR {
+  label: string;
+  action: string;
+  icon?: string;
+}
+
+export interface SettingsCategoryIR {
+  name: string;
+  settings: {
+    key: string;
+    label: string;
+    type: 'slider' | 'toggle' | 'dropdown';
+    default: string | number | boolean;
+    options?: string[];
+  }[];
+}
+
+export interface MenuConfigIR {
+  mainMenu: {
+    title: string;
+    backgroundImage?: string;
+    buttons: MenuButtonIR[];
+  };
+  pauseMenu: {
+    buttons: MenuButtonIR[];
+  };
+  settingsMenu: {
+    categories: SettingsCategoryIR[];
+  };
+  inventoryScreen: {
+    slots: number;
+    categories: string[];
+  };
+  mapScreen: {
+    enabled: boolean;
+    zoomLevels: number[];
+  };
+}
+
 export interface UIIR {
   showMinimap: boolean;
   showHealthBar: boolean;
@@ -965,6 +1004,7 @@ export interface UIIR {
   showAmmoCounter: boolean;
   showCompass: boolean;
   genreLayout: string;
+  menuConfig: MenuConfigIR;
 }
 
 // ─────────────────────────────────────────────
