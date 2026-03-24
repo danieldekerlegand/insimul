@@ -1072,6 +1072,12 @@ export interface MenuConfigIR {
     enabled: boolean;
     zoomLevels: number[];
   };
+  dialogueScreen: {
+    enabled: boolean;
+    showDisposition: boolean;
+    showRelationship: boolean;
+    showActions: boolean;
+  };
 }
 
 export interface QuestJournalConfigIR {
