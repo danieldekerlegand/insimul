@@ -263,6 +263,37 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
     files.push({ path: `${base}/InsimulWorldMap.cpp`, content: loadStaticTemplate('source/ui/InsimulWorldMap.cpp') });
   }
 
+  // Assessment widget (included when assessment instruments are configured)
+  if (ir.assessment && ir.assessment.instruments.length > 0) {
+    const phases = ir.assessment.phases ?? [];
+    const totalQuestions = ir.assessment.instruments.reduce(
+      (sum, inst) => sum + (inst.questions?.length ?? 0), 0
+    );
+    const assessmentTokens: TokenMap = {
+      INSTRUMENT_COUNT: ir.assessment.instruments.length,
+      TOTAL_QUESTION_COUNT: totalQuestions,
+      HAS_PRE_PHASE: phases.includes('pre') ? 'true' : 'false',
+      HAS_POST_PHASE: phases.includes('post') ? 'true' : 'false',
+      HAS_DELAYED_PHASE: phases.includes('delayed') ? 'true' : 'false',
+    };
+    files.push({ path: `${base}/InsimulAssessmentWidget.h`,   content: loadTemplate('source/ui/InsimulAssessmentWidget.h', assessmentTokens) });
+    files.push({ path: `${base}/InsimulAssessmentWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulAssessmentWidget.cpp') });
+  }
+
+  // Language quiz widget (included when language learning is configured)
+  if (ir.languageLearning) {
+    const lang = ir.languageLearning;
+    const quizTokens: TokenMap = {
+      VOCABULARY_COUNT: lang.vocabulary?.length ?? 0,
+      GRAMMAR_PATTERN_COUNT: lang.grammarPatterns?.length ?? 0,
+      XP_PER_VOCABULARY_USE: lang.xpPerVocabularyUse ?? 10,
+      XP_PER_GRAMMAR_USE: lang.xpPerGrammarUse ?? 15,
+      ADAPTIVE_DIFFICULTY: lang.adaptiveDifficulty ? 'true' : 'false',
+    };
+    files.push({ path: `${base}/InsimulLanguageQuizWidget.h`,   content: loadTemplate('source/ui/InsimulLanguageQuizWidget.h', quizTokens) });
+    files.push({ path: `${base}/InsimulLanguageQuizWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulLanguageQuizWidget.cpp') });
+  }
+
   return files;
 }
 

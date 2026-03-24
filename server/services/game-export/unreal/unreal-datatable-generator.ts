@@ -493,6 +493,110 @@ function generateGatheringNodesDT(ir: WorldIR): object[] {
   }));
 }
 
+// ─────────────────────────────────────────────
+// Assessment Instruments DataTable
+// ─────────────────────────────────────────────
+
+function generateAssessmentInstrumentsDT(ir: WorldIR): object[] {
+  if (!ir.assessment) return [];
+  return ir.assessment.instruments.map(inst => ({
+    Name: inst.id,
+    InstrumentId: inst.id,
+    InstrumentName: inst.name,
+    Description: inst.description,
+    Version: inst.version,
+    Citation: inst.citation,
+    ScoringMethod: inst.scoringMethod,
+    ScoreMin: inst.scoreRange.min,
+    ScoreMax: inst.scoreRange.max,
+    EstimatedMinutes: inst.estimatedMinutes,
+    QuestionCount: inst.questions.length,
+    Subscales: inst.subscales.map(s => ({ Id: s.id, Name: s.name, QuestionCount: s.questionIds.length })),
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Assessment Questions DataTable
+// ─────────────────────────────────────────────
+
+function generateAssessmentQuestionsDT(ir: WorldIR): object[] {
+  if (!ir.assessment) return [];
+  const rows: object[] = [];
+  for (const inst of ir.assessment.instruments) {
+    for (const q of inst.questions) {
+      rows.push({
+        Name: q.id,
+        QuestionId: q.id,
+        InstrumentId: inst.id,
+        Text: q.text,
+        Type: q.type,
+        Options: q.options ?? [],
+        ScaleAnchorLow: q.scaleAnchors?.low ?? '',
+        ScaleAnchorHigh: q.scaleAnchors?.high ?? '',
+        ReverseScored: q.reverseScored,
+        Required: q.required,
+        Subscale: q.subscale ?? '',
+        Difficulty: q.difficulty ?? '',
+        TargetLanguage: q.targetLanguage ?? '',
+      });
+    }
+  }
+  return rows;
+}
+
+// ─────────────────────────────────────────────
+// Vocabulary DataTable
+// ─────────────────────────────────────────────
+
+function generateVocabularyDT(ir: WorldIR): object[] {
+  if (!ir.languageLearning) return [];
+  return ir.languageLearning.vocabulary.map(v => ({
+    Name: v.id,
+    VocabularyId: v.id,
+    Word: v.word,
+    Translation: v.translation,
+    Category: v.category,
+    ProficiencyLevel: v.proficiencyLevel,
+    Pronunciation: v.pronunciation ?? '',
+    AudioAssetKey: v.audioAssetKey ?? '',
+    ExampleSentence: v.exampleSentence ?? '',
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Grammar Patterns DataTable
+// ─────────────────────────────────────────────
+
+function generateGrammarPatternsDT(ir: WorldIR): object[] {
+  if (!ir.languageLearning) return [];
+  return ir.languageLearning.grammarPatterns.map(p => ({
+    Name: p.id,
+    PatternId: p.id,
+    PatternName: p.name,
+    Description: p.description,
+    Pattern: p.pattern,
+    Example: p.example,
+    ExampleTranslation: p.exampleTranslation,
+    ProficiencyLevel: p.proficiencyLevel,
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Proficiency Tiers DataTable
+// ─────────────────────────────────────────────
+
+function generateProficiencyTiersDT(ir: WorldIR): object[] {
+  if (!ir.languageLearning) return [];
+  return ir.languageLearning.proficiencyTiers.map(t => ({
+    Name: t.level,
+    Level: t.level,
+    TierName: t.name,
+    XPThreshold: t.xpThreshold,
+    UnlockedCategories: t.unlockedCategories,
+    UnlockedPatternIds: t.unlockedPatternIds,
+  }));
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -557,6 +661,40 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
   if (ir.systems.knowledgeBase) {
     files.push({ path: `${base}/KnowledgeBase.pl`, content: ir.systems.knowledgeBase });
     files.push({ path: `${base}/knowledge_base.pl`, content: ir.systems.knowledgeBase });
+  }
+
+  // Assessment instruments and questions
+  if (ir.assessment && ir.assessment.instruments.length > 0) {
+    files.push({
+      path: `${base}/DT_AssessmentInstruments.json`,
+      content: JSON.stringify(generateAssessmentInstrumentsDT(ir), null, 2),
+    });
+    files.push({
+      path: `${base}/DT_AssessmentQuestions.json`,
+      content: JSON.stringify(generateAssessmentQuestionsDT(ir), null, 2),
+    });
+  }
+
+  // Language learning vocabulary and grammar
+  if (ir.languageLearning) {
+    if (ir.languageLearning.vocabulary.length > 0) {
+      files.push({
+        path: `${base}/DT_Vocabulary.json`,
+        content: JSON.stringify(generateVocabularyDT(ir), null, 2),
+      });
+    }
+    if (ir.languageLearning.grammarPatterns.length > 0) {
+      files.push({
+        path: `${base}/DT_GrammarPatterns.json`,
+        content: JSON.stringify(generateGrammarPatternsDT(ir), null, 2),
+      });
+    }
+    if (ir.languageLearning.proficiencyTiers.length > 0) {
+      files.push({
+        path: `${base}/DT_ProficiencyTiers.json`,
+        content: JSON.stringify(generateProficiencyTiersDT(ir), null, 2),
+      });
+    }
   }
 
   return files;
