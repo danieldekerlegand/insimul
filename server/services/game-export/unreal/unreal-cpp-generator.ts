@@ -234,6 +234,10 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
     AUTO_TRACK_NEW: journal?.autoTrackNew ? 'true' : 'false',
   };
 
+  const pauseMenuTokens: TokenMap = {
+    MAX_SAVE_SLOTS: ir.ui?.menuConfig?.pauseMenu?.maxSaveSlots ?? 5,
+  };
+
   const files: GeneratedFile[] = [
     { path: `${base}/InsimulInventoryUI.h`,   content: loadStaticTemplate('source/ui/InsimulInventoryUI.h') },
     { path: `${base}/InsimulInventoryUI.cpp`, content: loadStaticTemplate('source/ui/InsimulInventoryUI.cpp') },
@@ -245,6 +249,10 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/InsimulHUD.cpp`,     content: loadStaticTemplate('source/ui/InsimulHUD.cpp') },
     { path: `${base}/QuestJournalWidget.h`,   content: loadTemplate('source/ui/QuestJournalWidget.h', journalTokens) },
     { path: `${base}/QuestJournalWidget.cpp`, content: loadStaticTemplate('source/ui/QuestJournalWidget.cpp') },
+    { path: `${base}/InsimulPauseMenuWidget.h`,   content: loadTemplate('source/ui/InsimulPauseMenuWidget.h', pauseMenuTokens) },
+    { path: `${base}/InsimulPauseMenuWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulPauseMenuWidget.cpp') },
+    { path: `${base}/InsimulSaveGame.h`,   content: loadStaticTemplate('source/ui/InsimulSaveGame.h') },
+    { path: `${base}/InsimulSaveGame.cpp`, content: loadStaticTemplate('source/ui/InsimulSaveGame.cpp') },
   ];
 
   // World map widget (always included when map screen is enabled or by default)
@@ -366,19 +374,7 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 
 
 // ─────────────────────────────────────────────
-// UI Classes
-// ─────────────────────────────────────────────
-
-function genUIClasses(): GeneratedFile[] {
-  const base = `Source/${M}/UI`;
-  return [
-    { path: `${base}/InsimulHUDWidget.h`,   content: loadStaticTemplate('source/ui/InsimulHUDWidget.h') },
-    { path: `${base}/InsimulHUDWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulHUDWidget.cpp') },
-  ];
-}
-
-// ─────────────────────────────────────────────
-// UI Classes (Main Menu)
+// UI Classes (HUD + Main Menu)
 // ─────────────────────────────────────────────
 
 function genMainMenuClasses(ir: WorldIR): GeneratedFile[] {
@@ -393,6 +389,8 @@ function genMainMenuClasses(ir: WorldIR): GeneratedFile[] {
   };
 
   return [
+    { path: `${base}/InsimulHUDWidget.h`,   content: loadStaticTemplate('source/ui/InsimulHUDWidget.h') },
+    { path: `${base}/InsimulHUDWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulHUDWidget.cpp') },
     { path: `${base}/InsimulMainMenuWidget.h`,      content: loadStaticTemplate('source/ui/InsimulMainMenuWidget.h') },
     { path: `${base}/InsimulMainMenuWidget.cpp`,    content: loadStaticTemplate('source/ui/InsimulMainMenuWidget.cpp') },
     { path: `${base}/InsimulMainMenuGameMode.h`,    content: loadTemplate('source/ui/InsimulMainMenuGameMode.h', gameModeTokens) },
@@ -425,7 +423,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genSystemClasses(ir),
     ...genUIWidgets(ir),
     ...genServiceClasses(ir),
-    ...genUIClasses(),
+    ...genUIClasses(ir),
     ...genWorldGenerators(ir),
     ...genMainMenuClasses(ir),
     ...genAssetScripts(),

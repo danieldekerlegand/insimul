@@ -1,5 +1,6 @@
 #include "InsimulPlayerController.h"
 #include "UI/InsimulHUDWidget.h"
+#include "UI/InsimulPauseMenuWidget.h"
 #include "Characters/PlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
 
@@ -7,6 +8,7 @@ void AInsimulPlayerController::BeginPlay()
 {
     Super::BeginPlay();
     CreateHUD();
+    CreatePauseMenu();
 }
 
 void AInsimulPlayerController::Tick(float DeltaTime)
@@ -35,6 +37,9 @@ void AInsimulPlayerController::Tick(float DeltaTime)
 void AInsimulPlayerController::SetupInputComponent()
 {
     Super::SetupInputComponent();
+
+    // Bind Escape / gamepad Start to toggle pause menu
+    InputComponent->BindAction("PauseMenu", IE_Pressed, this, &AInsimulPlayerController::TogglePauseMenu);
 }
 
 void AInsimulPlayerController::CreateHUD()
@@ -46,5 +51,24 @@ void AInsimulPlayerController::CreateHUD()
     {
         HUDWidget->AddToViewport(0);
         HUDWidget->InitializeHUD({{SHOW_HEALTH_BAR}}, {{SHOW_STAMINA_BAR}}, {{SHOW_COMPASS}}, {{HAS_SURVIVAL}});
+    }
+}
+
+void AInsimulPlayerController::CreatePauseMenu()
+{
+    if (PauseMenuWidget) return;
+
+    PauseMenuWidget = CreateWidget<UInsimulPauseMenuWidget>(this, UInsimulPauseMenuWidget::StaticClass());
+    if (PauseMenuWidget)
+    {
+        PauseMenuWidget->AddToViewport(100);
+    }
+}
+
+void AInsimulPlayerController::TogglePauseMenu()
+{
+    if (PauseMenuWidget)
+    {
+        PauseMenuWidget->TogglePauseMenu();
     }
 }

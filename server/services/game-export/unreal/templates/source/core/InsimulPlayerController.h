@@ -5,6 +5,7 @@
 #include "InsimulPlayerController.generated.h"
 
 class UInsimulHUDWidget;
+class UInsimulPauseMenuWidget;
 
 UCLASS()
 class INSIMULEXPORT_API AInsimulPlayerController : public APlayerController
@@ -19,6 +20,13 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "HUD")
     UInsimulHUDWidget* HUDWidget = nullptr;
 
+    UPROPERTY(BlueprintReadOnly, Category = "UI")
+    UInsimulPauseMenuWidget* PauseMenuWidget = nullptr;
+
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PauseMenu")
+    void TogglePauseMenu();
+
 private:
     void CreateHUD();
+    void CreatePauseMenu();
 };
