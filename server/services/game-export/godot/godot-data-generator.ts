@@ -194,6 +194,29 @@ function generateWaterFeatures(ir: WorldIR): object[] {
   }));
 }
 
+function generateFoliageLayers(ir: WorldIR): object[] {
+  return ir.geography.foliageLayers.map(l => ({
+    type: l.type,
+    biome: l.biome,
+    settlement_id: l.settlementId,
+    density: l.density,
+    scale_range_min: l.scaleRange[0],
+    scale_range_max: l.scaleRange[1],
+    max_slope: l.maxSlope,
+    elevation_range_min: l.elevationRange[0],
+    elevation_range_max: l.elevationRange[1],
+    instance_count: l.instances.length,
+    instances: l.instances.map(inst => ({
+      x: inst.position.x,
+      y: inst.position.y,
+      z: inst.position.z,
+      rotation: inst.rotation,
+      scale: inst.scale,
+      species_id: inst.speciesId,
+    })),
+  }));
+}
+
 function generateLots(ir: WorldIR): object[] {
   const lots: object[] = [];
   for (const s of ir.geography.settlements) {
@@ -372,6 +395,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'quests', data: generateQuests(ir) },
     { name: 'settlements', data: generateSettlements(ir) },
     { name: 'water_features', data: generateWaterFeatures(ir) },
+    { name: 'foliage_layers', data: generateFoliageLayers(ir) },
     { name: 'lots', data: generateLots(ir) },
     { name: 'buildings', data: generateBuildings(ir) },
     { name: 'roads', data: generateRoads(ir) },

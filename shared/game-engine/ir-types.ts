@@ -107,6 +107,8 @@ export interface GeographyIR {
   states: StateIR[];
   settlements: SettlementIR[];
   waterFeatures: WaterFeatureIR[];
+  /** Foliage scatter layers per settlement, driven by biome/elevation/moisture */
+  foliageLayers: FoliageLayerIR[];
 }
 
 export interface BiomeZoneIR {
@@ -537,6 +539,42 @@ export interface StreetNetworkIR {
   nodes: StreetNodeIR[];
   /** Named street segments with topology */
   segments: StreetSegmentIR[];
+}
+
+// ─────────────────────────────────────────────
+// Foliage & Vegetation Scatter
+// ─────────────────────────────────────────────
+
+export type FoliageType = 'grass' | 'bush' | 'flower' | 'fern' | 'mushroom' | 'vine';
+
+export interface FoliageInstanceIR {
+  /** Position in world space */
+  position: Vec3;
+  /** Y-axis rotation in radians */
+  rotation: number;
+  /** Uniform scale multiplier */
+  scale: number;
+  /** Plant species ID from vegetation zone system */
+  speciesId: string;
+}
+
+export interface FoliageLayerIR {
+  /** Foliage type for this layer */
+  type: FoliageType;
+  /** Biome this layer belongs to */
+  biome: string;
+  /** Settlement this layer is associated with */
+  settlementId: string;
+  /** Target density (0–1) */
+  density: number;
+  /** Scale range [min, max] for instances in this layer */
+  scaleRange: [number, number];
+  /** Minimum slope suitability (0–1); steeper slopes reject placement */
+  maxSlope: number;
+  /** Elevation range [min, max] normalised 0–1 */
+  elevationRange: [number, number];
+  /** Pre-computed scatter instances */
+  instances: FoliageInstanceIR[];
 }
 
 export interface NatureObjectIR {

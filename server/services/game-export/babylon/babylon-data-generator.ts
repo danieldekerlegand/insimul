@@ -87,6 +87,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
       states: ir.geography.states,
       settlements: ir.geography.settlements,
       waterFeatures: ir.geography.waterFeatures,
+      foliageLayers: ir.geography.foliageLayers,
     }, null, 2),
   });
 

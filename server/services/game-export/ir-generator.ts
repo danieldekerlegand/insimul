@@ -18,6 +18,7 @@ import {
   resolvePlayerModel,
   buildWorldAssetManifest,
 } from './asset-resolver';
+import { generateFoliageLayers } from './foliage-generator';
 import type {
   WorldIR,
   MetaIR,
@@ -50,6 +51,7 @@ import type {
   StreetSegmentIR,
   StreetNetworkIR,
   WaterFeatureIR,
+  FoliageLayerIR,
   NatureObjectIR,
   DungeonIR,
   QuestObjectIR,
@@ -1613,6 +1615,16 @@ export async function generateWorldIR(
   }));
   console.log(`[Export] ✓ ${waterFeatureIRs.length} water feature(s) converted to IR`);
 
+  // ── 3c. Foliage & vegetation scatter ──
+  const foliageLayerIRs = generateFoliageLayers({
+    settlements: settlementIRs,
+    heightmap,
+    slopeMap,
+    terrainSize,
+    seed,
+  });
+  console.log(`[Export] ✓ ${foliageLayerIRs.length} foliage layer(s) generated across ${settlementIRs.length} settlement(s)`);
+
   // ── 4. Characters & NPCs ──
   const characterIRs: CharacterIR[] = characters.map(c => ({
     id: c.id,
@@ -1957,6 +1969,7 @@ export async function generateWorldIR(
       states: stateIRs,
       settlements: settlementIRs,
       waterFeatures: waterFeatureIRs,
+      foliageLayers: foliageLayerIRs,
     },
 
     entities: {
