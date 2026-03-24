@@ -164,12 +164,16 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
 // UI Scripts (fully static)
 // ─────────────────────────────────────────────
 
-function genUIClasses(): GeneratedFile[] {
+function genUIClasses(ir: WorldIR): GeneratedFile[] {
   const base = 'Assets/Scripts/UI';
+  const menuTokens: TokenMap = {
+    GAME_TITLE: ir.meta.worldName,
+  };
   return [
     { path: `${base}/HUDManager.cs`,      content: loadStaticTemplate('scripts/ui/HUDManager.cs') },
     { path: `${base}/QuestTrackerUI.cs`,  content: loadStaticTemplate('scripts/ui/QuestTrackerUI.cs') },
     { path: `${base}/GameMenuUI.cs`,      content: loadStaticTemplate('scripts/ui/GameMenuUI.cs') },
+    { path: `${base}/MainMenuUI.cs`,      content: loadTemplate('scripts/ui/MainMenuUI.cs', menuTokens) },
     { path: `${base}/ChatPanel.cs`,       content: loadStaticTemplate('scripts/ui/ChatPanel.cs') },
     { path: `${base}/InventoryUI.cs`,    content: loadStaticTemplate('scripts/ui/InventoryUI.cs') },
   ];
@@ -199,7 +203,7 @@ export function generateCSharpFiles(ir: WorldIR): GeneratedFile[] {
     ...genCharacterClasses(ir),
     ...genSystemClasses(ir),
     ...genWorldGenerators(ir),
-    ...genUIClasses(),
+    ...genUIClasses(ir),
     ...genServiceClasses(),
   ];
 }

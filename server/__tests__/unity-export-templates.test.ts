@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import { generateDataFiles } from '../services/game-export/unity/unity-data-generator';
 import { generateSceneFiles } from '../services/game-export/unity/unity-scene-generator';
 import { generateCSharpFiles } from '../services/game-export/unity/unity-csharp-generator';
+import { generateProjectFiles } from '../services/game-export/unity/unity-project-generator';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 
 // ─────────────────────────────────────────────
@@ -211,7 +212,7 @@ function makeMinimalIR(): WorldIR {
       directionalLight: { direction: [0, 1, 0], intensity: 1.0 },
       fog: { density: 0.02 },
     },
-    assets: [],
+    assets: { animations: [], models: [], textures: [], sounds: [] },
     player: {
       speed: 5,
       jumpHeight: 1.2,
@@ -490,5 +491,163 @@ describe('Unity C# generator - new templates', () => {
     expect(road).toBeDefined();
     expect(road!.content).toContain('streetNetwork');
     expect(road!.content).toContain('GenerateStreetSegment');
+  });
+});
+
+// ─────────────────────────────────────────────
+// Main menu and settings screen
+// ─────────────────────────────────────────────
+
+describe('Unity C# generator - MainMenuUI', () => {
+  const ir = makeMinimalIR();
+  const files = generateCSharpFiles(ir);
+
+  it('includes MainMenuUI.cs in output', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'));
+    expect(menu).toBeDefined();
+    expect(menu!.path).toBe('Assets/Scripts/UI/MainMenuUI.cs');
+  });
+
+  it('MainMenuUI.cs contains the MainMenuUI class', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('class MainMenuUI');
+    expect(menu.content).toContain('namespace Insimul.UI');
+  });
+
+  it('substitutes GAME_TITLE token with world name', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('Test World');
+    expect(menu.content).not.toContain('{{GAME_TITLE}}');
+  });
+
+  it('has New Game button that loads Gameplay scene', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('"New Game"');
+    expect(menu.content).toContain('SceneManager.LoadScene');
+    expect(menu.content).toContain('SCENE_GAMEPLAY');
+  });
+
+  it('has Continue button', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('"Continue"');
+  });
+
+  it('has Settings button and settings panel', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('"Settings"');
+    expect(menu.content).toContain('CreateSettingsPanel');
+    expect(menu.content).toContain('ShowSettings');
+  });
+
+  it('has Quit with UNITY_EDITOR check', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('Application.Quit()');
+    expect(menu.content).toContain('#if UNITY_EDITOR');
+    expect(menu.content).toContain('EditorApplication.isPlaying');
+  });
+
+  it('has audio settings: master, music, SFX sliders', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('"Master Volume"');
+    expect(menu.content).toContain('"Music Volume"');
+    expect(menu.content).toContain('"SFX Volume"');
+    expect(menu.content).toContain('_masterVolSlider');
+    expect(menu.content).toContain('_musicVolSlider');
+    expect(menu.content).toContain('_sfxVolSlider');
+  });
+
+  it('has graphics settings: quality, resolution, fullscreen, vsync', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('"Quality"');
+    expect(menu.content).toContain('"Resolution"');
+    expect(menu.content).toContain('"Fullscreen"');
+    expect(menu.content).toContain('"VSync"');
+    expect(menu.content).toContain('_qualityDropdown');
+    expect(menu.content).toContain('_resolutionDropdown');
+    expect(menu.content).toContain('_fullscreenToggle');
+    expect(menu.content).toContain('_vsyncToggle');
+  });
+
+  it('has controls settings: sensitivity and invert-Y', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('"Mouse Sensitivity"');
+    expect(menu.content).toContain('"Invert Y-Axis"');
+    expect(menu.content).toContain('_sensitivitySlider');
+    expect(menu.content).toContain('_invertYToggle');
+  });
+
+  it('uses PlayerPrefs for settings persistence', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('PlayerPrefs.SetFloat');
+    expect(menu.content).toContain('PlayerPrefs.GetFloat');
+    expect(menu.content).toContain('PlayerPrefs.SetInt');
+    expect(menu.content).toContain('PlayerPrefs.GetInt');
+    expect(menu.content).toContain('PlayerPrefs.Save()');
+  });
+
+  it('applies settings to Unity systems', () => {
+    const menu = files.find(f => f.path.endsWith('MainMenuUI.cs'))!;
+    expect(menu.content).toContain('AudioListener.volume');
+    expect(menu.content).toContain('QualitySettings.SetQualityLevel');
+    expect(menu.content).toContain('Screen.SetResolution');
+    expect(menu.content).toContain('Screen.fullScreen');
+  });
+});
+
+describe('Unity C# generator - GameMenuUI pause menu', () => {
+  const ir = makeMinimalIR();
+  const files = generateCSharpFiles(ir);
+
+  it('includes GameMenuUI.cs', () => {
+    const menu = files.find(f => f.path.endsWith('GameMenuUI.cs'));
+    expect(menu).toBeDefined();
+  });
+
+  it('has Resume, Settings, Main Menu, and Quit buttons', () => {
+    const menu = files.find(f => f.path.endsWith('GameMenuUI.cs'))!;
+    expect(menu.content).toContain('"Resume"');
+    expect(menu.content).toContain('"Settings"');
+    expect(menu.content).toContain('"Main Menu"');
+    expect(menu.content).toContain('"Quit"');
+  });
+
+  it('can return to main menu scene', () => {
+    const menu = files.find(f => f.path.endsWith('GameMenuUI.cs'))!;
+    expect(menu.content).toContain('SCENE_MAIN_MENU');
+    expect(menu.content).toContain('SceneManager.LoadScene');
+  });
+
+  it('toggles with Escape key', () => {
+    const menu = files.find(f => f.path.endsWith('GameMenuUI.cs'))!;
+    expect(menu.content).toContain('KeyCode.Escape');
+    expect(menu.content).toContain('ToggleMenu');
+  });
+
+  it('pauses time when open', () => {
+    const menu = files.find(f => f.path.endsWith('GameMenuUI.cs'))!;
+    expect(menu.content).toContain('Time.timeScale');
+  });
+});
+
+describe('Unity project generator - EditorBuildSettings', () => {
+  const ir = makeMinimalIR();
+  const files = generateProjectFiles(ir);
+
+  it('includes EditorBuildSettings.asset', () => {
+    const buildSettings = files.find(f => f.path.endsWith('EditorBuildSettings.asset'));
+    expect(buildSettings).toBeDefined();
+    expect(buildSettings!.path).toBe('ProjectSettings/EditorBuildSettings.asset');
+  });
+
+  it('registers MainMenu and Gameplay scenes', () => {
+    const buildSettings = files.find(f => f.path.endsWith('EditorBuildSettings.asset'))!;
+    expect(buildSettings.content).toContain('MainMenu.unity');
+    expect(buildSettings.content).toContain('Gameplay.unity');
+  });
+
+  it('has both scenes enabled', () => {
+    const buildSettings = files.find(f => f.path.endsWith('EditorBuildSettings.asset'))!;
+    const enabledCount = (buildSettings.content.match(/enabled: 1/g) || []).length;
+    expect(enabledCount).toBe(2);
   });
 });

@@ -1,28 +1,350 @@
 using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+using TMPro;
 
 namespace Insimul.UI
 {
+    /// <summary>
+    /// In-game pause menu toggled with Escape.
+    /// Provides Resume, Settings (inline), Main Menu, and Quit options.
+    /// </summary>
     public class GameMenuUI : MonoBehaviour
     {
-        public GameObject menuPanel;
+        private const string SCENE_MAIN_MENU = "MainMenu";
+
+        private GameObject _menuPanel;
+        private GameObject _settingsPanel;
         private bool _isOpen;
+
+        private Slider _masterVolSlider;
+        private Slider _musicVolSlider;
+        private Slider _sfxVolSlider;
+        private Slider _sensitivitySlider;
+        private Toggle _invertYToggle;
+
+        private void Awake()
+        {
+            CreateMenuPanel();
+            CreateSettingsPanel();
+            _menuPanel.SetActive(false);
+            _settingsPanel.SetActive(false);
+        }
 
         private void Update()
         {
             if (Input.GetKeyDown(KeyCode.Escape))
-                ToggleMenu();
+            {
+                if (_settingsPanel.activeSelf)
+                    ShowPauseMenu();
+                else
+                    ToggleMenu();
+            }
         }
 
         public void ToggleMenu()
         {
             _isOpen = !_isOpen;
-            if (menuPanel != null) menuPanel.SetActive(_isOpen);
+            _menuPanel.SetActive(_isOpen);
+            _settingsPanel.SetActive(false);
             Time.timeScale = _isOpen ? 0f : 1f;
             Cursor.lockState = _isOpen ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = _isOpen;
         }
 
+        // ─── Panel Creation ───
+
+        private void CreateMenuPanel()
+        {
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas == null)
+            {
+                canvas = gameObject.AddComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.sortingOrder = 150;
+                var scaler = gameObject.AddComponent<CanvasScaler>();
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1920, 1080);
+                gameObject.AddComponent<GraphicRaycaster>();
+            }
+
+            _menuPanel = new GameObject("PauseMenu");
+            _menuPanel.transform.SetParent(transform, false);
+            var rect = _menuPanel.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            // Semi-transparent overlay
+            var bg = _menuPanel.AddComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.7f);
+
+            var layout = _menuPanel.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.spacing = 16;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            // Title
+            var titleObj = new GameObject("Title");
+            titleObj.transform.SetParent(_menuPanel.transform, false);
+            var tmp = titleObj.AddComponent<TextMeshProUGUI>();
+            tmp.text = "Paused";
+            tmp.fontSize = 36;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = Color.white;
+            var titleLE = titleObj.AddComponent<LayoutElement>();
+            titleLE.preferredHeight = 50;
+            titleLE.preferredWidth = 300;
+
+            CreateButton("Resume", _menuPanel.transform, ResumeGame);
+            CreateButton("Settings", _menuPanel.transform, ShowSettings);
+            CreateButton("Main Menu", _menuPanel.transform, ReturnToMainMenu);
+            CreateButton("Quit", _menuPanel.transform, QuitGame);
+        }
+
+        private void CreateSettingsPanel()
+        {
+            _settingsPanel = new GameObject("PauseSettings");
+            _settingsPanel.transform.SetParent(transform, false);
+            var rect = _settingsPanel.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.2f, 0.1f);
+            rect.anchorMax = new Vector2(0.8f, 0.9f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var bg = _settingsPanel.AddComponent<Image>();
+            bg.color = new Color(0.1f, 0.1f, 0.15f, 0.98f);
+
+            var layout = _settingsPanel.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(20, 20, 16, 16);
+            layout.spacing = 10;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+
+            AddLabel("Quick Settings", _settingsPanel.transform, 24);
+            _masterVolSlider = AddSlider("Master Volume", _settingsPanel.transform, 0f, 1f, PlayerPrefs.GetFloat("Audio_MasterVolume", 1f));
+            _musicVolSlider = AddSlider("Music Volume", _settingsPanel.transform, 0f, 1f, PlayerPrefs.GetFloat("Audio_MusicVolume", 0.8f));
+            _sfxVolSlider = AddSlider("SFX Volume", _settingsPanel.transform, 0f, 1f, PlayerPrefs.GetFloat("Audio_SFXVolume", 0.8f));
+            _sensitivitySlider = AddSlider("Sensitivity", _settingsPanel.transform, 0.1f, 5f, PlayerPrefs.GetFloat("Controls_Sensitivity", 1f));
+            _invertYToggle = AddToggle("Invert Y", _settingsPanel.transform, PlayerPrefs.GetInt("Controls_InvertY", 0) == 1);
+
+            CreateButton("Back", _settingsPanel.transform, OnSettingsBack);
+        }
+
+        // ─── UI helpers ───
+
+        private void CreateButton(string label, Transform parent, UnityEngine.Events.UnityAction onClick)
+        {
+            var obj = new GameObject(label + "Btn");
+            obj.transform.SetParent(parent, false);
+            var img = obj.AddComponent<Image>();
+            img.color = new Color(0.2f, 0.2f, 0.3f, 0.9f);
+            var btn = obj.AddComponent<Button>();
+            btn.onClick.AddListener(onClick);
+            var le = obj.AddComponent<LayoutElement>();
+            le.preferredWidth = 280;
+            le.preferredHeight = 44;
+
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(obj.transform, false);
+            var tmp = textObj.AddComponent<TextMeshProUGUI>();
+            tmp.text = label;
+            tmp.fontSize = 20;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = Color.white;
+            var textRect = textObj.GetComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+        }
+
+        private void AddLabel(string text, Transform parent, int size)
+        {
+            var obj = new GameObject("Label");
+            obj.transform.SetParent(parent, false);
+            var tmp = obj.AddComponent<TextMeshProUGUI>();
+            tmp.text = text;
+            tmp.fontSize = size;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.color = new Color(0.9f, 0.85f, 0.7f);
+            var le = obj.AddComponent<LayoutElement>();
+            le.preferredHeight = size + 10;
+        }
+
+        private Slider AddSlider(string label, Transform parent, float min, float max, float val)
+        {
+            var row = new GameObject("Row");
+            row.transform.SetParent(parent, false);
+            var hl = row.AddComponent<HorizontalLayoutGroup>();
+            hl.spacing = 8;
+            hl.childForceExpandWidth = false;
+            hl.childForceExpandHeight = false;
+            hl.childAlignment = TextAnchor.MiddleLeft;
+            var rowLE = row.AddComponent<LayoutElement>();
+            rowLE.preferredHeight = 30;
+
+            var lObj = new GameObject("Label");
+            lObj.transform.SetParent(row.transform, false);
+            var lt = lObj.AddComponent<TextMeshProUGUI>();
+            lt.text = label;
+            lt.fontSize = 14;
+            lt.color = Color.white;
+            var lle = lObj.AddComponent<LayoutElement>();
+            lle.preferredWidth = 160;
+
+            var sObj = new GameObject("Slider");
+            sObj.transform.SetParent(row.transform, false);
+            var sle = sObj.AddComponent<LayoutElement>();
+            sle.flexibleWidth = 1;
+            sle.preferredHeight = 16;
+
+            var bgObj = new GameObject("Bg");
+            bgObj.transform.SetParent(sObj.transform, false);
+            bgObj.AddComponent<Image>().color = new Color(0.2f, 0.2f, 0.25f);
+            var bgR = bgObj.GetComponent<RectTransform>();
+            bgR.anchorMin = new Vector2(0, 0.3f);
+            bgR.anchorMax = new Vector2(1, 0.7f);
+            bgR.offsetMin = Vector2.zero;
+            bgR.offsetMax = Vector2.zero;
+
+            var fillArea = new GameObject("FillArea");
+            fillArea.transform.SetParent(sObj.transform, false);
+            var faR = fillArea.AddComponent<RectTransform>();
+            faR.anchorMin = new Vector2(0, 0.3f);
+            faR.anchorMax = new Vector2(1, 0.7f);
+            faR.offsetMin = Vector2.zero;
+            faR.offsetMax = Vector2.zero;
+
+            var fill = new GameObject("Fill");
+            fill.transform.SetParent(fillArea.transform, false);
+            fill.AddComponent<Image>().color = new Color(0.3f, 0.5f, 0.8f);
+            var fR = fill.GetComponent<RectTransform>();
+            fR.anchorMin = Vector2.zero;
+            fR.anchorMax = Vector2.one;
+            fR.offsetMin = Vector2.zero;
+            fR.offsetMax = Vector2.zero;
+
+            var hArea = new GameObject("HandleArea");
+            hArea.transform.SetParent(sObj.transform, false);
+            var haR = hArea.AddComponent<RectTransform>();
+            haR.anchorMin = Vector2.zero;
+            haR.anchorMax = Vector2.one;
+            haR.offsetMin = Vector2.zero;
+            haR.offsetMax = Vector2.zero;
+
+            var handle = new GameObject("Handle");
+            handle.transform.SetParent(hArea.transform, false);
+            var hImg = handle.AddComponent<Image>();
+            hImg.color = Color.white;
+            handle.GetComponent<RectTransform>().sizeDelta = new Vector2(12, 12);
+
+            var slider = sObj.AddComponent<Slider>();
+            slider.fillRect = fR;
+            slider.handleRect = handle.GetComponent<RectTransform>();
+            slider.minValue = min;
+            slider.maxValue = max;
+            slider.value = val;
+
+            return slider;
+        }
+
+        private Toggle AddToggle(string label, Transform parent, bool val)
+        {
+            var row = new GameObject("Row");
+            row.transform.SetParent(parent, false);
+            var hl = row.AddComponent<HorizontalLayoutGroup>();
+            hl.spacing = 8;
+            hl.childForceExpandWidth = false;
+            hl.childAlignment = TextAnchor.MiddleLeft;
+            var rowLE = row.AddComponent<LayoutElement>();
+            rowLE.preferredHeight = 30;
+
+            var lObj = new GameObject("Label");
+            lObj.transform.SetParent(row.transform, false);
+            var lt = lObj.AddComponent<TextMeshProUGUI>();
+            lt.text = label;
+            lt.fontSize = 14;
+            lt.color = Color.white;
+            var lle = lObj.AddComponent<LayoutElement>();
+            lle.preferredWidth = 160;
+
+            var tObj = new GameObject("Toggle");
+            tObj.transform.SetParent(row.transform, false);
+            var tbg = new GameObject("Bg");
+            tbg.transform.SetParent(tObj.transform, false);
+            var tbgImg = tbg.AddComponent<Image>();
+            tbgImg.color = new Color(0.2f, 0.2f, 0.25f);
+            tbg.GetComponent<RectTransform>().sizeDelta = new Vector2(22, 22);
+            var check = new GameObject("Check");
+            check.transform.SetParent(tbg.transform, false);
+            var cImg = check.AddComponent<Image>();
+            cImg.color = new Color(0.3f, 0.7f, 0.4f);
+            var cR = check.GetComponent<RectTransform>();
+            cR.anchorMin = new Vector2(0.15f, 0.15f);
+            cR.anchorMax = new Vector2(0.85f, 0.85f);
+            cR.offsetMin = Vector2.zero;
+            cR.offsetMax = Vector2.zero;
+
+            var toggle = tObj.AddComponent<Toggle>();
+            toggle.targetGraphic = tbgImg;
+            toggle.graphic = cImg;
+            toggle.isOn = val;
+            var tle = tObj.AddComponent<LayoutElement>();
+            tle.preferredWidth = 26;
+            tle.preferredHeight = 26;
+
+            return toggle;
+        }
+
+        // ─── Actions ───
+
         public void ResumeGame() => ToggleMenu();
-        public void QuitGame() => Application.Quit();
+
+        private void ShowSettings()
+        {
+            _menuPanel.SetActive(false);
+            _settingsPanel.SetActive(true);
+        }
+
+        private void ShowPauseMenu()
+        {
+            _settingsPanel.SetActive(false);
+            _menuPanel.SetActive(true);
+        }
+
+        private void OnSettingsBack()
+        {
+            // Save quick settings
+            PlayerPrefs.SetFloat("Audio_MasterVolume", _masterVolSlider.value);
+            PlayerPrefs.SetFloat("Audio_MusicVolume", _musicVolSlider.value);
+            PlayerPrefs.SetFloat("Audio_SFXVolume", _sfxVolSlider.value);
+            PlayerPrefs.SetFloat("Controls_Sensitivity", _sensitivitySlider.value);
+            PlayerPrefs.SetInt("Controls_InvertY", _invertYToggle.isOn ? 1 : 0);
+            PlayerPrefs.Save();
+            AudioListener.volume = _masterVolSlider.value;
+            ShowPauseMenu();
+        }
+
+        private void ReturnToMainMenu()
+        {
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(SCENE_MAIN_MENU);
+        }
+
+        private void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        public float Sensitivity => _sensitivitySlider != null ? _sensitivitySlider.value : 1f;
+        public bool InvertY => _invertYToggle != null && _invertYToggle.isOn;
     }
 }

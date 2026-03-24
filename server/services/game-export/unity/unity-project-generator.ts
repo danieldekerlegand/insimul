@@ -57,6 +57,7 @@ export function generateProjectFiles(ir: WorldIR): GeneratedFile[] {
     { path: 'ProjectSettings/TagManager.asset',            content: loadStaticTemplate('project/TagManager.asset') },
     { path: 'ProjectSettings/QualitySettings.asset',       content: loadStaticTemplate('project/QualitySettings.asset') },
     { path: 'ProjectSettings/EditorSettings.asset',        content: loadStaticTemplate('project/EditorSettings.asset') },
+    { path: 'ProjectSettings/EditorBuildSettings.asset',   content: loadStaticTemplate('project/EditorBuildSettings.asset') },
     { path: 'Assets/Scripts/Insimul.asmdef',               content: loadStaticTemplate('project/Insimul.asmdef') },
     { path: '.gitignore',                                  content: loadStaticTemplate('project/.gitignore') },
     { path: 'README.md',                                   content: loadTemplate('project/README.md', readmeTokens) },
