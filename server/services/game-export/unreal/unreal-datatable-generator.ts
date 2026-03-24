@@ -458,6 +458,41 @@ function generateSurvivalModifierPresetsDT(ir: WorldIR): object[] {
   }));
 }
 
+// ─────────────────────────────────────────────
+// Resource Definition DataTable
+// ─────────────────────────────────────────────
+
+function generateResourcesDT(ir: WorldIR): object[] {
+  if (!ir.resources) return [];
+  return ir.resources.definitions.map(d => ({
+    Name: d.id,
+    ResourceId: d.id,
+    ResourceName: d.name,
+    Icon: d.icon,
+    Color: { R: d.color.r, G: d.color.g, B: d.color.b, A: 1.0 },
+    MaxStack: d.maxStack,
+    GatherTime: d.gatherTime,
+    RespawnTime: d.respawnTime,
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Gathering Node DataTable
+// ─────────────────────────────────────────────
+
+function generateGatheringNodesDT(ir: WorldIR): object[] {
+  if (!ir.resources) return [];
+  return ir.resources.gatheringNodes.map(n => ({
+    Name: n.id,
+    NodeId: n.id,
+    ResourceType: n.resourceType,
+    Position: vec3Obj(n.position),
+    MaxAmount: n.maxAmount,
+    RespawnTime: n.respawnTime,
+    Scale: n.scale,
+  }));
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -492,6 +527,8 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_LootTables', data: generateLootTablesDT(ir) },
     { name: 'DT_SurvivalNeeds', data: generateSurvivalNeedsDT(ir) },
     { name: 'DT_SurvivalModifierPresets', data: generateSurvivalModifierPresetsDT(ir) },
+    { name: 'DT_Resources', data: generateResourcesDT(ir) },
+    { name: 'DT_GatheringNodes', data: generateGatheringNodesDT(ir) },
   ];
 
   for (const table of tables) {

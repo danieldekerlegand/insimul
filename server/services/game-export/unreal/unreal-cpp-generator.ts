@@ -35,6 +35,7 @@ function genDataStructs(): GeneratedFile[] {
     { path: `${base}/GameTypes.h`,     content: loadStaticTemplate('source/data/GameTypes.h') },
     { path: `${base}/LotData.h`,       content: loadStaticTemplate('source/data/LotData.h') },
     { path: `${base}/InfrastructureData.h`, content: loadStaticTemplate('source/data/InfrastructureData.h') },
+    { path: `${base}/ResourceData.h`,   content: loadStaticTemplate('source/data/ResourceData.h') },
   ];
 }
 
