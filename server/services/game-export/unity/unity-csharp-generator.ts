@@ -167,6 +167,7 @@ function genUIClasses(): GeneratedFile[] {
     { path: `${base}/QuestTrackerUI.cs`,  content: loadStaticTemplate('scripts/ui/QuestTrackerUI.cs') },
     { path: `${base}/GameMenuUI.cs`,      content: loadStaticTemplate('scripts/ui/GameMenuUI.cs') },
     { path: `${base}/ChatPanel.cs`,       content: loadStaticTemplate('scripts/ui/ChatPanel.cs') },
+    { path: `${base}/InventoryUI.cs`,    content: loadStaticTemplate('scripts/ui/InventoryUI.cs') },
   ];
 }
 
