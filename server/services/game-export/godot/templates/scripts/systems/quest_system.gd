@@ -579,3 +579,40 @@ func get_active_quests() -> Array[Dictionary]:
 		if q.get("id", "") in active_quest_ids:
 			result.append(q)
 	return result
+
+
+func get_all_quests() -> Array[Dictionary]:
+	return all_quests.duplicate()
+
+
+func get_completed_quests() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for q in all_quests:
+		if q.get("id", "") in completed_quest_ids:
+			result.append(q)
+	return result
+
+
+func get_available_quests() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for q in all_quests:
+		var qid: String = q.get("id", "")
+		if qid not in active_quest_ids and qid not in completed_quest_ids:
+			result.append(q)
+	return result
+
+
+func is_quest_active(quest_id: String) -> bool:
+	return quest_id in active_quest_ids
+
+
+func is_quest_completed(quest_id: String) -> bool:
+	return quest_id in completed_quest_ids
+
+
+func get_objectives_for_quest(quest_id: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for obj in objectives:
+		if obj.get("quest_id") == quest_id:
+			result.append(obj)
+	return result
