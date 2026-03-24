@@ -212,6 +212,8 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ProceduralNatureGenerator.cpp`,    content: loadStaticTemplate('source/world/ProceduralNatureGenerator.cpp') },
     { path: `${base}/ProceduralDungeonGenerator.h`,     content: loadStaticTemplate('source/world/ProceduralDungeonGenerator.h') },
     { path: `${base}/ProceduralDungeonGenerator.cpp`,   content: loadStaticTemplate('source/world/ProceduralDungeonGenerator.cpp') },
+    { path: `${base}/ProceduralTerrainGenerator.h`,     content: loadStaticTemplate('source/world/ProceduralTerrainGenerator.h') },
+    { path: `${base}/ProceduralTerrainGenerator.cpp`,   content: loadStaticTemplate('source/world/ProceduralTerrainGenerator.cpp') },
   ];
 }
 
