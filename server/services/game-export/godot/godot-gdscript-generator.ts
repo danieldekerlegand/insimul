@@ -138,12 +138,24 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
 // UI scripts (fully static)
 // ─────────────────────────────────────────────
 
-function genUIScripts(): GeneratedFile[] {
+function genUIScripts(ir: WorldIR): GeneratedFile[] {
+  const theme = ir.theme.visualTheme;
+  const worldMapTokens: TokenMap = {
+    TERRAIN_SIZE:   ir.geography.terrainSize,
+    GROUND_COLOR_R: theme.groundColor.r,
+    GROUND_COLOR_G: theme.groundColor.g,
+    GROUND_COLOR_B: theme.groundColor.b,
+    ROAD_COLOR_R:   theme.roadColor.r,
+    ROAD_COLOR_G:   theme.roadColor.g,
+    ROAD_COLOR_B:   theme.roadColor.b,
+  };
+
   return [
     { path: 'scripts/ui/hud.gd',             content: loadStaticTemplate('scripts/ui/hud.gd') },
     { path: 'scripts/ui/quest_tracker_ui.gd', content: loadStaticTemplate('scripts/ui/quest_tracker_ui.gd') },
     { path: 'scripts/ui/game_menu.gd',        content: loadStaticTemplate('scripts/ui/game_menu.gd') },
     { path: 'scripts/ui/chat_panel.gd',       content: loadStaticTemplate('scripts/ui/chat_panel.gd') },
+    { path: 'scripts/ui/world_map.gd',        content: loadTemplate('scripts/ui/world_map.gd', worldMapTokens) },
   ];
 }
 
@@ -283,7 +295,7 @@ export function generateGDScriptFiles(ir: WorldIR): GeneratedFile[] {
     ...genCharacterScripts(ir),
     ...genSystemScripts(ir),
     ...genWorldScripts(ir),
-    ...genUIScripts(),
+    ...genUIScripts(ir),
     ...genServiceScripts(),
   ];
 }

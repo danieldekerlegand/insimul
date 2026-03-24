@@ -31,6 +31,7 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 7, path: 'res://scripts/characters/npc_spawner.gd', type: 'Script' },
     { id: 8, path: 'res://scripts/ui/hud.gd', type: 'Script' },
     { id: 9, path: 'res://scripts/world/water_generator.gd', type: 'Script' },
+    { id: 10, path: 'res://scripts/ui/world_map.gd', type: 'Script' },
   ];
 
   let tscn = `[gd_scene load_steps=${extResources.length + 3} format=3]\n\n`;
@@ -103,6 +104,11 @@ function generateMainTscn(ir: WorldIR): string {
   // HUD
   tscn += `\n[node name="HUD" type="CanvasLayer" parent="."]\n`;
   tscn += `script = ExtResource("8")\n`;
+
+  // World map (full-screen overlay, toggled with M key)
+  tscn += `\n[node name="WorldMap" type="CanvasLayer" parent="."]\n`;
+  tscn += `process_mode = 3\n`;
+  tscn += `script = ExtResource("10")\n`;
 
   return tscn;
 }
