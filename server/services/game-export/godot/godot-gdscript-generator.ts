@@ -138,13 +138,19 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
 // UI scripts (fully static)
 // ─────────────────────────────────────────────
 
-function genUIScripts(): GeneratedFile[] {
-  return [
+function genUIScripts(ir: WorldIR): GeneratedFile[] {
+  const files: GeneratedFile[] = [
     { path: 'scripts/ui/hud.gd',             content: loadStaticTemplate('scripts/ui/hud.gd') },
     { path: 'scripts/ui/quest_tracker_ui.gd', content: loadStaticTemplate('scripts/ui/quest_tracker_ui.gd') },
     { path: 'scripts/ui/game_menu.gd',        content: loadStaticTemplate('scripts/ui/game_menu.gd') },
     { path: 'scripts/ui/chat_panel.gd',       content: loadStaticTemplate('scripts/ui/chat_panel.gd') },
   ];
+
+  if (ir.ui?.showMinimap) {
+    files.push({ path: 'scripts/ui/minimap.gd', content: loadStaticTemplate('scripts/ui/minimap.gd') });
+  }
+
+  return files;
 }
 
 // ─────────────────────────────────────────────
@@ -283,7 +289,7 @@ export function generateGDScriptFiles(ir: WorldIR): GeneratedFile[] {
     ...genCharacterScripts(ir),
     ...genSystemScripts(ir),
     ...genWorldScripts(ir),
-    ...genUIScripts(),
+    ...genUIScripts(ir),
     ...genServiceScripts(),
   ];
 }

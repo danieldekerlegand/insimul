@@ -33,6 +33,11 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 9, path: 'res://scripts/world/water_generator.gd', type: 'Script' },
   ];
 
+  const showMinimap = ir.ui?.showMinimap ?? false;
+  if (showMinimap) {
+    extResources.push({ id: 10, path: 'res://scripts/ui/minimap.gd', type: 'Script' });
+  }
+
   let tscn = `[gd_scene load_steps=${extResources.length + 3} format=3]\n\n`;
 
   // External resources
@@ -103,6 +108,17 @@ function generateMainTscn(ir: WorldIR): string {
   // HUD
   tscn += `\n[node name="HUD" type="CanvasLayer" parent="."]\n`;
   tscn += `script = ExtResource("8")\n`;
+
+  // Minimap (conditional)
+  if (showMinimap) {
+    tscn += `\n[node name="Minimap" type="Control" parent="HUD"]\n`;
+    tscn += `anchors_preset = 15\n`;
+    tscn += `anchor_right = 1.0\n`;
+    tscn += `anchor_bottom = 1.0\n`;
+    tscn += `grow_horizontal = 2\n`;
+    tscn += `grow_vertical = 2\n`;
+    tscn += `script = ExtResource("10")\n`;
+  }
 
   return tscn;
 }
