@@ -4,6 +4,7 @@
 #include "InsimulPlayerController.h"
 #include "../Characters/PlayerCharacter.h"
 #include "../Characters/NPCCharacter.h"
+#include "../Data/NPCData.h"
 #include "../World/ProceduralTerrainGenerator.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
@@ -542,6 +543,57 @@ void AInsimulGameMode::SpawnNPCs()
         if (NPC)
         {
             NPC->InitFromData(CharId, Role, FVector(X, Y, Z), (float)Patrol, (float)Disp);
+
+            // Parse and apply schedule data if present
+            const TSharedPtr<FJsonObject>* SchedPtr;
+            if (Obj->TryGetObjectField(TEXT("Schedule"), SchedPtr) && SchedPtr->IsValid())
+            {
+                FNPCSchedule Sched;
+                Sched.HomeBuildingId = (*SchedPtr)->GetStringField(TEXT("homeBuildingId"));
+                Sched.WorkBuildingId = (*SchedPtr)->GetStringField(TEXT("workBuildingId"));
+                Sched.WakeHour = (float)(*SchedPtr)->GetNumberField(TEXT("wakeHour"));
+                Sched.BedtimeHour = (float)(*SchedPtr)->GetNumberField(TEXT("bedtimeHour"));
+
+                const TArray<TSharedPtr<FJsonValue>>* FriendArr;
+                if ((*SchedPtr)->TryGetArrayField(TEXT("friendBuildingIds"), FriendArr))
+                {
+                    for (const auto& F : *FriendArr)
+                    {
+                        Sched.FriendBuildingIds.Add(F->AsString());
+                    }
+                }
+
+                const TArray<TSharedPtr<FJsonValue>>* BlockArr;
+                if ((*SchedPtr)->TryGetArrayField(TEXT("blocks"), BlockArr))
+                {
+                    for (const auto& BV : *BlockArr)
+                    {
+                        const TSharedPtr<FJsonObject> BO = BV->AsObject();
+                        if (!BO.IsValid()) continue;
+
+                        FScheduleBlock Block;
+                        Block.StartHour = (float)BO->GetNumberField(TEXT("startHour"));
+                        Block.EndHour = (float)BO->GetNumberField(TEXT("endHour"));
+                        Block.Priority = BO->GetIntegerField(TEXT("priority"));
+                        Block.BuildingId = BO->GetStringField(TEXT("buildingId"));
+
+                        FString ActivityStr = BO->GetStringField(TEXT("activity"));
+                        if (ActivityStr == TEXT("sleep")) Block.Activity = EScheduleActivity::Sleep;
+                        else if (ActivityStr == TEXT("work")) Block.Activity = EScheduleActivity::Work;
+                        else if (ActivityStr == TEXT("eat")) Block.Activity = EScheduleActivity::Eat;
+                        else if (ActivityStr == TEXT("socialize")) Block.Activity = EScheduleActivity::Socialize;
+                        else if (ActivityStr == TEXT("shop")) Block.Activity = EScheduleActivity::Shop;
+                        else if (ActivityStr == TEXT("wander")) Block.Activity = EScheduleActivity::Wander;
+                        else if (ActivityStr == TEXT("idle_at_home")) Block.Activity = EScheduleActivity::IdleAtHome;
+                        else if (ActivityStr == TEXT("visit_friend")) Block.Activity = EScheduleActivity::VisitFriend;
+
+                        Sched.Blocks.Add(Block);
+                    }
+                }
+
+                NPC->SetSchedule(Sched);
+            }
+
             Spawned++;
         }
         else
