@@ -31,6 +31,7 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 7, path: 'res://scripts/characters/npc_spawner.gd', type: 'Script' },
     { id: 8, path: 'res://scripts/ui/hud.gd', type: 'Script' },
     { id: 9, path: 'res://scripts/world/water_generator.gd', type: 'Script' },
+    { id: 10, path: 'res://scripts/world/terrain_generator.gd', type: 'Script' },
   ];
 
   let tscn = `[gd_scene load_steps=${extResources.length + 3} format=3]\n\n`;
@@ -82,6 +83,9 @@ function generateMainTscn(ir: WorldIR): string {
   // World generators
   tscn += `\n[node name="WorldScaleManager" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("3")\n`;
+
+  tscn += `\n[node name="TerrainGenerator" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("10")\n`;
 
   tscn += `\n[node name="BuildingGenerator" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("4")\n`;
