@@ -93,5 +93,7 @@ namespace Insimul.Systems
             if (need != null)
                 need.value = Mathf.Clamp(need.value + delta, 0f, need.maxValue);
         }
+
+        public IReadOnlyList<NeedState> GetAllNeeds() => _needs;
     }
 }

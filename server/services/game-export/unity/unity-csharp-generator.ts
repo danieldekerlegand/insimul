@@ -89,6 +89,7 @@ function genSystemClasses(ir: WorldIR): GeneratedFile[] {
   };
 
   const files: GeneratedFile[] = [
+    { path: `${base}/IInteractable.cs`,   content: loadStaticTemplate('scripts/systems/IInteractable.cs') },
     { path: `${base}/ActionSystem.cs`,    content: loadStaticTemplate('scripts/systems/ActionSystem.cs') },
     { path: `${base}/RuleEnforcer.cs`,    content: loadStaticTemplate('scripts/systems/RuleEnforcer.cs') },
     { path: `${base}/CombatSystem.cs`,    content: loadTemplate('scripts/systems/CombatSystem.cs', combatTokens) },
