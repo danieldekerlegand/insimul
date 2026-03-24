@@ -108,6 +108,136 @@ function generateMainTscn(ir: WorldIR): string {
 }
 
 // ─────────────────────────────────────────────
+// Main menu .tscn generation
+// ─────────────────────────────────────────────
+
+function generateMainMenuTscn(ir: WorldIR): string {
+  const title = ir.ui?.menuConfig?.mainMenu?.title || ir.meta.worldName;
+  const skyColor = ir.theme.visualTheme.skyColor;
+
+  const extResources = [
+    { id: 1, path: 'res://scripts/ui/main_menu.gd', type: 'Script' },
+  ];
+
+  // Sub-resources: theme overrides for styling
+  const subResourceCount = 2; // font size for title + button panel stylebox
+  const loadSteps = extResources.length + subResourceCount;
+
+  let tscn = `[gd_scene load_steps=${loadSteps} format=3]\n\n`;
+
+  for (const res of extResources) {
+    tscn += `[ext_resource type="${res.type}" path="${res.path}" id="${res.id}"]\n`;
+  }
+
+  // Title font size override
+  tscn += `\n[sub_resource type="LabelSettings" id="sub_1"]\n`;
+  tscn += `font_size = 64\n`;
+
+  // Panel stylebox for button container background
+  tscn += `\n[sub_resource type="StyleBoxFlat" id="sub_2"]\n`;
+  tscn += `bg_color = Color(0, 0, 0, 0.4)\n`;
+  tscn += `corner_radius_top_left = 8\n`;
+  tscn += `corner_radius_top_right = 8\n`;
+  tscn += `corner_radius_bottom_right = 8\n`;
+  tscn += `corner_radius_bottom_left = 8\n`;
+  tscn += `content_margin_left = 40.0\n`;
+  tscn += `content_margin_top = 20.0\n`;
+  tscn += `content_margin_right = 40.0\n`;
+  tscn += `content_margin_bottom = 20.0\n`;
+
+  // Root Control node — full-screen
+  tscn += `\n[node name="MainMenu" type="Control"]\n`;
+  tscn += `layout_mode = 3\n`;
+  tscn += `anchors_preset = 15\n`;
+  tscn += `anchor_right = 1.0\n`;
+  tscn += `anchor_bottom = 1.0\n`;
+  tscn += `grow_horizontal = 2\n`;
+  tscn += `grow_vertical = 2\n`;
+  tscn += `script = ExtResource("1")\n`;
+
+  // Background ColorRect
+  tscn += `\n[node name="Background" type="ColorRect" parent="."]\n`;
+  tscn += `layout_mode = 1\n`;
+  tscn += `anchors_preset = 15\n`;
+  tscn += `anchor_right = 1.0\n`;
+  tscn += `anchor_bottom = 1.0\n`;
+  tscn += `color = Color(${skyColor.r * 0.3}, ${skyColor.g * 0.3}, ${skyColor.b * 0.3}, 1)\n`;
+
+  // VBoxContainer — centered layout
+  tscn += `\n[node name="VBoxContainer" type="VBoxContainer" parent="."]\n`;
+  tscn += `layout_mode = 1\n`;
+  tscn += `anchors_preset = 8\n`;
+  tscn += `anchor_left = 0.5\n`;
+  tscn += `anchor_top = 0.5\n`;
+  tscn += `anchor_right = 0.5\n`;
+  tscn += `anchor_bottom = 0.5\n`;
+  tscn += `offset_left = -200.0\n`;
+  tscn += `offset_top = -200.0\n`;
+  tscn += `offset_right = 200.0\n`;
+  tscn += `offset_bottom = 200.0\n`;
+  tscn += `grow_horizontal = 2\n`;
+  tscn += `grow_vertical = 2\n`;
+  tscn += `theme_override_constants/separation = 30\n`;
+  tscn += `alignment = 1\n`;
+
+  // Title label
+  tscn += `\n[node name="TitleLabel" type="Label" parent="VBoxContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `text = "${escTscnString(title)}"\n`;
+  tscn += `label_settings = SubResource("sub_1")\n`;
+  tscn += `horizontal_alignment = 1\n`;
+
+  // Button container with panel background
+  tscn += `\n[node name="ButtonContainer" type="VBoxContainer" parent="VBoxContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `theme_override_constants/separation = 12\n`;
+
+  // Buttons
+  tscn += `\n[node name="NewGameButton" type="Button" parent="VBoxContainer/ButtonContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `custom_minimum_size = Vector2(250, 50)\n`;
+  tscn += `text = "New Game"\n`;
+
+  tscn += `\n[node name="SettingsButton" type="Button" parent="VBoxContainer/ButtonContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `custom_minimum_size = Vector2(250, 50)\n`;
+  tscn += `text = "Settings"\n`;
+
+  tscn += `\n[node name="QuitButton" type="Button" parent="VBoxContainer/ButtonContainer"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `custom_minimum_size = Vector2(250, 50)\n`;
+  tscn += `text = "Quit"\n`;
+
+  // Settings panel (hidden by default)
+  tscn += `\n[node name="SettingsPanel" type="PanelContainer" parent="."]\n`;
+  tscn += `visible = false\n`;
+  tscn += `layout_mode = 1\n`;
+  tscn += `anchors_preset = 8\n`;
+  tscn += `anchor_left = 0.5\n`;
+  tscn += `anchor_top = 0.5\n`;
+  tscn += `anchor_right = 0.5\n`;
+  tscn += `anchor_bottom = 0.5\n`;
+  tscn += `offset_left = -250.0\n`;
+  tscn += `offset_top = -150.0\n`;
+  tscn += `offset_right = 250.0\n`;
+  tscn += `offset_bottom = 150.0\n`;
+  tscn += `theme_override_styles/panel = SubResource("sub_2")\n`;
+
+  tscn += `\n[node name="SettingsLabel" type="Label" parent="SettingsPanel"]\n`;
+  tscn += `layout_mode = 2\n`;
+  tscn += `text = "Settings (coming soon)"\n`;
+  tscn += `horizontal_alignment = 1\n`;
+  tscn += `vertical_alignment = 1\n`;
+
+  return tscn;
+}
+
+/** Escape string for .tscn text values */
+function escTscnString(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// ─────────────────────────────────────────────
 // Scene descriptor JSON (runtime data)
 // ─────────────────────────────────────────────
 
@@ -212,6 +342,10 @@ function generateSceneDescriptor(ir: WorldIR): object {
 
 export function generateSceneFiles(ir: WorldIR): GeneratedFile[] {
   return [
+    {
+      path: 'scenes/main_menu.tscn',
+      content: generateMainMenuTscn(ir),
+    },
     {
       path: 'scenes/main.tscn',
       content: generateMainTscn(ir),

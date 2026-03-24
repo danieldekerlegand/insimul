@@ -135,11 +135,17 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
 }
 
 // ─────────────────────────────────────────────
-// UI scripts (fully static)
+// UI scripts
 // ─────────────────────────────────────────────
 
-function genUIScripts(): GeneratedFile[] {
+function genUIScripts(ir: WorldIR): GeneratedFile[] {
+  const menuTitle = ir.ui?.menuConfig?.mainMenu?.title || ir.meta.worldName;
+  const mainMenuTokens: TokenMap = {
+    GAME_TITLE: menuTitle,
+  };
+
   return [
+    { path: 'scripts/ui/main_menu.gd',       content: loadTemplate('scripts/ui/main_menu.gd', mainMenuTokens) },
     { path: 'scripts/ui/hud.gd',             content: loadStaticTemplate('scripts/ui/hud.gd') },
     { path: 'scripts/ui/quest_tracker_ui.gd', content: loadStaticTemplate('scripts/ui/quest_tracker_ui.gd') },
     { path: 'scripts/ui/game_menu.gd',        content: loadStaticTemplate('scripts/ui/game_menu.gd') },
@@ -283,7 +289,7 @@ export function generateGDScriptFiles(ir: WorldIR): GeneratedFile[] {
     ...genCharacterScripts(ir),
     ...genSystemScripts(ir),
     ...genWorldScripts(ir),
-    ...genUIScripts(),
+    ...genUIScripts(ir),
     ...genServiceScripts(),
   ];
 }
