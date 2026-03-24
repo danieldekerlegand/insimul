@@ -146,6 +146,7 @@ function genUIScripts(): GeneratedFile[] {
     { path: 'scripts/ui/game_menu.gd',         content: loadStaticTemplate('scripts/ui/game_menu.gd') },
     { path: 'scripts/ui/chat_panel.gd',        content: loadStaticTemplate('scripts/ui/chat_panel.gd') },
     { path: 'scripts/ui/inventory_ui.gd',      content: loadStaticTemplate('scripts/ui/inventory_ui.gd') },
+    { path: 'scripts/ui/dialogue_panel.gd',    content: loadStaticTemplate('scripts/ui/dialogue_panel.gd') },
   ];
 }
 
