@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Insimul.Systems;
 
 namespace Insimul.Characters
 {
@@ -25,10 +26,19 @@ namespace Insimul.Characters
         public float energy = {{PLAYER_INITIAL_ENERGY}}f;
         public int gold = {{PLAYER_INITIAL_GOLD}};
 
+        [Header("Interaction")]
+        public float interactionRadius = 2f;
+        public LayerMask interactionLayers = ~0;
+
         private CharacterController _controller;
         private Vector3 _velocity;
         private Vector2 _moveInput;
         private bool _jumpPressed;
+
+        private IInteractable _nearestInteractable;
+        private readonly Collider[] _overlapBuffer = new Collider[16];
+
+        public IInteractable NearestInteractable => _nearestInteractable;
 
         private void Awake()
         {
@@ -41,6 +51,7 @@ namespace Insimul.Characters
         {
             Move();
             ApplyGravity();
+            DetectInteractables();
         }
 
         public void OnMove(InputValue value) => _moveInput = value.Get<Vector2>();
@@ -48,14 +59,39 @@ namespace Insimul.Characters
 
         public void OnAttack()
         {
-            // TODO: Trigger combat system
             Debug.Log("[Insimul] Player Attack");
         }
 
         public void OnInteract()
         {
-            // TODO: Raycast for interactable objects
-            Debug.Log("[Insimul] Player Interact");
+            if (_nearestInteractable != null && _nearestInteractable.CanInteract)
+            {
+                _nearestInteractable.Interact();
+            }
+        }
+
+        private void DetectInteractables()
+        {
+            int count = Physics.OverlapSphereNonAlloc(
+                transform.position, interactionRadius, _overlapBuffer, interactionLayers);
+
+            IInteractable closest = null;
+            float closestDist = float.MaxValue;
+
+            for (int i = 0; i < count; i++)
+            {
+                var interactable = _overlapBuffer[i].GetComponent<IInteractable>();
+                if (interactable == null || !interactable.CanInteract) continue;
+
+                float dist = Vector3.Distance(transform.position, _overlapBuffer[i].transform.position);
+                if (dist < closestDist)
+                {
+                    closestDist = dist;
+                    closest = interactable;
+                }
+            }
+
+            _nearestInteractable = closest;
         }
 
         private void Move()
