@@ -20,7 +20,7 @@
     },
     {
       "title": "Add resource gathering nodes and respawn data to IR generator",
-      "completed": true,
+      "completed": false,
       "parallel_group": 2,
       "description": "Resource system is an empty stub in all three engines because the IR never provides node placement data. (1) In ir-types.ts, add ResourceNodeIR: { position: Vec3, resourceType, maxYield, gatherTimeSeconds, respawnTimeSeconds, toolRequired?, minSkillLevel? }. (2) Add resourceNodes array to GeographyIR. (3) In ir-generator.ts, procedurally scatter resource nodes by biome: forests→wood, mountains→stone/iron/crystal, rivers→water, fields→food/fiber. (4) Nodes must not overlap with buildings or roads — check against existing settlement and road positions. (5) Place 20-50 nodes per settlement scaled by population. (6) Verify resource nodes appear in the exported IR JSON. Typecheck must pass."
     },
@@ -32,13 +32,13 @@
     },
     {
       "title": "Add animal population system to IR generator",
-      "completed": true,
+      "completed": false,
       "parallel_group": 2,
       "description": "animals array is defined but always empty with a comment 'populated at runtime'. (1) In ir-types.ts, add AnimalIR: { id, species, position: Vec3, wanderRadius, behavior ('passive'|'neutral'|'aggressive'), health, lootTable?: string[], spawnGroup? }. (2) Populate the existing animals array in EntitiesIR. (3) Scatter by biome: forests (deer, wolves, bears, rabbits), plains (cattle, horses, sheep), water (fish, ducks), mountains (goats, eagles), desert (snakes, scorpions). (4) 5-15 animal groups per settlement area — passive near towns, aggressive in wilderness. (5) Each group has 1-5 members near a center point. Typecheck must pass."
     },
     {
       "title": "Add GLB-to-FBX conversion utility for Unreal animated asset pipeline",
-      "completed": true,
+      "completed": false,
       "parallel_group": 2,
       "description": "Research confirms Unreal has persistent glTF skeletal animation issues — FBX is the safe path. (1) Create server/services/game-export/asset-converter.ts with convertGlbToFbx(inputPath, outputPath): Promise<string>. (2) Check if Blender CLI is available via 'blender --version'; if not, warn and return original GLB path as fallback. (3) If available, run headless: blender --background --python <script> -- input.glb output.fbx. (4) Embed a Python script string that imports GLB and exports FBX with baked animations + embedded textures. (5) Add hasSkeletalAnimation(assetPath): boolean that checks GLB metadata. (6) Integrate into Unreal exporter: convert animated assets to FBX, keep static as GLB. (7) 60-second timeout with error handling. Typecheck must pass."
     },
