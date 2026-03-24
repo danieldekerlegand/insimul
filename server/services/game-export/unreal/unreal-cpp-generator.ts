@@ -369,7 +369,7 @@ FString UInsimulAIBundle::GetKnowledgeBase() const
 // UI Classes
 // ─────────────────────────────────────────────
 
-function genUIClasses(): GeneratedFile[] {
+function genHUDWidgets(): GeneratedFile[] {
   const base = `Source/${M}/UI`;
   return [
     { path: `${base}/InsimulHUDWidget.h`,   content: loadStaticTemplate('source/ui/InsimulHUDWidget.h') },
@@ -381,7 +381,7 @@ function genUIClasses(): GeneratedFile[] {
 // UI Classes (Main Menu)
 // ─────────────────────────────────────────────
 
-function genUIClasses(ir: WorldIR): GeneratedFile[] {
+function genMenuClasses(ir: WorldIR): GeneratedFile[] {
   const base = `Source/${M}/UI`;
   const menu = ir.ui?.menuConfig;
   const title = menu?.mainMenu?.title ?? ir.meta.worldName;
@@ -425,9 +425,9 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genSystemClasses(ir),
     ...genUIWidgets(ir),
     ...genServiceClasses(ir),
-    ...genUIClasses(),
+    ...genHUDWidgets(),
     ...genWorldGenerators(ir),
-    ...genUIClasses(ir),
+    ...genMenuClasses(ir),
     ...genAssetScripts(),
   ];
 }
