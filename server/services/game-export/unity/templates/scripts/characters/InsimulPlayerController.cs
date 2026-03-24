@@ -26,6 +26,7 @@ namespace Insimul.Characters
         public int gold = {{PLAYER_INITIAL_GOLD}};
 
         private CharacterController _controller;
+        private CharacterAnimationController _animController;
         private Vector3 _velocity;
         private Vector2 _moveInput;
         private bool _jumpPressed;
@@ -33,6 +34,7 @@ namespace Insimul.Characters
         private void Awake()
         {
             _controller = GetComponent<CharacterController>();
+            _animController = GetComponent<CharacterAnimationController>();
             if (cameraTransform == null && Camera.main != null)
                 cameraTransform = Camera.main.transform;
         }
@@ -41,6 +43,7 @@ namespace Insimul.Characters
         {
             Move();
             ApplyGravity();
+            UpdateAnimations();
         }
 
         public void OnMove(InputValue value) => _moveInput = value.Get<Vector2>();
@@ -48,13 +51,13 @@ namespace Insimul.Characters
 
         public void OnAttack()
         {
-            // TODO: Trigger combat system
+            if (_animController != null) _animController.TriggerAttack();
             Debug.Log("[Insimul] Player Attack");
         }
 
         public void OnInteract()
         {
-            // TODO: Raycast for interactable objects
+            if (_animController != null) _animController.TriggerInteract();
             Debug.Log("[Insimul] Player Interact");
         }
 
@@ -93,6 +96,15 @@ namespace Insimul.Characters
                 _velocity.y += gravity * Time.deltaTime;
             }
             _controller.Move(_velocity * Time.deltaTime);
+        }
+
+        private void UpdateAnimations()
+        {
+            if (_animController == null) return;
+            Vector3 horizontalVelocity = _controller.velocity;
+            horizontalVelocity.y = 0f;
+            _animController.SetSpeed(horizontalVelocity.magnitude);
+            _animController.SetGrounded(_controller.isGrounded);
         }
     }
 }

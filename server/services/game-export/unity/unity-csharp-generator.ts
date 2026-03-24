@@ -31,6 +31,7 @@ function genDataClasses(): GeneratedFile[] {
     { path: `${base}/InsimulAIConfig.cs`, content: loadStaticTemplate('scripts/data/InsimulAIConfig.cs') },
     { path: `${base}/InsimulWaterFeatureData.cs`, content: loadStaticTemplate('scripts/data/InsimulWaterFeatureData.cs') },
     { path: `${base}/InsimulLotData.cs`, content: loadStaticTemplate('scripts/data/InsimulLotData.cs') },
+    { path: `${base}/InsimulAnimationData.cs`, content: loadStaticTemplate('scripts/data/InsimulAnimationData.cs') },
   ];
 }
 
@@ -66,6 +67,7 @@ function genCharacterClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/InsimulPlayerController.cs`, content: loadTemplate('scripts/characters/InsimulPlayerController.cs', playerTokens) },
     { path: `${base}/NPCController.cs`,           content: loadStaticTemplate('scripts/characters/NPCController.cs') },
     { path: `${base}/NPCManager.cs`,              content: loadStaticTemplate('scripts/characters/NPCManager.cs') },
+    { path: `${base}/CharacterAnimationController.cs`, content: loadStaticTemplate('scripts/characters/CharacterAnimationController.cs') },
   ];
 }
 

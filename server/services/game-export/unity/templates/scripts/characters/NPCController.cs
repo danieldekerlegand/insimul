@@ -25,12 +25,14 @@ namespace Insimul.Characters
         public NPCState currentState = NPCState.Idle;
 
         private NavMeshAgent _agent;
+        private CharacterAnimationController _animController;
         private float _patrolTimer;
         private float _patrolInterval = 5f;
 
         private void Awake()
         {
             _agent = GetComponent<NavMeshAgent>();
+            _animController = GetComponent<CharacterAnimationController>();
             _agent.speed = 2f;
         }
 
@@ -67,6 +69,7 @@ namespace Insimul.Characters
                 case NPCState.Alert:
                     break;
             }
+            UpdateAnimations();
         }
 
         private void UpdateIdle()
@@ -98,12 +101,21 @@ namespace Insimul.Characters
             currentState = NPCState.Talking;
             _agent.ResetPath();
             transform.LookAt(initiator.transform);
+            if (_animController != null) _animController.SetTalking(true);
             Debug.Log($"[Insimul] NPC {characterId} starting dialogue");
         }
 
         public void EndDialogue()
         {
             currentState = NPCState.Idle;
+            if (_animController != null) _animController.SetTalking(false);
+        }
+
+        private void UpdateAnimations()
+        {
+            if (_animController == null) return;
+            _animController.SetSpeed(_agent.velocity.magnitude);
+            _animController.SetGrounded(true);
         }
     }
 }
