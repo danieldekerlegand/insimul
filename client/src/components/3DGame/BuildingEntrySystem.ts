@@ -15,6 +15,7 @@ import {
   Observer,
   DynamicTexture,
 } from '@babylonjs/core';
+import { AdvancedDynamicTexture, Rectangle, TextBlock } from '@babylonjs/gui';
 import { BuildingInteriorGenerator, InteriorLayout } from './BuildingInteriorGenerator';
 import type { InteriorNPCManager, BuildingMetadata } from './InteriorNPCManager';
 import type { BusinessBehaviorSystem } from './BusinessBehaviorSystem';
@@ -52,6 +53,8 @@ export interface BuildingEntryCallbacks {
   onExitBuilding?: () => void;
   /** Called to show a toast notification */
   onShowToast?: (title: string, description?: string, duration?: number) => void;
+  /** Called to play a door open/close sound effect */
+  onPlayDoorSound?: () => void;
 }
 
 /** Door entry point for a building */
@@ -64,8 +67,14 @@ interface DoorEntryPoint {
 /** Proximity detection radius for door prompts (meters) */
 const DOOR_PROXIMITY_RADIUS = 2.0;
 
-/** Fade transition duration in milliseconds */
-const FADE_DURATION_MS = 500;
+/** Fade-out duration in milliseconds */
+const FADE_OUT_MS = 500;
+/** Duration to hold the black screen in milliseconds */
+const HOLD_BLACK_MS = 300;
+/** Fade-in duration in milliseconds */
+const FADE_IN_MS = 500;
+/** Show loading indicator if black period exceeds this threshold */
+const LOADING_INDICATOR_DELAY_MS = 2000;
 
 export class BuildingEntrySystem {
   private scene: Scene;
@@ -104,8 +113,8 @@ export class BuildingEntrySystem {
   private npcDataSource: (() => Map<string, { mesh: Mesh; characterData?: any }>) | null = null;
   private playerCharacterIdSource: (() => string | undefined) | null = null;
 
-  /** Override fade transition for testing — set to a function that returns a resolved Promise */
-  public _fadeOverride: ((fadeOut: boolean) => Promise<void>) | null = null;
+  /** Override the full scene transition for testing — receives the black-period callback */
+  public _transitionOverride: ((duringBlack: () => Promise<void> | void) => Promise<void>) | null = null;
 
   constructor(
     scene: Scene,
@@ -253,64 +262,67 @@ export class BuildingEntrySystem {
     }
     this.savedOverworldRotationY = this.callbacks.getPlayerRotationY?.() ?? 0;
 
-    // Generate or retrieve interior
-    const interior = this.interiorGenerator.generateInterior(
-      buildingId,
-      data.buildingType,
-      data.businessType,
-      doorWorldPos
-    );
-    this.activeInterior = interior;
-    this.activeBuildingId = buildingId;
-
     // Hide door prompt during transition
     this.hidePrompt();
 
-    // Fade to black
-    await this.performFadeTransition(true);
+    // Trigger door sound effect
+    this.callbacks.onPlayDoorSound?.();
 
-    // Teleport player to interior door position and face inward (+Z / north)
-    this.callbacks.onTeleportPlayer(interior.doorPosition.clone());
-    this.callbacks.onSetPlayerRotationY?.(0);
-    this.isInsideBuilding = true;
-
-    // Create door trigger zone for walk-through exit
-    this.createInteriorDoorTrigger(interior);
-
-    // Pause overworld NPC movement
-    for (const cb of this.npcPauseCallbacks) {
-      cb.pause();
-    }
-
-    // Populate interior with NPCs via wired InteriorNPCManager
-    if (this.interiorNPCManager && this.npcDataSource) {
-      const metadata: BuildingMetadata = data.metadata ?? {
-        buildingType: data.buildingType,
-        businessType: data.businessType,
-      };
-      const npcMap = this.npcDataSource();
-      const playerCharId = this.playerCharacterIdSource?.();
-      this.interiorNPCManager.populateInterior(
+    // Full fade-out → setup → fade-in transition
+    await this.performSceneTransition(async () => {
+      // Generate or retrieve interior
+      const interior = this.interiorGenerator.generateInterior(
         buildingId,
-        interior,
-        metadata,
-        npcMap,
-        playerCharId
+        data.buildingType,
+        data.businessType,
+        doorWorldPos
       );
+      this.activeInterior = interior;
+      this.activeBuildingId = buildingId;
 
-      // Register placed NPCs with business behavior system
-      if (this.businessBehaviorSystem && data.businessType) {
-        this.businessBehaviorSystem.clearAll();
-        for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
-          this.businessBehaviorSystem.registerNPC(placed.npcId, placed.role, data.businessType);
+      // Teleport player just inside the front door facing inward (+Z / north)
+      this.callbacks.onTeleportPlayer(interior.doorPosition.clone());
+      this.callbacks.onSetPlayerRotationY?.(0);
+      this.isInsideBuilding = true;
+
+      // Create door trigger zone for walk-through exit
+      this.createInteriorDoorTrigger(interior);
+
+      // Pause overworld NPC movement
+      for (const cb of this.npcPauseCallbacks) {
+        cb.pause();
+      }
+
+      // Populate interior with NPCs via wired InteriorNPCManager
+      if (this.interiorNPCManager && this.npcDataSource) {
+        const metadata: BuildingMetadata = data.metadata ?? {
+          buildingType: data.buildingType,
+          businessType: data.businessType,
+        };
+        const npcMap = this.npcDataSource();
+        const playerCharId = this.playerCharacterIdSource?.();
+        this.interiorNPCManager.populateInterior(
+          buildingId,
+          interior,
+          metadata,
+          npcMap,
+          playerCharId
+        );
+
+        // Register placed NPCs with business behavior system
+        if (this.businessBehaviorSystem && data.businessType) {
+          this.businessBehaviorSystem.clearAll();
+          for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+            this.businessBehaviorSystem.registerNPC(placed.npcId, placed.role, data.businessType);
+          }
         }
       }
-    }
 
-    // Notify callback
-    this.callbacks.onEnterBuilding?.(buildingId, interior);
+      // Notify callback
+      this.callbacks.onEnterBuilding?.(buildingId, interior);
+    });
 
-    // Show building name indicator
+    // Post-transition UI (after fade-in completes — no pop-in)
     const label = data.buildingName || data.businessType || data.buildingType || 'Building';
     this.showBuildingNameIndicator(label);
 
@@ -319,9 +331,6 @@ export class BuildingEntrySystem {
       'Press E or click the door to exit',
       2500
     );
-
-    // Fade back in
-    await this.performFadeTransition(false);
   }
 
   /**
@@ -330,45 +339,54 @@ export class BuildingEntrySystem {
   async exitBuilding(): Promise<void> {
     if (!this.isInsideBuilding || !this.activeInterior) return;
 
-    // Fade to black
-    await this.performFadeTransition(true);
+    // Capture references before the transition clears them
+    const buildingId = this.activeBuildingId;
+    const buildingData = buildingId ? this.buildings.get(buildingId) : null;
 
-    // Teleport player back to overworld and restore rotation
-    if (this.savedOverworldPosition) {
-      this.callbacks.onTeleportPlayer(this.savedOverworldPosition.clone());
-    } else {
-      this.callbacks.onTeleportPlayer(this.activeInterior.exitPosition.clone());
-    }
-    this.callbacks.onSetPlayerRotationY?.(this.savedOverworldRotationY);
+    // Trigger door sound effect
+    this.callbacks.onPlayDoorSound?.();
 
-    // Clean up door trigger
-    this.interiorDoorTrigger?.dispose();
-    this.interiorDoorTrigger = null;
+    // Full fade-out → cleanup → fade-in transition
+    await this.performSceneTransition(() => {
+      // Teleport player just outside the front door facing outward
+      if (buildingId && this.doorEntryPoints.has(buildingId)) {
+        const doorEntry = this.doorEntryPoints.get(buildingId)!;
+        this.callbacks.onTeleportPlayer(doorEntry.worldPosition.clone());
+        // Face outward (away from building)
+        this.callbacks.onSetPlayerRotationY?.(buildingData?.rotation ?? 0);
+      } else if (this.savedOverworldPosition) {
+        this.callbacks.onTeleportPlayer(this.savedOverworldPosition.clone());
+        this.callbacks.onSetPlayerRotationY?.(this.savedOverworldRotationY);
+      } else {
+        this.callbacks.onTeleportPlayer(this.activeInterior!.exitPosition.clone());
+      }
 
-    this.isInsideBuilding = false;
-    this.activeInterior = null;
-    this.activeBuildingId = null;
-    this.savedOverworldPosition = null;
+      // Clean up door trigger
+      this.interiorDoorTrigger?.dispose();
+      this.interiorDoorTrigger = null;
 
-    // Hide building name indicator
-    this.hideBuildingNameIndicator();
+      this.isInsideBuilding = false;
+      this.activeInterior = null;
+      this.activeBuildingId = null;
+      this.savedOverworldPosition = null;
 
-    // Clear interior NPCs via wired InteriorNPCManager
-    this.interiorNPCManager?.clearInterior();
-    this.businessBehaviorSystem?.clearAll();
+      // Hide building name indicator
+      this.hideBuildingNameIndicator();
 
-    // Resume overworld NPC movement
-    for (const cb of this.npcPauseCallbacks) {
-      cb.resume();
-    }
+      // Clear interior NPCs via wired InteriorNPCManager
+      this.interiorNPCManager?.clearInterior();
+      this.businessBehaviorSystem?.clearAll();
 
-    // Notify callback
-    this.callbacks.onExitBuilding?.();
+      // Resume overworld NPC movement
+      for (const cb of this.npcPauseCallbacks) {
+        cb.resume();
+      }
+
+      // Notify callback
+      this.callbacks.onExitBuilding?.();
+    });
 
     this.callbacks.onShowToast?.('Exited building', '', 1500);
-
-    // Fade back in
-    await this.performFadeTransition(false);
   }
 
   /**
@@ -642,52 +660,68 @@ export class BuildingEntrySystem {
   }
 
   /**
-   * Fade-to-black / fade-from-black transition.
-   * Duration configurable via FADE_DURATION_MS (0.5s per acceptance criteria).
+   * Full scene transition: fade to black (0.5s) → hold black while executing
+   * setup callback → fade back in (0.5s). Uses a full-screen GUI Rectangle
+   * overlay with animated alpha. Shows a loading indicator if the callback
+   * takes longer than 2 seconds.
    */
-  private performFadeTransition(fadeOut: boolean): Promise<void> {
-    if (this._fadeOverride) return this._fadeOverride(fadeOut);
+  private async performSceneTransition(duringBlack: () => Promise<void> | void): Promise<void> {
+    if (this._transitionOverride) return this._transitionOverride(duringBlack);
+    if (!this.scene) { await duringBlack(); return; }
+
+    // Create fullscreen GUI overlay
+    const adt = AdvancedDynamicTexture.CreateFullscreenUI('fade_ui', true, this.scene);
+    const overlay = new Rectangle('fade_overlay');
+    overlay.width = '100%';
+    overlay.height = '100%';
+    overlay.background = 'black';
+    overlay.alpha = 0;
+    overlay.thickness = 0;
+    overlay.isPointerBlocker = true;
+    adt.addControl(overlay);
+
+    // Loading indicator (hidden until threshold exceeded)
+    const loadingText = new TextBlock('loading_text', 'Loading...');
+    loadingText.color = 'white';
+    loadingText.fontSize = 24;
+    loadingText.isVisible = false;
+    overlay.addControl(loadingText);
+
+    // Phase 1: Fade to black
+    await this.animateOverlayAlpha(overlay, 0, 1, FADE_OUT_MS);
+
+    // Phase 2: Hold black — execute setup callback
+    const loadingTimer = setTimeout(() => { loadingText.isVisible = true; }, LOADING_INDICATOR_DELAY_MS);
+    const holdStart = Date.now();
+    await duringBlack();
+    clearTimeout(loadingTimer);
+    loadingText.isVisible = false;
+
+    // Ensure minimum hold duration so the transition feels deliberate
+    const elapsed = Date.now() - holdStart;
+    if (elapsed < HOLD_BLACK_MS) {
+      await new Promise<void>(r => setTimeout(r, HOLD_BLACK_MS - elapsed));
+    }
+
+    // Phase 3: Fade back in (interior is fully loaded — no pop-in)
+    await this.animateOverlayAlpha(overlay, 1, 0, FADE_IN_MS);
+
+    // Clean up GUI layer
+    adt.dispose();
+  }
+
+  /**
+   * Animate a GUI Rectangle's alpha from one value to another over a duration.
+   */
+  private animateOverlayAlpha(overlay: Rectangle, from: number, to: number, durationMs: number): Promise<void> {
     return new Promise((resolve) => {
       if (!this.scene) { resolve(); return; }
-
-      const overlay = MeshBuilder.CreatePlane('entry_fade_overlay', { size: 500 }, this.scene);
-      overlay.position = this.scene.activeCamera
-        ? this.scene.activeCamera.position.clone()
-        : Vector3.Zero();
-      overlay.billboardMode = Mesh.BILLBOARDMODE_ALL;
-      overlay.renderingGroupId = 3;
-      overlay.isPickable = false;
-
-      const mat = new StandardMaterial('entry_fade_mat', this.scene);
-      mat.diffuseColor = Color3.Black();
-      mat.emissiveColor = Color3.Black();
-      mat.disableLighting = true;
-      mat.backFaceCulling = false;
-      mat.alpha = fadeOut ? 0 : 1;
-      overlay.material = mat;
-
       const startTime = Date.now();
-      const startAlpha = fadeOut ? 0 : 1;
-      const endAlpha = fadeOut ? 1 : 0;
-
       const observer = this.scene.onBeforeRenderObservable.add(() => {
-        const elapsed = Date.now() - startTime;
-        const t = Math.min(elapsed / FADE_DURATION_MS, 1);
-        mat.alpha = startAlpha + (endAlpha - startAlpha) * t;
-
-        // Keep overlay in front of camera
-        if (this.scene?.activeCamera) {
-          const cam = this.scene.activeCamera;
-          const forward = cam.getForwardRay().direction.normalize();
-          overlay.position = cam.position.add(forward.scale(1));
-        }
-
+        const t = Math.min((Date.now() - startTime) / durationMs, 1);
+        overlay.alpha = from + (to - from) * t;
         if (t >= 1) {
-          if (this.scene) {
-            this.scene.onBeforeRenderObservable.remove(observer);
-          }
-          overlay.dispose();
-          mat.dispose();
+          this.scene.onBeforeRenderObservable.remove(observer);
           resolve();
         }
       });

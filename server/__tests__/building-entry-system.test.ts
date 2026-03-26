@@ -11,6 +11,25 @@ const mockRemoveEventListener = vi.fn();
   removeEventListener: mockRemoveEventListener,
 };
 
+// Mock @babylonjs/gui
+vi.mock('@babylonjs/gui', () => ({
+  AdvancedDynamicTexture: {
+    CreateFullscreenUI: vi.fn(() => ({
+      addControl: vi.fn(),
+      dispose: vi.fn(),
+    })),
+  },
+  Rectangle: class {
+    width: any; height: any; background: any; alpha = 0; thickness = 0;
+    isPointerBlocker = false;
+    addControl = vi.fn();
+  },
+  TextBlock: class {
+    color: any; fontSize: any; isVisible = false;
+    constructor(_name?: string, _text?: string) {}
+  },
+}));
+
 // Mock Babylon.js
 vi.mock('@babylonjs/core', () => {
   const Vector3 = class {
@@ -52,6 +71,7 @@ vi.mock('@babylonjs/core', () => {
     Mesh: { BILLBOARDMODE_ALL: 7 },
     MeshBuilder: {
       CreatePlane: vi.fn((_name: string) => createMockMesh(_name)),
+      CreateBox: vi.fn((_name: string) => createMockMesh(_name)),
     },
     StandardMaterial: class {
       diffuseColor: any;
@@ -153,7 +173,7 @@ describe('BuildingEntrySystem', () => {
     callbacks = createMockCallbacks();
     system = new BuildingEntrySystem(scene, interiorGenerator, callbacks);
     // Bypass fade transition in tests
-    system._fadeOverride = async () => {};
+    system._transitionOverride = async (cb: any) => { await cb(); };
   });
 
   afterEach(() => {
@@ -264,20 +284,21 @@ describe('BuildingEntrySystem', () => {
       expect(callbacks.onTeleportPlayer).not.toHaveBeenCalled();
     });
 
-    it('should teleport player back to saved position', async () => {
+    it('should teleport player to door position on exit', async () => {
       const playerPos = new Vector3(20, 1, 30);
       const cb = createMockCallbacks(playerPos);
       const s = new BuildingEntrySystem(scene, interiorGenerator, cb);
-      s._fadeOverride = async () => {};
+      s._transitionOverride = async (fn: any) => { await fn(); };
+      // Building at (10,0,10), rotation=0, depth=8 → door at (10, 0, 14.5)
       s.registerBuilding(createBuildingData());
       await s.enterBuilding('building1');
       await s.exitBuilding();
 
-      // Second teleport should restore overworld position
+      // Exit should teleport to the door entry point, not saved position
       const calls = (cb.onTeleportPlayer as any).mock.calls;
       const lastTeleport = calls[calls.length - 1][0];
-      expect(lastTeleport.x).toBe(20);
-      expect(lastTeleport.z).toBe(30);
+      expect(lastTeleport.x).toBe(10);
+      expect(lastTeleport.z).toBe(14.5);
       s.dispose();
     });
 
