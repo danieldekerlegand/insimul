@@ -24,6 +24,7 @@ import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import { InteriorDecorationGenerator } from './InteriorDecorationGenerator';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate, InteriorLightingPreset, LightingPreset } from '@shared/game-engine/types';
 import { InteriorLightingSystem, type LampPlacement } from './InteriorLightingSystem';
+import { InteriorAtmosphericEffects, extractEffectPlacements } from './InteriorAtmosphericEffects';
 import {
   INTERIOR_LAYOUT_TEMPLATES,
   getFurnitureSetForRoom,
@@ -236,6 +237,7 @@ export class BuildingInteriorGenerator {
   private furnitureLoader: FurnitureModelLoader | null = null;
   private interiorConfigs: Record<string, InteriorTemplateConfig> = {};
   private lightingSystem: InteriorLightingSystem | null = null;
+  private atmosphericEffects: InteriorAtmosphericEffects | null = null;
   private interiorTextures: Map<string, Texture> = new Map();
   private decorationGenerator: InteriorDecorationGenerator;
 
@@ -265,6 +267,11 @@ export class BuildingInteriorGenerator {
   /** Set the interior lighting system for dynamic time-of-day lighting. */
   public setLightingSystem(system: InteriorLightingSystem): void {
     this.lightingSystem = system;
+  }
+
+  /** Set the atmospheric effects system for interior particle effects. */
+  public setAtmosphericEffects(system: InteriorAtmosphericEffects): void {
+    this.atmosphericEffects = system;
   }
 
   /**
@@ -418,6 +425,21 @@ export class BuildingInteriorGenerator {
         lampPlacements,
         windowWalls,
         operatingHours: this.getDefaultOperatingHours(businessType),
+      });
+    }
+
+    // Create atmospheric particle effects (fireplace, steam, sparks, etc.)
+    if (this.atmosphericEffects) {
+      const effectPlacements = extractEffectPlacements(roomFurniture);
+      this.atmosphericEffects.createEffects({
+        buildingId,
+        buildingType,
+        businessType,
+        position,
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
+        effectPlacements,
       });
     }
 
@@ -4333,6 +4355,7 @@ export class BuildingInteriorGenerator {
     layout.furniture.forEach((f) => { if (!f.isDisposed()) f.dispose(); });
     if (!layout.roomMesh.isDisposed()) layout.roomMesh.dispose(false, true);
     this.lightingSystem?.disposeInterior(buildingId);
+    this.atmosphericEffects?.disposeInterior(buildingId);
     this.interiors.delete(buildingId);
   }
 
@@ -4345,6 +4368,7 @@ export class BuildingInteriorGenerator {
       layout.roomMesh.dispose(false, true);
     });
     this.lightingSystem?.dispose();
+    this.atmosphericEffects?.dispose();
     this.interiors.clear();
     this.nextSlotIndex = 0;
   }
