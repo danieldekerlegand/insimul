@@ -28,7 +28,8 @@ export type PhysicalActionType =
   | 'reading'
   | 'praying'
   | 'sweeping'
-  | 'chopping';
+  | 'chopping'
+  | 'herbalism';
 
 export interface ActionItemReward {
   itemName: string;
@@ -228,6 +229,28 @@ export const ACTION_DEFINITIONS: Record<PhysicalActionType, PhysicalActionDefini
     promptVerb: 'Chop',
     validLocations: ['wood_pile', 'lumber_yard', 'tree_stump', 'forest'],
   },
+
+  herbalism: {
+    type: 'herbalism',
+    displayName: 'Pick',
+    animationClip: 'Farm_Harvest',
+    animationFallback: 'Interact',
+    duration: 4,
+    energyCost: 5,
+    xpReward: 8,
+    itemRewards: [
+      { itemName: 'lavande', chance: 0.20, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'romarin', chance: 0.20, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'menthe', chance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'rose', chance: 0.10, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'thym', chance: 0.10, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'sauge', chance: 0.10, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'basilic', chance: 0.05, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'fleur_sauvage', chance: 0.05, minQuantity: 1, maxQuantity: 1 },
+    ],
+    promptVerb: 'Pick',
+    validLocations: ['garden', 'forest', 'meadow', 'farm', 'herb_shop', 'greenhouse', 'grove'],
+  },
 };
 
 // ── Business-to-Action Hotspot Mapping ───────────────────────────────────────
@@ -251,6 +274,7 @@ export const BUSINESS_ACTION_HOTSPOTS: Record<string, { actionType: PhysicalActi
   art_studio: [{ actionType: 'painting', furnitureSubType: 'workbench' }],
   mine: [{ actionType: 'mining', furnitureSubType: 'workbench' }],
   blacksmith_yard: [{ actionType: 'mining', furnitureSubType: 'anvil' }],
+  herb_shop: [{ actionType: 'herbalism', furnitureSubType: 'counter' }],
 };
 
 // ── Progress State ───────────────────────────────────────────────────────────
