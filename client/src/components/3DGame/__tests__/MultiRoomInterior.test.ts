@@ -309,6 +309,8 @@ console.log('\nNPC room-based positioning:');
   // Nighttime: the furniture role should have bedroom function
   const ownerPlaced = placed[0];
   assert(ownerPlaced.role === 'owner', 'owner role preserved');
+  // Nighttime: NPC on bed should have 'sleep' animation, not 'idle'
+  assert(ownerPlaced.animationState === 'sleep', `nighttime bed animation should be 'sleep' (got '${ownerPlaced.animationState}')`);
 }
 
 {

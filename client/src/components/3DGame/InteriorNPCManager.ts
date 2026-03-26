@@ -226,8 +226,8 @@ const RESIDENCE_FURNITURE_ROLES_DAY: FurnitureRole[] = [
 
 /** Residence furniture roles — nighttime positions (bedroom upstairs if available) */
 const RESIDENCE_FURNITURE_ROLES_NIGHT: FurnitureRole[] = [
-  { name: 'bed', offset: new Vector3(-2, 0, 2), forRoles: ['owner'], animation: 'idle', roomFunction: 'bedroom' },
-  { name: 'bed2', offset: new Vector3(2, 0, 2), forRoles: ['owner'], animation: 'idle', roomFunction: 'bedroom' },
+  { name: 'bed', offset: new Vector3(-2, 0, 2), forRoles: ['owner'], animation: 'sleep', roomFunction: 'bedroom' },
+  { name: 'bed2', offset: new Vector3(2, 0, 2), forRoles: ['owner'], animation: 'sleep', roomFunction: 'bedroom' },
   { name: 'chair', offset: new Vector3(0, 0, -1), forRoles: ['visitor'], animation: 'sit', roomFunction: 'living' },
 ];
 

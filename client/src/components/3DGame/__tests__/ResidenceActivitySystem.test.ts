@@ -5,6 +5,7 @@ import {
   getResidenceProfile,
   type ResidenceActivityCallbacks,
   type ResidencePersonality,
+  type BedSleepData,
 } from '../ResidenceActivitySystem';
 
 // ---------- Helpers ----------
@@ -18,11 +19,20 @@ const DEFAULT_PERSONALITY: ResidencePersonality = {
 
 const MS_PER_GAME_HOUR = 60_000; // 1 real minute = 1 game hour
 
+const TEST_BED_DATA: BedSleepData = {
+  bedId: 'interior_res_123_bedroom_furn_0_bed',
+  position: { x: 10, y: 500.1, z: 15 },
+  rotation: Math.PI / 2,
+  mattressHeight: 0.6,
+};
+
 function makeCallbacks(): ResidenceActivityCallbacks & Record<string, any> {
   return {
     onAnimationChange: vi.fn(),
     onOccasionStart: vi.fn(),
     onOccasionEnd: vi.fn(),
+    onSleepOnBed: vi.fn(),
+    onWakeFromBed: vi.fn(),
   };
 }
 
@@ -149,6 +159,98 @@ describe('ResidenceActivitySystem', () => {
       expect(animations.length).toBeGreaterThanOrEqual(3);
       // Should contain 'eat' at some point (second activity in eating profile)
       expect(animations).toContain('eat');
+    });
+  });
+
+  describe('bed sleep positioning', () => {
+    it('calls onSleepOnBed when sleeping with bed data', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY, TEST_BED_DATA);
+
+      expect(callbacks.onSleepOnBed).toHaveBeenCalledWith('npc-1', TEST_BED_DATA);
+      expect(callbacks.onAnimationChange).toHaveBeenCalledWith('npc-1', 'sleep');
+    });
+
+    it('does not call onSleepOnBed when sleeping without bed data', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY);
+
+      expect(callbacks.onSleepOnBed).not.toHaveBeenCalled();
+    });
+
+    it('does not call onSleepOnBed for non-sleeping occasions even with bed data', () => {
+      system.startOccasion('npc-1', 'eating', DEFAULT_PERSONALITY, TEST_BED_DATA);
+
+      expect(callbacks.onSleepOnBed).not.toHaveBeenCalled();
+    });
+
+    it('stores bed data in residence state', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY, TEST_BED_DATA);
+
+      const state = system.getResidenceState('npc-1');
+      expect(state?.bedData).toEqual(TEST_BED_DATA);
+    });
+
+    it('isSleepingOnBed returns true when NPC has bed data', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY, TEST_BED_DATA);
+      expect(system.isSleepingOnBed('npc-1')).toBe(true);
+    });
+
+    it('isSleepingOnBed returns false when sleeping without bed data', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY);
+      expect(system.isSleepingOnBed('npc-1')).toBe(false);
+    });
+
+    it('isSleepingOnBed returns false for non-sleeping occasions', () => {
+      system.startOccasion('npc-1', 'eating', DEFAULT_PERSONALITY);
+      expect(system.isSleepingOnBed('npc-1')).toBe(false);
+    });
+
+    it('isSleepingOnBed returns false for unregistered NPC', () => {
+      expect(system.isSleepingOnBed('npc-unknown')).toBe(false);
+    });
+
+    it('getBedData returns bed data for sleeping NPC', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY, TEST_BED_DATA);
+      expect(system.getBedData('npc-1')).toEqual(TEST_BED_DATA);
+    });
+
+    it('getBedData returns undefined when no bed data', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY);
+      expect(system.getBedData('npc-1')).toBeUndefined();
+    });
+  });
+
+  describe('wake-up transition', () => {
+    it('calls onWakeFromBed when ending sleep occasion with bed data', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY, TEST_BED_DATA);
+      system.endOccasion('npc-1');
+
+      expect(callbacks.onWakeFromBed).toHaveBeenCalledWith('npc-1');
+      expect(callbacks.onOccasionEnd).toHaveBeenCalledWith('npc-1', 'sleeping');
+    });
+
+    it('calls onWakeFromBed before onOccasionEnd', () => {
+      const callOrder: string[] = [];
+      callbacks.onWakeFromBed.mockImplementation(() => callOrder.push('wake'));
+      callbacks.onOccasionEnd.mockImplementation(() => callOrder.push('end'));
+
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY, TEST_BED_DATA);
+      system.endOccasion('npc-1');
+
+      expect(callOrder).toEqual(['wake', 'end']);
+    });
+
+    it('does not call onWakeFromBed when ending sleep without bed data', () => {
+      system.startOccasion('npc-1', 'sleeping', DEFAULT_PERSONALITY);
+      system.endOccasion('npc-1');
+
+      expect(callbacks.onWakeFromBed).not.toHaveBeenCalled();
+    });
+
+    it('does not call onWakeFromBed for non-sleeping occasions', () => {
+      system.startOccasion('npc-1', 'eating', DEFAULT_PERSONALITY);
+      system.endOccasion('npc-1');
+
+      expect(callbacks.onWakeFromBed).not.toHaveBeenCalled();
     });
   });
 

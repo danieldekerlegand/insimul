@@ -36,6 +36,16 @@ export interface ResidencePersonality {
   neuroticism: number;     // 0-1
 }
 
+/** Bed positioning data for sleep-on-bed behavior */
+export interface BedSleepData {
+  bedId: string;
+  position: { x: number; y: number; z: number };
+  /** Rotation in radians to align NPC with bed orientation */
+  rotation: number;
+  /** Y offset from bed base to mattress surface */
+  mattressHeight: number;
+}
+
 /** Per-NPC residence activity tracking */
 export interface NPCResidenceState {
   npcId: string;
@@ -46,6 +56,10 @@ export interface NPCResidenceState {
   activityIndex: number;
   profile: HomeActivityProfile;
   personality: ResidencePersonality;
+  /** Bed data for visible sleep positioning (undefined = fallback to invisible) */
+  bedData?: BedSleepData;
+  /** Whether wake-up transition is in progress */
+  isWakingUp?: boolean;
 }
 
 /** Callbacks emitted by the system */
@@ -53,6 +67,10 @@ export interface ResidenceActivityCallbacks {
   onAnimationChange?: (npcId: string, state: AnimationState) => void;
   onOccasionStart?: (npcId: string, occasion: string) => void;
   onOccasionEnd?: (npcId: string, occasion: string) => void;
+  /** Position NPC on their bed for visible sleeping */
+  onSleepOnBed?: (npcId: string, bedData: BedSleepData) => void;
+  /** Trigger wake-up transition: stop sleep → idle → walk away */
+  onWakeFromBed?: (npcId: string) => void;
 }
 
 // ---------- Activity Profiles ----------
@@ -160,11 +178,16 @@ export class ResidenceActivitySystem {
   /**
    * Start a home occasion for an NPC (sleeping, eating, or relaxing).
    * Call when the ScheduleExecutor transitions an NPC to a home phase.
+   *
+   * For sleeping, pass optional `bedData` to position the NPC visibly on a bed
+   * rather than hiding them inside the building. If no bedData is provided,
+   * the NPC falls back to the existing invisible sleep behavior.
    */
   startOccasion(
     npcId: string,
     occasion: 'sleeping' | 'eating' | 'relaxing',
     personality: ResidencePersonality = { openness: 0.5, conscientiousness: 0.5, extroversion: 0.5, neuroticism: 0.5 },
+    bedData?: BedSleepData,
   ): void {
     const profile = getResidenceProfile(occasion);
     const activityIndex = 0;
@@ -181,23 +204,48 @@ export class ResidenceActivitySystem {
       activityIndex,
       profile,
       personality,
+      bedData: occasion === 'sleeping' ? bedData : undefined,
     };
 
     this.npcStates.set(npcId, state);
     this.callbacks.onAnimationChange?.(npcId, activity.animation);
     this.callbacks.onOccasionStart?.(npcId, occasion);
+
+    // Position NPC on bed if bed data is available
+    if (occasion === 'sleeping' && bedData) {
+      this.callbacks.onSleepOnBed?.(npcId, bedData);
+    }
   }
 
   /**
    * End a home occasion for an NPC.
    * Call when the ScheduleExecutor transitions the NPC away from home.
+   * For sleeping NPCs on beds, triggers wake-up transition before ending.
    */
   endOccasion(npcId: string): void {
     const state = this.npcStates.get(npcId);
     if (state) {
+      if (state.occasion === 'sleeping' && state.bedData) {
+        this.callbacks.onWakeFromBed?.(npcId);
+      }
       this.callbacks.onOccasionEnd?.(npcId, state.occasion);
     }
     this.npcStates.delete(npcId);
+  }
+
+  /**
+   * Check if an NPC is sleeping on a bed (visible sleep, not invisible).
+   */
+  isSleepingOnBed(npcId: string): boolean {
+    const state = this.npcStates.get(npcId);
+    return state?.occasion === 'sleeping' && !!state.bedData;
+  }
+
+  /**
+   * Get the bed data for a sleeping NPC, if any.
+   */
+  getBedData(npcId: string): BedSleepData | undefined {
+    return this.npcStates.get(npcId)?.bedData;
   }
 
   /**
