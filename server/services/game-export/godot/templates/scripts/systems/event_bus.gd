@@ -152,6 +152,8 @@ const EVENT_QUESTIONS_ANSWERED := "questions_answered"
 # Assessment objective triggers
 const EVENT_WRITING_SUBMITTED := "writing_submitted"
 const EVENT_LISTENING_COMPLETED := "listening_completed"
+# Exploration discovery events
+const EVENT_INVESTIGATION_COMPLETED := "investigation_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -250,6 +252,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	# Assessment objective triggers
 	EVENT_WRITING_SUBMITTED,
 	EVENT_LISTENING_COMPLETED,
+	# Exploration discovery events
+	EVENT_INVESTIGATION_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

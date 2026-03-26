@@ -10,7 +10,7 @@ import * as GUI from '@babylonjs/gui';
 export interface MinimapMarker {
   id: string;
   position: Vector3;
-  type: 'player' | 'settlement' | 'npc' | 'quest' | 'quest_objective' | 'building' | 'exclamation';
+  type: 'player' | 'settlement' | 'npc' | 'quest' | 'quest_objective' | 'building' | 'exclamation' | 'discovery';
   label?: string;
   color?: string;
   /** Shape hint for quest_objective markers: 'diamond' for location types, 'circle' for others. */
@@ -368,6 +368,7 @@ export class BabylonMinimap {
                      marker.type === 'settlement' ? 8 :
                      marker.type === 'quest' ? 7 :
                      marker.type === 'quest_objective' ? 5 :
+                     marker.type === 'discovery' ? 6 :
                      marker.type === 'building' ? 3 : 4;
 
         markerElement.width = `${size}px`;
@@ -452,6 +453,8 @@ export class BabylonMinimap {
         return 'magenta';
       case 'building':
         return 'gray';
+      case 'discovery':
+        return '#81C784';
       default:
         return 'white';
     }

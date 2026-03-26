@@ -70,6 +70,7 @@ import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts"
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
 import { FullscreenMap } from "@/components/3DGame/FullscreenMap.ts";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
+import { ExplorationDiscoverySystem, getDefaultHiddenLocations } from "@/components/3DGame/ExplorationDiscoverySystem.ts";
 import { renderWorldCanvas } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { TerrainRenderer } from "@/components/3DGame/TerrainRenderer.ts";
@@ -504,6 +505,7 @@ export class BabylonGame {
   private settlementNoticeBoard: SettlementNoticeBoard | null = null;
   private contentGatingManager: ContentGatingManager | null = null;
   private photographySystem: BabylonPhotographySystem | null = null;
+  private explorationDiscovery: ExplorationDiscoverySystem | null = null;
   private photoBookPanel: BabylonPhotoBookPanel | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
   private prologEngine: GamePrologEngine | null = null;
@@ -2740,6 +2742,14 @@ export class BabylonGame {
     this.minimap.setOnFullscreenToggle(() => {
       this.fullscreenMap?.toggle();
     });
+
+    // Initialize exploration discovery system
+    this.explorationDiscovery = new ExplorationDiscoverySystem(
+      scene,
+      this.eventBus,
+      getDefaultHiddenLocations(this.terrainSize || 512),
+      (x: number, z: number) => this.projectToGround(x, z),
+    );
 
     // Initialize inventory
     this.inventory = new BabylonInventory(scene, this.guiManager.advancedTexture);
@@ -9033,6 +9043,11 @@ export class BabylonGame {
           this.checkSettlementTransition();
         }
 
+        // Exploration discovery proximity checks (exterior only)
+        if (this.explorationDiscovery && this.playerMesh && !this.isInsideBuilding) {
+          this.explorationDiscovery.checkPlayerProximity(this.playerMesh.position);
+        }
+
         // Quest proximity checks run both inside and outside buildings
         if (this.questObjectManager && this.playerMesh) {
           this.questObjectManager.checkLocationProximity(this.playerMesh.position);
@@ -9134,6 +9149,19 @@ export class BabylonGame {
             type: 'player',
             label: 'You'
           });
+        }
+
+        // Add discovered location markers to minimap
+        if (this.explorationDiscovery) {
+          for (const marker of this.explorationDiscovery.getMinimapMarkers()) {
+            this.minimap?.addMarker({
+              id: marker.id,
+              position: marker.position,
+              type: 'discovery',
+              label: marker.label,
+              color: marker.color,
+            });
+          }
         }
       }
       // Phase 3: Update audio listener position for distance-based culling
@@ -14147,6 +14175,8 @@ export class BabylonGame {
     this.buildingCollisionSystem?.dispose();
     this.buildingCollisionSystem = null;
     this.buildingInfoDisplay?.dispose();
+    this.explorationDiscovery?.dispose();
+    this.explorationDiscovery = null;
     this.fullscreenMap?.dispose();
     this.inventory?.dispose();
     this.shopPanel?.dispose();

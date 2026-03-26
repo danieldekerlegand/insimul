@@ -177,7 +177,9 @@ export type GameEvent =
   | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
   | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number }
   // Physical action events (player performing activities at hotspots)
-  | { type: 'physical_action_completed'; actionType: string; locationId?: string; buildingId?: string; itemsProduced: Array<{ itemName: string; quantity: number }>; energyCost: number; xpGained: number };
+  | { type: 'physical_action_completed'; actionType: string; locationId?: string; buildingId?: string; itemsProduced: Array<{ itemName: string; quantity: number }>; energyCost: number; xpGained: number }
+  // Exploration discovery events
+  | { type: 'investigation_completed'; locationId: string; locationName: string; investigationPointId: string; contentType: 'lore' | 'vocabulary' | 'clue'; content: string };
 
 export type GameEventType = GameEvent['type'];
 

@@ -187,6 +187,9 @@ const EVENT_RESEARCH_CATEGORY: Record<GameEventType, ResearchCategory> = {
   // Conversational action detection
   conversational_action: 'language_learning',
   conversation_turn_counted: 'language_learning',
+
+  // Exploration discovery
+  investigation_completed: 'exploration',
 };
 
 // ── Event-to-Trace Mapping ──────────────────────────────────────────────────
