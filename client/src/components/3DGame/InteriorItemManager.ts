@@ -285,6 +285,90 @@ const INTERIOR_ITEM_PLACEMENTS: Record<string, ItemPlacement[]> = {
     { offsetX: -3, offsetZ: -5, height: 0.9 },        // office desk
     { offsetX: 3, offsetZ: -5, height: 0.8 },         // office shelf
   ],
+  inn: [
+    { offsetX: 0, offsetZ: -2, height: 1.1 },         // front desk
+    { offsetX: -3, offsetZ: 0, height: 0.9 },         // lobby table
+    { offsetX: 3, offsetZ: 0, height: 0.9 },          // lobby table
+    { offsetX: 0, offsetZ: 4, height: 1.1 },          // kitchen counter
+    { offsetX: -4, offsetZ: 4, height: 0.8 },         // kitchen shelf
+    { offsetX: -2, offsetZ: 6, height: 0 },           // storage barrel
+    { offsetX: 2, offsetZ: 6, height: 0 },            // storage crate
+    { offsetX: 0, offsetZ: 2, height: 1.3 },          // bar counter
+  ],
+  library: [
+    { offsetX: 0, offsetZ: -2, height: 0.9 },         // reading table
+    { offsetX: -5, offsetZ: -1, height: 0.8 },        // bookshelf
+    { offsetX: 5, offsetZ: -1, height: 0.8 },         // bookshelf
+    { offsetX: -5, offsetZ: 1, height: 1.4 },         // upper shelf
+    { offsetX: 5, offsetZ: 1, height: 1.4 },          // upper shelf
+    { offsetX: -5, offsetZ: 3, height: 0.8 },         // back shelf
+    { offsetX: 5, offsetZ: 3, height: 0.8 },          // back shelf
+    { offsetX: 0, offsetZ: 1, height: 0.9 },          // study table
+    { offsetX: 0, offsetZ: 4, height: 0.85 },         // librarian desk
+    { offsetX: -2, offsetZ: 5, height: 0 },           // book stack on floor
+  ],
+  clinic: [
+    { offsetX: 0, offsetZ: -2, height: 1.1 },         // reception counter
+    { offsetX: -3, offsetZ: 0, height: 0.9 },         // exam table
+    { offsetX: 3, offsetZ: 0, height: 0.9 },          // exam table
+    { offsetX: -5, offsetZ: 2, height: 0.8 },         // medicine shelf
+    { offsetX: 5, offsetZ: 2, height: 0.8 },          // medicine shelf
+    { offsetX: 0, offsetZ: 3, height: 0.9 },          // work table
+    { offsetX: -3, offsetZ: 5, height: 0 },           // storage
+    { offsetX: 3, offsetZ: 5, height: 0 },            // storage
+  ],
+  windmill: [
+    { offsetX: 0, offsetZ: 0, height: 0 },            // center floor
+    { offsetX: -3, offsetZ: -2, height: 0 },          // grain sack
+    { offsetX: 3, offsetZ: -2, height: 0 },           // grain sack
+    { offsetX: 0, offsetZ: 3, height: 0.9 },          // work table
+    { offsetX: -4, offsetZ: 1, height: 0.5 },         // tool hook
+    { offsetX: 4, offsetZ: 1, height: 0.5 },          // tool hook
+  ],
+  watermill: [
+    { offsetX: 0, offsetZ: 0, height: 0 },            // center floor
+    { offsetX: -3, offsetZ: -2, height: 0 },          // grain sack
+    { offsetX: 3, offsetZ: -2, height: 0 },           // barrel
+    { offsetX: 0, offsetZ: 3, height: 0.9 },          // work table
+    { offsetX: -5, offsetZ: 1, height: 0.5 },         // tool rack
+    { offsetX: 5, offsetZ: 1, height: 0 },            // crate
+  ],
+  lumbermill: [
+    { offsetX: -4, offsetZ: -2, height: 0 },          // lumber stack
+    { offsetX: 4, offsetZ: -2, height: 0 },           // lumber stack
+    { offsetX: 0, offsetZ: 0, height: 0.9 },          // saw table
+    { offsetX: -6, offsetZ: 1, height: 0.5 },         // tool rack
+    { offsetX: 6, offsetZ: 1, height: 0.5 },          // tool rack
+    { offsetX: 0, offsetZ: 4, height: 0 },            // floor
+    { offsetX: -3, offsetZ: 5, height: 0 },           // storage
+    { offsetX: 3, offsetZ: 5, height: 0 },            // storage
+  ],
+  mine: [
+    { offsetX: 0, offsetZ: -2, height: 0.9 },         // work table
+    { offsetX: -4, offsetZ: -1, height: 0.5 },        // tool rack
+    { offsetX: 4, offsetZ: -1, height: 0.5 },         // tool rack
+    { offsetX: -3, offsetZ: 2, height: 0 },           // ore pile
+    { offsetX: 3, offsetZ: 2, height: 0 },            // ore pile
+    { offsetX: 0, offsetZ: 4, height: 0 },            // cart
+  ],
+  barracks: [
+    { offsetX: -3, offsetZ: -3, height: 0.6 },        // bunk area
+    { offsetX: 3, offsetZ: -3, height: 0.6 },         // bunk area
+    { offsetX: -3, offsetZ: 0, height: 0.6 },         // bunk area
+    { offsetX: 3, offsetZ: 0, height: 0.6 },          // bunk area
+    { offsetX: 0, offsetZ: 4, height: 0.9 },          // officer desk
+    { offsetX: -5, offsetZ: 4, height: 0.8 },         // weapon rack
+    { offsetX: 5, offsetZ: 4, height: 0.8 },          // weapon rack
+    { offsetX: 0, offsetZ: -1, height: 0 },           // center floor
+  ],
+  apartmentcomplex: [
+    { offsetX: 0, offsetZ: -3, height: 0.6 },         // lobby table
+    { offsetX: -3, offsetZ: -3, height: 0 },          // lobby floor
+    { offsetX: 3, offsetZ: -3, height: 0 },           // lobby floor
+    { offsetX: 0, offsetZ: 0, height: 0 },            // hallway
+    { offsetX: -4, offsetZ: 2, height: 0.8 },         // shelf
+    { offsetX: 4, offsetZ: 2, height: 0.8 },          // shelf
+  ],
 };
 
 /** Default placements when building type is not recognized. */

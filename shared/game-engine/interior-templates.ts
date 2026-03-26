@@ -598,7 +598,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     id: 'tavern',
     category: 'commercial_food',
     buildingType: 'tavern',
-    matchBusinessTypes: ['tavern', 'inn', 'bar'],
+    matchBusinessTypes: ['tavern'],
     width: 18, depth: 16, height: 5,
     floorCount: 2,
     colors: { floor: DARK_WOOD, wall: LIGHT_WOOD, ceiling: DARK_CEILING },
@@ -1527,6 +1527,68 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     furnitureSets: [
       { roomFunction: 'garage_bay', furniture: GARAGE_BAY_FURNITURE },
       { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+    ],
+  },
+
+  // 46. Inn
+  {
+    id: 'inn',
+    category: 'entertainment',
+    buildingType: 'inn',
+    matchBusinessTypes: ['inn'],
+    width: 16, depth: 14, height: 5,
+    floorCount: 3,
+    colors: { floor: DARK_WOOD, wall: LIGHT_WOOD, ceiling: DARK_CEILING },
+    rooms: [
+      { name: 'lobby', function: 'tavern_main', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'kitchen', function: 'tavern_kitchen', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'guest_room1', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'guest_room2', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'guest_room3', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+      { name: 'guest_room4', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'tavern_main', furniture: TAVERN_MAIN_FURNITURE },
+      { roomFunction: 'tavern_kitchen', furniture: TAVERN_KITCHEN_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+    ],
+  },
+
+  // 47. Library
+  {
+    id: 'library',
+    category: 'professional',
+    buildingType: 'library',
+    matchBusinessTypes: ['library'],
+    width: 16, depth: 14, height: 5,
+    floorCount: 3,
+    colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: DARK_CEILING },
+    rooms: [
+      { name: 'reading_hall', function: 'library', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'stacks_1', function: 'library', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+      { name: 'stacks_2', function: 'library', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 2 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'library', furniture: LIBRARY_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+    ],
+  },
+
+  // 48. Stables
+  {
+    id: 'stables',
+    category: 'professional',
+    buildingType: 'stables',
+    matchBusinessTypes: ['stables', 'stable', 'livery'],
+    width: 14, depth: 12, height: 4.5,
+    floorCount: 1,
+    colors: { floor: { r: 0.35, g: 0.3, b: 0.22 }, wall: { r: 0.5, g: 0.35, b: 0.2 }, ceiling: { r: 0.4, g: 0.3, b: 0.18 } },
+    rooms: [
+      { name: 'main_area', function: 'barn', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'barn', furniture: BARN_FURNITURE },
     ],
   },
 ];

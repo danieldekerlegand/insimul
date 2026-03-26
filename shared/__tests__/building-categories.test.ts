@@ -7,14 +7,17 @@ import {
 } from '../game-engine/building-categories';
 
 describe('BUILDING_CATEGORY_GROUPINGS', () => {
-  it('contains all seven categories', () => {
+  it('contains all ten categories', () => {
     const categories = Object.keys(BUILDING_CATEGORY_GROUPINGS);
     expect(categories).toEqual([
       'commercial_food',
       'commercial_retail',
       'commercial_service',
       'civic',
+      'entertainment',
+      'professional',
       'industrial',
+      'military',
       'maritime',
       'residential',
     ]);
@@ -59,6 +62,7 @@ describe('getTypesInCategory', () => {
     expect(getTypesInCategory('commercial_food')).toEqual(['Restaurant', 'Bar', 'Bakery', 'Brewery']);
     expect(getTypesInCategory('residential')).toEqual([
       'house', 'apartment', 'mansion', 'cottage', 'townhouse', 'mobile_home',
+      'ApartmentComplex',
     ]);
   });
 

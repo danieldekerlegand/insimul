@@ -17,15 +17,19 @@ export const BUILDING_CATEGORY_GROUPINGS = {
     'Church', 'TownHall', 'School', 'University', 'Hospital',
     'PoliceStation', 'FireStation', 'Daycare', 'Mortuary',
   ] as const,
-  entertainment: ['Theater'] as const,
+  entertainment: ['Theater', 'Tavern', 'Inn'] as const,
+  professional: ['Library', 'Clinic', 'Stables'] as const,
   industrial: [
     'Factory', 'Farm', 'Warehouse', 'Blacksmith', 'Carpenter', 'Butcher',
+    'Windmill', 'Watermill', 'Lumbermill', 'Mine',
   ] as const,
+  military: ['Barracks'] as const,
   maritime: [
     'Harbor', 'Boatyard', 'FishMarket', 'CustomsHouse', 'Lighthouse',
   ] as const,
   residential: [
     'house', 'apartment', 'mansion', 'cottage', 'townhouse', 'mobile_home',
+    'ApartmentComplex',
   ] as const,
 } as const;
 

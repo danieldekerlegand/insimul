@@ -172,13 +172,18 @@ const ALL_BUILDING_TYPES = [
   // civic
   'Church', 'TownHall', 'School', 'University', 'Hospital', 'PoliceStation', 'FireStation', 'Daycare', 'Mortuary',
   // entertainment
-  'Theater',
+  'Theater', 'Tavern', 'Inn',
+  // professional
+  'Library', 'Clinic', 'Stables',
   // industrial
   'Factory', 'Farm', 'Warehouse', 'Blacksmith', 'Carpenter', 'Butcher',
+  'Windmill', 'Watermill', 'Lumbermill', 'Mine',
+  // military
+  'Barracks',
   // maritime
   'Harbor', 'Boatyard', 'FishMarket', 'CustomsHouse', 'Lighthouse',
   // residential
-  'house', 'apartment', 'mansion', 'cottage', 'townhouse', 'mobile_home',
+  'house', 'apartment', 'mansion', 'cottage', 'townhouse', 'mobile_home', 'ApartmentComplex',
 ];
 
 const CATEGORY_MAP: Record<string, string> = {};
@@ -187,10 +192,12 @@ const CATEGORY_GROUPINGS: Record<string, string[]> = {
   commercial_retail: ['Shop', 'GroceryStore', 'JewelryStore', 'BookStore', 'PawnShop', 'HerbShop'],
   commercial_service: ['Bank', 'Hotel', 'Barbershop', 'Tailor', 'Bathhouse', 'DentalOffice', 'OptometryOffice', 'Pharmacy', 'LawFirm', 'InsuranceOffice', 'RealEstateOffice', 'TattoParlor', 'AutoRepair'],
   civic: ['Church', 'TownHall', 'School', 'University', 'Hospital', 'PoliceStation', 'FireStation', 'Daycare', 'Mortuary'],
-  entertainment: ['Theater'],
-  industrial: ['Factory', 'Farm', 'Warehouse', 'Blacksmith', 'Carpenter', 'Butcher'],
+  entertainment: ['Theater', 'Tavern', 'Inn'],
+  professional: ['Library', 'Clinic', 'Stables'],
+  industrial: ['Factory', 'Farm', 'Warehouse', 'Blacksmith', 'Carpenter', 'Butcher', 'Windmill', 'Watermill', 'Lumbermill', 'Mine'],
+  military: ['Barracks'],
   maritime: ['Harbor', 'Boatyard', 'FishMarket', 'CustomsHouse', 'Lighthouse'],
-  residential: ['house', 'apartment', 'mansion', 'cottage', 'townhouse', 'mobile_home'],
+  residential: ['house', 'apartment', 'mansion', 'cottage', 'townhouse', 'mobile_home', 'ApartmentComplex'],
 };
 for (const [cat, types] of Object.entries(CATEGORY_GROUPINGS)) {
   for (const t of types) CATEGORY_MAP[t] = cat;
