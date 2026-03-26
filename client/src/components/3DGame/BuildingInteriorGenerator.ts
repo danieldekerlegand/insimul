@@ -15,6 +15,7 @@ import {
   StandardMaterial,
   Color3,
   Texture,
+  DynamicTexture,
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate, InteriorLightingPreset, LightingPreset } from '@shared/game-engine/types';
@@ -28,7 +29,7 @@ import type {
   FurnitureEntry,
   InteriorLayoutTemplate as FurnitureLayoutTemplate,
 } from '@shared/game-engine/interior-templates';
-import { getCategoryForType } from '@shared/game-engine/building-categories';
+import { getCategoryForType, type BuildingCategory } from '@shared/game-engine/building-categories';
 
 /** Describes a sub-room within a multi-room interior */
 export interface RoomZone {
@@ -98,6 +99,38 @@ const WINDOW_WIDTH = 1.5;
 const WINDOW_HEIGHT = 1.8;
 const WINDOW_BOTTOM_Y = 1.2;
 const WINDOW_FRAME_THICKNESS = 0.05;
+
+/** Procedural texture surface types for interior surfaces */
+export type SurfaceTexture = 'wood_plank' | 'stone_tile' | 'plaster' | 'wood_panel' | 'stone_block' | 'brick' | 'dirt' | 'wood_beam';
+
+/** Texture style preset for a building interior */
+export interface InteriorTextureStyle {
+  floor: SurfaceTexture;
+  wall: SurfaceTexture;
+  ceiling: SurfaceTexture;
+}
+
+/** Default texture styles per building category */
+const CATEGORY_TEXTURE_STYLES: Record<string, InteriorTextureStyle> = {
+  residential: { floor: 'wood_plank', wall: 'plaster', ceiling: 'wood_beam' },
+  commercial_food: { floor: 'wood_plank', wall: 'wood_panel', ceiling: 'wood_beam' },
+  commercial_retail: { floor: 'stone_tile', wall: 'plaster', ceiling: 'plaster' },
+  commercial_service: { floor: 'stone_tile', wall: 'plaster', ceiling: 'plaster' },
+  entertainment: { floor: 'wood_plank', wall: 'wood_panel', ceiling: 'wood_beam' },
+  professional: { floor: 'stone_tile', wall: 'plaster', ceiling: 'plaster' },
+  civic: { floor: 'stone_tile', wall: 'stone_block', ceiling: 'stone_block' },
+  industrial: { floor: 'dirt', wall: 'brick', ceiling: 'wood_beam' },
+  military: { floor: 'stone_tile', wall: 'stone_block', ceiling: 'stone_block' },
+  maritime: { floor: 'wood_plank', wall: 'wood_panel', ceiling: 'wood_beam' },
+};
+
+/** Fallback texture style when category is unknown */
+const DEFAULT_TEXTURE_STYLE: InteriorTextureStyle = {
+  floor: 'wood_plank', wall: 'plaster', ceiling: 'wood_beam',
+};
+
+/** UV tiles per meter — controls how textures repeat across surfaces */
+const UV_TILES_PER_METER = 0.5; // 1 tile per 2m
 
 /** Maps lighting preset names to concrete InteriorLightingPreset values */
 const LIGHTING_PRESET_CONFIGS: Record<LightingPreset, InteriorLightingPreset> = {
@@ -551,6 +584,7 @@ export class BuildingInteriorGenerator {
     parent.position = position;
 
     const colors = this.getConfiguredColors(buildingType, businessType, config);
+    const textureStyle = this.getTextureStyle(buildingType, businessType);
 
     // Floor
     const floor = MeshBuilder.CreateGround(
@@ -563,7 +597,7 @@ export class BuildingInteriorGenerator {
     const floorMat = new StandardMaterial(`${prefix}_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
-    this.applyTextureToMaterial(floorMat, config?.floorTextureId);
+    this.applyTextureToMaterial(floorMat, config?.floorTextureId, textureStyle.floor, width, depth);
     floor.material = floorMat;
 
     // Ceiling
@@ -577,7 +611,7 @@ export class BuildingInteriorGenerator {
     ceiling.parent = parent;
     const ceilingMat = new StandardMaterial(`${prefix}_ceiling_mat`, this.scene);
     ceilingMat.diffuseColor = colors.ceiling;
-    this.applyTextureToMaterial(ceilingMat, config?.ceilingTextureId);
+    this.applyTextureToMaterial(ceilingMat, config?.ceilingTextureId, textureStyle.ceiling, width, depth);
     ceiling.material = ceilingMat;
     ceiling.checkCollisions = true;
 
@@ -585,7 +619,7 @@ export class BuildingInteriorGenerator {
     const wallMat = new StandardMaterial(`${prefix}_wall_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
-    this.applyTextureToMaterial(wallMat, config?.wallTextureId);
+    this.applyTextureToMaterial(wallMat, config?.wallTextureId, textureStyle.wall, width, height);
 
     // Back wall (north) — with windows
     this.generateWindows(prefix, 'wall_back', parent, wallMat, width, height, 0, 0, depth / 2, 0);
@@ -1029,10 +1063,11 @@ export class BuildingInteriorGenerator {
   ): void {
     const prefix = `interior_${buildingId}`;
     const colors = this.getConfiguredColors(buildingType, businessType, config);
+    const textureStyle = this.getTextureStyle(buildingType, businessType);
     const wallMat = new StandardMaterial(`${prefix}_partition_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
-    this.applyTextureToMaterial(wallMat, config?.wallTextureId);
+    this.applyTextureToMaterial(wallMat, config?.wallTextureId, textureStyle.wall, 10, height);
 
     // Find ground floor rooms — if there are exactly 2 on floor 0, build a partition
     const groundRooms = rooms.filter(r => r.floor === 0);
@@ -1255,11 +1290,12 @@ export class BuildingInteriorGenerator {
   ): void {
     const prefix = `interior_${buildingId}`;
     const colors = this.getConfiguredColors(buildingType, businessType, config);
+    const textureStyle = this.getTextureStyle(buildingType, businessType);
 
     const floorMat = new StandardMaterial(`${prefix}_upper_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
-    this.applyTextureToMaterial(floorMat, config?.floorTextureId);
+    this.applyTextureToMaterial(floorMat, config?.floorTextureId, textureStyle.floor, width, depth);
 
     // Upper floor (with stairwell hole near east wall)
     const stairwellWidth = STAIR_WIDTH + 1.0;
@@ -1313,7 +1349,7 @@ export class BuildingInteriorGenerator {
     // Upper ceiling
     const ceilingMat = new StandardMaterial(`${prefix}_upper_ceiling_mat`, this.scene);
     ceilingMat.diffuseColor = colors.ceiling;
-    this.applyTextureToMaterial(ceilingMat, config?.ceilingTextureId);
+    this.applyTextureToMaterial(ceilingMat, config?.ceilingTextureId, textureStyle.ceiling, width, depth);
 
     const upperCeiling = MeshBuilder.CreateGround(
       `${prefix}_upper_ceiling`,
@@ -1333,6 +1369,7 @@ export class BuildingInteriorGenerator {
     const wallMat = new StandardMaterial(`${prefix}_upper_wall_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    this.applyTextureToMaterial(wallMat, config?.wallTextureId, textureStyle.wall, width, height);
 
     // Back, left, right upper walls — with windows
     this.generateWindows(
@@ -1522,19 +1559,331 @@ export class BuildingInteriorGenerator {
   }
 
   /**
-   * Apply a registered texture to a material if the texture ID is valid.
-   * Sets diffuseColor to white so the texture is not tinted.
+   * Apply a texture to a material. If textureId is provided and registered, use it.
+   * Otherwise fall back to a procedural texture for the given surface type.
+   * UV scaling is based on surface dimensions so textures tile at ~1 tile per 2m.
    */
-  private applyTextureToMaterial(material: StandardMaterial, textureId?: string): void {
-    if (!textureId) return;
-    const texture = this.interiorTextures.get(textureId);
-    if (!texture) return;
-    const cloned = texture.clone();
-    if (cloned) {
-      cloned.uScale = 2;
-      cloned.vScale = 2;
+  private applyTextureToMaterial(
+    material: StandardMaterial,
+    textureId: string | undefined,
+    surfaceType: SurfaceTexture,
+    surfaceWidth: number,
+    surfaceHeight: number,
+  ): void {
+    // Try asset collection texture first
+    if (textureId) {
+      const texture = this.interiorTextures.get(textureId);
+      if (texture) {
+        const cloned = texture.clone();
+        if (cloned) {
+          cloned.uScale = surfaceWidth * UV_TILES_PER_METER;
+          cloned.vScale = surfaceHeight * UV_TILES_PER_METER;
+          material.diffuseTexture = cloned;
+          material.diffuseColor = new Color3(1, 1, 1);
+          return;
+        }
+      }
+    }
+
+    // Generate procedural fallback texture (clone to allow per-surface UV scaling)
+    const procTexture = this.createProceduralTexture(surfaceType, material.name);
+    if (procTexture) {
+      const cloned = procTexture.clone();
+      cloned.uScale = surfaceWidth * UV_TILES_PER_METER;
+      cloned.vScale = surfaceHeight * UV_TILES_PER_METER;
       material.diffuseTexture = cloned;
       material.diffuseColor = new Color3(1, 1, 1);
+    }
+  }
+
+  /**
+   * Get the texture style for a building based on its type/category.
+   */
+  public getTextureStyle(buildingType: string, businessType?: string): InteriorTextureStyle {
+    const category = getCategoryForType(businessType || '') || getCategoryForType(buildingType || '');
+    if (category && CATEGORY_TEXTURE_STYLES[category]) {
+      return CATEGORY_TEXTURE_STYLES[category];
+    }
+
+    // Fall back to keyword matching for types not in the category system
+    const bt = (businessType || buildingType || '').toLowerCase();
+    if (bt.includes('residence') || bt.includes('house') || bt.includes('home') || bt.includes('mansion')) {
+      return CATEGORY_TEXTURE_STYLES.residential;
+    }
+    if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
+      return CATEGORY_TEXTURE_STYLES.entertainment;
+    }
+    if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
+      return CATEGORY_TEXTURE_STYLES.commercial_retail;
+    }
+    if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
+      return CATEGORY_TEXTURE_STYLES.civic;
+    }
+    if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('warehouse') || bt.includes('workshop')) {
+      return CATEGORY_TEXTURE_STYLES.industrial;
+    }
+    if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
+      return CATEGORY_TEXTURE_STYLES.commercial_service;
+    }
+
+    return DEFAULT_TEXTURE_STYLE;
+  }
+
+  /** Cache for procedural textures to avoid recreating identical textures */
+  private proceduralTextureCache: Map<string, DynamicTexture> = new Map();
+
+  /**
+   * Create a procedural DynamicTexture for a given surface type.
+   * Textures are cached by type so identical surfaces share the same texture instance.
+   */
+  private createProceduralTexture(surfaceType: SurfaceTexture, _materialName: string): DynamicTexture | null {
+    const cached = this.proceduralTextureCache.get(surfaceType);
+    if (cached) return cached;
+
+    const size = 256;
+    const texture = new DynamicTexture(`proc_${surfaceType}`, { width: size, height: size }, this.scene, false);
+    const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
+
+    switch (surfaceType) {
+      case 'wood_plank':
+        this.drawWoodPlankTexture(ctx, size);
+        break;
+      case 'stone_tile':
+        this.drawStoneTileTexture(ctx, size);
+        break;
+      case 'plaster':
+        this.drawPlasterTexture(ctx, size);
+        break;
+      case 'wood_panel':
+        this.drawWoodPanelTexture(ctx, size);
+        break;
+      case 'stone_block':
+        this.drawStoneBlockTexture(ctx, size);
+        break;
+      case 'brick':
+        this.drawBrickTexture(ctx, size);
+        break;
+      case 'dirt':
+        this.drawDirtTexture(ctx, size);
+        break;
+      case 'wood_beam':
+        this.drawWoodBeamTexture(ctx, size);
+        break;
+      default:
+        return null;
+    }
+
+    texture.update();
+    this.proceduralTextureCache.set(surfaceType, texture);
+    return texture;
+  }
+
+  // ── Procedural texture drawing routines ──
+
+  private drawWoodPlankTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.fillStyle = '#8B6F47';
+    ctx.fillRect(0, 0, size, size);
+    const plankCount = 6;
+    const plankHeight = size / plankCount;
+    for (let i = 0; i < plankCount; i++) {
+      const shade = 0.85 + (i % 3) * 0.05;
+      const r = Math.floor(139 * shade);
+      const g = Math.floor(111 * shade);
+      const b = Math.floor(71 * shade);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(0, i * plankHeight + 1, size, plankHeight - 2);
+      // Grain lines
+      ctx.strokeStyle = `rgba(60,40,20,0.15)`;
+      ctx.lineWidth = 1;
+      for (let j = 0; j < 3; j++) {
+        const y = i * plankHeight + plankHeight * (0.2 + j * 0.3);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(size, y + (j % 2 === 0 ? 2 : -2));
+        ctx.stroke();
+      }
+    }
+    // Plank gaps
+    ctx.fillStyle = '#3D2B1A';
+    for (let i = 1; i < plankCount; i++) {
+      ctx.fillRect(0, i * plankHeight - 1, size, 2);
+    }
+  }
+
+  private drawStoneTileTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.fillStyle = '#9E9689';
+    ctx.fillRect(0, 0, size, size);
+    const tileCount = 4;
+    const tileSize = size / tileCount;
+    for (let row = 0; row < tileCount; row++) {
+      for (let col = 0; col < tileCount; col++) {
+        const shade = 0.9 + ((row + col) % 3) * 0.05;
+        const base = 150;
+        const r = Math.floor(base * shade);
+        const g = Math.floor((base - 5) * shade);
+        const b = Math.floor((base - 15) * shade);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(col * tileSize + 2, row * tileSize + 2, tileSize - 4, tileSize - 4);
+      }
+    }
+    // Grout lines
+    ctx.fillStyle = '#6B635A';
+    for (let i = 0; i <= tileCount; i++) {
+      ctx.fillRect(i * tileSize - 1, 0, 2, size);
+      ctx.fillRect(0, i * tileSize - 1, size, 2);
+    }
+  }
+
+  private drawPlasterTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.fillStyle = '#DED5C4';
+    ctx.fillRect(0, 0, size, size);
+    // Subtle noise for plaster texture
+    for (let y = 0; y < size; y += 2) {
+      for (let x = 0; x < size; x += 2) {
+        const noise = ((x * 7 + y * 13) % 17) / 17;
+        const alpha = noise * 0.08;
+        ctx.fillStyle = noise > 0.5 ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+  }
+
+  private drawWoodPanelTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.fillStyle = '#7A5C3A';
+    ctx.fillRect(0, 0, size, size);
+    const panelCount = 4;
+    const panelWidth = size / panelCount;
+    for (let i = 0; i < panelCount; i++) {
+      const shade = 0.9 + (i % 2) * 0.1;
+      const r = Math.floor(122 * shade);
+      const g = Math.floor(92 * shade);
+      const b = Math.floor(58 * shade);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(i * panelWidth + 2, 2, panelWidth - 4, size - 4);
+      // Vertical grain
+      ctx.strokeStyle = `rgba(50,30,15,0.12)`;
+      ctx.lineWidth = 1;
+      for (let j = 0; j < 4; j++) {
+        const x = i * panelWidth + panelWidth * (0.2 + j * 0.2);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + (j % 2 === 0 ? 1 : -1), size);
+        ctx.stroke();
+      }
+    }
+    // Panel dividers
+    ctx.fillStyle = '#4A3520';
+    for (let i = 1; i < panelCount; i++) {
+      ctx.fillRect(i * panelWidth - 1, 0, 3, size);
+    }
+  }
+
+  private drawStoneBlockTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.fillStyle = '#8A8279';
+    ctx.fillRect(0, 0, size, size);
+    const rows = 4;
+    const rowHeight = size / rows;
+    for (let row = 0; row < rows; row++) {
+      const colCount = row % 2 === 0 ? 3 : 2;
+      const blockWidth = size / colCount;
+      for (let col = 0; col < colCount; col++) {
+        const shade = 0.88 + ((row * 3 + col * 7) % 5) * 0.03;
+        const base = 130;
+        ctx.fillStyle = `rgb(${Math.floor(base * shade)},${Math.floor((base - 2) * shade)},${Math.floor((base - 8) * shade)})`;
+        ctx.fillRect(col * blockWidth + 2, row * rowHeight + 2, blockWidth - 4, rowHeight - 4);
+      }
+    }
+    // Mortar
+    ctx.fillStyle = '#5E574F';
+    for (let i = 0; i <= rows; i++) {
+      ctx.fillRect(0, i * rowHeight - 1, size, 3);
+    }
+    for (let row = 0; row < rows; row++) {
+      const colCount = row % 2 === 0 ? 3 : 2;
+      const blockWidth = size / colCount;
+      for (let col = 1; col < colCount; col++) {
+        ctx.fillRect(col * blockWidth - 1, row * rowHeight, 3, rowHeight);
+      }
+    }
+  }
+
+  private drawBrickTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(0, 0, size, size);
+    const rows = 8;
+    const rowHeight = size / rows;
+    for (let row = 0; row < rows; row++) {
+      const offset = (row % 2 === 0) ? 0 : size / 6;
+      const brickWidth = size / 3;
+      for (let col = -1; col < 4; col++) {
+        const shade = 0.85 + ((row * 5 + col * 3) % 7) * 0.03;
+        const r = Math.floor(139 * shade);
+        const g = Math.floor(69 * shade);
+        const b = Math.floor(19 * shade);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        const x = col * brickWidth + offset;
+        ctx.fillRect(x + 1, row * rowHeight + 1, brickWidth - 2, rowHeight - 2);
+      }
+    }
+    // Mortar
+    ctx.fillStyle = '#A09080';
+    for (let i = 0; i <= rows; i++) {
+      ctx.fillRect(0, i * rowHeight - 1, size, 2);
+    }
+  }
+
+  private drawDirtTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.fillStyle = '#6B5B3E';
+    ctx.fillRect(0, 0, size, size);
+    for (let y = 0; y < size; y += 2) {
+      for (let x = 0; x < size; x += 2) {
+        const noise = ((x * 11 + y * 17) % 23) / 23;
+        const shade = 0.8 + noise * 0.4;
+        const r = Math.floor(107 * shade);
+        const g = Math.floor(91 * shade);
+        const b = Math.floor(62 * shade);
+        ctx.fillStyle = `rgb(${Math.min(255, r)},${Math.min(255, g)},${Math.min(255, b)})`;
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+    // Scattered pebbles
+    ctx.fillStyle = '#7E7060';
+    const pebbleSeeds = [15, 47, 89, 123, 167, 201, 230];
+    for (const seed of pebbleSeeds) {
+      const px = (seed * 7) % size;
+      const py = (seed * 13) % size;
+      ctx.beginPath();
+      ctx.arc(px, py, 2 + (seed % 3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private drawWoodBeamTexture(ctx: CanvasRenderingContext2D, size: number): void {
+    // Plaster base with visible beam pattern
+    ctx.fillStyle = '#D5CCBB';
+    ctx.fillRect(0, 0, size, size);
+    // Plaster noise
+    for (let y = 0; y < size; y += 3) {
+      for (let x = 0; x < size; x += 3) {
+        const noise = ((x * 7 + y * 11) % 13) / 13;
+        ctx.fillStyle = `rgba(0,0,0,${noise * 0.04})`;
+        ctx.fillRect(x, y, 3, 3);
+      }
+    }
+    // Beam across the middle
+    const beamHeight = size / 6;
+    const beamY = (size - beamHeight) / 2;
+    ctx.fillStyle = '#5A4530';
+    ctx.fillRect(0, beamY, size, beamHeight);
+    // Beam grain
+    ctx.strokeStyle = 'rgba(30,20,10,0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const y = beamY + beamHeight * (0.15 + i * 0.17);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y + 1);
+      ctx.stroke();
     }
   }
 

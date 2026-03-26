@@ -102,6 +102,9 @@ export const MeshBuilder = {
   CreatePlane: (name: string, _opts: any, _scene: any) => new Mesh(name),
 };
 
+/** Global registry of all created StandardMaterial instances (for testing) */
+export const __materialRegistry: Map<string, StandardMaterial> = new Map();
+
 export class StandardMaterial {
   name: string;
   diffuseColor: any;
@@ -109,7 +112,10 @@ export class StandardMaterial {
   specularColor: any;
   diffuseTexture: any = null;
   alpha = 1;
-  constructor(name: string, _scene: any) { this.name = name; }
+  constructor(name: string, _scene: any) {
+    this.name = name;
+    __materialRegistry.set(name, this);
+  }
   dispose() {}
 }
 
@@ -178,9 +184,32 @@ export class Texture {
 }
 
 export class DynamicTexture {
-  constructor(_name: string, _opts: any, _scene: any) {}
-  getContext() { return { fillStyle: '', fillRect() {}, fillText() {} }; }
+  uScale = 1;
+  vScale = 1;
+  name: string;
+  constructor(name: string, _opts: any, _scene: any, _generateMipMaps?: boolean) { this.name = name; }
+  getContext(): any {
+    return {
+      fillStyle: '',
+      fillRect() {},
+      fillText() {},
+      strokeStyle: '',
+      lineWidth: 1,
+      beginPath() {},
+      moveTo() {},
+      lineTo() {},
+      stroke() {},
+      arc() {},
+      fill() {},
+    };
+  }
   update() {}
+  clone() {
+    const t = new DynamicTexture(this.name, null, null);
+    t.uScale = this.uScale;
+    t.vScale = this.vScale;
+    return t;
+  }
 }
 
 export class VertexData {
