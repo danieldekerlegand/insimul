@@ -144,24 +144,24 @@ console.log('\nUV scaling based on room dimensions:');
   const scene = new Scene();
   const gen = new BuildingInteriorGenerator(scene as any);
 
-  // Residence matches layout template: 9x9
+  // Residence matches layout template: 13x13 (increased from 9x9)
   gen.generateInterior('uv1', 'residence');
   const floorMat = getMat('interior_uv1_floor_mat');
   if (floorMat?.diffuseTexture) {
-    // UV_TILES_PER_METER = 0.5, so 9 * 0.5 = 4.5
-    assert(floorMat.diffuseTexture.uScale === 4.5, `floor uScale is 4.5 for 9m width (got ${floorMat.diffuseTexture.uScale})`);
-    assert(floorMat.diffuseTexture.vScale === 4.5, `floor vScale is 4.5 for 9m depth (got ${floorMat.diffuseTexture.vScale})`);
+    // UV_TILES_PER_METER = 0.5, so 13 * 0.5 = 6.5
+    assert(floorMat.diffuseTexture.uScale === 6.5, `floor uScale is 6.5 for 13m width (got ${floorMat.diffuseTexture.uScale})`);
+    assert(floorMat.diffuseTexture.vScale === 6.5, `floor vScale is 6.5 for 13m depth (got ${floorMat.diffuseTexture.vScale})`);
   } else {
     assert(false, 'floor material should have texture for UV test');
   }
 
-  // Temple matches church layout template: 20x24
+  // Temple matches church layout template: 24x29 (increased from 20x24)
   gen.generateInterior('uv2', 'temple');
   const templeFloorMat = getMat('interior_uv2_floor_mat');
   if (templeFloorMat?.diffuseTexture) {
-    // 20 * 0.5 = 10, 24 * 0.5 = 12
-    assert(templeFloorMat.diffuseTexture.uScale === 10, `temple floor uScale is 10 for 20m width (got ${templeFloorMat.diffuseTexture.uScale})`);
-    assert(templeFloorMat.diffuseTexture.vScale === 12, `temple floor vScale is 12 for 24m depth (got ${templeFloorMat.diffuseTexture.vScale})`);
+    // 24 * 0.5 = 12, 29 * 0.5 = 14.5
+    assert(templeFloorMat.diffuseTexture.uScale === 12, `temple floor uScale is 12 for 24m width (got ${templeFloorMat.diffuseTexture.uScale})`);
+    assert(templeFloorMat.diffuseTexture.vScale === 14.5, `temple floor vScale is 14.5 for 29m depth (got ${templeFloorMat.diffuseTexture.vScale})`);
   } else {
     assert(false, 'temple floor material should have texture for UV test');
   }

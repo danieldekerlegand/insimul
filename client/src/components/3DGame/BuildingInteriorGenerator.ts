@@ -101,8 +101,11 @@ const CYLINDER_TYPES = new Set(['barrel', 'pillar', 'stool', 'cauldron']);
 const PARTITION_THICKNESS = 0.25;
 
 /** Doorway dimensions in partition walls */
-const PARTITION_DOOR_WIDTH = 2.0;
+const PARTITION_DOOR_WIDTH = 2.5;
 const PARTITION_DOOR_HEIGHT = 3.0;
+
+/** Minimum clearance (meters) around furniture for player navigation (player capsule ~0.5m radius) */
+const FURNITURE_CLEARANCE = 1.5;
 
 /** Staircase dimensions */
 const STAIR_WIDTH = 2.0;
@@ -559,29 +562,29 @@ export class BuildingInteriorGenerator {
     const bt = (businessType || buildingType || '').toLowerCase();
 
     if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
-      return { width: 22, depth: 28, height: 5 };
+      return { width: 26, depth: 34, height: 5 };
     } else if (bt.includes('restaurant') || bt.includes('bakery') || bt.includes('cafe')) {
-      return { width: 20, depth: 26, height: 5 };
+      return { width: 24, depth: 31, height: 5 };
     } else if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
-      return { width: 18, depth: 24, height: 4.5 };
-    } else if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) {
-      return { width: 20, depth: 24, height: 5 };
-    } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
-      return { width: 24, depth: 32, height: 8 };
-    } else if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
-      return { width: 22, depth: 26, height: 5 };
-    } else if (bt.includes('residence_large') || bt.includes('mansion')) {
       return { width: 22, depth: 28, height: 4.5 };
+    } else if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) {
+      return { width: 24, depth: 28, height: 5 };
+    } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
+      return { width: 28, depth: 38, height: 8 };
+    } else if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
+      return { width: 26, depth: 31, height: 5 };
+    } else if (bt.includes('residence_large') || bt.includes('mansion')) {
+      return { width: 26, depth: 34, height: 4.5 };
     } else if (bt.includes('residence_medium')) {
-      return { width: 18, depth: 22, height: 4 };
+      return { width: 22, depth: 26, height: 4 };
     } else if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) {
-      return { width: 14, depth: 18, height: 3.5 };
+      return { width: 17, depth: 22, height: 3.5 };
     } else if (bt.includes('warehouse') || bt.includes('storage')) {
-      return { width: 24, depth: 28, height: 6 };
+      return { width: 28, depth: 34, height: 6 };
     }
 
     // Default
-    return { width: 16, depth: 20, height: 4 };
+    return { width: 19, depth: 24, height: 4 };
   }
 
   /**
@@ -1470,6 +1473,9 @@ export class BuildingInteriorGenerator {
         : BuildingInteriorGenerator.MIN_FURNITURE_UPPER;
       specs = this.ensureMinimumFurniture(specs, room, minCount);
 
+      // Filter out furniture that overlaps other items or blocks doorways
+      specs = this.filterOverlappingFurniture(specs, room, rooms);
+
       const roomPos = new Vector3(
         position.x + room.offsetX,
         position.y + room.offsetY,
@@ -1509,6 +1515,135 @@ export class BuildingInteriorGenerator {
     }
 
     return allFurniture;
+  }
+
+  /**
+   * Axis-aligned bounding rectangle for furniture placement collision checks.
+   */
+  private static furnitureBounds(spec: FurnitureSpec, clearance: number = 0): {
+    minX: number; maxX: number; minZ: number; maxZ: number;
+  } {
+    const hw = spec.width / 2 + clearance;
+    const hd = spec.depth / 2 + clearance;
+    return {
+      minX: spec.offsetX - hw,
+      maxX: spec.offsetX + hw,
+      minZ: spec.offsetZ - hd,
+      maxZ: spec.offsetZ + hd,
+    };
+  }
+
+  /**
+   * Check if two axis-aligned rectangles overlap.
+   */
+  private static rectsOverlap(
+    a: { minX: number; maxX: number; minZ: number; maxZ: number },
+    b: { minX: number; maxX: number; minZ: number; maxZ: number },
+  ): boolean {
+    return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
+  }
+
+  /**
+   * Get doorway zones for a room (relative to room center).
+   * Doorways are at partition boundaries and at the main entrance (front wall).
+   * Each zone is a rectangle that should remain clear for navigation.
+   */
+  private static getDoorwayZones(
+    room: RoomZone,
+    rooms: RoomZone[],
+  ): Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> {
+    const zones: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+    const doorHalfW = PARTITION_DOOR_WIDTH / 2;
+    const playerRadius = 0.5;
+    const clearZone = doorHalfW + playerRadius;
+
+    // Main entrance doorway is at the front wall (-Z side), centered at X=0
+    zones.push({
+      minX: -clearZone,
+      maxX: clearZone,
+      minZ: -room.depth / 2 - 1,
+      maxZ: -room.depth / 2 + 2,
+    });
+
+    // Check for partition doorways with adjacent rooms on the same floor
+    const sameFloor = rooms.filter(r => r.floor === room.floor && r.name !== room.name);
+    for (const other of sameFloor) {
+      // Partition along Z boundary (rooms stacked front-to-back)
+      if (Math.abs((room.offsetZ + room.depth / 2) - (other.offsetZ - other.depth / 2)) < 1) {
+        const localZ = room.depth / 2;
+        zones.push({
+          minX: -clearZone,
+          maxX: clearZone,
+          minZ: localZ - 2,
+          maxZ: localZ + 1,
+        });
+      }
+      // Partition along X boundary (rooms side-by-side)
+      if (Math.abs((room.offsetX + room.width / 2) - (other.offsetX - other.width / 2)) < 1) {
+        const localX = room.width / 2;
+        zones.push({
+          minX: localX - 2,
+          maxX: localX + 1,
+          minZ: -clearZone,
+          maxZ: clearZone,
+        });
+      }
+      if (Math.abs((room.offsetX - room.width / 2) - (other.offsetX + other.width / 2)) < 1) {
+        const localX = -room.width / 2;
+        zones.push({
+          minX: localX - 1,
+          maxX: localX + 2,
+          minZ: -clearZone,
+          maxZ: clearZone,
+        });
+      }
+    }
+
+    return zones;
+  }
+
+  /**
+   * Filter furniture specs to remove items that overlap existing furniture
+   * (with FURNITURE_CLEARANCE buffer) or block doorway zones.
+   */
+  private filterOverlappingFurniture(
+    specs: FurnitureSpec[],
+    room: RoomZone,
+    rooms: RoomZone[],
+  ): FurnitureSpec[] {
+    const placed: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+    const doorwayZones = BuildingInteriorGenerator.getDoorwayZones(room, rooms);
+    const result: FurnitureSpec[] = [];
+
+    for (const spec of specs) {
+      const bounds = BuildingInteriorGenerator.furnitureBounds(spec, 0);
+      const clearanceBounds = BuildingInteriorGenerator.furnitureBounds(spec, FURNITURE_CLEARANCE);
+
+      // Check if furniture blocks any doorway zone
+      let blocked = false;
+      for (const dz of doorwayZones) {
+        if (BuildingInteriorGenerator.rectsOverlap(bounds, dz)) {
+          blocked = true;
+          break;
+        }
+      }
+      if (blocked) continue;
+
+      // Check if furniture (with clearance) overlaps any already-placed item
+      let overlaps = false;
+      for (const existing of placed) {
+        if (BuildingInteriorGenerator.rectsOverlap(clearanceBounds, existing)) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps) continue;
+
+      placed.push(bounds);
+      result.push(spec);
+    }
+
+    return result;
   }
 
   /**
