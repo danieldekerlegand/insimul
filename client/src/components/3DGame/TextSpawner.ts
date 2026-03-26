@@ -44,6 +44,10 @@ export interface CollectibleTextData {
   isMainQuest?: boolean;
   /** Chapter number for main-quest texts */
   chapter?: number;
+  /** Main quest clue revealed by reading this text */
+  clueText?: string;
+  /** In-world author name */
+  authorName?: string;
 }
 
 export interface SpawnedText {
@@ -202,9 +206,12 @@ export class TextSpawner {
     this.eventBus?.emit({
       type: 'text_collected',
       textId: spawned.data.id,
-      category: spawned.data.textCategory,
-      cefrLevel: spawned.data.cefrLevel,
+      textType: spawned.data.textCategory,
+      difficulty: spawned.data.cefrLevel,
+      vocabularyWordCount: 0,
       title: spawned.data.title,
+      clueText: spawned.data.clueText,
+      authorName: spawned.data.authorName,
     });
 
     this.onTextCollected?.(spawned.data);

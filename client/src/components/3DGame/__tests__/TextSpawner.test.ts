@@ -254,9 +254,12 @@ describe('TextSpawner', () => {
       expect(eventBus.emit).toHaveBeenCalledWith({
         type: 'text_collected',
         textId: 'text-1',
-        category: 'book',
-        cefrLevel: 'A2',
+        textType: 'book',
+        difficulty: 'A2',
+        vocabularyWordCount: 0,
         title: 'Le Petit Prince',
+        clueText: undefined,
+        authorName: undefined,
       });
     });
 

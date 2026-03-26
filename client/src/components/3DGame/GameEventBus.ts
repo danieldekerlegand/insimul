@@ -151,7 +151,7 @@ export type GameEvent =
   | { type: 'food_ordered'; itemId: string; itemName: string; quantity: number; merchantId: string; merchantName: string; businessType: string }
   | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string }
   // Text collection events
-  | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number }
+  | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number; clueText?: string; authorName?: string }
   // Photography events
   | { type: 'photo_taken'; subjectId: string; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; location?: string }
   // XP and level-up events
@@ -161,7 +161,9 @@ export type GameEvent =
   | { type: 'vocabulary_lookup'; word: string; meaning: string; category?: string; source: 'hover_object' | 'hover_sign'; objectId: string; dwellMs: number }
   // Vehicle events
   | { type: 'vehicle_mounted'; vehicleType: 'bicycle' | 'horse' }
-  | { type: 'vehicle_dismounted'; vehicleType: 'bicycle' | 'horse' };
+  | { type: 'vehicle_dismounted'; vehicleType: 'bicycle' | 'horse' }
+  // Clue discovery events
+  | { type: 'clue_discovered'; clueId: string; clueCategory: string; clueSource: string; clueCount: number; totalClueCount: number };
 
 export type GameEventType = GameEvent['type'];
 

@@ -35,6 +35,7 @@ import type { PlayerAssessmentData } from '@shared/assessment-types';
 import type { GameSaveState } from '@shared/game-engine/types';
 import type { MainQuestChapter, ChapterProgress, CaseNote, InvestigationBoardData } from '@shared/quest/main-quest-chapters';
 import type { PortfolioData } from '@shared/quest/portfolio-types';
+import type { Clue, ClueCategory } from './ClueStore';
 import {
   SKILL_TIERS,
   createDefaultSkillTreeState,
@@ -247,6 +248,13 @@ export interface MenuJournalData {
   caseNotes?: CaseNote[];
 }
 
+export interface MenuClueData {
+  clues: Clue[];
+  clueCount: number;
+  totalClueCount: number;
+  connections: Array<[string, string]>;
+}
+
 export interface GameMenuCallbacks {
   getPlayerData: () => MenuPlayerData | null;
   getReputations: () => MenuReputationData[];
@@ -288,6 +296,8 @@ export interface GameMenuCallbacks {
   onLoadGame?: (slotIndex: number) => Promise<boolean>;
   onDeleteSave?: (slotIndex: number) => Promise<boolean>;
   getJournalData?: () => MenuJournalData | null;
+  getClueData?: () => MenuClueData | null;
+  onToggleClueFollowedUp?: (clueId: string) => void;
   getPortfolioData?: () => PortfolioData | null;
   // Playthrough management
   getPlaythroughInfo?: () => PlaythroughInfo | null;
@@ -308,6 +318,7 @@ export type MenuTab =
   | "character"
   | "rest"
   | "journal"
+  | "clues"
   | "quests"
   | "inventory"
   | "map"
@@ -329,6 +340,7 @@ const TABS: TabDef[] = [
   { id: "character", label: "Character", icon: "👤" },
   { id: "rest", label: "Rest", icon: "🛏️" },
   { id: "journal", label: "Journal", icon: "📖" },
+  { id: "clues", label: "Clues", icon: "🔎" },
   { id: "quests", label: "Quests", icon: "📜" },
   { id: "inventory", label: "Inventory", icon: "🎒" },
   { id: "map", label: "Map", icon: "🗺️" },
@@ -393,6 +405,9 @@ export class GameMenuSystem {
 
   // Playthrough management state
   private playthroughRenameBusy = false;
+
+  // Clues tab state
+  private cluesFilterCategory: ClueCategory | 'all' = 'all';
 
   // Photos tab state
   private selectedPhotoId: string | null = null;
@@ -678,6 +693,9 @@ export class GameMenuSystem {
         break;
       case "journal":
         this.renderJournalTab();
+        break;
+      case "clues":
+        this.renderCluesTab();
         break;
       case "quests":
         this.renderQuestsTab();
@@ -1184,8 +1202,10 @@ export class GameMenuSystem {
     const { stack } = this.makeScrollableContent("journal");
     const data = this.callbacks.getJournalData?.();
 
+    const clueData = this.callbacks.getClueData?.();
+    const clueLabel = clueData ? ` — Clues: ${clueData.clueCount}/${clueData.totalClueCount} found` : '';
     this.addSectionHeader(stack, "Investigation Journal");
-    this.addSubHeader(stack, "Your reporter's case file — clues, progress, and notes");
+    this.addSubHeader(stack, `Your reporter's case file — clues, progress, and notes${clueLabel}`);
 
     if (!data || data.chapters.length === 0) {
       const noData = new TextBlock();
@@ -1486,6 +1506,277 @@ export class GameMenuSystem {
       noteText.paddingBottom = "4px";
       card.addControl(noteText);
     }
+  }
+
+  // ─── CLUES TAB ───────────────────────────────────────────────────────────
+
+  private static readonly CLUE_CATEGORIES: Array<{ id: ClueCategory | 'all'; label: string; icon: string }> = [
+    { id: 'all', label: 'All Clues', icon: '🔎' },
+    { id: 'witness_testimony', label: 'Testimony', icon: '🗣️' },
+    { id: 'written_evidence', label: 'Written', icon: '📄' },
+    { id: 'physical_evidence', label: 'Physical', icon: '🔬' },
+    { id: 'photo_evidence', label: 'Photos', icon: '📸' },
+  ];
+
+  private renderCluesTab(): void {
+    const { stack } = this.makeScrollableContent("clues");
+    const data = this.callbacks.getClueData?.();
+
+    const clueCount = data?.clueCount ?? 0;
+    const totalCount = data?.totalClueCount ?? 12;
+
+    this.addSectionHeader(stack, "Evidence Board");
+    this.addSubHeader(stack, `Clues: ${clueCount}/${totalCount} found`);
+
+    // ─── Progress bar ─────────────────────────────────────────────
+    this.addProgressBar(stack, clueCount, totalCount, COLORS.accentYellow, "Investigation Progress");
+
+    this.addDivider(stack);
+
+    // ─── Category filter buttons ──────────────────────────────────
+    const filterRow = new StackPanel();
+    filterRow.isVertical = false;
+    filterRow.width = 1;
+    filterRow.height = "36px";
+    filterRow.paddingBottom = "6px";
+    stack.addControl(filterRow);
+
+    for (const cat of GameMenuSystem.CLUE_CATEGORIES) {
+      const isActive = this.cluesFilterCategory === cat.id;
+      const btn = Button.CreateSimpleButton(`clueFilter_${cat.id}`, `${cat.icon} ${cat.label}`);
+      btn.width = `${Math.floor(100 / GameMenuSystem.CLUE_CATEGORIES.length)}%`;
+      btn.height = "30px";
+      btn.color = isActive ? "#fff" : COLORS.textSecondary;
+      btn.background = isActive ? COLORS.tabActive : COLORS.cardBg;
+      btn.cornerRadius = 4;
+      btn.fontSize = 11;
+      btn.thickness = isActive ? 1 : 0;
+      (btn as any).borderColor = isActive ? COLORS.tabActiveBorder : "transparent";
+      btn.onPointerClickObservable.add(() => {
+        this.cluesFilterCategory = cat.id;
+        this.refreshActiveTab();
+      });
+      filterRow.addControl(btn);
+    }
+
+    if (!data || data.clues.length === 0) {
+      const emptyText = new TextBlock();
+      emptyText.text = "No clues discovered yet. Explore the world, talk to NPCs, read texts, and take photos to uncover evidence.";
+      emptyText.color = COLORS.textMuted;
+      emptyText.fontSize = 13;
+      emptyText.textWrapping = TextWrapping.WordWrap;
+      emptyText.resizeToFit = true;
+      emptyText.paddingTop = "12px";
+      emptyText.paddingLeft = "4px";
+      stack.addControl(emptyText);
+      return;
+    }
+
+    // ─── Filter clues ─────────────────────────────────────────────
+    const filtered = this.cluesFilterCategory === 'all'
+      ? data.clues
+      : data.clues.filter(c => c.category === this.cluesFilterCategory);
+
+    // ─── Category summary counts ──────────────────────────────────
+    const summaryCard = this.makeCard(stack);
+    const counts: Record<string, number> = {};
+    for (const clue of data.clues) {
+      counts[clue.category] = (counts[clue.category] ?? 0) + 1;
+    }
+    for (const cat of GameMenuSystem.CLUE_CATEGORIES) {
+      if (cat.id === 'all') continue;
+      this.addStatRow(summaryCard, `${cat.icon} ${cat.label}`, `${counts[cat.id] ?? 0}`,
+        (counts[cat.id] ?? 0) > 0 ? COLORS.accentGreen : COLORS.textMuted);
+    }
+
+    this.addDivider(stack);
+
+    // ─── Connection visualization ─────────────────────────────────
+    if (data.connections.length > 0) {
+      this.renderClueConnections(stack, filtered, data.connections);
+      this.addDivider(stack);
+    }
+
+    // ─── Clue cards ───────────────────────────────────────────────
+    const categoryIcons: Record<string, string> = {
+      witness_testimony: '🗣️',
+      written_evidence: '📄',
+      physical_evidence: '🔬',
+      photo_evidence: '📸',
+    };
+
+    for (const clue of filtered) {
+      const card = this.makeCard(stack);
+
+      // Header row: icon + category + followed-up toggle
+      const headerRow = new Rectangle();
+      headerRow.width = 1;
+      headerRow.height = "24px";
+      headerRow.thickness = 0;
+      headerRow.background = "transparent";
+      card.addControl(headerRow);
+
+      const catIcon = categoryIcons[clue.category] ?? '🔍';
+      const catLabel = new TextBlock();
+      catLabel.text = `${catIcon}  ${clue.category.replace(/_/g, ' ').toUpperCase()}`;
+      catLabel.color = COLORS.accent;
+      catLabel.fontSize = 11;
+      catLabel.fontWeight = "bold";
+      catLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      catLabel.paddingLeft = "4px";
+      headerRow.addControl(catLabel);
+
+      // Followed-up toggle button
+      const followBtn = Button.CreateSimpleButton(
+        `clueFollow_${clue.id}`,
+        clue.followedUp ? "✓ Followed Up" : "Mark Followed Up",
+      );
+      followBtn.width = "120px";
+      followBtn.height = "20px";
+      followBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      followBtn.color = clue.followedUp ? COLORS.accentGreen : COLORS.textSecondary;
+      followBtn.background = clue.followedUp ? "rgba(52, 168, 83, 0.15)" : COLORS.cardBg;
+      followBtn.cornerRadius = 4;
+      followBtn.fontSize = 10;
+      followBtn.thickness = 0;
+      followBtn.onPointerClickObservable.add(() => {
+        this.callbacks.onToggleClueFollowedUp?.(clue.id);
+        this.refreshActiveTab();
+      });
+      headerRow.addControl(followBtn);
+
+      // Clue text
+      const clueText = new TextBlock();
+      clueText.text = clue.text;
+      clueText.color = COLORS.textPrimary;
+      clueText.fontSize = 12;
+      clueText.textWrapping = TextWrapping.WordWrap;
+      clueText.resizeToFit = true;
+      clueText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      clueText.paddingLeft = "4px";
+      clueText.paddingTop = "4px";
+      clueText.paddingBottom = "4px";
+      card.addControl(clueText);
+
+      // Source row
+      const sourceRow = new Rectangle();
+      sourceRow.width = 1;
+      sourceRow.height = "20px";
+      sourceRow.thickness = 0;
+      sourceRow.background = "transparent";
+      card.addControl(sourceRow);
+
+      const sourceText = new TextBlock();
+      sourceText.text = `Source: ${clue.source}`;
+      sourceText.color = COLORS.textSecondary;
+      sourceText.fontSize = 11;
+      sourceText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      sourceText.paddingLeft = "4px";
+      sourceRow.addControl(sourceText);
+
+      const timeText = new TextBlock();
+      timeText.text = new Date(clue.discoveredAt).toLocaleDateString();
+      timeText.color = COLORS.textMuted;
+      timeText.fontSize = 10;
+      timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      timeText.paddingRight = "4px";
+      sourceRow.addControl(timeText);
+
+      // Tags row
+      if (clue.tags.length > 0) {
+        const tagText = new TextBlock();
+        tagText.text = `Tags: ${clue.tags.join(', ')}`;
+        tagText.color = COLORS.textMuted;
+        tagText.fontSize = 10;
+        tagText.textWrapping = TextWrapping.WordWrap;
+        tagText.resizeToFit = true;
+        tagText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        tagText.paddingLeft = "4px";
+        tagText.paddingBottom = "2px";
+        card.addControl(tagText);
+      }
+    }
+  }
+
+  /**
+   * Render a simple grouped connection visualization.
+   * Clues sharing tags are shown as linked groups.
+   */
+  private renderClueConnections(
+    parent: StackPanel,
+    clues: Clue[],
+    connections: Array<[string, string]>,
+  ): void {
+    const header = new TextBlock();
+    header.text = "CONNECTIONS";
+    header.color = COLORS.accentYellow;
+    header.fontSize = 14;
+    header.fontWeight = "bold";
+    header.height = "26px";
+    header.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    header.paddingLeft = "4px";
+    parent.addControl(header);
+
+    // Build adjacency groups via union-find
+    const clueMap = new Map(clues.map(c => [c.id, c]));
+    const parentMap = new Map<string, string>();
+    const find = (id: string): string => {
+      let root = id;
+      while (parentMap.get(root) !== root && parentMap.has(root)) root = parentMap.get(root)!;
+      parentMap.set(id, root);
+      return root;
+    };
+    const union = (a: string, b: string) => {
+      parentMap.set(find(a), find(b));
+    };
+
+    for (const clue of clues) parentMap.set(clue.id, clue.id);
+    for (const [a, b] of connections) {
+      if (clueMap.has(a) && clueMap.has(b)) union(a, b);
+    }
+
+    // Group by root
+    const groups = new Map<string, Clue[]>();
+    for (const clue of clues) {
+      const root = find(clue.id);
+      if (!groups.has(root)) groups.set(root, []);
+      groups.get(root)!.push(clue);
+    }
+
+    // Only show groups with 2+ connected clues
+    groups.forEach((group: Clue[]) => {
+      if (group.length < 2) return;
+
+      const card = this.makeCard(parent);
+
+      // Find shared tags
+      const tagSets = group.map((c: Clue) => new Set(c.tags));
+      const sharedTags = Array.from(tagSets[0]).filter((t: string) => tagSets.every((s: Set<string>) => s.has(t)));
+
+      const linkLabel = new TextBlock();
+      linkLabel.text = sharedTags.length > 0
+        ? `Linked by: ${sharedTags.join(', ')}`
+        : `${group.length} connected clues`;
+      linkLabel.color = COLORS.accent;
+      linkLabel.fontSize = 11;
+      linkLabel.fontWeight = "bold";
+      linkLabel.height = "20px";
+      linkLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      linkLabel.paddingLeft = "4px";
+      card.addControl(linkLabel);
+
+      for (const clue of group) {
+        const row = new TextBlock();
+        row.text = `  ├─ ${clue.source}: "${clue.text.slice(0, 60)}${clue.text.length > 60 ? '...' : ''}"`;
+        row.color = COLORS.textSecondary;
+        row.fontSize = 11;
+        row.textWrapping = TextWrapping.WordWrap;
+        row.resizeToFit = true;
+        row.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        row.paddingLeft = "4px";
+        card.addControl(row);
+      }
+    });
   }
 
   private renderJournalChapter(

@@ -144,7 +144,8 @@ import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITU
 import { FurnitureModelLoader } from "@/components/3DGame/FurnitureModelLoader.ts";
 import { InteriorItemManager } from "@/components/3DGame/InteriorItemManager.ts";
 import { ExteriorItemManager } from "@/components/3DGame/ExteriorItemManager.ts";
-import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
+import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData, type MenuClueData } from "@/components/3DGame/GameMenuSystem.ts";
+import { ClueStore } from "@/components/3DGame/ClueStore.ts";
 import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { SaveIndicator } from "@/components/3DGame/SaveIndicator.ts";
@@ -543,6 +544,7 @@ export class BabylonGame {
   private playerCefrLevel: string | null = null;
   private mainQuestJournalData: MenuJournalData | null = null;
   private portfolioData: import('@shared/quest/portfolio-types').PortfolioData | null = null;
+  private clueStore: ClueStore | null = null;
 
   // NPCs
   private npcMeshes: Map<string, NPCInstance> = new Map();
@@ -1304,6 +1306,60 @@ export class BabylonGame {
     if (!this.worldStateManager || !this.playthroughId) return false;
     const target = this.createGameStateTarget();
     return this.worldStateManager.load(target, this.config.worldId, this.playthroughId, slotIndex);
+  }
+
+  // ─── Clue System ─────────────────────────────────────────────────────────
+
+  private initClueStore(): void {
+    this.clueStore = new ClueStore(this.eventBus);
+
+    // Auto-discover clues from texts with clueText
+    this.eventBus.on('text_collected', (event) => {
+      if (event.clueText) {
+        this.clueStore?.addTextClue(event.title, event.clueText, event.authorName);
+      }
+    });
+
+    // Auto-discover clues from investigation-relevant conversations
+    this.eventBus.on('conversation_turn', (event) => {
+      if (ClueStore.isInvestigationRelevant(event.keywords)) {
+        const npcName = this.getNpcNameById(event.npcId) ?? event.npcId;
+        this.clueStore?.addConversationClue(npcName, event.keywords);
+      }
+    });
+
+    // Auto-discover photo clues for quest-relevant subjects
+    this.eventBus.on('photo_taken', (event) => {
+      if (event.subjectCategory === 'building' || event.subjectCategory === 'item') {
+        this.clueStore?.addPhotoClue(event.subjectName, event.subjectCategory, event.location);
+      }
+    });
+
+    // Auto-discover clues from location visits that are quest-relevant
+    this.eventBus.on('location_visited', (event) => {
+      if (ClueStore.isInvestigationRelevant([event.locationName])) {
+        this.clueStore?.addPhysicalClue(
+          `Visited ${event.locationName}`,
+          event.locationName,
+          [event.locationName.toLowerCase()],
+        );
+      }
+    });
+  }
+
+  private getNpcNameById(npcId: string): string | null {
+    const npc = this.npcInfos.find(n => n.id === npcId);
+    return npc?.name ?? null;
+  }
+
+  private getClueMenuData(): MenuClueData | null {
+    if (!this.clueStore) return null;
+    return {
+      clues: this.clueStore.getClues(),
+      clueCount: this.clueStore.getClueCount(),
+      totalClueCount: this.clueStore.getTotalClueCount(),
+      connections: this.clueStore.getConnections(),
+    };
   }
 
   // ─── Playthrough Management ──────────────────────────────────────────────
@@ -2130,6 +2186,8 @@ export class BabylonGame {
       onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
       onDeleteSave: (slotIndex: number) => this.handleDeleteSave(slotIndex),
       getJournalData: () => this.mainQuestJournalData,
+      getClueData: () => this.getClueMenuData(),
+      onToggleClueFollowedUp: (clueId: string) => this.clueStore?.toggleFollowedUp(clueId),
       getPortfolioData: () => this.portfolioData,
       // Playthrough management
       getPlaythroughInfo: () => this.getPlaythroughInfo(),
@@ -2165,6 +2223,8 @@ export class BabylonGame {
       () => this.saveIndicator?.showSaving(),
       (saved) => this.saveIndicator?.showResult(saved),
     );
+
+    this.initClueStore();
 
     this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
     this.gameMenuSystem.setOnMenuOpened(() => {

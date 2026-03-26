@@ -139,6 +139,8 @@ const EVENT_FURNITURE_STOOD := "furniture_stood"
 const EVENT_FURNITURE_SLEPT := "furniture_slept"
 const EVENT_FURNITURE_READ_LORE := "furniture_read_lore"
 const EVENT_FURNITURE_WORKED := "furniture_worked"
+# Clue discovery events
+const EVENT_CLUE_DISCOVERED := "clue_discovered"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -224,6 +226,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_FURNITURE_SLEPT,
 	EVENT_FURNITURE_READ_LORE,
 	EVENT_FURNITURE_WORKED,
+	# Clue discovery events
+	EVENT_CLUE_DISCOVERED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

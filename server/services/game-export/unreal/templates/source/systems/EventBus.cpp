@@ -122,6 +122,8 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("furniture_slept"),                   EInsimulEventType::FurnitureSlept },
         { TEXT("furniture_read_lore"),               EInsimulEventType::FurnitureReadLore },
         { TEXT("furniture_worked"),                  EInsimulEventType::FurnitureWorked },
+        // Clue discovery events
+        { TEXT("clue_discovered"),                  EInsimulEventType::ClueDiscovered },
     };
     return Map;
 }

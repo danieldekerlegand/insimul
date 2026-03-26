@@ -140,7 +140,9 @@ enum class EInsimulEventType : uint8
     FurnitureStood UMETA(DisplayName = "Furniture Stood"),
     FurnitureSlept UMETA(DisplayName = "Furniture Slept"),
     FurnitureReadLore UMETA(DisplayName = "Furniture Read Lore"),
-    FurnitureWorked UMETA(DisplayName = "Furniture Worked")
+    FurnitureWorked UMETA(DisplayName = "Furniture Worked"),
+    // Clue discovery events
+    ClueDiscovered UMETA(DisplayName = "Clue Discovered")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -395,6 +397,13 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float NewStrength = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PreviousTier;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NewTier;
+
+    // ── Clue discovery fields ─────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ClueId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ClueCategory;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ClueSource;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ClueCount = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalClueCount = 0;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
