@@ -149,6 +149,9 @@ const EVENT_PHYSICAL_ACTION_COMPLETED := "physical_action_completed"
 # Reading completion events
 const EVENT_READING_COMPLETED := "reading_completed"
 const EVENT_QUESTIONS_ANSWERED := "questions_answered"
+# Assessment objective triggers
+const EVENT_WRITING_SUBMITTED := "writing_submitted"
+const EVENT_LISTENING_COMPLETED := "listening_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -244,6 +247,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	# Reading completion events
 	EVENT_READING_COMPLETED,
 	EVENT_QUESTIONS_ANSWERED,
+	# Assessment objective triggers
+	EVENT_WRITING_SUBMITTED,
+	EVENT_LISTENING_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

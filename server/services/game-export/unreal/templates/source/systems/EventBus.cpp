@@ -132,6 +132,9 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         // Reading completion events
         { TEXT("reading_completed"),                 EInsimulEventType::ReadingCompleted },
         { TEXT("questions_answered"),                EInsimulEventType::QuestionsAnswered },
+        // Assessment objective triggers
+        { TEXT("writing_submitted"),                 EInsimulEventType::WritingSubmitted },
+        { TEXT("listening_completed"),               EInsimulEventType::ListeningCompleted },
     };
     return Map;
 }

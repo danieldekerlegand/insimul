@@ -157,6 +157,9 @@ export class AssessmentEngine {
       console.log(`[AssessmentEngine] ${phase.name} complete: ${score}/${phase.maxScore}`);
       this._onHideInstruction?.();
       this._onPhaseCompleted?.(phase.id, score, phase.maxScore);
+
+      // Emit specific objective completion triggers for each phase type
+      this._emitPhaseCompletionTrigger(phase);
     }
 
     if (this._aborted) return;
@@ -245,6 +248,34 @@ export class AssessmentEngine {
     this._onHideInstruction = undefined;
     this._onShowModal = undefined;
     this._onHideModal = undefined;
+  }
+
+  /**
+   * Emit a specific event for each assessment phase type so the
+   * QuestCompletionEngine can match objectives by their completionTrigger.
+   */
+  private _emitPhaseCompletionTrigger(phase: { id: string; type: PhaseType }): void {
+    if (!this.eventBus) return;
+
+    switch (phase.type) {
+      case 'reading':
+        this.eventBus.emit({ type: 'reading_completed' });
+        break;
+      case 'writing':
+        // Writing submission event — the modal already validated content;
+        // emit with a token word count above the 20-word minimum.
+        this.eventBus.emit({ type: 'writing_submitted', text: '', wordCount: 20 });
+        break;
+      case 'listening':
+        this.eventBus.emit({ type: 'listening_completed' });
+        break;
+      case 'initiate_conversation':
+        // npc_talked is emitted by the chat panel when conversation starts
+        break;
+      case 'conversation':
+        // conversation_assessment_completed is emitted by the chat panel
+        break;
+    }
   }
 
   // ── Private: modal-based phases (reading, writing, listening) ─────────────

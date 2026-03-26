@@ -136,6 +136,11 @@ export interface CompletionObjective {
   dependsOn?: string[];
   // numeric order for simple sequential completion (lower = earlier)
   order?: number;
+
+  // Declarative completion trigger — when an event with this type fires,
+  // the objective is automatically completed. Enables quest authors to wire
+  // objectives to game events without custom tracking logic.
+  completionTrigger?: string;
 }
 
 export interface CompletionQuest {
@@ -194,6 +199,10 @@ export type CompletionEvent =
   | { type: 'comprehension_answer'; isCorrect: boolean; questId?: string }
   | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; subjectActivity?: string; questId?: string }
   | { type: 'assessment_phase_completed'; phaseId: string; score: number; maxScore: number; questId: string; objectiveId: string }
+  | { type: 'reading_completed'; textId?: string; questId?: string }
+  | { type: 'listening_completed'; questId?: string }
+  | { type: 'npc_talked'; npcId: string; questId?: string }
+  | { type: 'conversation_assessment_completed'; npcId: string; turnCount: number; questId?: string }
   | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
   | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number; questId?: string }
   | { type: 'physical_action'; actionType: string; itemsProduced: string[]; questId?: string }
@@ -344,6 +353,35 @@ export class QuestCompletionEngine {
         break;
       case 'assessment_phase_completed':
         this.completeObjective(event.questId, event.objectiveId);
+        break;
+      case 'reading_completed':
+        this.trackByTrigger('reading_completed', event.questId);
+        this.forEachObjective(event.questId, 'arrival_reading', (quest, obj) => {
+          this.completeObjective(quest.id, obj.id);
+        });
+        break;
+      case 'listening_completed':
+        this.trackByTrigger('listening_completed', event.questId);
+        this.forEachObjective(event.questId, 'arrival_listening', (quest, obj) => {
+          this.completeObjective(quest.id, obj.id);
+        });
+        break;
+      case 'npc_talked':
+        this.trackByTrigger('npc_talked', event.questId);
+        this.forEachObjective(event.questId, 'arrival_initiate_conversation', (quest, obj) => {
+          if (obj.npcId && obj.npcId !== event.npcId) return;
+          this.completeObjective(quest.id, obj.id);
+        });
+        break;
+      case 'conversation_assessment_completed':
+        // Don't use trackByTrigger here — need validation of turnCount
+        this.forEachObjective(event.questId, 'arrival_conversation', (quest, obj) => {
+          if (obj.npcId && obj.npcId !== event.npcId) return;
+          obj.currentCount = event.turnCount;
+          if (event.turnCount >= (obj.requiredCount || 3)) {
+            this.completeObjective(quest.id, obj.id);
+          }
+        });
         break;
       case 'conversational_action':
         this.trackConversationalAction(event.action, event.npcId, event.topic, event.questId);
@@ -782,6 +820,14 @@ export class QuestCompletionEngine {
   }
 
   trackWritingSubmission(text: string, wordCount: number, questId?: string): void {
+    // Complete arrival_writing objectives (assessment writing) with word count validation
+    this.forEachObjective(questId, 'arrival_writing', (quest, obj) => {
+      const minWords = obj.minWordCount || 20;
+      if (wordCount >= minWords) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+
     this.forEachObjective(questId, ['write_response', 'describe_scene'], (quest, obj) => {
       if (!obj.writtenResponses) obj.writtenResponses = [];
       obj.writtenResponses.push(text);
@@ -1250,6 +1296,26 @@ export class QuestCompletionEngine {
         this.completeObjective(quest.id, obj.id);
       }
     });
+  }
+
+  // ── Declarative trigger-based completion ────────────────────────────────
+
+  /**
+   * Complete any objectives whose `completionTrigger` matches the given trigger string.
+   * This enables declarative event-to-objective mapping: quest authors set
+   * `completionTrigger: 'reading_completed'` on an objective, and any event
+   * that calls `trackByTrigger('reading_completed')` will complete it.
+   */
+  trackByTrigger(trigger: string, questId?: string): void {
+    for (const quest of this.quests) {
+      if (questId && quest.id !== questId) continue;
+      for (const obj of quest.objectives || []) {
+        if (obj.completed) continue;
+        if (obj.completionTrigger === trigger && !this.isObjectiveLocked(quest, obj)) {
+          this.completeObjective(quest.id, obj.id);
+        }
+      }
+    }
   }
 
   // ── Internal helper ─────────────────────────────────────────────────────

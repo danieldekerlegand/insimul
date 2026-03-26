@@ -89,6 +89,12 @@ export type GameEvent =
   | { type: 'assessment_guided_conversation_start'; topics: string[]; minExchanges: number; maxExchanges: number }
   // Assessment conversation completed (player finished talking to NPC during assessment)
   | { type: 'assessment_conversation_completed'; npcId: string; score?: number }
+  // Assessment objective completion triggers — emitted from UI components to wire to quest objectives
+  | { type: 'reading_completed'; textId?: string; questId?: string }
+  | { type: 'writing_submitted'; text: string; wordCount: number; questId?: string }
+  | { type: 'listening_completed'; questId?: string }
+  | { type: 'npc_talked'; npcId: string; questId?: string }
+  | { type: 'conversation_assessment_completed'; npcId: string; turnCount: number; questId?: string }
   // Visual vocabulary events
   | { type: 'visual_vocab_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
   | { type: 'visual_vocab_answered'; targetId: string; questId: string; passed: boolean; score: number; playerAnswer: string }

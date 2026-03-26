@@ -150,7 +150,10 @@ enum class EInsimulEventType : uint8
     PhysicalActionCompleted UMETA(DisplayName = "Physical Action Completed"),
     // Reading completion events
     ReadingCompleted UMETA(DisplayName = "Reading Completed"),
-    QuestionsAnswered UMETA(DisplayName = "Questions Answered")
+    QuestionsAnswered UMETA(DisplayName = "Questions Answered"),
+    // Assessment objective triggers
+    WritingSubmitted UMETA(DisplayName = "Writing Submitted"),
+    ListeningCompleted UMETA(DisplayName = "Listening Completed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

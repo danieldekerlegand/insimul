@@ -20,8 +20,12 @@ export interface AssessmentQuestObjective {
   completed: boolean;
   /** Links this objective to an assessment phase */
   assessmentPhaseId: string;
+  /** Declarative event trigger that completes this objective */
+  completionTrigger?: string;
   score?: number;
   maxScore?: number;
+  /** Minimum word count for writing objectives */
+  minWordCount?: number;
 }
 
 export interface AssessmentQuestConfig {
@@ -34,15 +38,27 @@ export interface AssessmentQuestConfig {
 
 // ── Phase-to-objective mapping ───────────────────────────────────────────────
 
+/** Maps assessment phase types to objective types and their completion triggers. */
+export const PHASE_OBJECTIVE_CONFIG: Record<string, { type: string; completionTrigger: string; minWordCount?: number; requiredCount?: number }> = {
+  arrival_reading:                { type: 'arrival_reading',                completionTrigger: 'reading_completed' },
+  arrival_writing:                { type: 'arrival_writing',                completionTrigger: 'writing_submitted', minWordCount: 20 },
+  arrival_listening:              { type: 'arrival_listening',              completionTrigger: 'listening_completed' },
+  arrival_initiate_conversation:  { type: 'arrival_initiate_conversation',  completionTrigger: 'npc_talked' },
+  arrival_conversation:           { type: 'arrival_conversation',           completionTrigger: 'conversation_assessment_completed', requiredCount: 3 },
+};
+
 function phaseToObjective(phase: AssessmentPhase, vars: { targetLanguage: string; cityName: string }): AssessmentQuestObjective {
+  const config = PHASE_OBJECTIVE_CONFIG[phase.id];
   return {
     id: `obj_${phase.id}`,
-    type: 'complete_conversation',
+    type: config?.type ?? phase.id,
     description: resolveTemplate(phase.description, vars),
-    requiredCount: 1,
+    requiredCount: config?.requiredCount ?? 1,
     currentCount: 0,
     completed: false,
     assessmentPhaseId: phase.id,
+    completionTrigger: config?.completionTrigger,
+    minWordCount: config?.minWordCount,
   };
 }
 

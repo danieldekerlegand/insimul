@@ -2516,10 +2516,15 @@ export class BabylonGame {
 
       // If assessment is active, signal that a conversation was completed
       if (this.assessmentActive) {
+        const npcId = this.conversationNPCId || '';
         this.eventBus.emit({
           type: 'assessment_conversation_completed',
-          npcId: this.conversationNPCId || '',
+          npcId,
         });
+        // Emit conversation_assessment_completed trigger for quest objective completion
+        // Use the result's turn count (player messages count as turns)
+        const turnCount = result.playerMessageCount ?? result.totalExchanges ?? 3;
+        this.eventBus.emit({ type: 'conversation_assessment_completed', npcId, turnCount });
       }
 
       this.guiManager?.showToast({
@@ -3160,6 +3165,29 @@ export class BabylonGame {
       this.gamificationTracker?.onAssessmentPhaseCompleted();
       this.handleAssessmentPhaseCompleted(event.phase, event.score, event.maxScore ?? 0);
     });
+
+    // Route specific assessment objective triggers to QuestCompletionEngine
+    this.eventBus.on('reading_completed', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'reading_completed', textId: event.textId, questId: event.questId });
+    });
+    this.eventBus.on('writing_submitted', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'writing_submitted', text: event.text ?? '', wordCount: event.wordCount ?? 0, questId: event.questId });
+    });
+    this.eventBus.on('listening_completed', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'listening_completed', questId: event.questId });
+    });
+    this.eventBus.on('npc_talked', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'npc_talked', npcId: event.npcId, questId: event.questId });
+    });
+    this.eventBus.on('conversation_assessment_completed', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'conversation_assessment_completed', npcId: event.npcId, turnCount: event.turnCount, questId: event.questId });
+    });
+
     this.eventBus.on('assessment_completed', (event) => {
       this.gamificationTracker?.onAssessmentCompleted();
       this.guiManager.clearHighlightedNpc();
@@ -3688,6 +3716,8 @@ export class BabylonGame {
       this.characters = characters;
       this.actions = [...actions, ...baseActions];
       this.quests = quests;
+      // Register all quests with QuestCompletionEngine so objective tracking works
+      this.registerQuestsWithCompletionEngine(quests);
       // Sync active quest to HUD panel (with full objectives for task tracker)
       this.syncActiveQuestToHud();
       // Load quests into the quest tracker panel
@@ -10696,6 +10726,8 @@ export class BabylonGame {
           type: 'assessment_conversation_initiated',
           npcId,
         });
+        // Emit npc_talked trigger for quest objective completion
+        this.eventBus.emit({ type: 'npc_talked', npcId });
       }
     } catch (error) {
       console.error("Failed to open chat:", error);
@@ -11467,6 +11499,12 @@ export class BabylonGame {
         this.eventBus.emit({
           type: 'assessment_conversation_completed',
           npcId: this.conversationNPCId,
+        });
+        // Safety net: also emit conversation_assessment_completed trigger
+        this.eventBus.emit({
+          type: 'conversation_assessment_completed',
+          npcId: this.conversationNPCId,
+          turnCount: 3, // fallback minimum
         });
       }
 
@@ -13111,6 +13149,40 @@ export class BabylonGame {
       });
     } catch (error) {
       console.error('Failed to update quest progress:', error);
+    }
+  }
+
+  /**
+   * Register all loaded quests with the QuestCompletionEngine so that
+   * event-driven objective tracking works (including the Arrival Assessment).
+   */
+  private registerQuestsWithCompletionEngine(quests: any[]): void {
+    const engine = this.questObjectManager?.getCompletionEngine();
+    if (!engine) return;
+
+    for (const quest of quests) {
+      if (!quest?.id) continue;
+      // Avoid duplicates — check if already registered
+      const existing = engine.getQuests().find((q: any) => q.id === quest.id);
+      if (existing) continue;
+
+      // Map quest objectives to CompletionObjective format
+      const objectives = (quest.objectives || []).map((obj: any) => ({
+        id: obj.id,
+        questId: quest.id,
+        type: obj.type || 'unknown',
+        description: obj.description || '',
+        completed: obj.completed || false,
+        requiredCount: obj.requiredCount ?? 1,
+        currentCount: obj.currentCount ?? 0,
+        completionTrigger: obj.completionTrigger,
+        minWordCount: obj.minWordCount,
+        npcId: obj.npcId,
+        order: obj.order,
+        dependsOn: obj.dependsOn,
+      }));
+
+      engine.addQuest({ id: quest.id, objectives });
     }
   }
 
