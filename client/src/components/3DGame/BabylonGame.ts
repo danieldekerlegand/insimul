@@ -551,6 +551,7 @@ export class BabylonGame {
   private selectedNPCId: string | null = null;
   private conversationNPCId: string | null = null;
   private preConversationCameraMode: CameraMode | null = null;
+  private prePhotoCameraMode: CameraMode | null = null;
   // NPC model instancer: caches templates, clones for subsequent NPCs, shared materials
   private npcModelInstancer: NPCModelInstancer | null = null;
   // NPC modular assembler: builds NPCs from procedural body-part meshes
@@ -9880,8 +9881,18 @@ export class BabylonGame {
     if (event.code === KEY_CAMERA_MODE && !event.repeat) {
       event.preventDefault();
       if (this.photographySystem?.active) {
+        // Exiting photo mode — restore previous camera
         this.photographySystem.toggleViewfinder();
+        if (this.cameraManager && this.prePhotoCameraMode) {
+          this.cameraManager.setMode(this.prePhotoCameraMode, false);
+          this.prePhotoCameraMode = null;
+        }
       } else {
+        // Entering photo mode — switch to first person
+        if (this.cameraManager) {
+          this.prePhotoCameraMode = this.cameraManager.getCurrentMode();
+          this.cameraManager.setMode('first_person', false);
+        }
         this.photographySystem?.toggleViewfinder();
       }
     }
@@ -9897,6 +9908,10 @@ export class BabylonGame {
       event.preventDefault();
       if (this.photographySystem?.active) {
         this.photographySystem.toggleViewfinder(); // close viewfinder first
+        if (this.cameraManager && this.prePhotoCameraMode) {
+          this.cameraManager.setMode(this.prePhotoCameraMode, false);
+          this.prePhotoCameraMode = null;
+        }
       }
       this.gameMenuSystem?.open("photos");
     }

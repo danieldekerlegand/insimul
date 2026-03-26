@@ -33,10 +33,11 @@ export interface PhotographyCallbacks {
   showToast?: (title: string, description?: string) => void;
 }
 
-const PHOTO_WIDTH = 800;
-const PHOTO_HEIGHT = 600;
+const PHOTO_WIDTH = 640;
+const PHOTO_HEIGHT = 480;
 const VIEWFINDER_BORDER_COLOR = 'rgba(255, 255, 255, 0.8)';
 const MAX_PHOTOS = 50;
+const CAPTURE_TIMEOUT_MS = 3000;
 
 export class BabylonPhotographySystem {
   private scene: Scene;
@@ -45,6 +46,7 @@ export class BabylonPhotographySystem {
 
   private viewfinderContainer: GUI.Rectangle | null = null;
   private isViewfinderActive: boolean = false;
+  private isCapturing: boolean = false;
   private photos: PlayerPhoto[] = [];
 
   constructor(
@@ -110,7 +112,7 @@ export class BabylonPhotographySystem {
 
   /** Take a photo (only when viewfinder is active). */
   async capturePhoto(): Promise<PlayerPhoto | null> {
-    if (!this.isViewfinderActive) return null;
+    if (!this.isViewfinderActive || this.isCapturing) return null;
     if (this.photos.length >= MAX_PHOTOS) {
       this.callbacks.showToast?.('Photo Book Full', `Maximum ${MAX_PHOTOS} photos reached.`);
       return null;
@@ -120,13 +122,13 @@ export class BabylonPhotographySystem {
     const camera = this.scene.activeCamera;
     if (!engine || !camera) return null;
 
+    this.isCapturing = true;
+
     // Hide viewfinder UI before capturing
     if (this.viewfinderContainer) this.viewfinderContainer.isVisible = false;
 
     try {
-      const dataUrl = await Tools.CreateScreenshotUsingRenderTargetAsync(
-        engine, camera, { width: PHOTO_WIDTH, height: PHOTO_HEIGHT },
-      );
+      const dataUrl = await this.captureScreenshotWithTimeout(engine, camera);
 
       const thumbnail = await this.createThumbnail(dataUrl, 160, 120);
 
@@ -160,8 +162,54 @@ export class BabylonPhotographySystem {
       this.callbacks.showToast?.('Capture Failed', 'Could not take photo');
       return null;
     } finally {
+      this.isCapturing = false;
       if (this.viewfinderContainer) this.viewfinderContainer.isVisible = true;
     }
+  }
+
+  /**
+   * Attempt screenshot with a timeout. Tries the simpler CreateScreenshotAsync
+   * first (less likely to freeze), falls back to render-target method, and
+   * aborts if either exceeds the timeout.
+   */
+  private captureScreenshotWithTimeout(engine: Engine | ReturnType<Scene['getEngine']>, camera: Camera): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          reject(new Error('Screenshot capture timed out'));
+        }
+      }, CAPTURE_TIMEOUT_MS);
+
+      const settle = (result: string) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(result);
+        }
+      };
+      const fail = (err: unknown) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(err);
+        }
+      };
+
+      // Primary: simpler canvas-based screenshot (less GPU-blocking)
+      Tools.CreateScreenshotAsync(engine, camera, { width: PHOTO_WIDTH, height: PHOTO_HEIGHT })
+        .then(settle)
+        .catch((primaryErr) => {
+          console.warn('[PhotographySystem] Primary capture failed, trying render target:', primaryErr);
+          // Fallback: render-target based screenshot
+          Tools.CreateScreenshotUsingRenderTargetAsync(
+            engine, camera, { width: PHOTO_WIDTH, height: PHOTO_HEIGHT },
+          )
+            .then(settle)
+            .catch(fail);
+        });
+    });
   }
 
   dispose(): void {
