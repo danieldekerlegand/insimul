@@ -187,6 +187,11 @@ import {
   getTargetLanguage,
   launchOnboarding,
 } from "@/components/3DGame/OnboardingLauncher.ts";
+import {
+  isArrivalAssessmentQuest,
+  markPhaseObjectiveComplete,
+  computeProgress,
+} from "@shared/services/assessment-quest-bridge-shared";
 import type { OnboardingLaunchResult } from "@/components/3DGame/OnboardingLauncher.ts";
 import {
   KEY_BUILDING_INTERACT,
@@ -2876,8 +2881,10 @@ export class BabylonGame {
     });
 
     // Wire learning activity events to gamification tracker for XP awards
-    this.eventBus.on('assessment_phase_completed', () => {
+    // and route assessment phase completions to quest objective tracking
+    this.eventBus.on('assessment_phase_completed', (event) => {
       this.gamificationTracker?.onAssessmentPhaseCompleted();
+      this.handleAssessmentPhaseCompleted(event.phase, event.score, event.maxScore ?? 0);
     });
     this.eventBus.on('assessment_completed', (event) => {
       this.gamificationTracker?.onAssessmentCompleted();
@@ -12421,6 +12428,90 @@ export class BabylonGame {
       });
     } catch (error) {
       console.error('Failed to update quest progress:', error);
+    }
+  }
+
+  /**
+   * Handle an assessment phase completing by marking the corresponding
+   * quest objective as completed, persisting state, and asserting Prolog facts.
+   */
+  private async handleAssessmentPhaseCompleted(phaseId: string, score: number, maxScore: number): Promise<void> {
+    try {
+      // Find the Arrival Assessment quest
+      const quest = this.quests.find((q: any) => isArrivalAssessmentQuest(q));
+      if (!quest) {
+        console.warn('[BabylonGame] No arrival assessment quest found for phase:', phaseId);
+        return;
+      }
+
+      const objectives = (quest.objectives ?? []) as any[];
+      const { objectives: updated, allComplete } = markPhaseObjectiveComplete(objectives, phaseId, score, maxScore);
+      quest.objectives = updated;
+
+      // Find the objective that was just completed to get its ID
+      const completedObj = updated.find((o: any) => o.assessmentPhaseId === phaseId && o.completed);
+      if (!completedObj) return;
+
+      // Route to QuestCompletionEngine so UI updates
+      const engine = this.questObjectManager?.getCompletionEngine();
+      if (engine) {
+        engine.trackEvent({
+          type: 'assessment_phase_completed',
+          phaseId,
+          score,
+          maxScore,
+          questId: quest.id,
+          objectiveId: completedObj.id,
+        });
+      }
+
+      // Assert phase_score/3 Prolog predicate so assessment_complete/1 can evaluate
+      if (this.prologEngine) {
+        const questAtom = 'arrival_encounter';
+        const phaseAtom = phaseId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        await this.prologEngine.assertFact(`phase_score(${questAtom}, ${phaseAtom}, ${score})`).catch(() => {});
+      }
+
+      // Persist updated objectives and progress to server
+      const progress = { ...quest.progress, percentComplete: computeProgress(updated) };
+      this.syncObjectiveStatesToOverlay();
+      await this.dataSource.updateQuest(quest.id, { objectives: updated, progress });
+
+      // Refresh HUD
+      this.questTracker?.updateQuests(this.config.worldId);
+      this.syncActiveQuestToHud();
+
+      if (allComplete) {
+        // Assert quest completion in Prolog
+        if (this.prologEngine) {
+          await this.prologEngine.assertFact('quest_completed(player, arrival_encounter)').catch(() => {});
+        }
+
+        // Mark quest as completed and award 50 XP via server endpoint
+        this.applyQuestRewards(quest);
+        this.questAutoCompletionDetector?.markCompleted(quest.id);
+        this.handleAutoQuestCompletion({
+          id: quest.id,
+          worldId: quest.worldId || this.config.worldId,
+          title: quest.title,
+        });
+
+        this.guiManager?.showToast({
+          title: 'Assessment Complete!',
+          description: `You completed: ${quest.title}`,
+          duration: 4000,
+        });
+      } else {
+        this.guiManager?.showToast({
+          title: 'Phase Complete',
+          description: `${phaseId.replace(/^arrival_/, '').replace(/_/g, ' ')} assessment finished`,
+          duration: 3000,
+        });
+      }
+
+      console.log(`[BabylonGame] Assessment phase ${phaseId} completed (score: ${score}/${maxScore}). All complete: ${allComplete}`);
+    } catch (error) {
+      console.error('[BabylonGame] Failed to handle assessment phase completion:', error);
     }
   }
 

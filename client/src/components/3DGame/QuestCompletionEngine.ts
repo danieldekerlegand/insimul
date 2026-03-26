@@ -172,7 +172,8 @@ export type CompletionEvent =
   | { type: 'text_found'; textId: string; textName: string; questId?: string }
   | { type: 'text_read'; textId: string; questId?: string }
   | { type: 'comprehension_answer'; isCorrect: boolean; questId?: string }
-  | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; questId?: string };
+  | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; questId?: string }
+  | { type: 'assessment_phase_completed'; phaseId: string; score: number; maxScore: number; questId: string; objectiveId: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -315,6 +316,9 @@ export class QuestCompletionEngine {
         break;
       case 'photo_taken':
         this.trackPhotoTaken(event.subjectName, event.subjectCategory, event.questId);
+        break;
+      case 'assessment_phase_completed':
+        this.completeObjective(event.questId, event.objectiveId);
         break;
     }
   }

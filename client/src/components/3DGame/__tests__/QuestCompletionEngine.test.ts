@@ -936,4 +936,81 @@ describe('QuestCompletionEngine', () => {
       expect(engine.isQuestComplete('unknown')).toBe(false);
     });
   });
+
+  // ── assessment_phase_completed via trackEvent ─────────────────────────
+
+  describe('trackEvent assessment_phase_completed', () => {
+    it('completes the specified objective', () => {
+      const obj = makeObjective({ id: 'obj_arrival_reading', questId: 'q1', type: 'complete_conversation' });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackEvent({
+        type: 'assessment_phase_completed',
+        phaseId: 'arrival_reading',
+        score: 12,
+        maxScore: 15,
+        questId: 'q1',
+        objectiveId: 'obj_arrival_reading',
+      });
+
+      expect(obj.completed).toBe(true);
+      expect(objectiveCompletedSpy).toHaveBeenCalledWith('q1', 'obj_arrival_reading');
+    });
+
+    it('fires quest completed when all 5 assessment objectives done', () => {
+      const objectives = [
+        makeObjective({ id: 'obj_reading', questId: 'q1', type: 'complete_conversation', completed: true }),
+        makeObjective({ id: 'obj_writing', questId: 'q1', type: 'complete_conversation', completed: true }),
+        makeObjective({ id: 'obj_listening', questId: 'q1', type: 'complete_conversation', completed: true }),
+        makeObjective({ id: 'obj_initiate', questId: 'q1', type: 'complete_conversation', completed: true }),
+        makeObjective({ id: 'obj_conversation', questId: 'q1', type: 'complete_conversation' }),
+      ];
+      engine.addQuest(makeQuest('q1', objectives));
+
+      engine.trackEvent({
+        type: 'assessment_phase_completed',
+        phaseId: 'arrival_conversation',
+        score: 8,
+        maxScore: 10,
+        questId: 'q1',
+        objectiveId: 'obj_conversation',
+      });
+
+      expect(objectives[4].completed).toBe(true);
+      expect(questCompletedSpy).toHaveBeenCalledWith('q1');
+    });
+
+    it('does not fire quest completed when some objectives remain', () => {
+      const objectives = [
+        makeObjective({ id: 'obj_reading', questId: 'q1', type: 'complete_conversation' }),
+        makeObjective({ id: 'obj_writing', questId: 'q1', type: 'complete_conversation' }),
+      ];
+      engine.addQuest(makeQuest('q1', objectives));
+
+      engine.trackEvent({
+        type: 'assessment_phase_completed',
+        phaseId: 'arrival_reading',
+        score: 12,
+        maxScore: 15,
+        questId: 'q1',
+        objectiveId: 'obj_reading',
+      });
+
+      expect(objectives[0].completed).toBe(true);
+      expect(questCompletedSpy).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op for unknown quest', () => {
+      engine.trackEvent({
+        type: 'assessment_phase_completed',
+        phaseId: 'arrival_reading',
+        score: 12,
+        maxScore: 15,
+        questId: 'unknown',
+        objectiveId: 'obj_reading',
+      });
+
+      expect(objectiveCompletedSpy).not.toHaveBeenCalled();
+    });
+  });
 });
