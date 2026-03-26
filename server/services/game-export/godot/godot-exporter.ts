@@ -175,7 +175,7 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
   let assetBundle;
   if (selectedCollectionId) {
     console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
-    assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
+    assetBundle = await bundleAssetsFromCollection(selectedCollectionId, worldId);
   } else {
     console.log('[Export] No asset collection selected, using core assets');
     assetBundle = await bundleCoreAssets(engine);

@@ -61,7 +61,7 @@ import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
 import { WaterRenderer } from "@/components/3DGame/WaterRenderer.ts";
 import { buildStreetNetwork } from "@/components/3DGame/StreetNetworkLayout.ts";
 import { NPCScheduleSystem } from "@/components/3DGame/NPCScheduleSystem.ts";
-import { NPCLocationCycler } from "@/components/3DGame/NPCLocationCycler.ts";
+import { ScheduleExecutor } from "@/components/3DGame/ScheduleExecutor.ts";
 import { VolitionSystem, type NPCState as VolitionNPCState, type VolitionGoal, TERMINAL_ACTIONS } from "@/components/3DGame/VolitionSystem.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
@@ -166,7 +166,6 @@ import { BusinessPopulationManager } from "@/components/3DGame/BusinessPopulatio
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, getClothingColorForMesh, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
-import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.ts";
 import { InteractionPromptSystem } from "@/components/3DGame/InteractionPromptSystem.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
@@ -707,9 +706,6 @@ export class BabylonGame {
   // NPC Accessory & Occupation-Visual System
   private npcAccessorySystem: NPCAccessorySystem | null = null;
 
-  // NPC Interaction Prompt — shows contextual prompts when looking at NPCs
-  private npcInteractionPrompt: NPCInteractionPrompt | null = null;
-
   // Unified interaction prompt — world-space billboard for all interactables
   private interactionPrompt: InteractionPromptSystem | null = null;
 
@@ -718,8 +714,9 @@ export class BabylonGame {
 
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
-  private npcLocationCycler: NPCLocationCycler;
   private ambientLifeSystem: AmbientLifeBehaviorSystem = new AmbientLifeBehaviorSystem();
+  /** Unified NPC routine manager — replaces NPCLocationCycler */
+  private scheduleExecutor!: ScheduleExecutor;
 
   // Volition System — Ensemble-style spontaneous NPC goal formation
   private volitionSystem: VolitionSystem = new VolitionSystem({
@@ -770,7 +767,7 @@ export class BabylonGame {
     this.config = config;
     this.dataSource = config.dataSource || createDataSource(config.authToken);
     this.worldTheme = computeWorldVisualTheme(config.worldType);
-    this.npcLocationCycler = new NPCLocationCycler(this.gameTimeManager, this.npcScheduleSystem);
+    // ScheduleExecutor is created after eventBus is available (in init)
   }
 
   /**
@@ -903,6 +900,9 @@ export class BabylonGame {
         await this.tryRestoreCloudSession();
 
         this.hideLoadingScreen();
+        // Also hide the outer HTML loading screen so the canvas-based menu is visible
+        const htmlLoadingScreen = document.getElementById('loadingScreen');
+        if (htmlLoadingScreen) htmlLoadingScreen.classList.add('hidden');
         const selectedId = await this.showPlaythroughSelectionMenu();
         if (!selectedId) return; // User went back
         this.config.playthroughId = selectedId;
@@ -1497,15 +1497,6 @@ export class BabylonGame {
     // Initialize NPC accessory & occupation-visual system
     this.npcAccessorySystem = new NPCAccessorySystem(scene);
 
-    // Initialize NPC interaction prompt (look-at based contextual prompts) — LEGACY HUD
-    this.npcInteractionPrompt = new NPCInteractionPrompt(scene);
-    this.npcInteractionPrompt.setConversationPartnerCallback((npcId) => {
-      return this.ambientConversationManager?.getConversationPartner(npcId) ?? null;
-    });
-    this.npcInteractionPrompt.setQuestIndicatorCallback((npcId) => {
-      return this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
-    });
-
     // Initialize unified interaction prompt (world-space billboard for all interactables)
     this.interactionPrompt = new InteractionPromptSystem(scene);
     this.interactionPrompt.setConversationPartnerCallback((npcId) => {
@@ -1777,8 +1768,13 @@ export class BabylonGame {
     // Wire game time manager to event bus
     this.gameTimeManager.setEventBus(this.eventBus);
 
-    // Wire NPC location cycler to event bus for day/night transitions
-    this.npcLocationCycler.setEventBus(this.eventBus);
+    // Create unified NPC routine manager (replaces NPCLocationCycler)
+    this.scheduleExecutor = new ScheduleExecutor(
+      this.gameTimeManager,
+      this.eventBus,
+      this.npcScheduleSystem,
+      this.ambientLifeSystem,
+    );
 
     // Initialize texture manager with DataSource for API-free asset resolution
     this.textureManager = new TextureManager(scene);
@@ -3641,15 +3637,16 @@ export class BabylonGame {
           // Local relative path — split into directory (rootUrl) and filename
           // so BabylonJS resolves gltf-relative texture paths correctly.
           // e.g. "assets/polyhaven/models/tree_small_02.gltf"
-          //   → rootUrl = "/assets/polyhaven/models/"
+          //   → rootUrl = "./assets/polyhaven/models/"
           //   → fileName = "tree_small_02.gltf"
-          const cleanPath = asset.filePath.replace(/^\//, '');
+          // Use relative ./ prefix (not absolute /) so it works on file:// protocol in exports.
+          const cleanPath = asset.filePath.replace(/^\.?\//, '');
           const lastSlash = cleanPath.lastIndexOf('/');
           if (lastSlash >= 0) {
-            rootUrl = '/' + cleanPath.substring(0, lastSlash + 1);
+            rootUrl = './' + cleanPath.substring(0, lastSlash + 1);
             fileName = cleanPath.substring(lastSlash + 1);
           } else {
-            rootUrl = '/';
+            rootUrl = './';
             fileName = cleanPath;
           }
         }
@@ -3708,32 +3705,42 @@ export class BabylonGame {
       }
     }
 
-    // Apply wall/roof textures to building generator if available
+    // Apply wall/roof textures to building generator if available.
+    // Skip global fallback when procedural presets are configured — each preset
+    // has its own wallTextureId/roofTextureId loaded on-demand by the building generator.
+    const hasProceduralPresets = (config3D as any).proceduralBuildings?.stylePresets?.length > 0;
     if (this.buildingGenerator && this.textureManager) {
-      // Wall texture: prefer explicit config3D reference, then fall back to assetType lookup
-      let wallAsset = config3D.wallTextureId
-        ? worldAssets.find((a) => a.id === config3D.wallTextureId)
-        : undefined;
-      if (!wallAsset) {
-        wallAsset = worldAssets.find((a) => a.assetType === 'texture_wall');
-      }
-      if (wallAsset) {
-        const wallTex = this.textureManager.loadTexture(wallAsset);
-        this.buildingGenerator.setWallTexture(wallTex);
+      // Wall texture: only set global texture if explicitly configured (not a blind fallback)
+      if (config3D.wallTextureId) {
+        const wallAsset = worldAssets.find((a) => a.id === config3D.wallTextureId);
+        if (wallAsset) {
+          const wallTex = this.textureManager.loadTexture(wallAsset);
+          this.buildingGenerator.setWallTexture(wallTex);
+        }
+      } else if (!hasProceduralPresets) {
+        // Only use assetType fallback for non-procedural worlds (KayKit, etc.)
+        const wallAsset = worldAssets.find((a) => a.assetType === 'texture_wall');
+        if (wallAsset) {
+          const wallTex = this.textureManager.loadTexture(wallAsset);
+          this.buildingGenerator.setWallTexture(wallTex);
+        }
       }
 
-      // Roof texture: prefer explicit config3D reference, then fall back to tag/name lookup
-      let roofAsset = config3D.roofTextureId
-        ? worldAssets.find((a) => a.id === config3D.roofTextureId)
-        : undefined;
-      if (!roofAsset) {
-        roofAsset = worldAssets.find((a) =>
+      // Roof texture: same logic
+      if (config3D.roofTextureId) {
+        const roofAsset = worldAssets.find((a) => a.id === config3D.roofTextureId);
+        if (roofAsset) {
+          const roofTex = this.textureManager.loadTexture(roofAsset);
+          this.buildingGenerator.setRoofTexture(roofTex);
+        }
+      } else if (!hasProceduralPresets) {
+        const roofAsset = worldAssets.find((a) =>
           a.assetType === 'texture_material' && (a.tags?.includes('roof') || a.name?.toLowerCase().includes('roof'))
         );
-      }
-      if (roofAsset) {
-        const roofTex = this.textureManager.loadTexture(roofAsset);
-        this.buildingGenerator.setRoofTexture(roofTex);
+        if (roofAsset) {
+          const roofTex = this.textureManager.loadTexture(roofAsset);
+          this.buildingGenerator.setRoofTexture(roofTex);
+        }
       }
     }
 
@@ -4110,36 +4117,15 @@ export class BabylonGame {
 
         // Compute re-centering offset: lot positions are in server local-space
         // (centered at mapSize/2), but the game world places the settlement elsewhere.
-        // Use the street waypoint centroid (same as StreetNetworkLayout.offsetNetwork)
-        // so that buildings and roads use an identical transform.
+        // Always use the LOT centroid as the reference point, since lot positions and
+        // street waypoints may be in different coordinate spaces (DB map-space vs IR world-space).
         const lotsWithPos = lots.filter((l: any) => l.positionX != null && l.positionZ != null);
         let lotOffsetX = 0, lotOffsetZ = 0;
         if (lotsWithPos.length > 0) {
-          // Prefer street waypoint centroid for consistency with road rendering
-          const storedStreetsForCentroid: any[] = Array.isArray(settlement.streets) ? settlement.streets : [];
-          let centroidX = 0, centroidZ = 0;
-          let wpCount = 0;
-          for (const s of storedStreetsForCentroid) {
-            const wps = Array.isArray(s.waypoints) ? s.waypoints
-              : (s.properties && Array.isArray(s.properties.waypoints) ? s.properties.waypoints : []);
-            for (const wp of wps) {
-              if (wp.x != null && wp.z != null) {
-                centroidX += wp.x;
-                centroidZ += wp.z;
-                wpCount++;
-              }
-            }
-          }
-          if (wpCount > 0) {
-            centroidX /= wpCount;
-            centroidZ /= wpCount;
-          } else {
-            // Fallback to lot centroid if no street data
-            let sumX = 0, sumZ = 0;
-            for (const l of lotsWithPos) { sumX += l.positionX; sumZ += l.positionZ; }
-            centroidX = sumX / lotsWithPos.length;
-            centroidZ = sumZ / lotsWithPos.length;
-          }
+          let sumX = 0, sumZ = 0;
+          for (const l of lotsWithPos) { sumX += l.positionX; sumZ += l.positionZ; }
+          const centroidX = sumX / lotsWithPos.length;
+          const centroidZ = sumZ / lotsWithPos.length;
           lotOffsetX = scaledSettlement.position.x - centroidX;
           lotOffsetZ = scaledSettlement.position.z - centroidZ;
         }
@@ -4171,8 +4157,12 @@ export class BabylonGame {
         const settlementBuildingSpecs: { position: Vector3; rotation: number; depth: number; width: number }[] = [];
 
         // First, spawn businesses at their lots
+        console.log(`[BuildingPlacement] Settlement ${settlement.name}: businesses=${businesses.length}, lots=${lots.length}, lotsHavePos=${lotsHavePositions}, lotOffset=(${lotOffsetX.toFixed(1)}, ${lotOffsetZ.toFixed(1)}), settlementPos=(${scaledSettlement.position.x.toFixed(1)}, ${scaledSettlement.position.z.toFixed(1)})`);
         for (const business of businesses) {
           const lotInfo = resolveBuildingPosition(business);
+          if (businesses.indexOf(business) === 0) {
+            console.log(`[BuildingPlacement] First building: pos=(${lotInfo.position.x.toFixed(1)}, ${lotInfo.position.y.toFixed(1)}, ${lotInfo.position.z.toFixed(1)}), lotId=${business.lotId}`);
+          }
 
           const bizLot = business.lotId ? lotById.get(business.lotId) : null;
           let buildingSpec = ProceduralBuildingGenerator.createSpecFromData({
@@ -4804,6 +4794,12 @@ export class BabylonGame {
                 sampleHeight
               );
             }
+            // Place lamp posts along sidewalks and register lights with day/night cycle
+            const lampLights = this.roadGenerator.placeLampPosts(settlement.id, streetNetwork, sampleHeight);
+            if (this.dayNightCycle && lampLights.length > 0) {
+              this.dayNightCycle.addStreetLights(lampLights);
+            }
+
             // Register street network with NPC schedule system for sidewalk pathfinding
             this.npcScheduleSystem.addStreetNetwork(streetNetwork, sampleHeight);
 
@@ -5140,21 +5136,21 @@ export class BabylonGame {
     this.optimizeStaticMeshes();
 
     // Diagnostic: find any abnormally large or high-flying meshes
-    if (this.scene) {
-      for (const m of this.scene.meshes) {
-        if (m.isDisposed()) continue;
-        const bi = m.getBoundingInfo();
-        const sz = bi.boundingBox.maximumWorld.subtract(bi.boundingBox.minimumWorld);
-        const maxDim = Math.max(Math.abs(sz.x), Math.abs(sz.y), Math.abs(sz.z));
-        const absY = Math.abs(m.getAbsolutePosition().y);
-        if (maxDim > 10 && m.name !== 'ground' && !m.name.includes('sky')) {
-          console.warn(`[WorldGen] LARGE mesh: "${m.name}" maxDim=${maxDim.toFixed(1)} absY=${absY.toFixed(1)} scale=(${m.scaling.x.toFixed(4)}, ${m.scaling.y.toFixed(4)}, ${m.scaling.z.toFixed(4)}) enabled=${m.isEnabled()} visible=${m.isVisible}`);
-        }
-        if (absY > 30 && m.name !== 'ground' && !m.name.includes('sky')) {
-          console.warn(`[WorldGen] HIGH mesh: "${m.name}" absY=${absY.toFixed(1)} maxDim=${maxDim.toFixed(1)} scale=(${m.scaling.x.toFixed(4)}, ${m.scaling.y.toFixed(4)}, ${m.scaling.z.toFixed(4)}) enabled=${m.isEnabled()}`);
-        }
-      }
-    }
+    // if (this.scene) {
+    //   for (const m of this.scene.meshes) {
+    //     if (m.isDisposed()) continue;
+    //     const bi = m.getBoundingInfo();
+    //     const sz = bi.boundingBox.maximumWorld.subtract(bi.boundingBox.minimumWorld);
+    //     const maxDim = Math.max(Math.abs(sz.x), Math.abs(sz.y), Math.abs(sz.z));
+    //     const absY = Math.abs(m.getAbsolutePosition().y);
+    //     if (maxDim > 10 && m.name !== 'ground' && !m.name.includes('sky')) {
+    //       console.log(`[WorldGen] LARGE mesh: "${m.name}" maxDim=${maxDim.toFixed(1)} absY=${absY.toFixed(1)} scale=(${m.scaling.x.toFixed(4)}, ${m.scaling.y.toFixed(4)}, ${m.scaling.z.toFixed(4)}) enabled=${m.isEnabled()} visible=${m.isVisible}`);
+    //     }
+    //     if (absY > 30 && m.name !== 'ground' && !m.name.includes('sky')) {
+    //       console.log(`[WorldGen] HIGH mesh: "${m.name}" absY=${absY.toFixed(1)} maxDim=${maxDim.toFixed(1)} scale=(${m.scaling.x.toFixed(4)}, ${m.scaling.y.toFixed(4)}, ${m.scaling.z.toFixed(4)}) enabled=${m.isEnabled()}`);
+    //     }
+    //   }
+    // }
 
     // Generate 2D top-down world map for the minimap (terrain + streets).
     // Buildings are added later when first collected in updateMinimapOverlay().
@@ -6718,68 +6714,82 @@ export class BabylonGame {
 
       // Primary path: Quaternius character models (complete body + outfit baked in)
       if (!root && this.quaterniusNPCLoader?.hasAssets()) {
-        const quatGender = normalizeToQuaterniusGender(character.gender);
-        const quatResult = await this.quaterniusNPCLoader.loadForCharacter(
-          character.id,
-          quatGender,
-          role,
-        );
-        if (quatResult) {
-          root = quatResult.root;
-          animationGroups = quatResult.animationGroups;
-          // Check if this was a complete character model (outfit/hair baked in)
-          const quatConfig = selectQuaterniusConfig(character.id, quatGender, role);
-          usedCompleteCharacterModel = isCompleteCharacterModel(quatConfig.body.id);
-        }
+        try {
+          const quatGender = normalizeToQuaterniusGender(character.gender);
+          const savedAppearance = (character as any).generationConfig?.quaterniusAppearance;
+          const quatResult = await this.quaterniusNPCLoader.loadForCharacter(
+            character.id,
+            quatGender,
+            role,
+            savedAppearance,
+          );
+          if (quatResult) {
+            root = quatResult.root;
+            animationGroups = quatResult.animationGroups;
+            // Check if this was a complete character model (outfit/hair baked in)
+            const quatConfig = selectQuaterniusConfig(character.id, quatGender, role);
+            usedCompleteCharacterModel = isCompleteCharacterModel(quatConfig.body.id);
+          }
+        } catch { /* Quaternius assets not available — fall through */ }
       }
 
       // Tier 2: modular NPC assembly from procedural body parts
       if (!root && this.npcModularAssembler) {
-        const bodyType = deriveModularBodyType(character.physicalTraits, character.occupation);
-        const assembled = this.npcModularAssembler.assemble(character.id, role, bodyType);
-        root = assembled.root;
-        usedModularAssembly = true;
+        try {
+          const bodyType = deriveModularBodyType(character.physicalTraits, character.occupation);
+          const assembled = this.npcModularAssembler.assemble(character.id, role, bodyType);
+          root = assembled.root;
+          usedModularAssembly = true;
+        } catch { /* modular assembly failed — fall through */ }
       }
 
       // Fallback: Try world-level NPC override (role+gender specific, with fallback chain)
       if (!root) {
-        const modelInfo = this.resolveNPCModelUrl(role, character);
-        if (modelInfo) {
-          const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file, character.id, role);
-          if (modelResult) {
-            root = modelResult.root;
-            animationGroups = modelResult.animationGroups;
-            instancedBillboard = modelResult.billboard;
+        try {
+          const modelInfo = this.resolveNPCModelUrl(role, character);
+          if (modelInfo) {
+            const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file, character.id, role);
+            if (modelResult) {
+              root = modelResult.root;
+              animationGroups = modelResult.animationGroups;
+              instancedBillboard = modelResult.billboard;
+            }
           }
-        }
+        } catch { /* world-level override failed — fall through */ }
       }
 
       // Fallback: Try diverse NPC model based on gender, body type, and world genre
       if (!root) {
-        const diverseModel = resolveNPCModelFromCharacter(character, role, this.config.worldType);
-        const diverseResult = await this.getOrLoadNPCModel(diverseModel.cacheKey, diverseModel.rootUrl, diverseModel.file, character.id, role);
-        if (diverseResult) {
-          root = diverseResult.root;
-          animationGroups = diverseResult.animationGroups;
-          instancedBillboard = diverseResult.billboard;
-        }
+        try {
+          const diverseModel = resolveNPCModelFromCharacter(character, role, this.config.worldType);
+          const diverseResult = await this.getOrLoadNPCModel(diverseModel.cacheKey, diverseModel.rootUrl, diverseModel.file, character.id, role);
+          if (diverseResult) {
+            root = diverseResult.root;
+            animationGroups = diverseResult.animationGroups;
+            instancedBillboard = diverseResult.billboard;
+          }
+        } catch { /* diverse model failed — fall through */ }
       }
 
       // Fallback: shared default NPC model (uses instancer with cloning)
       if (!root) {
-        const defaultResult = await this.getOrLoadNPCModel('__default_npc__', '', NPC_MODEL_URL, character.id, role);
-        if (defaultResult) {
-          root = defaultResult.root;
-          animationGroups = defaultResult.animationGroups;
-          instancedBillboard = defaultResult.billboard;
-        }
+        try {
+          const defaultResult = await this.getOrLoadNPCModel('__default_npc__', '', NPC_MODEL_URL, character.id, role);
+          if (defaultResult) {
+            root = defaultResult.root;
+            animationGroups = defaultResult.animationGroups;
+            instancedBillboard = defaultResult.billboard;
+          }
+        } catch { /* default model failed — fall through */ }
       }
 
       // Final fallback: direct load if all else failed
       if (!root) {
-        const result = await SceneLoader.ImportMeshAsync("", "", NPC_MODEL_URL, this.scene);
-        root = (this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh));
-        animationGroups = result.animationGroups || [];
+        try {
+          const result = await SceneLoader.ImportMeshAsync("", "", NPC_MODEL_URL, this.scene);
+          root = (this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh));
+          animationGroups = result.animationGroups || [];
+        } catch { /* even final fallback failed */ }
       }
       if (!root) {
         console.error(`[BabylonGame] ❌ No usable mesh found for NPC ${character.id}, skipping`);
@@ -6888,10 +6898,6 @@ export class BabylonGame {
         this.npcAccessorySystem.attachHair(character.id, root, appearance);
       }
 
-      // Register with interaction prompt system (look-at based contextual prompts)
-      if (this.npcInteractionPrompt) {
-        this.npcInteractionPrompt.registerNPC({ id: character.id, name: npcName, mesh: root });
-      }
       // Register with unified interaction prompt (world-space billboard)
       this.interactionPrompt?.registerNPC({ id: character.id, name: npcName, mesh: root });
 
@@ -6983,8 +6989,14 @@ export class BabylonGame {
           } : undefined
         );
 
-        // Register with location cycler for day/night transitions
-        this.npcLocationCycler.registerNPC(character.id);
+        // Register with unified schedule executor for daily routine management
+        this.scheduleExecutor.registerNPC(character.id, personality ? {
+          openness: personality.openness ?? personality.Openness,
+          conscientiousness: personality.conscientiousness ?? personality.Conscientiousness,
+          extroversion: personality.extroversion ?? personality.Extroversion,
+          agreeableness: personality.agreeableness ?? personality.Agreeableness,
+          neuroticism: personality.neuroticism ?? personality.Neuroticism,
+        } : undefined);
 
         // Assign NPC to settlement zone for boundary confinement
         {
@@ -8338,8 +8350,6 @@ export class BabylonGame {
       this._interactionPromptTimer += dt;
       if (this._interactionPromptTimer >= 100) {
         this._interactionPromptTimer = 0;
-        // Legacy HUD prompt (will be removed once unified prompt is stable)
-        // this.npcInteractionPrompt?.update();
         // Unified world-space interaction prompt
         this.interactionPrompt?.update();
       }
@@ -8554,33 +8564,84 @@ export class BabylonGame {
 
 
   /**
-   * Process pending NPC location transitions from the day/night cycler.
-   * Applies goal changes and pathfinding for NPCs that need to relocate.
+   * Process pending NPC actions from the ScheduleExecutor.
+   * Applies goal changes, pathfinding, and building entry/exit for NPCs.
    */
-  private processLocationCyclerTransitions(): void {
-    const transitions = this.npcLocationCycler.drainPendingTransitions();
-    if (transitions.length === 0) return;
+  private processScheduleExecutorActions(): void {
+    const now = Date.now();
 
-    for (const { npcId, goal, virtualNow } of transitions) {
+    // Update NPC positions in the executor for pathfinding
+    this.npcMeshes.forEach((instance, npcId) => {
+      if (instance.mesh) {
+        this.scheduleExecutor.updateNPCPosition(npcId, instance.mesh.position);
+      }
+    });
+
+    // Run the executor's per-frame update (checks expiry, etc.)
+    this.scheduleExecutor.update(now);
+
+    // Drain and apply pending actions
+    const actions = this.scheduleExecutor.drainPendingActions();
+    if (actions.size === 0) return;
+
+    for (const [npcId, action] of Array.from(actions.entries())) {
+      if (!action) continue;
       const instance = this.npcMeshes.get(npcId);
       if (!instance?.mesh) continue;
 
       const entry = this.npcScheduleSystem.getEntry(npcId);
-      if (entry) entry.currentGoal = goal;
-      instance.scheduleGoalExpiry = goal.expiresAt;
 
-      const currentPos = instance.mesh.position;
-
-      if ((goal.type === 'go_to_building' || goal.type === 'visit_friend') && goal.doorPosition) {
-        const path = this.npcScheduleSystem.findSidewalkPath(currentPos, goal.doorPosition);
-        instance.schedulePathWaypoints = path;
-        instance.schedulePathIndex = 0;
-      } else if (goal.type === 'wander_sidewalk' || goal.type === 'idle_at_building') {
-        const target = this.npcScheduleSystem.getRandomSidewalkTarget(npcId);
-        if (target) {
-          const path = this.npcScheduleSystem.findSidewalkPath(currentPos, target);
-          instance.schedulePathWaypoints = path;
+      switch (action.type) {
+        case 'new_goal': {
+          if (entry) entry.currentGoal = action.goal;
+          instance.schedulePathWaypoints = action.pathWaypoints;
           instance.schedulePathIndex = 0;
+          // Clear any idle state
+          instance.wanderWaitUntil = undefined;
+          break;
+        }
+        case 'enter_building': {
+          instance.isInsideBuilding = true;
+          instance.insideBuildingId = action.buildingId;
+          instance.scheduleGoalExpiry = now + action.stayDurationMs;
+          instance.mesh.setEnabled(false);
+          if (instance.billboardLOD) instance.billboardLOD.setEnabled(false);
+          instance.controller?.walk(false);
+          break;
+        }
+        case 'exit_building': {
+          instance.isInsideBuilding = false;
+          instance.insideBuildingId = undefined;
+          instance.scheduleGoalExpiry = undefined;
+          instance.schedulePathWaypoints = undefined;
+          instance.schedulePathIndex = undefined;
+
+          // Place at building door
+          if (action.doorPosition) {
+            instance.mesh.position = action.doorPosition.clone();
+            instance.controller?.resetPhysicsState();
+          }
+
+          // Fade-in effect
+          instance.mesh.setEnabled(true);
+          if (instance.billboardLOD) instance.billboardLOD.setEnabled(true);
+          instance.fadeInProgress = 0;
+          instance.mesh.getChildMeshes().forEach(m => { m.visibility = 0; });
+          instance.mesh.visibility = 0;
+          break;
+        }
+        case 'idle': {
+          instance.wanderWaitUntil = now + action.durationMs;
+          instance.schedulePathWaypoints = undefined;
+          instance.schedulePathIndex = undefined;
+          if (entry) entry.currentGoal = null;
+          break;
+        }
+        case 'go_home': {
+          instance.schedulePathWaypoints = action.pathWaypoints;
+          instance.schedulePathIndex = 0;
+          instance.wanderWaitUntil = undefined;
+          break;
         }
       }
     }
@@ -8835,33 +8896,10 @@ export class BabylonGame {
     }
 
     // --- Handle NPC inside a building (hidden) ---
+    // Building exit is now handled by processScheduleExecutorActions(),
+    // but we still need to skip AI for NPCs that are inside
     if (instance.isInsideBuilding) {
-      // Check if goal has expired — time to exit the building
-      if (instance.scheduleGoalExpiry && now >= instance.scheduleGoalExpiry) {
-        instance.isInsideBuilding = false;
-        instance.insideBuildingId = undefined;
-        instance.scheduleGoalExpiry = undefined;
-        instance.schedulePathWaypoints = undefined;
-        instance.schedulePathIndex = undefined;
-
-        // Place NPC at the building door before showing
-        const entry = this.npcScheduleSystem.getEntry(characterId);
-        if (entry?.currentGoal?.doorPosition) {
-          instance.mesh.position = entry.currentGoal.doorPosition.clone();
-          instance.controller?.resetPhysicsState();
-        }
-
-        // Show the NPC mesh with fade-in to avoid teleportation pop-in
-        instance.mesh.setEnabled(true);
-        if (instance.billboardLOD) instance.billboardLOD.setEnabled(true);
-        instance.fadeInProgress = 0;
-        // Start fully transparent
-        instance.mesh.getChildMeshes().forEach(m => { m.visibility = 0; });
-        instance.mesh.visibility = 0;
-      } else {
-        // Still inside — do nothing
-        return;
-      }
+      return;
     }
 
     // --- If waiting (idle pause), try ambient activity or stay idle ---
@@ -8887,7 +8925,7 @@ export class BabylonGame {
 
     // Clear ambient activity when NPC starts moving again
     if (characterId) {
-      this.ambientLifeSystem.clearActivity(characterId);
+      this.scheduleExecutor.clearAmbientBehavior(characterId);
       if (instance.ambientActivityAnimation) {
         this.playNPCAnimation(instance, 'idle');
         instance.ambientActivityAnimation = undefined;
@@ -8942,7 +8980,7 @@ export class BabylonGame {
       instance.volitionTargetNpcId = undefined;
     }
 
-    // --- Schedule system available? Use goal-directed behavior ---
+    // --- Schedule-driven behavior via ScheduleExecutor ---
     if (this.npcScheduleSystem.hasStreetData()) {
       const entry = this.npcScheduleSystem.getEntry(characterId);
 
@@ -8952,34 +8990,7 @@ export class BabylonGame {
         const path = this.npcScheduleSystem.findSidewalkPath(currentPos, clamped);
         instance.schedulePathWaypoints = path.length > 0 ? path : [clamped];
         instance.schedulePathIndex = 0;
-        instance.scheduleGoalExpiry = now + 30000; // Give 30s to return
-        if (entry) entry.currentGoal = { type: 'wander_sidewalk', expiresAt: now + 30000 };
-      }
-
-      // Pick a new goal if none or expired (use game-time-aware virtual now)
-      const virtualNow = this.npcLocationCycler.getVirtualNow();
-      if (!entry?.currentGoal || now >= (instance.scheduleGoalExpiry || 0)) {
-        const goal = this.npcScheduleSystem.pickNextGoal(characterId, virtualNow);
-        if (!goal) return;
-
-        // Update the schedule entry
-        if (entry) entry.currentGoal = goal;
-        instance.scheduleGoalExpiry = goal.expiresAt;
-
-        if ((goal.type === 'go_to_building' || goal.type === 'visit_friend') && goal.doorPosition) {
-          // Compute sidewalk path to building door
-          const path = this.npcScheduleSystem.findSidewalkPath(currentPos, goal.doorPosition);
-          instance.schedulePathWaypoints = path;
-          instance.schedulePathIndex = 0;
-        } else if (goal.type === 'wander_sidewalk' || goal.type === 'idle_at_building') {
-          // Pick a random sidewalk destination within the NPC's settlement bounds
-          const target = this.npcScheduleSystem.getRandomSidewalkTarget(characterId);
-          if (target) {
-            const path = this.npcScheduleSystem.findSidewalkPath(currentPos, target);
-            instance.schedulePathWaypoints = path;
-            instance.schedulePathIndex = 0;
-          }
-        }
+        if (entry) entry.currentGoal = { type: 'wander_sidewalk', expiresAt: 0 };
       }
 
       // --- Follow the sidewalk path ---
@@ -8997,21 +9008,20 @@ export class BabylonGame {
             if (instance.stuckTicks >= 2 && instance.stuckTicks < 5) {
               // First response: stop walking and rotate away from the wall
               instance.controller.walk(false);
-              // Turn ~90-180 degrees away from current heading
               const turnAngle = (Math.PI / 2) + Math.random() * Math.PI;
               instance.mesh.rotation.y += turnAngle;
               return;
             }
             if (instance.stuckTicks >= 5) {
-              // Persistent stuck: abandon the path entirely and pick a new goal
+              // Persistent stuck: abandon the path and let ScheduleExecutor pick a new goal
               instance.controller.walk(false);
               instance.controller.turnLeft(false);
               instance.controller.turnRight(false);
               instance.schedulePathWaypoints = undefined;
-              instance.scheduleGoalExpiry = undefined;
               instance.stuckTicks = 0;
+              this.scheduleExecutor.abandonGoal(characterId);
+              this.scheduleExecutor.setIdle(characterId, now);
               instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
-              if (entry) entry.currentGoal = null;
               instance.lastWanderPosition = currentPos.clone();
               return;
             }
@@ -9028,6 +9038,7 @@ export class BabylonGame {
         if (dist < 1.0) {
           // Reached this waypoint — advance to next
           instance.schedulePathIndex = wpIdx + 1;
+          this.scheduleExecutor.advancePathIndex(characterId);
 
           // If this was the last waypoint, we've arrived at destination
           if (wpIdx + 1 >= waypoints.length) {
@@ -9037,21 +9048,13 @@ export class BabylonGame {
 
             const goal = entry?.currentGoal;
             if ((goal?.type === 'go_to_building' || goal?.type === 'visit_friend') && goal.buildingId) {
-              // Enter the building — hide the NPC
-              instance.isInsideBuilding = true;
-              instance.insideBuildingId = goal.buildingId;
-              instance.mesh.setEnabled(false);
-              if (instance.billboardLOD) instance.billboardLOD.setEnabled(false);
-
-              // Set expiry for when NPC exits the building
-              // Goal expiry determines how long they stay
-              const stayDuration = Math.max(0, goal.expiresAt - now);
-              instance.scheduleGoalExpiry = now + stayDuration;
+              // Enter the building via ScheduleExecutor (handles duration calculation)
+              this.scheduleExecutor.enterBuilding(characterId, goal.buildingId, now);
             } else {
-              // Wander goal complete — idle briefly then pick a new goal
+              // Wander/idle goal complete — let ScheduleExecutor manage idle + re-evaluation
+              this.scheduleExecutor.setIdle(characterId, now);
               instance.wanderWaitUntil = now + 3000 + Math.random() * 5000;
               instance.schedulePathWaypoints = undefined;
-              instance.scheduleGoalExpiry = undefined;
               if (entry) entry.currentGoal = null;
             }
           }
@@ -9063,13 +9066,13 @@ export class BabylonGame {
         return;
       }
 
-      // No path — idle briefly, then pick a new goal
-      instance.controller.walk(false);
-      instance.controller.turnLeft(false);
-      instance.controller.turnRight(false);
-      instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
-      instance.schedulePathWaypoints = undefined;
-      if (entry) entry.currentGoal = null;
+      // No active path — let ScheduleExecutor know we need a new goal
+      if (!this.scheduleExecutor.isIdling(characterId) && !this.scheduleExecutor.hasPendingAction(characterId)) {
+        this.scheduleExecutor.setIdle(characterId, now);
+        instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
+        instance.schedulePathWaypoints = undefined;
+        if (entry) entry.currentGoal = null;
+      }
       return;
     }
 
@@ -9575,7 +9578,7 @@ export class BabylonGame {
     })) ?? [];
 
     // Collect NPC positions
-    const npcPositions: Array<{ id: string; position: { x: number; z: number }; role?: string; name?: string }> = [];
+    const npcPositions: Array<{ id: string; position: { x: number; z: number }; role?: string; name?: string; questIndicator?: string | null }> = [];
     this.npcMeshes.forEach((instance, npcId) => {
       if (!instance?.mesh || !instance.mesh.isEnabled()) return;
       npcPositions.push({
@@ -9583,6 +9586,7 @@ export class BabylonGame {
         position: { x: instance.mesh.position.x, z: instance.mesh.position.z },
         role: instance.role,
         name: instance.characterData?.firstName,
+        questIndicator: this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null,
       });
     });
 
@@ -9624,8 +9628,8 @@ export class BabylonGame {
       this.gameTimeManager.update(this.engine!.getDeltaTime());
       this.dayNightCycle?.update();
 
-      // Process day/night NPC location transitions from the cycler
-      this.processLocationCyclerTransitions();
+      // Process NPC schedule actions from the unified routine manager
+      this.processScheduleExecutorActions();
 
       // Update time HUD indicator
       this.guiManager?.updateTime(
@@ -12931,11 +12935,6 @@ export class BabylonGame {
       this.npcAccessorySystem.dispose();
       this.npcAccessorySystem = null;
     }
-    // Clean up NPC interaction prompt
-    if (this.npcInteractionPrompt) {
-      this.npcInteractionPrompt.dispose();
-      this.npcInteractionPrompt = null;
-    }
     // Clean up unified interaction prompt
     if (this.interactionPrompt) {
       this.interactionPrompt.dispose();
@@ -13184,7 +13183,7 @@ export class BabylonGame {
     this.onboardingActive = false;
     this.assessmentActive = false;
     this.onboardingResult = null;
-    this.npcLocationCycler.dispose();
+    this.scheduleExecutor?.dispose();
     this.ambientConversationManager?.dispose();
     this.npcInitiatedConversationController?.dispose();
     this.socializationController?.dispose();

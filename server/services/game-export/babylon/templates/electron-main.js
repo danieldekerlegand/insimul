@@ -4,6 +4,9 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { initAIService, disposeAIService } = require('./ai-service');
 
+// Increase renderer memory limit for large asset collections (1 GB+ of models/textures)
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192');
+
 // The built directory structure
 // ├─┬ dist
 // │ └─ index.html

@@ -63,10 +63,11 @@ interface AssetDef {
 }
 
 const CORE_CHARACTERS: AssetDef[] = [
-  // Same models used by the in-app BabylonGame: hardcoded fallback paths must match
-  // PLAYER_MODEL_URL and NPC_MODEL_URL constants in shared/asset-paths.ts
-  { sourcePath: 'models/characters/legacy/Vincent-frontFacing.babylon', exportPath: 'assets/player/Vincent-frontFacing.babylon', category: 'character', role: 'player_default' },
-  { sourcePath: 'models/characters/legacy/Vincent_texture_image.jpg', exportPath: 'assets/player/Vincent_texture_image.jpg', category: 'character', role: 'player_texture' },
+  // Legacy character assets — preserved at BOTH original and shortcut paths so all code paths resolve
+  { sourcePath: 'models/characters/legacy/Vincent-frontFacing.glb', exportPath: 'assets/models/characters/legacy/Vincent-frontFacing.glb', category: 'character', role: 'player_default' },
+  { sourcePath: 'models/characters/legacy/Vincent-frontFacing.babylon', exportPath: 'assets/player/Vincent-frontFacing.babylon', category: 'character', role: 'player_default_babylon' },
+  { sourcePath: 'models/characters/legacy/Vincent_texture_image.jpg', exportPath: 'assets/models/characters/legacy/Vincent_texture_image.jpg', category: 'character', role: 'player_texture' },
+  { sourcePath: 'models/characters/legacy/Vincent_texture_image.jpg', exportPath: 'assets/player/Vincent_texture_image.jpg', category: 'character', role: 'player_texture_compat' },
   { sourcePath: 'models/characters/legacy/starterAvatars.babylon', exportPath: 'assets/npc/starterAvatars.babylon', category: 'character', role: 'npc_default' },
 ];
 
@@ -100,6 +101,56 @@ const CORE_AUDIO: AssetDef[] = [
   { sourcePath: 'audio/effects/door_creak_wav_219499.mp3', exportPath: 'assets/audio/interact/door.mp3', category: 'audio', role: 'interact_door' },
   { sourcePath: 'audio/effects/open_button_2_264447.mp3', exportPath: 'assets/audio/interact/button.mp3', category: 'audio', role: 'interact_button' },
 ];
+
+// ─────────────────────────────────────────────
+// Quaternius character models
+// ─────────────────────────────────────────────
+
+// All character model IDs referenced by QuaterniusNPCLoader in the game.
+// These must be bundled so the exported game can load NPC models.
+const QUATERNIUS_ASSET_IDS = [
+  'anim_ual1_standard', 'anim2_ual2_standard', 'anim2_mannequin_f',
+  'char_superhero_male_fullbody', 'char_superhero_female_fullbody',
+  'char_male_adventurer', 'char_male_beach', 'char_male_casual',
+  'char_male_casual_hoodie', 'char_male_farmer', 'char_male_king',
+  'char_male_punk', 'char_male_suit', 'char_male_swat', 'char_male_worker',
+  'char_female_adventurer', 'char_female_casual', 'char_female_formal',
+  'char_female_punk', 'char_female_suit', 'char_female_soldier',
+  'char_female_worker', 'char_female_medieval',
+  'animal_alpaca', 'animal_bull', 'animal_cow', 'animal_deer',
+  'animal_donkey', 'animal_fox', 'animal_horse', 'animal_horse_white',
+  'animal_husky', 'animal_shibainu', 'animal_stag', 'animal_wolf',
+];
+
+/**
+ * Bundle all Quaternius character models referenced by the game's NPC loader.
+ * Each model is a single .gltf or .glb in its own subdirectory.
+ * Preserves the exact path structure the game expects: assets/models/characters/quaternius/{id}/{id}.{ext}
+ */
+function getQuaterniusCharacters(basePath: string): AssetDef[] {
+  const defs: AssetDef[] = [];
+  const quatBase = 'models/characters/quaternius';
+
+  for (const id of QUATERNIUS_ASSET_IDS) {
+    const dirPath = path.join(basePath, quatBase, id);
+    if (!fs.existsSync(dirPath)) continue;
+
+    // Each model dir contains a single .gltf or .glb file (and potentially companion files)
+    let files: string[];
+    try { files = fs.readdirSync(dirPath); } catch { continue; }
+
+    for (const file of files) {
+      const filePath = path.join(dirPath, file);
+      if (!fs.statSync(filePath).isFile()) continue;
+      const sourcePath = `${quatBase}/${id}/${file}`;
+      const exportPath = `assets/${sourcePath}`;
+      defs.push({ sourcePath, exportPath, category: 'character', role: `quat_${id}` });
+    }
+  }
+
+  console.log(`[AssetBundler] Found ${defs.length} Quaternius character files`);
+  return defs;
+}
 
 // ─────────────────────────────────────────────
 // KayKit buildings (GLTF + BIN pairs)
@@ -177,6 +228,65 @@ function getAssetsBasePath(): string {
 // ─────────────────────────────────────────────
 
 // ─────────────────────────────────────────────
+// GLTF companion file bundler (standalone)
+// ─────────────────────────────────────────────
+
+/**
+ * Bundle companion files for a GLTF asset: .bin buffer and textures/ directory.
+ * Used by both collection-based and core asset bundling paths.
+ * Mutates the provided arrays in place.
+ */
+function bundleGltfCompanions(
+  basePath: string,
+  gltfSourcePath: string,
+  gltfExportPath: string,
+  category: BundledAsset['category'],
+  role: string,
+  bundledAssets: BundledAsset[] = [],
+  manifest: AssetManifestEntry[] = [],
+  bundledSourcePaths: Set<string> = new Set(),
+): void {
+  const sourceDir = path.dirname(gltfSourcePath);
+  const exportDir = path.dirname(gltfExportPath);
+
+  // Read the GLTF to find actual URI references (bin + textures)
+  const gltfFullPath = path.join(basePath, gltfSourcePath);
+  let uris: string[] = [];
+  try {
+    const gltfContent = fs.readFileSync(gltfFullPath, 'utf8');
+    const uriMatches = gltfContent.matchAll(/"uri"\s*:\s*"([^"]+)"/g);
+    uris = [...uriMatches].map(m => m[1]).filter(u => !u.startsWith('data:'));
+  } catch { /* ignore parse errors */ }
+
+  // Bundle each referenced URI
+  for (const uri of uris) {
+    const srcPath = `${sourceDir}/${uri}`;
+    const expPath = `${exportDir}/${uri}`;
+    if (bundledSourcePaths.has(srcPath)) continue;
+    const fullPath = path.join(basePath, srcPath);
+    if (!fs.existsSync(fullPath)) continue;
+    const buffer = fs.readFileSync(fullPath);
+    bundledAssets.push({ exportPath: expPath, buffer, category, role: `${role}_companion` });
+    bundledSourcePaths.add(srcPath);
+  }
+
+  // Also scan textures/ directory for any files not referenced by URI
+  const texturesDir = path.join(path.dirname(gltfFullPath), 'textures');
+  if (fs.existsSync(texturesDir)) {
+    for (const texFile of fs.readdirSync(texturesDir)) {
+      const srcPath = `${sourceDir}/textures/${texFile}`;
+      const expPath = `${exportDir}/textures/${texFile}`;
+      if (bundledSourcePaths.has(srcPath)) continue;
+      const fullPath = path.join(texturesDir, texFile);
+      if (!fs.statSync(fullPath).isFile()) continue;
+      const buffer = fs.readFileSync(fullPath);
+      bundledAssets.push({ exportPath: expPath, buffer, category, role: `${role}_tex` });
+      bundledSourcePaths.add(srcPath);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
 // Bundle assets from a specific collection
 // ─────────────────────────────────────────────
 
@@ -189,7 +299,7 @@ function getAssetsBasePath(): string {
  *
  * Returns binary buffers ready to be added to a ZIP archive.
  */
-export async function bundleAssetsFromCollection(collectionId: string): Promise<BundleResult> {
+export async function bundleAssetsFromCollection(collectionId: string, worldId?: string): Promise<BundleResult> {
   const { storage } = await import(/* webpackIgnore: true */ new URL('../../db/storage.js', import.meta.url).href as any);
 
   const collection = await storage.getAssetCollection(collectionId);
@@ -201,10 +311,15 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
   type RoleEntry = { role: string; assetId: string; category: BundledAsset['category'] };
   const roleEntries: RoleEntry[] = [];
 
-  function addFromMap(map: Record<string, string> | null | undefined, category: BundledAsset['category']) {
+  function addFromMap(map: Record<string, any> | null | undefined, category: BundledAsset['category']) {
     if (!map) return;
-    for (const [role, assetId] of Object.entries(map)) {
-      if (assetId) roleEntries.push({ role, assetId, category });
+    for (const [role, value] of Object.entries(map)) {
+      if (!value) continue;
+      // Support both plain string IDs and { mode, assetId } objects
+      const assetId = typeof value === 'string' ? value : (value?.assetId ?? null);
+      if (assetId && typeof assetId === 'string') {
+        roleEntries.push({ role, assetId, category });
+      }
     }
   }
 
@@ -215,6 +330,61 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
   addFromMap((collection as any).playerModels as Record<string, string>, 'character');
   addFromMap((collection as any).questObjectModels as Record<string, string>, 'container');
   addFromMap((collection as any).audioAssets as Record<string, string>, 'audio');
+
+  // ── Extract asset IDs from worldTypeConfig (Creole Colonial and other collections store assets here) ──
+  const wtc = (collection as any).worldTypeConfig;
+  if (wtc) {
+    // Helper: recursively extract all assetId and textureId values from a config object
+    // Recursively extract all assetId and textureId values from any nested config object
+    const seenAssetIds = new Set<string>();
+    const extractAssetIds = (obj: any, category: BundledAsset['category'], prefix: string, depth = 0) => {
+      if (!obj || typeof obj !== 'object' || depth > 10) return;
+      if (Array.isArray(obj)) {
+        for (let i = 0; i < obj.length; i++) extractAssetIds(obj[i], category, `${prefix}_${i}`, depth + 1);
+        return;
+      }
+      for (const [key, value] of Object.entries(obj)) {
+        if (!value) continue;
+        if (typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value)) {
+          // Direct ObjectID string value (e.g. wallTextureId, roofTextureId, assetId)
+          if (key.toLowerCase().includes('textureid') || key.toLowerCase().includes('assetid')) {
+            if (!seenAssetIds.has(value)) {
+              seenAssetIds.add(value);
+              const isTexture = key.toLowerCase().includes('texture');
+              roleEntries.push({ role: `${prefix}_${key}`, assetId: value, category: isTexture ? 'ground' as any : category });
+            }
+          }
+        } else if (typeof value === 'object') {
+          const entry = value as any;
+          // Check for { assetId: '...' } pattern
+          if (entry.assetId && typeof entry.assetId === 'string' && !seenAssetIds.has(entry.assetId)) {
+            seenAssetIds.add(entry.assetId);
+            roleEntries.push({ role: `${prefix}_${key}`, assetId: entry.assetId, category });
+          }
+          // Check for { textureId: '...' } pattern
+          if (entry.textureId && typeof entry.textureId === 'string' && !seenAssetIds.has(entry.textureId)) {
+            seenAssetIds.add(entry.textureId);
+            roleEntries.push({ role: `${prefix}_${key}_tex`, assetId: entry.textureId, category: 'ground' as any });
+          }
+          // Always recurse into nested objects
+          extractAssetIds(entry, category, `${prefix}_${key}`, depth + 1);
+        }
+      }
+    };
+
+    // Extract ALL asset/texture IDs from the entire worldTypeConfig tree.
+    // The recursive extractor handles all nested structures:
+    // - natureConfig.trees/vegetation/rocks (assetId)
+    // - groundConfig.ground/road/sidewalk (textureId)
+    // - characterConfig.playerModels/characterModels (assetId)
+    // - buildingConfig.categoryPresets (wallTextureId, roofTextureId)
+    // - buildingConfig.buildingTypeConfigs (wallTextureId, roofTextureId per type)
+    // - buildingConfig.proceduralDefaults.stylePresets (wallTextureId, roofTextureId)
+    // - itemConfig.objects/questObjects (assetId)
+    extractAssetIds(wtc, 'prop', 'wtc');
+
+    console.log(`[AssetBundler] Extracted ${roleEntries.length} asset references from worldTypeConfig`);
+  }
 
   // Named texture IDs get bundled under the 'ground' category with well-known roles
   const namedTextureEntries: Array<{ role: string; assetId: string }> = [];
@@ -229,10 +399,18 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
   }
 
   // ── Fetch all referenced VisualAsset records ──
+  // Filter to only valid 24-char hex ObjectID strings to prevent Mongoose cast errors
   const allAssetIds = new Set<string>([
     ...roleEntries.map(e => e.assetId),
     ...namedTextureEntries.map(e => e.assetId),
   ]);
+  // Remove any non-string or invalid ObjectID values
+  for (const id of allAssetIds) {
+    if (typeof id !== 'string' || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      console.warn(`[AssetBundler] Removing invalid asset ID: ${JSON.stringify(id)}`);
+      allAssetIds.delete(id);
+    }
+  }
   const assetRecords: any[] = await storage.getVisualAssetsByIds(Array.from(allAssetIds));
   const assetById = new Map<string, any>(assetRecords.map((a: any) => [a.id, a]));
 
@@ -346,7 +524,8 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
 
   const coreSupplements: AssetDef[] = [
     ...CORE_GROUND,
-    ...(!hasCharacters ? CORE_CHARACTERS : []),
+    ...CORE_CHARACTERS,  // Always include legacy fallback characters
+    ...getQuaterniusCharacters(basePath),  // Always include — game's QuaterniusNPCLoader needs them
     ...(!hasContainers ? CORE_CONTAINERS : []),
     ...(!hasMarkers ? CORE_MARKERS : []),
     ...(!hasProps ? CORE_QUEST_PROPS : []),
@@ -361,6 +540,10 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
     manifest.push({ exportPath: def.exportPath, category: def.category, role: def.role, fileSize: buffer.length });
     totalSizeBytes += buffer.length;
     bundledSourcePaths.add(def.sourcePath);
+    // For GLTF files, also bundle companion .bin and textures/ directory
+    if (def.sourcePath.endsWith('.gltf')) {
+      bundleGltfCompanions(basePath, def.sourcePath, def.exportPath, def.category, def.role, bundledAssets, manifest, bundledSourcePaths);
+    }
   }
   console.log(`[AssetBundler] Supplemented with core ground + (chars=${!hasCharacters}, containers=${!hasContainers}, markers=${!hasMarkers}, props=${!hasProps}, audio=${!hasAudio})`);
 
@@ -392,6 +575,7 @@ export async function bundleCoreAssets(engine: TargetEngine = 'babylon'): Promis
 
   const allDefs: AssetDef[] = [
     ...(includeCharacters ? CORE_CHARACTERS : []),
+    ...(includeCharacters ? getQuaterniusCharacters(basePath) : []),
     ...CORE_GROUND,
     ...CORE_CONTAINERS,
     ...CORE_MARKERS,

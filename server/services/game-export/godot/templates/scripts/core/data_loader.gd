@@ -54,9 +54,65 @@ func load_quests() -> Array:
 func load_settlements() -> Array:
 	_ensure_geography()
 	var settlements: Array = _geography.get("settlements", [])
-	if settlements.size() > 0:
-		return settlements
-	return _load_json_array("settlements.json")
+	if settlements.size() == 0:
+		settlements = _load_json_array("settlements.json")
+	# Map IR streetNetwork to the 'streets' format the game expects.
+	# Re-center waypoints from IR world-space to lot coordinate space.
+	for s in settlements:
+		if s.has("streetNetwork") and not s.has("streets"):
+			var sn: Dictionary = s["streetNetwork"]
+			# Compute lot centroid (DB map-space)
+			var lots: Array = s.get("lots", [])
+			var lot_cx := 0.0
+			var lot_cz := 0.0
+			var lot_count := 0
+			for l in lots:
+				var lx = l.get("positionX", l.get("position", {}).get("x", null))
+				var lz = l.get("positionZ", l.get("position", {}).get("z", null))
+				if lx != null:
+					lot_cx += float(lx)
+					lot_cz += float(lz) if lz != null else 0.0
+					lot_count += 1
+			if lot_count > 0:
+				lot_cx /= lot_count
+				lot_cz /= lot_count
+			# Compute street waypoint centroid (IR world-space)
+			var wp_cx := 0.0
+			var wp_cz := 0.0
+			var wp_count := 0
+			for seg in sn.get("segments", []):
+				for wp in seg.get("waypoints", []):
+					if wp.has("x") and wp.has("z"):
+						wp_cx += float(wp["x"])
+						wp_cz += float(wp["z"])
+						wp_count += 1
+			if wp_count > 0:
+				wp_cx /= wp_count
+				wp_cz /= wp_count
+			# Offset to re-center
+			var dx := lot_cx - wp_cx
+			var dz := lot_cz - wp_cz
+			var streets: Array = []
+			for seg in sn.get("segments", []):
+				var mapped_wps: Array = []
+				for wp in seg.get("waypoints", []):
+					mapped_wps.append({
+						"x": float(wp.get("x", 0)) + dx,
+						"y": float(wp.get("y", 0)),
+						"z": float(wp.get("z", 0)) + dz,
+					})
+				streets.append({
+					"id": seg.get("id", ""),
+					"name": seg.get("name", ""),
+					"waypoints": mapped_wps,
+					"width": seg.get("width", 6),
+					"properties": {
+						"waypoints": mapped_wps,
+						"width": seg.get("width", 6),
+					},
+				})
+			s["streets"] = streets
+	return settlements
 
 func load_buildings() -> Array:
 	return _load_json_array("buildings.json")
@@ -97,7 +153,7 @@ func load_assets() -> Array:
 			var file_path: String = str(id_map[mongo_id])
 			var ext: String = file_path.get_extension().to_lower()
 			var is_texture: bool = ext in ["png", "jpg", "jpeg"]
-			var asset_type: String = "texture_wall" if is_texture else "model"
+			var asset_type: String = _infer_asset_type(file_path, is_texture)
 			var mime: String
 			if is_texture:
 				mime = "image/jpeg" if ext == "jpg" else ("image/%s" % ext)
@@ -126,7 +182,7 @@ func resolve_asset_by_id(asset_id: String) -> Dictionary:
 		var file_path: String = str(id_map[asset_id])
 		var ext: String = file_path.get_extension().to_lower()
 		var is_texture: bool = ext in ["png", "jpg", "jpeg"]
-		var asset_type: String = "texture_wall" if is_texture else "model"
+		var asset_type: String = _infer_asset_type(file_path, is_texture)
 		var mime: String
 		if is_texture:
 			mime = "image/jpeg" if ext == "jpg" else ("image/%s" % ext)
@@ -854,6 +910,19 @@ func _ensure_geography() -> void:
 			_geography = _world_ir["geography"]
 		else:
 			_geography = _load_json("geography.json")
+
+## Infer asset type from file path — mirrors DataSource.ts logic.
+func _infer_asset_type(file_path: String, is_texture: bool) -> String:
+	if not is_texture:
+		return "model"
+	var lp := file_path.to_lower()
+	if "wall" in lp or "plaster" in lp or "brick" in lp or "planks" in lp:
+		return "texture_wall"
+	if "roof" in lp or "tiles" in lp or "slates" in lp or "corrugated" in lp:
+		return "texture_material"
+	if "ground" in lp or "floor" in lp or "cobblestone" in lp or "forrest" in lp:
+		return "texture_ground"
+	return "texture"
 
 # ── Internal helpers ───────────────────────────────────────────
 

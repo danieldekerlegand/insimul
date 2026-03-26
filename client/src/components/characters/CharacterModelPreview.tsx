@@ -87,8 +87,16 @@ export function CharacterModelPreview({
       rootUrl,
       fileName,
       scene,
-      (meshes) => {
+      (meshes, _particleSystems, _skeletons, animationGroups) => {
         if (meshes.length > 0) {
+          // Stop all animations — we want a static pose in the preview
+          for (const ag of animationGroups || []) {
+            ag.stop();
+          }
+          // Also stop any auto-played skeleton animations
+          for (const skeleton of _skeletons || []) {
+            scene.stopAnimation(skeleton);
+          }
           centerAndFrameMeshes(meshes, camera, ground);
           if (texturePath) applyTexture(scene, meshes, texturePath);
           setMeshSource(isCustom ? 'custom' : 'default');

@@ -1,650 +1,739 @@
 /**
- * Schedule Executor
+ * ScheduleExecutor — Authoritative NPC daily routine manager.
  *
- * Reads NPC routine data (TimeBlock schedules) and drives actual NPC movement
- * through their daily activities using NPCMovementController.
+ * Bridges GameTimeManager with NPCScheduleSystem to drive NPC behavior
+ * through a Talk-of-the-Town-inspired daily routine system. Each game hour,
+ * NPCs re-evaluate their goals based on personality, occupation, and time of day.
  *
- * Features:
- * - Game time system: configurable real-to-game time ratio
- * - Schedule phases: sleep, morning, commute, work, evening
- * - Personality-modified wake/sleep times
- * - Player conversation interrupts with resume
- * - Schedule catch-up on late NPCs
+ * This is the single source of truth for NPC scheduling. It replaces the
+ * separate NPCLocationCycler by directly managing:
+ * - Game-time-aware goal picking and expiry (no virtual-ms ↔ real-ms confusion)
+ * - Building operating hours enforcement
+ * - Nighttime go-home enforcement
+ * - Goal failure fallbacks (wander/go home instead of standing still)
+ * - Ambient behavior integration during idle periods
+ *
+ * BabylonGame reads per-NPC state from this system and handles only the
+ * low-level movement execution (waypoint following, mesh visibility, animation).
  */
 
 import { Vector3 } from '@babylonjs/core';
-import type { NPCMovementController, MovementSpeed } from './NPCMovementController';
+import type { GameTimeManager } from './GameTimeManager';
+import type { GameEventBus } from './GameEventBus';
+import type { NPCScheduleSystem, NPCGoal, NPCPersonality } from './NPCScheduleSystem';
+import type {
+  AmbientLifeBehaviorSystem,
+  NearbyBuildingInfo,
+  NearbyNPCInfo,
+  ActiveAmbientBehavior,
+} from './AmbientLifeBehaviorSystem';
+import { isBusinessOpen } from './InteriorNPCManager';
 
 // ---------- Types ----------
 
-/** TimeBlock from routine-system.ts (server-side) — mirrored here for client use */
-export interface TimeBlock {
-  startHour: number; // 0-23
-  endHour: number;   // 0-23
-  location: string;  // business ID, residence ID, or description
-  locationType: string; // 'home' | 'work' | 'leisure' | 'school'
-  occasion: string;     // 'working' | 'relaxing' | 'sleeping' | etc.
-}
+/** Occasion describing why an NPC is at their current location */
+export type NPCOccasion =
+  | 'sleeping'
+  | 'working'
+  | 'commuting'
+  | 'errand'
+  | 'visiting'
+  | 'leisure'
+  | 'home'
+  | 'idle';
 
-export interface DailyRoutine {
-  day: TimeBlock[];
-  night: TimeBlock[];
-}
-
-export interface RoutineData {
-  characterId: string;
-  routine: DailyRoutine;
-  lastUpdated: number;
-}
-
-/** Schedule phase labels for readability */
-export type SchedulePhase =
-  | 'sleep'       // 22-06 (default)
-  | 'morning'     // 06-07
-  | 'commute_work' // 07-08
-  | 'work'        // 08-17
-  | 'commute_home' // 17-18
-  | 'evening'     // 18-22
-  | 'custom';     // routine-defined block
-
-export interface SchedulePhaseInfo {
-  phase: SchedulePhase;
-  startHour: number;
-  endHour: number;
-  location: string;
-  locationType: string;
-  occasion: string;
-}
-
-/** Per-NPC schedule tracking */
-interface NPCScheduleState {
+/** Per-NPC routine state managed by ScheduleExecutor */
+export interface NPCRoutineState {
   npcId: string;
-  /** Current phase the NPC is executing */
-  currentPhase: SchedulePhaseInfo | null;
-  /** Whether the NPC has arrived at their current phase location */
-  hasArrived: boolean;
-  /** Whether the NPC is paused for player conversation */
-  isPaused: boolean;
-  /** Whether this NPC works a night shift */
-  isNightShift: boolean;
-  /** Personality-modified wake hour */
-  wakeHour: number;
-  /** Personality-modified sleep hour */
-  sleepHour: number;
-  /** Last game hour this NPC's schedule was evaluated */
+  /** Current goal from NPCScheduleSystem */
+  currentGoal: NPCGoal | null;
+  /** Fractional game hour when the current goal expires (0-24) */
+  goalExpiryGameHour: number;
+  /** What the NPC is currently doing */
+  occasion: NPCOccasion;
+  /** Whether the NPC is inside a building (hidden from overworld) */
+  isInsideBuilding: boolean;
+  /** Building ID the NPC is inside */
+  insideBuildingId?: string;
+  /** Real-time timestamp when the NPC should exit the building */
+  buildingExitTime: number;
+  /** Sidewalk path waypoints to follow */
+  pathWaypoints: Vector3[];
+  /** Current index in the path */
+  pathIndex: number;
+  /** Last game hour this NPC's goal was evaluated */
   lastEvaluatedHour: number;
+  /** Whether this NPC is paused (e.g. in conversation) */
+  isPaused: boolean;
+  /** Whether the NPC has arrived at destination and is idling */
+  isIdling: boolean;
+  /** Real-time timestamp for idle wait expiry */
+  idleUntil: number;
+  /** Personality-derived bedtime hour (fractional, 20-23) */
+  sleepHour: number;
+  /** Personality-derived wake hour (fractional, 4-7) */
+  wakeHour: number;
 }
 
-/** Personality data (Big Five) */
-export interface PersonalityData {
-  openness?: number;
-  conscientiousness?: number;
-  extroversion?: number;
-  agreeableness?: number;
-  neuroticism?: number;
-}
-
-/** Character data as stored on NPCInstance.characterData */
-export interface ScheduleCharacterData {
-  id: string;
-  firstName?: string;
-  lastName?: string;
-  personality?: PersonalityData;
-  customData?: {
-    routine?: RoutineData;
-    [key: string]: any;
-  };
-  currentOccupationId?: string;
-  [key: string]: any;
-}
-
-/** Building data reference for location resolution */
-export interface BuildingLocation {
-  id: string;
-  position: Vector3;
-  metadata?: any;
-}
+/** Action returned by evaluateNPC for BabylonGame to execute */
+export type NPCAction =
+  | { type: 'new_goal'; goal: NPCGoal; pathWaypoints: Vector3[]; occasion: NPCOccasion }
+  | { type: 'enter_building'; buildingId: string; stayDurationMs: number }
+  | { type: 'exit_building'; doorPosition: Vector3 | null }
+  | { type: 'idle'; durationMs: number }
+  | { type: 'go_home'; pathWaypoints: Vector3[] }
+  | null;
 
 /** Options for creating ScheduleExecutor */
 export interface ScheduleExecutorOptions {
-  /** Real milliseconds per game hour (default: 60000 = 1 minute per hour) */
-  msPerGameHour?: number;
-  /** Starting game hour (0-23, default: 8) */
-  startingHour?: number;
   /** Enable schedule execution (default: true) */
   enabled?: boolean;
 }
 
 // ---------- Constants ----------
 
-/** Default: 1 real minute = 1 game hour */
-const DEFAULT_MS_PER_GAME_HOUR = 60_000;
-
-/** Default schedule phases for NPCs without custom routines */
-const DEFAULT_PHASES: SchedulePhaseInfo[] = [
-  { phase: 'sleep', startHour: 22, endHour: 6, location: 'home', locationType: 'home', occasion: 'sleeping' },
-  { phase: 'morning', startHour: 6, endHour: 7, location: 'home', locationType: 'home', occasion: 'relaxing' },
-  { phase: 'commute_work', startHour: 7, endHour: 8, location: 'work', locationType: 'work', occasion: 'commuting' },
-  { phase: 'work', startHour: 8, endHour: 17, location: 'work', locationType: 'work', occasion: 'working' },
-  { phase: 'commute_home', startHour: 17, endHour: 18, location: 'home', locationType: 'home', occasion: 'commuting' },
-  { phase: 'evening', startHour: 18, endHour: 22, location: 'home', locationType: 'home', occasion: 'relaxing' },
-];
-
-/** Night-shift schedule */
-const NIGHT_SHIFT_PHASES: SchedulePhaseInfo[] = [
-  { phase: 'sleep', startHour: 6, endHour: 18, location: 'home', locationType: 'home', occasion: 'sleeping' },
-  { phase: 'evening', startHour: 18, endHour: 19, location: 'home', locationType: 'home', occasion: 'relaxing' },
-  { phase: 'commute_work', startHour: 19, endHour: 20, location: 'work', locationType: 'work', occasion: 'commuting' },
-  { phase: 'work', startHour: 20, endHour: 5, location: 'work', locationType: 'work', occasion: 'working' },
-  { phase: 'commute_home', startHour: 5, endHour: 6, location: 'home', locationType: 'home', occasion: 'commuting' },
-];
+/** Minimum idle time between goals (ms) */
+const MIN_IDLE_MS = 2000;
+/** Maximum idle time between goals (ms) */
+const MAX_IDLE_MS = 5000;
 
 // ---------- ScheduleExecutor ----------
 
 export class ScheduleExecutor {
-  /** Per-NPC schedule state */
-  private npcStates: Map<string, NPCScheduleState> = new Map();
+  private gameTime: GameTimeManager;
+  private eventBus: GameEventBus;
+  private scheduleSystem: NPCScheduleSystem;
+  private ambientLife: AmbientLifeBehaviorSystem;
 
-  /** NPC movement controllers keyed by NPC ID */
-  private movementControllers: Map<string, NPCMovementController> = new Map();
-
-  /** Building lookup: ID → position */
-  private buildingLocations: Map<string, BuildingLocation> = new Map();
-
-  /** Home positions per NPC (fallback) */
-  private homePositions: Map<string, Vector3> = new Map();
-
-  /** Work positions per NPC */
-  private workPositions: Map<string, Vector3> = new Map();
-
-  /** Character data per NPC */
-  private characterData: Map<string, ScheduleCharacterData> = new Map();
-
-  /** Game clock state */
-  private _gameHour: number;
-  private _gameMinute: number = 0;
-  private _accumulatedMs: number = 0;
-  private _msPerGameHour: number;
+  private npcStates: Map<string, NPCRoutineState> = new Map();
   private _enabled: boolean;
 
-  /** Whether we're running (update is being called) */
-  private _running: boolean = false;
+  /** Event unsubscribe functions */
+  private unsubHour: (() => void) | null = null;
+  private unsubTimeOfDay: (() => void) | null = null;
 
-  constructor(options: ScheduleExecutorOptions = {}) {
-    this._msPerGameHour = options.msPerGameHour ?? DEFAULT_MS_PER_GAME_HOUR;
-    this._gameHour = options.startingHour ?? 8;
+  /** Pending actions for BabylonGame to consume */
+  private pendingActions: Map<string, NPCAction> = new Map();
+
+  constructor(
+    gameTime: GameTimeManager,
+    eventBus: GameEventBus,
+    scheduleSystem: NPCScheduleSystem,
+    ambientLife: AmbientLifeBehaviorSystem,
+    options: ScheduleExecutorOptions = {},
+  ) {
+    this.gameTime = gameTime;
+    this.eventBus = eventBus;
+    this.scheduleSystem = scheduleSystem;
+    this.ambientLife = ambientLife;
     this._enabled = options.enabled ?? true;
+
+    // Subscribe to time events
+    this.unsubHour = eventBus.on('hour_changed', (e) => {
+      this.onHourChanged(e.hour);
+    });
+    this.unsubTimeOfDay = eventBus.on('time_of_day_changed', () => {
+      // Force all NPCs to re-evaluate on major time transitions
+      this.forceReevaluation();
+    });
   }
 
   // ---------- Registration ----------
 
   /**
-   * Register an NPC for schedule execution.
+   * Register an NPC for schedule management.
+   * Personality is used to derive wake/sleep times and influences goal picking
+   * (via NPCScheduleSystem.pickNextGoal).
    */
-  registerNPC(
-    npcId: string,
-    controller: NPCMovementController,
-    character: ScheduleCharacterData,
-    homePos: Vector3,
-    workPos?: Vector3,
-  ): void {
-    this.movementControllers.set(npcId, controller);
-    this.characterData.set(npcId, character);
-    this.homePositions.set(npcId, homePos.clone());
-    if (workPos) {
-      this.workPositions.set(npcId, workPos.clone());
-    }
-
-    const personality = character.personality;
-    const conscientiousness = personality?.conscientiousness ?? 0;
-    const isNightShift = this.detectNightShift(character);
-
-    // Personality-modified wake/sleep times
-    // High conscientiousness → early riser (05:00); low → night owl (23:00)
-    let wakeHour: number;
-    let sleepHour: number;
-
-    if (isNightShift) {
-      // Night shift workers wake late, sleep in morning
-      wakeHour = 17 + Math.round((1 - conscientiousness) * 1); // 17-18
-      sleepHour = 6 + Math.round((1 - conscientiousness) * 1);  // 6-7
-    } else {
-      // Day shift: conscientiousness moves wake 5-7, sleep 21-23
-      wakeHour = 6 - Math.round(Math.max(0, conscientiousness) * 1);  // 5-6
-      sleepHour = 22 + Math.round(Math.max(0, -conscientiousness) * 1); // 22-23
-    }
-
-    const state: NPCScheduleState = {
-      npcId,
-      currentPhase: null,
-      hasArrived: false,
-      isPaused: false,
-      isNightShift,
-      wakeHour: Math.max(0, Math.min(23, wakeHour)),
-      sleepHour: Math.max(0, Math.min(23, sleepHour)),
-      lastEvaluatedHour: -1,
+  registerNPC(npcId: string, personality?: NPCPersonality): void {
+    const p = {
+      openness: personality?.openness ?? 0.5,
+      conscientiousness: personality?.conscientiousness ?? 0.5,
+      extroversion: personality?.extroversion ?? 0.5,
+      agreeableness: personality?.agreeableness ?? 0.5,
+      neuroticism: personality?.neuroticism ?? 0.5,
     };
-    this.npcStates.set(npcId, state);
+
+    // TotT-style personality-derived sleep/wake times
+    // High conscientiousness → early riser; high extroversion → late bedtime
+    const wakeHour = 6 - (p.conscientiousness - 0.5); // 5.5 – 6.5
+    const sleepHour = 20 + (p.extroversion - 0.5) * 2 - (p.conscientiousness - 0.5); // ~19.5 – 22
+
+    this.npcStates.set(npcId, {
+      npcId,
+      currentGoal: null,
+      goalExpiryGameHour: -1,
+      occasion: 'idle',
+      isInsideBuilding: false,
+      insideBuildingId: undefined,
+      buildingExitTime: 0,
+      pathWaypoints: [],
+      pathIndex: 0,
+      lastEvaluatedHour: -1,
+      isPaused: false,
+      isIdling: false,
+      idleUntil: 0,
+      sleepHour: Math.max(19, Math.min(23, sleepHour)),
+      wakeHour: Math.max(4, Math.min(8, wakeHour)),
+    });
   }
 
-  /**
-   * Unregister an NPC.
-   */
+  /** Unregister an NPC. */
   unregisterNPC(npcId: string): void {
     this.npcStates.delete(npcId);
-    this.movementControllers.delete(npcId);
-    this.characterData.delete(npcId);
-    this.homePositions.delete(npcId);
-    this.workPositions.delete(npcId);
+    this.pendingActions.delete(npcId);
+    this.ambientLife.clearActivity(npcId);
   }
 
-  /**
-   * Register a building location for location resolution.
-   */
-  registerBuilding(id: string, position: Vector3, metadata?: any): void {
-    this.buildingLocations.set(id, { id, position: position.clone(), metadata });
+  // ---------- State Queries ----------
+
+  /** Get the routine state for an NPC. */
+  getState(npcId: string): NPCRoutineState | undefined {
+    return this.npcStates.get(npcId);
   }
 
-  // ---------- Game Clock ----------
-
-  /** Current game hour (0-23) */
-  get gameHour(): number { return this._gameHour; }
-
-  /** Current game minute (0-59) */
-  get gameMinute(): number { return Math.floor(this._gameMinute); }
-
-  /** Formatted time string HH:MM */
-  get gameTimeString(): string {
-    const h = String(this._gameHour).padStart(2, '0');
-    const m = String(this.gameMinute).padStart(2, '0');
-    return `${h}:${m}`;
+  /** Get all registered NPC IDs. */
+  getRegisteredNPCs(): string[] {
+    return Array.from(this.npcStates.keys());
   }
 
-  /** Whether it's currently daytime (6-18) */
-  get isDaytime(): boolean {
-    return this._gameHour >= 6 && this._gameHour < 18;
+  /** Get number of registered NPCs. */
+  get npcCount(): number {
+    return this.npcStates.size;
   }
 
-  /** Set game time directly (for loading saves) */
-  setGameTime(hour: number, minute: number = 0): void {
-    this._gameHour = Math.max(0, Math.min(23, Math.floor(hour)));
-    this._gameMinute = Math.max(0, Math.min(59, minute));
-    this._accumulatedMs = 0;
-  }
-
-  /** Set time scale */
-  setTimeScale(msPerGameHour: number): void {
-    this._msPerGameHour = Math.max(1000, msPerGameHour);
-  }
-
-  /** Enable or disable schedule execution */
+  /** Enable or disable schedule execution. */
   setEnabled(enabled: boolean): void {
     this._enabled = enabled;
   }
 
-  get enabled(): boolean { return this._enabled; }
+  get enabled(): boolean {
+    return this._enabled;
+  }
 
   // ---------- Conversation Interrupts ----------
 
-  /**
-   * Pause an NPC's schedule for player conversation.
-   * NPCMovementController.startConversation() should also be called separately.
-   */
   pauseForConversation(npcId: string): void {
     const state = this.npcStates.get(npcId);
-    if (state) {
-      state.isPaused = true;
-    }
+    if (state) state.isPaused = true;
   }
 
-  /**
-   * Resume an NPC's schedule after conversation ends.
-   */
   resumeAfterConversation(npcId: string): void {
     const state = this.npcStates.get(npcId);
     if (state) {
       state.isPaused = false;
-      // Force re-evaluation to catch up to current schedule
-      state.lastEvaluatedHour = -1;
+      state.lastEvaluatedHour = -1; // Force re-evaluation
     }
   }
 
   // ---------- Main Update ----------
 
   /**
-   * Call this every frame with delta time in milliseconds.
-   * Advances the game clock and evaluates NPC schedules.
+   * Called every frame by BabylonGame. Checks for NPCs that need new goals
+   * (goal expired, building exit time reached, etc.) and queues actions.
+   *
+   * This is lightweight — heavy evaluation only happens on hour changes.
+   * Per-frame work is limited to checking expiry timestamps.
    */
-  update(deltaTimeMs: number): void {
+  update(now: number): void {
     if (!this._enabled) return;
-    this._running = true;
 
-    // Advance game clock
-    this._accumulatedMs += deltaTimeMs;
-    const msPerMinute = this._msPerGameHour / 60;
+    const currentHour = this.gameTime.fractionalHour;
 
-    while (this._accumulatedMs >= msPerMinute) {
-      this._accumulatedMs -= msPerMinute;
-      this._gameMinute += 1;
-
-      if (this._gameMinute >= 60) {
-        this._gameMinute -= 60;
-        this._gameHour = (this._gameHour + 1) % 24;
-      }
-    }
-
-    // Evaluate schedules (staggered: spread across frames)
-    const entries = Array.from(this.npcStates.entries());
-    const frameSlot = Math.floor(performance.now() / 16.67) % 10; // 10-frame window
-    for (let i = 0; i < entries.length; i++) {
-      // Stagger: only evaluate NPCs whose index matches the current frame slot
-      if (i % 10 !== frameSlot) continue;
-
-      const [npcId, state] = entries[i];
+    for (const [npcId, state] of Array.from(this.npcStates.entries())) {
       if (state.isPaused) continue;
 
-      this.evaluateNPCSchedule(npcId, state);
-    }
-  }
-
-  // ---------- Schedule Evaluation ----------
-
-  private evaluateNPCSchedule(npcId: string, state: NPCScheduleState): void {
-    const currentHour = this._gameHour;
-
-    // Only re-evaluate when the hour changes (or forced via lastEvaluatedHour = -1)
-    if (state.lastEvaluatedHour === currentHour) return;
-    state.lastEvaluatedHour = currentHour;
-
-    const targetPhase = this.getPhaseForHour(npcId, currentHour);
-    if (!targetPhase) return;
-
-    // Check if phase changed
-    const phaseChanged = !state.currentPhase ||
-      state.currentPhase.phase !== targetPhase.phase ||
-      state.currentPhase.location !== targetPhase.location;
-
-    if (phaseChanged) {
-      state.currentPhase = targetPhase;
-      state.hasArrived = false;
-      this.executePhaseTransition(npcId, state, targetPhase);
-    }
-  }
-
-  /**
-   * Determine which schedule phase an NPC should be in at the given hour.
-   * Uses custom routine data if available, otherwise falls back to default phases.
-   */
-  private getPhaseForHour(npcId: string, hour: number): SchedulePhaseInfo | null {
-    const character = this.characterData.get(npcId);
-    const routineData = character?.customData?.routine;
-
-    // If character has custom routine data, build phases from TimeBlocks
-    if (routineData?.routine) {
-      const phase = this.getPhaseFromRoutine(routineData.routine, hour);
-      if (phase) return phase;
-    }
-
-    // Otherwise use default schedule (personality-adjusted)
-    const state = this.npcStates.get(npcId);
-    if (!state) return null;
-
-    const phases = state.isNightShift ? NIGHT_SHIFT_PHASES : DEFAULT_PHASES;
-    return this.findPhaseForHour(phases, hour, state.wakeHour, state.sleepHour);
-  }
-
-  /**
-   * Build a SchedulePhaseInfo from TimeBlock routine data.
-   */
-  private getPhaseFromRoutine(routine: DailyRoutine, hour: number): SchedulePhaseInfo | null {
-    const timeOfDay = (hour >= 6 && hour < 18) ? 'day' : 'night';
-    const blocks = timeOfDay === 'day' ? routine.day : routine.night;
-
-    if (!blocks || blocks.length === 0) return null;
-
-    for (const block of blocks) {
-      if (this.isHourInRange(hour, block.startHour, block.endHour)) {
-        return {
-          phase: 'custom',
-          startHour: block.startHour,
-          endHour: block.endHour,
-          location: block.location,
-          locationType: block.locationType || 'home',
-          occasion: block.occasion || 'relaxing',
-        };
-      }
-    }
-
-    // No matching block — return a default idle-at-home phase
-    return {
-      phase: 'sleep',
-      startHour: hour,
-      endHour: (hour + 1) % 24,
-      location: 'home',
-      locationType: 'home',
-      occasion: 'relaxing',
-    };
-  }
-
-  /**
-   * Find the matching default phase for a given hour, with personality adjustments.
-   */
-  private findPhaseForHour(
-    phases: SchedulePhaseInfo[],
-    hour: number,
-    wakeHour: number,
-    sleepHour: number,
-  ): SchedulePhaseInfo | null {
-    // Override sleep phase boundaries with personality-adjusted times
-    for (const phase of phases) {
-      let startH = phase.startHour;
-      let endH = phase.endHour;
-
-      // Adjust sleep phase boundaries
-      if (phase.phase === 'sleep') {
-        startH = sleepHour;
-        endH = wakeHour;
-      } else if (phase.phase === 'morning') {
-        startH = wakeHour;
+      // Check if NPC should exit building
+      if (state.isInsideBuilding && now >= state.buildingExitTime) {
+        this.exitBuilding(npcId, state);
+        continue;
       }
 
-      if (this.isHourInRange(hour, startH, endH)) {
-        return { ...phase, startHour: startH, endHour: endH };
+      // Check if idle wait has expired → re-evaluate
+      if (state.isIdling && now >= state.idleUntil) {
+        state.isIdling = false;
+        state.lastEvaluatedHour = -1; // Force re-evaluation
+      }
+
+      // Check if goal expired (game-hour based)
+      if (state.currentGoal && this.isGoalExpired(state, currentHour)) {
+        state.currentGoal = null;
+        state.pathWaypoints = [];
+        state.pathIndex = 0;
+        state.lastEvaluatedHour = -1; // Force re-evaluation
       }
     }
-
-    // Fallback: idle at home
-    return {
-      phase: 'evening',
-      startHour: hour,
-      endHour: (hour + 1) % 24,
-      location: 'home',
-      locationType: 'home',
-      occasion: 'relaxing',
-    };
   }
 
+  // ---------- Hour-Change Evaluation ----------
+
   /**
-   * Check if an hour is within a range that may wrap around midnight.
+   * Called when the game hour ticks. This is where TotT-style
+   * "decide where to go" happens for all NPCs.
    */
-  private isHourInRange(hour: number, start: number, end: number): boolean {
-    if (start <= end) {
-      return hour >= start && hour < end;
+  private onHourChanged(hour: number): void {
+    if (!this._enabled) return;
+
+    for (const [npcId, state] of Array.from(this.npcStates.entries())) {
+      if (state.isPaused) continue;
+      if (state.isInsideBuilding) continue; // Don't interrupt building stays
+
+      this.evaluateNPC(npcId, state);
     }
-    // Wraps around midnight (e.g., 22-06)
-    return hour >= start || hour < end;
   }
 
-  // ---------- Phase Execution ----------
+  /**
+   * Force all NPCs to re-evaluate (e.g. on time-of-day transitions).
+   */
+  forceReevaluation(): void {
+    for (const state of Array.from(this.npcStates.values())) {
+      if (!state.isInsideBuilding) {
+        state.lastEvaluatedHour = -1;
+      }
+    }
+    // Trigger immediate evaluation
+    this.onHourChanged(this.gameTime.hour);
+  }
 
   /**
-   * Execute a schedule phase transition: resolve target location and issue movement command.
+   * Evaluate a single NPC and pick a new goal if needed.
+   * This is the core TotT-style "decide where to go" function.
    */
-  private executePhaseTransition(
-    npcId: string,
-    state: NPCScheduleState,
-    phase: SchedulePhaseInfo,
-  ): void {
-    const controller = this.movementControllers.get(npcId);
-    if (!controller) return;
+  private evaluateNPC(npcId: string, state: NPCRoutineState): void {
+    const currentHour = this.gameTime.hour;
 
-    const targetPos = this.resolveLocation(npcId, phase.location, phase.locationType);
-    if (!targetPos) {
-      // Can't resolve location — mark arrived so we don't retry every frame
-      state.hasArrived = true;
+    // Skip if already evaluated this hour and goal hasn't expired
+    if (state.lastEvaluatedHour === currentHour && state.currentGoal &&
+        !this.isGoalExpired(state, this.gameTime.fractionalHour)) {
       return;
     }
 
-    // Choose speed based on phase
-    const speed = this.getMovementSpeed(phase);
+    state.lastEvaluatedHour = currentHour;
 
-    controller.moveTo(targetPos, speed, () => {
-      // On arrival
-      const currentState = this.npcStates.get(npcId);
-      if (currentState) {
-        currentState.hasArrived = true;
+    // --- Nighttime enforcement: send NPC home if past bedtime ---
+    if (this.isSleepTime(currentHour, state)) {
+      this.sendHome(npcId, state, 'sleeping');
+      return;
+    }
+
+    // --- Use NPCScheduleSystem for personality-driven goal picking ---
+    const virtualNow = this.getVirtualNow();
+    const goal = this.scheduleSystem.pickNextGoal(npcId, virtualNow);
+    if (!goal) return;
+
+    // --- Business hours enforcement for non-workplace buildings ---
+    if ((goal.type === 'go_to_building' || goal.type === 'visit_friend') && goal.buildingId) {
+      const entry = this.scheduleSystem.getEntry(npcId);
+      // If this isn't the NPC's workplace, check if the business is open
+      if (goal.buildingId !== entry?.workBuildingId) {
+        const businessType = this.getBuildingBusinessType(goal.buildingId);
+        if (businessType && !isBusinessOpen(businessType, currentHour)) {
+          // Business is closed — fall back to leisure wander or go home
+          this.pickFallbackGoal(npcId, state, virtualNow);
+          return;
+        }
       }
+    }
+
+    // Apply the goal
+    this.applyGoal(npcId, state, goal);
+  }
+
+  /**
+   * Apply a goal to an NPC: compute path, set expiry, queue action for BabylonGame.
+   */
+  private applyGoal(npcId: string, state: NPCRoutineState, goal: NPCGoal): void {
+    state.currentGoal = goal;
+    state.isIdling = false;
+
+    // Convert goal expiry from virtual ms to fractional game hour
+    state.goalExpiryGameHour = (goal.expiresAt / 60000) % 24;
+
+    // Determine occasion from goal type
+    const entry = this.scheduleSystem.getEntry(npcId);
+    state.occasion = this.determineOccasion(goal, entry);
+
+    // Compute sidewalk path
+    const npcPos = this.getNPCPosition(npcId);
+    let pathWaypoints: Vector3[] = [];
+
+    if ((goal.type === 'go_to_building' || goal.type === 'visit_friend') && goal.doorPosition) {
+      pathWaypoints = this.scheduleSystem.findSidewalkPath(
+        npcPos || goal.doorPosition,
+        goal.doorPosition,
+      );
+    } else if (goal.type === 'wander_sidewalk' || goal.type === 'idle_at_building') {
+      const target = this.scheduleSystem.getRandomSidewalkTarget(npcId);
+      if (target) {
+        pathWaypoints = this.scheduleSystem.findSidewalkPath(
+          npcPos || target,
+          target,
+        );
+      }
+    }
+
+    state.pathWaypoints = pathWaypoints;
+    state.pathIndex = 0;
+
+    // Queue action for BabylonGame
+    this.pendingActions.set(npcId, {
+      type: 'new_goal',
+      goal,
+      pathWaypoints,
+      occasion: state.occasion,
     });
   }
 
   /**
-   * Resolve a location string to a world position.
-   * Location can be: 'home', 'work', a building ID, or a description.
+   * Send an NPC home (used for nighttime enforcement and fallback).
    */
-  private resolveLocation(npcId: string, location: string, locationType: string): Vector3 | null {
-    // Direct references
-    if (location === 'home' || locationType === 'home') {
-      return this.homePositions.get(npcId) || null;
-    }
-    if (location === 'work' || locationType === 'work') {
-      return this.workPositions.get(npcId) || this.homePositions.get(npcId) || null;
-    }
+  private sendHome(npcId: string, state: NPCRoutineState, occasion: NPCOccasion): void {
+    const entry = this.scheduleSystem.getEntry(npcId);
+    if (!entry?.homeBuildingId) return;
 
-    // Try building lookup by ID
-    const building = this.buildingLocations.get(location);
-    if (building) {
-      // Return a position near the building (offset to avoid being inside)
-      const offset = new Vector3(
-        (Math.random() - 0.5) * 8,
-        0,
-        (Math.random() - 0.5) * 8,
-      );
-      return building.position.add(offset);
-    }
+    const door = this.scheduleSystem.getBuildingDoor(entry.homeBuildingId);
+    if (!door) return;
 
-    // Try locationType as fallback
-    if (locationType === 'leisure') {
-      // Leisure: pick a random building or stay near home
-      return this.homePositions.get(npcId) || null;
-    }
-    if (locationType === 'school') {
-      // School: try finding a school building, otherwise home
-      const schoolBuilding = this.findBuildingByType('school');
-      return schoolBuilding?.position || this.homePositions.get(npcId) || null;
-    }
-
-    // Fallback to home
-    return this.homePositions.get(npcId) || null;
-  }
-
-  /**
-   * Find a building by metadata type (e.g., 'school', 'tavern').
-   */
-  private findBuildingByType(buildingType: string): BuildingLocation | null {
-    const entries = Array.from(this.buildingLocations.values());
-    for (const loc of entries) {
-      if (loc.metadata?.buildingType === buildingType ||
-          loc.metadata?.type === buildingType) {
-        return loc;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Choose movement speed based on schedule phase.
-   */
-  private getMovementSpeed(phase: SchedulePhaseInfo): MovementSpeed {
-    switch (phase.phase) {
-      case 'commute_work':
-      case 'commute_home':
-        return 'walk';
-      case 'morning':
-      case 'evening':
-        return 'stroll';
-      case 'custom':
-        // Commuting occasions = walk, otherwise stroll
-        return phase.occasion === 'commuting' ? 'walk' : 'stroll';
-      default:
-        return 'stroll';
-    }
-  }
-
-  // ---------- Night Shift Detection ----------
-
-  /**
-   * Detect if a character works a night shift based on their routine data or occupation.
-   */
-  private detectNightShift(character: ScheduleCharacterData): boolean {
-    const routine = character.customData?.routine?.routine;
-    if (routine?.night) {
-      // If night blocks contain work occasions, it's a night shift
-      for (const block of routine.night) {
-        if (block.occasion === 'working' && block.locationType === 'work') {
-          return true;
-        }
-      }
-    }
-    // Could also check occupation type, but routine data is more reliable
-    return false;
-  }
-
-  // ---------- Query ----------
-
-  /**
-   * Get the current schedule state for an NPC.
-   */
-  getNPCScheduleState(npcId: string): NPCScheduleState | undefined {
-    return this.npcStates.get(npcId);
-  }
-
-  /**
-   * Get all registered NPC IDs.
-   */
-  getRegisteredNPCs(): string[] {
-    return Array.from(this.npcStates.keys());
-  }
-
-  /**
-   * Get the current activity description for an NPC.
-   */
-  getCurrentActivity(npcId: string): { phase: string; occasion: string; location: string } | null {
-    const state = this.npcStates.get(npcId);
-    if (!state?.currentPhase) return null;
-    return {
-      phase: state.currentPhase.phase,
-      occasion: state.currentPhase.occasion,
-      location: state.currentPhase.location,
+    const virtualNow = this.getVirtualNow();
+    const goal: NPCGoal = {
+      type: 'go_to_building',
+      buildingId: entry.homeBuildingId,
+      targetPosition: door.clone(),
+      doorPosition: door.clone(),
+      expiresAt: virtualNow + this.hoursToVirtualMs(8), // Stay home for 8 game hours
     };
+
+    state.currentGoal = goal;
+    state.goalExpiryGameHour = (goal.expiresAt / 60000) % 24;
+    state.occasion = occasion;
+    state.isIdling = false;
+
+    const npcPos = this.getNPCPosition(npcId);
+    const pathWaypoints = this.scheduleSystem.findSidewalkPath(
+      npcPos || door,
+      door,
+    );
+    state.pathWaypoints = pathWaypoints;
+    state.pathIndex = 0;
+
+    this.pendingActions.set(npcId, {
+      type: 'new_goal',
+      goal,
+      pathWaypoints,
+      occasion,
+    });
   }
 
   /**
-   * Get the number of registered NPCs.
+   * Pick a fallback goal when the primary goal fails (e.g. business closed).
+   * 60% chance to wander, 40% chance to go home.
    */
-  get npcCount(): number {
-    return this.npcStates.size;
+  private pickFallbackGoal(npcId: string, state: NPCRoutineState, virtualNow: number): void {
+    const entry = this.scheduleSystem.getEntry(npcId);
+    const roll = Math.random();
+
+    if (roll < 0.4 && entry?.homeBuildingId) {
+      this.sendHome(npcId, state, 'home');
+    } else {
+      // Wander sidewalks
+      const target = this.scheduleSystem.getRandomSidewalkTarget(npcId);
+      const npcPos = this.getNPCPosition(npcId);
+      const pathWaypoints = target && npcPos
+        ? this.scheduleSystem.findSidewalkPath(npcPos, target)
+        : [];
+
+      const goal: NPCGoal = {
+        type: 'wander_sidewalk',
+        expiresAt: virtualNow + this.hoursToVirtualMs(1),
+      };
+
+      state.currentGoal = goal;
+      state.goalExpiryGameHour = (goal.expiresAt / 60000) % 24;
+      state.occasion = 'leisure';
+      state.isIdling = false;
+      state.pathWaypoints = pathWaypoints;
+      state.pathIndex = 0;
+
+      this.pendingActions.set(npcId, {
+        type: 'new_goal',
+        goal,
+        pathWaypoints,
+        occasion: 'leisure',
+      });
+    }
+  }
+
+  // ---------- Building Entry/Exit ----------
+
+  /**
+   * Called by BabylonGame when an NPC arrives at a building door.
+   * Computes how long the NPC should stay inside.
+   */
+  enterBuilding(npcId: string, buildingId: string, now: number): void {
+    const state = this.npcStates.get(npcId);
+    if (!state) return;
+
+    state.isInsideBuilding = true;
+    state.insideBuildingId = buildingId;
+    state.pathWaypoints = [];
+    state.pathIndex = 0;
+
+    // Compute stay duration from goal expiry
+    // Convert remaining game-hours to real ms using GameTimeManager's rate
+    const currentFractionalHour = this.gameTime.fractionalHour;
+    let remainingGameHours: number;
+
+    if (state.goalExpiryGameHour > currentFractionalHour) {
+      remainingGameHours = state.goalExpiryGameHour - currentFractionalHour;
+    } else if (state.goalExpiryGameHour >= 0) {
+      // Wraps midnight
+      remainingGameHours = (24 - currentFractionalHour) + state.goalExpiryGameHour;
+    } else {
+      remainingGameHours = 1; // Default 1 game hour
+    }
+
+    // Clamp to reasonable range: 0.5 to 6 game hours
+    remainingGameHours = Math.max(0.5, Math.min(6, remainingGameHours));
+
+    // Convert to real ms using the game time scale
+    const stayDurationMs = remainingGameHours * this.gameTime.msPerGameHour / this.gameTime.timeScale;
+    state.buildingExitTime = now + stayDurationMs;
+
+    this.pendingActions.set(npcId, {
+      type: 'enter_building',
+      buildingId,
+      stayDurationMs,
+    });
+  }
+
+  /**
+   * Handle NPC exiting a building (called when buildingExitTime is reached).
+   */
+  private exitBuilding(npcId: string, state: NPCRoutineState): void {
+    const doorPos = state.insideBuildingId
+      ? this.scheduleSystem.getBuildingDoor(state.insideBuildingId)
+      : null;
+
+    state.isInsideBuilding = false;
+    state.insideBuildingId = undefined;
+    state.buildingExitTime = 0;
+    state.currentGoal = null;
+    state.goalExpiryGameHour = -1;
+    state.lastEvaluatedHour = -1; // Force re-evaluation on next cycle
+
+    this.pendingActions.set(npcId, {
+      type: 'exit_building',
+      doorPosition: doorPos,
+    });
+  }
+
+  // ---------- Idle Management ----------
+
+  /**
+   * Called by BabylonGame when an NPC finishes their path (arrives at destination
+   * but doesn't enter a building, or finishes a wander). Sets an idle timer
+   * before the next goal is picked.
+   */
+  setIdle(npcId: string, now: number): void {
+    const state = this.npcStates.get(npcId);
+    if (!state) return;
+
+    state.isIdling = true;
+    state.idleUntil = now + MIN_IDLE_MS + Math.random() * (MAX_IDLE_MS - MIN_IDLE_MS);
+    state.currentGoal = null;
+    state.pathWaypoints = [];
+    state.pathIndex = 0;
+  }
+
+  /**
+   * Check if an NPC is currently idling.
+   */
+  isIdling(npcId: string): boolean {
+    return this.npcStates.get(npcId)?.isIdling ?? false;
+  }
+
+  // ---------- Ambient Behavior Integration ----------
+
+  /**
+   * Update ambient behavior for an idle NPC.
+   * Call this from BabylonGame during idle periods to get contextual activities.
+   */
+  updateAmbientBehavior(
+    npcId: string,
+    now: number,
+    npcX: number,
+    npcZ: number,
+    nearbyBuildings: NearbyBuildingInfo[],
+    nearbyNPCs: NearbyNPCInfo[],
+  ): ActiveAmbientBehavior | null {
+    const entry = this.scheduleSystem.getEntry(npcId);
+    return this.ambientLife.update(
+      npcId,
+      now,
+      this.gameTime.hour,
+      npcX,
+      npcZ,
+      entry?.personality,
+      nearbyBuildings,
+      nearbyNPCs,
+    );
+  }
+
+  /**
+   * Clear ambient behavior for an NPC (e.g. when they start moving).
+   */
+  clearAmbientBehavior(npcId: string): void {
+    this.ambientLife.clearActivity(npcId);
+  }
+
+  // ---------- Action Consumption ----------
+
+  /**
+   * Drain all pending actions. Called by BabylonGame after update().
+   * Returns a map of NPC ID → action to execute.
+   */
+  drainPendingActions(): Map<string, NPCAction> {
+    const actions = this.pendingActions;
+    this.pendingActions = new Map();
+    return actions;
+  }
+
+  /**
+   * Check if an NPC has a pending action.
+   */
+  hasPendingAction(npcId: string): boolean {
+    return this.pendingActions.has(npcId);
+  }
+
+  // ---------- Path Progress ----------
+
+  /**
+   * Advance an NPC's path index (called by BabylonGame when a waypoint is reached).
+   */
+  advancePathIndex(npcId: string): void {
+    const state = this.npcStates.get(npcId);
+    if (state) {
+      state.pathIndex++;
+    }
+  }
+
+  /**
+   * Get current waypoint for an NPC, or null if path is complete.
+   */
+  getCurrentWaypoint(npcId: string): Vector3 | null {
+    const state = this.npcStates.get(npcId);
+    if (!state || state.pathIndex >= state.pathWaypoints.length) return null;
+    return state.pathWaypoints[state.pathIndex];
+  }
+
+  /**
+   * Check if an NPC has completed their path.
+   */
+  isPathComplete(npcId: string): boolean {
+    const state = this.npcStates.get(npcId);
+    if (!state) return true;
+    return state.pathWaypoints.length === 0 || state.pathIndex >= state.pathWaypoints.length;
+  }
+
+  /**
+   * Abandon the current goal and path (e.g. when stuck).
+   */
+  abandonGoal(npcId: string): void {
+    const state = this.npcStates.get(npcId);
+    if (!state) return;
+    state.currentGoal = null;
+    state.goalExpiryGameHour = -1;
+    state.pathWaypoints = [];
+    state.pathIndex = 0;
+    state.lastEvaluatedHour = -1;
+  }
+
+  // ---------- Helper Methods ----------
+
+  /**
+   * Convert game time to virtual timestamp compatible with NPCScheduleSystem.
+   * pickNextGoal computes: gameHour = (now / 60000) % 24
+   * So: virtualNow = hour * 60000 + minute * 1000
+   */
+  private getVirtualNow(): number {
+    return this.gameTime.hour * 60000 + this.gameTime.minute * 1000;
+  }
+
+  /** Convert game hours to virtual milliseconds. */
+  private hoursToVirtualMs(hours: number): number {
+    return hours * 60000;
+  }
+
+  /** Check if a goal has expired based on game time. */
+  private isGoalExpired(state: NPCRoutineState, currentFractionalHour: number): boolean {
+    if (state.goalExpiryGameHour < 0) return true;
+
+    // Handle midnight wrapping
+    const expiry = state.goalExpiryGameHour;
+    if (expiry > 20 && currentFractionalHour < 4) {
+      // Goal set in evening, current time past midnight — not yet expired
+      return false;
+    }
+    if (currentFractionalHour > 20 && expiry < 4) {
+      // Goal expires past midnight, still evening — not yet expired
+      return false;
+    }
+    return currentFractionalHour >= expiry;
+  }
+
+  /** Check if the current hour is sleep time for this NPC. */
+  private isSleepTime(hour: number, state: NPCRoutineState): boolean {
+    // Check if NPC has a job that's currently active (don't force night-shift workers home)
+    const entry = this.scheduleSystem.getEntry(state.npcId);
+    if (entry?.workBuildingId) {
+      const businessType = this.getBuildingBusinessType(entry.workBuildingId);
+      if (isBusinessOpen(businessType, hour)) return false; // Working — not bedtime
+    }
+
+    return hour >= state.sleepHour || hour < state.wakeHour;
+  }
+
+  /** Determine the occasion for a goal. */
+  private determineOccasion(goal: NPCGoal, entry?: { workBuildingId?: string; homeBuildingId?: string }): NPCOccasion {
+    if (!goal.buildingId) return 'leisure';
+    if (goal.buildingId === entry?.workBuildingId) return 'working';
+    if (goal.buildingId === entry?.homeBuildingId) return 'home';
+    if (goal.type === 'visit_friend') return 'visiting';
+    return 'errand';
+  }
+
+  /**
+   * Get building businessType from NPCScheduleSystem for operating hours checks.
+   */
+  private getBuildingBusinessType(buildingId: string): string | undefined {
+    return this.scheduleSystem.getBuildingBusinessType(buildingId);
+  }
+
+  /**
+   * Cached NPC positions (updated by BabylonGame each frame).
+   * Used for pathfinding when goals are picked on hour changes.
+   */
+  private npcPositions: Map<string, Vector3> = new Map();
+
+  /** Update the cached position for an NPC (called by BabylonGame). */
+  updateNPCPosition(npcId: string, position: Vector3): void {
+    this.npcPositions.set(npcId, position.clone());
+  }
+
+  /** Get an NPC's cached world position. */
+  private getNPCPosition(npcId: string): Vector3 | null {
+    return this.npcPositions.get(npcId) || null;
   }
 
   // ---------- Cleanup ----------
 
   dispose(): void {
-    this._running = false;
-    this._enabled = false;
+    this.unsubHour?.();
+    this.unsubTimeOfDay?.();
+    this.unsubHour = null;
+    this.unsubTimeOfDay = null;
     this.npcStates.clear();
-    this.movementControllers.clear();
-    this.characterData.clear();
-    this.homePositions.clear();
-    this.workPositions.clear();
-    this.buildingLocations.clear();
+    this.pendingActions.clear();
+    this.npcPositions.clear();
   }
 }

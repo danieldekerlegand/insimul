@@ -22,6 +22,9 @@ import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
 import { AssetSelect } from '../AssetSelect';
 import type { Character, VisualAsset, Business, Residence } from '@shared/schema';
 import { characterModelPath } from '@shared/asset-paths';
+import { selectQuaterniusConfig, isCompleteCharacterModel, type QuaterniusAppearanceOverride } from '@/components/3DGame/QuaterniusNPCLoader';
+import { bodies, hair, outfits } from '@shared/game-engine/quaternius-asset-manifest';
+import type { NPCRole } from '@/components/3DGame/NPCModelInstancer';
 
 // Bundled NPC models available for selection
 const BUNDLED_NPC_MODELS: { key: string; name: string; filePath: string }[] = [
@@ -216,17 +219,63 @@ export function CharacterDetailView({
     setLocalModelPathOverride(null);
   }, [character.id]);
 
-  const explicitModelPath = localModelPathOverride || (character.generationConfig as any)?.npcModelPath || null;
-  const genderModelPath = (() => {
-    if (explicitModelPath) return null; // explicit path takes priority
-    const g = (character.gender || '').toLowerCase();
-    if (g === 'female' || g === 'f') return characterModelPath('generic', 'npc_civilian_female.glb');
-    if (g === 'male' || g === 'm') return characterModelPath('generic', 'npc_civilian_male.glb');
-    return null; // fallback to default for other/unspecified
+  // Derive the NPC role from occupation (same logic as BabylonGame.getRoleForCharacter)
+  const derivedRole: NPCRole = (() => {
+    const text = `${(character.occupation || '')} ${(character as any).faction || ''}`.toLowerCase();
+    const age = (character as any).age ?? 30;
+    if (age < 14) return 'child';
+    if (age >= 65) return 'elder';
+    if (text.includes('guard') || text.includes('watch') || text.includes('sheriff')) return 'guard';
+    if (text.includes('soldier') || text.includes('knight') || text.includes('militia')) return 'soldier';
+    if (text.includes('merchant') || text.includes('shop') || text.includes('trader')) return 'merchant';
+    if (text.includes('farm') || text.includes('ranch') || text.includes('shepherd')) return 'farmer';
+    if (text.includes('smith') || text.includes('forge')) return 'blacksmith';
+    if (text.includes('innkeep') || text.includes('tavern')) return 'innkeeper';
+    if (text.includes('priest') || text.includes('cleric') || text.includes('monk')) return 'priest';
+    if (text.includes('teach') || text.includes('scholar')) return 'teacher';
+    if (text.includes('doctor') || text.includes('physician') || text.includes('healer')) return 'doctor';
+    if (text.includes('noble') || text.includes('lord') || text.includes('mayor')) return 'noble';
+    if (text.includes('sailor') || text.includes('fisher') || text.includes('captain')) return 'sailor';
+    return 'civilian';
   })();
-  const npcModelPath = explicitModelPath || genderModelPath || null;
-  const currentNpcModel = BUNDLED_NPC_MODELS.find(m => npcModelPath && npcModelPath === m.filePath);
-  const currentModelName = currentNpcModel?.name || (npcModelPath ? 'Custom model' : 'Default NPC (starterAvatars)');
+
+  // Quaternius appearance: saved override or deterministic selection
+  const quatGender: 'male' | 'female' = (() => {
+    const g = (character.gender || '').toLowerCase();
+    if (g === 'female' || g === 'f') return 'female';
+    return 'male';
+  })();
+  const savedAppearance: QuaterniusAppearanceOverride | undefined =
+    (character.generationConfig as any)?.quaterniusAppearance;
+  const quatConfig = selectQuaterniusConfig(character.id, quatGender, derivedRole, savedAppearance);
+  const npcModelPath = quatConfig.body.path;
+  const isComplete = isCompleteCharacterModel(quatConfig.body.id);
+
+  // Filter options by gender
+  const genderBodies = bodies.filter(b => b.gender === quatGender);
+  const genderHairOptions = hair.filter(h => h.genderAffinity === quatGender || h.genderAffinity === null);
+  const genderOutfits = outfits.filter(o => o.gender === quatGender && o.part === 'full');
+
+  const handleAppearanceChange = async (field: 'bodyId' | 'hairId' | 'outfitId', value: string | null) => {
+    const current = savedAppearance || {};
+    const updated: QuaterniusAppearanceOverride = { ...current, [field]: value };
+    try {
+      const response = await fetch(`/api/characters/${character.id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          generationConfig: {
+            ...((character.generationConfig as any) || {}),
+            quaterniusAppearance: updated,
+          },
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to update appearance');
+      onCharacterUpdated?.();
+    } catch (err) {
+      toast({ title: 'Failed to update appearance', variant: 'destructive' });
+    }
+  };
 
   const getFullName = (char: Character) => {
     return [char.firstName, char.middleName, char.lastName, char.suffix].filter(Boolean).join(' ');
@@ -646,9 +695,11 @@ export function CharacterDetailView({
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Box className="w-4 h-4 text-primary" />
-                3D Preview
+                In-Game Appearance
               </CardTitle>
-              <CardDescription className="text-xs">{currentModelName}</CardDescription>
+              <CardDescription className="text-xs">
+                Role: <span className="capitalize font-medium">{derivedRole}</span>
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <CharacterModelPreview
@@ -656,21 +707,65 @@ export function CharacterDetailView({
                 texturePath={textures[0]?.filePath}
                 className="h-52"
               />
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">NPC Asset</Label>
-                <Select
-                  value={currentNpcModel?.key || 'default'}
-                  onValueChange={handleNpcModelChange}
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Select NPC model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BUNDLED_NPC_MODELS.map(model => (
-                      <SelectItem key={model.key} value={model.key}>{model.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Body</Label>
+                  <Select
+                    value={quatConfig.body.id}
+                    onValueChange={(val) => handleAppearanceChange('bodyId', val)}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {genderBodies.map(b => (
+                        <SelectItem key={b.id} value={b.id}>{b.displayName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!isComplete && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Hair</Label>
+                      <Select
+                        value={quatConfig.hair?.id || '__none__'}
+                        onValueChange={(val) => handleAppearanceChange('hairId', val === '__none__' ? null : val)}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">None (bald)</SelectItem>
+                          {genderHairOptions.map(h => (
+                            <SelectItem key={h.id} value={h.id}>{h.displayName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Outfit</Label>
+                      <Select
+                        value={quatConfig.outfit?.id || ''}
+                        onValueChange={(val) => handleAppearanceChange('outfitId', val)}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {genderOutfits.map(o => (
+                            <SelectItem key={o.id} value={o.id}>{o.displayName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+                {isComplete && (
+                  <p className="text-xs text-muted-foreground italic">
+                    This model has outfit and hair baked in.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

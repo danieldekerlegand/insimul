@@ -482,6 +482,9 @@ private:
     /** Save the playthroughs index file. */
     bool SavePlaythroughIndex(const TArray<TSharedPtr<FJsonValue>>& Playthroughs) const;
 
+    /** Infer asset type from file path — mirrors DataSource.ts logic. */
+    FString InferAssetTypeFromPath(const FString& FilePath, bool bIsTexture) const;
+
     /** Cached Content/Data path resolved once at initialization. */
     FString DataDirectory;
 

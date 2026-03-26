@@ -17,6 +17,12 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     content: JSON.stringify(ir, null, 2),
   });
 
+  // Meta (world metadata, asset collection config, asset ID mappings)
+  files.push({
+    path: 'public/data/meta.json',
+    content: JSON.stringify(ir.meta, null, 2),
+  });
+
   // Characters
   files.push({
     path: 'public/data/characters.json',

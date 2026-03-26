@@ -349,10 +349,18 @@ export class NPCScheduleSystem {
 
   /**
    * Helper: pick a random business building ID (excluding a given ID).
+   * Only returns businesses that are currently open.
    */
-  private pickRandomBusiness(excludeId?: string): string | null {
+  private pickRandomBusiness(excludeId?: string, gameHour?: number): string | null {
     const shops = Array.from(this.buildings.entries())
-      .filter(([id, b]) => b.buildingType === 'business' && id !== excludeId)
+      .filter(([id, b]) => {
+        if (b.buildingType !== 'business' || id === excludeId) return false;
+        // Filter by operating hours if gameHour provided
+        if (gameHour !== undefined && b.businessType) {
+          return isBusinessOpen(b.businessType, gameHour);
+        }
+        return true;
+      })
       .map(([id]) => id);
     if (shops.length === 0) return null;
     return shops[Math.floor(Math.random() * shops.length)];
@@ -361,10 +369,17 @@ export class NPCScheduleSystem {
   /**
    * Helper: pick a business deterministically using a seed value (0-1).
    * Neurotic NPCs use this to consistently visit the same "familiar" places.
+   * Only returns businesses that are currently open.
    */
-  private pickSeededBusiness(seed: number, excludeId?: string): string | null {
+  private pickSeededBusiness(seed: number, excludeId?: string, gameHour?: number): string | null {
     const shops = Array.from(this.buildings.entries())
-      .filter(([id, b]) => b.buildingType === 'business' && id !== excludeId)
+      .filter(([id, b]) => {
+        if (b.buildingType !== 'business' || id === excludeId) return false;
+        if (gameHour !== undefined && b.businessType) {
+          return isBusinessOpen(b.businessType, gameHour);
+        }
+        return true;
+      })
       .map(([id]) => id);
     if (shops.length === 0) return null;
     return shops[Math.floor(seed * shops.length) % shops.length];
@@ -518,8 +533,8 @@ export class NPCScheduleSystem {
           return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(60000, 120000));
         }
         const shopId = p.neuroticism > 0.6
-          ? this.pickSeededBusiness(seed1, entry.workBuildingId)
-          : this.pickRandomBusiness(entry.workBuildingId);
+          ? this.pickSeededBusiness(seed1, entry.workBuildingId, gameHour)
+          : this.pickRandomBusiness(entry.workBuildingId, gameHour);
         if (shopId) {
           return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
         }
@@ -534,7 +549,7 @@ export class NPCScheduleSystem {
       if (hoursUntilClose <= 2) {
         const leaveEarly = this.personalityCheck(0.15, 1 - p.conscientiousness, 0.4, seed2);
         if (leaveEarly) {
-          return this.pickEveningGoal(entry, p, now, seed2, seed3);
+          return this.pickEveningGoal(entry, p, now, seed2, seed3, gameHour);
         }
       }
 
@@ -543,7 +558,7 @@ export class NPCScheduleSystem {
 
     } else {
       // Business is closed — personality-driven free time
-      return this.pickEveningGoal(entry, p, now, seed2, seed3);
+      return this.pickEveningGoal(entry, p, now, seed2, seed3, gameHour);
     }
   }
 
@@ -557,8 +572,10 @@ export class NPCScheduleSystem {
     p: Required<NPCPersonality>,
     now: number,
     seedA: number, seedB: number,
+    gameHour?: number,
   ): NPCGoal {
     const hasHome = !!(entry.homeBuildingId && this.buildings.has(entry.homeBuildingId));
+    const hour = gameHour ?? ((now / 60000) % 24);
 
     // Weighted choice: socialize vs. explore vs. go home
     const socialWeight = p.extroversion * 0.5 + p.agreeableness * 0.3;
@@ -574,13 +591,13 @@ export class NPCScheduleSystem {
       if (friendId && seedB < 0.5 + p.agreeableness * 0.3) {
         return this.makeFriendVisitGoal(friendId, now, this.randRange(120000, 180000));
       }
-      const shopId = this.pickRandomBusiness(entry.workBuildingId);
+      const shopId = this.pickRandomBusiness(entry.workBuildingId, hour);
       if (shopId) {
         return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
       }
     } else if (roll < socialWeight + Math.max(0, exploreWeight)) {
       // Explore: visit a random business or wander
-      const shopId = this.pickRandomBusiness();
+      const shopId = this.pickRandomBusiness(undefined, hour);
       if (shopId && seedB > 0.3) {
         return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
       }
@@ -611,7 +628,7 @@ export class NPCScheduleSystem {
         return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(60000, 120000));
       }
       // Otherwise visit shop or wander
-      const shopId = this.pickRandomBusiness();
+      const shopId = this.pickRandomBusiness(undefined, gameHour);
       if (shopId && seed1 < 0.4 + p.openness * 0.3) {
         return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
       }
@@ -626,7 +643,7 @@ export class NPCScheduleSystem {
           return this.makeFriendVisitGoal(friendId, now, this.randRange(120000, 180000));
         }
       }
-      const shopId = this.pickRandomBusiness();
+      const shopId = this.pickRandomBusiness(undefined, gameHour);
       if (shopId) {
         return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
       }
@@ -634,13 +651,13 @@ export class NPCScheduleSystem {
 
     } else if (gameHour < 17) {
       // Afternoon: personality-driven mix
-      return this.pickEveningGoal(entry, p, now, seed2, seed3);
+      return this.pickEveningGoal(entry, p, now, seed2, seed3, gameHour);
 
     } else {
       // Evening: head home, but extroverts may stay out
       const stayOut = this.personalityCheck(0.2, p.extroversion, 0.5, seed3);
       if (stayOut) {
-        return this.pickEveningGoal(entry, p, now, seed2, seed3);
+        return this.pickEveningGoal(entry, p, now, seed2, seed3, gameHour);
       }
       if (hasHome) {
         return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(180000, 300000));
@@ -745,6 +762,20 @@ export class NPCScheduleSystem {
    */
   public getBuildingDoor(buildingId: string): Vector3 | null {
     return this.buildings.get(buildingId)?.doorPosition.clone() ?? null;
+  }
+
+  /**
+   * Get the businessType for a building (used by ScheduleExecutor for operating hours checks).
+   */
+  public getBuildingBusinessType(buildingId: string): string | undefined {
+    return this.buildings.get(buildingId)?.businessType;
+  }
+
+  /**
+   * Get building position.
+   */
+  public getBuildingPosition(buildingId: string): Vector3 | null {
+    return this.buildings.get(buildingId)?.position.clone() ?? null;
   }
 
   /**

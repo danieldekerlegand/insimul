@@ -74,7 +74,7 @@ function generatePackageJson(ir: WorldIR, options: BabylonExportOptions): string
       ...(isElectron && {
         electron: '^30.0.0',
         'electron-builder': '^24.0.0',
-        'electron-rebuild': '^3.6.0',
+        '@electron/rebuild': '^3.7.1',
         'concurrently': '^8.0.0',
         'wait-on': '^7.0.0',
       }),
@@ -401,14 +401,6 @@ function generateElectronMain(ir: WorldIR): string {
 function generateElectronPreload(): string {
   return loadTemplate('electron-preload.js');
 }
-
-function generateElectronAIService(): string {
-  return loadTemplate('electron-ai-service.js');
-}
-
-// ─────────────────────────────────────────────
-// Electron AI Service (only for Electron mode)
-// ─────────────────────────────────────────────
 
 function generateElectronAIService(): string {
   return loadTemplate('electron-ai-service.js');

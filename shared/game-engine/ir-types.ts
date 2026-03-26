@@ -93,6 +93,12 @@ export interface MetaIR {
   exportVersion: number;
   /** Seed used for deterministic procedural generation */
   seed: string;
+  /** Asset collection ID used for this world */
+  selectedAssetCollectionId?: string | null;
+  /** Full 3D configuration from the asset collection (building presets, model mappings, textures) */
+  world3DConfig?: Record<string, any> | null;
+  /** Map of MongoDB asset IDs → export file paths for offline resolution */
+  assetIdToPath?: Record<string, string>;
 }
 
 // ─────────────────────────────────────────────

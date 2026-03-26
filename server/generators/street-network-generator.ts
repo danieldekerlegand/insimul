@@ -77,8 +77,8 @@ const GRID_SPACING: Record<string, number> = {
 
 const GRID_SIZE: Record<string, number> = {
   village: 4,
-  town: 5,
-  city: 7,
+  town: 6,
+  city: 8,
 };
 
 const STREET_WIDTH: Record<string, number> = {

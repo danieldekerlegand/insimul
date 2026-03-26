@@ -1286,10 +1286,57 @@ export async function generateWorldIR(
   for (const asset of worldAssets) {
     const id = asset.id || (asset as any)._id?.toString();
     if (id && asset.filePath) {
-      // Convert absolute server paths to relative export paths
       let exportPath = asset.filePath;
       if (exportPath.startsWith('/')) exportPath = '.' + exportPath;
       assetIdToPath[id] = exportPath;
+    }
+  }
+
+  // Also map assets referenced by the asset collection's worldTypeConfig.
+  // These are global assets (not per-world) so getVisualAssetsByWorld misses them.
+  if (collectionSnapshot || world3DConfig) {
+    // Extract all asset IDs from world3DConfig
+    const configAssetIds = new Set<string>();
+    const extractIds = (obj: any, depth = 0) => {
+      if (!obj || typeof obj !== 'object' || depth > 10) return;
+      if (Array.isArray(obj)) { for (const item of obj) extractIds(item, depth + 1); return; }
+      for (const [key, value] of Object.entries(obj)) {
+        if (!value) continue;
+        // Direct string ObjectID values (e.g. wallTextureId, roofTextureId, assetId)
+        if (typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value) &&
+            (key.toLowerCase().includes('textureid') || key.toLowerCase().includes('assetid'))) {
+          configAssetIds.add(value);
+        } else if (typeof value === 'object') {
+          const v = value as any;
+          if (v.assetId && typeof v.assetId === 'string' && /^[0-9a-fA-F]{24}$/.test(v.assetId)) {
+            configAssetIds.add(v.assetId);
+          }
+          if (v.textureId && typeof v.textureId === 'string' && /^[0-9a-fA-F]{24}$/.test(v.textureId)) {
+            configAssetIds.add(v.textureId);
+          }
+          extractIds(v, depth + 1);
+        }
+      }
+    };
+    if (collectionSnapshot) {
+      const collection = await storage.getAssetCollection(assetCollectionId!);
+      if (collection?.worldTypeConfig) extractIds(collection.worldTypeConfig);
+    }
+    // Also extract from flattened world3DConfig
+    if (world3DConfig) extractIds(world3DConfig);
+    // Fetch and map any not already in assetIdToPath
+    const missingIds = [...configAssetIds].filter(id => !assetIdToPath[id]);
+    if (missingIds.length > 0) {
+      const extraAssets = await storage.getVisualAssetsByIds(missingIds);
+      for (const asset of extraAssets) {
+        const id = asset.id || (asset as any)._id?.toString();
+        if (id && asset.filePath) {
+          let exportPath = asset.filePath;
+          if (exportPath.startsWith('/')) exportPath = '.' + exportPath;
+          assetIdToPath[id] = exportPath;
+        }
+      }
+      console.log(`[Export] Added ${extraAssets.length} collection asset ID mappings`);
     }
   }
   console.log(`[Export] Built asset ID mapping: ${Object.keys(assetIdToPath).length} entries`);

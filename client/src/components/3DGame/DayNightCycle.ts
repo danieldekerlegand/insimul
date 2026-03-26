@@ -9,7 +9,9 @@
 import { Color3, Vector3 } from "@babylonjs/core/Maths/math";
 import type { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
 import type { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
+import type { PointLight } from "@babylonjs/core/Lights/pointLight";
 import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import type { Scene } from "@babylonjs/core/scene";
 import type { GameTimeManager } from "./GameTimeManager";
 
@@ -276,6 +278,15 @@ export class DayNightCycle {
   private hemiLight: HemisphericLight | null = null;
   private skyMat: ShaderMaterial | null = null;
 
+  /** Street lamp PointLights — faded on/off with time of day. */
+  private streetLights: PointLight[] = [];
+  private streetLightBaseIntensity: number = 0.8;
+  /** Hours when street lights transition on/off. */
+  private static readonly LIGHTS_ON_START = 18.0;  // Begin turning on at 6pm
+  private static readonly LIGHTS_ON_FULL = 19.5;   // Fully on by 7:30pm
+  private static readonly LIGHTS_OFF_START = 5.5;   // Begin turning off at 5:30am
+  private static readonly LIGHTS_OFF_FULL = 7.0;    // Fully off by 7am
+
   constructor(options: DayNightCycleOptions) {
     this.scene = options.scene;
     this.timeManager = options.timeManager;
@@ -290,6 +301,17 @@ export class DayNightCycle {
     }
   }
 
+  /**
+   * Register street lamp PointLights so the cycle can fade them on at dusk / off at dawn.
+   * Can be called multiple times (e.g. per settlement) — lights accumulate.
+   */
+  addStreetLights(lights: PointLight[]): void {
+    for (const l of lights) {
+      this.streetLightBaseIntensity = l.intensity; // capture authored intensity
+      this.streetLights.push(l);
+    }
+  }
+
   /** Call once per frame from the render/update loop. */
   update(): void {
     const hour = this.timeManager.fractionalHour;
@@ -301,6 +323,7 @@ export class DayNightCycle {
     this.applySky(kf);
     this.applyFog(kf);
     this.applySceneClearColor(kf);
+    this.applyStreetLights(hour);
   }
 
   private applySun(kf: LightingKeyframe): void {
@@ -343,9 +366,58 @@ export class DayNightCycle {
     this.scene.clearColor.b = kf.skyHorizon.b;
   }
 
+  /**
+   * Smoothly fade street lights on at dusk and off at dawn.
+   * Also updates the globe emissive material to glow when the light is on.
+   */
+  private applyStreetLights(hour: number): void {
+    if (this.streetLights.length === 0) return;
+
+    // Compute brightness factor: 0 = off (daytime), 1 = full (nighttime)
+    let factor = 0;
+    const { LIGHTS_ON_START, LIGHTS_ON_FULL, LIGHTS_OFF_START, LIGHTS_OFF_FULL } = DayNightCycle;
+
+    if (hour >= LIGHTS_ON_FULL || hour < LIGHTS_OFF_START) {
+      // Full night
+      factor = 1;
+    } else if (hour >= LIGHTS_ON_START && hour < LIGHTS_ON_FULL) {
+      // Dusk transition — fade on
+      factor = (hour - LIGHTS_ON_START) / (LIGHTS_ON_FULL - LIGHTS_ON_START);
+    } else if (hour >= LIGHTS_OFF_START && hour < LIGHTS_OFF_FULL) {
+      // Dawn transition — fade off
+      factor = 1 - (hour - LIGHTS_OFF_START) / (LIGHTS_OFF_FULL - LIGHTS_OFF_START);
+    }
+    // else: daytime, factor stays 0
+
+    const shouldBeOn = factor > 0.01;
+    const intensity = this.streetLightBaseIntensity * factor;
+
+    for (const light of this.streetLights) {
+      if (light.isEnabled() !== shouldBeOn) {
+        light.setEnabled(shouldBeOn);
+      }
+      if (shouldBeOn) {
+        light.intensity = intensity;
+      }
+
+      // Update globe emissive glow to match light state
+      const globeMesh = this.scene.getMeshByName(light.name.replace('_light', '_globe'));
+      if (globeMesh?.material) {
+        const mat = globeMesh.material as StandardMaterial;
+        if (mat.emissiveColor) {
+          const warmColor = light.diffuse;
+          mat.emissiveColor.r = warmColor.r * factor * 0.8;
+          mat.emissiveColor.g = warmColor.g * factor * 0.8;
+          mat.emissiveColor.b = warmColor.b * factor * 0.8;
+        }
+      }
+    }
+  }
+
   dispose(): void {
     this.sun = null;
     this.hemiLight = null;
     this.skyMat = null;
+    this.streetLights = [];
   }
 }

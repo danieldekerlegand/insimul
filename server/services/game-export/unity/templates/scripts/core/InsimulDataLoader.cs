@@ -118,6 +118,66 @@ namespace Insimul.Core
         public static T[] LoadBaseRules<T>() => LoadArray<T>(DataRoot + "base_rules");
         public static T[] LoadQuests<T>() => LoadArray<T>(DataRoot + "quests");
         public static T[] LoadSettlements<T>() => LoadArray<T>(DataRoot + "settlements");
+
+        /// <summary>
+        /// Load settlements and map IR streetNetwork to game-format streets.
+        /// Re-centers street waypoints from IR world-space to lot coordinate space.
+        /// Matches FileDataSource.loadSettlements() streetNetwork→streets mapping.
+        /// </summary>
+        public static InsimulSettlementData[] LoadSettlementsWithStreets()
+        {
+            var settlements = LoadArray<InsimulSettlementData>(DataRoot + "settlements");
+            if (settlements == null) return new InsimulSettlementData[0];
+
+            foreach (var s in settlements)
+            {
+                if (s.streetNetwork?.segments == null || s.streets != null) continue;
+
+                // Compute lot centroid
+                float lotCX = 0f, lotCZ = 0f; int lotCount = 0;
+                if (s.lots != null)
+                {
+                    foreach (var lot in s.lots)
+                    {
+                        if (lot.position != null)
+                        {
+                            lotCX += lot.position.x; lotCZ += lot.position.z; lotCount++;
+                        }
+                    }
+                    if (lotCount > 0) { lotCX /= lotCount; lotCZ /= lotCount; }
+                }
+
+                // Compute waypoint centroid
+                float wpCX = 0f, wpCZ = 0f; int wpCount = 0;
+                foreach (var seg in s.streetNetwork.segments)
+                {
+                    if (seg.waypoints == null) continue;
+                    foreach (var wp in seg.waypoints)
+                    {
+                        wpCX += wp.x; wpCZ += wp.z; wpCount++;
+                    }
+                }
+                if (wpCount > 0) { wpCX /= wpCount; wpCZ /= wpCount; }
+
+                float dx = lotCX - wpCX, dz = lotCZ - wpCZ;
+
+                var streets = new List<GameStreet>();
+                foreach (var seg in s.streetNetwork.segments)
+                {
+                    var gs = new GameStreet { id = seg.id, name = seg.name, width = seg.width };
+                    if (seg.waypoints != null)
+                    {
+                        var wps = new List<Vec3Data>();
+                        foreach (var wp in seg.waypoints)
+                            wps.Add(new Vec3Data { x = wp.x + dx, y = 0f, z = wp.z + dz });
+                        gs.waypoints = wps.ToArray();
+                    }
+                    streets.Add(gs);
+                }
+                s.streets = streets.ToArray();
+            }
+            return settlements;
+        }
         public static T[] LoadBuildings<T>() => LoadArray<T>(DataRoot + "buildings");
         public static T[] LoadItems<T>() => LoadArray<T>(DataRoot + "items");
         public static T[] LoadContainers<T>() => LoadArray<T>(DataRoot + "containers");
@@ -145,6 +205,30 @@ namespace Insimul.Core
         public static T LoadAIConfig<T>() => LoadSingle<T>(DataRoot + "ai_config");
         public static T LoadSurvivalConfig<T>() => LoadSingle<T>(DataRoot + "survival");
         public static T LoadBaseResources<T>() => LoadSingle<T>(DataRoot + "base_resources");
+
+        // ── Asset type inference ─────────────────────────────────────────
+
+        /// <summary>
+        /// Infer asset type from file path. Mirrors DataSource.ts logic:
+        /// non-texture→model, wall/plaster/brick/planks→texture_wall,
+        /// roof/tiles/slates/corrugated→texture_material,
+        /// ground/floor/cobblestone/forrest→texture_ground, else→texture.
+        /// </summary>
+        public static string InferAssetTypeFromPath(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath)) return "model";
+            string lower = filePath.ToLowerInvariant();
+            string ext = System.IO.Path.GetExtension(lower).TrimStart('.');
+            bool isTexture = ext == "png" || ext == "jpg" || ext == "jpeg";
+            if (!isTexture) return "model";
+            if (lower.Contains("wall") || lower.Contains("plaster") || lower.Contains("brick") || lower.Contains("planks"))
+                return "texture_wall";
+            if (lower.Contains("roof") || lower.Contains("tiles") || lower.Contains("slates") || lower.Contains("corrugated"))
+                return "texture_material";
+            if (lower.Contains("ground") || lower.Contains("floor") || lower.Contains("cobblestone") || lower.Contains("forrest"))
+                return "texture_ground";
+            return "texture";
+        }
 
         // ── Asset ID-to-path mapping from IR metadata ────────────────────
 

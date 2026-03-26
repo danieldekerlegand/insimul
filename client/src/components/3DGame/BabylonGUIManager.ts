@@ -96,6 +96,7 @@ export interface MinimapData {
     position: { x: number; z: number };
     role?: string;
     name?: string;
+    questIndicator?: string | null;
   }>;
   /** NPC ID to highlight with a prominent marker (e.g. assessment conversation target). */
   highlightedNpcId?: string;
@@ -2021,6 +2022,40 @@ export class BabylonGUIManager {
           dot.top = `${nz}px`;
           mapContainer.addControl(dot);
           this._minimapDynamicControls.push(dot);
+
+          // Show quest indicator symbol above NPC dot on minimap
+          if (npc.questIndicator) {
+            const indicatorSize = Math.max(6, Math.round(12 * zoomDotScale));
+            const symbolOffset = -(npcDotSize / 2 + indicatorSize / 2 + 1);
+
+            // Background circle for the indicator
+            const indBg = new Ellipse(`npc-qi-bg-${npc.id}`);
+            indBg.width = `${indicatorSize}px`;
+            indBg.height = `${indicatorSize}px`;
+            indBg.thickness = 0;
+            if (npc.questIndicator === 'available') {
+              indBg.background = '#FFD700'; // gold
+            } else if (npc.questIndicator === 'turn_in') {
+              indBg.background = '#32CD32'; // lime green
+            } else {
+              indBg.background = '#C0C0C0'; // silver for in_progress
+            }
+            indBg.left = `${nx}px`;
+            indBg.top = `${nz + symbolOffset}px`;
+            mapContainer.addControl(indBg);
+            this._minimapDynamicControls.push(indBg);
+
+            // Symbol text
+            const indText = new TextBlock(`npc-qi-${npc.id}`);
+            indText.text = npc.questIndicator === 'available' ? '!' : npc.questIndicator === 'turn_in' ? '\u2713' : '?';
+            indText.color = '#000000';
+            indText.fontSize = Math.max(5, Math.round(9 * zoomDotScale));
+            indText.fontWeight = 'bold';
+            indText.left = `${nx}px`;
+            indText.top = `${nz + symbolOffset}px`;
+            mapContainer.addControl(indText);
+            this._minimapDynamicControls.push(indText);
+          }
         }
       }
     }

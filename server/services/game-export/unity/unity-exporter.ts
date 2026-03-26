@@ -165,7 +165,7 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
   let assetBundle;
   if (selectedCollectionId) {
     console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
-    assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
+    assetBundle = await bundleAssetsFromCollection(selectedCollectionId, worldId);
   } else {
     console.log('[Export] No asset collection selected, using core assets');
     assetBundle = await bundleCoreAssets(engine);

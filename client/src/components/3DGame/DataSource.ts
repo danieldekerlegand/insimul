@@ -1417,7 +1417,62 @@ export class FileDataSource implements DataSource {
 
   async loadSettlements(worldId: string): Promise<any[]> {
     await this.waitForData();
-    return this.worldData?.geography?.settlements || [];
+    const settlements = this.worldData?.geography?.settlements || [];
+    // Map IR streetNetwork to the 'streets' format the game expects.
+    // IR waypoints are in world-space (centered at the IR settlement position),
+    // but lot positions are in DB map-space. Re-center waypoints to match
+    // the lot centroid so both coordinate systems align.
+    for (const s of settlements) {
+      if (s.streetNetwork && !s.streets) {
+        // Compute lot centroid (DB map-space)
+        const lotsWithPos = (s.lots || []).filter((l: any) =>
+          (l.positionX != null) || (l.position?.x != null)
+        );
+        let lotCentroidX = 0, lotCentroidZ = 0;
+        if (lotsWithPos.length > 0) {
+          for (const l of lotsWithPos) {
+            lotCentroidX += l.positionX ?? l.position?.x ?? 0;
+            lotCentroidZ += l.positionZ ?? l.position?.z ?? 0;
+          }
+          lotCentroidX /= lotsWithPos.length;
+          lotCentroidZ /= lotsWithPos.length;
+        }
+
+        // Compute street waypoint centroid (IR world-space)
+        const allWps: { x: number; z: number }[] = [];
+        for (const seg of (s.streetNetwork.segments || [])) {
+          for (const wp of (seg.waypoints || [])) {
+            if (wp.x != null && wp.z != null) allWps.push(wp);
+          }
+        }
+        let wpCentroidX = 0, wpCentroidZ = 0;
+        if (allWps.length > 0) {
+          for (const wp of allWps) { wpCentroidX += wp.x; wpCentroidZ += wp.z; }
+          wpCentroidX /= allWps.length;
+          wpCentroidZ /= allWps.length;
+        }
+
+        // Offset to re-center street waypoints into lot coordinate space
+        const dx = lotCentroidX - wpCentroidX;
+        const dz = lotCentroidZ - wpCentroidZ;
+
+        s.streets = (s.streetNetwork.segments || []).map((seg: any) => ({
+          id: seg.id,
+          name: seg.name,
+          waypoints: (seg.waypoints || []).map((wp: any) => ({
+            x: wp.x + dx, y: wp.y || 0, z: wp.z + dz,
+          })),
+          width: seg.width,
+          properties: {
+            waypoints: (seg.waypoints || []).map((wp: any) => ({
+              x: wp.x + dx, y: wp.y || 0, z: wp.z + dz,
+            })),
+            width: seg.width,
+          },
+        }));
+      }
+    }
+    return settlements;
   }
 
   async loadRules(worldId: string): Promise<any[]> {
@@ -1497,10 +1552,23 @@ export class FileDataSource implements DataSource {
         if (existingIds.has(mongoId)) continue;
         const ext = filePath.split('.').pop()?.toLowerCase() || '';
         const isTexture = ['png', 'jpg', 'jpeg'].includes(ext);
+        // Infer asset type from file path — don't label everything as 'texture_wall'
+        let assetType = 'model';
+        if (isTexture) {
+          if (filePath.includes('wall') || filePath.includes('plaster') || filePath.includes('brick') || filePath.includes('planks')) {
+            assetType = 'texture_wall';
+          } else if (filePath.includes('roof') || filePath.includes('tiles') || filePath.includes('slates') || filePath.includes('corrugated')) {
+            assetType = 'texture_material';
+          } else if (filePath.includes('ground') || filePath.includes('floor') || filePath.includes('cobblestone') || filePath.includes('forrest')) {
+            assetType = 'texture_ground';
+          } else {
+            assetType = 'texture';
+          }
+        }
         assets.push({
           id: mongoId,
           name: mongoId,
-          assetType: isTexture ? 'texture_wall' : 'model',
+          assetType,
           filePath: filePath.startsWith('.') ? filePath : './' + filePath,
           fileName: filePath.split('/').pop() || mongoId,
           fileSize: 0,
@@ -1752,9 +1820,12 @@ export class FileDataSource implements DataSource {
     const settlement = this.worldData?.geography?.settlements?.find((s: any) => s.id === settlementId);
     if (settlement?.businesses?.length) return settlement.businesses;
     // Fall back to deriving from buildings data
-    const buildings = (this.worldData?.buildings || []).filter(
+    const allBuildings = this.worldData?.buildings || [];
+    console.log(`[FileDS] loadSettlementBusinesses(${settlementId}): total buildings=${allBuildings.length}, sample=${JSON.stringify(allBuildings[0] ? {id: allBuildings[0].id, settlementId: allBuildings[0].settlementId, businessId: allBuildings[0].businessId} : 'none')}`);
+    const buildings = allBuildings.filter(
       (b: any) => b.settlementId === settlementId && b.businessId
     );
+    console.log(`[FileDS] Matched ${buildings.length} businesses for settlement ${settlementId}`);
     return buildings.map((b: any) => ({
       id: b.businessId || b.id,
       settlementId: b.settlementId,

@@ -4374,13 +4374,17 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 const youthOccupations = ['Student', 'Apprentice', 'Farmhand', 'Errand Runner'];
                 let occIdx = 0;
 
-                // Current year for age calculation (foundedYear + some elapsed time)
-                const currentYear = cc.foundedYear + (cc.generations || 4) * 25;
+                // Current year: the "present day" of the world.
+                // Characters are alive NOW, not at founding time.
+                const currentYear = new Date().getFullYear();
 
                 for (const familyData of familiesForSettlement) {
-                  const fatherBirthYear = cc.foundedYear - 25;
-                  const motherBirthYear = cc.foundedYear - 23;
-                  const childBirthYear = cc.foundedYear + 1;
+                  // Generate realistic ages: parents 30-55, children 5-25
+                  const fatherAge = 35 + Math.floor(Math.random() * 20); // 35-54
+                  const motherAge = 33 + Math.floor(Math.random() * 18); // 33-50
+                  const fatherBirthYear = currentYear - fatherAge;
+                  const motherBirthYear = currentYear - motherAge;
+                  const childBirthYear = currentYear - (5 + Math.floor(Math.random() * 20)); // 5-24
 
                   const father = await storage.createCharacter({
                     worldId: config.worldId,

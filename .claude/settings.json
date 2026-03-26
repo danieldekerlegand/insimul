@@ -14,7 +14,27 @@
       "Bash(find /Users/danieldekerlegand/Development/school/insimul -type f -name asset-manifest* -o -name *export*manifest*)",
       "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/public/assets/models -type d -name *character* -o -type d -name *npc* -o -type d -name *player*)",
       "Read(//Users/danieldekerlegand/Downloads/Quaternius/**)",
-      "Bash(find ~/Downloads/Quaternius -type f \\\\\\(-name *.glb -o -name *.gltf -o -name *.fbx -o -name *.obj \\\\\\))"
+      "Bash(find ~/Downloads/Quaternius -type f \\\\\\(-name *.glb -o -name *.gltf -o -name *.fbx -o -name *.obj \\\\\\))",
+      "Read(//Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron/**)",
+      "Read(//Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron \\(1\\)/**)",
+      "Read(//Users/danieldekerlegand/Downloads/**)",
+      "Bash(cat \"/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron \\(1\\)/public/data/asset-manifest.json\")",
+      "Bash(find \"/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron \\(1\\)/public/assets/\" -name \"*.glb\" -o -name \"*.gltf\" -o -name \"*.babylon\")",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul -name *creole* -o -name *louisiana*)",
+      "Bash(cat \"/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron \\(1\\)/public/data/buildings.json\")",
+      "Bash(cat \"/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron \\(1\\)/public/data/world_ir.json\")",
+      "Bash(do grep:*)",
+      "Read(//Users/danieldekerlegand/Development/school/insimul/**)",
+      "Bash(du -sh ~/Downloads/InsimulExport_LaLouisiane_Electron/public/assets/models/*/)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/server/services/game-export -name *street* -o -name *light*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul -name *Interior*Preview* -o -name *AssetCollection*Editor*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/src/components -name *AssetCollection* -type f)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul -name *.md -exec grep -l \"interior.*issue\\\\|interior.*problem\\\\|interior.*bug\\\\|preview.*interior\" {})",
+      "Bash(2)"
+    ],
+    "additionalDirectories": [
+      "/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron (1)/src",
+      "/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron/electron"
     ]
   }
 }

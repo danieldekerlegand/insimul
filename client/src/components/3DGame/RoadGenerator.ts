@@ -11,6 +11,7 @@ import {
   DynamicTexture,
   Mesh,
   MeshBuilder,
+  PointLight,
   Scene,
   StandardMaterial,
   Texture,
@@ -57,6 +58,9 @@ export class RoadGenerator {
 
   /** Flat list of segment lines used for isPointOnRoad queries. */
   private storedSegments: StoredSegment[] = [];
+
+  /** PointLights attached to lamp posts — managed by DayNightCycle for on/off. */
+  private streetLights: PointLight[] = [];
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -1344,6 +1348,154 @@ export class RoadGenerator {
     }
   }
 
+  /** Get all street light PointLights for DayNightCycle management. */
+  public getStreetLights(): PointLight[] {
+    return this.streetLights;
+  }
+
+  /**
+   * Place lamp posts at regular intervals along both sidewalks of each street segment.
+   * Each lamp post consists of a pole, lamp globe mesh, and a PointLight.
+   * Lights start disabled — DayNightCycle turns them on at night.
+   */
+  public placeLampPosts(
+    settlementId: string,
+    network: StreetNetwork,
+    sampleHeight: (x: number, z: number) => number
+  ): PointLight[] {
+    const newLights: PointLight[] = [];
+    const spacing = 25; // World units between lamp posts
+    const poleHeight = 4.0;
+    const poleDiameter = 0.15;
+    const globeRadius = 0.3;
+    const sidewalkWidth = 2.0;
+    const lightRange = 18;
+    const lightIntensity = 0.8;
+    const warmColor = new Color3(1.0, 0.85, 0.55); // Warm sodium-vapor color
+
+    let lampCount = 0;
+
+    for (const seg of network.segments) {
+      if (seg.waypoints.length < 2) continue;
+
+      const totalLen = this.polylineLength(seg.waypoints);
+      if (totalLen < spacing * 0.6) continue; // Skip very short segments
+
+      const halfStreet = seg.width / 2;
+      const lampOffset = halfStreet + sidewalkWidth * 0.5; // Center of sidewalk
+
+      // Number of lamp posts along this segment (both sides)
+      const count = Math.max(1, Math.floor(totalLen / spacing));
+
+      for (let i = 0; i <= count; i++) {
+        const t = count > 0 ? i / count : 0.5;
+        // Skip very start/end to avoid clustering at intersections
+        if (t < 0.08 || t > 0.92) continue;
+
+        const center = this.interpolatePolyline(seg.waypoints, t);
+
+        // Get local direction for perpendicular offset
+        const tPrev = Math.max(0, t - 0.01);
+        const tNext = Math.min(1, t + 0.01);
+        const pPrev = this.interpolatePolyline(seg.waypoints, tPrev);
+        const pNext = this.interpolatePolyline(seg.waypoints, tNext);
+        const dx = pNext.x - pPrev.x;
+        const dz = pNext.z - pPrev.z;
+        const len = Math.sqrt(dx * dx + dz * dz);
+        if (len < 0.001) continue;
+        const perpX = -dz / len;
+        const perpZ = dx / len;
+
+        // Place on alternating sides: even index = left, odd = right
+        const side = i % 2 === 0 ? 1 : -1;
+        const lampX = center.x + perpX * lampOffset * side;
+        const lampZ = center.z + perpZ * lampOffset * side;
+        const baseY = sampleHeight(lampX, lampZ) + this.yOffset;
+
+        const lampId = `lamp_${settlementId}_${seg.id}_${i}`;
+
+        // Pole
+        const pole = MeshBuilder.CreateCylinder(
+          `${lampId}_pole`,
+          { height: poleHeight, diameter: poleDiameter, tessellation: 6 },
+          this.scene
+        );
+        pole.position = new Vector3(lampX, baseY + poleHeight / 2, lampZ);
+        pole.isPickable = false;
+        pole.checkCollisions = false;
+
+        const poleMat = new StandardMaterial(`${lampId}_pole_mat`, this.scene);
+        poleMat.diffuseColor = new Color3(0.15, 0.15, 0.15);
+        poleMat.specularColor = new Color3(0.1, 0.1, 0.1);
+        pole.material = poleMat;
+
+        // Arm and globe extend INWARD toward the street (opposite of `side`)
+        // so they never clip into buildings on the outer edge of the sidewalk.
+        const inward = -side;
+
+        // Lamp arm (small horizontal cylinder from pole top to globe)
+        const arm = MeshBuilder.CreateCylinder(
+          `${lampId}_arm`,
+          { height: 0.6, diameter: 0.08, tessellation: 6 },
+          this.scene
+        );
+        arm.rotation.z = Math.PI / 2; // Horizontal
+        arm.position = new Vector3(lampX + perpX * 0.3 * inward, baseY + poleHeight - 0.1, lampZ + perpZ * 0.3 * inward);
+        arm.isPickable = false;
+        arm.checkCollisions = false;
+        arm.material = poleMat;
+
+        // Globe
+        const globe = MeshBuilder.CreateSphere(
+          `${lampId}_globe`,
+          { diameter: globeRadius * 2, segments: 8 },
+          this.scene
+        );
+        const globeX = lampX + perpX * 0.5 * inward;
+        const globeZ = lampZ + perpZ * 0.5 * inward;
+        globe.position = new Vector3(globeX, baseY + poleHeight - 0.15, globeZ);
+        globe.isPickable = false;
+        globe.checkCollisions = false;
+
+        const globeMat = new StandardMaterial(`${lampId}_globe_mat`, this.scene);
+        globeMat.diffuseColor = warmColor;
+        globeMat.emissiveColor = warmColor.scale(0.3);
+        globeMat.specularColor = Color3.Black();
+        globeMat.alpha = 0.9;
+        globe.material = globeMat;
+
+        // PointLight — starts disabled, DayNightCycle will manage it
+        const light = new PointLight(
+          `${lampId}_light`,
+          new Vector3(globeX, baseY + poleHeight - 0.3, globeZ),
+          this.scene
+        );
+        light.diffuse = warmColor;
+        light.specular = warmColor.scale(0.3);
+        light.intensity = lightIntensity;
+        light.range = lightRange;
+        light.setEnabled(false); // Off by default — DayNightCycle turns on at night
+
+        // Parent arm and globe to pole for cleanup
+        arm.parent = pole;
+        arm.position = new Vector3(perpX * 0.3 * inward, poleHeight / 2 - 0.1, perpZ * 0.3 * inward);
+        globe.parent = pole;
+        globe.position = new Vector3(perpX * 0.5 * inward, poleHeight / 2 - 0.15, perpZ * 0.5 * inward);
+
+        pole.alwaysSelectAsActiveMesh = true;
+        pole.freezeWorldMatrix();
+
+        this.roadMeshes.push(pole);
+        this.streetLights.push(light);
+        newLights.push(light);
+        lampCount++;
+      }
+    }
+
+    console.log(`[RoadGenerator] Placed ${lampCount} lamp posts for settlement ${settlementId}`);
+    return newLights;
+  }
+
   /**
    * Dispose all road meshes
    */
@@ -1351,7 +1503,11 @@ export class RoadGenerator {
     for (const mesh of this.roadMeshes) {
       mesh.dispose();
     }
+    for (const light of this.streetLights) {
+      light.dispose();
+    }
     this.roadMeshes = [];
+    this.streetLights = [];
     this.roadTexture = null;
   }
 }

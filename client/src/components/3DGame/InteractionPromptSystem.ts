@@ -72,11 +72,11 @@ export type IsSignObjectFn = (objectRole: string) => boolean;
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const MAX_NPC_DISTANCE = 12;
-const MAX_BUILDING_DISTANCE = 10;
-const MAX_OBJECT_DISTANCE = 6;
+const MAX_NPC_DISTANCE = 25;
+const MAX_BUILDING_DISTANCE = 15;
+const MAX_OBJECT_DISTANCE = 8;
 /** View-cone half-angle in degrees for fallback NPC detection */
-const CONE_HALF_ANGLE_DEG = 12;
+const CONE_HALF_ANGLE_DEG = 20;
 const COS_CONE = Math.cos(CONE_HALF_ANGLE_DEG * Math.PI / 180);
 
 /** Billboard dimensions */
@@ -549,28 +549,51 @@ export class InteractionPromptSystem {
   }
 
   private renderBillboardText(text: string): void {
-    if (!this.billboardMat) return;
+    if (!this.billboardMat || !this.billboard) return;
 
     // Dispose old texture
     this.billboardTex?.dispose();
 
+    // Measure text width using an offscreen canvas to determine required texture size
+    const keyMatch = text.match(/^\[([A-Z])\]:/);
+    const measureCanvas = document.createElement('canvas');
+    const mCtx = measureCanvas.getContext('2d')!;
+    let totalTextWidth: number;
+    if (keyMatch) {
+      mCtx.font = 'bold 34px Arial';
+      const keyWidth = mCtx.measureText(keyMatch[0]).width;
+      mCtx.font = '32px Arial';
+      const actionWidth = mCtx.measureText(text.slice(keyMatch[0].length)).width;
+      totalTextWidth = keyWidth + actionWidth;
+    } else {
+      mCtx.font = '32px Arial';
+      totalTextWidth = mCtx.measureText(text).width;
+    }
+
+    // Size texture to fit text with padding (minimum TEX_WIDTH for short text)
+    const padding = 60;
+    const texWidth = Math.max(TEX_WIDTH, Math.ceil(totalTextWidth + padding));
+    // Scale billboard world-width proportionally
+    const billboardWidth = BILLBOARD_WIDTH * (texWidth / TEX_WIDTH);
+    this.billboard.scaling.x = billboardWidth / BILLBOARD_WIDTH;
+
     const tex = new DynamicTexture(
       'interaction_prompt_tex',
-      { width: TEX_WIDTH, height: TEX_HEIGHT },
+      { width: texWidth, height: TEX_HEIGHT },
       this.scene,
     );
     tex.hasAlpha = true;
 
     const ctx = tex.getContext() as CanvasRenderingContext2D;
-    ctx.clearRect(0, 0, TEX_WIDTH, TEX_HEIGHT);
+    ctx.clearRect(0, 0, texWidth, TEX_HEIGHT);
 
     // Background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(4, 4, TEX_WIDTH - 8, TEX_HEIGHT - 8, 14);
+      ctx.roundRect(4, 4, texWidth - 8, TEX_HEIGHT - 8, 14);
     } else {
-      ctx.rect(4, 4, TEX_WIDTH - 8, TEX_HEIGHT - 8);
+      ctx.rect(4, 4, texWidth - 8, TEX_HEIGHT - 8);
     }
     ctx.fill();
 
@@ -579,14 +602,13 @@ export class InteractionPromptSystem {
     ctx.lineWidth = 2;
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(4, 4, TEX_WIDTH - 8, TEX_HEIGHT - 8, 14);
+      ctx.roundRect(4, 4, texWidth - 8, TEX_HEIGHT - 8, 14);
     } else {
-      ctx.rect(4, 4, TEX_WIDTH - 8, TEX_HEIGHT - 8);
+      ctx.rect(4, 4, texWidth - 8, TEX_HEIGHT - 8);
     }
     ctx.stroke();
 
     // Key highlight — find the bracket portion like "[G]" or "[Y]"
-    const keyMatch = text.match(/^\[([A-Z])\]:/);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -600,7 +622,7 @@ export class InteractionPromptSystem {
       ctx.font = '32px Arial';
       const actionWidth = ctx.measureText(actionPart).width;
       const totalWidth = keyWidth + actionWidth;
-      const startX = (TEX_WIDTH - totalWidth) / 2;
+      const startX = (texWidth - totalWidth) / 2;
 
       // Key part in accent color
       ctx.font = 'bold 34px Arial';
@@ -615,7 +637,7 @@ export class InteractionPromptSystem {
     } else {
       ctx.font = '32px Arial';
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillText(text, TEX_WIDTH / 2, TEX_HEIGHT / 2);
+      ctx.fillText(text, texWidth / 2, TEX_HEIGHT / 2);
     }
 
     tex.update();

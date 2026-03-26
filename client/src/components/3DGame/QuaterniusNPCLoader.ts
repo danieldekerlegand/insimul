@@ -95,15 +95,39 @@ export function isCompleteCharacterModel(bodyId: string): boolean {
     bodyId.startsWith(COMPLETE_CHARACTER_PREFIX_F);
 }
 
+/** Saved appearance override (stored in character.generationConfig.quaterniusAppearance) */
+export interface QuaterniusAppearanceOverride {
+  bodyId?: string;
+  hairId?: string | null;
+  outfitId?: string;
+}
+
 /**
  * Select a quaternius NPC configuration deterministically based on character attributes.
+ * If an override is provided (from character editor), uses those selections instead.
  * Prefers complete character models (outfit baked in) for visual consistency.
  */
 export function selectQuaterniusConfig(
   characterId: string,
   gender: Gender,
   role: NPCRole,
+  override?: QuaterniusAppearanceOverride,
 ): QuaterniusNPCConfig {
+  // If override is provided, look up the specific assets
+  if (override?.bodyId) {
+    const body = bodies.find(b => b.id === override.bodyId) || bodies.filter(b => b.gender === gender)[0];
+    if (isCompleteCharacterModel(body.id)) {
+      const dummyOutfit = outfits.filter((o) => o.gender === gender && o.part === 'full')[0];
+      return { body, hair: null, outfit: dummyOutfit };
+    }
+    const selectedHair = override.hairId === null ? null
+      : override.hairId ? (hair.find(h => h.id === override.hairId) || null)
+      : null;
+    const selectedOutfit = override.outfitId
+      ? (outfits.find(o => o.id === override.outfitId) || outfits.filter(o => o.gender === gender && o.part === 'full')[0])
+      : outfits.filter(o => o.gender === gender && o.part === 'full')[0];
+    return { body, hair: selectedHair, outfit: selectedOutfit };
+  }
   const hash = hashString(characterId);
 
   // Prefer complete character models (outfit baked in, no floating artifacts)
@@ -266,8 +290,9 @@ export class QuaterniusNPCLoader {
     characterId: string,
     gender: Gender,
     role: NPCRole,
+    override?: QuaterniusAppearanceOverride,
   ): Promise<QuaterniusNPCResult | null> {
-    const config = selectQuaterniusConfig(characterId, gender, role);
+    const config = selectQuaterniusConfig(characterId, gender, role, override);
     return this.load(characterId, config);
   }
 

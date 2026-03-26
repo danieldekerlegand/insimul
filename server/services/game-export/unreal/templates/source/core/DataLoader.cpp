@@ -106,7 +106,114 @@ FString UDataLoader::LoadBaseRules()
 
 FString UDataLoader::LoadSettlements()
 {
-    return LoadDataFile(TEXT("settlements.json"));
+    FString RawJson = LoadDataFile(TEXT("settlements.json"));
+    if (RawJson.IsEmpty()) return RawJson;
+
+    // Parse, map streetNetwork → streets with centroid re-centering, re-serialize
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(RawJson);
+    TArray<TSharedPtr<FJsonValue>> Settlements;
+    if (!FJsonSerializer::Deserialize(Reader, Settlements)) return RawJson;
+
+    for (auto& Val : Settlements)
+    {
+        TSharedPtr<FJsonObject>* SObj;
+        if (!Val->TryGetObject(SObj)) continue;
+        const TSharedPtr<FJsonObject>* SnObj;
+        if (!(*SObj)->TryGetObjectField(TEXT("streetNetwork"), SnObj)) continue;
+        const TArray<TSharedPtr<FJsonValue>>* StreetsArr;
+        if ((*SObj)->TryGetArrayField(TEXT("streets"), StreetsArr)) continue; // already mapped
+
+        // Compute lot centroid
+        double LotCX = 0, LotCZ = 0; int32 LotCount = 0;
+        const TArray<TSharedPtr<FJsonValue>>* LotsArr;
+        if ((*SObj)->TryGetArrayField(TEXT("lots"), LotsArr))
+        {
+            for (const auto& LotVal : *LotsArr)
+            {
+                const TSharedPtr<FJsonObject>* LotObj;
+                if (!LotVal->TryGetObject(LotObj)) continue;
+                double LX = 0, LZ = 0; bool bHasPos = false;
+                if ((*LotObj)->TryGetNumberField(TEXT("positionX"), LX)) { bHasPos = true; (*LotObj)->TryGetNumberField(TEXT("positionZ"), LZ); }
+                else { const TSharedPtr<FJsonObject>* PosObj; if ((*LotObj)->TryGetObjectField(TEXT("position"), PosObj)) { (*PosObj)->TryGetNumberField(TEXT("x"), LX); (*PosObj)->TryGetNumberField(TEXT("z"), LZ); bHasPos = true; } }
+                if (bHasPos) { LotCX += LX; LotCZ += LZ; LotCount++; }
+            }
+        }
+        if (LotCount > 0) { LotCX /= LotCount; LotCZ /= LotCount; }
+
+        // Compute waypoint centroid
+        double WpCX = 0, WpCZ = 0; int32 WpCount = 0;
+        const TArray<TSharedPtr<FJsonValue>>* SegsArr;
+        if ((*SnObj)->TryGetArrayField(TEXT("segments"), SegsArr))
+        {
+            for (const auto& SegVal : *SegsArr)
+            {
+                const TSharedPtr<FJsonObject>* SegObj;
+                if (!SegVal->TryGetObject(SegObj)) continue;
+                const TArray<TSharedPtr<FJsonValue>>* WpsArr;
+                if (!(*SegObj)->TryGetArrayField(TEXT("waypoints"), WpsArr)) continue;
+                for (const auto& WpVal : *WpsArr)
+                {
+                    const TSharedPtr<FJsonObject>* WpObj;
+                    if (!WpVal->TryGetObject(WpObj)) continue;
+                    double WX = 0, WZ = 0;
+                    if ((*WpObj)->TryGetNumberField(TEXT("x"), WX) && (*WpObj)->TryGetNumberField(TEXT("z"), WZ))
+                    { WpCX += WX; WpCZ += WZ; WpCount++; }
+                }
+            }
+        }
+        if (WpCount > 0) { WpCX /= WpCount; WpCZ /= WpCount; }
+
+        double DX = LotCX - WpCX, DZ = LotCZ - WpCZ;
+
+        // Build streets array
+        TArray<TSharedPtr<FJsonValue>> NewStreets;
+        if (SegsArr)
+        {
+            for (const auto& SegVal : *SegsArr)
+            {
+                const TSharedPtr<FJsonObject>* SegObj;
+                if (!SegVal->TryGetObject(SegObj)) continue;
+                TSharedRef<FJsonObject> Street = MakeShared<FJsonObject>();
+                Street->SetStringField(TEXT("id"), (*SegObj)->GetStringField(TEXT("id")));
+                Street->SetStringField(TEXT("name"), (*SegObj)->GetStringField(TEXT("name")));
+                double Width = 6; (*SegObj)->TryGetNumberField(TEXT("width"), Width);
+                Street->SetNumberField(TEXT("width"), Width);
+
+                TArray<TSharedPtr<FJsonValue>> MappedWps;
+                const TArray<TSharedPtr<FJsonValue>>* WpsArr;
+                if ((*SegObj)->TryGetArrayField(TEXT("waypoints"), WpsArr))
+                {
+                    for (const auto& WpVal : *WpsArr)
+                    {
+                        const TSharedPtr<FJsonObject>* WpObj;
+                        if (!WpVal->TryGetObject(WpObj)) continue;
+                        double WX = 0, WY = 0, WZ = 0;
+                        (*WpObj)->TryGetNumberField(TEXT("x"), WX);
+                        (*WpObj)->TryGetNumberField(TEXT("y"), WY);
+                        (*WpObj)->TryGetNumberField(TEXT("z"), WZ);
+                        TSharedRef<FJsonObject> NewWp = MakeShared<FJsonObject>();
+                        NewWp->SetNumberField(TEXT("x"), WX + DX);
+                        NewWp->SetNumberField(TEXT("y"), WY);
+                        NewWp->SetNumberField(TEXT("z"), WZ + DZ);
+                        MappedWps.Add(MakeShared<FJsonValueObject>(NewWp));
+                    }
+                }
+                Street->SetArrayField(TEXT("waypoints"), MappedWps);
+                TSharedRef<FJsonObject> Props = MakeShared<FJsonObject>();
+                Props->SetArrayField(TEXT("waypoints"), MappedWps);
+                Props->SetNumberField(TEXT("width"), Width);
+                Street->SetObjectField(TEXT("properties"), Props);
+                NewStreets.Add(MakeShared<FJsonValueObject>(Street));
+            }
+        }
+        (*SObj)->SetArrayField(TEXT("streets"), NewStreets);
+    }
+
+    // Re-serialize
+    FString Output;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+    FJsonSerializer::Serialize(Settlements, Writer);
+    return Output;
 }
 
 FString UDataLoader::LoadBuildings()
@@ -622,6 +729,21 @@ FString UDataLoader::LoadAssetManifest()
     return LoadDataFile(TEXT("asset-manifest.json"));
 }
 
+// ── Asset type inference ───────────────────────────────────────────────
+
+FString UDataLoader::InferAssetTypeFromPath(const FString& FilePath, bool bIsTexture) const
+{
+    if (!bIsTexture) return TEXT("model");
+    FString Lower = FilePath.ToLower();
+    if (Lower.Contains(TEXT("wall")) || Lower.Contains(TEXT("plaster")) || Lower.Contains(TEXT("brick")) || Lower.Contains(TEXT("planks")))
+        return TEXT("texture_wall");
+    if (Lower.Contains(TEXT("roof")) || Lower.Contains(TEXT("tiles")) || Lower.Contains(TEXT("slates")) || Lower.Contains(TEXT("corrugated")))
+        return TEXT("texture_material");
+    if (Lower.Contains(TEXT("ground")) || Lower.Contains(TEXT("floor")) || Lower.Contains(TEXT("cobblestone")) || Lower.Contains(TEXT("forrest")))
+        return TEXT("texture_ground");
+    return TEXT("texture");
+}
+
 // ── WorldIR caching & asset ID resolution ─────────────────────────────
 
 void UDataLoader::EnsureWorldIRCached()
@@ -676,7 +798,7 @@ FString UDataLoader::ResolveAssetById(const FString& AssetId)
     {
         FString Ext = FPaths::GetExtension(FilePath).ToLower();
         bool bIsTexture = (Ext == TEXT("png") || Ext == TEXT("jpg") || Ext == TEXT("jpeg"));
-        FString AssetType = bIsTexture ? TEXT("texture_wall") : TEXT("model");
+        FString AssetType = InferAssetTypeFromPath(FilePath, bIsTexture);
         FString MimeType;
         if (bIsTexture)
         {

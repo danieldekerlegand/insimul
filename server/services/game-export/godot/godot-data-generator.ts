@@ -386,6 +386,12 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     content: JSON.stringify(ir, null, 2),
   });
 
+  // Meta (world metadata, asset collection config, asset ID mappings)
+  files.push({
+    path: `${base}/meta.json`,
+    content: JSON.stringify(ir.meta, null, 2),
+  });
+
   // Individual data files
   const tables: { name: string; data: object[] }[] = [
     { name: 'characters', data: generateCharacters(ir) },

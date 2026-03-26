@@ -192,7 +192,7 @@ export async function exportBabylonProject(
   const selectedCollectionId = (ir.meta as any).selectedAssetCollectionId;
   if (selectedCollectionId) {
     console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
-    assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
+    assetBundle = await bundleAssetsFromCollection(selectedCollectionId, ir.meta.worldId);
 
     // If no assets were bundled from the collection, fall back to core assets
     if (assetBundle.assets.length === 0) {

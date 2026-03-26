@@ -31,6 +31,12 @@ namespace Insimul.Data
         public string worldType;
         public string seed;
         public int terrainSize;
+        /// <summary>Asset collection ID used for this world.</summary>
+        public string selectedAssetCollectionId;
+        /// <summary>Full 3D config from asset collection (serialized JSON — parse with a JSON library).</summary>
+        public string world3DConfig;
+        /// <summary>MongoDB asset ID → export file path entries for offline resolution.</summary>
+        public AssetIdEntry[] assetIdToPath;
     }
 
     [Serializable] public class GeographyData

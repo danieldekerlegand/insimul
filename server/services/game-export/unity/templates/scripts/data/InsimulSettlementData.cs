@@ -53,6 +53,22 @@ namespace Insimul.Data
 
         public InsimulLotData[] lots;
         public InsimulStreetNetwork streetNetwork;
+        /// <summary>Game-format streets mapped from streetNetwork with re-centered waypoints.</summary>
+        public GameStreet[] streets;
+    }
+
+    /// <summary>
+    /// A street in game-format coordinates, produced by mapping IR streetNetwork
+    /// segments with re-centered waypoints. Matches the 'streets' array from
+    /// FileDataSource.loadSettlements().
+    /// </summary>
+    [Serializable]
+    public class GameStreet
+    {
+        public string id;
+        public string name;
+        public Vec3Data[] waypoints;
+        public float width;
     }
 
     [Serializable]
