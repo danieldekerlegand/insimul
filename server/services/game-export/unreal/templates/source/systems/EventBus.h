@@ -19,6 +19,7 @@ enum class EInsimulEventType : uint8
     ConversationTurn    UMETA(DisplayName = "Conversation Turn"),
     QuestAccepted       UMETA(DisplayName = "Quest Accepted"),
     QuestCompleted      UMETA(DisplayName = "Quest Completed"),
+    QuestObjectiveCompleted UMETA(DisplayName = "Quest Objective Completed"),
     CombatAction        UMETA(DisplayName = "Combat Action"),
     ReputationChanged   UMETA(DisplayName = "Reputation Changed"),
     ItemPurchased       UMETA(DisplayName = "Item Purchased"),

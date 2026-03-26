@@ -16,6 +16,7 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("conversation_turn"),                 EInsimulEventType::ConversationTurn },
         { TEXT("quest_accepted"),                    EInsimulEventType::QuestAccepted },
         { TEXT("quest_completed"),                   EInsimulEventType::QuestCompleted },
+        { TEXT("quest_objective_completed"),         EInsimulEventType::QuestObjectiveCompleted },
         { TEXT("combat_action"),                     EInsimulEventType::CombatAction },
         { TEXT("reputation_changed"),                EInsimulEventType::ReputationChanged },
         { TEXT("item_purchased"),                    EInsimulEventType::ItemPurchased },

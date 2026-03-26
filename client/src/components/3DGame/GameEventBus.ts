@@ -30,6 +30,7 @@ export type GameEvent =
   | { type: 'npc_conversation_turn'; npcId: string; topicTag: string | undefined }
   | { type: 'quest_accepted'; questId: string; questTitle: string; assignedByNpcId?: string; assignedByNpcName?: string }
   | { type: 'quest_completed'; questId: string; assignedByNpcId?: string }
+  | { type: 'quest_objective_completed'; questId: string; objectiveId: string }
   | { type: 'combat_action'; actionType: string; targetId: string }
   | { type: 'reputation_changed'; factionId: string; delta: number }
   | { type: 'item_purchased'; itemId: string; itemName: string; quantity: number; totalPrice: number }

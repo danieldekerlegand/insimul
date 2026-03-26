@@ -18,6 +18,7 @@ namespace Insimul.Systems
         ConversationTurn,
         QuestAccepted,
         QuestCompleted,
+        QuestObjectiveCompleted,
         CombatAction,
         ReputationChanged,
         ItemCrafted,
@@ -120,7 +121,9 @@ namespace Insimul.Systems
         WritingSubmitted,
         ListeningCompleted,
         // Mining events
-        MineralMined
+        MineralMined,
+        // Exploration discovery events
+        InvestigationCompleted
     }
 
     /// <summary>
@@ -210,6 +213,13 @@ namespace Insimul.Systems
     {
         public override GameEventType EventType => GameEventType.QuestCompleted;
         public string questId;
+    }
+
+    public class QuestObjectiveCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.QuestObjectiveCompleted;
+        public string questId;
+        public string objectiveId;
     }
 
     public class CombatActionEvent : GameEvent
@@ -957,6 +967,16 @@ namespace Insimul.Systems
         public int quantity;
         public bool bonusItem;
         public string locationId;
+    }
+
+    public class InvestigationCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.InvestigationCompleted;
+        public string locationId;
+        public string locationName;
+        public string investigationPointId;
+        public string contentType;
+        public string content;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

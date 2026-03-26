@@ -13140,6 +13140,10 @@ export class BabylonGame {
       // Sync engine objective states to overlay FIRST so dataSource.loadQuests merges them
       this.syncObjectiveStatesToOverlay();
 
+      // Emit event for auto-save triggers and immediately persist quest progress
+      this.eventBus?.emit({ type: 'quest_objective_completed', questId, objectiveId });
+      this.worldStateManager?.saveQuestProgress().catch(() => {});
+
       const quests = await this.dataSource.loadQuests(this.config.worldId);
       const quest = quests.find((q: any) => q.id === questId);
       if (!quest) return;
@@ -13158,6 +13162,22 @@ export class BabylonGame {
         updatedProgress.visitedLocations = updatedProgress.visitedLocations || [];
         updatedProgress.visitedLocations.push(objectiveId);
       }
+
+      // Aggregate quest metadata from objective states
+      if (quest.objectives) {
+        const objs = quest.objectives as any[];
+        const photographed = objs.flatMap((o: any) => o.photographedSubjects || []);
+        if (photographed.length > 0) updatedProgress.photosMatched = photographed;
+        const texts = objs.flatMap((o: any) => o.textsRead || []);
+        if (texts.length > 0) updatedProgress.textsRead = texts;
+        const convCount = objs.filter((o: any) =>
+          (o.type === 'talk_to_npc' || o.type === 'complete_conversation') && o.completed
+        ).length;
+        if (convCount > 0) updatedProgress.conversationsCompleted = convCount;
+      }
+      // Include clues found from clue store
+      const clueCount = this.clueStore?.getClues()?.length ?? 0;
+      if (clueCount > 0) updatedProgress.cluesFound = clueCount;
 
       const allObjectivesComplete = quest.objectives?.every((obj: any) => obj.completed);
 

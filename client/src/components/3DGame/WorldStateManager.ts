@@ -28,6 +28,7 @@ import type { GameEventBus, GameEventType } from './GameEventBus';
 
 const SAVE_VERSION = 3;
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const QUEST_PROGRESS_SAVE_INTERVAL_MS = 60 * 1000; // 60 seconds
 const MAX_SAVE_SLOTS = 3;
 const AUTO_SAVE_DEBOUNCE_MS = 5_000; // debounce event-driven saves
 
@@ -104,6 +105,7 @@ export interface GameStateTarget {
 export const AUTO_SAVE_TRIGGER_EVENTS: GameEventType[] = [
   'quest_accepted',
   'quest_completed',
+  'quest_objective_completed',
   'quest_failed',
   'quest_abandoned',
   'assessment_completed',
@@ -166,6 +168,7 @@ function deepEqual(a: any, b: any): boolean {
 export class WorldStateManager {
   private dataSource: DataSource;
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
+  private questProgressTimer: ReturnType<typeof setInterval> | null = null;
   private lastSavedState: GameSaveState | null = null;
   private gameSource: GameStateSource | null = null;
   private questOverlay: PlaythroughQuestOverlay | null = null;
@@ -206,13 +209,16 @@ export class WorldStateManager {
     return this._isSaving;
   }
 
-  /** Start auto-saving every 5 minutes. */
+  /** Start auto-saving every 5 minutes + quest progress every 60 seconds. */
   startAutoSave(slotIndex: number = 0): void {
     this.stopAutoSave();
     this.autoSaveSlotIndex = slotIndex;
     this.autoSaveTimer = setInterval(() => {
       this.triggerAutoSave('interval');
     }, AUTO_SAVE_INTERVAL_MS);
+    this.questProgressTimer = setInterval(() => {
+      this.saveQuestProgress().catch(() => {});
+    }, QUEST_PROGRESS_SAVE_INTERVAL_MS);
   }
 
   /** Stop auto-save timer and remove event triggers. */
@@ -220,6 +226,10 @@ export class WorldStateManager {
     if (this.autoSaveTimer != null) {
       clearInterval(this.autoSaveTimer);
       this.autoSaveTimer = null;
+    }
+    if (this.questProgressTimer != null) {
+      clearInterval(this.questProgressTimer);
+      this.questProgressTimer = null;
     }
     this.clearDebouncedSave();
     this.detachTriggers();

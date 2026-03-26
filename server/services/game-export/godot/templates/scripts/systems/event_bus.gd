@@ -17,6 +17,7 @@ const EVENT_VOCABULARY_USED := "vocabulary_used"
 const EVENT_CONVERSATION_TURN := "conversation_turn"
 const EVENT_QUEST_ACCEPTED := "quest_accepted"
 const EVENT_QUEST_COMPLETED := "quest_completed"
+const EVENT_QUEST_OBJECTIVE_COMPLETED := "quest_objective_completed"
 const EVENT_COMBAT_ACTION := "combat_action"
 const EVENT_REPUTATION_CHANGED := "reputation_changed"
 const EVENT_ITEM_PURCHASED := "item_purchased"
@@ -160,7 +161,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_ITEM_COLLECTED, EVENT_ENEMY_DEFEATED, EVENT_LOCATION_VISITED,
 	EVENT_NPC_TALKED, EVENT_ITEM_DELIVERED, EVENT_VOCABULARY_USED,
 	EVENT_CONVERSATION_TURN, EVENT_QUEST_ACCEPTED, EVENT_QUEST_COMPLETED,
-	EVENT_COMBAT_ACTION, EVENT_REPUTATION_CHANGED, EVENT_ITEM_PURCHASED,
+	EVENT_QUEST_OBJECTIVE_COMPLETED, EVENT_COMBAT_ACTION, EVENT_REPUTATION_CHANGED, EVENT_ITEM_PURCHASED,
 	EVENT_GIFT_GIVEN, EVENT_ITEM_CRAFTED,
 	EVENT_LOCATION_DISCOVERED, EVENT_SETTLEMENT_ENTERED, EVENT_PUZZLE_SOLVED,
 	EVENT_ITEM_REMOVED, EVENT_ITEM_USED, EVENT_ITEM_DROPPED,
@@ -279,6 +280,7 @@ var _global_handlers: Array[Callable] = []
 ##   conversation_turn:   {type, npc_id, keywords}
 ##   quest_accepted:      {type, quest_id, quest_title, assigned_by_npc_id?, assigned_by_npc_name?}
 ##   quest_completed:     {type, quest_id, assigned_by_npc_id?}
+##   quest_objective_completed: {type, quest_id, objective_id}
 ##   combat_action:       {type, action_type, target_id}
 ##   reputation_changed:  {type, faction_id, delta}
 ##   item_crafted:        {type, item_id, item_name, quantity, taxonomy?}
