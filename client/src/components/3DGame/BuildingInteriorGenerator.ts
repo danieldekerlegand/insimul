@@ -21,6 +21,7 @@ import {
   Animation,
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
+import { InteriorDecorationGenerator } from './InteriorDecorationGenerator';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate, InteriorLightingPreset, LightingPreset } from '@shared/game-engine/types';
 import { InteriorLightingSystem, type LampPlacement } from './InteriorLightingSystem';
 import {
@@ -236,6 +237,7 @@ export class BuildingInteriorGenerator {
   private interiorConfigs: Record<string, InteriorTemplateConfig> = {};
   private lightingSystem: InteriorLightingSystem | null = null;
   private interiorTextures: Map<string, Texture> = new Map();
+  private decorationGenerator: InteriorDecorationGenerator;
 
   // When using a dedicated interior scene, interiors are placed at Y=0.
   // When sharing the overworld scene (legacy), they stack at Y=500+.
@@ -245,12 +247,14 @@ export class BuildingInteriorGenerator {
 
   constructor(scene: Scene) {
     this.scene = scene;
+    this.decorationGenerator = new InteriorDecorationGenerator(scene);
   }
 
   /** Switch the target scene (used when interiors render in a separate scene). */
   public setTargetScene(scene: Scene, dedicated: boolean = false): void {
     this.scene = scene;
     this.useDedicatedScene = dedicated;
+    this.decorationGenerator = new InteriorDecorationGenerator(scene);
   }
 
   /** Set the furniture model loader for glTF-based furniture. */
@@ -380,6 +384,12 @@ export class BuildingInteriorGenerator {
     const beds: BedAssignment[] = [];
     const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate, residentCount, beds, wealthTier);
     furniture.push(...roomFurniture);
+
+    // Generate decorative props (rugs, wall hangings, candles, etc.)
+    const decorations = this.decorationGenerator.generateDecorations(
+      buildingId, position, rooms, dims.height, buildingType, businessType,
+    );
+    furniture.push(...decorations);
 
     // Generate floating room labels above doorways
     const labelMeshes = this.generateRoomLabels(buildingId, position, rooms, dims.height);
