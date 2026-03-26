@@ -80,11 +80,16 @@ export const BUILDING_TYPE_DEFAULTS: Record<string, BuildingTypeDefaults> = {
   'townhouse':   { floors: 2, width: 8, depth: 12 },
   'mobile_home': { floors: 1, width: 6, depth: 10 },
 
+  // ── Entertainment ──
+  'Theater':      { floors: 2, width: 18, depth: 20 },
+
+  // ── Commercial: Auto Services ──
+  'AutoRepair':   { floors: 1, width: 20, depth: 24 },
+
   // ── Other/legacy ──
   'Tavern':       { floors: 2, width: 14, depth: 14, hasBalcony: true },
   'Inn':          { floors: 3, width: 16, depth: 14, hasBalcony: true },
   'Market':       { floors: 1, width: 20, depth: 15 },
-  'Theater':      { floors: 2, width: 18, depth: 20 },
   'Library':      { floors: 3, width: 16, depth: 14 },
   'ApartmentComplex': { floors: 5, width: 18, depth: 16, hasBalcony: true },
   'Windmill':     { floors: 3, width: 10, depth: 10 },

@@ -11,12 +11,13 @@ export const BUILDING_CATEGORY_GROUPINGS = {
   commercial_service: [
     'Bank', 'Hotel', 'Barbershop', 'Tailor', 'Bathhouse', 'DentalOffice',
     'OptometryOffice', 'Pharmacy', 'LawFirm', 'InsuranceOffice',
-    'RealEstateOffice', 'TattoParlor',
+    'RealEstateOffice', 'TattoParlor', 'AutoRepair',
   ] as const,
   civic: [
     'Church', 'TownHall', 'School', 'University', 'Hospital',
     'PoliceStation', 'FireStation', 'Daycare', 'Mortuary',
   ] as const,
+  entertainment: ['Theater'] as const,
   industrial: [
     'Factory', 'Farm', 'Warehouse', 'Blacksmith', 'Carpenter', 'Butcher',
   ] as const,

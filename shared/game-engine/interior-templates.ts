@@ -564,6 +564,32 @@ const FISH_MARKET_FURNITURE: FurnitureEntry[] = [
   { type: 'crate', offsetXFraction: 0.35, offsetZFraction: -0.3, width: 0.8, height: 0.6, depth: 0.8, color: CRATE_TAN },
 ];
 
+// Theater furniture
+const THEATER_SEATING_FURNITURE: FurnitureEntry[] = [
+  { type: 'bench', offsetXFraction: -0.3, offsetZFraction: -0.3, width: 3, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: 0.3, offsetZFraction: -0.3, width: 3, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: -0.3, offsetZFraction: 0, width: 3, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: 0.3, offsetZFraction: 0, width: 3, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: -0.3, offsetZFraction: 0.3, width: 3, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'bench', offsetXFraction: 0.3, offsetZFraction: 0.3, width: 3, height: 0.8, depth: 0.6, color: PEW_BROWN },
+];
+
+const THEATER_STAGE_FURNITURE: FurnitureEntry[] = [
+  { type: 'platform', offsetXFraction: 0, offsetZFraction: 0, width: 8, height: 0.5, depth: 6, color: DARK_WOOD },
+  { type: 'crate', offsetXFraction: -0.35, offsetZFraction: 0.3, width: 0.8, height: 0.6, depth: 0.8, color: CRATE_TAN },
+  { type: 'crate', offsetXFraction: 0.35, offsetZFraction: 0.3, width: 0.8, height: 0.6, depth: 0.8, color: CRATE_TAN },
+];
+
+// Auto Repair furniture
+const GARAGE_BAY_FURNITURE: FurnitureEntry[] = [
+  { type: 'workbench', offsetXFraction: -0.4, offsetZFraction: -0.3, width: 2.5, height: 0.9, depth: 0.8, color: METAL_GRAY },
+  { type: 'workbench', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 2.5, height: 0.9, depth: 0.8, color: METAL_GRAY },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: -0.3, width: 1.2, height: 1.8, depth: 0.5, color: METAL_GRAY },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.2, height: 1.8, depth: 0.5, color: METAL_GRAY },
+  { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: 0, width: 0.8, height: 1.0, depth: 0.8, color: BARREL_BROWN },
+  { type: 'crate', offsetXFraction: -0.35, offsetZFraction: 0, width: 1.0, height: 0.6, depth: 1.0, color: CRATE_TAN },
+];
+
 // ─── Templates ───────────────────────────────────────────────────────────────
 
 export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
@@ -1459,6 +1485,48 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
       { roomFunction: 'waiting_room', furniture: WAITING_ROOM_FURNITURE },
       { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
       { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+    ],
+  },
+
+  // 44. Theater
+  {
+    id: 'theater',
+    category: 'entertainment',
+    buildingType: 'theater',
+    matchBusinessTypes: ['theater', 'theatre', 'playhouse'],
+    width: 18, depth: 20, height: 6,
+    floorCount: 2,
+    colors: { floor: DARK_WOOD, wall: { r: 0.5, g: 0.2, b: 0.18 }, ceiling: DARK_CEILING },
+    rooms: [
+      { name: 'auditorium', function: 'theater_auditorium', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'stage', function: 'theater_stage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'balcony', function: 'theater_balcony', offsetXFraction: 0, offsetZFraction: -0.3, widthFraction: 1, depthFraction: 0.4, floor: 1 },
+      { name: 'backstage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'theater_auditorium', furniture: THEATER_SEATING_FURNITURE },
+      { roomFunction: 'theater_stage', furniture: THEATER_STAGE_FURNITURE },
+      { roomFunction: 'theater_balcony', furniture: THEATER_SEATING_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
+    ],
+  },
+
+  // 45. Auto Repair
+  {
+    id: 'autorepair',
+    category: 'commercial_service',
+    buildingType: 'autorepair',
+    matchBusinessTypes: ['autorepair', 'auto repair', 'garage', 'mechanic'],
+    width: 20, depth: 24, height: 5,
+    floorCount: 1,
+    colors: { floor: STONE_GRAY, wall: STONE_LIGHT, ceiling: { r: 0.4, g: 0.4, b: 0.42 } },
+    rooms: [
+      { name: 'garage_bay', function: 'garage_bay', offsetXFraction: 0, offsetZFraction: 0.15, widthFraction: 1, depthFraction: 0.7, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: 0, offsetZFraction: -0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'garage_bay', furniture: GARAGE_BAY_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
     ],
   },
 ];

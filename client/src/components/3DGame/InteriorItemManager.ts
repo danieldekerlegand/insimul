@@ -265,6 +265,26 @@ const INTERIOR_ITEM_PLACEMENTS: Record<string, ItemPlacement[]> = {
     { offsetX: -3, offsetZ: 5, height: 0 },           // barrel
     { offsetX: 3, offsetZ: 5, height: 0 },            // crate
   ],
+  theater: [
+    { offsetX: 0, offsetZ: 4, height: 0.5 },          // on stage
+    { offsetX: -3, offsetZ: 4, height: 0.5 },         // stage left
+    { offsetX: 3, offsetZ: 4, height: 0.5 },          // stage right
+    { offsetX: -4, offsetZ: -2, height: 0.8 },        // seating area left
+    { offsetX: 4, offsetZ: -2, height: 0.8 },         // seating area right
+    { offsetX: 0, offsetZ: -4, height: 0 },           // aisle floor
+    { offsetX: -6, offsetZ: 6, height: 0 },           // backstage left
+    { offsetX: 6, offsetZ: 6, height: 0 },            // backstage right
+  ],
+  autorepair: [
+    { offsetX: -4, offsetZ: 2, height: 0.9 },         // workbench left
+    { offsetX: 4, offsetZ: 2, height: 0.9 },          // workbench right
+    { offsetX: -6, offsetZ: -1, height: 1.4 },        // tool shelf
+    { offsetX: 6, offsetZ: -1, height: 1.4 },         // tool shelf
+    { offsetX: 0, offsetZ: 0, height: 0 },            // garage bay center
+    { offsetX: 0, offsetZ: 4, height: 0 },            // garage bay rear
+    { offsetX: -3, offsetZ: -5, height: 0.9 },        // office desk
+    { offsetX: 3, offsetZ: -5, height: 0.8 },         // office shelf
+  ],
 };
 
 /** Default placements when building type is not recognized. */

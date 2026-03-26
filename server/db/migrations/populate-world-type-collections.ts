@@ -168,9 +168,11 @@ const ALL_BUILDING_TYPES = [
   'Shop', 'GroceryStore', 'JewelryStore', 'BookStore', 'PawnShop', 'HerbShop',
   // commercial_service
   'Bank', 'Hotel', 'Barbershop', 'Tailor', 'Bathhouse', 'DentalOffice',
-  'OptometryOffice', 'Pharmacy', 'LawFirm', 'InsuranceOffice', 'RealEstateOffice', 'TattoParlor',
+  'OptometryOffice', 'Pharmacy', 'LawFirm', 'InsuranceOffice', 'RealEstateOffice', 'TattoParlor', 'AutoRepair',
   // civic
   'Church', 'TownHall', 'School', 'University', 'Hospital', 'PoliceStation', 'FireStation', 'Daycare', 'Mortuary',
+  // entertainment
+  'Theater',
   // industrial
   'Factory', 'Farm', 'Warehouse', 'Blacksmith', 'Carpenter', 'Butcher',
   // maritime
@@ -183,8 +185,9 @@ const CATEGORY_MAP: Record<string, string> = {};
 const CATEGORY_GROUPINGS: Record<string, string[]> = {
   commercial_food: ['Restaurant', 'Bar', 'Bakery', 'Brewery'],
   commercial_retail: ['Shop', 'GroceryStore', 'JewelryStore', 'BookStore', 'PawnShop', 'HerbShop'],
-  commercial_service: ['Bank', 'Hotel', 'Barbershop', 'Tailor', 'Bathhouse', 'DentalOffice', 'OptometryOffice', 'Pharmacy', 'LawFirm', 'InsuranceOffice', 'RealEstateOffice', 'TattoParlor'],
+  commercial_service: ['Bank', 'Hotel', 'Barbershop', 'Tailor', 'Bathhouse', 'DentalOffice', 'OptometryOffice', 'Pharmacy', 'LawFirm', 'InsuranceOffice', 'RealEstateOffice', 'TattoParlor', 'AutoRepair'],
   civic: ['Church', 'TownHall', 'School', 'University', 'Hospital', 'PoliceStation', 'FireStation', 'Daycare', 'Mortuary'],
+  entertainment: ['Theater'],
   industrial: ['Factory', 'Farm', 'Warehouse', 'Blacksmith', 'Carpenter', 'Butcher'],
   maritime: ['Harbor', 'Boatyard', 'FishMarket', 'CustomsHouse', 'Lighthouse'],
   residential: ['house', 'apartment', 'mansion', 'cottage', 'townhouse', 'mobile_home'],
