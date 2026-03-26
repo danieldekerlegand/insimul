@@ -84,6 +84,9 @@ export const KEY_CAMERA_MODE = 'KeyC';
 /** Open/close photo book panel */
 export const KEY_PHOTO_BOOK = 'KeyP';
 
+/** Open physical action radial menu when near an action hotspot */
+export const KEY_PHYSICAL_ACTION = 'KeyQ';
+
 // ─── Time Controls (BabylonGame.handleKeyDown) ─────────────────────────────
 
 /** Pause / resume game time */

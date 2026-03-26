@@ -494,6 +494,42 @@ export class PlayerActionSystem {
     return BUSINESS_ACTION_HOTSPOTS[lower] ?? [];
   }
 
+  /**
+   * Check availability of a set of physical actions given current player state.
+   * Returns definitions with canPerform flag and reason if unavailable.
+   */
+  checkAvailability(
+    actionTypes: PhysicalActionType[],
+  ): Array<{ definition: PhysicalActionDefinition; canPerform: boolean; reason?: string }> {
+    const energy = this.callbacks.getPlayerEnergy();
+    const seen = new Set<PhysicalActionType>();
+    const unique = actionTypes.filter((t) => { if (seen.has(t)) return false; seen.add(t); return true; });
+
+    return unique
+      .map((type) => ACTION_DEFINITIONS[type] as PhysicalActionDefinition | undefined)
+      .filter((def): def is PhysicalActionDefinition => !!def)
+      .map((definition) => {
+        if (this._currentAction) {
+          return { definition, canPerform: false, reason: 'Busy' };
+        }
+        if (energy < definition.energyCost) {
+          return { definition, canPerform: false, reason: 'Low energy' };
+        }
+        if (
+          definition.requiredTool &&
+          this.callbacks.hasInventoryItem &&
+          !this.callbacks.hasInventoryItem(definition.requiredTool)
+        ) {
+          return {
+            definition,
+            canPerform: false,
+            reason: `Need ${definition.requiredTool.replace(/_/g, ' ')}`,
+          };
+        }
+        return { definition, canPerform: true };
+      });
+  }
+
   dispose(): void {
     if (this._currentAction) {
       this.cancelAction();

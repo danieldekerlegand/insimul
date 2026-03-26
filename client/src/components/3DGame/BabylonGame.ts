@@ -48,6 +48,7 @@ import { BabylonGUIManager } from "@/components/3DGame/BabylonGUIManager.ts";
 import { BabylonChatPanel } from "@/components/3DGame/BabylonChatPanel.ts";
 import { BabylonQuestTracker } from "@/components/3DGame/BabylonQuestTracker.ts";
 import { BabylonRadialMenu } from "@/components/3DGame/BabylonRadialMenu.ts";
+import { PhysicalActionRadialMenu } from "@/components/3DGame/actions/PhysicalActionRadialMenu.ts";
 import { QuestObjectManager } from "@/components/3DGame/QuestObjectManager.ts";
 import { QuestIndicatorManager } from "@/components/3DGame/QuestIndicatorManager.ts";
 import { QuestWorldObjectLinker } from "@/components/3DGame/QuestWorldObjectLinker.ts";
@@ -210,6 +211,7 @@ import {
   KEY_CAMERA_MODE,
   KEY_PHOTO_BOOK,
   KEY_CYCLE_VEHICLE,
+  KEY_PHYSICAL_ACTION,
 } from "@/components/3DGame/KeyboardMap.ts";
 import { BabylonPhotographySystem, type SceneObject } from "@/components/3DGame/BabylonPhotographySystem.ts";
 import { BabylonPhotoBookPanel } from "@/components/3DGame/BabylonPhotoBookPanel.ts";
@@ -460,6 +462,7 @@ export class BabylonGame {
   private chatPanel: BabylonChatPanel | null = null;
   private questTracker: BabylonQuestTracker | null = null;
   private radialMenu: BabylonRadialMenu | null = null;
+  private physicalActionMenu: PhysicalActionRadialMenu | null = null;
   private questObjectManager: QuestObjectManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
   private questOfferPanel: QuestOfferPanel | null = null;
@@ -2524,8 +2527,9 @@ export class BabylonGame {
     // Initialize zone audio
     this.initializeZoneAudio(scene);
 
-    // Initialize radial menu
+    // Initialize radial menus
     this.radialMenu = new BabylonRadialMenu(scene);
+    this.physicalActionMenu = new PhysicalActionRadialMenu(scene);
 
     // Initialize quest object manager
     this.questObjectManager = new QuestObjectManager(scene);
@@ -10028,6 +10032,17 @@ export class BabylonGame {
       this.handleAttack();
     }
 
+    // Q - Physical action menu (when near action hotspot)
+    if (event.code === KEY_PHYSICAL_ACTION && !event.repeat) {
+      if (this.physicalActionMenu?.isOpen()) {
+        event.preventDefault();
+        this.physicalActionMenu.hide();
+      } else {
+        const handled = this.handlePhysicalActionMenu();
+        if (handled) event.preventDefault();
+      }
+    }
+
     // T - Target nearest enemy
     if (event.code === KEY_TARGET_ENEMY && !event.repeat) {
       event.preventDefault();
@@ -10217,13 +10232,59 @@ export class BabylonGame {
       }
 
       case 'action_hotspot': {
-        this.playerActionSystem?.handleInteraction(target);
+        // If multiple physical actions available nearby, show radial menu
+        const handled = this.handlePhysicalActionMenu();
+        if (!handled) {
+          // Fallback: single action from the targeted hotspot
+          this.playerActionSystem?.handleInteraction(target);
+        }
         break;
       }
 
       default:
         await this.handleProximityInteraction();
     }
+  }
+
+  /**
+   * Opens the physical action radial menu if there are nearby action hotspots.
+   * If exactly one action is available, performs it directly (skipping the menu).
+   * Returns true if the interaction was handled.
+   */
+  private handlePhysicalActionMenu(): boolean {
+    if (!this.playerActionSystem || !this.interactionPrompt) return false;
+    if (this.physicalActionMenu?.isOpen()) return false;
+
+    // Get player position
+    if (!this.playerMesh) return false;
+    const playerPos = this.playerMesh.getAbsolutePosition();
+
+    // Find all action hotspot types within range (larger radius for menu)
+    const nearbyTypes = this.interactionPrompt.getNearbyActionHotspotTypes(playerPos, 4);
+    if (nearbyTypes.length === 0) return false;
+
+    // Check availability for each action type
+    const available = this.playerActionSystem.checkAvailability(
+      nearbyTypes as import('./PlayerActionSystem').PhysicalActionType[],
+    );
+
+    // If exactly one action and it can be performed, do it directly
+    if (available.length === 1 && available[0].canPerform) {
+      this.playerActionSystem.startAction(available[0].definition);
+      return true;
+    }
+
+    // Show radial menu
+    this.physicalActionMenu?.show(
+      available,
+      (definition) => {
+        this.playerActionSystem?.startAction(definition);
+      },
+      () => {
+        // Menu closed — no-op
+      },
+    );
+    return true;
   }
 
   private async handleOpenChat(): Promise<void> {
@@ -13712,6 +13773,7 @@ export class BabylonGame {
     this.questIndicatorManager = null;
     this.questOfferPanel = null;
     this.radialMenu?.dispose();
+    this.physicalActionMenu?.dispose();
     this.questNotificationManager?.dispose();
     this.questNotificationManager = null;
     this.questLanguageFeedbackPanel?.dispose();

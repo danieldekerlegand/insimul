@@ -227,6 +227,22 @@ export class InteractionPromptSystem {
     return this._currentTarget;
   }
 
+  /**
+   * Get all unique action hotspot types registered within range of a position.
+   * Used by the physical action radial menu to show all available actions.
+   */
+  getNearbyActionHotspotTypes(playerPos: Vector3, maxDistance = MAX_FURNITURE_DISTANCE): string[] {
+    const types: Record<string, boolean> = {};
+    this.actionHotspotMeshes.forEach((info, mesh) => {
+      if (!mesh.isEnabled() || !mesh.isVisible) return;
+      const dist = Vector3.Distance(playerPos, mesh.getAbsolutePosition());
+      if (dist <= maxDistance) {
+        types[info.actionType] = true;
+      }
+    });
+    return Object.keys(types);
+  }
+
   // ── Main update (call from render loop, throttled) ────────────────────
 
   update(): void {
