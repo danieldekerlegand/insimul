@@ -105,6 +105,7 @@ import {
   placeLots,
   type StreetNetwork,
 } from '../../generators/street-network-generator';
+import { getEligibleBuildingTypes, type GeographyTag } from '@shared/game-engine/building-generation-rules';
 
 // ─────────────────────────────────────────────
 // Constants (match client-side values exactly)
@@ -1519,7 +1520,18 @@ export async function generateWorldIR(
     const buildingCount = Math.ceil(pop / 4);
     const lotPositions = generateLotPositions(placed.position, buildingCount, seed, s.id);
     const lots = lotsBySettlement.get(s.id) || [];
-    const settlementBusinesses = allBusinesses.filter((b: any) => b.settlementId === s.id);
+    const allSettlementBusinesses = allBusinesses.filter((b: any) => b.settlementId === s.id);
+
+    // Filter businesses to only eligible building types for this settlement
+    const terrainTag = (s.terrain || '').toLowerCase() as string;
+    const geography: GeographyTag[] = (['coast', 'river', 'mountains', 'forest'] as GeographyTag[])
+      .filter(g => terrainTag === g || terrainTag.includes(g));
+    const eligible = new Set(getEligibleBuildingTypes(
+      s.settlementType || 'town', pop, s.foundedYear, geography,
+    ));
+    const settlementBusinesses = allSettlementBusinesses.filter(
+      (b: any) => !b.businessType || eligible.has(b.businessType),
+    );
 
     // Map lots using persisted spatial data when available, falling back to generated positions
     const lotIRs: LotIR[] = lots.map((lot, i) => {
