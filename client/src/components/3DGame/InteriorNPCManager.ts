@@ -621,14 +621,33 @@ export class InteriorNPCManager {
   }
 
   /**
-   * Update interior NPC presence based on schedule data.
+   * Update interior NPC presence based on schedule data and business hours.
    * Called each frame while the player is inside a building.
    *
+   * - Removes employees/owner when the business closes
    * - Adds NPCs whose schedules say they should be at this building
    * - Removes NPCs whose schedules say they should be elsewhere
    */
   updateFromSchedules(): void {
-    if (!this.activeBuildingId || !this.activeInterior || !this.scheduleSource) return;
+    if (!this.activeBuildingId || !this.activeInterior) return;
+
+    // Check business hours: remove employees/owner when business closes
+    if (this.activeMetadata?.buildingType === 'business') {
+      const gameHour = this.callbacks.getGameHour?.() ?? 12;
+      const businessOpen = isBusinessOpen(this.activeMetadata.businessType, gameHour);
+      if (!businessOpen) {
+        // Business closed — remove all non-visitor NPCs
+        const placedIds = Array.from(this.placedNPCs.keys());
+        for (const npcId of placedIds) {
+          const npc = this.placedNPCs.get(npcId);
+          if (npc && npc.role !== 'visitor') {
+            this.removeNPCFromInterior(npcId);
+          }
+        }
+      }
+    }
+
+    if (!this.scheduleSource) return;
 
     const buildingId = this.activeBuildingId;
     const scheduledIds = this.scheduleSource.getScheduledNPCIds();

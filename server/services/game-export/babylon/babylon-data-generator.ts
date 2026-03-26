@@ -103,6 +103,12 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     content: JSON.stringify(ir.entities.buildings, null, 2),
   });
 
+  // Businesses (ownerId, businessType, etc. for NPC placement)
+  files.push({
+    path: 'public/data/businesses.json',
+    content: JSON.stringify(ir.entities.businesses, null, 2),
+  });
+
   // Roads
   files.push({
     path: 'public/data/roads.json',

@@ -1343,7 +1343,7 @@ export class FileDataSource implements DataSource {
     try {
       this.worldIR = await readDataFile('data/world_ir.json');
 
-      const [characters, npcs, quests, actions, rules, geography, theme, assetManifest, aiConfig, dialogueContexts, buildings] = await Promise.all([
+      const [characters, npcs, quests, actions, rules, geography, theme, assetManifest, aiConfig, dialogueContexts, buildings, businesses] = await Promise.all([
         readDataFile('data/characters.json').catch(() => []),
         readDataFile('data/npcs.json').catch(() => []),
         readDataFile('data/quests.json').catch(() => []),
@@ -1355,6 +1355,7 @@ export class FileDataSource implements DataSource {
         readDataFile('data/ai_config.json').catch(() => null),
         readDataFile('data/dialogue_contexts.json').catch(() => []),
         readDataFile('data/buildings.json').catch(() => []),
+        readDataFile('data/businesses.json').catch(() => []),
       ]);
 
       this.worldData = {
@@ -1370,6 +1371,7 @@ export class FileDataSource implements DataSource {
         aiConfig,
         dialogueContexts,
         buildings,
+        businesses,
       };
     } catch (error) {
       console.error('Failed to load world data:', error);
@@ -1826,11 +1828,11 @@ export class FileDataSource implements DataSource {
       (b: any) => b.settlementId === settlementId && b.businessId
     );
     console.log(`[FileDS] Matched ${buildings.length} businesses for settlement ${settlementId}`);
-    // Look up BusinessIR data for ownerId fallback
-    const businessIRs = settlement?.businesses || [];
+    // Look up BusinessIR data for ownerId/businessType fallback
+    const businessIRs: any[] = this.worldData?.businesses || [];
     return buildings.map((b: any) => {
       const bizIR = businessIRs.find((biz: any) => biz.id === b.businessId);
-      // Fallback: if occupantIds is empty but BusinessIR has ownerId, use it
+      // Use occupantIds when available; fall back to BusinessIR.ownerId
       const hasOccupants = b.occupantIds?.length > 0;
       const ownerId = hasOccupants ? b.occupantIds[0] : (bizIR?.ownerId || null);
       const employees = hasOccupants ? b.occupantIds.slice(1) : [];

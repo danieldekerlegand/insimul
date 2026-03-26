@@ -75,6 +75,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadBuildings();
 
+    /** Load businesses.json (ownerId, businessType for NPC placement). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadBusinesses();
+
     /** Load countries.json. */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadCountries();

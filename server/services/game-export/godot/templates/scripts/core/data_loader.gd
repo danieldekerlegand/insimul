@@ -321,6 +321,7 @@ func load_settlement_businesses(settlement_id: String) -> Array:
 				return businesses
 	# Fall back to deriving from buildings data
 	var all_buildings: Array = load_buildings()
+	var all_businesses: Array = load_businesses()
 	var result: Array = []
 	for b in all_buildings:
 		if str(b.get("settlementId", "")) == settlement_id and b.get("businessId", "") != "":
@@ -330,11 +331,10 @@ func load_settlement_businesses(settlement_id: String) -> Array:
 			# Fallback: look up BusinessIR.ownerId when occupantIds is empty
 			var biz_ir = null
 			var biz_id_str: String = str(b.get("businessId", ""))
-			if not has_occupants and businesses.size() > 0:
-				for biz in businesses:
-					if str(biz.get("id", "")) == biz_id_str:
-						biz_ir = biz
-						break
+			for biz in all_businesses:
+				if str(biz.get("id", "")) == biz_id_str:
+					biz_ir = biz
+					break
 			var owner_id = occupants[0] if has_occupants else (biz_ir.get("ownerId", null) if biz_ir != null else null)
 			var employees: Array = occupants.slice(1) if occupants.size() > 1 else []
 			var biz_type: String = spec.get("buildingRole", "Shop")

@@ -221,6 +221,11 @@ FString UDataLoader::LoadBuildings()
     return LoadDataFile(TEXT("buildings.json"));
 }
 
+FString UDataLoader::LoadBusinesses()
+{
+    return LoadDataFile(TEXT("businesses.json"));
+}
+
 FString UDataLoader::LoadCountries()
 {
     return LoadDataFile(TEXT("countries.json"));
@@ -914,51 +919,34 @@ FString UDataLoader::DeriveBusinessesFromBuildings(const FString& SettlementId) 
         }
         else
         {
-            // Fallback: look up BusinessIR.ownerId from geography businesses
-            FString GeoJson2 = LoadDataFile(TEXT("geography.json"));
-            if (!GeoJson2.IsEmpty())
+            // Fallback: look up BusinessIR.ownerId from businesses.json
+            FString BizJson = LoadDataFile(TEXT("businesses.json"));
+            if (!BizJson.IsEmpty())
             {
-                TSharedPtr<FJsonObject> GeoObj2;
-                if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(GeoJson2), GeoObj2) && GeoObj2.IsValid())
+                TArray<TSharedPtr<FJsonValue>> AllBiz;
+                if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(BizJson), AllBiz))
                 {
-                    const TArray<TSharedPtr<FJsonValue>>* Settlements2;
-                    if (GeoObj2->TryGetArrayField(TEXT("settlements"), Settlements2))
+                    for (auto& BVal : AllBiz)
                     {
-                        for (auto& SVal : *Settlements2)
+                        auto BObj = BVal->AsObject();
+                        if (!BObj.IsValid()) continue;
+                        FString BId;
+                        BObj->TryGetStringField(TEXT("id"), BId);
+                        if (BId == BusinessId)
                         {
-                            auto SObj = SVal->AsObject();
-                            if (!SObj.IsValid()) continue;
-                            FString SId;
-                            SObj->TryGetStringField(TEXT("id"), SId);
-                            if (SId != SettlementId) continue;
-                            const TArray<TSharedPtr<FJsonValue>>* Bizs;
-                            if (SObj->TryGetArrayField(TEXT("businesses"), Bizs))
+                            FString FallbackOwner;
+                            if (BObj->TryGetStringField(TEXT("ownerId"), FallbackOwner))
                             {
-                                for (auto& BVal : *Bizs)
-                                {
-                                    auto BObj = BVal->AsObject();
-                                    if (!BObj.IsValid()) continue;
-                                    FString BId;
-                                    BObj->TryGetStringField(TEXT("id"), BId);
-                                    if (BId == BusinessId)
-                                    {
-                                        FString FallbackOwner;
-                                        if (BObj->TryGetStringField(TEXT("ownerId"), FallbackOwner))
-                                        {
-                                            Biz->SetStringField(TEXT("ownerId"), FallbackOwner);
-                                        }
-                                        FString BizType, BizName;
-                                        if (BObj->TryGetStringField(TEXT("businessType"), BizType))
-                                        {
-                                            Biz->SetStringField(TEXT("businessType"), BizType);
-                                        }
-                                        if (BObj->TryGetStringField(TEXT("name"), BizName))
-                                        {
-                                            Biz->SetStringField(TEXT("name"), BizName);
-                                        }
-                                        break;
-                                    }
-                                }
+                                Biz->SetStringField(TEXT("ownerId"), FallbackOwner);
+                            }
+                            FString BizType, BizName;
+                            if (BObj->TryGetStringField(TEXT("businessType"), BizType))
+                            {
+                                Biz->SetStringField(TEXT("businessType"), BizType);
+                            }
+                            if (BObj->TryGetStringField(TEXT("name"), BizName))
+                            {
+                                Biz->SetStringField(TEXT("name"), BizName);
                             }
                             break;
                         }
