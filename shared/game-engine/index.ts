@@ -11,3 +11,4 @@ export * from './ir-types';
 export * from './asset-pipeline';
 export * from './vegetation-zones';
 export * from './building-style-presets';
+export * from './animation-registry';
