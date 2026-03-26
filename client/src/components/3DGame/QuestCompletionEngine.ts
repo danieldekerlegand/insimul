@@ -9,6 +9,12 @@
  * scene/visual concerns (mesh spawning, animations, proximity checks).
  */
 
+import {
+  type QuestActionMapping,
+  getMappingsForEvent,
+  matchesAllFields,
+} from '../../../../shared/game-engine/quest-action-mapping';
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface CompletionObjective {
@@ -1316,6 +1322,76 @@ export class QuestCompletionEngine {
         }
       }
     }
+  }
+
+  // ── Declarative game-event matcher ──────────────────────────────────────
+
+  /**
+   * Generic event matcher that uses the declarative quest-action mapping.
+   *
+   * Receives any game event object (must have a `type` string field),
+   * looks up which objective types can be satisfied by that event type,
+   * checks if any active (unlocked, incomplete) objective matches the
+   * event's fields, and completes or increments matching objectives.
+   *
+   * Supports:
+   * - Simple field matching (exact, contains, case-insensitive)
+   * - Quantity objectives (increments progress, completes at threshold)
+   * - Compound objectives (all match fields must pass simultaneously)
+   *
+   * Returns the number of objectives that were completed or progressed.
+   */
+  handleGameEvent(event: Record<string, unknown>): number {
+    const eventType = event.type as string;
+    if (!eventType) return 0;
+
+    const mappings = getMappingsForEvent(eventType);
+    if (mappings.length === 0) return 0;
+
+    let affected = 0;
+
+    for (const mapping of mappings) {
+      this.forEachObjective(undefined, mapping.objectiveType, (quest, obj) => {
+        // Check all match fields (compound: ALL must pass)
+        if (!matchesAllFields(mapping, event, obj as unknown as Record<string, unknown>)) {
+          return;
+        }
+
+        // For photograph_activity: compound check — if objective has targetActivity,
+        // the event must carry a matching activity on the subject
+        if (mapping.objectiveType === 'photograph_activity') {
+          const objActivity = (obj.targetActivity || '').toLowerCase();
+          const eventActivity = String(event.subjectActivity || event.activity || '').toLowerCase();
+          if (objActivity && (!eventActivity || !eventActivity.includes(objActivity))) {
+            return;
+          }
+        }
+
+        affected++;
+
+        if (mapping.quantity) {
+          const { currentField, requiredField, defaultRequired } = mapping.quantity;
+          const objAny = obj as any;
+          objAny[currentField] = (objAny[currentField] || 0) + 1;
+          const required = objAny[requiredField] || defaultRequired;
+          if (objAny[currentField] >= required) {
+            this.completeObjective(quest.id, obj.id);
+          }
+        } else {
+          this.completeObjective(quest.id, obj.id);
+        }
+      });
+    }
+
+    return affected;
+  }
+
+  /**
+   * Get all mappings registered in the event catalog for a given event type.
+   * Useful for tooling and quest designer UIs.
+   */
+  static getMappingsForEvent(eventType: string): QuestActionMapping[] {
+    return getMappingsForEvent(eventType);
   }
 
   // ── Internal helper ─────────────────────────────────────────────────────
