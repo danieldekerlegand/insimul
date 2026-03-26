@@ -167,6 +167,7 @@ import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, getClothingColorForMesh, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { InteractionPromptSystem } from "@/components/3DGame/InteractionPromptSystem.ts";
+import { FurnitureInteractionManager } from "@/components/3DGame/FurnitureInteractionManager.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { NPCModularAssembler, deriveBodyType as deriveModularBodyType } from "@/components/3DGame/NPCModularAssembler.ts";
@@ -703,6 +704,9 @@ export class BabylonGame {
 
   // Unified interaction prompt — world-space billboard for all interactables
   private interactionPrompt: InteractionPromptSystem | null = null;
+
+  // Furniture interaction manager — chairs, beds, bookshelves, workstations
+  private furnitureInteractionManager: FurnitureInteractionManager | null = null;
 
   // World Object Action Manager — wires identify/examine/point-and-name/read-sign to world objects
   private worldObjectActionManager: WorldObjectActionManager | null = null;
@@ -1503,6 +1507,29 @@ export class BabylonGame {
     this.interactionPrompt.setIsSignObjectCallback((objectRole) => {
       return this.worldObjectActionManager?.isSignObject(objectRole) ?? false;
     });
+
+    // Initialize furniture interaction manager
+    this.furnitureInteractionManager = new FurnitureInteractionManager({
+      showToast: (opts) => this.guiManager?.showToast(opts),
+      showConfirm: async (_title, message) => window.confirm(message),
+      showLorePopup: (title, content) => {
+        this.guiManager?.showToast({ title, description: content, duration: 5000 });
+      },
+      setMovementLocked: (locked) => {
+        const ctrl = (this as any)._interiorPlayerController ?? this.playerController;
+        ctrl?.enableKeyBoard(!locked);
+      },
+      playPlayerAnimation: (_name) => { /* animation integration deferred */ },
+      stopPlayerAnimation: (_name) => { /* animation integration deferred */ },
+      getTruths: () => (this as any)._cachedTruths ?? [],
+      isPlayerOwnedBuilding: (_id) => false, // ownership not yet implemented
+      getCurrentBusinessType: () => this.currentBuildingBusinessType ?? null,
+      getCurrentBuildingId: () => this.activeInterior?.buildingId ?? null,
+    });
+    this.furnitureInteractionManager.setEventBus(this.eventBus);
+    if (this.gameTimeManager) {
+      this.furnitureInteractionManager.setTimeManager(this.gameTimeManager);
+    }
 
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
@@ -3472,6 +3499,7 @@ export class BabylonGame {
             (async () => {
               const prologContent = await this.dataSource.loadPrologContent(worldId);
               const truths = await this.dataSource.loadTruths(worldId);
+              (this as any)._cachedTruths = truths || [];
               await this.prologEngine!.initialize({
                 characters: characters || [],
                 settlements: settlements || [],
@@ -7590,6 +7618,21 @@ export class BabylonGame {
       this.interiorItemManager?.spawnItems(buildingId, this.activeInterior, this.worldItems);
     }
 
+    // Register furniture meshes for interaction prompts
+    if (this.activeInterior && this.interactionPrompt) {
+      this.interactionPrompt.clearFurniture();
+      for (const mesh of this.activeInterior.furniture) {
+        const meta = mesh.metadata;
+        if (meta?.isFurniture && meta.furnitureType) {
+          this.interactionPrompt.registerFurniture(mesh, meta.furnitureType, meta.furnitureSubType || meta.furnitureType, buildingId);
+          // Also register child meshes for ray-pick hit detection
+          for (const child of mesh.getChildMeshes()) {
+            this.interactionPrompt.registerFurniture(child, meta.furnitureType, meta.furnitureSubType || meta.furnitureType, buildingId);
+          }
+        }
+      }
+    }
+
     const label = businessType || buildingType || 'Building';
     this.guiManager?.showToast({
       title: `Entered ${label}`,
@@ -7733,6 +7776,11 @@ export class BabylonGame {
     this.activeBuildingId = null;
     this.savedOverworldPosition = null;
     this.currentBuildingBusinessType = undefined;
+
+    // Stand up if seated before exiting
+    this.furnitureInteractionManager?.standUp();
+    // Clear furniture registrations
+    this.interactionPrompt?.clearFurniture();
 
     // Clear business behavior tracking
     this.businessBehaviorSystem?.clearAll();
@@ -9925,6 +9973,11 @@ export class BabylonGame {
       case 'notice_board': {
         // Open the notice board panel
         this.noticeBoardPanel?.show();
+        break;
+      }
+
+      case 'furniture': {
+        await this.furnitureInteractionManager?.handleInteraction(target);
         break;
       }
 
@@ -12930,6 +12983,11 @@ export class BabylonGame {
     if (this.interactionPrompt) {
       this.interactionPrompt.dispose();
       this.interactionPrompt = null;
+    }
+    // Clean up furniture interaction manager
+    if (this.furnitureInteractionManager) {
+      this.furnitureInteractionManager.dispose();
+      this.furnitureInteractionManager = null;
     }
     // Clean up world object action manager
     if (this.worldObjectActionManager) {

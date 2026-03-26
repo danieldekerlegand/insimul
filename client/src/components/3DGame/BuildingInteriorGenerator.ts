@@ -112,6 +112,12 @@ export type WealthTier = 'poor' | 'middle' | 'wealthy';
 /** Furniture types that are interactive containers */
 const CONTAINER_TYPES = new Set(['chest', 'barrel', 'crate']);
 
+/** Furniture types that are interactable (non-container) */
+const SEAT_TYPES = new Set(['chair', 'stool', 'bench', 'pew']);
+const BED_TYPES = new Set(['bed', 'bed_single', 'bed_double']);
+const BOOKSHELF_TYPES = new Set(['bookshelf']);
+const WORKSTATION_TYPES = new Set(['counter', 'workbench', 'desk']);
+
 /** Furniture types best represented by a cylinder rather than a box */
 const CYLINDER_TYPES = new Set(['barrel', 'pillar', 'stool', 'cauldron']);
 
@@ -3213,7 +3219,33 @@ export class BuildingInteriorGenerator {
         };
       });
     } else {
-      mesh.isPickable = false;
+      // Tag other interactive furniture types
+      const furnitureType = SEAT_TYPES.has(spec.type) ? 'seat'
+        : BED_TYPES.has(spec.type) ? 'bed'
+        : BOOKSHELF_TYPES.has(spec.type) ? 'bookshelf'
+        : WORKSTATION_TYPES.has(spec.type) ? 'workstation'
+        : null;
+
+      if (furnitureType) {
+        mesh.isPickable = true;
+        mesh.metadata = {
+          ...(mesh.metadata || {}),
+          isFurniture: true,
+          furnitureType,
+          furnitureSubType: spec.type,
+        };
+        mesh.getChildMeshes().forEach((child) => {
+          child.isPickable = true;
+          child.metadata = {
+            ...(child.metadata || {}),
+            isFurniture: true,
+            furnitureType,
+            furnitureSubType: spec.type,
+          };
+        });
+      } else {
+        mesh.isPickable = false;
+      }
     }
   }
 

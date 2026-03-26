@@ -28,13 +28,16 @@ import type { QuestIndicatorType } from './QuestIndicatorManager';
 
 // ── Public types ──────────────────────────────────────────────────────────
 
+export type FurnitureInteractionType = 'seat' | 'bed' | 'bookshelf' | 'workstation';
+
 export type InteractableType =
   | 'npc'
   | 'npc_eavesdrop'
   | 'building'
   | 'sign'
   | 'object'
-  | 'notice_board';
+  | 'notice_board'
+  | 'furniture';
 
 export interface InteractableTarget {
   type: InteractableType;
@@ -45,6 +48,8 @@ export interface InteractableTarget {
   questIndicator?: QuestIndicatorType;
   /** For objects/signs */
   objectRole?: string;
+  /** For furniture interactions */
+  furnitureType?: FurnitureInteractionType;
   /** For eavesdrop targets */
   conversationPartnerName?: string;
 }
@@ -75,6 +80,7 @@ export type IsSignObjectFn = (objectRole: string) => boolean;
 const MAX_NPC_DISTANCE = 25;
 const MAX_BUILDING_DISTANCE = 15;
 const MAX_OBJECT_DISTANCE = 8;
+const MAX_FURNITURE_DISTANCE = 2.5;
 /** View-cone half-angle in degrees for fallback NPC detection */
 const CONE_HALF_ANGLE_DEG = 20;
 const COS_CONE = Math.cos(CONE_HALF_ANGLE_DEG * Math.PI / 180);
@@ -108,6 +114,7 @@ export class InteractionPromptSystem {
   /** External reference to the game's world prop array (shared, not copied) */
   private worldPropSource: Mesh[] | null = null;
   private noticeBoardMeshes = new Map<AbstractMesh, { id: string; name: string }>();
+  private furnitureMeshes = new Map<AbstractMesh, { furnitureType: FurnitureInteractionType; subType: string; buildingId?: string }>();
 
   // Callbacks
   private getConversationPartner: GetConversationPartnerFn | null = null;
@@ -185,6 +192,18 @@ export class InteractionPromptSystem {
     this.noticeBoardMeshes.set(mesh, { id, name });
   }
 
+  registerFurniture(mesh: AbstractMesh, furnitureType: FurnitureInteractionType, subType: string, buildingId?: string): void {
+    this.furnitureMeshes.set(mesh, { furnitureType, subType, buildingId });
+  }
+
+  unregisterFurniture(mesh: AbstractMesh): void {
+    this.furnitureMeshes.delete(mesh);
+  }
+
+  clearFurniture(): void {
+    this.furnitureMeshes.clear();
+  }
+
   // ── Query ─────────────────────────────────────────────────────────────
 
   /** The currently targeted interactable (null if nothing in view). */
@@ -251,6 +270,12 @@ export class InteractionPromptSystem {
         mesh,
         promptText: `[Enter]: Read ${nb.name}`,
       };
+    }
+
+    // Furniture (walk parent chain)
+    const furn = this.findFurnitureFromMesh(mesh);
+    if (furn && distance <= MAX_FURNITURE_DISTANCE) {
+      return this.buildFurnitureTarget(furn.mesh, furn.info);
     }
 
     // World prop (walk parent chain to find registered prop)
@@ -336,6 +361,19 @@ export class InteractionPromptSystem {
       }
     });
 
+    // Furniture
+    this.furnitureMeshes.forEach((info, mesh) => {
+      if (!mesh || (mesh as Mesh).isDisposed?.()) return;
+      const toTarget = mesh.absolutePosition.subtract(cameraPos);
+      const dist = toTarget.length();
+      if (dist > MAX_FURNITURE_DISTANCE || dist >= bestDist) return;
+      const dot = Vector3.Dot(toTarget.normalize(), fwd);
+      if (dot >= COS_CONE) {
+        bestDist = dist;
+        best = this.buildFurnitureTarget(mesh, info);
+      }
+    });
+
     return best;
   }
 
@@ -403,6 +441,38 @@ export class InteractionPromptSystem {
     };
   }
 
+  private buildFurnitureTarget(
+    mesh: AbstractMesh,
+    info: { furnitureType: FurnitureInteractionType; subType: string; buildingId?: string },
+  ): InteractableTarget {
+    const prettyName = this.formatObjectName(info.subType);
+    let promptText: string;
+    switch (info.furnitureType) {
+      case 'seat':
+        promptText = `[Enter]: Sit on ${prettyName}`;
+        break;
+      case 'bed':
+        promptText = `[Enter]: Sleep in ${prettyName}`;
+        break;
+      case 'bookshelf':
+        promptText = `[Enter]: Read ${prettyName}`;
+        break;
+      case 'workstation':
+        promptText = `[Enter]: Use ${prettyName}`;
+        break;
+      default:
+        promptText = `[Enter]: Interact with ${prettyName}`;
+    }
+    return {
+      type: 'furniture',
+      id: `furniture_${info.furnitureType}_${mesh.uniqueId}`,
+      name: prettyName,
+      mesh,
+      promptText,
+      furnitureType: info.furnitureType,
+    };
+  }
+
   // ── Mesh → interactable lookups ───────────────────────────────────────
 
   private findNPCFromMesh(mesh: AbstractMesh): RegisteredNPC | null {
@@ -436,6 +506,16 @@ export class InteractionPromptSystem {
     while (current) {
       const nb = this.noticeBoardMeshes.get(current);
       if (nb) return nb;
+      current = current.parent as AbstractMesh | null;
+    }
+    return null;
+  }
+
+  private findFurnitureFromMesh(mesh: AbstractMesh): { mesh: AbstractMesh; info: { furnitureType: FurnitureInteractionType; subType: string; buildingId?: string } } | null {
+    let current: AbstractMesh | null = mesh;
+    while (current) {
+      const info = this.furnitureMeshes.get(current);
+      if (info) return { mesh: current, info };
       current = current.parent as AbstractMesh | null;
     }
     return null;
@@ -543,6 +623,8 @@ export class InteractionPromptSystem {
         return 3.0;
       case 'object':
         return 2.0;
+      case 'furniture':
+        return 1.5;
       default:
         return 2.5;
     }
@@ -714,5 +796,6 @@ export class InteractionPromptSystem {
     this.buildingMeshes.clear();
     this.worldPropMeshes.clear();
     this.noticeBoardMeshes.clear();
+    this.furnitureMeshes.clear();
   }
 }

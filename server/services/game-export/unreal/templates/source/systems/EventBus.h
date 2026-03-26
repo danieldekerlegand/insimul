@@ -134,7 +134,13 @@ enum class EInsimulEventType : uint8
     VehicleMounted UMETA(DisplayName = "Vehicle Mounted"),
     VehicleDismounted UMETA(DisplayName = "Vehicle Dismounted"),
     // Photography events
-    PhotoTaken UMETA(DisplayName = "Photo Taken")
+    PhotoTaken UMETA(DisplayName = "Photo Taken"),
+    // Furniture interaction events
+    FurnitureSat UMETA(DisplayName = "Furniture Sat"),
+    FurnitureStood UMETA(DisplayName = "Furniture Stood"),
+    FurnitureSlept UMETA(DisplayName = "Furniture Slept"),
+    FurnitureReadLore UMETA(DisplayName = "Furniture Read Lore"),
+    FurnitureWorked UMETA(DisplayName = "Furniture Worked")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

@@ -116,6 +116,12 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("vehicle_dismounted"),                EInsimulEventType::VehicleDismounted },
         // Photography events
         { TEXT("photo_taken"),                       EInsimulEventType::PhotoTaken },
+        // Furniture interaction events
+        { TEXT("furniture_sat"),                     EInsimulEventType::FurnitureSat },
+        { TEXT("furniture_stood"),                   EInsimulEventType::FurnitureStood },
+        { TEXT("furniture_slept"),                   EInsimulEventType::FurnitureSlept },
+        { TEXT("furniture_read_lore"),               EInsimulEventType::FurnitureReadLore },
+        { TEXT("furniture_worked"),                  EInsimulEventType::FurnitureWorked },
     };
     return Map;
 }

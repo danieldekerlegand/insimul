@@ -137,6 +137,12 @@ export type GameEvent =
   | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number }
   // Container events
   | { type: 'container_opened'; containerId: string; containerType: string; buildingId?: string; location: 'interior' | 'outdoor'; itemCount: number }
+  // Furniture interaction events
+  | { type: 'furniture_sat'; furnitureType: string; buildingId?: string }
+  | { type: 'furniture_stood'; furnitureType: string; buildingId?: string }
+  | { type: 'furniture_slept'; hoursSlept: number; buildingId?: string }
+  | { type: 'furniture_read_lore'; truthId?: string; truthTitle: string; buildingId?: string }
+  | { type: 'furniture_worked'; buildingId: string; businessType: string }
   // Escort quest events
   | { type: 'escort_started'; questId: string; objectiveId: string; npcId: string; npcName?: string; destinationX: number; destinationZ: number }
   | { type: 'escort_completed'; questId: string; objectiveId: string; npcId: string }

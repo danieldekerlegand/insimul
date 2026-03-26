@@ -133,6 +133,12 @@ const EVENT_VEHICLE_MOUNTED := "vehicle_mounted"
 const EVENT_VEHICLE_DISMOUNTED := "vehicle_dismounted"
 # Photography events
 const EVENT_PHOTO_TAKEN := "photo_taken"
+# Furniture interaction events
+const EVENT_FURNITURE_SAT := "furniture_sat"
+const EVENT_FURNITURE_STOOD := "furniture_stood"
+const EVENT_FURNITURE_SLEPT := "furniture_slept"
+const EVENT_FURNITURE_READ_LORE := "furniture_read_lore"
+const EVENT_FURNITURE_WORKED := "furniture_worked"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -212,6 +218,12 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_VEHICLE_DISMOUNTED,
 	# Photography events
 	EVENT_PHOTO_TAKEN,
+	# Furniture interaction events
+	EVENT_FURNITURE_SAT,
+	EVENT_FURNITURE_STOOD,
+	EVENT_FURNITURE_SLEPT,
+	EVENT_FURNITURE_READ_LORE,
+	EVENT_FURNITURE_WORKED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
