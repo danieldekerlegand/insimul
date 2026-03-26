@@ -146,6 +146,7 @@ import { InteriorSceneManager, getInteriorModelPath } from "@/components/3DGame/
 import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITURE_SIZE_MAP, type OutdoorFurnitureType } from "@/components/3DGame/OutdoorFurnitureGenerator.ts";
 import { FurnitureModelLoader } from "@/components/3DGame/FurnitureModelLoader.ts";
 import { InteriorItemManager } from "@/components/3DGame/InteriorItemManager.ts";
+import { BookSpawnManager, type BookTextData } from "@/components/3DGame/BookSpawnManager.ts";
 import { ExteriorItemManager } from "@/components/3DGame/ExteriorItemManager.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData, type MenuClueData } from "@/components/3DGame/GameMenuSystem.ts";
 import { ClueStore } from "@/components/3DGame/ClueStore.ts";
@@ -702,6 +703,8 @@ export class BabylonGame {
   private isInsideBuilding: boolean = false;
   private interiorDoorTrigger: Mesh | null = null;
   private interiorItemManager: InteriorItemManager | null = null;
+  private bookSpawnManager: BookSpawnManager | null = null;
+  private worldTextCache: BookTextData[] = [];
   private exteriorItemManager: ExteriorItemManager | null = null;
   private buildingEntrySystem: BuildingEntrySystem | null = null;
   private interiorNPCManager: InteriorNPCManager | null = null;
@@ -3473,6 +3476,8 @@ export class BabylonGame {
     this.interiorGenerator = new BuildingInteriorGenerator(interiorScene);
     this.interiorGenerator.setTargetScene(interiorScene, true);
     this.interiorItemManager = new InteriorItemManager(interiorScene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
+    this.bookSpawnManager = new BookSpawnManager(interiorScene);
+    this.fetchWorldTextsForBooks();
     console.log('[Init] InteriorSceneManager ready:', !!this.interiorSceneManager);
     this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
       onTeleportPlayer: (pos: Vector3) => {
@@ -7694,6 +7699,8 @@ export class BabylonGame {
         const interiorScene = this.interiorSceneManager.getInteriorScene();
         this.interiorGenerator.setTargetScene(interiorScene, true);
         this.interiorItemManager = new InteriorItemManager(interiorScene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
+        this.bookSpawnManager = new BookSpawnManager(interiorScene);
+        this.fetchWorldTextsForBooks();
       }
     }
 
@@ -7874,6 +7881,19 @@ export class BabylonGame {
     // Spawn item props (only for procedural interiors)
     if (this.activeInterior) {
       this.interiorItemManager?.spawnItems(buildingId, this.activeInterior, this.worldItems);
+
+      // Spawn physical book meshes from server texts
+      if (this.bookSpawnManager && this.worldTextCache.length > 0) {
+        const spawnedBooks = this.bookSpawnManager.spawnBooks(buildingId, this.activeInterior, this.worldTextCache);
+        // Register book meshes with interaction prompt system for detection
+        if (this.interactionPrompt) {
+          for (const book of spawnedBooks) {
+            if (!book.collected) {
+              this.interactionPrompt.registerWorldProp(book.mesh);
+            }
+          }
+        }
+      }
     }
 
     // Register furniture meshes for interaction prompts
@@ -8042,8 +8062,9 @@ export class BabylonGame {
     }
     this.playerController?.resetPhysicsState();
 
-    // Clean up interior items and door trigger
+    // Clean up interior items, books, and door trigger
     this.interiorItemManager?.clearItems();
+    this.bookSpawnManager?.clearBooks();
     this.interiorDoorTrigger?.dispose();
     this.interiorDoorTrigger = null;
 
@@ -8521,6 +8542,89 @@ export class BabylonGame {
           duration: 2500,
         });
       }
+    }
+  }
+
+  /** Handle picking up a physical book from a shelf. */
+  private handleBookPickup(mesh: Mesh): void {
+    const bookData = mesh.metadata?.bookData;
+    if (!bookData?.textId) return;
+
+    // Mark as collected in BookSpawnManager
+    this.bookSpawnManager?.markCollected(bookData.textId);
+
+    // Unregister from interaction system
+    this.interactionPrompt?.unregisterWorldProp(mesh);
+
+    // Add to inventory as collectible/quest item
+    const isMainQuest = bookData.textCategory === 'book';
+    const item: InventoryItem = {
+      id: `book_${bookData.textId}`,
+      name: bookData.title,
+      description: bookData.titleTranslation || `A ${bookData.textCategory} to read in your Library.`,
+      type: isMainQuest ? 'quest' : 'collectible',
+      quantity: 1,
+      icon: 'book',
+      category: 'books',
+    };
+
+    // Check for quest matches
+    const questMatches = this.questObjectManager?.trackCollectedItemByName(item.name, undefined, item.category) || [];
+    if (questMatches.length > 0) {
+      item.type = 'quest';
+      item.questId = questMatches[0].questId;
+    }
+
+    if (this.inventory) {
+      this.inventory.addItem(item);
+    }
+
+    this.eventBus.emit({
+      type: 'item_collected',
+      itemId: item.id,
+      itemName: item.name,
+      quantity: 1,
+      taxonomy: { category: 'books', itemType: item.type },
+    });
+
+    // Show pickup toast
+    this.guiManager?.showToast({
+      title: `Picked up: ${bookData.title}`,
+      description: 'Added to your inventory. Read it in the Library tab.',
+      duration: 3000,
+    });
+
+    // Persist collection
+    this.dataSource.transferItem(this.config.worldId, {
+      toEntityId: 'player',
+      itemId: item.id,
+      itemName: item.name,
+      itemDescription: item.description,
+      itemType: item.type,
+      quantity: 1,
+      transactionType: 'collect',
+    }).catch(() => {});
+  }
+
+  /** Fetch server texts and cache for book spawning. */
+  private async fetchWorldTextsForBooks(): Promise<void> {
+    try {
+      const resp = await fetch(`/api/worlds/${this.config.worldId}/texts`);
+      if (!resp.ok) return;
+      const texts = await resp.json();
+      if (!Array.isArray(texts)) return;
+      this.worldTextCache = texts.map((t: any) => ({
+        id: t.id,
+        title: t.title || '',
+        titleTranslation: t.titleTranslation || '',
+        textCategory: t.textCategory || 'book',
+        cefrLevel: t.cefrLevel,
+        spawnLocationHint: t.spawnLocationHint || '',
+        authorName: t.authorName,
+        tags: t.tags,
+      }));
+    } catch {
+      // Texts unavailable — books won't spawn, which is fine
     }
   }
 
@@ -10368,6 +10472,11 @@ export class BabylonGame {
 
       case 'sign':
       case 'object': {
+        // Check if this is a book to pick up
+        if (target.objectRole === 'book' && target.mesh.metadata?.bookData) {
+          this.handleBookPickup(target.mesh as Mesh);
+          break;
+        }
         // Examine/read the object
         this.handleExamineObject();
         break;
@@ -13776,6 +13885,8 @@ export class BabylonGame {
     this.buildingEntrySystem = null;
     this.interiorItemManager?.dispose();
     this.interiorItemManager = null;
+    this.bookSpawnManager?.dispose();
+    this.bookSpawnManager = null;
     this.exteriorItemManager?.dispose();
     this.exteriorItemManager = null;
     this.interiorGenerator?.dispose();

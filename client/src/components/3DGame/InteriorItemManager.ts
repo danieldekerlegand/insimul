@@ -391,6 +391,7 @@ const ITEM_TYPE_COLORS: Record<string, Color3> = {
   collectible: new Color3(0.6, 0.55, 0.3),
   key: new Color3(0.7, 0.65, 0.2),
   quest: new Color3(0.3, 0.6, 0.7),
+  book: new Color3(0.5, 0.25, 0.2),
 };
 
 const DEFAULT_ITEM_COLOR = new Color3(0.5, 0.45, 0.4);

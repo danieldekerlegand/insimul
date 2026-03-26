@@ -476,6 +476,19 @@ export class InteractionPromptSystem {
       };
     }
 
+    // Book objects show pickup prompt with title
+    if (objectRole === 'book' && mesh.metadata?.bookData) {
+      const bookTitle = mesh.metadata.bookData.title || 'Book';
+      return {
+        type: 'object',
+        id: mesh.metadata.bookData.textId || objectRole,
+        name: bookTitle,
+        mesh,
+        promptText: `[G]: Pick up "${bookTitle}"`,
+        objectRole: 'book',
+      };
+    }
+
     return {
       type: 'object',
       id: objectRole,
