@@ -123,6 +123,27 @@ export const DEFAULT_OWNER_CYCLE: AnimationCycleEntry[] = [
 ];
 
 /**
+ * Patron animation cycles per business type.
+ * Patrons are customers visiting the business — they browse, eat, sit, etc.
+ */
+export const BUSINESS_PATRON_ANIMATIONS: Record<string, AnimationCycleEntry[]> = {
+  Restaurant:   [{ animation: 'eat', weight: 0.5 }, { animation: 'sit', weight: 0.3 }, { animation: 'idle', weight: 0.2 }],
+  Bar:          [{ animation: 'eat', weight: 0.4 }, { animation: 'sit', weight: 0.4 }, { animation: 'idle', weight: 0.2 }],
+  Shop:         [{ animation: 'idle', weight: 0.7 }, { animation: 'walk', weight: 0.3 }],
+  Bakery:       [{ animation: 'idle', weight: 0.7 }, { animation: 'walk', weight: 0.3 }],
+  GroceryStore: [{ animation: 'idle', weight: 0.6 }, { animation: 'walk', weight: 0.4 }],
+  Library:      [{ animation: 'sit', weight: 0.6 }, { animation: 'idle', weight: 0.4 }],
+  Church:       [{ animation: 'sit', weight: 0.7 }, { animation: 'idle', weight: 0.3 }],
+  Hospital:     [{ animation: 'sit', weight: 0.7 }, { animation: 'idle', weight: 0.3 }],
+  Hotel:        [{ animation: 'sit', weight: 0.6 }, { animation: 'idle', weight: 0.4 }],
+};
+
+/** Default patron animation cycle for unknown business types */
+export const DEFAULT_PATRON_CYCLE: AnimationCycleEntry[] = [
+  { animation: 'idle', weight: 0.6 }, { animation: 'sit', weight: 0.4 },
+];
+
+/**
  * Select a random animation from a cycle based on weights.
  */
 export function selectFromCycle(cycle: AnimationCycleEntry[]): AnimationCycleEntry['animation'] {
@@ -140,9 +161,13 @@ export function selectFromCycle(cycle: AnimationCycleEntry[]): AnimationCycleEnt
  */
 export function getBusinessAnimationCycle(
   businessType: string | undefined,
-  role: 'employee' | 'owner' | 'visitor',
+  role: 'employee' | 'owner' | 'visitor' | 'patron',
 ): AnimationCycleEntry[] {
   if (role === 'visitor') return [{ animation: 'idle', weight: 1 }];
+  if (role === 'patron') {
+    if (!businessType) return DEFAULT_PATRON_CYCLE;
+    return BUSINESS_PATRON_ANIMATIONS[businessType] ?? DEFAULT_PATRON_CYCLE;
+  }
   if (!businessType) return role === 'owner' ? DEFAULT_OWNER_CYCLE : DEFAULT_WORK_CYCLE;
   if (role === 'owner') return BUSINESS_OWNER_ANIMATIONS[businessType] ?? DEFAULT_OWNER_CYCLE;
   return BUSINESS_WORK_ANIMATIONS[businessType] ?? DEFAULT_WORK_CYCLE;

@@ -218,7 +218,8 @@ describe('InteriorNPCManager schedule-based entry/exit', () => {
 
     expect(manager.getPlacedNPC('owner-1')?.role).toBe('owner');
     expect(manager.getPlacedNPC('emp-1')?.role).toBe('employee');
-    expect(manager.getPlacedNPC('visitor-1')?.role).toBe('visitor');
+    // Non-staff NPCs in businesses are patrons (customers)
+    expect(manager.getPlacedNPC('visitor-1')?.role).toBe('patron');
   });
 
   it('does not duplicate NPCs across multiple updates', () => {

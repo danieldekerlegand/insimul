@@ -20,7 +20,7 @@
 
 import { Vector3 } from '@babylonjs/core';
 import type { StreetNetwork } from '../../../../shared/game-engine/types';
-import { BUSINESS_OPERATING_HOURS, isBusinessOpen } from './InteriorNPCManager';
+import { BUSINESS_OPERATING_HOURS, isBusinessOpen, PATRON_VISIT_DURATION } from './InteriorNPCManager';
 
 export interface NPCGoal {
   type: 'go_to_building' | 'wander_sidewalk' | 'idle_at_building' | 'visit_friend';
@@ -402,6 +402,19 @@ export class NPCScheduleSystem {
   }
 
   /**
+   * Get visit duration (ms) for a business based on its type.
+   * Restaurant/bar visits are longer (60-90 min), shop visits shorter (30-45 min).
+   * Duration is in game-minutes converted to real milliseconds (1 game-minute = 1000ms).
+   */
+  private getPatronVisitDuration(buildingId: string): number {
+    const bld = this.buildings.get(buildingId);
+    const bType = bld?.businessType;
+    const range = (bType && PATRON_VISIT_DURATION[bType]) || { min: 30, max: 60 };
+    const gameMinutes = this.randRange(range.min, range.max);
+    return gameMinutes * 1000; // 1 game-minute = 1000ms
+  }
+
+  /**
    * Deterministic hash from NPC ID + game day, producing a 0-1 float.
    * Ensures each NPC gets different-but-consistent choices per day.
    */
@@ -599,13 +612,13 @@ export class NPCScheduleSystem {
       }
       const shopId = this.pickRandomBusiness(entry.workBuildingId, hour);
       if (shopId) {
-        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+        return this.makeBuildingGoal(shopId, now, this.getPatronVisitDuration(shopId));
       }
     } else if (roll < socialWeight + Math.max(0, exploreWeight)) {
       // Explore: visit a random business or wander
       const shopId = this.pickRandomBusiness(undefined, hour);
       if (shopId && seedB > 0.3) {
-        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+        return this.makeBuildingGoal(shopId, now, this.getPatronVisitDuration(shopId));
       }
       return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
     }
@@ -633,36 +646,46 @@ export class NPCScheduleSystem {
       if (stayHome && hasHome && gameHour < 8) {
         return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(60000, 120000));
       }
-      // Otherwise visit shop or wander
+      // High probability of visiting an open business as a patron
       const shopId = this.pickRandomBusiness(undefined, gameHour);
-      if (shopId && seed1 < 0.4 + p.openness * 0.3) {
-        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+      if (shopId && seed1 < 0.6 + p.openness * 0.2) {
+        return this.makeBuildingGoal(shopId, now, this.getPatronVisitDuration(shopId));
       }
       return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
 
     } else if (gameHour < 14) {
       // Midday: visit business — agreeable NPCs may visit friends instead
-      const visitFriend = this.personalityCheck(0.2, p.agreeableness, 0.5, seed1);
+      const visitFriend = this.personalityCheck(0.15, p.agreeableness, 0.4, seed1);
       if (visitFriend) {
         const friendId = this.pickRandomFriend(entry);
         if (friendId) {
           return this.makeFriendVisitGoal(friendId, now, this.randRange(120000, 180000));
         }
       }
+      // Strong preference for visiting businesses during peak hours
       const shopId = this.pickRandomBusiness(undefined, gameHour);
-      if (shopId) {
-        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+      if (shopId && seed0 < 0.75 + p.extroversion * 0.15) {
+        return this.makeBuildingGoal(shopId, now, this.getPatronVisitDuration(shopId));
       }
       return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
 
     } else if (gameHour < 17) {
-      // Afternoon: personality-driven mix
+      // Afternoon: personality-driven mix with increased business visits
+      const shopId = this.pickRandomBusiness(undefined, gameHour);
+      if (shopId && seed2 < 0.55 + p.openness * 0.2) {
+        return this.makeBuildingGoal(shopId, now, this.getPatronVisitDuration(shopId));
+      }
       return this.pickEveningGoal(entry, p, now, seed2, seed3, gameHour);
 
     } else {
       // Evening: head home, but extroverts may stay out
       const stayOut = this.personalityCheck(0.2, p.extroversion, 0.5, seed3);
       if (stayOut) {
+        // Evening visits to bars/restaurants
+        const shopId = this.pickRandomBusiness(undefined, gameHour);
+        if (shopId) {
+          return this.makeBuildingGoal(shopId, now, this.getPatronVisitDuration(shopId));
+        }
         return this.pickEveningGoal(entry, p, now, seed2, seed3, gameHour);
       }
       if (hasHome) {

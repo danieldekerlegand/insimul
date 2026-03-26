@@ -24,7 +24,7 @@ export interface BusinessService {
   /** Icon/emoji for display */
   icon: string;
   /** Which NPC roles can offer this service */
-  availableToRoles: Array<'owner' | 'employee' | 'visitor'>;
+  availableToRoles: Array<'owner' | 'employee' | 'visitor' | 'patron'>;
 }
 
 /** Result of using a business service */

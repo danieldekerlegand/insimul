@@ -130,10 +130,10 @@ export class BusinessBehaviorSystem {
    */
   registerNPC(
     npcId: string,
-    role: 'owner' | 'employee' | 'visitor',
+    role: 'owner' | 'employee' | 'visitor' | 'patron',
     businessType: string
   ): void {
-    if (role === 'visitor') return; // Visitors don't perform work actions
+    if (role === 'visitor' || role === 'patron') return; // Visitors/patrons don't perform work actions
 
     const actions = this.getActionsForBusiness(businessType);
     // Randomize starting action so multiple NPCs aren't synchronized

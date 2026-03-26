@@ -16,20 +16,23 @@ import {
   type WorkAnimation,
 } from './AnimationAssetManager';
 
+/** NPC roles in a building */
+export type InteriorNPCRole = 'employee' | 'owner' | 'visitor' | 'patron';
+
 /** NPC data needed for interior placement */
 export interface InteriorNPCData {
   id: string;
   mesh: Mesh;
   characterData?: any;
-  /** Role of this NPC in the building: employee, owner, visitor */
-  role: 'employee' | 'owner' | 'visitor';
+  /** Role of this NPC in the building: employee, owner, visitor, patron */
+  role: InteriorNPCRole;
 }
 
 /** Positioned NPC inside an interior */
 export interface PlacedInteriorNPC {
   npcId: string;
   mesh: Mesh;
-  role: 'employee' | 'owner' | 'visitor';
+  role: InteriorNPCRole;
   /** Position within interior */
   interiorPosition: Vector3;
   /** Saved overworld position to restore on exit */
@@ -73,7 +76,7 @@ interface FurnitureRole {
   /** Offset from interior position */
   offset: Vector3;
   /** Which NPC roles can use this furniture */
-  forRoles: Array<'employee' | 'owner' | 'visitor'>;
+  forRoles: Array<InteriorNPCRole>;
   /** Animation to play at this position */
   animation: AnimationState;
   /** Which room zone this furniture belongs to (for multi-room interiors) */
@@ -107,7 +110,7 @@ export interface InteriorNPCCallbacks {
 /** Persistent furniture assignment for an NPC in a building */
 export interface PersistentNPCAssignment {
   npcId: string;
-  role: 'employee' | 'owner' | 'visitor';
+  role: InteriorNPCRole;
   furnitureName: string;
   furnitureIndex: number;
 }
@@ -169,6 +172,21 @@ export function isShiftActive(shift: 'day' | 'night', businessType: string | und
 /** Max NPCs to place in an interior for performance */
 const MAX_INTERIOR_NPCS = 6;
 
+/** Max patrons (customers) allowed in a business at once */
+const MAX_PATRONS_PER_BUSINESS = 4;
+
+/** Visit duration per business type in game-minutes [min, max] */
+export const PATRON_VISIT_DURATION: Record<string, { min: number; max: number }> = {
+  Bakery:       { min: 30, max: 45 },
+  Bar:          { min: 45, max: 90 },
+  Restaurant:   { min: 60, max: 90 },
+  Shop:         { min: 30, max: 45 },
+  GroceryStore: { min: 30, max: 45 },
+  Hospital:     { min: 30, max: 60 },
+  Church:       { min: 45, max: 90 },
+  School:       { min: 45, max: 60 },
+};
+
 /** Min/max animation cycle duration in milliseconds (10-30 seconds) */
 const ANIM_CYCLE_MIN_MS = 10_000;
 const ANIM_CYCLE_MAX_MS = 30_000;
@@ -204,6 +222,11 @@ const BUSINESS_FURNITURE_ROLES: Record<string, FurnitureRole[]> = {
     { name: 'kitchen', offset: new Vector3(0, 0, 4), forRoles: ['employee'], animation: 'work', roomFunction: 'kitchen' },
     { name: 'display', offset: new Vector3(-3, 0, 0), forRoles: ['employee'], animation: 'idle', roomFunction: 'shop' },
     { name: 'table', offset: new Vector3(3, 0, -3), forRoles: ['visitor'], animation: 'sit', roomFunction: 'shop' },
+    // Patron spots — browsing near display
+    { name: 'patron_browse1', offset: new Vector3(-2, 0, -1), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_browse2', offset: new Vector3(2, 0, 0), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_browse3', offset: new Vector3(-1, 0, -3), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_counter', offset: new Vector3(1, 0, -2.5), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
   ],
   Bar: [
     { name: 'bar', offset: new Vector3(0, 0, 1.5), forRoles: ['owner', 'employee'], animation: 'work', roomFunction: 'tavern_main' },
@@ -211,39 +234,74 @@ const BUSINESS_FURNITURE_ROLES: Record<string, FurnitureRole[]> = {
     { name: 'stool1', offset: new Vector3(-3, 0, -1), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
     { name: 'stool2', offset: new Vector3(3, 0, -1), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
     { name: 'table', offset: new Vector3(-4, 0, -3), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
+    // Patron spots — sitting at bar/tables, eating
+    { name: 'patron_stool1', offset: new Vector3(-1.5, 0, 0), forRoles: ['patron'], animation: 'sit', roomFunction: 'tavern_main' },
+    { name: 'patron_stool2', offset: new Vector3(1.5, 0, 0), forRoles: ['patron'], animation: 'eat', roomFunction: 'tavern_main' },
+    { name: 'patron_table1', offset: new Vector3(-3.5, 0, -4), forRoles: ['patron'], animation: 'sit', roomFunction: 'tavern_main' },
+    { name: 'patron_table2', offset: new Vector3(3.5, 0, -4), forRoles: ['patron'], animation: 'eat', roomFunction: 'tavern_main' },
   ],
   Restaurant: [
     { name: 'kitchen', offset: new Vector3(0, 0, 5), forRoles: ['owner', 'employee'], animation: 'work', roomFunction: 'tavern_kitchen' },
     { name: 'table1', offset: new Vector3(-3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
     { name: 'table2', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
     { name: 'serving', offset: new Vector3(0, 0, 0), forRoles: ['employee'], animation: 'walk', roomFunction: 'tavern_main' },
+    // Patron spots — sitting at tables, eating
+    { name: 'patron_table1', offset: new Vector3(-3, 0, -4), forRoles: ['patron'], animation: 'eat', roomFunction: 'tavern_main' },
+    { name: 'patron_table2', offset: new Vector3(3, 0, -4), forRoles: ['patron'], animation: 'eat', roomFunction: 'tavern_main' },
+    { name: 'patron_table3', offset: new Vector3(-1, 0, -1), forRoles: ['patron'], animation: 'sit', roomFunction: 'tavern_main' },
+    { name: 'patron_table4', offset: new Vector3(1, 0, -1), forRoles: ['patron'], animation: 'eat', roomFunction: 'tavern_main' },
   ],
   Shop: [
     { name: 'counter', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'idle', roomFunction: 'shop' },
     { name: 'shelf1', offset: new Vector3(-4, 0, 0), forRoles: ['employee'], animation: 'work', roomFunction: 'shop' },
     { name: 'storage', offset: new Vector3(0, 0, 5), forRoles: ['employee'], animation: 'work', roomFunction: 'storage' },
     { name: 'browsing', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'idle', roomFunction: 'shop' },
+    // Patron spots — standing near shelves, browsing
+    { name: 'patron_shelf1', offset: new Vector3(-3, 0, 1), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_shelf2', offset: new Vector3(3, 0, 1), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_browse1', offset: new Vector3(-2, 0, -3), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_counter', offset: new Vector3(1, 0, -2.5), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
   ],
   GroceryStore: [
     { name: 'counter', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'idle', roomFunction: 'shop' },
     { name: 'aisle', offset: new Vector3(-3, 0, 0), forRoles: ['visitor'], animation: 'walk', roomFunction: 'shop' },
     { name: 'storage', offset: new Vector3(0, 0, 5), forRoles: ['employee'], animation: 'work', roomFunction: 'storage' },
     { name: 'shelf', offset: new Vector3(3, 0, 1), forRoles: ['employee'], animation: 'work', roomFunction: 'shop' },
+    // Patron spots — browsing aisles
+    { name: 'patron_aisle1', offset: new Vector3(-2, 0, 1), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_aisle2', offset: new Vector3(2, 0, -1), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_aisle3', offset: new Vector3(-1, 0, -3), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'patron_counter', offset: new Vector3(1, 0, -2.5), forRoles: ['patron'], animation: 'idle', roomFunction: 'shop' },
   ],
   Hospital: [
     { name: 'desk', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'work' },
     { name: 'bed1', offset: new Vector3(-4, 0, -1), forRoles: ['visitor'], animation: 'idle' },
     { name: 'bed2', offset: new Vector3(4, 0, -1), forRoles: ['visitor'], animation: 'idle' },
+    // Patron spots — sitting in waiting area
+    { name: 'patron_wait1', offset: new Vector3(-2, 0, -3), forRoles: ['patron'], animation: 'sit' },
+    { name: 'patron_wait2', offset: new Vector3(2, 0, -3), forRoles: ['patron'], animation: 'sit' },
   ],
   Church: [
     { name: 'altar', offset: new Vector3(0, 0, 8), forRoles: ['owner', 'employee'], animation: 'talk', roomFunction: 'temple' },
     { name: 'pew1', offset: new Vector3(-3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'temple' },
     { name: 'pew2', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'temple' },
+    // Patron spots — sitting in pews
+    { name: 'patron_pew1', offset: new Vector3(-2, 0, 0), forRoles: ['patron'], animation: 'sit', roomFunction: 'temple' },
+    { name: 'patron_pew2', offset: new Vector3(2, 0, 0), forRoles: ['patron'], animation: 'sit', roomFunction: 'temple' },
+    { name: 'patron_pew3', offset: new Vector3(-3, 0, 2), forRoles: ['patron'], animation: 'sit', roomFunction: 'temple' },
+    { name: 'patron_pew4', offset: new Vector3(3, 0, 2), forRoles: ['patron'], animation: 'sit', roomFunction: 'temple' },
   ],
   School: [
     { name: 'desk', offset: new Vector3(0, 0, 4), forRoles: ['owner', 'employee'], animation: 'talk' },
     { name: 'seat1', offset: new Vector3(-3, 0, -2), forRoles: ['visitor'], animation: 'sit' },
     { name: 'seat2', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'sit' },
+  ],
+  // Hotel patron spots
+  Hotel: [
+    { name: 'desk', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'work' },
+    { name: 'lobby1', offset: new Vector3(-3, 0, -1), forRoles: ['patron'], animation: 'sit' },
+    { name: 'lobby2', offset: new Vector3(3, 0, -1), forRoles: ['patron'], animation: 'sit' },
+    { name: 'lobby3', offset: new Vector3(-2, 0, -3), forRoles: ['patron'], animation: 'sit' },
   ],
 };
 
@@ -407,9 +465,12 @@ export class InteriorNPCManager {
         interior.position.z + offset.z
       );
 
-      // Determine animation: use business-type-specific cycle for work positions
+      // Determine animation: use business-type-specific cycle for work/patron positions
       const baseAnim = furniture?.animation ?? 'idle';
-      const cycle = (baseAnim === 'work' || baseAnim === 'idle' && (npc.role === 'employee' || npc.role === 'owner'))
+      const useAnimCycle = npc.role === 'patron'
+        || baseAnim === 'work'
+        || (baseAnim === 'idle' && (npc.role === 'employee' || npc.role === 'owner'));
+      const cycle = useAnimCycle
         ? getBusinessAnimationCycle(metadata.businessType, npc.role)
         : undefined;
       const initialAnim = cycle ? selectFromCycle(cycle) : baseAnim;
@@ -443,8 +504,18 @@ export class InteriorNPCManager {
       // Set animation
       this.callbacks.onAnimationChange?.(npc.id, animState);
 
-      // Face toward door (player entry point)
-      this.callbacks.onFaceDirection?.(npc.id, interior.doorPosition);
+      // Patrons near the counter occasionally face and talk to the owner/employee
+      if (npc.role === 'patron' && furniture?.name.includes('counter')) {
+        const ownerNpc = placed.find(p => p.role === 'owner' || p.role === 'employee');
+        if (ownerNpc) {
+          this.callbacks.onFaceDirection?.(npc.id, ownerNpc.interiorPosition);
+        } else {
+          this.callbacks.onFaceDirection?.(npc.id, interior.doorPosition);
+        }
+      } else {
+        // Face toward door (player entry point)
+        this.callbacks.onFaceDirection?.(npc.id, interior.doorPosition);
+      }
     }
 
     // Trigger greetings after a short delay
@@ -500,6 +571,13 @@ export class InteriorNPCManager {
    */
   getPlacedCount(): number {
     return this.placedNPCs.size;
+  }
+
+  /**
+   * Get the number of patrons currently in the interior.
+   */
+  getPatronCount(): number {
+    return Array.from(this.placedNPCs.values()).filter(n => n.role === 'patron').length;
   }
 
   /**
@@ -573,7 +651,30 @@ export class InteriorNPCManager {
       }
     }
 
-    // Add visitors: other NPCs who might be at this location
+    // Add patrons: NPCs visiting businesses as customers (separate from visitors)
+    if (metadata.buildingType === 'business' && businessOpen) {
+      const patronCandidates: Array<{ id: string; mesh: Mesh; characterData?: any }> = [];
+      const entries = Array.from(allNPCs.entries());
+      for (const [npcId, npc] of entries) {
+        if (addedIds.has(npcId)) continue;
+        if (candidates.length + patronCandidates.length >= MAX_INTERIOR_NPCS) break;
+        if (patronCandidates.length >= MAX_PATRONS_PER_BUSINESS) break;
+
+        // Patrons are NPCs who decided to visit this business — use extroversion + randomness
+        const extroversion = npc.characterData?.personality?.extroversion ?? 0.5;
+        if (Math.random() < 0.3 + extroversion * 0.3) {
+          patronCandidates.push({ id: npcId, mesh: npc.mesh, characterData: npc.characterData });
+        }
+      }
+
+      for (const p of patronCandidates) {
+        if (candidates.length >= MAX_INTERIOR_NPCS) break;
+        candidates.push({ id: p.id, mesh: p.mesh, characterData: p.characterData, role: 'patron' });
+        addedIds.add(p.id);
+      }
+    }
+
+    // Add visitors: other NPCs who might be at this location (friends, acquaintances)
     // Prioritize by relationship strength with player
     const shouldAddVisitors = metadata.buildingType === 'business'
       ? businessOpen
@@ -633,7 +734,7 @@ export class InteriorNPCManager {
    */
   private findFurnitureForRole(
     roles: FurnitureRole[],
-    npcRole: 'employee' | 'owner' | 'visitor',
+    npcRole: InteriorNPCRole,
     usedIndices: Set<number>
   ): number {
     // First try: exact role match on unused furniture
@@ -732,6 +833,17 @@ export class InteriorNPCManager {
       if (!npc.animationCycle || !npc.animationStartTime || !npc.animationDuration) continue;
       if (now - npc.animationStartTime < npc.animationDuration) continue;
 
+      // Patron near counter: occasionally trigger conversation with shop owner
+      if (npc.role === 'patron' && this.isNearCounter(npc) && Math.random() < 0.3) {
+        npc.animationState = 'talk';
+        npc.animationStartTime = now;
+        npc.animationDuration = randomCycleDuration();
+        this.callbacks.onAnimationChange?.(npc.npcId, 'talk');
+        // Make the nearest owner/employee face and respond
+        this.triggerCounterConversation(npc);
+        continue;
+      }
+
       // Time to switch — pick next animation from cycle
       const nextAnim = selectFromCycle(npc.animationCycle);
       const nextState = resolveAnimationState(nextAnim);
@@ -741,6 +853,54 @@ export class InteriorNPCManager {
       npc.animationDuration = randomCycleDuration();
 
       this.callbacks.onAnimationChange?.(npc.npcId, nextState);
+    }
+  }
+
+  /**
+   * Check if a placed NPC is near a counter position (within 2 units).
+   */
+  private isNearCounter(npc: PlacedInteriorNPC): boolean {
+    if (!this.activeInterior || !this.activeMetadata?.businessType) return false;
+    const roles = this.getFurnitureRoles(this.activeInterior.buildingType, this.activeMetadata.businessType);
+    for (const role of roles) {
+      if (!role.name.includes('counter') && !role.name.includes('bar') && !role.name.includes('altar')) continue;
+      if (!role.forRoles.includes('owner') && !role.forRoles.includes('employee')) continue;
+      const counterPos = new Vector3(
+        this.activeInterior.position.x + role.offset.x,
+        this.activeInterior.position.y,
+        this.activeInterior.position.z + role.offset.z
+      );
+      const dx = npc.interiorPosition.x - counterPos.x;
+      const dz = npc.interiorPosition.z - counterPos.z;
+      if (dx * dx + dz * dz < 4) return true; // within 2 units
+    }
+    return false;
+  }
+
+  /**
+   * Trigger a brief conversation response from the nearest owner/employee
+   * when a patron talks near the counter.
+   */
+  private triggerCounterConversation(patron: PlacedInteriorNPC): void {
+    let nearestStaff: PlacedInteriorNPC | null = null;
+    let nearestDist = Infinity;
+    for (const npc of Array.from(this.placedNPCs.values())) {
+      if (npc.role !== 'owner' && npc.role !== 'employee') continue;
+      const dx = npc.interiorPosition.x - patron.interiorPosition.x;
+      const dz = npc.interiorPosition.z - patron.interiorPosition.z;
+      const dist = dx * dx + dz * dz;
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestStaff = npc;
+      }
+    }
+    if (nearestStaff) {
+      this.callbacks.onFaceDirection?.(nearestStaff.npcId, patron.interiorPosition);
+      this.callbacks.onAnimationChange?.(nearestStaff.npcId, 'talk');
+      // Staff will resume their normal cycle on next update
+      nearestStaff.animationState = 'talk';
+      nearestStaff.animationStartTime = Date.now();
+      nearestStaff.animationDuration = randomCycleDuration();
     }
   }
 
@@ -801,7 +961,10 @@ export class InteriorNPCManager {
       interior.position.z + offset.z
     );
     const baseAnim = furniture?.animation ?? 'idle';
-    const cycle = (baseAnim === 'work' || baseAnim === 'idle' && (role === 'employee' || role === 'owner'))
+    const useAnimCycle = role === 'patron'
+      || baseAnim === 'work'
+      || (baseAnim === 'idle' && (role === 'employee' || role === 'owner'));
+    const cycle = useAnimCycle
       ? getBusinessAnimationCycle(this.activeMetadata!.businessType, role)
       : undefined;
     const initialAnim = cycle ? selectFromCycle(cycle) : baseAnim;
@@ -855,7 +1018,7 @@ export class InteriorNPCManager {
   /**
    * Determine the role of an NPC in a building based on metadata.
    */
-  private resolveNPCRole(npcId: string, metadata: BuildingMetadata): 'employee' | 'owner' | 'visitor' {
+  private resolveNPCRole(npcId: string, metadata: BuildingMetadata): InteriorNPCRole {
     if (metadata.ownerId === npcId) return 'owner';
 
     if (metadata.employees) {
@@ -870,6 +1033,12 @@ export class InteriorNPCManager {
         const occId = typeof occ === 'string' ? occ : occ.id;
         if (occId === npcId) return 'owner';
       }
+    }
+
+    // Non-staff NPCs in businesses are patrons (customers), not visitors
+    if (metadata.buildingType === 'business') {
+      const patronCount = Array.from(this.placedNPCs.values()).filter(n => n.role === 'patron').length;
+      if (patronCount < MAX_PATRONS_PER_BUSINESS) return 'patron';
     }
 
     return 'visitor';
