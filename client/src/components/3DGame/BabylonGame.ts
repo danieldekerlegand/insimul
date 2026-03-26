@@ -2371,6 +2371,14 @@ export class BabylonGame {
     this.chatPanel.setOnWritingSubmitted((text: string, wordCount: number) => {
       this.questObjectManager?.trackWritingSubmission(text, wordCount);
     });
+    this.chatPanel.setOnConversationalAction((actions, turnState) => {
+      for (const action of actions) {
+        this.questObjectManager?.trackConversationalAction(action.action, action.npcId, action.topic, action.questId);
+        this.eventBus.emit({ type: 'conversational_action', action: action.action, topic: action.topic, npcId: action.npcId, questId: action.questId });
+      }
+      this.questObjectManager?.trackConversationTurnCounted(turnState.npcId, turnState.totalTurns, turnState.meaningfulTurns);
+      this.eventBus.emit({ type: 'conversation_turn_counted', npcId: turnState.npcId, totalTurns: turnState.totalTurns, meaningfulTurns: turnState.meaningfulTurns });
+    });
     this.chatPanel.setOnNPCSpeechUpdate((text: string) => {
       // Update the speech bubble above the NPC with the latest response text
       if (this.conversationNPCId && this.npcTalkingIndicator) {

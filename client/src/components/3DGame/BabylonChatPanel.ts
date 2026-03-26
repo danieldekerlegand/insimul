@@ -23,6 +23,7 @@ import { scorePronunciation, formatPronunciationFeedback } from "@shared/languag
 import { ConversationClient } from "./ConversationClient";
 import type { ConversationState } from "./ConversationClient";
 import type { DataSource } from "./DataSource";
+import { ConversationalActionDetector, type ConversationalAction, type NpcConversationTurnState, type DetectorContext } from "./ConversationalActionDetector";
 import { LocalAIClient } from "./LocalAIClient";
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
@@ -177,6 +178,9 @@ export class BabylonChatPanel {
   private onTalkRequested: (() => void) | null = null;
   private onNpcConversationTurn: ((npcId: string, topicTag: string | undefined) => void) | null = null;
   private onWritingSubmitted: ((text: string, wordCount: number) => void) | null = null;
+  private onConversationalAction: ((actions: ConversationalAction[], turnState: NpcConversationTurnState) => void) | null = null;
+  private conversationalActionDetector = new ConversationalActionDetector();
+  private _questTopics: Array<{ questId: string; keywords: string[] }> = [];
   private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
   private _relationshipManager: import('./RelationshipManager').RelationshipManager | null = null;
   private pendingTurnInQuests: any[] = [];
@@ -2838,6 +2842,24 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
         this.onWritingSubmitted(userMessage, playerWords.length);
       }
     }
+
+    // Detect conversational actions and record turn counts
+    if (this.onConversationalAction && this.character) {
+      const ctx: DetectorContext = {
+        npcId: this.character.id,
+        npcMessage: aiResponse,
+        playerMessage: userMessage,
+        targetLanguage: this._targetLanguage || undefined,
+        questTopics: this._questTopics.length > 0 ? this._questTopics : undefined,
+      };
+      const actions = this.conversationalActionDetector.detect(ctx);
+      const turnState = this.conversationalActionDetector.recordTurn(
+        this.character.id,
+        userMessage,
+        this._targetLanguage || undefined,
+      );
+      this.onConversationalAction(actions, turnState);
+    }
   }
 
   /**
@@ -2974,6 +2996,16 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
   /** Set callback for writing submissions (write_response / describe_scene objectives). */
   public setOnWritingSubmitted(callback: (text: string, wordCount: number) => void) {
     this.onWritingSubmitted = callback;
+  }
+
+  /** Set callback for conversational action detection results. */
+  public setOnConversationalAction(callback: (actions: ConversationalAction[], turnState: NpcConversationTurnState) => void) {
+    this.onConversationalAction = callback;
+  }
+
+  /** Update the quest topics used for asked_about_topic detection. */
+  public setQuestTopics(topics: Array<{ questId: string; keywords: string[] }>) {
+    this._questTopics = topics;
   }
 
   /** Set a function that provides additional system prompt text for specific NPCs. */

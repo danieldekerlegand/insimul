@@ -142,7 +142,10 @@ enum class EInsimulEventType : uint8
     FurnitureReadLore UMETA(DisplayName = "Furniture Read Lore"),
     FurnitureWorked UMETA(DisplayName = "Furniture Worked"),
     // Clue discovery events
-    ClueDiscovered UMETA(DisplayName = "Clue Discovered")
+    ClueDiscovered UMETA(DisplayName = "Clue Discovered"),
+    // Conversational action events
+    ConversationalAction UMETA(DisplayName = "Conversational Action"),
+    ConversationTurnCounted UMETA(DisplayName = "Conversation Turn Counted")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

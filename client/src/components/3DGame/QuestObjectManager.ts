@@ -2097,6 +2097,20 @@ export class QuestObjectManager {
   }
 
   /**
+   * Track a detected conversational action for quest objective completion.
+   */
+  public trackConversationalAction(action: string, npcId: string, topic?: string, questId?: string) {
+    this.completionEngine.trackConversationalAction(action, npcId, topic, questId);
+  }
+
+  /**
+   * Track accumulated conversation turns per NPC for arrival_conversation objectives.
+   */
+  public trackConversationTurnCounted(npcId: string, totalTurns: number, meaningfulTurns: number, questId?: string) {
+    this.completionEngine.trackConversationTurnCounted(npcId, totalTurns, meaningfulTurns, questId);
+  }
+
+  /**
    * Track NPC-initiated conversation acceptance for conversation_initiation objectives.
    */
   public trackConversationInitiation(npcId: string, accepted: boolean, responseQuality?: number, questId?: string) {

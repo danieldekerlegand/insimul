@@ -174,7 +174,9 @@ export type CompletionEvent =
   | { type: 'text_read'; textId: string; questId?: string }
   | { type: 'comprehension_answer'; isCorrect: boolean; questId?: string }
   | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; subjectActivity?: string; questId?: string }
-  | { type: 'assessment_phase_completed'; phaseId: string; score: number; maxScore: number; questId: string; objectiveId: string };
+  | { type: 'assessment_phase_completed'; phaseId: string; score: number; maxScore: number; questId: string; objectiveId: string }
+  | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
+  | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -320,6 +322,12 @@ export class QuestCompletionEngine {
         break;
       case 'assessment_phase_completed':
         this.completeObjective(event.questId, event.objectiveId);
+        break;
+      case 'conversational_action':
+        this.trackConversationalAction(event.action, event.npcId, event.topic, event.questId);
+        break;
+      case 'conversation_turn_counted':
+        this.trackConversationTurnCounted(event.npcId, event.totalTurns, event.meaningfulTurns, event.questId);
         break;
     }
   }
@@ -1034,6 +1042,68 @@ export class QuestCompletionEngine {
         }
       }
     }
+  }
+
+  // ── Conversational action tracking ─────────────────────────────────────
+
+  /**
+   * Track a detected conversational action against matching quest objectives.
+   * Objective types that can be completed by conversational actions:
+   * - asked_about_topic: player asked about a quest-relevant topic
+   * - used_target_language: player wrote in the target language
+   * - answered_question: player answered an NPC's question
+   * - requested_information: player asked for directions/help
+   * - made_introduction: player introduced themselves
+   * - arrival_initiate_conversation: completed when any action fires (conversation started)
+   * - arrival_conversation: completed via conversation_turn_counted
+   */
+  trackConversationalAction(action: string, npcId: string, topic?: string, questId?: string): void {
+    // Map action types to objective types they can fulfill
+    const actionToObjectiveTypes: Record<string, string[]> = {
+      asked_about_topic: ['asked_about_topic'],
+      used_target_language: ['used_target_language', 'arrival_writing'],
+      answered_question: ['answered_question'],
+      requested_information: ['requested_information', 'ask_for_directions'],
+      made_introduction: ['made_introduction', 'introduce_self'],
+    };
+
+    const targetTypes = actionToObjectiveTypes[action] || [action];
+
+    this.forEachObjective(questId, targetTypes, (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+
+      // For topic-based objectives, check topic match if specified
+      if (obj.type === 'asked_about_topic' && obj.targetWords && obj.targetWords.length > 0) {
+        if (topic && !obj.targetWords.includes(topic)) return;
+      }
+
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+
+    // Also fire arrival_initiate_conversation for any conversational action
+    // (proves the player initiated conversation with the NPC)
+    this.forEachObjective(questId, 'arrival_initiate_conversation', (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+      this.completeObjective(quest.id, obj.id);
+    });
+  }
+
+  /**
+   * Track accumulated conversation turns per NPC.
+   * Completes arrival_conversation objectives when meaningful turn count
+   * meets the required threshold.
+   */
+  trackConversationTurnCounted(npcId: string, totalTurns: number, meaningfulTurns: number, questId?: string): void {
+    this.forEachObjective(questId, 'arrival_conversation', (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+      obj.currentCount = meaningfulTurns;
+      if (meaningfulTurns >= (obj.requiredCount || 3)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
   }
 
   // ── Internal helper ─────────────────────────────────────────────────────

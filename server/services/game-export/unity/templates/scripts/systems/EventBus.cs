@@ -99,7 +99,18 @@ namespace Insimul.Systems
         PhotoTaken,
         // XP and level-up events
         XpGained,
-        LevelUp
+        LevelUp,
+        // Furniture interaction events
+        FurnitureSat,
+        FurnitureStood,
+        FurnitureSlept,
+        FurnitureReadLore,
+        FurnitureWorked,
+        // Clue discovery events
+        ClueDiscovered,
+        // Conversational action events
+        ConversationalAction,
+        ConversationTurnCounted
     }
 
     /// <summary>
@@ -820,6 +831,71 @@ namespace Insimul.Systems
         public int newLevel;
         public string tier;
         public LevelRewardData[] rewards;
+    }
+
+    // ── Furniture Interaction Events ──────────────────────────────────────────
+
+    public class FurnitureSatEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.FurnitureSat;
+        public string furnitureType;
+        public string buildingId;
+    }
+
+    public class FurnitureStoodEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.FurnitureStood;
+        public string furnitureType;
+        public string buildingId;
+    }
+
+    public class FurnitureSleptEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.FurnitureSlept;
+        public int hoursSlept;
+        public string buildingId;
+    }
+
+    public class FurnitureReadLoreEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.FurnitureReadLore;
+        public string truthId;
+        public string truthTitle;
+        public string buildingId;
+    }
+
+    public class FurnitureWorkedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.FurnitureWorked;
+        public string buildingId;
+        public string businessType;
+    }
+
+    public class ClueDiscoveredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ClueDiscovered;
+        public string clueId;
+        public string clueCategory;
+        public string clueSource;
+        public int clueCount;
+        public int totalClueCount;
+    }
+
+    public class ConversationalActionEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ConversationalAction;
+        public string action;
+        public string topic;
+        public string npcId;
+        public string questId;
+    }
+
+    public class ConversationTurnCountedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ConversationTurnCounted;
+        public string npcId;
+        public int totalTurns;
+        public int meaningfulTurns;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

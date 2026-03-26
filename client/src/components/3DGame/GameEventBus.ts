@@ -163,7 +163,10 @@ export type GameEvent =
   | { type: 'vehicle_mounted'; vehicleType: 'bicycle' | 'horse' }
   | { type: 'vehicle_dismounted'; vehicleType: 'bicycle' | 'horse' }
   // Clue discovery events
-  | { type: 'clue_discovered'; clueId: string; clueCategory: string; clueSource: string; clueCount: number; totalClueCount: number };
+  | { type: 'clue_discovered'; clueId: string; clueCategory: string; clueSource: string; clueCount: number; totalClueCount: number }
+  // Conversational action events (detected patterns during NPC dialogue)
+  | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
+  | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number };
 
 export type GameEventType = GameEvent['type'];
 
