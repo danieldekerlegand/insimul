@@ -2456,8 +2456,24 @@ export class BabylonGame {
     this.questOfferPanel = new QuestOfferPanel(scene);
     this.questOfferPanel.setOnResult(async (result, offer) => {
       if (result === 'accepted') {
-        // Open the chat panel with quest offering context so the NPC assigns the quest
-        await this.openChatWithQuestOffer(offer);
+        // Immediately create the quest via POST — don't rely on NPC emitting QUEST_ASSIGN
+        try {
+          const createdQuest = await this.createQuestFromOffer(offer);
+          // Notify quest assigned callback to update UI immediately
+          if (createdQuest) {
+            await this.handleQuestAssignedFromPanel(createdQuest);
+          }
+          // Then open chat so NPC can discuss the quest naturally (quest is already saved)
+          await this.openChatWithQuestOffer(offer);
+        } catch (err) {
+          console.error('[BabylonGame] Failed to create quest from offer:', err);
+          this.guiManager?.showToast({
+            title: 'Quest Error',
+            description: 'Failed to accept quest. Please try again.',
+            variant: 'destructive',
+            duration: 3000,
+          });
+        }
       } else {
         this.eventBus.emit({ type: 'quest_declined', npcId: offer.npcId, npcName: offer.npcName, questTitle: offer.questTitle });
         this.guiManager?.showToast({ title: 'Quest Declined', description: `You declined "${offer.questTitle}"`, duration: 2000 });
@@ -10344,6 +10360,105 @@ export class BabylonGame {
 
     // Open the regular chat flow
     await this.handleOpenChat();
+  }
+
+  /**
+   * Create a quest immediately from a quest offer panel acceptance.
+   * Returns the created quest data from the server.
+   */
+  private async createQuestFromOffer(offer: QuestOfferData): Promise<any> {
+    const worldId = this.config.worldId;
+
+    // Map difficulty to experience reward (same logic as BabylonChatPanel)
+    let experienceReward = 50;
+    const difficulty = (offer.difficulty || 'normal').toLowerCase();
+    if (difficulty === 'beginner') experienceReward = 10;
+    else if (difficulty === 'intermediate') experienceReward = 25;
+    else if (difficulty === 'advanced') experienceReward = 50;
+    else if (difficulty === 'easy') experienceReward = 50;
+    else if (difficulty === 'normal') experienceReward = 100;
+    else if (difficulty === 'hard') experienceReward = 200;
+    else if (difficulty === 'legendary') experienceReward = 500;
+
+    // Parse objectives from the offer string
+    const parsedObjectives: { description: string; type?: string }[] = [];
+    if (offer.objectives) {
+      const parts = offer.objectives.split(/[;,]|\d+\.\s+/).filter(p => p.trim());
+      for (const part of parts) {
+        parsedObjectives.push({ description: part.trim() });
+      }
+    }
+
+    const questData = {
+      assignedTo: 'Player',
+      assignedBy: offer.npcName,
+      assignedByCharacterId: offer.npcId,
+      title: offer.questTitle,
+      description: offer.questDescription,
+      questType: offer.questType || 'conversation',
+      difficulty,
+      targetLanguage: (this.worldData as any)?.targetLanguage || 'English',
+      status: 'active',
+      experienceReward,
+      gameType: (this.worldData as any)?.gameType || (this.worldData as any)?.worldType || 'language-learning',
+      objectives: parsedObjectives.length > 0 ? parsedObjectives : undefined,
+      rewards: offer.rewards,
+    };
+
+    const response = await fetch(`/api/worlds/${worldId}/quests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(questData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Quest creation failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Handle quest assignment from the quest offer panel.
+   * Same logic as the onQuestAssigned callback but called directly.
+   */
+  private async handleQuestAssignedFromPanel(questData: any): Promise<void> {
+    // Enforce one-active-at-a-time: demote existing active quests
+    const currentActive = (this.quests || []).filter((q: any) => q.status === 'active' && q.id !== questData.id);
+    for (const q of currentActive) {
+      try {
+        await this.dataSource.updateQuest(q.id, { status: 'available' });
+        q.status = 'available';
+      } catch (e) {
+        console.warn('[BabylonGame] Failed to demote quest:', q.id, e);
+      }
+    }
+
+    // Add new quest to local list
+    if (!this.quests) this.quests = [];
+    if (!this.quests.find((q: any) => q.id === questData.id)) {
+      this.quests.push(questData);
+    }
+
+    this.syncActiveQuestToHud();
+    this.questTracker?.updateQuests(this.config.worldId);
+    this.updateQuestIndicators();
+    this.guiManager?.showToast({
+      title: 'New Quest!',
+      description: questData.title || 'Quest assigned',
+    });
+    this.eventBus.emit({ type: 'quest_accepted', questId: questData.id || '', questTitle: questData.title || '' });
+
+    // Register listening comprehension quests when newly assigned
+    if (questData.completionCriteria?.type === 'listening_comprehension' && this.listeningComprehensionManager) {
+      this.listeningComprehensionManager.registerQuest(
+        questData.id,
+        questData.completionCriteria.storyNpcId || questData.assignedByCharacterId,
+        questData.completionCriteria.answerNpcId,
+        questData.completionCriteria.questions || [],
+        (this.worldData as any)?.targetLanguage,
+      );
+    }
   }
 
   /**
