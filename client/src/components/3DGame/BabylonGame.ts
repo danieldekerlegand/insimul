@@ -160,7 +160,7 @@ import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOve
 import { RelationshipManager } from "@/components/3DGame/RelationshipManager.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
-import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
+import { GameEventBus, type ItemAcquisitionSource } from "@/components/3DGame/GameEventBus.ts";
 import { GameTimeManager } from "@/components/3DGame/GameTimeManager.ts";
 import { WeatherSystem } from "@/components/3DGame/WeatherSystem.ts";
 import { DayNightCycle } from "@/components/3DGame/DayNightCycle.ts";
@@ -8447,23 +8447,14 @@ export class BabylonGame {
 
     const item = this.createInventoryItemForObjectRole(objectRole);
 
-    // Track quest matches before adding to inventory
-    const questMatches = this.questObjectManager?.trackCollectedItemByName(item.name, undefined, item.category) || [];
+    // Centralized acquisition (inventory + event + quest + toast + language overlay)
+    const questMatches = this.handleItemAcquired(item, 'world');
 
     // Tag as quest item if it matched a quest objective
     if (questMatches.length > 0) {
       item.type = 'quest';
       item.questId = questMatches[0].questId;
     }
-
-    if (this.inventory) {
-      this.inventory.addItem(item);
-    }
-
-    this.eventBus.emit({
-      type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1,
-      taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
-    });
 
     // Persist to server-side playthrough state
     this.dataSource.transferItem(this.config.worldId, {
@@ -8475,38 +8466,6 @@ export class BabylonGame {
       quantity: 1,
       transactionType: 'collect',
     }).catch(() => {});
-
-    // Show language learning word briefly if applicable
-    if (item.languageLearningData?.targetWord) {
-      this.showLanguageWordOverlay(item.languageLearningData.targetWord, item.languageLearningData.targetLanguage, item.name);
-    }
-
-    // Use target language name for language-learning games
-    const targetWord = item.languageLearningData?.targetWord;
-    const displayName = (targetWord && isLanguageLearningWorld(this.worldData))
-      ? targetWord
-      : item.name;
-
-    // Quest-context notification
-    if (questMatches.length > 0) {
-      const m = questMatches[0];
-      const progressText = m.required > 1 ? ` (${m.current}/${m.required})` : '';
-      const questDesc = m.completed ? 'Objective complete!' : m.objectiveDescription;
-      this.guiManager?.showToast({
-        title: `${displayName} collected!${progressText}`,
-        description: `Quest: ${questDesc}`,
-        duration: 3000,
-      });
-    } else {
-      const subtitle = (targetWord && isLanguageLearningWorld(this.worldData))
-        ? `(${item.name}) — ${item.description || ''}`
-        : (item.description || `Added to your inventory (${item.type})`);
-      this.guiManager?.showToast({
-        title: `Collected ${displayName}`,
-        description: subtitle,
-        duration: 2500,
-      });
-    }
   }
 
   /**
@@ -8707,31 +8666,12 @@ export class BabylonGame {
       category: 'books',
     };
 
-    // Check for quest matches
-    const questMatches = this.questObjectManager?.trackCollectedItemByName(item.name, undefined, item.category) || [];
+    // Centralized acquisition (inventory + event + quest + toast)
+    const questMatches = this.handleItemAcquired(item, 'world');
     if (questMatches.length > 0) {
       item.type = 'quest';
       item.questId = questMatches[0].questId;
     }
-
-    if (this.inventory) {
-      this.inventory.addItem(item);
-    }
-
-    this.eventBus.emit({
-      type: 'item_collected',
-      itemId: item.id,
-      itemName: item.name,
-      quantity: 1,
-      taxonomy: { category: 'books', itemType: item.type },
-    });
-
-    // Show pickup toast
-    this.guiManager?.showToast({
-      title: `Picked up: ${bookData.title}`,
-      description: 'Added to your inventory. Read it in the Library tab.',
-      duration: 3000,
-    });
 
     // Persist collection
     this.dataSource.transferItem(this.config.worldId, {
@@ -11212,6 +11152,89 @@ export class BabylonGame {
     }
   }
 
+  /**
+   * Centralized item acquisition handler. ALL item acquisition paths (container,
+   * shop, world pickup, gift, craft, quest reward) must funnel through this
+   * method so that inventory, events, quest tracking, and notifications stay
+   * consistent.
+   *
+   * Returns quest objective matches so callers can act on them (e.g. tagging
+   * items as quest items).
+   */
+  handleItemAcquired(
+    item: InventoryItem,
+    source: ItemAcquisitionSource,
+  ): import('./QuestCompletionEngine').CollectedItemMatch[] {
+    // 1. Add to inventory
+    this.inventory?.addItem(item);
+
+    // 2. Emit item_collected event
+    this.eventBus.emit({
+      type: 'item_collected',
+      itemId: item.id,
+      itemName: item.name,
+      quantity: item.quantity,
+      source,
+      taxonomy: {
+        category: item.category,
+        material: item.material,
+        baseType: item.baseType,
+        rarity: item.rarity,
+        itemType: item.type,
+      },
+    });
+
+    // 3. Track quest objectives
+    const questMatches = this.questObjectManager?.trackCollectedItemByName(
+      item.name, undefined, item.category,
+    ) || [];
+
+    // 4. Show pickup toast (with quest context if applicable)
+    const targetWord = item.languageLearningData?.targetWord;
+    const displayName = (targetWord && isLanguageLearningWorld(this.worldData))
+      ? targetWord
+      : item.name;
+
+    if (questMatches.length > 0) {
+      const m = questMatches[0];
+      const progressText = m.required > 1 ? ` (${m.current}/${m.required})` : '';
+      if (m.completed) {
+        // Prominent quest objective completion notification
+        this.guiManager?.showToast({
+          title: `\u2705 Quest objective completed!`,
+          description: `Collect ${displayName}${progressText}`,
+          duration: 4000,
+        });
+      } else {
+        this.guiManager?.showToast({
+          title: `${displayName} collected!${progressText}`,
+          description: `Quest: ${m.objectiveDescription}`,
+          duration: 3000,
+        });
+      }
+    } else {
+      const subtitle = (targetWord && isLanguageLearningWorld(this.worldData))
+        ? `(${item.name}) — ${item.description || ''}`
+        : (item.description || `Added to your inventory (${item.type})`);
+      this.guiManager?.showToast({
+        title: `Collected ${displayName}`,
+        description: subtitle,
+        duration: 2500,
+      });
+    }
+
+    // 5. Show language learning overlay if applicable
+    if (item.languageLearningData?.targetWord) {
+      this.showLanguageWordOverlay(
+        item.languageLearningData.targetWord,
+        item.languageLearningData.targetLanguage,
+        item.name,
+      );
+    }
+
+    return questMatches;
+  }
+
   private handleShopBuy(transaction: ShopTransaction): void {
     const item: InventoryItem = {
       id: transaction.item.id,
@@ -11224,14 +11247,14 @@ export class BabylonGame {
       tradeable: true,
     };
 
-    this.inventory?.addItem(item);
+    // Deduct gold before centralized acquisition
     this.playerGold -= transaction.totalPrice;
     this.inventory?.setGold(this.playerGold);
 
-    this.eventBus.emit({
-      type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity,
-      taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
-    });
+    // Centralized item acquisition (inventory + event + quest + toast)
+    this.handleItemAcquired(item, 'shop');
+
+    // Additional shop-specific events
     this.eventBus.emit({
       type: 'item_purchased', itemId: item.id, itemName: item.name, quantity: transaction.quantity, totalPrice: transaction.totalPrice,
     });
@@ -11247,9 +11270,6 @@ export class BabylonGame {
       transactionType: 'buy',
       totalPrice: transaction.totalPrice,
     }).catch(() => {});
-
-    // Check quest objectives for item collection
-    this.questObjectManager?.trackCollectedItemByName(item.name);
 
     // Emit mercantile events for quest tracking
     const merchantId = transaction.merchantId || '';
@@ -11354,7 +11374,7 @@ export class BabylonGame {
 
   private handleContainerTake(transaction: ContainerTransaction): void {
     const item = transaction.item;
-    this.inventory?.addItem({
+    this.handleItemAcquired({
       id: item.id,
       name: item.name,
       description: item.description,
@@ -11365,9 +11385,7 @@ export class BabylonGame {
       rarity: item.rarity,
       category: item.category,
       languageLearningData: item.languageLearningData,
-    });
-    this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity });
-    this.questObjectManager?.trackCollectedItemByName(item.name, undefined, item.category);
+    }, 'container');
   }
 
   private handleContainerPlace(transaction: ContainerTransaction): void {
@@ -13151,26 +13169,9 @@ export class BabylonGame {
 
     if (droppedItems.length === 0 && goldDrop <= 0) return;
 
-    // Add items directly to inventory and emit events
+    // Funnel each dropped item through centralized handler
     for (const item of droppedItems) {
-      this.inventory?.addItem(item);
-      this.eventBus.emit({
-        type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1,
-        taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
-      });
-      this.questObjectManager?.trackCollectedItemByName(item.name);
-    }
-
-    // Show loot toast
-    const lootDesc = droppedItems.map(i => i.name).join(', ');
-    const goldDesc = goldDrop > 0 ? `${goldDrop} gold` : '';
-    const parts = [lootDesc, goldDesc].filter(Boolean).join(' + ');
-    if (parts) {
-      this.guiManager?.showToast({
-        title: 'Loot Dropped!',
-        description: parts,
-        duration: 3000,
-      });
+      this.handleItemAcquired(item, 'world');
     }
   }
 
@@ -13555,7 +13556,7 @@ export class BabylonGame {
       });
     }
 
-    // Item rewards
+    // Item rewards — funnel through centralized handler
     const itemRewards = rewards.items || [];
     for (const rewardItem of itemRewards) {
       const item: InventoryItem = {
@@ -13567,7 +13568,7 @@ export class BabylonGame {
         value: rewardItem.value || 0,
         tradeable: true,
       };
-      this.inventory?.addItem(item);
+      this.handleItemAcquired(item, 'quest_reward');
     }
 
     // XP reward (store for future use)
@@ -13818,17 +13819,22 @@ export class BabylonGame {
     // Crafting system
     if (features.crafting && this.resourceSystem) {
       this.craftingSystem = new CraftingSystem(this.resourceSystem);
-      this.craftingSystem.setOnCraftComplete((item) => {
-        this.guiManager?.showToast({
-          title: `Crafted: ${item.icon} ${item.name}`,
-          description: `x${item.quantity}`,
-          duration: 3000,
-        });
-        // Track crafting for quest objectives
-        this.questObjectManager?.trackItemCrafted(item.name);
+      this.craftingSystem.setOnCraftComplete((craftedItem) => {
+        // Convert CraftedItem to InventoryItem for centralized handler
+        const invItem: InventoryItem = {
+          id: craftedItem.id,
+          name: craftedItem.name,
+          type: 'material',
+          quantity: craftedItem.quantity || 1,
+          category: craftedItem.category,
+        };
+        this.handleItemAcquired(invItem, 'craft');
+
+        // Crafting-specific quest tracking and event
+        this.questObjectManager?.trackItemCrafted(craftedItem.name);
         this.eventBus.emit({
-          type: 'item_crafted', itemId: item.name, itemName: item.name, quantity: item.quantity || 1,
-          taxonomy: { category: item.category, itemType: item.category },
+          type: 'item_crafted', itemId: craftedItem.name, itemName: craftedItem.name, quantity: craftedItem.quantity || 1,
+          taxonomy: { category: craftedItem.category, itemType: craftedItem.category },
         });
       });
       this.craftingSystem.setOnCraftFailed((_recipeId, reason) => {

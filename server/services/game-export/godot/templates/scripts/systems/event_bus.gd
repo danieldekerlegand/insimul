@@ -271,7 +271,7 @@ var _global_handlers: Array[Callable] = []
 ## Emit an event to all registered handlers.
 ## [param event] Dictionary with at least a "type" key.
 ## Expected payload shapes per type:
-##   item_collected:      {type, item_id, item_name, quantity, taxonomy?}
+##   item_collected:      {type, item_id, item_name, quantity, source?, taxonomy?}
 ##   enemy_defeated:      {type, entity_id, enemy_type}
 ##   location_visited:    {type, location_id, location_name}
 ##   npc_talked:          {type, npc_id, npc_name, turn_count}
@@ -352,6 +352,7 @@ var _global_handlers: Array[Callable] = []
 ##   day_changed:         {type, day, timestep}
 ##   time_of_day_changed: {type, from, to, hour}
 ##
+## source (optional String): "container", "shop", "world", "gift", "craft", "quest_reward"
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:
 	var event_type: String = event.get("type", "")

@@ -206,6 +206,8 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ItemName;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Quantity = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulItemTaxonomy Taxonomy;
+    /** Source of item acquisition: container, shop, world, gift, craft, quest_reward. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Source;
 
     // ── Entity / location fields ──────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString EntityId;

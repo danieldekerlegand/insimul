@@ -579,12 +579,18 @@ export class QuestCompletionEngine {
       const objName = (obj.itemName || '').toLowerCase();
       if (!objName) return;
 
-      // Match: exact, partial (collected name contains objective name or vice versa), or category
+      // Match: exact, substring (either direction), category (exact or substring), or word overlap
       const exactMatch = objName === key;
-      const partialMatch = key.includes(objName) || objName.includes(key);
-      const categoryMatch = catKey ? objName === catKey : false;
+      const substringMatch = key.includes(objName) || objName.includes(key);
+      const categoryExact = catKey ? objName === catKey : false;
+      const categorySubstring = catKey ? catKey.includes(objName) || objName.includes(catKey) : false;
+      // Word-boundary: split both into words and check if any objective word appears in item words
+      const objWords = objName.split(/\s+/);
+      const keyWords = key.split(/\s+/);
+      const wordOverlap = objWords.some(w => w.length >= 3 && keyWords.includes(w))
+        || keyWords.some(w => w.length >= 3 && objWords.includes(w));
 
-      if (!exactMatch && !partialMatch && !categoryMatch) return;
+      if (!exactMatch && !substringMatch && !categoryExact && !categorySubstring && !wordOverlap) return;
 
       // Quantity-based: increment collectedCount, complete when >= itemCount
       const required = obj.itemCount || 1;

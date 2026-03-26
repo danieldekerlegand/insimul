@@ -9,6 +9,9 @@
 
 // ── Event Types ─────────────────────────────────────────────────────────────
 
+/** Source of an item acquisition event. */
+export type ItemAcquisitionSource = 'container' | 'shop' | 'world' | 'gift' | 'craft' | 'quest_reward';
+
 /** Optional taxonomy fields carried on item events for Prolog assertion. */
 export interface ItemTaxonomy {
   category?: string;
@@ -19,7 +22,7 @@ export interface ItemTaxonomy {
 }
 
 export type GameEvent =
-  | { type: 'item_collected'; itemId: string; itemName: string; quantity: number; taxonomy?: ItemTaxonomy }
+  | { type: 'item_collected'; itemId: string; itemName: string; quantity: number; source?: ItemAcquisitionSource; taxonomy?: ItemTaxonomy }
   | { type: 'enemy_defeated'; entityId: string; enemyType: string }
   | { type: 'location_visited'; locationId: string; locationName: string }
   | { type: 'npc_talked'; npcId: string; npcName: string; turnCount: number }
