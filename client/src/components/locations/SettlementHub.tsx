@@ -1247,12 +1247,14 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                   <BuildingModelPreview
                     modelPath={selectedBuilding.modelPath}
                     interiorModelPath={getInteriorModelPath(
-                      selectedBuilding.type,
                       selectedBuilding.type === 'business'
                         ? selectedBuilding.data.businessType
                         : selectedBuilding.type === 'residence'
                           ? (selectedBuilding.data.residenceType || 'residence')
-                          : undefined
+                          : (selectedBuilding.data.buildingType || selectedBuilding.type),
+                      selectedBuilding.type === 'business'
+                        ? selectedBuilding.data.businessType
+                        : undefined
                     )}
                     tintColor={
                       selectedBuilding.type === 'business'

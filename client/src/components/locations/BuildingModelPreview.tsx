@@ -171,35 +171,11 @@ export function BuildingModelPreview({
     } else if (viewMode === 'interior') {
       if (interiorTemplate) {
         buildProceduralInterior(scene, camera, ground, interiorTemplate, interiorConfig, interiorAssets);
+        setMeshSource('model');
       } else {
-        // No specific template — generate a basic default interior
-        const defaultTemplate: InteriorLayoutTemplate = {
-          id: 'default',
-          buildingType: buildingType || 'default',
-          matchBusinessTypes: [],
-          width: 10,
-          depth: 8,
-          height: 3,
-          floorCount: 1,
-          colors: {
-            wall: { r: 0.85, g: 0.82, b: 0.75 },
-            floor: { r: 0.45, g: 0.35, b: 0.25 },
-            ceiling: { r: 0.9, g: 0.88, b: 0.85 },
-          },
-          rooms: [{
-            name: 'Main Room',
-            function: 'living',
-            offsetXFraction: 0,
-            offsetZFraction: 0,
-            widthFraction: 0.9,
-            depthFraction: 0.9,
-            floor: 0,
-          }],
-          furnitureSets: [],
-        };
-        buildProceduralInterior(scene, camera, ground, defaultTemplate, interiorConfig, interiorAssets);
+        // No template or model — signal that no interior is configured
+        setMeshSource('placeholder');
       }
-      setMeshSource('model');
       setIsLoading(false);
     } else {
       buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset, buildingType, interiorAssets);
@@ -229,15 +205,12 @@ export function BuildingModelPreview({
     if (cameraRef.current) cameraRef.current.radius = Math.min(20, cameraRef.current.radius + 0.8);
   };
 
-  // Resolve whether we have any interior to show (model or procedural template)
-  const resolvedInteriorTemplate = buildingType
-    ? getTemplateForBuildingType(buildingType, businessType)
-    : undefined;
-  const hasInterior = !!interiorModelPath || !!resolvedInteriorTemplate;
+  // Always show tabs when a building type is provided so users can see interior status
+  const hasInterior = !!buildingType || !!interiorModelPath;
 
   const sourceLabel = viewMode === 'interior'
-    ? (meshSource === 'model' ? 'Interior' : 'No Interior')
-    : (meshSource === 'model' ? (buildingType || '3D Model') : 'Placeholder');
+    ? (meshSource === 'model' ? 'Interior' : 'No interior configured')
+    : (meshSource === 'model' ? (buildingType || '3D Model') : 'Procedural');
 
   return (
     <div className={`flex flex-col ${className}`}>

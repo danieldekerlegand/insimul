@@ -126,6 +126,30 @@ describe('Interior Layout Templates', () => {
     }
   });
 
+  describe('Theater and AutoRepair templates exist', () => {
+    it('has template "theater"', () => {
+      expect(getTemplateById('theater')).toBeDefined();
+    });
+
+    it('has template "autorepair"', () => {
+      expect(getTemplateById('autorepair')).toBeDefined();
+    });
+
+    it('theater template has auditorium and stage rooms', () => {
+      const theater = getTemplateById('theater')!;
+      const roomFunctions = theater.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('theater_auditorium');
+      expect(roomFunctions).toContain('theater_stage');
+    });
+
+    it('autorepair template has garage_bay and office rooms', () => {
+      const autorepair = getTemplateById('autorepair')!;
+      const roomFunctions = autorepair.rooms.map(r => r.function);
+      expect(roomFunctions).toContain('garage_bay');
+      expect(roomFunctions).toContain('office');
+    });
+  });
+
   describe('subtype-specific templates exist', () => {
     const subtypeIds = [
       'bank', 'barbershop', 'tailor', 'pharmacy', 'law_firm',
@@ -206,7 +230,7 @@ describe('getTemplateById', () => {
 describe('getTemplateForBuildingType', () => {
   it('matches by business type', () => {
     expect(getTemplateForBuildingType('building', 'tavern')?.id).toBe('tavern');
-    expect(getTemplateForBuildingType('building', 'inn')?.id).toBe('tavern');
+    expect(getTemplateForBuildingType('building', 'inn')?.id).toBe('inn');
     expect(getTemplateForBuildingType('building', 'shop')?.id).toBe('shop');
   });
 
@@ -247,6 +271,31 @@ describe('getTemplateForBuildingType', () => {
 
   it('returns undefined when no match and no category', () => {
     expect(getTemplateForBuildingType('spaceship', 'alien')).toBeUndefined();
+  });
+
+  it('matches Theater by business type (case insensitive)', () => {
+    expect(getTemplateForBuildingType('business', 'Theater')?.id).toBe('theater');
+    expect(getTemplateForBuildingType('business', 'theater')?.id).toBe('theater');
+    expect(getTemplateForBuildingType('business', 'theatre')?.id).toBe('theater');
+  });
+
+  it('matches AutoRepair by business type (case insensitive)', () => {
+    expect(getTemplateForBuildingType('business', 'AutoRepair')?.id).toBe('autorepair');
+    expect(getTemplateForBuildingType('business', 'autorepair')?.id).toBe('autorepair');
+    expect(getTemplateForBuildingType('business', 'garage')?.id).toBe('autorepair');
+    expect(getTemplateForBuildingType('business', 'mechanic')?.id).toBe('autorepair');
+  });
+
+  it('matches Inn as its own template, not tavern', () => {
+    expect(getTemplateForBuildingType('business', 'inn')?.id).toBe('inn');
+  });
+
+  it('matches Library template', () => {
+    expect(getTemplateForBuildingType('business', 'library')?.id).toBe('library');
+  });
+
+  it('matches Stables template', () => {
+    expect(getTemplateForBuildingType('business', 'stables')?.id).toBe('stables');
   });
 });
 
@@ -331,7 +380,7 @@ describe('getTemplatesForCategory', () => {
 });
 
 describe('getTemplateCategories', () => {
-  it('returns all 7 building categories', () => {
+  it('returns all 9 building categories', () => {
     const categories = getTemplateCategories();
     expect(categories).toContain('commercial_food');
     expect(categories).toContain('commercial_retail');
@@ -340,7 +389,9 @@ describe('getTemplateCategories', () => {
     expect(categories).toContain('industrial');
     expect(categories).toContain('maritime');
     expect(categories).toContain('residential');
-    expect(categories.length).toBe(7);
+    expect(categories).toContain('entertainment');
+    expect(categories).toContain('professional');
+    expect(categories.length).toBe(9);
   });
 });
 
