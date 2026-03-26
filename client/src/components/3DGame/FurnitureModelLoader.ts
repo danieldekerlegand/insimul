@@ -33,6 +33,16 @@ export const FURNITURE_MODEL_PATHS: Record<string, string> = {
   chest: `${POLYHAVEN_PROPS_BASE}/treasure_chest/treasure_chest.gltf`,
 };
 
+/**
+ * Furniture types that use procedural mesh generation only (no glTF model).
+ * Listed here for documentation; the BuildingInteriorGenerator handles their geometry.
+ */
+export const PROCEDURAL_FURNITURE_TYPES = [
+  'bench', 'forge', 'anvil', 'altar', 'pew', 'workbench', 'pillar',
+  'oven', 'loom', 'display_case', 'lectern', 'throne', 'bed_single',
+  'bed_double', 'desk', 'cauldron', 'weapon_rack', 'armor_stand',
+] as const;
+
 export interface FurnitureTemplate {
   mesh: Mesh;
   originalHeight: number;

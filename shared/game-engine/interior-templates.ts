@@ -200,28 +200,30 @@ const GUILD_MAIN_FURNITURE: FurnitureEntry[] = [
 ];
 
 const LIBRARY_FURNITURE: FurnitureEntry[] = [
-  { type: 'bookshelf', offsetXFraction: -0.35, offsetZFraction: 0.3, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
-  { type: 'bookshelf', offsetXFraction: 0.35, offsetZFraction: 0.3, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
-  { type: 'bookshelf', offsetXFraction: 0, offsetZFraction: 0.35, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
-  { type: 'table', offsetXFraction: 0, offsetZFraction: -0.15, width: 2, height: 0.8, depth: 1.0, color: TABLE_BROWN },
-  { type: 'chair', offsetXFraction: -0.15, offsetZFraction: -0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
-  { type: 'chair', offsetXFraction: 0.15, offsetZFraction: -0.15, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'bookshelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
+  { type: 'bookshelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
+  { type: 'bookshelf', offsetXFraction: 0, offsetZFraction: 0.38, width: 1.5, height: 2.2, depth: 0.5, color: BOOKSHELF_DARK },
+  { type: 'desk', offsetXFraction: -0.15, offsetZFraction: -0.15, width: 1.8, height: 0.8, depth: 0.9, color: TABLE_BROWN },
+  { type: 'desk', offsetXFraction: 0.2, offsetZFraction: -0.15, width: 1.8, height: 0.8, depth: 0.9, color: TABLE_BROWN },
+  { type: 'chair', offsetXFraction: -0.15, offsetZFraction: -0.3, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'chair', offsetXFraction: 0.2, offsetZFraction: -0.3, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
 ];
 
 const WORKSHOP_FURNITURE: FurnitureEntry[] = [
-  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.25, width: 3, height: 0.9, depth: 0.8, color: COUNTER_TAN },
-  { type: 'anvil', offsetXFraction: -0.2, offsetZFraction: -0.1, width: 0.8, height: 0.7, depth: 0.5, color: ANVIL_GRAY },
+  { type: 'forge', offsetXFraction: 0.35, offsetZFraction: 0.3, width: 1.5, height: 1.2, depth: 1.2, color: STOVE_BLACK },
+  { type: 'workbench', offsetXFraction: -0.15, offsetZFraction: 0.3, width: 2.5, height: 0.9, depth: 0.8, color: COUNTER_TAN },
+  { type: 'anvil', offsetXFraction: 0, offsetZFraction: -0.1, width: 0.8, height: 0.7, depth: 0.5, color: ANVIL_GRAY },
+  { type: 'weapon_rack', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.2, height: 1.8, depth: 0.4, color: METAL_GRAY },
   { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: -0.25, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
-  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.2, height: 1.6, depth: 0.4, color: METAL_GRAY },
-  { type: 'crate', offsetXFraction: 0.3, offsetZFraction: 0.25, width: 0.8, height: 0.8, depth: 0.8, color: CRATE_TAN },
 ];
 
 const TEMPLE_FURNITURE: FurnitureEntry[] = [
   { type: 'altar', offsetXFraction: 0, offsetZFraction: 0.35, width: 2, height: 1.2, depth: 1.0, color: ALTAR_STONE },
-  { type: 'bench', offsetXFraction: -0.2, offsetZFraction: -0.1, width: 2.5, height: 0.5, depth: 0.6, color: PEW_BROWN },
-  { type: 'bench', offsetXFraction: 0.2, offsetZFraction: -0.1, width: 2.5, height: 0.5, depth: 0.6, color: PEW_BROWN },
-  { type: 'bench', offsetXFraction: -0.2, offsetZFraction: -0.3, width: 2.5, height: 0.5, depth: 0.6, color: PEW_BROWN },
-  { type: 'bench', offsetXFraction: 0.2, offsetZFraction: -0.3, width: 2.5, height: 0.5, depth: 0.6, color: PEW_BROWN },
+  { type: 'lectern', offsetXFraction: 0.2, offsetZFraction: 0.2, width: 0.6, height: 1.2, depth: 0.5, color: PEW_BROWN },
+  { type: 'pew', offsetXFraction: -0.2, offsetZFraction: -0.1, width: 2.5, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'pew', offsetXFraction: 0.2, offsetZFraction: -0.1, width: 2.5, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'pew', offsetXFraction: -0.2, offsetZFraction: -0.3, width: 2.5, height: 0.8, depth: 0.6, color: PEW_BROWN },
+  { type: 'pew', offsetXFraction: 0.2, offsetZFraction: -0.3, width: 2.5, height: 0.8, depth: 0.6, color: PEW_BROWN },
   { type: 'pillar', offsetXFraction: -0.4, offsetZFraction: 0, width: 0.5, height: 3.0, depth: 0.5, color: ALTAR_STONE },
   { type: 'pillar', offsetXFraction: 0.4, offsetZFraction: 0, width: 0.5, height: 3.0, depth: 0.5, color: ALTAR_STONE },
 ];
@@ -264,16 +266,16 @@ const CLINIC_MAIN_FURNITURE: FurnitureEntry[] = [
 
 const BAKERY_FRONT_FURNITURE: FurnitureEntry[] = [
   { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.2, width: 3.5, height: 1.0, depth: 0.8, color: COUNTER_TAN },
-  { type: 'display_table', offsetXFraction: -0.25, offsetZFraction: -0.1, width: 1.2, height: 0.8, depth: 0.8, color: TABLE_BROWN },
-  { type: 'display_table', offsetXFraction: 0.25, offsetZFraction: -0.1, width: 1.2, height: 0.8, depth: 0.8, color: TABLE_BROWN },
+  { type: 'display_case', offsetXFraction: -0.25, offsetZFraction: -0.1, width: 1.2, height: 1.0, depth: 0.8, color: GLASS_CASE },
+  { type: 'display_case', offsetXFraction: 0.25, offsetZFraction: -0.1, width: 1.2, height: 1.0, depth: 0.8, color: GLASS_CASE },
   { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 1.0, height: 1.6, depth: 0.4, color: SHELF_BROWN },
 ];
 
 const BAKERY_KITCHEN_FURNITURE: FurnitureEntry[] = [
-  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.2, width: 3, height: 0.9, depth: 0.8, color: COUNTER_TAN },
-  { type: 'stove', offsetXFraction: -0.3, offsetZFraction: 0.3, width: 1.0, height: 1.0, depth: 0.8, color: STOVE_BLACK },
-  { type: 'barrel', offsetXFraction: 0.3, offsetZFraction: 0.25, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
-  { type: 'shelf', offsetXFraction: 0.35, offsetZFraction: -0.1, width: 1.2, height: 1.6, depth: 0.4, color: SHELF_BROWN },
+  { type: 'oven', offsetXFraction: -0.3, offsetZFraction: 0.3, width: 1.2, height: 1.1, depth: 1.0, color: STOVE_BLACK },
+  { type: 'counter', offsetXFraction: 0.1, offsetZFraction: 0.2, width: 2.5, height: 0.9, depth: 0.8, color: COUNTER_TAN },
+  { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: 0.25, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: -0.1, width: 1.2, height: 1.6, depth: 0.4, color: SHELF_BROWN },
 ];
 
 const BARN_FURNITURE: FurnitureEntry[] = [
@@ -375,11 +377,12 @@ const BARBER_FURNITURE: FurnitureEntry[] = [
 ];
 
 const SEWING_FURNITURE: FurnitureEntry[] = [
-  { type: 'table', offsetXFraction: 0, offsetZFraction: 0, width: 2.0, height: 0.8, depth: 1.0, color: TABLE_BROWN },
-  { type: 'chair', offsetXFraction: 0, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
-  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: 0.2, width: 1.2, height: 2.0, depth: 0.5, color: SHELF_BROWN },
-  { type: 'shelf', offsetXFraction: 0.4, offsetZFraction: 0.2, width: 1.2, height: 2.0, depth: 0.5, color: SHELF_BROWN },
-  { type: 'crate', offsetXFraction: -0.3, offsetZFraction: -0.3, width: 0.6, height: 0.6, depth: 0.6, color: FABRIC_RED },
+  { type: 'loom', offsetXFraction: -0.25, offsetZFraction: 0.2, width: 1.5, height: 1.8, depth: 1.0, color: TABLE_BROWN },
+  { type: 'table', offsetXFraction: 0.15, offsetZFraction: 0, width: 2.0, height: 0.8, depth: 1.0, color: TABLE_BROWN },
+  { type: 'chair', offsetXFraction: 0.15, offsetZFraction: -0.2, width: 0.6, height: 1.0, depth: 0.6, color: CHAIR_BROWN },
+  { type: 'armor_stand', offsetXFraction: 0.4, offsetZFraction: 0.3, width: 0.5, height: 1.7, depth: 0.4, color: TABLE_BROWN },
+  { type: 'shelf', offsetXFraction: -0.4, offsetZFraction: -0.2, width: 1.2, height: 2.0, depth: 0.5, color: SHELF_BROWN },
+  { type: 'crate', offsetXFraction: -0.3, offsetZFraction: -0.35, width: 0.6, height: 0.6, depth: 0.6, color: FABRIC_RED },
 ];
 
 const FITTING_ROOM_FURNITURE: FurnitureEntry[] = [

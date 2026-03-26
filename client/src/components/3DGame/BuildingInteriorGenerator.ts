@@ -81,7 +81,7 @@ export interface FurnitureSpec {
 const CONTAINER_TYPES = new Set(['chest', 'barrel', 'crate']);
 
 /** Furniture types best represented by a cylinder rather than a box */
-const CYLINDER_TYPES = new Set(['barrel', 'pillar', 'stool']);
+const CYLINDER_TYPES = new Set(['barrel', 'pillar', 'stool', 'cauldron']);
 
 /** Partition wall thickness */
 const PARTITION_THICKNESS = 0.25;
@@ -304,7 +304,7 @@ export class BuildingInteriorGenerator {
     }
 
     // Generate furniture for each room zone
-    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config);
+    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate);
     furniture.push(...roomFurniture);
 
     // Apply lighting preset if configured (support both object and string preset name)
@@ -1399,6 +1399,10 @@ export class BuildingInteriorGenerator {
     frontWall.checkCollisions = true;
   }
 
+  /** Minimum furniture items per room: ground floor vs upper floor */
+  private static readonly MIN_FURNITURE_GROUND = 4;
+  private static readonly MIN_FURNITURE_UPPER = 2;
+
   /**
    * Generate furniture for all room zones in the multi-room layout.
    */
@@ -1410,25 +1414,25 @@ export class BuildingInteriorGenerator {
     buildingType: string,
     businessType?: string,
     config?: InteriorTemplateConfig | null,
+    layoutTemplate?: FurnitureLayoutTemplate,
   ): Mesh[] {
     const allFurniture: Mesh[] = [];
     const prefix = `interior_${buildingId}`;
 
-    // Resolve furniture set template if configured
-    const furnitureTemplate = this.resolveFurnitureTemplate(config);
-
-    // Only generate procedural furniture for rooms that specifically need it
-    // (bar counters, shop counters). Other rooms are left empty for asset-based
-    // furniture placement from the FurnitureModelLoader or asset collection.
-    const furnishedRoomFunctions = new Set(['tavern_main', 'tavern_kitchen']);
+    // Resolve furniture set template: config override > auto-detected layout template
+    const furnitureTemplate = this.resolveFurnitureTemplate(config) ?? layoutTemplate;
 
     for (const room of rooms) {
-      // Skip furniture for most rooms — they'll be furnished via asset models
-      if (!furnitureTemplate && !furnishedRoomFunctions.has(room.function)) continue;
-
-      const specs = furnitureTemplate
+      let specs = furnitureTemplate
         ? this.getFurnitureFromTemplate(furnitureTemplate, room)
         : this.getFurnitureForRoom(room);
+
+      // Enforce minimum furniture count per room
+      const minCount = room.floor === 0
+        ? BuildingInteriorGenerator.MIN_FURNITURE_GROUND
+        : BuildingInteriorGenerator.MIN_FURNITURE_UPPER;
+      specs = this.ensureMinimumFurniture(specs, room, minCount);
+
       const roomPos = new Vector3(
         position.x + room.offsetX,
         position.y + room.offsetY,
@@ -1458,6 +1462,45 @@ export class BuildingInteriorGenerator {
     }
 
     return allFurniture;
+  }
+
+  /**
+   * Ensure a room has at least `minCount` furniture items.
+   * Pads with contextually appropriate filler furniture placed along walls.
+   */
+  private ensureMinimumFurniture(
+    specs: FurnitureSpec[],
+    room: RoomZone,
+    minCount: number,
+  ): FurnitureSpec[] {
+    if (specs.length >= minCount) return specs;
+
+    const fillerTypes: Array<{ type: string; w: number; h: number; d: number; color: Color3 }> = [
+      { type: 'stool', w: 0.4, h: 0.5, d: 0.4, color: new Color3(0.45, 0.35, 0.25) },
+      { type: 'barrel', w: 0.7, h: 0.9, d: 0.7, color: new Color3(0.4, 0.25, 0.1) },
+      { type: 'crate', w: 0.8, h: 0.8, d: 0.8, color: new Color3(0.5, 0.4, 0.25) },
+      { type: 'chest', w: 1.0, h: 0.6, d: 0.6, color: new Color3(0.4, 0.3, 0.15) },
+    ];
+
+    const result = [...specs];
+    let fillerIdx = 0;
+    while (result.length < minCount) {
+      const filler = fillerTypes[fillerIdx % fillerTypes.length];
+      // Place filler along walls to avoid blocking walkways
+      const cornerX = (fillerIdx % 2 === 0 ? -1 : 1) * (room.width / 2 - 0.8);
+      const cornerZ = (fillerIdx < 2 ? 1 : -1) * (room.depth / 2 - 0.8);
+      result.push({
+        type: filler.type,
+        offsetX: cornerX,
+        offsetZ: cornerZ,
+        width: filler.w,
+        height: filler.h,
+        depth: filler.d,
+        color: filler.color,
+      });
+      fillerIdx++;
+    }
+    return result;
   }
 
   /**
@@ -2104,6 +2147,183 @@ export class BuildingInteriorGenerator {
       );
       mesh = Mesh.MergeMeshes([base, top], true, true, undefined, false, true) as Mesh;
       mesh.name = name;
+    } else if (spec.type === 'oven') {
+      // Oven: dome-like shape — box base with a rounded top section
+      const base = MeshBuilder.CreateBox(
+        `${name}_base`,
+        { width: spec.width, height: spec.height * 0.6, depth: spec.depth },
+        this.scene,
+      );
+      const dome = MeshBuilder.CreateCylinder(
+        `${name}_dome`,
+        { diameter: Math.min(spec.width, spec.depth) * 0.9, height: spec.height * 0.4, tessellation: 12 },
+        this.scene,
+      );
+      dome.position.y = spec.height * 0.5;
+      mesh = Mesh.MergeMeshes([base, dome], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+      const mat = new StandardMaterial(`${name}_mat`, this.scene);
+      mat.diffuseColor = spec.color;
+      mat.emissiveColor = new Color3(0.3, 0.08, 0.01);
+      mat.specularColor = new Color3(0.1, 0.05, 0.02);
+      mesh.material = mat;
+      return mesh;
+    } else if (spec.type === 'loom') {
+      // Loom: frame structure — vertical posts with horizontal beam
+      const frame = MeshBuilder.CreateBox(
+        `${name}_frame`,
+        { width: spec.width, height: spec.height, depth: spec.depth * 0.15 },
+        this.scene,
+      );
+      const beam = MeshBuilder.CreateBox(
+        `${name}_beam`,
+        { width: spec.width * 0.9, height: spec.height * 0.1, depth: spec.depth },
+        this.scene,
+      );
+      beam.position.y = -spec.height * 0.2;
+      mesh = Mesh.MergeMeshes([frame, beam], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'display_case') {
+      // Display case: glass-topped cabinet
+      const base = MeshBuilder.CreateBox(
+        `${name}_base`,
+        { width: spec.width, height: spec.height * 0.7, depth: spec.depth },
+        this.scene,
+      );
+      const glass = MeshBuilder.CreateBox(
+        `${name}_glass`,
+        { width: spec.width * 0.95, height: spec.height * 0.3, depth: spec.depth * 0.95 },
+        this.scene,
+      );
+      glass.position.y = spec.height * 0.5;
+      mesh = Mesh.MergeMeshes([base, glass], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'lectern') {
+      // Lectern: angled reading stand on a post
+      const post = MeshBuilder.CreateBox(
+        `${name}_post`,
+        { width: spec.width * 0.3, height: spec.height * 0.8, depth: spec.depth * 0.3 },
+        this.scene,
+      );
+      const top = MeshBuilder.CreateBox(
+        `${name}_top`,
+        { width: spec.width, height: spec.height * 0.05, depth: spec.depth },
+        this.scene,
+      );
+      top.position.y = spec.height * 0.4;
+      top.rotation.x = -Math.PI / 6;
+      mesh = Mesh.MergeMeshes([post, top], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'throne') {
+      // Throne: wide seat with tall backrest and armrests
+      const seat = MeshBuilder.CreateBox(
+        `${name}_seat`,
+        { width: spec.width, height: spec.height * 0.3, depth: spec.depth },
+        this.scene,
+      );
+      const back = MeshBuilder.CreateBox(
+        `${name}_back`,
+        { width: spec.width, height: spec.height * 0.7, depth: spec.depth * 0.15 },
+        this.scene,
+      );
+      back.position.y = spec.height * 0.5;
+      back.position.z = -spec.depth * 0.42;
+      const armL = MeshBuilder.CreateBox(
+        `${name}_armL`,
+        { width: spec.width * 0.1, height: spec.height * 0.35, depth: spec.depth * 0.8 },
+        this.scene,
+      );
+      armL.position.x = -spec.width * 0.45;
+      armL.position.y = spec.height * 0.15;
+      const armR = MeshBuilder.CreateBox(
+        `${name}_armR`,
+        { width: spec.width * 0.1, height: spec.height * 0.35, depth: spec.depth * 0.8 },
+        this.scene,
+      );
+      armR.position.x = spec.width * 0.45;
+      armR.position.y = spec.height * 0.15;
+      mesh = Mesh.MergeMeshes([seat, back, armL, armR], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'bed_single' || spec.type === 'bed_double') {
+      // Single/double bed variants — same shape as bed, width varies
+      const mattress = MeshBuilder.CreateBox(
+        `${name}_mattress`,
+        { width: spec.width, height: spec.height * 0.5, depth: spec.depth },
+        this.scene,
+      );
+      const headboard = MeshBuilder.CreateBox(
+        `${name}_headboard`,
+        { width: spec.width, height: spec.height * 0.8, depth: spec.depth * 0.08 },
+        this.scene,
+      );
+      headboard.position.y = spec.height * 0.3;
+      headboard.position.z = spec.depth * 0.46;
+      mesh = Mesh.MergeMeshes([mattress, headboard], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'desk') {
+      // Desk: flat top with knee-hole (similar to workbench but thinner)
+      const top = MeshBuilder.CreateBox(
+        `${name}_top`,
+        { width: spec.width, height: spec.height * 0.1, depth: spec.depth },
+        this.scene,
+      );
+      top.position.y = spec.height * 0.45;
+      const legL = MeshBuilder.CreateBox(
+        `${name}_legL`,
+        { width: spec.width * 0.15, height: spec.height * 0.9, depth: spec.depth * 0.9 },
+        this.scene,
+      );
+      legL.position.x = -spec.width * 0.4;
+      const legR = MeshBuilder.CreateBox(
+        `${name}_legR`,
+        { width: spec.width * 0.15, height: spec.height * 0.9, depth: spec.depth * 0.9 },
+        this.scene,
+      );
+      legR.position.x = spec.width * 0.4;
+      mesh = Mesh.MergeMeshes([top, legL, legR], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'weapon_rack') {
+      // Weapon rack: vertical frame with horizontal cross-bars
+      const frame = MeshBuilder.CreateBox(
+        `${name}_frame`,
+        { width: spec.width, height: spec.height, depth: spec.depth * 0.2 },
+        this.scene,
+      );
+      const bar1 = MeshBuilder.CreateBox(
+        `${name}_bar1`,
+        { width: spec.width * 0.9, height: spec.height * 0.06, depth: spec.depth * 0.4 },
+        this.scene,
+      );
+      bar1.position.y = spec.height * 0.2;
+      const bar2 = MeshBuilder.CreateBox(
+        `${name}_bar2`,
+        { width: spec.width * 0.9, height: spec.height * 0.06, depth: spec.depth * 0.4 },
+        this.scene,
+      );
+      bar2.position.y = -spec.height * 0.2;
+      mesh = Mesh.MergeMeshes([frame, bar1, bar2], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'armor_stand') {
+      // Armor stand: T-shaped post with cross-beam for shoulders
+      const post = MeshBuilder.CreateBox(
+        `${name}_post`,
+        { width: spec.width * 0.15, height: spec.height, depth: spec.depth * 0.15 },
+        this.scene,
+      );
+      const crossBeam = MeshBuilder.CreateBox(
+        `${name}_cross`,
+        { width: spec.width, height: spec.height * 0.08, depth: spec.depth * 0.2 },
+        this.scene,
+      );
+      crossBeam.position.y = spec.height * 0.35;
+      const baseDisc = MeshBuilder.CreateCylinder(
+        `${name}_base`,
+        { diameter: spec.width * 0.6, height: spec.height * 0.06, tessellation: 12 },
+        this.scene,
+      );
+      baseDisc.position.y = -spec.height * 0.47;
+      mesh = Mesh.MergeMeshes([post, crossBeam, baseDisc], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
     } else {
       // Default box for any other type
       mesh = MeshBuilder.CreateBox(
@@ -2371,19 +2591,23 @@ export class BuildingInteriorGenerator {
       width: w * 0.5, height: 2.5, depth: 0.6, color: wood
     });
 
-    // Reading table
+    // Reading desks
     specs.push({
-      type: 'table', offsetX: 0, offsetZ: -d * 0.1,
-      width: 2.0, height: 0.85, depth: 1.2, color: new Color3(0.45, 0.35, 0.25)
+      type: 'desk', offsetX: -1.2, offsetZ: -d * 0.1,
+      width: 1.8, height: 0.8, depth: 0.9, color: new Color3(0.45, 0.35, 0.25)
+    });
+    specs.push({
+      type: 'desk', offsetX: 1.2, offsetZ: -d * 0.1,
+      width: 1.8, height: 0.8, depth: 0.9, color: new Color3(0.45, 0.35, 0.25)
     });
 
     // Chairs
     specs.push({
-      type: 'chair', offsetX: -1.2, offsetZ: -d * 0.1,
+      type: 'chair', offsetX: -1.2, offsetZ: -d * 0.1 - 1,
       width: 0.5, height: 1.0, depth: 0.5, color: wood
     });
     specs.push({
-      type: 'chair', offsetX: 1.2, offsetZ: -d * 0.1,
+      type: 'chair', offsetX: 1.2, offsetZ: -d * 0.1 - 1,
       width: 0.5, height: 1.0, depth: 0.5, color: wood
     });
 
@@ -2503,7 +2727,7 @@ export class BuildingInteriorGenerator {
     const metal = new Color3(0.35, 0.35, 0.38);
     const wood = new Color3(0.35, 0.25, 0.15);
 
-    // Anvil
+    // Anvil near center
     specs.push({
       type: 'anvil', offsetX: 0, offsetZ: d * 0.15,
       width: 1.0, height: 0.8, depth: 0.6, color: metal
@@ -2515,13 +2739,13 @@ export class BuildingInteriorGenerator {
       width: w * 0.6, height: 1.0, depth: 1.0, color: wood
     });
 
-    // Tool rack on wall
+    // Weapon rack on wall
     specs.push({
-      type: 'tool_rack', offsetX: -w / 2 + 0.5, offsetZ: d * 0.1,
-      width: 0.3, height: 2.0, depth: 2.0, color: wood
+      type: 'weapon_rack', offsetX: -w / 2 + 0.5, offsetZ: d * 0.1,
+      width: 1.2, height: 2.0, depth: 0.4, color: metal
     });
 
-    // Barrel
+    // Barrel (quench water)
     specs.push({
       type: 'barrel', offsetX: w / 2 - 1, offsetZ: -d * 0.2,
       width: 0.8, height: 1.0, depth: 0.8, color: new Color3(0.3, 0.25, 0.18)
@@ -2545,6 +2769,12 @@ export class BuildingInteriorGenerator {
     specs.push({
       type: 'altar', offsetX: 0, offsetZ: d / 2 - 2,
       width: 2.5, height: 1.2, depth: 1.5, color: stone
+    });
+
+    // Lectern near the altar
+    specs.push({
+      type: 'lectern', offsetX: w * 0.15, offsetZ: d / 2 - 3.5,
+      width: 0.6, height: 1.2, depth: 0.5, color: wood
     });
 
     // Pews (rows of benches)
