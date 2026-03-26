@@ -112,6 +112,8 @@ export class StandardMaterial {
   specularColor: any;
   diffuseTexture: any = null;
   alpha = 1;
+  disableLighting = false;
+  backFaceCulling = true;
   constructor(name: string, _scene: any) {
     this.name = name;
     __materialRegistry.set(name, this);
@@ -186,13 +188,18 @@ export class Texture {
 export class DynamicTexture {
   uScale = 1;
   vScale = 1;
+  hasAlpha = false;
   name: string;
   constructor(name: string, _opts: any, _scene: any, _generateMipMaps?: boolean) { this.name = name; }
   getContext(): any {
     return {
       fillStyle: '',
+      font: '',
+      textAlign: '',
+      textBaseline: '',
       fillRect() {},
       fillText() {},
+      clearRect() {},
       strokeStyle: '',
       lineWidth: 1,
       beginPath() {},

@@ -326,6 +326,10 @@ export class BuildingInteriorGenerator {
     const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate, residentCount, beds);
     furniture.push(...roomFurniture);
 
+    // Generate floating room labels above doorways
+    const labelMeshes = this.generateRoomLabels(buildingId, position, rooms, dims.height);
+    furniture.push(...labelMeshes);
+
     // Apply lighting preset if configured (support both object and string preset name)
     const lightingConfig = config?.lighting
       ?? (config?.lightingPreset ? resolveLightingPreset(config.lightingPreset) : undefined);
@@ -928,108 +932,221 @@ export class BuildingInteriorGenerator {
     const bt = (businessType || buildingType || '').toLowerCase();
     const rooms: RoomZone[] = [];
 
-    // Partition depth: front room gets 60%, back room gets 40%
-    const frontDepth = depth * 0.6;
-    const backDepth = depth * 0.4;
-    const frontCenterZ = -depth / 2 + frontDepth / 2;
-    const backCenterZ = depth / 2 - backDepth / 2;
-
-    if (bt.includes('residence_large') || bt.includes('mansion') || bt.includes('residence_medium')) {
-      // Ground floor: living room (front) + kitchen (back)
+    if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
+      // Ground: main hall (50%), kitchen (25%), storage (25%)
+      const hallDepth = depth * 0.5;
+      const backDepth = depth * 0.5;
+      const kitchenWidth = width * 0.5;
+      const storageWidth = width * 0.5;
       rooms.push({
-        name: 'living_room', function: 'living',
-        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
-        width, depth: frontDepth, floor: 0,
+        name: 'common_room', function: 'tavern_main',
+        offsetX: 0, offsetZ: -depth / 2 + hallDepth / 2, offsetY: 0,
+        width, depth: hallDepth, floor: 0,
       });
       rooms.push({
-        name: 'kitchen', function: 'kitchen',
-        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
-        width, depth: backDepth, floor: 0,
-      });
-      if (floorCount > 1) {
-        // Upstairs: bedroom(s)
-        rooms.push({
-          name: 'bedroom', function: 'bedroom',
-          offsetX: -width / 4, offsetZ: 0, offsetY: height,
-          width: width / 2, depth, floor: 1,
-        });
-        rooms.push({
-          name: 'bedroom2', function: 'bedroom',
-          offsetX: width / 4, offsetZ: 0, offsetY: height,
-          width: width / 2, depth, floor: 1,
-        });
-      }
-    } else if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) {
-      // Small residence: single floor — living area (front-left), bedroom (front-right), kitchen (back)
-      rooms.push({
-        name: 'living_room', function: 'living',
-        offsetX: -width / 4, offsetZ: frontCenterZ, offsetY: 0,
-        width: width / 2, depth: frontDepth, floor: 0,
-      });
-      rooms.push({
-        name: 'bedroom', function: 'bedroom',
-        offsetX: width / 4, offsetZ: frontCenterZ, offsetY: 0,
-        width: width / 2, depth: frontDepth, floor: 0,
-      });
-      rooms.push({
-        name: 'kitchen', function: 'kitchen',
-        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
-        width, depth: backDepth, floor: 0,
-      });
-    } else if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
-      // Ground floor: shop area (front) + storage (back)
-      rooms.push({
-        name: 'shop_floor', function: 'shop',
-        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
-        width, depth: frontDepth, floor: 0,
+        name: 'kitchen', function: 'tavern_kitchen',
+        offsetX: -width / 2 + kitchenWidth / 2, offsetZ: depth / 2 - backDepth / 2, offsetY: 0,
+        width: kitchenWidth, depth: backDepth, floor: 0,
       });
       rooms.push({
         name: 'storage', function: 'storage',
-        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
-        width, depth: backDepth, floor: 0,
+        offsetX: width / 2 - storageWidth / 2, offsetZ: depth / 2 - backDepth / 2, offsetY: 0,
+        width: storageWidth, depth: backDepth, floor: 0,
       });
       if (floorCount > 1) {
-        // Upstairs: living quarters
+        // Upper: 2-4 guest rooms with beds depending on width
+        const guestCount = width >= 16 ? 4 : width >= 12 ? 3 : 2;
+        const roomWidth = width / Math.min(guestCount, 2);
+        const roomDepth = guestCount > 2 ? depth / 2 : depth;
+        for (let i = 0; i < guestCount; i++) {
+          const col = i % 2;
+          const row = Math.floor(i / 2);
+          rooms.push({
+            name: `guest_room${i + 1}`, function: 'bedroom',
+            offsetX: -width / 2 + roomWidth / 2 + col * roomWidth,
+            offsetZ: guestCount > 2 ? (-depth / 2 + roomDepth / 2 + row * roomDepth) : 0,
+            offsetY: height,
+            width: roomWidth, depth: roomDepth, floor: 1,
+          });
+        }
+      }
+    } else if (bt.includes('restaurant') || bt.includes('cafe') || bt.includes('bakery')) {
+      // Dining room (60%), kitchen (30%), storage (10%)
+      const diningDepth = depth * 0.6;
+      const kitchenDepth = depth * 0.3;
+      const storageDepth = depth * 0.1;
+      rooms.push({
+        name: 'dining_room', function: 'dining',
+        offsetX: 0, offsetZ: -depth / 2 + diningDepth / 2, offsetY: 0,
+        width, depth: diningDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'kitchen', function: 'kitchen',
+        offsetX: 0, offsetZ: -depth / 2 + diningDepth + kitchenDepth / 2, offsetY: 0,
+        width, depth: kitchenDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'storage', function: 'storage',
+        offsetX: 0, offsetZ: depth / 2 - storageDepth / 2, offsetY: 0,
+        width, depth: Math.max(storageDepth, 2), floor: 0,
+      });
+    } else if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
+      // Showroom (70% front), storeroom (30% back)
+      const showDepth = depth * 0.7;
+      const storeDepth = depth * 0.3;
+      rooms.push({
+        name: 'shop_floor', function: 'shop',
+        offsetX: 0, offsetZ: -depth / 2 + showDepth / 2, offsetY: 0,
+        width, depth: showDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'storage', function: 'storage',
+        offsetX: 0, offsetZ: depth / 2 - storeDepth / 2, offsetY: 0,
+        width, depth: storeDepth, floor: 0,
+      });
+      if (floorCount > 1) {
         rooms.push({
           name: 'living_quarters', function: 'living',
           offsetX: 0, offsetZ: 0, offsetY: height,
           width, depth, floor: 1,
         });
       }
-    } else if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
-      // Ground floor: common room (front) + kitchen/bar back (back)
+    } else if (bt.includes('residence_large') || bt.includes('mansion')) {
+      // Ground: entry hall, living room, kitchen, dining room
+      const entryDepth = depth * 0.25;
+      const mainDepth = depth * 0.75;
+      const livingWidth = width * 0.5;
+      const kitchenWidth = width * 0.5;
       rooms.push({
-        name: 'common_room', function: 'tavern_main',
-        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
-        width, depth: frontDepth, floor: 0,
+        name: 'entry_hall', function: 'entry_hall',
+        offsetX: 0, offsetZ: -depth / 2 + entryDepth / 2, offsetY: 0,
+        width, depth: entryDepth, floor: 0,
       });
       rooms.push({
-        name: 'kitchen', function: 'tavern_kitchen',
-        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
-        width, depth: backDepth, floor: 0,
+        name: 'living_room', function: 'living',
+        offsetX: -width / 2 + livingWidth / 2, offsetZ: -depth / 2 + entryDepth + mainDepth / 2, offsetY: 0,
+        width: livingWidth, depth: mainDepth / 2, floor: 0,
+      });
+      rooms.push({
+        name: 'dining_room', function: 'dining',
+        offsetX: width / 2 - kitchenWidth / 2, offsetZ: -depth / 2 + entryDepth + mainDepth / 4, offsetY: 0,
+        width: kitchenWidth, depth: mainDepth / 2, floor: 0,
+      });
+      rooms.push({
+        name: 'kitchen', function: 'kitchen',
+        offsetX: 0, offsetZ: depth / 2 - mainDepth / 4, offsetY: 0,
+        width, depth: mainDepth / 2, floor: 0,
       });
       if (floorCount > 1) {
-        // Upstairs: guest rooms
+        // Upper: 3-4 bedrooms + study
+        const bedroomCount = width >= 16 ? 4 : 3;
+        const studyWidth = width * 0.3;
+        const bedroomTotalWidth = width - studyWidth;
+        const bw = bedroomTotalWidth / Math.min(bedroomCount, 2);
+        const bd = bedroomCount > 2 ? depth / 2 : depth;
+        for (let i = 0; i < bedroomCount; i++) {
+          const col = i % 2;
+          const row = Math.floor(i / 2);
+          rooms.push({
+            name: `bedroom${i + 1}`, function: 'bedroom',
+            offsetX: -width / 2 + bw / 2 + col * bw,
+            offsetZ: bedroomCount > 2 ? (-depth / 2 + bd / 2 + row * bd) : 0,
+            offsetY: height,
+            width: bw, depth: bd, floor: 1,
+          });
+        }
         rooms.push({
-          name: 'guest_room1', function: 'bedroom',
-          offsetX: -width / 4, offsetZ: 0, offsetY: height,
-          width: width / 2, depth, floor: 1,
-        });
-        rooms.push({
-          name: 'guest_room2', function: 'bedroom',
-          offsetX: width / 4, offsetZ: 0, offsetY: height,
-          width: width / 2, depth, floor: 1,
+          name: 'study', function: 'office',
+          offsetX: width / 2 - studyWidth / 2, offsetZ: 0, offsetY: height,
+          width: studyWidth, depth, floor: 1,
         });
       }
+    } else if (bt.includes('residence_medium')) {
+      // Ground: living room (40%), kitchen (30%), bedroom (30%)
+      const livingDepth = depth * 0.4;
+      const backDepth = depth * 0.6;
+      const kitchenWidth = width * 0.5;
+      const bedroomWidth = width * 0.5;
+      rooms.push({
+        name: 'living_room', function: 'living',
+        offsetX: 0, offsetZ: -depth / 2 + livingDepth / 2, offsetY: 0,
+        width, depth: livingDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'kitchen', function: 'kitchen',
+        offsetX: -width / 2 + kitchenWidth / 2, offsetZ: depth / 2 - backDepth / 2, offsetY: 0,
+        width: kitchenWidth, depth: backDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'bedroom', function: 'bedroom',
+        offsetX: width / 2 - bedroomWidth / 2, offsetZ: depth / 2 - backDepth / 2, offsetY: 0,
+        width: bedroomWidth, depth: backDepth, floor: 0,
+      });
+      if (floorCount > 1) {
+        // Upper: 2 bedrooms + hallway
+        const hallWidth = width * 0.2;
+        const brWidth = (width - hallWidth) / 2;
+        rooms.push({
+          name: 'hallway', function: 'hallway',
+          offsetX: 0, offsetZ: 0, offsetY: height,
+          width: hallWidth, depth, floor: 1,
+        });
+        rooms.push({
+          name: 'bedroom2', function: 'bedroom',
+          offsetX: -width / 2 + brWidth / 2, offsetZ: 0, offsetY: height,
+          width: brWidth, depth, floor: 1,
+        });
+        rooms.push({
+          name: 'bedroom3', function: 'bedroom',
+          offsetX: width / 2 - brWidth / 2, offsetZ: 0, offsetY: height,
+          width: brWidth, depth, floor: 1,
+        });
+      }
+    } else if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) {
+      // Small residence: combined living/kitchen (60%), bedroom (40%)
+      const livingDepth = depth * 0.6;
+      const bedroomDepth = depth * 0.4;
+      rooms.push({
+        name: 'living_room', function: 'living',
+        offsetX: 0, offsetZ: -depth / 2 + livingDepth / 2, offsetY: 0,
+        width, depth: livingDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'bedroom', function: 'bedroom',
+        offsetX: 0, offsetZ: depth / 2 - bedroomDepth / 2, offsetY: 0,
+        width, depth: bedroomDepth, floor: 0,
+      });
+    } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
+      // Main nave (70%), altar area (20%), vestry (10%)
+      const naveDepth = depth * 0.7;
+      const altarDepth = depth * 0.2;
+      const vestryDepth = depth * 0.1;
+      rooms.push({
+        name: 'nave', function: 'temple',
+        offsetX: 0, offsetZ: -depth / 2 + naveDepth / 2, offsetY: 0,
+        width, depth: naveDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'altar_area', function: 'altar',
+        offsetX: 0, offsetZ: -depth / 2 + naveDepth + altarDepth / 2, offsetY: 0,
+        width, depth: altarDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'vestry', function: 'vestry',
+        offsetX: 0, offsetZ: depth / 2 - vestryDepth / 2, offsetY: 0,
+        width, depth: Math.max(vestryDepth, 2), floor: 0,
+      });
     } else if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
+      const frontDepth = depth * 0.6;
+      const backDepth = depth * 0.4;
       rooms.push({
         name: 'main_hall', function: 'guild_main',
-        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        offsetX: 0, offsetZ: -depth / 2 + frontDepth / 2, offsetY: 0,
         width, depth: frontDepth, floor: 0,
       });
       rooms.push({
         name: 'office', function: 'office',
-        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        offsetX: 0, offsetZ: depth / 2 - backDepth / 2, offsetY: 0,
         width, depth: backDepth, floor: 0,
       });
       if (floorCount > 1) {
@@ -1040,22 +1157,17 @@ export class BuildingInteriorGenerator {
         });
       }
     } else if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) {
+      const frontDepth = depth * 0.6;
+      const backDepth = depth * 0.4;
       rooms.push({
         name: 'workshop', function: 'workshop',
-        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        offsetX: 0, offsetZ: -depth / 2 + frontDepth / 2, offsetY: 0,
         width, depth: frontDepth, floor: 0,
       });
       rooms.push({
         name: 'storage', function: 'storage',
-        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        offsetX: 0, offsetZ: depth / 2 - backDepth / 2, offsetY: 0,
         width, depth: backDepth, floor: 0,
-      });
-    } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
-      // Temples are a single large nave — no partition
-      rooms.push({
-        name: 'nave', function: 'temple',
-        offsetX: 0, offsetZ: 0, offsetY: 0,
-        width, depth, floor: 0,
       });
     } else if (bt.includes('warehouse') || bt.includes('storage')) {
       rooms.push({
@@ -1077,6 +1189,7 @@ export class BuildingInteriorGenerator {
 
   /**
    * Build partition walls between room zones with doorway cutouts.
+   * Detects adjacent room boundaries on each floor and builds walls between them.
    */
   private buildPartitions(
     buildingId: string,
@@ -1095,33 +1208,181 @@ export class BuildingInteriorGenerator {
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
     this.applyTextureToMaterial(wallMat, config?.wallTextureId, textureStyle.wall, 10, height);
 
-    // Find ground floor rooms — if there are exactly 2 on floor 0, build a partition
-    const groundRooms = rooms.filter(r => r.floor === 0);
-    if (groundRooms.length === 2) {
-      const front = groundRooms[0];
-      const back = groundRooms[1];
-      // Partition runs along Z boundary between front and back rooms
-      const partitionZ = front.offsetZ + front.depth / 2;
-      const totalWidth = Math.max(front.width, back.width);
+    // Process each floor independently
+    const floors = Array.from(new Set(rooms.map(r => r.floor)));
+    let wallIdx = 0;
+    for (const floor of floors) {
+      const floorRooms = rooms.filter(r => r.floor === floor);
+      if (floorRooms.length < 2) continue;
 
-      this.buildPartitionWall(
-        prefix, position, totalWidth, height, partitionZ, 'z', wallMat
+      const floorY = position.y + floor * height;
+      const floorPos = new Vector3(position.x, floorY, position.z);
+      const built = new Set<string>();
+
+      for (let i = 0; i < floorRooms.length; i++) {
+        for (let j = i + 1; j < floorRooms.length; j++) {
+          const a = floorRooms[i];
+          const b = floorRooms[j];
+
+          // Check for Z-boundary (rooms stacked front-to-back)
+          const aBackZ = a.offsetZ + a.depth / 2;
+          const bFrontZ = b.offsetZ - b.depth / 2;
+          if (Math.abs(aBackZ - bFrontZ) < 0.5) {
+            const partitionZ = (aBackZ + bFrontZ) / 2;
+            const span = Math.min(a.width, b.width);
+            const key = `z_${partitionZ.toFixed(1)}_${Math.min(a.offsetX, b.offsetX).toFixed(1)}`;
+            if (!built.has(key)) {
+              built.add(key);
+              const centerX = (Math.max(a.offsetX - a.width / 2, b.offsetX - b.width / 2) +
+                               Math.min(a.offsetX + a.width / 2, b.offsetX + b.width / 2)) / 2;
+              this.buildPartitionWall(
+                `${prefix}_f${floor}_w${wallIdx++}`,
+                new Vector3(floorPos.x + centerX, floorPos.y, floorPos.z),
+                span, height, partitionZ, 'z', wallMat
+              );
+            }
+          }
+          // Check reverse direction
+          const bBackZ = b.offsetZ + b.depth / 2;
+          const aFrontZ = a.offsetZ - a.depth / 2;
+          if (Math.abs(bBackZ - aFrontZ) < 0.5) {
+            const partitionZ = (bBackZ + aFrontZ) / 2;
+            const span = Math.min(a.width, b.width);
+            const key = `z_${partitionZ.toFixed(1)}_${Math.min(a.offsetX, b.offsetX).toFixed(1)}`;
+            if (!built.has(key)) {
+              built.add(key);
+              const centerX = (Math.max(a.offsetX - a.width / 2, b.offsetX - b.width / 2) +
+                               Math.min(a.offsetX + a.width / 2, b.offsetX + b.width / 2)) / 2;
+              this.buildPartitionWall(
+                `${prefix}_f${floor}_w${wallIdx++}`,
+                new Vector3(floorPos.x + centerX, floorPos.y, floorPos.z),
+                span, height, partitionZ, 'z', wallMat
+              );
+            }
+          }
+
+          // Check for X-boundary (rooms side-by-side)
+          const aRightX = a.offsetX + a.width / 2;
+          const bLeftX = b.offsetX - b.width / 2;
+          if (Math.abs(aRightX - bLeftX) < 0.5) {
+            const partitionX = (aRightX + bLeftX) / 2;
+            const span = Math.min(a.depth, b.depth);
+            const key = `x_${partitionX.toFixed(1)}_${Math.min(a.offsetZ, b.offsetZ).toFixed(1)}`;
+            if (!built.has(key)) {
+              built.add(key);
+              const centerZ = (Math.max(a.offsetZ - a.depth / 2, b.offsetZ - b.depth / 2) +
+                               Math.min(a.offsetZ + a.depth / 2, b.offsetZ + b.depth / 2)) / 2;
+              this.buildPartitionWall(
+                `${prefix}_f${floor}_w${wallIdx++}`,
+                new Vector3(floorPos.x, floorPos.y, floorPos.z + centerZ),
+                span, height, partitionX, 'x', wallMat
+              );
+            }
+          }
+          // Check reverse direction
+          const bRightX = b.offsetX + b.width / 2;
+          const aLeftX = a.offsetX - a.width / 2;
+          if (Math.abs(bRightX - aLeftX) < 0.5) {
+            const partitionX = (bRightX + aLeftX) / 2;
+            const span = Math.min(a.depth, b.depth);
+            const key = `x_${partitionX.toFixed(1)}_${Math.min(a.offsetZ, b.offsetZ).toFixed(1)}`;
+            if (!built.has(key)) {
+              built.add(key);
+              const centerZ = (Math.max(a.offsetZ - a.depth / 2, b.offsetZ - b.depth / 2) +
+                               Math.min(a.offsetZ + a.depth / 2, b.offsetZ + b.depth / 2)) / 2;
+              this.buildPartitionWall(
+                `${prefix}_f${floor}_w${wallIdx++}`,
+                new Vector3(floorPos.x, floorPos.y, floorPos.z + centerZ),
+                span, height, partitionX, 'x', wallMat
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /** Human-readable display names for room functions */
+  private static readonly ROOM_LABELS: Record<string, string> = {
+    living: 'Living Room',
+    kitchen: 'Kitchen',
+    bedroom: 'Bedroom',
+    shop: 'Shop',
+    storage: 'Storage',
+    office: 'Office',
+    library: 'Library',
+    tavern_main: 'Main Hall',
+    tavern_kitchen: 'Kitchen',
+    guild_main: 'Main Hall',
+    workshop: 'Workshop',
+    temple: 'Nave',
+    warehouse: 'Warehouse',
+    dining: 'Dining Room',
+    altar: 'Altar',
+    vestry: 'Vestry',
+    entry_hall: 'Entry Hall',
+    hallway: 'Hallway',
+    general: 'Room',
+  };
+
+  /**
+   * Generate floating text labels above each room's entrance.
+   * Uses a DynamicTexture on a plane positioned above the doorway height.
+   */
+  private generateRoomLabels(
+    buildingId: string,
+    position: Vector3,
+    rooms: RoomZone[],
+    height: number,
+  ): Mesh[] {
+    const meshes: Mesh[] = [];
+    const prefix = `interior_${buildingId}`;
+
+    for (const room of rooms) {
+      const label = BuildingInteriorGenerator.ROOM_LABELS[room.function] || room.name;
+      const meshName = `${prefix}_${room.name}_label`;
+
+      // Create a dynamic texture for the label text
+      const textWidth = Math.max(label.length * 32, 128);
+      const tex = new DynamicTexture(
+        `${meshName}_tex`, { width: textWidth, height: 64 }, this.scene, false
       );
+      tex.hasAlpha = true;
+      const ctx = tex.getContext() as any;
+      ctx.clearRect(0, 0, textWidth, 64);
+      ctx.font = 'bold 28px Arial';
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, textWidth / 2, 32);
+      tex.update();
+
+      const mat = new StandardMaterial(`${meshName}_mat`, this.scene);
+      mat.diffuseTexture = tex;
+      mat.emissiveColor = new Color3(1, 1, 1);
+      mat.disableLighting = true;
+      mat.backFaceCulling = false;
+
+      // Size the plane proportional to the text
+      const planeWidth = Math.min(label.length * 0.25 + 0.5, room.width * 0.8);
+      const plane = MeshBuilder.CreatePlane(
+        meshName, { width: planeWidth, height: 0.4 }, this.scene
+      );
+
+      // Position above the room's front edge (entrance side), just below door lintel
+      const roomY = position.y + room.offsetY;
+      plane.position = new Vector3(
+        position.x + room.offsetX,
+        roomY + PARTITION_DOOR_HEIGHT + 0.3,
+        position.z + room.offsetZ - room.depth / 2 + 0.3,
+      );
+      plane.material = mat;
+      plane.isPickable = false;
+
+      meshes.push(plane);
     }
 
-    // Build partition between upstairs rooms if there are 2 on floor 1
-    const upperRooms = rooms.filter(r => r.floor === 1);
-    if (upperRooms.length === 2) {
-      // Vertical partition along X center dividing left/right rooms
-      const partitionX = (upperRooms[0].offsetX + upperRooms[0].width / 2 +
-                          upperRooms[1].offsetX - upperRooms[1].width / 2) / 2;
-      const totalDepth = Math.max(upperRooms[0].depth, upperRooms[1].depth);
-
-      this.buildPartitionWall(
-        prefix, new Vector3(position.x, position.y + height, position.z),
-        totalDepth, height, partitionX, 'x', wallMat
-      );
-    }
+    return meshes;
   }
 
   /**
@@ -1557,13 +1818,21 @@ export class BuildingInteriorGenerator {
     const playerRadius = 0.5;
     const clearZone = doorHalfW + playerRadius;
 
-    // Main entrance doorway is at the front wall (-Z side), centered at X=0
-    zones.push({
-      minX: -clearZone,
-      maxX: clearZone,
-      minZ: -room.depth / 2 - 1,
-      maxZ: -room.depth / 2 + 2,
-    });
+    // Main entrance doorway is at the front wall (-Z side), centered at X=0.
+    // Only applies to ground-floor rooms that border the front wall (most negative Z).
+    if (room.floor === 0) {
+      const allGroundRooms = rooms.filter(r => r.floor === 0);
+      const minZ = Math.min(...allGroundRooms.map(r => r.offsetZ - r.depth / 2));
+      const roomFrontZ = room.offsetZ - room.depth / 2;
+      if (Math.abs(roomFrontZ - minZ) < 0.5) {
+        zones.push({
+          minX: -clearZone,
+          maxX: clearZone,
+          minZ: -room.depth / 2 - 1,
+          maxZ: -room.depth / 2 + 2,
+        });
+      }
+    }
 
     // Check for partition doorways with adjacent rooms on the same floor
     const sameFloor = rooms.filter(r => r.floor === room.floor && r.name !== room.name);
@@ -1706,6 +1975,11 @@ export class BuildingInteriorGenerator {
       case 'workshop': return this.getWorkshopRoomFurniture(w, d);
       case 'temple': return this.getTempleFurniture(w, d);
       case 'warehouse': return this.getWarehouseFurniture(w, d);
+      case 'dining': return this.getDiningRoomFurniture(w, d);
+      case 'altar': return this.getAltarAreaFurniture(w, d);
+      case 'vestry': return this.getVestryFurniture(w, d);
+      case 'entry_hall': return this.getEntryHallFurniture(w, d);
+      case 'hallway': return this.getHallwayFurniture(w, d);
       default: return this.getLivingRoomFurniture(w, d);
     }
   }
@@ -2674,20 +2948,20 @@ export class BuildingInteriorGenerator {
         color: bedColor,
       });
 
-      // Nightstand beside each bed (on the right side, or skip if no room)
-      const nightstandX = bedX + bedWidth / 2 + 0.4;
-      if (nightstandX < w / 2 - wallClearance) {
+      // Nightstand near the bed but outside furniture clearance zone
+      const nightstandZ = d / 2 - bedDepth - wallClearance - FURNITURE_CLEARANCE - 0.5;
+      if (nightstandZ > -d / 2 + 1) {
         specs.push({
-          type: 'table', offsetX: nightstandX, offsetZ: d / 2 - 0.8,
+          type: 'table', offsetX: bedX, offsetZ: nightstandZ,
           width: 0.5, height: 0.6, depth: 0.5, color: wood,
         });
       }
     }
 
-    // Wardrobe against side wall
+    // Wardrobe against front-side wall (away from beds and doorway zones)
     specs.push({
-      type: 'wardrobe', offsetX: w / 2 - 0.6, offsetZ: -d * 0.2,
-      width: 0.8, height: 2.2, depth: 1.5, color: wood,
+      type: 'wardrobe', offsetX: w / 4, offsetZ: -d / 2 + 1,
+      width: 0.8, height: 2.2, depth: 1.0, color: wood,
     });
 
     return specs;
@@ -3013,6 +3287,142 @@ export class BuildingInteriorGenerator {
     return specs;
   }
 
+
+  private getDiningRoomFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+    const cloth = new Color3(0.8, 0.75, 0.65);
+
+    // Dining table(s)
+    const tableCount = w >= 12 ? 2 : 1;
+    for (let t = 0; t < tableCount; t++) {
+      const tx = tableCount > 1 ? (-w * 0.2 + t * w * 0.4) : 0;
+      specs.push({
+        type: 'table', offsetX: tx, offsetZ: 0,
+        width: 2.5, height: 0.85, depth: 1.2, color: wood,
+      });
+      // Chairs around each table
+      for (let side = -1; side <= 1; side += 2) {
+        specs.push({
+          type: 'chair', offsetX: tx + side * 1.5, offsetZ: 0,
+          width: 0.5, height: 0.9, depth: 0.5, color: wood,
+        });
+      }
+      specs.push({
+        type: 'chair', offsetX: tx, offsetZ: -1.0,
+        width: 0.5, height: 0.9, depth: 0.5, color: wood,
+      });
+      specs.push({
+        type: 'chair', offsetX: tx, offsetZ: 1.0,
+        width: 0.5, height: 0.9, depth: 0.5, color: wood,
+      });
+    }
+
+    // Sideboard/buffet against wall
+    specs.push({
+      type: 'shelf', offsetX: -w / 2 + 0.5, offsetZ: 0,
+      width: 0.6, height: 1.2, depth: d * 0.4, color: wood,
+    });
+
+    // Decorative rug
+    specs.push({
+      type: 'rug', offsetX: 0, offsetZ: 0,
+      width: w * 0.5, height: 0.02, depth: d * 0.5, color: cloth,
+    });
+
+    return specs;
+  }
+
+  private getAltarAreaFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const stone = new Color3(0.55, 0.53, 0.5);
+    const gold = new Color3(0.85, 0.75, 0.4);
+
+    // Central altar
+    specs.push({
+      type: 'altar', offsetX: 0, offsetZ: 0,
+      width: 2.5, height: 1.2, depth: 1.5, color: stone,
+    });
+    // Candelabras
+    specs.push({
+      type: 'candelabra', offsetX: -w * 0.3, offsetZ: 0,
+      width: 0.3, height: 1.5, depth: 0.3, color: gold,
+    });
+    specs.push({
+      type: 'candelabra', offsetX: w * 0.3, offsetZ: 0,
+      width: 0.3, height: 1.5, depth: 0.3, color: gold,
+    });
+
+    return specs;
+  }
+
+  private getVestryFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+
+    // Wardrobe for vestments
+    specs.push({
+      type: 'wardrobe', offsetX: -w * 0.3, offsetZ: 0,
+      width: 1.2, height: 2.0, depth: 0.6, color: wood,
+    });
+    // Small desk
+    specs.push({
+      type: 'desk', offsetX: w * 0.2, offsetZ: 0,
+      width: 1.2, height: 0.8, depth: 0.6, color: wood,
+    });
+    // Chest
+    specs.push({
+      type: 'chest', offsetX: 0, offsetZ: d / 2 - 0.5,
+      width: 1.0, height: 0.6, depth: 0.6, color: wood,
+    });
+
+    return specs;
+  }
+
+  private getEntryHallFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+    const cloth = new Color3(0.6, 0.15, 0.15);
+
+    // Entry rug
+    specs.push({
+      type: 'rug', offsetX: 0, offsetZ: 0,
+      width: w * 0.5, height: 0.02, depth: d * 0.6, color: cloth,
+    });
+    // Side table with candle
+    specs.push({
+      type: 'table', offsetX: -w / 2 + 1.0, offsetZ: 0,
+      width: 0.8, height: 0.7, depth: 0.6, color: wood,
+    });
+    // Coat stand / hat rack
+    specs.push({
+      type: 'stand', offsetX: w / 2 - 1.0, offsetZ: 0,
+      width: 0.4, height: 1.8, depth: 0.4, color: wood,
+    });
+
+    return specs;
+  }
+
+  private getHallwayFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+    const cloth = new Color3(0.5, 0.25, 0.25);
+
+    // Runner rug
+    specs.push({
+      type: 'rug', offsetX: 0, offsetZ: 0,
+      width: w * 0.6, height: 0.02, depth: d * 0.7, color: cloth,
+    });
+    // Small table/console
+    if (w > 2) {
+      specs.push({
+        type: 'table', offsetX: 0, offsetZ: -d / 2 + 1,
+        width: 0.8, height: 0.7, depth: 0.5, color: wood,
+      });
+    }
+
+    return specs;
+  }
 
   private getWarehouseFurniture(w: number, d: number): FurnitureSpec[] {
     const specs: FurnitureSpec[] = [];

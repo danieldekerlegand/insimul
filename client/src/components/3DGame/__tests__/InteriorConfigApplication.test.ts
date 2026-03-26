@@ -162,7 +162,7 @@ console.log('\nprocedural mode - dimension overrides:');
   // Partial override: only width, depth/height from defaults
   const layout = gen.generateInterior('tav_partial', 'business', 'tavern');
   assert(layout.width === 22, `width overridden to 22 (got ${layout.width})`);
-  assert(layout.depth === 16, `depth falls back to default 16 (got ${layout.depth})`);
+  assert(layout.depth === 19, `depth falls back to default 19 (got ${layout.depth})`);
   assert(layout.height === 5, `height falls back to default 5 (got ${layout.height})`);
 }
 
@@ -312,8 +312,8 @@ console.log('\nfallback behavior:');
 
   // No configs set — should use hardcoded defaults exactly as before
   const layout = gen.generateInterior('res_default', 'residence');
-  assert(layout.width === 9, `default residence width=9 (got ${layout.width})`);
-  assert(layout.depth === 9, `default residence depth=9 (got ${layout.depth})`);
+  assert(layout.width === 13, `default residence width=13 (got ${layout.width})`);
+  assert(layout.depth === 13, `default residence depth=13 (got ${layout.depth})`);
   assert(layout.floorCount === 1, `default residence 1 floor (got ${layout.floorCount})`);
   assert(layout.rooms.length >= 2, `default residence has rooms (got ${layout.rooms.length})`);
 }
@@ -328,7 +328,7 @@ console.log('\nfallback behavior:');
   });
 
   const layout = gen.generateInterior('res_unmatched', 'residence');
-  assert(layout.width === 9, `unmatched type uses default width (got ${layout.width})`);
+  assert(layout.width === 13, `unmatched type uses default width (got ${layout.width})`);
 }
 
 // --- Model mode with default dimensions ---

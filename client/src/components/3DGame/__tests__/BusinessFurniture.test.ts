@@ -150,7 +150,8 @@ console.log('\ncollision meshes:');
   const gen = new BuildingInteriorGenerator(scene as any);
 
   const layout = gen.generateInterior('bld_coll', 'business', 'blacksmith');
-  const allHaveCollision = layout.furniture.every((f: any) => f.checkCollisions === true);
+  const physicalFurn = layout.furniture.filter((f: any) => !f.name.endsWith('_label'));
+  const allHaveCollision = physicalFurn.every((f: any) => f.checkCollisions === true);
   assert(allHaveCollision, 'all furniture has checkCollisions enabled');
 }
 
@@ -159,7 +160,8 @@ console.log('\ncollision meshes:');
   const gen = new BuildingInteriorGenerator(scene as any);
 
   const layout = gen.generateInterior('bld_coll2', 'business', 'bakery');
-  const allHaveCollision = layout.furniture.every((f: any) => f.checkCollisions === true);
+  const physicalFurn2 = layout.furniture.filter((f: any) => !f.name.endsWith('_label'));
+  const allHaveCollision = physicalFurn2.every((f: any) => f.checkCollisions === true);
   assert(allHaveCollision, 'bakery furniture all has checkCollisions enabled');
 }
 

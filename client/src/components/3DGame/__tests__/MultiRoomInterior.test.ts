@@ -67,16 +67,16 @@ console.log('increased room dimensions:');
   const gen = new BuildingInteriorGenerator(scene as any);
 
   const small = gen.generateInterior('res_small', 'residence');
-  assert(small.width === 9, `small residence width=9 (got ${small.width})`);
-  assert(small.depth === 9, `small residence depth=9 (got ${small.depth})`);
+  assert(small.width === 13, `small residence width=13 (got ${small.width})`);
+  assert(small.depth === 13, `small residence depth=13 (got ${small.depth})`);
 
   const med = gen.generateInterior('res_med', 'residence_medium');
-  assert(med.width === 12, `medium residence width=12 (got ${med.width})`);
-  assert(med.depth === 12, `medium residence depth=12 (got ${med.depth})`);
+  assert(med.width === 14, `medium residence width=14 (got ${med.width})`);
+  assert(med.depth === 14, `medium residence depth=14 (got ${med.depth})`);
 
   const large = gen.generateInterior('res_large', 'residence_large');
-  assert(large.width === 16, `large residence width=16 (got ${large.width})`);
-  assert(large.depth === 16, `large residence depth=16 (got ${large.depth})`);
+  assert(large.width === 19, `large residence width=19 (got ${large.width})`);
+  assert(large.depth === 19, `large residence depth=19 (got ${large.depth})`);
 }
 
 {
@@ -84,15 +84,15 @@ console.log('increased room dimensions:');
   const gen = new BuildingInteriorGenerator(scene as any);
 
   const shop = gen.generateInterior('shop1', 'business', 'shop');
-  assert(shop.width === 14, `shop width=14 (got ${shop.width})`);
+  assert(shop.width === 17, `shop width=17 (got ${shop.width})`);
 
   const tavern = gen.generateInterior('tav1', 'business', 'tavern');
-  assert(tavern.width === 18, `tavern width=18 (got ${tavern.width})`);
-  assert(tavern.depth === 16, `tavern depth=16 (got ${tavern.depth})`);
+  assert(tavern.width === 22, `tavern width=22 (got ${tavern.width})`);
+  assert(tavern.depth === 19, `tavern depth=19 (got ${tavern.depth})`);
 
   const temple = gen.generateInterior('tmp1', 'business', 'temple');
-  assert(temple.width === 20, `temple width=20 (got ${temple.width})`);
-  assert(temple.depth === 24, `temple depth=24 (got ${temple.depth})`);
+  assert(temple.width === 24, `temple width=24 (got ${temple.width})`);
+  assert(temple.depth === 29, `temple depth=29 (got ${temple.depth})`);
 }
 
 // --- Room zones ---
@@ -103,22 +103,23 @@ console.log('\nroom zones:');
   const scene = makeScene();
   const gen = new BuildingInteriorGenerator(scene as any);
 
-  // Medium residence should have multi-room layout
+  // Medium residence: living + kitchen + bedroom ground; hallway + 2 bedrooms upper
   const layout = gen.generateInterior('res_rooms', 'residence_medium');
-  assert(layout.rooms.length >= 2, `medium residence has ${layout.rooms.length} room zones`);
+  assert(layout.rooms.length === 6, `medium residence has ${layout.rooms.length} room zones`);
   assert(layout.floorCount === 2, `medium residence has 2 floors (got ${layout.floorCount})`);
 
   const groundRooms = layout.rooms.filter(r => r.floor === 0);
-  assert(groundRooms.length >= 2, `has ${groundRooms.length} ground floor rooms`);
+  assert(groundRooms.length === 3, `has ${groundRooms.length} ground floor rooms`);
 
   const upperRooms = layout.rooms.filter(r => r.floor === 1);
-  assert(upperRooms.length >= 1, `has ${upperRooms.length} upper floor rooms`);
+  assert(upperRooms.length === 3, `has ${upperRooms.length} upper floor rooms`);
 
   // Check room functions
   const functions = layout.rooms.map(r => r.function);
   assert(functions.includes('living'), 'has living room');
   assert(functions.includes('kitchen'), 'has kitchen');
   assert(functions.includes('bedroom'), 'has bedroom');
+  assert(functions.includes('hallway'), 'has hallway');
 }
 
 {
@@ -138,32 +139,40 @@ console.log('\nroom zones:');
   const scene = makeScene();
   const gen = new BuildingInteriorGenerator(scene as any);
 
-  // Tavern should have common room + kitchen
+  // Tavern: common room + kitchen + storage ground; 3 guest rooms upper
   const layout = gen.generateInterior('tav_rooms', 'business', 'tavern');
+  assert(layout.rooms.length === 6, `tavern has ${layout.rooms.length} room zones`);
   const functions = layout.rooms.map(r => r.function);
   assert(functions.includes('tavern_main'), 'tavern has common room');
   assert(functions.includes('tavern_kitchen'), 'tavern has kitchen');
+  assert(functions.includes('storage'), 'tavern has storage');
 }
 
 {
   const scene = makeScene();
   const gen = new BuildingInteriorGenerator(scene as any);
 
-  // Small residence: single floor but still has living + kitchen zones
+  // Small residence: single floor — living (60%) + bedroom (40%)
   const layout = gen.generateInterior('res_small2', 'residence');
   assert(layout.floorCount === 1, 'small residence is single floor');
   assert(layout.rooms.length >= 2, `small residence has ${layout.rooms.length} room zones`);
+  const fns = layout.rooms.map(r => r.function);
+  assert(fns.includes('living'), 'small residence has living room');
+  assert(fns.includes('bedroom'), 'small residence has bedroom');
 }
 
 {
   const scene = makeScene();
   const gen = new BuildingInteriorGenerator(scene as any);
 
-  // Temple: single large nave
+  // Temple: nave (70%) + altar area (20%) + vestry (10%)
   const layout = gen.generateInterior('temple1', 'business', 'temple');
   assert(layout.floorCount === 1, 'temple is single floor');
+  assert(layout.rooms.length === 3, `temple has ${layout.rooms.length} room zones`);
   const functions = layout.rooms.map(r => r.function);
   assert(functions.includes('temple'), 'temple has nave');
+  assert(functions.includes('altar'), 'temple has altar area');
+  assert(functions.includes('vestry'), 'temple has vestry');
 }
 
 // --- Staircase mesh ---

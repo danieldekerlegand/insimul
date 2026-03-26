@@ -136,8 +136,9 @@ const LIVING_ROOM_FURNITURE: FurnitureEntry[] = [
 ];
 
 const KITCHEN_FURNITURE: FurnitureEntry[] = [
-  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.3, width: 3, height: 0.9, depth: 0.8, color: COUNTER_TAN },
-  { type: 'stool', offsetXFraction: -0.15, offsetZFraction: 0.1, width: 0.4, height: 0.6, depth: 0.4, color: TABLE_BROWN },
+  { type: 'forge', offsetXFraction: 0, offsetZFraction: 0.35, width: 1.5, height: 1.0, depth: 1.0, color: { r: 0.5, g: 0.2, b: 0.1 } },
+  { type: 'counter', offsetXFraction: 0, offsetZFraction: 0.15, width: 3, height: 0.9, depth: 0.8, color: COUNTER_TAN },
+  { type: 'stool', offsetXFraction: -0.15, offsetZFraction: -0.1, width: 0.4, height: 0.6, depth: 0.4, color: TABLE_BROWN },
   { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: 0.3, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
   { type: 'shelf', offsetXFraction: -0.35, offsetZFraction: 0.35, width: 1.2, height: 1.6, depth: 0.4, color: SHELF_BROWN },
 ];
@@ -210,11 +211,11 @@ const LIBRARY_FURNITURE: FurnitureEntry[] = [
 ];
 
 const WORKSHOP_FURNITURE: FurnitureEntry[] = [
-  { type: 'forge', offsetXFraction: 0.35, offsetZFraction: 0.3, width: 1.5, height: 1.2, depth: 1.2, color: STOVE_BLACK },
-  { type: 'workbench', offsetXFraction: -0.15, offsetZFraction: 0.3, width: 2.5, height: 0.9, depth: 0.8, color: COUNTER_TAN },
-  { type: 'anvil', offsetXFraction: 0, offsetZFraction: -0.1, width: 0.8, height: 0.7, depth: 0.5, color: ANVIL_GRAY },
-  { type: 'weapon_rack', offsetXFraction: -0.4, offsetZFraction: 0.3, width: 1.2, height: 1.8, depth: 0.4, color: METAL_GRAY },
-  { type: 'barrel', offsetXFraction: 0.35, offsetZFraction: -0.25, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
+  { type: 'forge', offsetXFraction: 0.3, offsetZFraction: 0.15, width: 1.5, height: 1.2, depth: 1.2, color: STOVE_BLACK },
+  { type: 'anvil', offsetXFraction: 0.1, offsetZFraction: -0.15, width: 0.8, height: 0.7, depth: 0.5, color: ANVIL_GRAY },
+  { type: 'workbench', offsetXFraction: -0.2, offsetZFraction: 0.1, width: 2.0, height: 0.9, depth: 0.8, color: COUNTER_TAN },
+  { type: 'weapon_rack', offsetXFraction: -0.4, offsetZFraction: 0.15, width: 1.2, height: 1.8, depth: 0.4, color: METAL_GRAY },
+  { type: 'barrel', offsetXFraction: 0.3, offsetZFraction: -0.25, width: 0.7, height: 0.9, depth: 0.7, color: BARREL_BROWN },
 ];
 
 const TEMPLE_FURNITURE: FurnitureEntry[] = [
@@ -596,7 +597,7 @@ const GARAGE_BAY_FURNITURE: FurnitureEntry[] = [
 // ─── Templates ───────────────────────────────────────────────────────────────
 
 export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
-  // 1. Tavern / Inn
+  // 1. Tavern / Inn — main hall (50%), kitchen (25%), storage (25%); 3 guest rooms upstairs
   {
     id: 'tavern',
     category: 'commercial_food',
@@ -606,19 +607,22 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 2,
     colors: { floor: DARK_WOOD, wall: LIGHT_WOOD, ceiling: DARK_CEILING },
     rooms: [
-      { name: 'common_room', function: 'tavern_main', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
-      { name: 'kitchen', function: 'tavern_kitchen', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
-      { name: 'guest_room1', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
-      { name: 'guest_room2', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'common_room', function: 'tavern_main', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'kitchen', function: 'tavern_kitchen', offsetXFraction: -0.25, offsetZFraction: 0.375, widthFraction: 0.5, depthFraction: 0.25, floor: 0 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0.25, offsetZFraction: 0.375, widthFraction: 0.5, depthFraction: 0.25, floor: 0 },
+      { name: 'guest_room1', function: 'bedroom', offsetXFraction: -0.33, offsetZFraction: 0, widthFraction: 0.34, depthFraction: 1, floor: 1 },
+      { name: 'guest_room2', function: 'bedroom', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 0.33, depthFraction: 1, floor: 1 },
+      { name: 'guest_room3', function: 'bedroom', offsetXFraction: 0.33, offsetZFraction: 0, widthFraction: 0.34, depthFraction: 1, floor: 1 },
     ],
     furnitureSets: [
       { roomFunction: 'tavern_main', furniture: TAVERN_MAIN_FURNITURE },
       { roomFunction: 'tavern_kitchen', furniture: TAVERN_KITCHEN_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
       { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
     ],
   },
 
-  // 2. Restaurant
+  // 2. Restaurant — dining room (60%), kitchen (30%), storage (10%)
   {
     id: 'restaurant',
     category: 'commercial_food',
@@ -628,16 +632,18 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
-      { name: 'dining_room', function: 'restaurant_main', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
-      { name: 'kitchen', function: 'tavern_kitchen', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'dining_room', function: 'dining', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'kitchen', function: 'kitchen', offsetXFraction: 0, offsetZFraction: 0.2, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.45, widthFraction: 1, depthFraction: 0.1, floor: 0 },
     ],
     furnitureSets: [
-      { roomFunction: 'restaurant_main', furniture: RESTAURANT_MAIN_FURNITURE },
-      { roomFunction: 'tavern_kitchen', furniture: TAVERN_KITCHEN_FURNITURE },
+      { roomFunction: 'dining', furniture: RESTAURANT_MAIN_FURNITURE },
+      { roomFunction: 'kitchen', furniture: TAVERN_KITCHEN_FURNITURE },
+      { roomFunction: 'storage', furniture: STORAGE_FURNITURE },
     ],
   },
 
-  // 3. Shop / General Store
+  // 3. Shop / General Store — showroom (70% front), storeroom (30% back)
   {
     id: 'shop',
     category: 'commercial_retail',
@@ -647,8 +653,8 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 2,
     colors: { floor: { r: 0.45, g: 0.4, b: 0.35 }, wall: PLASTER, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
-      { name: 'shop_floor', function: 'shop', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
-      { name: 'storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'shop_floor', function: 'shop', offsetXFraction: 0, offsetZFraction: -0.15, widthFraction: 1, depthFraction: 0.7, floor: 0 },
+      { name: 'storage', function: 'storage', offsetXFraction: 0, offsetZFraction: 0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
       { name: 'living_quarters', function: 'living', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
     ],
     furnitureSets: [
@@ -694,7 +700,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
   },
 
-  // 6. Small Residence
+  // 6. Small Residence — combined living/kitchen (60%), bedroom (40%)
   {
     id: 'residence_small',
     category: 'residential',
@@ -704,18 +710,16 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
-      { name: 'living_room', function: 'living', offsetXFraction: -0.25, offsetZFraction: -0.2, widthFraction: 0.5, depthFraction: 0.6, floor: 0 },
-      { name: 'bedroom', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: -0.2, widthFraction: 0.5, depthFraction: 0.6, floor: 0 },
-      { name: 'kitchen', function: 'kitchen', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'living_room', function: 'living', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'bedroom', function: 'bedroom', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
     ],
     furnitureSets: [
       { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
-      { roomFunction: 'kitchen', furniture: KITCHEN_FURNITURE },
       { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
     ],
   },
 
-  // 7. Medium Residence
+  // 7. Medium Residence — living (40%), kitchen+bedroom (30%+30%) back; 2 bedrooms + hallway upstairs
   {
     id: 'residence_medium',
     category: 'residential',
@@ -725,19 +729,22 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 2,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
-      { name: 'living_room', function: 'living', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
-      { name: 'kitchen', function: 'kitchen', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
-      { name: 'bedroom', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
-      { name: 'bedroom2', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'living_room', function: 'living', offsetXFraction: 0, offsetZFraction: -0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'kitchen', function: 'kitchen', offsetXFraction: -0.25, offsetZFraction: 0.2, widthFraction: 0.5, depthFraction: 0.6, floor: 0 },
+      { name: 'bedroom', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0.2, widthFraction: 0.5, depthFraction: 0.6, floor: 0 },
+      { name: 'hallway', function: 'hallway', offsetXFraction: 0, offsetZFraction: -0.35, widthFraction: 1, depthFraction: 0.15, floor: 1 },
+      { name: 'bedroom2', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0.075, widthFraction: 0.5, depthFraction: 0.85, floor: 1 },
+      { name: 'bedroom3', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0.075, widthFraction: 0.5, depthFraction: 0.85, floor: 1 },
     ],
     furnitureSets: [
       { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
       { roomFunction: 'kitchen', furniture: KITCHEN_FURNITURE },
       { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+      { roomFunction: 'hallway', furniture: [] },
     ],
   },
 
-  // 8. Large Residence / Mansion
+  // 8. Large Residence / Mansion — entry hall, living, dining, kitchen ground; 3 bedrooms + study upstairs
   {
     id: 'residence_large',
     category: 'residential',
@@ -747,19 +754,26 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 2,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
-      { name: 'living_room', function: 'living', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
-      { name: 'kitchen', function: 'kitchen', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
-      { name: 'bedroom', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
-      { name: 'bedroom2', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'entry_hall', function: 'entry_hall', offsetXFraction: 0, offsetZFraction: -0.375, widthFraction: 1, depthFraction: 0.25, floor: 0 },
+      { name: 'living_room', function: 'living', offsetXFraction: -0.25, offsetZFraction: -0.0625, widthFraction: 0.5, depthFraction: 0.375, floor: 0 },
+      { name: 'dining_room', function: 'dining', offsetXFraction: 0.25, offsetZFraction: -0.0625, widthFraction: 0.5, depthFraction: 0.375, floor: 0 },
+      { name: 'kitchen', function: 'kitchen', offsetXFraction: 0, offsetZFraction: 0.3125, widthFraction: 1, depthFraction: 0.375, floor: 0 },
+      { name: 'bedroom1', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: -0.25, widthFraction: 0.5, depthFraction: 0.5, floor: 1 },
+      { name: 'bedroom2', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: -0.25, widthFraction: 0.5, depthFraction: 0.5, floor: 1 },
+      { name: 'bedroom3', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0.25, widthFraction: 0.5, depthFraction: 0.5, floor: 1 },
+      { name: 'study', function: 'office', offsetXFraction: 0.25, offsetZFraction: 0.25, widthFraction: 0.5, depthFraction: 0.5, floor: 1 },
     ],
     furnitureSets: [
+      { roomFunction: 'entry_hall', furniture: [] },
       { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+      { roomFunction: 'dining', furniture: RESTAURANT_MAIN_FURNITURE },
       { roomFunction: 'kitchen', furniture: KITCHEN_FURNITURE },
       { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
     ],
   },
 
-  // 9. Church / Temple
+  // 9. Church / Temple — nave (70%), altar area (20%), vestry (10%)
   {
     id: 'church',
     category: 'civic',
@@ -769,10 +783,14 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 1,
     colors: { floor: STONE_LIGHT, wall: WHITE_WASH, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
     rooms: [
-      { name: 'nave', function: 'temple', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 0 },
+      { name: 'nave', function: 'temple', offsetXFraction: 0, offsetZFraction: -0.15, widthFraction: 1, depthFraction: 0.7, floor: 0 },
+      { name: 'altar_area', function: 'altar', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.2, floor: 0 },
+      { name: 'vestry', function: 'vestry', offsetXFraction: 0, offsetZFraction: 0.45, widthFraction: 1, depthFraction: 0.1, floor: 0 },
     ],
     furnitureSets: [
       { roomFunction: 'temple', furniture: TEMPLE_FURNITURE },
+      { roomFunction: 'altar', furniture: [] },
+      { roomFunction: 'vestry', furniture: [] },
     ],
   },
 
