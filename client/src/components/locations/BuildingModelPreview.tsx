@@ -715,20 +715,20 @@ function buildProceduralPlaceholder(
 }
 
 /** Resolve a visual asset ID to its file path */
-function resolveAssetPath(assetId: string | undefined, assets?: VisualAsset[]): string | undefined {
+export function resolveAssetPath(assetId: string | undefined, assets?: VisualAsset[]): string | undefined {
   if (!assetId || !assets?.length) return undefined;
   const asset = assets.find(a => a.id === assetId);
   if (!asset?.filePath) return undefined;
   return asset.filePath.startsWith('/') ? asset.filePath : `/${asset.filePath}`;
 }
 
-/** Lighting preset configurations */
-const LIGHTING_PRESET_CONFIGS: Record<string, { hemiIntensity: number; dirIntensity: number; color: [number, number, number] }> = {
-  bright: { hemiIntensity: 1.0, dirIntensity: 0.6, color: [1, 1, 1] },
-  dim: { hemiIntensity: 0.3, dirIntensity: 0.15, color: [0.9, 0.85, 0.8] },
-  warm: { hemiIntensity: 0.7, dirIntensity: 0.4, color: [1.0, 0.85, 0.6] },
-  cool: { hemiIntensity: 0.7, dirIntensity: 0.4, color: [0.7, 0.8, 1.0] },
-  candlelit: { hemiIntensity: 0.2, dirIntensity: 0.1, color: [1.0, 0.7, 0.3] },
+/** Lighting preset configurations matching spec: bright=1.5, dim=0.4, warm/cool=0.8, candlelit=0.3 */
+export const LIGHTING_PRESET_CONFIGS: Record<string, { hemiIntensity: number; dirIntensity: number; color: [number, number, number] }> = {
+  bright: { hemiIntensity: 1.5, dirIntensity: 0.8, color: [1, 1, 1] },
+  dim: { hemiIntensity: 0.4, dirIntensity: 0.2, color: [0.9, 0.85, 0.8] },
+  warm: { hemiIntensity: 0.8, dirIntensity: 0.4, color: [1.0, 0.75, 0.4] },
+  cool: { hemiIntensity: 0.8, dirIntensity: 0.4, color: [0.6, 0.75, 1.0] },
+  candlelit: { hemiIntensity: 0.3, dirIntensity: 0.1, color: [1.0, 0.7, 0.3] },
 };
 
 /** Build a procedural interior cutaway preview from an InteriorLayoutTemplate */
@@ -894,6 +894,28 @@ function buildProceduralInterior(
       if (dir) {
         dir.intensity = preset.dirIntensity;
         dir.diffuse = new BABYLON.Color3(preset.color[0], preset.color[1], preset.color[2]);
+      }
+
+      // Candlelit preset: add flickering point lights
+      if (interiorConfig.lightingPreset === 'candlelit') {
+        const candlePositions = [
+          new BABYLON.Vector3(-w * 0.25, h * 0.4, -d * 0.25),
+          new BABYLON.Vector3(w * 0.25, h * 0.4, d * 0.15),
+        ];
+        const candleLights: BABYLON.PointLight[] = [];
+        for (let ci = 0; ci < candlePositions.length; ci++) {
+          const candle = new BABYLON.PointLight(`candle_${ci}`, candlePositions[ci], scene);
+          candle.diffuse = new BABYLON.Color3(1.0, 0.7, 0.3);
+          candle.intensity = 0.5;
+          candle.range = Math.max(w, d) * 1.5;
+          candleLights.push(candle);
+        }
+        // Animate flickering
+        scene.onBeforeRenderObservable.add(() => {
+          for (const candle of candleLights) {
+            candle.intensity = 0.4 + Math.random() * 0.25;
+          }
+        });
       }
     }
   }
