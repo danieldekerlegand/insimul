@@ -1,6 +1,11 @@
 /**
  * Procedural text seed generator for language-learning worlds.
- * Generates reading content (books, journals, letters, flyers, recipes) using templates.
+ * Generates 20 reading texts in French covering fiction, non-fiction, journal entries,
+ * letters, recipes, and poems — all themed around Louisiana Creole/Chitimacha culture.
+ *
+ * 5 texts are written by the missing writer character with progressive mystery clues.
+ * CEFR distribution: 8×A1, 6×A2, 4×B1, 2×B2.
+ *
  * No LLM dependency — all content is template-driven for deterministic, offline seeding.
  */
 import type {
@@ -42,968 +47,1106 @@ function cefrToDifficulty(level: CefrLevel): string {
   }
 }
 
-// ---- Main quest book templates (12 books, 3 per CEFR level) ----
+// ── Missing writer's diary entries (5 journals, progressive clues) ───────────
 
-function buildMainQuestBooks(writerName: string): TextTemplate[] {
+function buildWriterJournals(writerName: string): TextTemplate[] {
   return [
-    // A1 Books (1-3): Simple present, basic vocabulary
+    // Clue 1 (A1): Writer's daily life, love of the bayou — establishes character
     {
-      title: "Le Jardin Secret",
-      titleTranslation: "The Secret Garden",
-      textCategory: 'book',
+      title: "Journal — Lundi matin",
+      titleTranslation: "Journal — Monday Morning",
+      textCategory: 'journal',
       cefrLevel: 'A1',
       pages: [
         {
-          content: `${writerName} aime le jardin. Le jardin est grand et beau. Il y a des fleurs rouges et jaunes. ${writerName} écrit dans le jardin chaque jour. C'est son endroit préféré.`,
-          contentTranslation: `${writerName} loves the garden. The garden is big and beautiful. There are red and yellow flowers. ${writerName} writes in the garden every day. It is their favorite place.`,
+          content: `Lundi. Je suis ${writerName}. J'habite près du bayou. Le matin, je marche sous les cyprès. L'eau est calme. Les oiseaux chantent. J'écris dans mon cahier. C'est mon endroit préféré. Personne ne vient ici. C'est mon secret.`,
+          contentTranslation: `Monday. I am ${writerName}. I live near the bayou. In the morning, I walk under the cypress trees. The water is calm. The birds sing. I write in my notebook. It is my favorite place. Nobody comes here. It is my secret.`,
         },
       ],
       vocabularyHighlights: [
-        { word: "jardin", translation: "garden", partOfSpeech: "noun" },
-        { word: "fleurs", translation: "flowers", partOfSpeech: "noun" },
-        { word: "beau", translation: "beautiful", partOfSpeech: "adjective" },
-        { word: "écrit", translation: "writes", partOfSpeech: "verb" },
-        { word: "préféré", translation: "favorite", partOfSpeech: "adjective" },
+        { word: "bayou", translation: "bayou (slow waterway)", partOfSpeech: "noun" },
+        { word: "cyprès", translation: "cypress trees", partOfSpeech: "noun" },
+        { word: "oiseaux", translation: "birds", partOfSpeech: "noun" },
+        { word: "cahier", translation: "notebook", partOfSpeech: "noun" },
+        { word: "secret", translation: "secret", partOfSpeech: "noun" },
       ],
       comprehensionQuestions: [
         {
-          question: `Où est-ce que ${writerName} écrit ?`,
-          questionTranslation: `Where does ${writerName} write?`,
-          options: ["Dans la maison", "Dans le jardin", "À l'école", "Au café"],
+          question: `Où est-ce que ${writerName} habite ?`,
+          questionTranslation: `Where does ${writerName} live?`,
+          options: ["En ville", "Près du bayou", "À la montagne", "Au bord de la mer"],
           correctIndex: 1,
         },
         {
-          question: "De quelle couleur sont les fleurs ?",
-          questionTranslation: "What color are the flowers?",
-          options: ["Bleues et blanches", "Rouges et jaunes", "Vertes et roses", "Noires et grises"],
+          question: `Quand est-ce que ${writerName} marche ?`,
+          questionTranslation: `When does ${writerName} walk?`,
+          options: ["Le soir", "L'après-midi", "Le matin", "La nuit"],
+          correctIndex: 2,
+        },
+      ],
+      authorName: writerName,
+      clueText: `${writerName} has a secret spot near the bayou under the cypress trees — a place nobody visits.`,
+      difficulty: 'beginner',
+      tags: ['main_quest', 'missing_writer', 'clue_1'],
+      spawnLocationHint: 'residence',
+    },
+    // Clue 2 (A2): Discovery of old Chitimacha documents
+    {
+      title: "Journal — La Découverte",
+      titleTranslation: "Journal — The Discovery",
+      textCategory: 'journal',
+      cefrLevel: 'A2',
+      pages: [
+        {
+          content: `Mercredi. J'ai trouvé quelque chose d'extraordinaire aujourd'hui. Dans la vieille bibliothèque, derrière les étagères, il y avait une boîte en bois. À l'intérieur, j'ai découvert des documents anciens — des textes en langue chitimacha, écrits à la main. Ces documents racontent l'histoire vraie de notre village. L'histoire que personne ne veut entendre.`,
+          contentTranslation: `Wednesday. I found something extraordinary today. In the old library, behind the shelves, there was a wooden box. Inside, I discovered ancient documents — texts in the Chitimacha language, written by hand. These documents tell the true history of our village. The history that nobody wants to hear.`,
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "étagères", translation: "shelves", partOfSpeech: "noun" },
+        { word: "boîte", translation: "box", partOfSpeech: "noun" },
+        { word: "anciens", translation: "ancient", partOfSpeech: "adjective" },
+        { word: "langue", translation: "language", partOfSpeech: "noun" },
+        { word: "histoire", translation: "history/story", partOfSpeech: "noun" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Où a-t-il trouvé la boîte ?",
+          questionTranslation: "Where did he find the box?",
+          options: ["Dans le bayou", "Dans la bibliothèque", "Dans la forêt", "Chez lui"],
+          correctIndex: 1,
+        },
+        {
+          question: "En quelle langue sont les documents ?",
+          questionTranslation: "In what language are the documents?",
+          options: ["En français", "En anglais", "En chitimacha", "En espagnol"],
+          correctIndex: 2,
+        },
+        {
+          question: "Que racontent les documents ?",
+          questionTranslation: "What do the documents tell?",
+          options: ["Des recettes", "L'histoire vraie du village", "Des poèmes", "Des nouvelles"],
           correctIndex: 1,
         },
       ],
       authorName: writerName,
-      clueText: `${writerName} mentions a favorite garden — could this be where they spent their last days?`,
+      clueText: `${writerName} found hidden Chitimacha documents in the old library — behind the shelves, in a wooden box.`,
       difficulty: 'beginner',
-      tags: ['main_quest', 'chapter_1', 'clue'],
+      tags: ['main_quest', 'missing_writer', 'clue_2'],
       spawnLocationHint: 'library',
     },
+    // Clue 3 (B1): Threats and coded location references
     {
-      title: "Ma Ville",
-      titleTranslation: "My Town",
-      textCategory: 'book',
-      cefrLevel: 'A1',
+      title: "Journal — Les Menaces",
+      titleTranslation: "Journal — The Threats",
+      textCategory: 'journal',
+      cefrLevel: 'B1',
       pages: [
         {
-          content: `La ville est petite. Il y a une boulangerie, un café et une bibliothèque. Les gens sont gentils. ${writerName} connaît tout le monde ici. Mais un jour, ${writerName} n'est plus là.`,
-          contentTranslation: `The town is small. There is a bakery, a café, and a library. The people are kind. ${writerName} knows everyone here. But one day, ${writerName} is no longer there.`,
+          content: `Samedi soir. Quelqu'un est entré dans mon bureau pendant que j'étais au marché. Mes papiers étaient dérangés, et la copie des documents chitimacha avait disparu. Ce n'est pas la première fois — la semaine dernière, j'ai reçu une lettre anonyme qui disait : « Cessez vos recherches si vous tenez à votre tranquillité. » Je sais que la famille Beaumont est derrière tout ça. Ces documents prouvent que leurs ancêtres ont volé les terres des Chitimacha.`,
+          contentTranslation: `Saturday evening. Someone entered my office while I was at the market. My papers were disturbed, and the copy of the Chitimacha documents had disappeared. This is not the first time — last week, I received an anonymous letter that said: "Stop your research if you value your peace." I know the Beaumont family is behind all this. These documents prove that their ancestors stole the Chitimacha lands.`,
+        },
+        {
+          content: `J'ai caché les originaux dans un endroit sûr. La cabane au bord du bayou — celle que mon grand-père a construite — personne ne la connaît sauf moi. Demain, j'y emmènerai aussi mon manuscrit. Si quelque chose m'arrive, il faut chercher « là où les hérons se reposent ». C'est le nom que mon grand-père donnait à cet endroit.`,
+          contentTranslation: `I hid the originals in a safe place. The cabin at the edge of the bayou — the one my grandfather built — nobody knows about it except me. Tomorrow, I will bring my manuscript there too. If something happens to me, look for "where the herons rest." That is the name my grandfather gave to this place.`,
         },
       ],
       vocabularyHighlights: [
-        { word: "ville", translation: "town", partOfSpeech: "noun" },
-        { word: "boulangerie", translation: "bakery", partOfSpeech: "noun" },
-        { word: "bibliothèque", translation: "library", partOfSpeech: "noun" },
-        { word: "gentils", translation: "kind", partOfSpeech: "adjective" },
-        { word: "connaît", translation: "knows", partOfSpeech: "verb" },
+        { word: "menaces", translation: "threats", partOfSpeech: "noun" },
+        { word: "dérangés", translation: "disturbed", partOfSpeech: "adjective" },
+        { word: "anonyme", translation: "anonymous", partOfSpeech: "adjective" },
+        { word: "ancêtres", translation: "ancestors", partOfSpeech: "noun" },
+        { word: "hérons", translation: "herons", partOfSpeech: "noun" },
       ],
       comprehensionQuestions: [
         {
-          question: "Comment est la ville ?",
-          questionTranslation: "How is the town?",
-          options: ["Grande", "Petite", "Moderne", "Dangereuse"],
+          question: "Que disait la lettre anonyme ?",
+          questionTranslation: "What did the anonymous letter say?",
+          options: [
+            "Bienvenue au village",
+            "Cessez vos recherches",
+            "Venez à la fête",
+            "Partagez vos découvertes",
+          ],
           correctIndex: 1,
         },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} describes a disagreement with a patron who funded their work.`,
-      difficulty: 'beginner',
-      tags: ['main_quest', 'chapter_1', 'clue'],
-      spawnLocationHint: 'bookshop',
-    },
-    {
-      title: "Les Amis",
-      titleTranslation: "The Friends",
-      textCategory: 'book',
-      cefrLevel: 'A1',
-      pages: [
         {
-          content: `${writerName} a trois amis. Marie est professeur. Pierre travaille au café. Sophie aime les livres. Ils se retrouvent le samedi au marché. ${writerName} dit toujours : « L'amitié est importante. »`,
-          contentTranslation: `${writerName} has three friends. Marie is a teacher. Pierre works at the café. Sophie loves books. They meet on Saturday at the market. ${writerName} always says: "Friendship is important."`,
+          question: "Où a-t-il caché les documents originaux ?",
+          questionTranslation: "Where did he hide the original documents?",
+          options: [
+            "Dans la bibliothèque",
+            "Chez un ami",
+            "Dans la cabane au bord du bayou",
+            "Dans son bureau",
+          ],
+          correctIndex: 2,
         },
-      ],
-      vocabularyHighlights: [
-        { word: "amis", translation: "friends", partOfSpeech: "noun" },
-        { word: "professeur", translation: "teacher", partOfSpeech: "noun" },
-        { word: "travaille", translation: "works", partOfSpeech: "verb" },
-        { word: "livres", translation: "books", partOfSpeech: "noun" },
-        { word: "amitié", translation: "friendship", partOfSpeech: "noun" },
-      ],
-      comprehensionQuestions: [
         {
-          question: `Combien d'amis a ${writerName} ?`,
-          questionTranslation: `How many friends does ${writerName} have?`,
-          options: ["Deux", "Trois", "Quatre", "Cinq"],
-          correctIndex: 1,
-        },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} describes a secret meeting place where friends gathered.`,
-      difficulty: 'beginner',
-      tags: ['main_quest', 'chapter_2', 'clue'],
-      spawnLocationHint: 'cafe',
-    },
-    // A2 Books (4-6): Past tense, basic connectors
-    {
-      title: "Le Voyage Inattendu",
-      titleTranslation: "The Unexpected Journey",
-      textCategory: 'book',
-      cefrLevel: 'A2',
-      pages: [
-        {
-          content: `L'année dernière, ${writerName} a décidé de partir en voyage. Personne ne savait où. Un matin, la maison était vide. Sur la table, il y avait une lettre. La lettre disait : « Je dois découvrir la vérité. Ne me cherchez pas. »`,
-          contentTranslation: `Last year, ${writerName} decided to go on a trip. Nobody knew where. One morning, the house was empty. On the table, there was a letter. The letter said: "I must discover the truth. Don't look for me."`,
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "voyage", translation: "journey", partOfSpeech: "noun" },
-        { word: "décidé", translation: "decided", partOfSpeech: "verb" },
-        { word: "vide", translation: "empty", partOfSpeech: "adjective" },
-        { word: "vérité", translation: "truth", partOfSpeech: "noun" },
-        { word: "cherchez", translation: "look for", partOfSpeech: "verb" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: `Qu'est-ce que ${writerName} a trouvé sur la table ?`,
-          questionTranslation: `What did ${writerName} find on the table?`,
-          options: ["Un livre", "Une lettre", "Un cadeau", "Une carte"],
-          correctIndex: 1,
-        },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} left a cryptic farewell letter — they were searching for something.`,
-      difficulty: 'beginner',
-      tags: ['main_quest', 'chapter_2', 'clue'],
-      spawnLocationHint: 'newspaper',
-    },
-    {
-      title: "Souvenirs d'Enfance",
-      titleTranslation: "Childhood Memories",
-      textCategory: 'book',
-      cefrLevel: 'A2',
-      pages: [
-        {
-          content: `Quand ${writerName} était enfant, il aimait explorer la forêt près du village. Un jour, il a trouvé une vieille cabane cachée derrière les arbres. C'était un endroit magique. Plus tard, ${writerName} a écrit : « La cabane garde mes secrets. »`,
-          contentTranslation: `When ${writerName} was a child, they loved to explore the forest near the village. One day, they found an old cabin hidden behind the trees. It was a magical place. Later, ${writerName} wrote: "The cabin keeps my secrets."`,
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "enfant", translation: "child", partOfSpeech: "noun" },
-        { word: "forêt", translation: "forest", partOfSpeech: "noun" },
-        { word: "cabane", translation: "cabin", partOfSpeech: "noun" },
-        { word: "cachée", translation: "hidden", partOfSpeech: "adjective" },
-        { word: "secrets", translation: "secrets", partOfSpeech: "noun" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: `Qu'est-ce que ${writerName} a trouvé dans la forêt ?`,
-          questionTranslation: `What did ${writerName} find in the forest?`,
-          options: ["Un animal", "Une rivière", "Une cabane", "Un trésor"],
+          question: `Comment s'appelle l'endroit secret ?`,
+          questionTranslation: `What is the secret place called?`,
+          options: [
+            "Le jardin secret",
+            "La maison du bayou",
+            "Là où les hérons se reposent",
+            "La cabane aux oiseaux",
+          ],
           correctIndex: 2,
         },
       ],
       authorName: writerName,
-      clueText: `A childhood cabin in the forest — a possible hiding place.`,
-      difficulty: 'beginner',
-      tags: ['main_quest', 'chapter_3', 'clue'],
-      spawnLocationHint: 'residence',
+      clueText: `${writerName} hid originals at "where the herons rest" — a cabin by the bayou built by their grandfather. The Beaumont family is behind the threats.`,
+      difficulty: 'intermediate',
+      tags: ['main_quest', 'missing_writer', 'clue_3'],
+      spawnLocationHint: 'hidden',
     },
+    // Clue 4 (B1): Decision to disappear, leaving breadcrumbs
     {
-      title: "La Bibliothèque Oubliée",
-      titleTranslation: "The Forgotten Library",
-      textCategory: 'book',
-      cefrLevel: 'A2',
-      pages: [
-        {
-          content: `Il y a longtemps, la ville avait une grande bibliothèque. Mais les gens l'ont oubliée. ${writerName} l'a redécouverte. Il y a trouvé des documents importants sur l'histoire du village. ${writerName} a dit à son éditeur : « Ces documents changent tout. »`,
-          contentTranslation: `Long ago, the town had a big library. But the people forgot about it. ${writerName} rediscovered it. There, they found important documents about the village's history. ${writerName} said to their editor: "These documents change everything."`,
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "oubliée", translation: "forgotten", partOfSpeech: "adjective" },
-        { word: "redécouverte", translation: "rediscovered", partOfSpeech: "verb" },
-        { word: "documents", translation: "documents", partOfSpeech: "noun" },
-        { word: "histoire", translation: "history", partOfSpeech: "noun" },
-        { word: "éditeur", translation: "editor", partOfSpeech: "noun" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: `Qu'est-ce que ${writerName} a trouvé dans la bibliothèque ?`,
-          questionTranslation: `What did ${writerName} find in the library?`,
-          options: ["Des livres de cuisine", "Des documents importants", "Des lettres d'amour", "Des photos"],
-          correctIndex: 1,
-        },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} found documents that "change everything" — what were they about?`,
-      difficulty: 'beginner',
-      tags: ['main_quest', 'chapter_3', 'clue'],
-      spawnLocationHint: 'school',
-    },
-    // B1 Books (7-9): All tenses, conditionals, idiomatic expressions
-    {
-      title: "Les Ombres du Passé",
-      titleTranslation: "Shadows of the Past",
-      textCategory: 'book',
+      title: "Journal — La Dernière Nuit",
+      titleTranslation: "Journal — The Last Night",
+      textCategory: 'journal',
       cefrLevel: 'B1',
       pages: [
         {
-          content: `Si ${writerName} avait su ce qui l'attendait, aurait-il quand même ouvert cette porte ? Les documents révélaient un scandale vieux de cent ans : la famille fondatrice du village avait bâti sa fortune sur un mensonge. ${writerName} hésitait. Publier la vérité détruirait des réputations. Garder le silence trahirait ses principes.`,
-          contentTranslation: `If ${writerName} had known what awaited them, would they still have opened that door? The documents revealed a scandal a hundred years old: the founding family of the village had built its fortune on a lie. ${writerName} hesitated. Publishing the truth would destroy reputations. Keeping silent would betray their principles.`,
+          content: `Vendredi, 23h. Je prends ma décision ce soir. Demain matin, je quitterai ma maison. Je ne peux plus rester ici — les Beaumont ont trop d'influence. Le maire refuse de m'écouter. Même mes voisins commencent à m'éviter. Mais je ne vais pas abandonner la vérité. J'ai laissé des indices dans mes textes, éparpillés dans les endroits que j'aime : la bibliothèque, le café, l'église. Le bon lecteur saura les trouver.`,
+          contentTranslation: `Friday, 11pm. I am making my decision tonight. Tomorrow morning, I will leave my house. I can no longer stay here — the Beaumonts have too much influence. The mayor refuses to listen to me. Even my neighbors are starting to avoid me. But I will not abandon the truth. I have left clues in my texts, scattered in the places I love: the library, the café, the church. The right reader will know how to find them.`,
         },
         {
-          content: `Chaque nuit, ${writerName} relisait les documents dans son bureau. Les mots dansaient devant ses yeux fatigués. « Il faut que je sois courageux », se disait-il. Mais le courage a un prix, et ${writerName} commençait à comprendre lequel.`,
-          contentTranslation: `Every night, ${writerName} reread the documents in their office. The words danced before their tired eyes. "I must be brave," they told themselves. But courage has a price, and ${writerName} was beginning to understand which one.`,
+          content: `J'emporte mes cahiers et le manuscrit à la cabane. Le chemin passe derrière le vieux chêne du cimetière, puis suit le sentier des pêcheurs jusqu'au coude du bayou. De là, on voit les cyprès géants — la cabane est cachée entre eux. Si vous lisez ces mots, suivez ce chemin. La vérité sur notre village vous attend.`,
+          contentTranslation: `I am taking my notebooks and the manuscript to the cabin. The path goes behind the old oak tree in the cemetery, then follows the fishermen's trail to the bend in the bayou. From there, you can see the giant cypress trees — the cabin is hidden among them. If you are reading these words, follow this path. The truth about our village awaits you.`,
         },
       ],
       vocabularyHighlights: [
-        { word: "scandale", translation: "scandal", partOfSpeech: "noun" },
-        { word: "mensonge", translation: "lie", partOfSpeech: "noun" },
-        { word: "hésitait", translation: "hesitated", partOfSpeech: "verb" },
-        { word: "réputations", translation: "reputations", partOfSpeech: "noun" },
-        { word: "trahirait", translation: "would betray", partOfSpeech: "verb" },
-        { word: "courageux", translation: "brave", partOfSpeech: "adjective" },
+        { word: "indices", translation: "clues", partOfSpeech: "noun" },
+        { word: "éparpillés", translation: "scattered", partOfSpeech: "adjective" },
+        { word: "sentier", translation: "trail/path", partOfSpeech: "noun" },
+        { word: "cimetière", translation: "cemetery", partOfSpeech: "noun" },
+        { word: "chêne", translation: "oak tree", partOfSpeech: "noun" },
       ],
       comprehensionQuestions: [
         {
-          question: "Que révélaient les documents ?",
-          questionTranslation: "What did the documents reveal?",
-          options: ["Une recette ancienne", "Un scandale vieux de cent ans", "Une carte au trésor", "Un poème oublié"],
-          correctIndex: 1,
-        },
-        {
-          question: `Pourquoi ${writerName} hésitait-il ?`,
-          questionTranslation: `Why did ${writerName} hesitate?`,
+          question: `Pourquoi ${writerName} quitte-t-il sa maison ?`,
+          questionTranslation: `Why is ${writerName} leaving their house?`,
           options: [
-            "Il ne savait pas lire les documents",
-            "Publier détruirait des réputations",
-            "Il voulait garder les documents",
-            "Les documents étaient faux",
+            "Pour voyager",
+            "Parce que les Beaumont ont trop d'influence",
+            "Pour chercher du travail",
+            "Parce que la maison est vieille",
           ],
           correctIndex: 1,
         },
+        {
+          question: "Par où passe le chemin vers la cabane ?",
+          questionTranslation: "Which way does the path to the cabin go?",
+          options: [
+            "Par la route principale",
+            "Par la rivière",
+            "Derrière le vieux chêne du cimetière",
+            "Par le marché",
+          ],
+          correctIndex: 2,
+        },
       ],
       authorName: writerName,
-      clueText: `${writerName} discovered a century-old scandal about the founding family — this is what drove them into hiding.`,
+      clueText: `${writerName} left clues scattered in the library, café, and church. The path: behind the cemetery oak, follow the fishermen's trail to the bayou bend, look for giant cypress trees.`,
       difficulty: 'intermediate',
-      tags: ['main_quest', 'chapter_4', 'clue'],
+      tags: ['main_quest', 'missing_writer', 'clue_4'],
       spawnLocationHint: 'church',
     },
+    // Clue 5 (B2): Literary farewell, final revelation through metaphor
     {
-      title: "Correspondance Secrète",
-      titleTranslation: "Secret Correspondence",
-      textCategory: 'book',
-      cefrLevel: 'B1',
+      title: "Journal — Épilogue",
+      titleTranslation: "Journal — Epilogue",
+      textCategory: 'journal',
+      cefrLevel: 'B2',
       pages: [
         {
-          content: `${writerName} avait entretenu une correspondance secrète avec un historien de la capitale. Dans ses lettres, il décrivait ses découvertes avec prudence, utilisant des codes que seul son correspondant pouvait comprendre. « L'arbre au centre de la place cache plus que son ombre », écrivait-il dans sa dernière lettre.`,
-          contentTranslation: `${writerName} had maintained a secret correspondence with a historian from the capital. In their letters, they described their discoveries cautiously, using codes that only their correspondent could understand. "The tree in the center of the square hides more than its shadow," they wrote in their last letter.`,
+          content: `Celui qui prétend que la vérité triomphe toujours n'a jamais vécu dans un village où les sourires dissimulent des siècles de mensonges. Les Chitimacha le savaient — leur mot pour « mémoire » signifie aussi « racine ». On ne peut pas arracher une racine sans ébranler l'arbre tout entier. C'est précisément ce que mes découvertes font : elles ébranlent les fondations mêmes de cette communauté, construite sur des terres volées et une histoire réécrite.`,
+          contentTranslation: `Whoever claims that truth always prevails has never lived in a village where smiles conceal centuries of lies. The Chitimacha knew this — their word for "memory" also means "root." You cannot uproot a root without shaking the entire tree. That is precisely what my discoveries do: they shake the very foundations of this community, built on stolen land and a rewritten history.`,
+        },
+        {
+          content: `Je ne suis pas parti par lâcheté. Je me suis retiré pour protéger ce qui compte : les documents, le manuscrit, et la possibilité que quelqu'un, un jour, ait le courage de publier ce que je n'ai pas pu. La cabane de mon grand-père est devenue mon refuge et mon bureau. Les hérons sont mes seuls compagnons. Si vous me cherchez, ne regardez pas derrière vous — regardez là où l'eau et les racines se rencontrent, là où les anciens plantaient leurs espoirs avant qu'on les leur arrache.`,
+          contentTranslation: `I did not leave out of cowardice. I withdrew to protect what matters: the documents, the manuscript, and the possibility that someone, someday, will have the courage to publish what I could not. My grandfather's cabin has become my refuge and my office. The herons are my only companions. If you are looking for me, do not look behind you — look where the water and the roots meet, where the elders planted their hopes before they were torn away.`,
         },
       ],
       vocabularyHighlights: [
-        { word: "correspondance", translation: "correspondence", partOfSpeech: "noun" },
-        { word: "historien", translation: "historian", partOfSpeech: "noun" },
-        { word: "découvertes", translation: "discoveries", partOfSpeech: "noun" },
-        { word: "prudence", translation: "caution", partOfSpeech: "noun" },
-        { word: "codes", translation: "codes", partOfSpeech: "noun" },
+        { word: "dissimulent", translation: "conceal", partOfSpeech: "verb" },
+        { word: "ébranler", translation: "to shake/undermine", partOfSpeech: "verb" },
+        { word: "lâcheté", translation: "cowardice", partOfSpeech: "noun" },
+        { word: "refuge", translation: "refuge/shelter", partOfSpeech: "noun" },
+        { word: "racines", translation: "roots", partOfSpeech: "noun" },
       ],
       comprehensionQuestions: [
         {
-          question: `Avec qui ${writerName} correspondait-il ?`,
-          questionTranslation: `With whom did ${writerName} correspond?`,
-          options: ["Un journaliste", "Un historien", "Un policier", "Un médecin"],
+          question: "Que signifie le mot chitimacha pour « mémoire » ?",
+          questionTranslation: "What does the Chitimacha word for 'memory' also mean?",
+          options: ["Arbre", "Eau", "Racine", "Terre"],
+          correctIndex: 2,
+        },
+        {
+          question: `Pourquoi ${writerName} s'est-il retiré ?`,
+          questionTranslation: `Why did ${writerName} withdraw?`,
+          options: [
+            "Par lâcheté",
+            "Pour protéger les documents et le manuscrit",
+            "Pour voyager",
+            "Parce qu'il était malade",
+          ],
           correctIndex: 1,
         },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} used coded messages — "The tree in the center of the square hides more than its shadow."`,
-      difficulty: 'intermediate',
-      tags: ['main_quest', 'chapter_4', 'clue'],
-      spawnLocationHint: 'city_hall',
-    },
-    {
-      title: "Le Dernier Chapitre",
-      titleTranslation: "The Last Chapter",
-      textCategory: 'book',
-      cefrLevel: 'B1',
-      pages: [
         {
-          content: `Le manuscrit inachevé de ${writerName} se trouvait dans un tiroir verrouillé. Le dernier paragraphe disait : « J'ai compris que la vérité ne peut pas être enfermée dans un livre. Elle vit dans les murs de ce village, dans les souvenirs des anciens. Si quelqu'un lit ces mots, qu'il sache que je n'ai pas disparu. Je me suis simplement retiré là où personne ne pense à regarder. »`,
-          contentTranslation: `${writerName}'s unfinished manuscript was in a locked drawer. The last paragraph said: "I understood that truth cannot be locked in a book. It lives in the walls of this village, in the memories of the elders. If someone reads these words, let them know that I have not disappeared. I have simply retreated to where no one thinks to look."`,
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "manuscrit", translation: "manuscript", partOfSpeech: "noun" },
-        { word: "inachevé", translation: "unfinished", partOfSpeech: "adjective" },
-        { word: "verrouillé", translation: "locked", partOfSpeech: "adjective" },
-        { word: "disparu", translation: "disappeared", partOfSpeech: "verb" },
-        { word: "retiré", translation: "retreated", partOfSpeech: "verb" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: `Selon ${writerName}, où vit la vérité ?`,
-          questionTranslation: `According to ${writerName}, where does the truth live?`,
+          question: "Où faut-il chercher selon le journal ?",
+          questionTranslation: "Where should you look according to the journal?",
           options: [
-            "Dans un livre",
-            "À la bibliothèque",
-            "Dans les murs du village et les souvenirs des anciens",
-            "Dans la forêt",
+            "Derrière la bibliothèque",
+            "Au centre du village",
+            "Là où l'eau et les racines se rencontrent",
+            "Dans la maison du maire",
           ],
           correctIndex: 2,
         },
       ],
       authorName: writerName,
-      clueText: `${writerName} "retreated to where no one thinks to look" — the unfinished manuscript is the biggest clue yet.`,
-      difficulty: 'intermediate',
-      tags: ['main_quest', 'chapter_5', 'clue'],
-      spawnLocationHint: 'hidden',
-    },
-    // B2 Books (10-12): Literary language, metaphor, complex grammar
-    {
-      title: "Réflexions sur la Mémoire",
-      titleTranslation: "Reflections on Memory",
-      textCategory: 'book',
-      cefrLevel: 'B2',
-      pages: [
-        {
-          content: `La mémoire est une rivière capricieuse. Elle emporte certains souvenirs dans ses courants tumultueux tandis qu'elle en dépose d'autres sur ses berges, intacts et lumineux. ${writerName} avait consacré sa vie à naviguer cette rivière, à repêcher les fragments oubliés de l'histoire collective. Mais ce faisant, il s'était attiré l'inimitié de ceux qui préféraient que certaines vérités restent submergées.`,
-          contentTranslation: `Memory is a capricious river. It carries some memories away in its tumultuous currents while depositing others on its banks, intact and luminous. ${writerName} had devoted their life to navigating this river, to fishing out the forgotten fragments of collective history. But in doing so, they had earned the enmity of those who preferred certain truths to remain submerged.`,
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "capricieuse", translation: "capricious", partOfSpeech: "adjective" },
-        { word: "tumultueux", translation: "tumultuous", partOfSpeech: "adjective" },
-        { word: "consacré", translation: "devoted", partOfSpeech: "verb" },
-        { word: "inimitié", translation: "enmity", partOfSpeech: "noun" },
-        { word: "submergées", translation: "submerged", partOfSpeech: "adjective" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "À quoi la mémoire est-elle comparée ?",
-          questionTranslation: "What is memory compared to?",
-          options: ["Un océan", "Une rivière capricieuse", "Un lac tranquille", "Une montagne"],
-          correctIndex: 1,
-        },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} made enemies among those who wanted truths to stay hidden — powerful people threatened them.`,
+      clueText: `${writerName} is at the grandfather's cabin — "where the water and the roots meet." They have the manuscript and original Chitimacha documents. They are alive, waiting for someone brave enough to publish the truth.`,
       difficulty: 'advanced',
-      tags: ['main_quest', 'chapter_5', 'clue'],
-      spawnLocationHint: 'hidden',
-    },
-    {
-      title: "L'Exil Volontaire",
-      titleTranslation: "Voluntary Exile",
-      textCategory: 'book',
-      cefrLevel: 'B2',
-      pages: [
-        {
-          content: `Il existe une forme de courage qui ressemble à la lâcheté : celle de choisir l'effacement plutôt que l'affrontement. ${writerName} en était venu à cette conclusion après des mois de harcèlement discret — des menaces voilées, des portes qui se ferment, des amitiés qui se dissolvent comme du sucre dans l'eau. La cabane dans la forêt, celle de son enfance, était devenue son sanctuaire involontaire.`,
-          contentTranslation: `There exists a form of courage that resembles cowardice: choosing erasure over confrontation. ${writerName} had come to this conclusion after months of quiet harassment — veiled threats, closing doors, friendships dissolving like sugar in water. The cabin in the forest, the one from childhood, had become their involuntary sanctuary.`,
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "lâcheté", translation: "cowardice", partOfSpeech: "noun" },
-        { word: "effacement", translation: "erasure", partOfSpeech: "noun" },
-        { word: "harcèlement", translation: "harassment", partOfSpeech: "noun" },
-        { word: "voilées", translation: "veiled", partOfSpeech: "adjective" },
-        { word: "sanctuaire", translation: "sanctuary", partOfSpeech: "noun" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: `Pourquoi ${writerName} a-t-il choisi l'exil ?`,
-          questionTranslation: `Why did ${writerName} choose exile?`,
-          options: [
-            "Pour écrire un nouveau livre",
-            "À cause de mois de harcèlement et de menaces",
-            "Pour voyager à l'étranger",
-            "Parce qu'il s'ennuyait",
-          ],
-          correctIndex: 1,
-        },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} went to the childhood cabin — the forest sanctuary. They are hiding there voluntarily.`,
-      difficulty: 'advanced',
-      tags: ['main_quest', 'chapter_6', 'clue'],
-      spawnLocationHint: 'hidden',
-    },
-    {
-      title: "Épilogue : La Vérité Retrouvée",
-      titleTranslation: "Epilogue: The Truth Rediscovered",
-      textCategory: 'book',
-      cefrLevel: 'B2',
-      pages: [
-        {
-          content: `Quiconque prétend que la vérité finit toujours par triompher n'a jamais vécu dans un village où les murs ont des oreilles et les sourires dissimulent des poignards. ${writerName} savait que publier son manuscrit reviendrait à allumer un incendie dans une poudrière. Pourtant, il l'avait confié à la seule personne en qui il avait encore confiance — en laissant des indices pour que le bon lecteur puisse reconstituer le puzzle. Si vous lisez ces lignes, c'est que vous êtes ce lecteur.`,
-          contentTranslation: `Whoever claims that truth always prevails has never lived in a village where walls have ears and smiles conceal daggers. ${writerName} knew that publishing their manuscript would be like lighting a fire in a powder keg. Yet, they had entrusted it to the only person they still trusted — leaving clues so that the right reader could piece together the puzzle. If you are reading these lines, you are that reader.`,
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "triompher", translation: "to prevail", partOfSpeech: "verb" },
-        { word: "dissimulent", translation: "conceal", partOfSpeech: "verb" },
-        { word: "poignards", translation: "daggers", partOfSpeech: "noun" },
-        { word: "poudrière", translation: "powder keg", partOfSpeech: "noun" },
-        { word: "reconstituer", translation: "to piece together", partOfSpeech: "verb" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: `Qu'est-ce que ${writerName} a confié à une personne de confiance ?`,
-          questionTranslation: `What did ${writerName} entrust to a trusted person?`,
-          options: ["De l'argent", "Son manuscrit", "Une clé", "Un tableau"],
-          correctIndex: 1,
-        },
-      ],
-      authorName: writerName,
-      clueText: `${writerName} entrusted the manuscript to someone and left clues for "the right reader" — that's the player.`,
-      difficulty: 'advanced',
-      tags: ['main_quest', 'chapter_6', 'clue'],
+      tags: ['main_quest', 'missing_writer', 'clue_5'],
       spawnLocationHint: 'hidden',
     },
   ];
 }
 
-// ---- Journals (4, one per CEFR level) ----
+// ── Fiction / Short Stories (3 books) ────────────────────────────────────────
 
-function buildJournals(): TextTemplate[] {
+function buildFiction(): TextTemplate[] {
   return [
+    // A1: Children's bayou animal story
     {
-      title: "Journal de Marie",
-      titleTranslation: "Marie's Journal",
-      textCategory: 'journal',
+      title: "Le Petit Héron Blanc",
+      titleTranslation: "The Little White Heron",
+      textCategory: 'book',
       cefrLevel: 'A1',
       pages: [
         {
-          content: "Lundi. Aujourd'hui, je suis allée au marché. J'ai acheté du pain et du fromage. Il fait beau. Les enfants jouent dans la rue. Je suis contente.",
-          contentTranslation: "Monday. Today, I went to the market. I bought bread and cheese. The weather is nice. The children are playing in the street. I am happy.",
+          content: "Il y a un petit héron blanc. Il habite dans le bayou. Chaque matin, il cherche des poissons. Il est patient. Il attend longtemps. Puis — splash ! Il attrape un poisson. Le héron est content. Il rentre chez lui dans le grand cyprès.",
+          contentTranslation: "There is a little white heron. It lives in the bayou. Every morning, it looks for fish. It is patient. It waits a long time. Then — splash! It catches a fish. The heron is happy. It goes home to the big cypress tree.",
         },
       ],
       vocabularyHighlights: [
-        { word: "marché", translation: "market", partOfSpeech: "noun" },
-        { word: "pain", translation: "bread", partOfSpeech: "noun" },
-        { word: "fromage", translation: "cheese", partOfSpeech: "noun" },
-        { word: "enfants", translation: "children", partOfSpeech: "noun" },
-        { word: "contente", translation: "happy", partOfSpeech: "adjective" },
+        { word: "héron", translation: "heron", partOfSpeech: "noun" },
+        { word: "poissons", translation: "fish", partOfSpeech: "noun" },
+        { word: "patient", translation: "patient", partOfSpeech: "adjective" },
+        { word: "attrape", translation: "catches", partOfSpeech: "verb" },
+        { word: "content", translation: "happy", partOfSpeech: "adjective" },
       ],
       comprehensionQuestions: [
         {
-          question: "Qu'est-ce que Marie a acheté ?",
-          questionTranslation: "What did Marie buy?",
-          options: ["Du lait", "Du pain et du fromage", "Des fruits", "De la viande"],
+          question: "Où habite le héron ?",
+          questionTranslation: "Where does the heron live?",
+          options: ["Dans la forêt", "Dans le bayou", "À la montagne", "Dans un jardin"],
           correctIndex: 1,
+        },
+        {
+          question: "Qu'est-ce que le héron attrape ?",
+          questionTranslation: "What does the heron catch?",
+          options: ["Un insecte", "Une grenouille", "Un poisson", "Un crabe"],
+          correctIndex: 2,
         },
       ],
       difficulty: 'beginner',
-      tags: ['daily_life', 'market'],
-      spawnLocationHint: 'residence',
+      tags: ['fiction', 'bayou', 'animals'],
+      spawnLocationHint: 'library',
     },
+    // A2: Creole folk tale
     {
-      title: "Journal du Boulanger",
-      titleTranslation: "The Baker's Journal",
-      textCategory: 'journal',
+      title: "La Légende du Bayou Bleu",
+      titleTranslation: "The Legend of the Blue Bayou",
+      textCategory: 'book',
       cefrLevel: 'A2',
       pages: [
         {
-          content: "Ce matin, je me suis levé à quatre heures comme d'habitude. La pâte n'a pas bien levé parce qu'il faisait trop froid dans la boulangerie. J'ai dû recommencer. Les clients attendaient et j'étais en retard. Heureusement, tout le monde a été patient.",
-          contentTranslation: "This morning, I got up at four o'clock as usual. The dough didn't rise well because it was too cold in the bakery. I had to start over. The customers were waiting and I was late. Fortunately, everyone was patient.",
+          content: "Autrefois, il y avait une jeune fille chitimacha qui s'appelait Nayeli. Elle aimait chanter au bord du bayou. Sa voix était si belle que même les alligators l'écoutaient en silence. Un jour, un homme méchant est venu et a voulu couper les cyprès pour vendre le bois. Nayeli a chanté toute la nuit. Le matin, le bayou avait monté et les arbres étaient protégés par l'eau.",
+          contentTranslation: "Long ago, there was a young Chitimacha girl named Nayeli. She loved to sing at the edge of the bayou. Her voice was so beautiful that even the alligators listened in silence. One day, a mean man came and wanted to cut down the cypress trees to sell the wood. Nayeli sang all night. In the morning, the bayou had risen and the trees were protected by the water.",
+        },
+        {
+          content: "Depuis ce jour, les gens du village disent que quand le vent souffle dans les cyprès, c'est la voix de Nayeli qui protège encore le bayou. Les pêcheurs laissent toujours des fleurs sur l'eau pour la remercier. C'est pour cela qu'on appelle cet endroit « le Bayou Bleu » — parce que les fleurs bleues flottent sur l'eau calme.",
+          contentTranslation: "Since that day, the people of the village say that when the wind blows through the cypress trees, it is Nayeli's voice still protecting the bayou. The fishermen always leave flowers on the water to thank her. That is why this place is called 'the Blue Bayou' — because the blue flowers float on the calm water.",
         },
       ],
       vocabularyHighlights: [
-        { word: "pâte", translation: "dough", partOfSpeech: "noun" },
-        { word: "levé", translation: "risen/got up", partOfSpeech: "verb" },
-        { word: "froid", translation: "cold", partOfSpeech: "adjective" },
-        { word: "recommencer", translation: "start over", partOfSpeech: "verb" },
-        { word: "patient", translation: "patient", partOfSpeech: "adjective" },
+        { word: "légende", translation: "legend", partOfSpeech: "noun" },
+        { word: "chanter", translation: "to sing", partOfSpeech: "verb" },
+        { word: "alligators", translation: "alligators", partOfSpeech: "noun" },
+        { word: "protégés", translation: "protected", partOfSpeech: "adjective" },
+        { word: "pêcheurs", translation: "fishermen", partOfSpeech: "noun" },
       ],
       comprehensionQuestions: [
         {
-          question: "Pourquoi la pâte n'a pas bien levé ?",
-          questionTranslation: "Why didn't the dough rise well?",
-          options: ["Il faisait trop chaud", "Il faisait trop froid", "Il n'y avait pas de farine", "Le four était cassé"],
+          question: "Comment s'appelle la jeune fille ?",
+          questionTranslation: "What is the girl's name?",
+          options: ["Marie", "Nayeli", "Sophie", "Louise"],
           correctIndex: 1,
+        },
+        {
+          question: "Pourquoi l'homme méchant est-il venu ?",
+          questionTranslation: "Why did the mean man come?",
+          options: [
+            "Pour pêcher",
+            "Pour écouter Nayeli",
+            "Pour couper les cyprès",
+            "Pour nager dans le bayou",
+          ],
+          correctIndex: 2,
+        },
+        {
+          question: "Pourquoi cet endroit s'appelle le Bayou Bleu ?",
+          questionTranslation: "Why is this place called the Blue Bayou?",
+          options: [
+            "L'eau est bleue",
+            "Le ciel est toujours bleu",
+            "Des fleurs bleues flottent sur l'eau",
+            "Les poissons sont bleus",
+          ],
+          correctIndex: 2,
         },
       ],
       difficulty: 'beginner',
-      tags: ['daily_life', 'work'],
-      spawnLocationHint: 'residence',
+      tags: ['fiction', 'folk_tale', 'chitimacha', 'bayou'],
+      spawnLocationHint: 'bookshop',
     },
+    // B1: Story about changing traditions
     {
-      title: "Carnet de Voyage",
-      titleTranslation: "Travel Notebook",
-      textCategory: 'journal',
+      title: "Le Dernier Pêcheur du Bayou",
+      titleTranslation: "The Last Fisherman of the Bayou",
+      textCategory: 'book',
       cefrLevel: 'B1',
       pages: [
         {
-          content: "Je ne m'attendais pas à ce que ce village me touche autant. Les ruelles pavées, l'odeur du pain frais le matin, les conversations animées sur la place — tout me rappelait une époque que je n'ai jamais connue mais qui semblait m'attendre. J'ai décidé de rester quelques jours de plus.",
-          contentTranslation: "I didn't expect this village to move me so much. The cobblestone alleyways, the smell of fresh bread in the morning, the animated conversations in the square — everything reminded me of an era I never knew but that seemed to be waiting for me. I decided to stay a few more days.",
+          content: "Antoine pêchait dans le bayou depuis quarante ans, comme son père avant lui et le père de son père. Chaque matin, il sortait sa pirogue à l'aube et ne rentrait qu'au crépuscule. Mais les temps avaient changé. Les jeunes préféraient travailler en ville. Les restaurants achetaient leur poisson surgelé au supermarché. Antoine était le dernier pêcheur du bayou.",
+          contentTranslation: "Antoine had been fishing in the bayou for forty years, like his father before him and his father's father. Every morning, he would take out his pirogue at dawn and not return until dusk. But times had changed. The young people preferred to work in the city. The restaurants bought their frozen fish from the supermarket. Antoine was the last fisherman of the bayou.",
+        },
+        {
+          content: "Un après-midi, une jeune fille s'est arrêtée au bord de l'eau. « Monsieur, vous pouvez m'apprendre à pêcher ? » Antoine l'a regardée avec surprise. Personne ne lui avait posé cette question depuis des années. « Tu veux vraiment apprendre ? C'est un travail difficile. » Elle a souri. « Mon arrière-grand-mère était chitimacha. Elle disait que le bayou, c'est notre mémoire. Je veux me souvenir. » Antoine a souri aussi. Il n'était peut-être pas le dernier, finalement.",
+          contentTranslation: "One afternoon, a young girl stopped at the water's edge. 'Sir, can you teach me to fish?' Antoine looked at her with surprise. Nobody had asked him that question in years. 'Do you really want to learn? It's hard work.' She smiled. 'My great-grandmother was Chitimacha. She used to say that the bayou is our memory. I want to remember.' Antoine smiled too. Perhaps he was not the last one, after all.",
         },
       ],
       vocabularyHighlights: [
-        { word: "ruelles", translation: "alleyways", partOfSpeech: "noun" },
-        { word: "pavées", translation: "cobblestone", partOfSpeech: "adjective" },
-        { word: "animées", translation: "animated/lively", partOfSpeech: "adjective" },
-        { word: "époque", translation: "era", partOfSpeech: "noun" },
-        { word: "semblait", translation: "seemed", partOfSpeech: "verb" },
+        { word: "pirogue", translation: "pirogue (flat-bottomed boat)", partOfSpeech: "noun" },
+        { word: "aube", translation: "dawn", partOfSpeech: "noun" },
+        { word: "crépuscule", translation: "dusk", partOfSpeech: "noun" },
+        { word: "surgelé", translation: "frozen", partOfSpeech: "adjective" },
+        { word: "mémoire", translation: "memory", partOfSpeech: "noun" },
       ],
       comprehensionQuestions: [
         {
-          question: "Qu'est-ce que le narrateur a décidé de faire ?",
-          questionTranslation: "What did the narrator decide to do?",
-          options: ["Partir immédiatement", "Écrire un livre", "Rester quelques jours de plus", "Acheter une maison"],
+          question: "Depuis combien de temps Antoine pêche-t-il ?",
+          questionTranslation: "How long has Antoine been fishing?",
+          options: ["Dix ans", "Vingt ans", "Quarante ans", "Soixante ans"],
+          correctIndex: 2,
+        },
+        {
+          question: "Pourquoi Antoine est-il le dernier pêcheur ?",
+          questionTranslation: "Why is Antoine the last fisherman?",
+          options: [
+            "Le bayou est pollué",
+            "Les jeunes préfèrent travailler en ville",
+            "Il n'y a plus de poissons",
+            "La pêche est interdite",
+          ],
+          correctIndex: 1,
+        },
+        {
+          question: "Que disait l'arrière-grand-mère de la jeune fille ?",
+          questionTranslation: "What did the girl's great-grandmother say?",
+          options: [
+            "Le bayou est dangereux",
+            "Il faut aller en ville",
+            "Le bayou, c'est notre mémoire",
+            "La pêche est un mauvais métier",
+          ],
           correctIndex: 2,
         },
       ],
       difficulty: 'intermediate',
-      tags: ['travel', 'culture'],
-      spawnLocationHint: 'residence',
-    },
-    {
-      title: "Réflexions Nocturnes",
-      titleTranslation: "Night Reflections",
-      textCategory: 'journal',
-      cefrLevel: 'B2',
-      pages: [
-        {
-          content: "L'insomnie a ceci de particulier qu'elle transforme le monde familier en territoire inconnu. À trois heures du matin, ma chambre devient un théâtre d'ombres où chaque meuble acquiert une présence menaçante. C'est dans ces moments-là que les pensées les plus honnêtes surgissent — celles qu'on n'oserait jamais formuler à la lumière du jour.",
-          contentTranslation: "Insomnia has this peculiarity: it transforms the familiar world into unknown territory. At three in the morning, my room becomes a shadow theater where each piece of furniture acquires a menacing presence. It's in those moments that the most honest thoughts emerge — those one would never dare formulate in daylight.",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "insomnie", translation: "insomnia", partOfSpeech: "noun" },
-        { word: "menaçante", translation: "menacing", partOfSpeech: "adjective" },
-        { word: "surgissent", translation: "emerge", partOfSpeech: "verb" },
-        { word: "formuler", translation: "to formulate", partOfSpeech: "verb" },
-        { word: "oserait", translation: "would dare", partOfSpeech: "verb" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Selon l'auteur, quand les pensées les plus honnêtes surgissent-elles ?",
-          questionTranslation: "According to the author, when do the most honest thoughts emerge?",
-          options: ["Le matin", "L'après-midi", "Pendant l'insomnie, la nuit", "En vacances"],
-          correctIndex: 2,
-        },
-      ],
-      difficulty: 'advanced',
-      tags: ['philosophy', 'introspection'],
-      spawnLocationHint: 'residence',
+      tags: ['fiction', 'traditions', 'chitimacha', 'bayou'],
+      spawnLocationHint: 'cafe',
     },
   ];
 }
 
-// ---- Letters (4, one per CEFR level) ----
+// ── Non-fiction / Local History (3 books) ────────────────────────────────────
+
+function buildNonFiction(): TextTemplate[] {
+  return [
+    // A1: Simple village description
+    {
+      title: "Notre Village",
+      titleTranslation: "Our Village",
+      textCategory: 'book',
+      cefrLevel: 'A1',
+      pages: [
+        {
+          content: "Notre village est petit. Il y a une église, un marché et un café. Les maisons sont vieilles et jolies. Les rues sont bordées de chênes. Il y a un bayou derrière le village. Les gens parlent français et anglais. Certaines personnes âgées parlent aussi créole. Le village est calme et agréable.",
+          contentTranslation: "Our village is small. There is a church, a market, and a café. The houses are old and pretty. The streets are lined with oak trees. There is a bayou behind the village. The people speak French and English. Some elderly people also speak Creole. The village is calm and pleasant.",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "église", translation: "church", partOfSpeech: "noun" },
+        { word: "marché", translation: "market", partOfSpeech: "noun" },
+        { word: "bordées", translation: "lined", partOfSpeech: "adjective" },
+        { word: "créole", translation: "Creole", partOfSpeech: "noun" },
+        { word: "agréable", translation: "pleasant", partOfSpeech: "adjective" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Comment est le village ?",
+          questionTranslation: "How is the village?",
+          options: ["Grand et moderne", "Petit et calme", "Bruyant et sale", "Nouveau et luxueux"],
+          correctIndex: 1,
+        },
+        {
+          question: "Quelles langues parle-t-on au village ?",
+          questionTranslation: "What languages are spoken in the village?",
+          options: [
+            "Français seulement",
+            "Anglais seulement",
+            "Français, anglais et créole",
+            "Espagnol et français",
+          ],
+          correctIndex: 2,
+        },
+      ],
+      difficulty: 'beginner',
+      tags: ['non_fiction', 'local_history', 'village'],
+      spawnLocationHint: 'city_hall',
+    },
+    // A2: History of the Chitimacha people
+    {
+      title: "Les Chitimacha : Peuple du Bayou",
+      titleTranslation: "The Chitimacha: People of the Bayou",
+      textCategory: 'book',
+      cefrLevel: 'A2',
+      pages: [
+        {
+          content: "Les Chitimacha sont un peuple autochtone de Louisiane. Ils vivaient ici bien avant l'arrivée des Européens. Le mot « Chitimacha » veut dire « ceux qui ont des marmites ». Ils étaient célèbres pour leur vannerie — des paniers magnifiques faits avec des cannes de rivière. Aujourd'hui, leur réserve se trouve près de Charenton, en Louisiane.",
+          contentTranslation: "The Chitimacha are an indigenous people of Louisiana. They lived here long before the arrival of Europeans. The word 'Chitimacha' means 'those who have cooking pots.' They were famous for their basketry — magnificent baskets made with river cane. Today, their reservation is located near Charenton, Louisiana.",
+        },
+        {
+          content: "La langue chitimacha est une langue isolée — elle n'est liée à aucune autre langue au monde. Malheureusement, le dernier locuteur natif est décédé en 1940. Mais aujourd'hui, la tribu travaille dur pour faire revivre sa langue grâce aux enregistrements et aux documents anciens. C'est un effort courageux de préservation culturelle.",
+          contentTranslation: "The Chitimacha language is a language isolate — it is not related to any other language in the world. Unfortunately, the last native speaker passed away in 1940. But today, the tribe works hard to revive its language thanks to recordings and ancient documents. It is a courageous effort in cultural preservation.",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "autochtone", translation: "indigenous", partOfSpeech: "adjective" },
+        { word: "vannerie", translation: "basketry", partOfSpeech: "noun" },
+        { word: "paniers", translation: "baskets", partOfSpeech: "noun" },
+        { word: "locuteur", translation: "speaker", partOfSpeech: "noun" },
+        { word: "préservation", translation: "preservation", partOfSpeech: "noun" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Que signifie le mot « Chitimacha » ?",
+          questionTranslation: "What does the word 'Chitimacha' mean?",
+          options: [
+            "Ceux du bayou",
+            "Ceux qui ont des marmites",
+            "Les pêcheurs",
+            "Les premiers hommes",
+          ],
+          correctIndex: 1,
+        },
+        {
+          question: "Pour quoi les Chitimacha étaient-ils célèbres ?",
+          questionTranslation: "What were the Chitimacha famous for?",
+          options: ["La pêche", "La cuisine", "La vannerie", "La musique"],
+          correctIndex: 2,
+        },
+        {
+          question: "Quand le dernier locuteur natif est-il décédé ?",
+          questionTranslation: "When did the last native speaker pass away?",
+          options: ["En 1900", "En 1920", "En 1940", "En 1960"],
+          correctIndex: 2,
+        },
+      ],
+      difficulty: 'beginner',
+      tags: ['non_fiction', 'chitimacha', 'local_history', 'language_preservation'],
+      spawnLocationHint: 'school',
+    },
+    // B1: Deeper regional history
+    {
+      title: "Bayou Lafourche : Mémoire et Vérité",
+      titleTranslation: "Bayou Lafourche: Memory and Truth",
+      textCategory: 'book',
+      cefrLevel: 'B1',
+      pages: [
+        {
+          content: "L'histoire officielle de notre région est incomplète. On raconte que les premiers colons ont trouvé des terres vides et fertiles. Mais la vérité est plus complexe. Les Chitimacha occupaient ces terres depuis des milliers d'années. Leur civilisation était sophistiquée : ils avaient des systèmes d'irrigation, des routes commerciales et une tradition orale riche. L'arrivée des colons français au XVIIIe siècle a provoqué la guerre des Chitimacha, un conflit sanglant qui a duré douze ans.",
+          contentTranslation: "The official history of our region is incomplete. It is told that the first settlers found empty and fertile lands. But the truth is more complex. The Chitimacha had occupied these lands for thousands of years. Their civilization was sophisticated: they had irrigation systems, trade routes, and a rich oral tradition. The arrival of French settlers in the 18th century triggered the Chitimacha War, a bloody conflict that lasted twelve years.",
+        },
+        {
+          content: "Après la guerre, les Chitimacha ont perdu la plupart de leurs terres. Les familles fondatrices du village — dont les Beaumont — ont bâti leur fortune sur ces terres confisquées. Pendant des générations, cette histoire a été effacée des archives locales. Ce n'est que récemment que des chercheurs ont commencé à rétablir la vérité, souvent face à une résistance considérable de la part des descendants des familles fondatrices.",
+          contentTranslation: "After the war, the Chitimacha lost most of their lands. The founding families of the village — including the Beaumonts — built their fortune on these confiscated lands. For generations, this history was erased from the local archives. It is only recently that researchers have begun to restore the truth, often facing considerable resistance from the descendants of the founding families.",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "colons", translation: "settlers/colonists", partOfSpeech: "noun" },
+        { word: "confisquées", translation: "confiscated", partOfSpeech: "adjective" },
+        { word: "effacée", translation: "erased", partOfSpeech: "adjective" },
+        { word: "archives", translation: "archives", partOfSpeech: "noun" },
+        { word: "résistance", translation: "resistance", partOfSpeech: "noun" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Combien de temps a duré la guerre des Chitimacha ?",
+          questionTranslation: "How long did the Chitimacha War last?",
+          options: ["Deux ans", "Cinq ans", "Douze ans", "Vingt ans"],
+          correctIndex: 2,
+        },
+        {
+          question: "Sur quoi les familles fondatrices ont-elles bâti leur fortune ?",
+          questionTranslation: "On what did the founding families build their fortune?",
+          options: [
+            "Le commerce de poisson",
+            "Les terres confisquées aux Chitimacha",
+            "Le pétrole",
+            "Le tourisme",
+          ],
+          correctIndex: 1,
+        },
+      ],
+      difficulty: 'intermediate',
+      tags: ['non_fiction', 'local_history', 'chitimacha', 'beaumont_family'],
+      spawnLocationHint: 'church',
+    },
+  ];
+}
+
+// ── Letters (3) ──────────────────────────────────────────────────────────────
 
 function buildLetters(): TextTemplate[] {
   return [
+    // A1: Simple letter home
     {
-      title: "Lettre à Grand-mère",
-      titleTranslation: "Letter to Grandmother",
+      title: "Lettre à Maman",
+      titleTranslation: "Letter to Mom",
       textCategory: 'letter',
       cefrLevel: 'A1',
       pages: [
         {
-          content: "Chère Grand-mère,\n\nJe suis bien arrivé au village. La maison est jolie. J'ai un chat qui s'appelle Minou. Je mange bien. La soupe est bonne.\n\nGros bisous,\nPaul",
-          contentTranslation: "Dear Grandmother,\n\nI arrived safely at the village. The house is pretty. I have a cat named Minou. I eat well. The soup is good.\n\nBig kisses,\nPaul",
+          content: "Chère Maman,\n\nJe suis bien arrivée au village. La maison est petite mais jolie. Il y a un grand bayou derrière. Je vois des hérons chaque matin. Les voisins sont gentils. Ils m'ont donné du gumbo — c'est une soupe. C'est très bon ! Le village est calme. Je suis contente.\n\nGros bisous,\nCéline",
+          contentTranslation: "Dear Mom,\n\nI arrived safely at the village. The house is small but pretty. There is a big bayou behind it. I see herons every morning. The neighbors are kind. They gave me gumbo — it's a soup. It's very good! The village is calm. I am happy.\n\nBig kisses,\nCéline",
         },
       ],
       vocabularyHighlights: [
-        { word: "arrivé", translation: "arrived", partOfSpeech: "verb" },
-        { word: "jolie", translation: "pretty", partOfSpeech: "adjective" },
-        { word: "chat", translation: "cat", partOfSpeech: "noun" },
+        { word: "arrivée", translation: "arrived", partOfSpeech: "verb" },
+        { word: "voisins", translation: "neighbors", partOfSpeech: "noun" },
         { word: "soupe", translation: "soup", partOfSpeech: "noun" },
-        { word: "bisous", translation: "kisses", partOfSpeech: "noun" },
+        { word: "gentils", translation: "kind", partOfSpeech: "adjective" },
       ],
       comprehensionQuestions: [
         {
-          question: "Comment s'appelle le chat ?",
-          questionTranslation: "What is the cat's name?",
-          options: ["Paul", "Minou", "Grand-mère", "Bisou"],
+          question: "Qu'est-ce que les voisins ont donné à Céline ?",
+          questionTranslation: "What did the neighbors give Céline?",
+          options: ["Du pain", "Du gumbo", "Du fromage", "Du gâteau"],
           correctIndex: 1,
         },
-      ],
-      difficulty: 'beginner',
-      tags: ['family', 'correspondence'],
-      spawnLocationHint: 'residence',
-    },
-    {
-      title: "Lettre au Maire",
-      titleTranslation: "Letter to the Mayor",
-      textCategory: 'letter',
-      cefrLevel: 'A2',
-      pages: [
         {
-          content: "Monsieur le Maire,\n\nJe vous écris pour vous informer d'un problème dans notre quartier. La fontaine de la place est cassée depuis deux semaines. Les enfants n'ont plus d'eau pour jouer et les jardiniers ne peuvent pas arroser les fleurs. Pourriez-vous envoyer quelqu'un pour la réparer ?\n\nCordialement,\nMme Dupont",
-          contentTranslation: "Mr. Mayor,\n\nI am writing to inform you of a problem in our neighborhood. The fountain in the square has been broken for two weeks. The children no longer have water to play with and the gardeners cannot water the flowers. Could you send someone to repair it?\n\nSincerely,\nMrs. Dupont",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "quartier", translation: "neighborhood", partOfSpeech: "noun" },
-        { word: "fontaine", translation: "fountain", partOfSpeech: "noun" },
-        { word: "cassée", translation: "broken", partOfSpeech: "adjective" },
-        { word: "arroser", translation: "to water", partOfSpeech: "verb" },
-        { word: "réparer", translation: "to repair", partOfSpeech: "verb" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Quel est le problème ?",
-          questionTranslation: "What is the problem?",
-          options: ["La rue est sale", "La fontaine est cassée", "Le parc est fermé", "L'école est trop petite"],
-          correctIndex: 1,
-        },
-      ],
-      difficulty: 'beginner',
-      tags: ['civic', 'correspondence'],
-      spawnLocationHint: 'city_hall',
-    },
-    {
-      title: "Lettre d'un Ami Lointain",
-      titleTranslation: "Letter from a Distant Friend",
-      textCategory: 'letter',
-      cefrLevel: 'B1',
-      pages: [
-        {
-          content: "Mon cher ami,\n\nCela fait longtemps que je ne t'ai pas écrit, et je m'en excuse. La vie ici a beaucoup changé depuis ton départ. Le vieux café a fermé ses portes, remplacé par une boutique de souvenirs pour les touristes. Parfois, je m'assois sur le banc où nous avions l'habitude de discuter pendant des heures, et je me demande si tu te souviens de ces moments-là.\n\nTon ami fidèle,\nJean",
-          contentTranslation: "My dear friend,\n\nIt's been a long time since I wrote to you, and I apologize. Life here has changed a lot since you left. The old café has closed its doors, replaced by a souvenir shop for tourists. Sometimes, I sit on the bench where we used to talk for hours, and I wonder if you remember those moments.\n\nYour faithful friend,\nJean",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "lointain", translation: "distant", partOfSpeech: "adjective" },
-        { word: "m'en excuse", translation: "apologize for it", partOfSpeech: "verb" },
-        { word: "souvenirs", translation: "memories/souvenirs", partOfSpeech: "noun" },
-        { word: "habitude", translation: "habit", partOfSpeech: "noun" },
-        { word: "fidèle", translation: "faithful", partOfSpeech: "adjective" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Qu'est-ce qui a remplacé le vieux café ?",
-          questionTranslation: "What replaced the old café?",
-          options: ["Un restaurant", "Une boutique de souvenirs", "Un bureau de poste", "Une école"],
-          correctIndex: 1,
-        },
-      ],
-      difficulty: 'intermediate',
-      tags: ['friendship', 'nostalgia'],
-      spawnLocationHint: 'residence',
-    },
-    {
-      title: "Lettre de Démission",
-      titleTranslation: "Letter of Resignation",
-      textCategory: 'letter',
-      cefrLevel: 'B2',
-      pages: [
-        {
-          content: "Madame la Directrice,\n\nC'est avec un mélange de regret et de soulagement que je vous adresse cette lettre de démission. Après quinze années passées au sein de cette institution, j'ai acquis la certitude que mes convictions ne sont plus compatibles avec les orientations actuelles de l'établissement. La décision de privilégier le rendement financier au détriment de la qualité éducative heurte profondément les valeurs qui m'ont poussé vers ce métier.\n\nJe vous prie d'agréer mes salutations distinguées,\nM. Laurent",
-          contentTranslation: "Dear Director,\n\nIt is with a mixture of regret and relief that I address this letter of resignation to you. After fifteen years spent within this institution, I have become certain that my convictions are no longer compatible with the current directions of the establishment. The decision to prioritize financial returns at the expense of educational quality deeply offends the values that drew me to this profession.\n\nYours sincerely,\nMr. Laurent",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "démission", translation: "resignation", partOfSpeech: "noun" },
-        { word: "soulagement", translation: "relief", partOfSpeech: "noun" },
-        { word: "convictions", translation: "convictions", partOfSpeech: "noun" },
-        { word: "détriment", translation: "detriment", partOfSpeech: "noun" },
-        { word: "heurte", translation: "offends", partOfSpeech: "verb" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Pourquoi M. Laurent démissionne-t-il ?",
-          questionTranslation: "Why is Mr. Laurent resigning?",
-          options: [
-            "Il déménage",
-            "Il est en désaccord avec les orientations de l'établissement",
-            "Il prend sa retraite",
-            "Il a trouvé un meilleur salaire",
-          ],
-          correctIndex: 1,
-        },
-      ],
-      difficulty: 'advanced',
-      tags: ['formal', 'professional'],
-      spawnLocationHint: 'office',
-    },
-  ];
-}
-
-// ---- Flyers (4, one per CEFR level) ----
-
-function buildFlyers(): TextTemplate[] {
-  return [
-    {
-      title: "Fête du Village",
-      titleTranslation: "Village Festival",
-      textCategory: 'flyer',
-      cefrLevel: 'A1',
-      pages: [
-        {
-          content: "🎉 FÊTE DU VILLAGE 🎉\n\nSamedi 15 juin\nDe 10h à 22h\nSur la grande place\n\nMusique ! Danse ! Nourriture !\nEntrée gratuite pour tous\n\nVenez nombreux !",
-          contentTranslation: "🎉 VILLAGE FESTIVAL 🎉\n\nSaturday June 15\nFrom 10am to 10pm\nIn the main square\n\nMusic! Dance! Food!\nFree entry for all\n\nCome one, come all!",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "fête", translation: "festival/party", partOfSpeech: "noun" },
-        { word: "musique", translation: "music", partOfSpeech: "noun" },
-        { word: "nourriture", translation: "food", partOfSpeech: "noun" },
-        { word: "gratuite", translation: "free", partOfSpeech: "adjective" },
-        { word: "nombreux", translation: "in great numbers", partOfSpeech: "adjective" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Quand est la fête ?",
-          questionTranslation: "When is the festival?",
-          options: ["Vendredi", "Samedi 15 juin", "Dimanche", "Lundi"],
-          correctIndex: 1,
-        },
-      ],
-      difficulty: 'beginner',
-      tags: ['event', 'community'],
-      spawnLocationHint: 'market',
-    },
-    {
-      title: "Écrivain Disparu — Avez-vous des informations ?",
-      titleTranslation: "Missing Writer — Do you have information?",
-      textCategory: 'flyer',
-      cefrLevel: 'A2',
-      pages: [
-        {
-          content: "⚠️ AVIS DE RECHERCHE ⚠️\n\nL'écrivain bien connu de notre village n'a pas été vu depuis trois mois. Sa famille et ses amis sont très inquiets. Si vous avez vu cette personne ou si vous avez des informations, veuillez contacter le bureau du journal local.\n\nToute information est utile.\nMerci de votre aide.",
-          contentTranslation: "⚠️ MISSING PERSON NOTICE ⚠️\n\nThe well-known writer of our village has not been seen for three months. Their family and friends are very worried. If you have seen this person or if you have information, please contact the local newspaper office.\n\nAny information is useful.\nThank you for your help.",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "disparu", translation: "missing/disappeared", partOfSpeech: "adjective" },
-        { word: "inquiets", translation: "worried", partOfSpeech: "adjective" },
-        { word: "informations", translation: "information", partOfSpeech: "noun" },
-        { word: "veuillez", translation: "please (formal)", partOfSpeech: "verb" },
-        { word: "utile", translation: "useful", partOfSpeech: "adjective" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Depuis combien de temps l'écrivain a-t-il disparu ?",
-          questionTranslation: "How long has the writer been missing?",
-          options: ["Une semaine", "Un mois", "Trois mois", "Un an"],
+          question: "Qu'est-ce que Céline voit chaque matin ?",
+          questionTranslation: "What does Céline see every morning?",
+          options: ["Des chats", "Des alligators", "Des hérons", "Des canards"],
           correctIndex: 2,
         },
       ],
       difficulty: 'beginner',
-      tags: ['main_quest', 'missing_person'],
-      spawnLocationHint: 'market',
+      tags: ['correspondence', 'daily_life', 'village'],
+      spawnLocationHint: 'residence',
     },
+    // A2: Teacher's letter about language preservation
     {
-      title: "Cours de Cuisine Traditionnelle",
-      titleTranslation: "Traditional Cooking Classes",
-      textCategory: 'flyer',
-      cefrLevel: 'B1',
+      title: "Lettre de la Maîtresse",
+      titleTranslation: "Letter from the Teacher",
+      textCategory: 'letter',
+      cefrLevel: 'A2',
       pages: [
         {
-          content: "🍽️ APPRENEZ À CUISINER COMME NOS GRANDS-MÈRES ! 🍽️\n\nL'association culturelle du village vous invite à participer à une série de cours de cuisine traditionnelle. Chaque samedi matin, un chef local vous enseignera les recettes qui ont fait la renommée de notre région.\n\nAu programme : tarte aux pommes, ratatouille, soupe à l'oignon, cassoulet.\n\nInscription : 20€ par séance, matériel inclus.\nContact : association@village.fr",
-          contentTranslation: "🍽️ LEARN TO COOK LIKE OUR GRANDMOTHERS! 🍽️\n\nThe village cultural association invites you to participate in a series of traditional cooking classes. Every Saturday morning, a local chef will teach you the recipes that made our region famous.\n\nOn the menu: apple tart, ratatouille, onion soup, cassoulet.\n\nRegistration: €20 per session, materials included.\nContact: association@village.fr",
+          content: "Cher Monsieur le Maire,\n\nJe vous écris au sujet du programme de français à l'école. Nos enfants parlent de moins en moins français à la maison. Leurs grands-parents parlaient créole, mais cette génération est en train de perdre sa langue. Je propose de créer un cours spécial : « Nos langues, notre histoire. » Les élèves pourraient apprendre des mots en créole louisianais et découvrir l'histoire des Chitimacha.\n\nCordialement,\nMme Thibodaux",
+          contentTranslation: "Dear Mr. Mayor,\n\nI am writing to you about the French program at school. Our children speak less and less French at home. Their grandparents spoke Creole, but this generation is losing its language. I propose creating a special course: 'Our Languages, Our History.' The students could learn words in Louisiana Creole and discover the history of the Chitimacha.\n\nSincerely,\nMrs. Thibodaux",
         },
       ],
       vocabularyHighlights: [
-        { word: "cuisiner", translation: "to cook", partOfSpeech: "verb" },
-        { word: "enseignera", translation: "will teach", partOfSpeech: "verb" },
-        { word: "renommée", translation: "fame/reputation", partOfSpeech: "noun" },
-        { word: "inscription", translation: "registration", partOfSpeech: "noun" },
-        { word: "séance", translation: "session", partOfSpeech: "noun" },
+        { word: "programme", translation: "program", partOfSpeech: "noun" },
+        { word: "génération", translation: "generation", partOfSpeech: "noun" },
+        { word: "perdre", translation: "to lose", partOfSpeech: "verb" },
+        { word: "élèves", translation: "students", partOfSpeech: "noun" },
+        { word: "découvrir", translation: "to discover", partOfSpeech: "verb" },
       ],
       comprehensionQuestions: [
         {
-          question: "Quand ont lieu les cours ?",
-          questionTranslation: "When do the classes take place?",
-          options: ["Le lundi soir", "Le samedi matin", "Le dimanche après-midi", "Tous les jours"],
-          correctIndex: 1,
-        },
-      ],
-      difficulty: 'intermediate',
-      tags: ['food', 'culture', 'classes'],
-      spawnLocationHint: 'market',
-    },
-    {
-      title: "Conférence : Patrimoine et Identité Locale",
-      titleTranslation: "Conference: Heritage and Local Identity",
-      textCategory: 'flyer',
-      cefrLevel: 'B2',
-      pages: [
-        {
-          content: "📚 CONFÉRENCE-DÉBAT 📚\n\n« Patrimoine et Identité Locale : Comment préserver notre héritage culturel face à la mondialisation ? »\n\nIntervenants : Pr. Moreau (Université de Lyon), Dr. Petit (Historienne locale)\n\nLe débat abordera les tensions entre développement touristique et authenticité culturelle, ainsi que le rôle controversé de la presse locale dans la construction de la mémoire collective.\n\nEntrée libre sur réservation.\nMairie, salle des fêtes — Vendredi 20h30.",
-          contentTranslation: "📚 CONFERENCE-DEBATE 📚\n\n'Heritage and Local Identity: How to preserve our cultural heritage in the face of globalization?'\n\nSpeakers: Prof. Moreau (University of Lyon), Dr. Petit (Local historian)\n\nThe debate will address tensions between tourism development and cultural authenticity, as well as the controversial role of the local press in constructing collective memory.\n\nFree entry by reservation.\nTown hall, function room — Friday 8:30pm.",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "patrimoine", translation: "heritage", partOfSpeech: "noun" },
-        { word: "préserver", translation: "to preserve", partOfSpeech: "verb" },
-        { word: "mondialisation", translation: "globalization", partOfSpeech: "noun" },
-        { word: "controversé", translation: "controversial", partOfSpeech: "adjective" },
-        { word: "mémoire collective", translation: "collective memory", partOfSpeech: "noun" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Quel est le thème principal de la conférence ?",
-          questionTranslation: "What is the main theme of the conference?",
+          question: "Quel est le problème selon Mme Thibodaux ?",
+          questionTranslation: "What is the problem according to Mrs. Thibodaux?",
           options: [
-            "L'économie locale",
-            "Le patrimoine et l'identité locale",
-            "La cuisine traditionnelle",
-            "L'éducation des enfants",
+            "L'école est trop petite",
+            "Les enfants perdent leur langue",
+            "Il n'y a pas de professeurs",
+            "Les parents ne viennent pas aux réunions",
           ],
           correctIndex: 1,
         },
+        {
+          question: "Que propose Mme Thibodaux ?",
+          questionTranslation: "What does Mrs. Thibodaux propose?",
+          options: [
+            "Fermer l'école",
+            "Un voyage à Paris",
+            "Un cours sur les langues et l'histoire locale",
+            "Un nouveau professeur",
+          ],
+          correctIndex: 2,
+        },
+      ],
+      difficulty: 'beginner',
+      tags: ['correspondence', 'language_preservation', 'education'],
+      spawnLocationHint: 'school',
+    },
+    // B2: Letter about the missing writer between characters
+    {
+      title: "Lettre au Rédacteur en Chef",
+      titleTranslation: "Letter to the Editor-in-Chief",
+      textCategory: 'letter',
+      cefrLevel: 'B2',
+      pages: [
+        {
+          content: "Monsieur le Rédacteur en Chef,\n\nJe me permets de vous écrire au sujet de la disparition de notre concitoyen et écrivain. Contrairement à ce que laissent entendre certaines voix bien placées dans notre communauté, il ne s'agit pas d'un simple « départ volontaire ». J'étais son ami le plus proche, et je peux vous assurer qu'il vivait dans la peur ces derniers mois. Ses recherches sur les origines du village dérangeaient des personnes influentes — des personnes dont les noms figurent sur la plaque de la mairie.",
+          contentTranslation: "Dear Editor-in-Chief,\n\nI am taking the liberty of writing to you about the disappearance of our fellow citizen and writer. Contrary to what certain well-placed voices in our community suggest, this is not a simple 'voluntary departure.' I was his closest friend, and I can assure you that he lived in fear these last months. His research on the village's origins disturbed influential people — people whose names appear on the town hall plaque.",
+        },
+        {
+          content: "Avant de disparaître, il m'a confié qu'il avait trouvé des documents qui remettraient en question la légitimité même des propriétés foncières les plus anciennes du canton. Je vous supplie de mener une enquête journalistique sérieuse. La vérité ne doit pas être sacrifiée sur l'autel de la complaisance locale. Notre village mérite de connaître son histoire — toute son histoire.\n\nVeuillez agréer mes salutations les plus respectueuses,\nDr. Philippe Landry",
+          contentTranslation: "Before disappearing, he confided in me that he had found documents that would call into question the very legitimacy of the oldest land properties in the township. I beg you to conduct a serious journalistic investigation. The truth must not be sacrificed on the altar of local complacency. Our village deserves to know its history — all of its history.\n\nYours most respectfully,\nDr. Philippe Landry",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "disparition", translation: "disappearance", partOfSpeech: "noun" },
+        { word: "concitoyen", translation: "fellow citizen", partOfSpeech: "noun" },
+        { word: "propriétés foncières", translation: "land properties", partOfSpeech: "noun" },
+        { word: "enquête", translation: "investigation", partOfSpeech: "noun" },
+        { word: "complaisance", translation: "complacency", partOfSpeech: "noun" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Selon Dr. Landry, comment vivait l'écrivain avant de disparaître ?",
+          questionTranslation: "According to Dr. Landry, how was the writer living before disappearing?",
+          options: [
+            "Heureux et calme",
+            "Dans la peur",
+            "En voyage",
+            "Malade",
+          ],
+          correctIndex: 1,
+        },
+        {
+          question: "Que remettraient en question les documents trouvés ?",
+          questionTranslation: "What would the found documents call into question?",
+          options: [
+            "L'existence du bayou",
+            "L'âge de l'église",
+            "La légitimité des propriétés foncières anciennes",
+            "Le nom du village",
+          ],
+          correctIndex: 2,
+        },
       ],
       difficulty: 'advanced',
-      tags: ['culture', 'academic', 'heritage'],
-      spawnLocationHint: 'city_hall',
+      tags: ['correspondence', 'main_quest', 'about_missing_writer'],
+      spawnLocationHint: 'newspaper',
     },
   ];
 }
 
-// ---- Recipes (4, one per CEFR level) ----
+// ── Recipes (3, Louisiana cuisine) ───────────────────────────────────────────
 
 function buildRecipes(): TextTemplate[] {
   return [
+    // A1: Beignets
     {
-      title: "Crêpes Simples",
-      titleTranslation: "Simple Crêpes",
+      title: "Beignets de la Louisiane",
+      titleTranslation: "Louisiana Beignets",
       textCategory: 'recipe',
       cefrLevel: 'A1',
       pages: [
         {
-          content: "🥞 Crêpes\n\nIngrédients :\n- 250g de farine\n- 3 œufs\n- 500ml de lait\n- 1 cuillère de sucre\n- 1 pincée de sel\n\nMélangez la farine et les œufs. Ajoutez le lait. Mélangez bien. Faites cuire dans une poêle chaude. Bon appétit !",
-          contentTranslation: "🥞 Crêpes\n\nIngredients:\n- 250g flour\n- 3 eggs\n- 500ml milk\n- 1 spoon of sugar\n- 1 pinch of salt\n\nMix the flour and eggs. Add the milk. Mix well. Cook in a hot pan. Enjoy!",
+          content: "🍩 Beignets\n\nIngrédients :\n- 300g de farine\n- 2 œufs\n- 200ml de lait\n- 50g de sucre\n- 1 cuillère de levure\n- De l'huile pour frire\n- Du sucre glace\n\nMélangez la farine, le sucre et la levure. Ajoutez les œufs et le lait. Mélangez bien. La pâte est épaisse. Faites chauffer l'huile. Mettez des petites boules de pâte dans l'huile. Attendez 3 minutes. Les beignets sont dorés ? C'est prêt ! Mettez du sucre glace. Bon appétit !",
+          contentTranslation: "🍩 Beignets\n\nIngredients:\n- 300g flour\n- 2 eggs\n- 200ml milk\n- 50g sugar\n- 1 spoon of yeast\n- Oil for frying\n- Powdered sugar\n\nMix the flour, sugar, and yeast. Add the eggs and milk. Mix well. The dough is thick. Heat the oil. Put small balls of dough in the oil. Wait 3 minutes. The beignets are golden? It's ready! Put powdered sugar on top. Enjoy!",
         },
       ],
       vocabularyHighlights: [
         { word: "farine", translation: "flour", partOfSpeech: "noun" },
-        { word: "œufs", translation: "eggs", partOfSpeech: "noun" },
-        { word: "lait", translation: "milk", partOfSpeech: "noun" },
-        { word: "mélangez", translation: "mix", partOfSpeech: "verb" },
-        { word: "poêle", translation: "frying pan", partOfSpeech: "noun" },
+        { word: "levure", translation: "yeast", partOfSpeech: "noun" },
+        { word: "pâte", translation: "dough", partOfSpeech: "noun" },
+        { word: "dorés", translation: "golden", partOfSpeech: "adjective" },
+        { word: "sucre glace", translation: "powdered sugar", partOfSpeech: "noun" },
       ],
       comprehensionQuestions: [
         {
-          question: "Combien d'œufs faut-il ?",
-          questionTranslation: "How many eggs do you need?",
-          options: ["1", "2", "3", "4"],
+          question: "Combien de temps faut-il cuire les beignets ?",
+          questionTranslation: "How long do you cook the beignets?",
+          options: ["1 minute", "3 minutes", "5 minutes", "10 minutes"],
+          correctIndex: 1,
+        },
+        {
+          question: "Que met-on sur les beignets à la fin ?",
+          questionTranslation: "What do you put on the beignets at the end?",
+          options: ["Du chocolat", "Du miel", "Du sucre glace", "De la crème"],
           correctIndex: 2,
         },
       ],
       difficulty: 'beginner',
-      tags: ['food', 'cooking'],
+      tags: ['food', 'cooking', 'louisiana', 'dessert'],
       spawnLocationHint: 'restaurant',
     },
+    // A1: Gumbo (simple)
     {
-      title: "Soupe à l'Oignon",
-      titleTranslation: "Onion Soup",
+      title: "Gumbo de Grand-mère",
+      titleTranslation: "Grandmother's Gumbo",
+      textCategory: 'recipe',
+      cefrLevel: 'A1',
+      pages: [
+        {
+          content: "🍲 Gumbo\n\nLe gumbo est une soupe. C'est le plat de la Louisiane.\n\nIngrédients :\n- Du poulet\n- Des crevettes\n- Des saucisses\n- Du riz\n- Des oignons, du céleri, des poivrons\n- Du gombo (un légume vert)\n\nCoupez le poulet et les saucisses. Coupez les légumes. Faites cuire le poulet. Ajoutez les légumes. Ajoutez de l'eau. Attendez 30 minutes. Ajoutez les crevettes. Servez sur du riz. C'est délicieux !",
+          contentTranslation: "🍲 Gumbo\n\nGumbo is a soup. It is the dish of Louisiana.\n\nIngredients:\n- Chicken\n- Shrimp\n- Sausages\n- Rice\n- Onions, celery, bell peppers\n- Okra (a green vegetable)\n\nCut the chicken and the sausages. Cut the vegetables. Cook the chicken. Add the vegetables. Add water. Wait 30 minutes. Add the shrimp. Serve on rice. It's delicious!",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "poulet", translation: "chicken", partOfSpeech: "noun" },
+        { word: "crevettes", translation: "shrimp", partOfSpeech: "noun" },
+        { word: "saucisses", translation: "sausages", partOfSpeech: "noun" },
+        { word: "légume", translation: "vegetable", partOfSpeech: "noun" },
+        { word: "délicieux", translation: "delicious", partOfSpeech: "adjective" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Qu'est-ce que le gumbo ?",
+          questionTranslation: "What is gumbo?",
+          options: ["Un gâteau", "Une soupe", "Une salade", "Un sandwich"],
+          correctIndex: 1,
+        },
+        {
+          question: "Combien de temps faut-il attendre après avoir ajouté les légumes ?",
+          questionTranslation: "How long do you wait after adding the vegetables?",
+          options: ["10 minutes", "20 minutes", "30 minutes", "60 minutes"],
+          correctIndex: 2,
+        },
+      ],
+      difficulty: 'beginner',
+      tags: ['food', 'cooking', 'louisiana', 'traditional'],
+      spawnLocationHint: 'restaurant',
+    },
+    // A2: Jambalaya
+    {
+      title: "Jambalaya Créole",
+      titleTranslation: "Creole Jambalaya",
       textCategory: 'recipe',
       cefrLevel: 'A2',
       pages: [
         {
-          content: "🧅 Soupe à l'Oignon Gratinée\n\nIngrédients :\n- 4 gros oignons\n- 50g de beurre\n- 1 litre de bouillon de bœuf\n- Du pain rassis\n- Du gruyère râpé\n\nCoupez les oignons en rondelles. Faites-les revenir dans le beurre pendant 20 minutes jusqu'à ce qu'ils soient dorés. Ajoutez le bouillon et laissez mijoter 15 minutes. Versez dans des bols, ajoutez le pain et le fromage, puis passez au four 10 minutes.",
-          contentTranslation: "🧅 French Onion Soup\n\nIngredients:\n- 4 large onions\n- 50g butter\n- 1 liter beef broth\n- Stale bread\n- Grated gruyère\n\nCut the onions into rings. Sauté them in butter for 20 minutes until golden. Add the broth and let simmer for 15 minutes. Pour into bowls, add bread and cheese, then bake for 10 minutes.",
+          content: "🍚 Jambalaya Créole\n\nLe jambalaya est un plat d'origine créole. Il ressemble à la paella espagnole parce que les premiers colons venaient d'Espagne.\n\nIngrédients (pour 6 personnes) :\n- 500g de riz\n- 300g de poulet coupé en morceaux\n- 200g de saucisse andouille\n- 200g de crevettes\n- 2 oignons, 3 branches de céleri, 2 poivrons verts\n- 400g de tomates en boîte\n- 2 gousses d'ail, sel, poivre, piment de Cayenne\n\nD'abord, faites revenir le poulet et la saucisse dans une grande marmite. Ensuite, ajoutez les oignons, le céleri et les poivrons — c'est la « sainte trinité » de la cuisine cajun. Ajoutez l'ail, les tomates et 750ml d'eau. Quand l'eau bout, ajoutez le riz et baissez le feu. Couvrez pendant 20 minutes. Ajoutez les crevettes dans les cinq dernières minutes.",
+          contentTranslation: "🍚 Creole Jambalaya\n\nJambalaya is a dish of Creole origin. It resembles Spanish paella because the first settlers came from Spain.\n\nIngredients (serves 6):\n- 500g rice\n- 300g chicken cut into pieces\n- 200g andouille sausage\n- 200g shrimp\n- 2 onions, 3 celery stalks, 2 green bell peppers\n- 400g canned tomatoes\n- 2 garlic cloves, salt, pepper, cayenne pepper\n\nFirst, brown the chicken and sausage in a large pot. Then, add the onions, celery, and bell peppers — this is the 'holy trinity' of Cajun cooking. Add the garlic, tomatoes, and 750ml water. When the water boils, add the rice and lower the heat. Cover for 20 minutes. Add the shrimp in the last five minutes.",
         },
       ],
       vocabularyHighlights: [
-        { word: "oignons", translation: "onions", partOfSpeech: "noun" },
-        { word: "beurre", translation: "butter", partOfSpeech: "noun" },
-        { word: "bouillon", translation: "broth", partOfSpeech: "noun" },
-        { word: "mijoter", translation: "to simmer", partOfSpeech: "verb" },
-        { word: "râpé", translation: "grated", partOfSpeech: "adjective" },
+        { word: "marmite", translation: "large pot", partOfSpeech: "noun" },
+        { word: "faire revenir", translation: "to brown/sauté", partOfSpeech: "verb" },
+        { word: "bout", translation: "boils", partOfSpeech: "verb" },
+        { word: "baissez", translation: "lower", partOfSpeech: "verb" },
+        { word: "couvrez", translation: "cover", partOfSpeech: "verb" },
       ],
       comprehensionQuestions: [
         {
-          question: "Combien de temps faut-il faire revenir les oignons ?",
-          questionTranslation: "How long should you sauté the onions?",
-          options: ["5 minutes", "10 minutes", "20 minutes", "30 minutes"],
+          question: "Qu'est-ce que la « sainte trinité » de la cuisine cajun ?",
+          questionTranslation: "What is the 'holy trinity' of Cajun cooking?",
+          options: [
+            "Poulet, crevettes, saucisse",
+            "Sel, poivre, piment",
+            "Oignons, céleri, poivrons",
+            "Ail, tomates, riz",
+          ],
           correctIndex: 2,
         },
-      ],
-      difficulty: 'beginner',
-      tags: ['food', 'cooking', 'traditional'],
-      spawnLocationHint: 'restaurant',
-    },
-    {
-      title: "Ratatouille Provençale",
-      titleTranslation: "Provençal Ratatouille",
-      textCategory: 'recipe',
-      cefrLevel: 'B1',
-      pages: [
         {
-          content: "🍆 Ratatouille Provençale\n\nIngrédients :\n- 2 aubergines, 3 courgettes, 4 tomates\n- 2 poivrons (rouge et jaune), 2 oignons\n- 4 gousses d'ail, huile d'olive, herbes de Provence\n\nCommencez par couper tous les légumes en dés réguliers. Faites revenir chaque légume séparément dans l'huile d'olive — c'est le secret d'une bonne ratatouille, car chaque légume a un temps de cuisson différent. Réunissez-les ensuite dans une cocotte, ajoutez l'ail écrasé et les herbes. Laissez mijoter à feu doux pendant 45 minutes en remuant de temps en temps.",
-          contentTranslation: "🍆 Provençal Ratatouille\n\nIngredients:\n- 2 eggplants, 3 zucchinis, 4 tomatoes\n- 2 bell peppers (red and yellow), 2 onions\n- 4 garlic cloves, olive oil, herbs of Provence\n\nStart by cutting all vegetables into even cubes. Sauté each vegetable separately in olive oil — this is the secret of a good ratatouille, because each vegetable has a different cooking time. Then combine them in a Dutch oven, add crushed garlic and herbs. Let simmer on low heat for 45 minutes, stirring from time to time.",
-        },
-      ],
-      vocabularyHighlights: [
-        { word: "aubergines", translation: "eggplants", partOfSpeech: "noun" },
-        { word: "courgettes", translation: "zucchinis", partOfSpeech: "noun" },
-        { word: "poivrons", translation: "bell peppers", partOfSpeech: "noun" },
-        { word: "cocotte", translation: "Dutch oven", partOfSpeech: "noun" },
-        { word: "feu doux", translation: "low heat", partOfSpeech: "noun" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Quel est le secret d'une bonne ratatouille ?",
-          questionTranslation: "What is the secret of a good ratatouille?",
+          question: "Pourquoi le jambalaya ressemble à la paella ?",
+          questionTranslation: "Why does jambalaya resemble paella?",
           options: [
-            "Utiliser beaucoup de sel",
-            "Cuire chaque légume séparément",
-            "Ajouter du fromage",
-            "Couper les légumes très petits",
+            "Ils utilisent le même riz",
+            "Les premiers colons venaient d'Espagne",
+            "C'est la même recette",
+            "Ils ont le même goût",
           ],
           correctIndex: 1,
         },
-      ],
-      difficulty: 'intermediate',
-      tags: ['food', 'cooking', 'traditional', 'provençal'],
-      spawnLocationHint: 'restaurant',
-    },
-    {
-      title: "Tarte Tatin Revisitée",
-      titleTranslation: "Reinvented Tarte Tatin",
-      textCategory: 'recipe',
-      cefrLevel: 'B2',
-      pages: [
         {
-          content: "🍎 Tarte Tatin aux Pommes et au Romarin\n\nCette variation contemporaine du classique des sœurs Tatin marie l'acidité des pommes Granny Smith avec les notes boisées du romarin frais. Le caramel, volontairement poussé jusqu'à l'amertume, crée un contraste sophistiqué avec la douceur du fruit.\n\nPréparez d'abord le caramel à sec : versez 150g de sucre dans une poêle en fonte et laissez fondre sans remuer. Lorsqu'il atteint une couleur ambrée foncée, ajoutez 80g de beurre demi-sel en morceaux — attention aux projections. Disposez les quartiers de pommes en rosace serrée, parsemez de feuilles de romarin, puis recouvrez d'un disque de pâte feuilletée inversée. Enfournez 35 minutes à 190°C.",
-          contentTranslation: "🍎 Apple and Rosemary Tarte Tatin\n\nThis contemporary variation on the Tatin sisters' classic pairs the acidity of Granny Smith apples with the woody notes of fresh rosemary. The caramel, deliberately pushed to bitterness, creates a sophisticated contrast with the sweetness of the fruit.\n\nFirst prepare a dry caramel: pour 150g sugar into a cast-iron pan and let it melt without stirring. When it reaches a dark amber color, add 80g semi-salted butter in pieces — watch for spattering. Arrange apple quarters in a tight rosette, sprinkle with rosemary leaves, then cover with a disc of inverted puff pastry. Bake 35 minutes at 190°C.",
+          question: "Quand ajoute-t-on les crevettes ?",
+          questionTranslation: "When do you add the shrimp?",
+          options: [
+            "Au début",
+            "Avec le poulet",
+            "Avec le riz",
+            "Dans les cinq dernières minutes",
+          ],
+          correctIndex: 3,
         },
       ],
-      vocabularyHighlights: [
-        { word: "amertume", translation: "bitterness", partOfSpeech: "noun" },
-        { word: "en fonte", translation: "cast-iron", partOfSpeech: "adjective" },
-        { word: "ambrée", translation: "amber", partOfSpeech: "adjective" },
-        { word: "rosace", translation: "rosette", partOfSpeech: "noun" },
-        { word: "feuilletée", translation: "puff (pastry)", partOfSpeech: "adjective" },
-      ],
-      comprehensionQuestions: [
-        {
-          question: "Quel type de pommes est utilisé dans cette recette ?",
-          questionTranslation: "What type of apples is used in this recipe?",
-          options: ["Golden", "Granny Smith", "Fuji", "Gala"],
-          correctIndex: 1,
-        },
-      ],
-      difficulty: 'advanced',
-      tags: ['food', 'cooking', 'gourmet', 'dessert'],
+      difficulty: 'beginner',
+      tags: ['food', 'cooking', 'louisiana', 'creole', 'traditional'],
       spawnLocationHint: 'restaurant',
     },
   ];
 }
 
+// ── Poems (3, as books with 'poem' tag) ──────────────────────────────────────
+
+function buildPoems(): TextTemplate[] {
+  return [
+    // A1: Simple nature poem
+    {
+      title: "Le Bayou le Matin",
+      titleTranslation: "The Bayou in the Morning",
+      textCategory: 'book',
+      cefrLevel: 'A1',
+      pages: [
+        {
+          content: "Le soleil se lève,\nL'eau est douce et calme.\nLe héron se promène,\nSous les branches des cyprès.\n\nLes poissons nagent,\nLes oiseaux chantent.\nLe bayou se réveille,\nC'est un nouveau jour.\n\nJe suis ici,\nJe regarde, j'écoute.\nLe bayou me parle,\nEt je suis en paix.",
+          contentTranslation: "The sun rises,\nThe water is gentle and calm.\nThe heron walks,\nUnder the branches of the cypress trees.\n\nThe fish swim,\nThe birds sing.\nThe bayou wakes up,\nIt is a new day.\n\nI am here,\nI watch, I listen.\nThe bayou speaks to me,\nAnd I am at peace.",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "se lève", translation: "rises", partOfSpeech: "verb" },
+        { word: "douce", translation: "gentle/sweet", partOfSpeech: "adjective" },
+        { word: "nagent", translation: "swim", partOfSpeech: "verb" },
+        { word: "se réveille", translation: "wakes up", partOfSpeech: "verb" },
+        { word: "paix", translation: "peace", partOfSpeech: "noun" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Quand se passe le poème ?",
+          questionTranslation: "When does the poem take place?",
+          options: ["Le soir", "La nuit", "Le matin", "L'après-midi"],
+          correctIndex: 2,
+        },
+        {
+          question: "Comment se sent le narrateur ?",
+          questionTranslation: "How does the narrator feel?",
+          options: ["Triste", "En colère", "Fatigué", "En paix"],
+          correctIndex: 3,
+        },
+      ],
+      difficulty: 'beginner',
+      tags: ['poem', 'bayou', 'nature'],
+      spawnLocationHint: 'library',
+    },
+    // A1: Children's counting rhyme
+    {
+      title: "Comptine du Marché",
+      titleTranslation: "Market Counting Rhyme",
+      textCategory: 'book',
+      cefrLevel: 'A1',
+      pages: [
+        {
+          content: "Un, deux, trois,\nJe vais au marché.\nQuatre, cinq, six,\nJ'achète du riz.\nSept, huit, neuf,\nJe casse un œuf.\nDix, onze, douze,\nMa marmite est rouge !\n\nDans ma marmite, qu'est-ce qu'il y a ?\nDu gumbo pour toi et moi !\nDes crevettes et du poulet,\nLe meilleur plat du quartier !",
+          contentTranslation: "One, two, three,\nI go to the market.\nFour, five, six,\nI buy rice.\nSeven, eight, nine,\nI crack an egg.\nTen, eleven, twelve,\nMy pot is red!\n\nIn my pot, what is there?\nGumbo for you and me!\nShrimp and chicken,\nThe best dish in the neighborhood!",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "marché", translation: "market", partOfSpeech: "noun" },
+        { word: "riz", translation: "rice", partOfSpeech: "noun" },
+        { word: "œuf", translation: "egg", partOfSpeech: "noun" },
+        { word: "marmite", translation: "pot", partOfSpeech: "noun" },
+        { word: "quartier", translation: "neighborhood", partOfSpeech: "noun" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Où va le narrateur ?",
+          questionTranslation: "Where does the narrator go?",
+          options: ["À l'école", "Au marché", "Au café", "À la maison"],
+          correctIndex: 1,
+        },
+        {
+          question: "Qu'est-ce qu'il y a dans la marmite ?",
+          questionTranslation: "What is in the pot?",
+          options: ["De la soupe", "Du gumbo", "Des crêpes", "Du chocolat"],
+          correctIndex: 1,
+        },
+      ],
+      difficulty: 'beginner',
+      tags: ['poem', 'counting', 'food', 'louisiana'],
+      spawnLocationHint: 'school',
+    },
+    // A2: Poem about memory and roots
+    {
+      title: "Les Racines",
+      titleTranslation: "The Roots",
+      textCategory: 'book',
+      cefrLevel: 'A2',
+      pages: [
+        {
+          content: "Sous les eaux sombres du bayou,\nLes racines des cyprès s'entrelacent,\nComme les histoires de nos ancêtres\nQui refusent de s'effacer.\n\nMa grand-mère parlait créole,\nSon sourire avait le goût du café.\nElle disait : « N'oublie jamais\nD'où tu viens, mon enfant. »\n\nLes langues se perdent comme des feuilles\nEmportées par le courant.\nMais les racines restent, profondes,\nEt un jour, les feuilles reviennent.",
+          contentTranslation: "Under the dark waters of the bayou,\nThe roots of the cypress trees intertwine,\nLike the stories of our ancestors\nThat refuse to fade away.\n\nMy grandmother spoke Creole,\nHer smile had the taste of coffee.\nShe used to say: 'Never forget\nWhere you come from, my child.'\n\nLanguages are lost like leaves\nCarried away by the current.\nBut the roots remain, deep,\nAnd one day, the leaves return.",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: "racines", translation: "roots", partOfSpeech: "noun" },
+        { word: "s'entrelacent", translation: "intertwine", partOfSpeech: "verb" },
+        { word: "ancêtres", translation: "ancestors", partOfSpeech: "noun" },
+        { word: "s'effacer", translation: "to fade away", partOfSpeech: "verb" },
+        { word: "courant", translation: "current", partOfSpeech: "noun" },
+      ],
+      comprehensionQuestions: [
+        {
+          question: "Quelle langue parlait la grand-mère ?",
+          questionTranslation: "What language did the grandmother speak?",
+          options: ["Français", "Anglais", "Créole", "Chitimacha"],
+          correctIndex: 2,
+        },
+        {
+          question: "À quoi les langues perdues sont-elles comparées ?",
+          questionTranslation: "What are lost languages compared to?",
+          options: [
+            "Des pierres",
+            "Des feuilles emportées par le courant",
+            "Des oiseaux",
+            "Des étoiles",
+          ],
+          correctIndex: 1,
+        },
+        {
+          question: "Que disait la grand-mère ?",
+          questionTranslation: "What did the grandmother say?",
+          options: [
+            "Sois fort",
+            "Étudie bien",
+            "N'oublie jamais d'où tu viens",
+            "Mange bien",
+          ],
+          correctIndex: 2,
+        },
+      ],
+      difficulty: 'beginner',
+      tags: ['poem', 'memory', 'creole', 'language_preservation'],
+      spawnLocationHint: 'cafe',
+    },
+  ];
+}
+
+// ── LLM generation prompt template ───────────────────────────────────────────
+
+/**
+ * Builds a prompt template for LLM-based text generation that enforces:
+ * target language, CEFR constraints, clue embedding, and world-contextual content.
+ */
+export function buildTextGenerationPrompt(options: {
+  targetLanguage: string;
+  cefrLevel: CefrLevel;
+  textCategory: TextCategory;
+  genre?: string;
+  topic?: string;
+  writerName?: string;
+  clueToEmbed?: string;
+  settlementName?: string;
+  characterNames?: string[];
+  locationNames?: string[];
+}): string {
+  const {
+    targetLanguage,
+    cefrLevel,
+    textCategory,
+    genre,
+    topic,
+    writerName,
+    clueToEmbed,
+    settlementName,
+    characterNames,
+    locationNames,
+  } = options;
+
+  const cefrConstraints: Record<CefrLevel, string> = {
+    A1: "Use only present tense. Sentences of 5-8 words max. Basic vocabulary (family, food, colors, animals, daily routine). No subordinate clauses. No idioms.",
+    A2: "Use present and passé composé. Sentences up to 12 words. Basic connectors (mais, parce que, quand). Simple descriptions and narration. Everyday vocabulary.",
+    B1: "Use all common tenses including imparfait, plus-que-parfait, and conditional. Complex sentences with subordination. Idiomatic expressions allowed. Topic-specific vocabulary.",
+    B2: "Literary register. Subjunctive mood, passive voice, complex relative clauses. Metaphor, irony, and nuance. Sophisticated vocabulary. Cultural references.",
+  };
+
+  const writerStyle = writerName
+    ? `\n\nWRITER CHARACTER: This text is written by "${writerName}", a local writer who has disappeared. Use a distinctive first-person voice: introspective, poetic, with references to the bayou and nature metaphors. The writer is investigating hidden local history and feels threatened.`
+    : '';
+
+  const clueInstruction = clueToEmbed
+    ? `\n\nCLUE EMBEDDING: Naturally weave the following clue into the text (do NOT state it directly — the reader should infer it): "${clueToEmbed}"`
+    : '';
+
+  const worldContext = [
+    settlementName && `Settlement: ${settlementName}`,
+    characterNames?.length && `Characters to reference: ${characterNames.join(', ')}`,
+    locationNames?.length && `Locations to reference: ${locationNames.join(', ')}`,
+  ].filter(Boolean).join('\n');
+
+  return `Generate a ${textCategory} text for a language-learning game.
+
+TARGET LANGUAGE: ${targetLanguage}
+CEFR LEVEL: ${cefrLevel}
+${genre ? `GENRE: ${genre}` : ''}
+${topic ? `TOPIC: ${topic}` : ''}
+
+CEFR CONSTRAINTS (${cefrLevel}):
+${cefrConstraints[cefrLevel]}
+
+${worldContext ? `WORLD CONTEXT:\n${worldContext}` : ''}
+CULTURAL SETTING: Louisiana Creole / Chitimacha indigenous culture. The story takes place in a small bayou village with French-speaking inhabitants, Creole traditions, and connections to the Chitimacha people.${writerStyle}${clueInstruction}
+
+OUTPUT FORMAT (JSON):
+{
+  "title": "Title in ${targetLanguage}",
+  "titleTranslation": "Title in English",
+  "pages": [
+    {
+      "content": "Text in ${targetLanguage} (100-200 words for A1/A2, 200-400 words for B1/B2)",
+      "contentTranslation": "Faithful English translation"
+    }
+  ],
+  "vocabularyHighlights": [
+    { "word": "word in ${targetLanguage}", "translation": "English", "partOfSpeech": "noun|verb|adjective|adverb" }
+  ] (provide 3-5 highlights),
+  "comprehensionQuestions": [
+    {
+      "question": "Question in ${targetLanguage}",
+      "questionTranslation": "Question in English",
+      "options": ["4 options in ${targetLanguage}"],
+      "correctIndex": 0
+    }
+  ] (provide 2-3 questions)
+}
+
+IMPORTANT:
+- ALL content text must be in ${targetLanguage}
+- ALL translations must be in English
+- Vocabulary highlights should target words the learner likely does not know at this CEFR level
+- Comprehension questions should test understanding of the text, not grammar
+- Questions must have exactly 4 options with one correct answer
+- Content must feel authentic and culturally grounded, not like a textbook exercise`;
+}
+
+// ── Main builder ─────────────────────────────────────────────────────────────
+
 /**
  * Build all seed texts for a world. Returns InsertGameText[] ready to be saved.
+ * Generates 20 texts: 5 writer journals, 3 fiction, 3 non-fiction, 3 letters, 3 recipes, 3 poems.
+ * CEFR distribution: 8×A1, 6×A2, 4×B1, 2×B2.
  */
 export function buildSeedTexts(options: TextSeedOptions): InsertGameText[] {
   const { worldId, targetLanguage, writerName = "Jean-Luc Moreau" } = options;
 
   const allTemplates: TextTemplate[] = [
-    ...buildMainQuestBooks(writerName),
-    ...buildJournals(),
+    ...buildWriterJournals(writerName),
+    ...buildFiction(),
+    ...buildNonFiction(),
     ...buildLetters(),
-    ...buildFlyers(),
     ...buildRecipes(),
+    ...buildPoems(),
   ];
 
   return allTemplates.map((t) => ({
@@ -1021,6 +1164,13 @@ export function buildSeedTexts(options: TextSeedOptions): InsertGameText[] {
     difficulty: t.difficulty,
     tags: t.tags,
     isGenerated: true,
+    generationPrompt: buildTextGenerationPrompt({
+      targetLanguage,
+      cefrLevel: t.cefrLevel,
+      textCategory: t.textCategory,
+      topic: t.tags[0],
+      writerName: t.authorName,
+    }),
     spawnLocationHint: t.spawnLocationHint,
     status: 'published' as const,
   }));
