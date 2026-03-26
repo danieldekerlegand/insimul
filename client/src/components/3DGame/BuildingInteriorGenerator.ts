@@ -47,6 +47,18 @@ export interface RoomZone {
   floor: number;
 }
 
+/** Tracks an individual bed for NPC assignment */
+export interface BedAssignment {
+  /** Unique ID for this bed (matches furniture mesh name) */
+  bedId: string;
+  /** Room this bed belongs to */
+  roomName: string;
+  /** Position offset within the interior */
+  offsetX: number;
+  offsetY: number;
+  offsetZ: number;
+}
+
 export interface InteriorLayout {
   id: string;
   buildingId: string;
@@ -64,6 +76,8 @@ export interface InteriorLayout {
   rooms: RoomZone[];
   /** Number of floors */
   floorCount: number;
+  /** Bed positions for NPC sleep assignment */
+  beds: BedAssignment[];
 }
 
 export interface FurnitureSpec {
@@ -249,7 +263,8 @@ export class BuildingInteriorGenerator {
     buildingId: string,
     buildingType: string,
     businessType?: string,
-    overworldDoorPos?: Vector3
+    overworldDoorPos?: Vector3,
+    residentCount?: number,
   ): InteriorLayout {
     // Return cached interior if already generated
     const existing = this.interiors.get(buildingId);
@@ -304,7 +319,8 @@ export class BuildingInteriorGenerator {
     }
 
     // Generate furniture for each room zone
-    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate);
+    const beds: BedAssignment[] = [];
+    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate, residentCount, beds);
     furniture.push(...roomFurniture);
 
     // Apply lighting preset if configured (support both object and string preset name)
@@ -340,6 +356,7 @@ export class BuildingInteriorGenerator {
       exitPosition,
       rooms,
       floorCount,
+      beds,
     };
 
     this.interiors.set(buildingId, layout);
@@ -393,6 +410,7 @@ export class BuildingInteriorGenerator {
       exitPosition,
       rooms: [],
       floorCount: 1,
+      beds: [],
     };
 
     this.interiors.set(buildingId, layout);
@@ -939,11 +957,16 @@ export class BuildingInteriorGenerator {
         });
       }
     } else if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) {
-      // Small residence: single floor, living area + kitchen nook
+      // Small residence: single floor — living area (front-left), bedroom (front-right), kitchen (back)
       rooms.push({
         name: 'living_room', function: 'living',
-        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
-        width, depth: frontDepth, floor: 0,
+        offsetX: -width / 4, offsetZ: frontCenterZ, offsetY: 0,
+        width: width / 2, depth: frontDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'bedroom', function: 'bedroom',
+        offsetX: width / 4, offsetZ: frontCenterZ, offsetY: 0,
+        width: width / 2, depth: frontDepth, floor: 0,
       });
       rooms.push({
         name: 'kitchen', function: 'kitchen',
@@ -1415,6 +1438,8 @@ export class BuildingInteriorGenerator {
     businessType?: string,
     config?: InteriorTemplateConfig | null,
     layoutTemplate?: FurnitureLayoutTemplate,
+    residentCount?: number,
+    beds?: BedAssignment[],
   ): Mesh[] {
     const allFurniture: Mesh[] = [];
     const prefix = `interior_${buildingId}`;
@@ -1422,10 +1447,22 @@ export class BuildingInteriorGenerator {
     // Resolve furniture set template: config override > auto-detected layout template
     const furnitureTemplate = this.resolveFurnitureTemplate(config) ?? layoutTemplate;
 
+    // Count total bedrooms for distributing residents across rooms
+    const bedroomRooms = rooms.filter(r => r.function === 'bedroom');
+
     for (const room of rooms) {
-      let specs = furnitureTemplate
-        ? this.getFurnitureFromTemplate(furnitureTemplate, room)
-        : this.getFurnitureForRoom(room);
+      let specs: FurnitureSpec[];
+      if (room.function === 'bedroom') {
+        // Calculate beds for this bedroom based on resident count and room size
+        const residentsForRoom = residentCount && bedroomRooms.length > 0
+          ? Math.max(1, Math.ceil((residentCount ?? 1) / bedroomRooms.length))
+          : 1;
+        specs = this.getBedroomFurnitureScaled(room.width, room.depth, residentsForRoom);
+      } else {
+        specs = furnitureTemplate
+          ? this.getFurnitureFromTemplate(furnitureTemplate, room)
+          : this.getFurnitureForRoom(room);
+      }
 
       // Enforce minimum furniture count per room
       const minCount = room.floor === 0
@@ -1456,6 +1493,16 @@ export class BuildingInteriorGenerator {
           mesh.metadata.businessType = businessType;
           mesh.metadata.containerId = `${prefix}_${room.name}_container_${i}`;
           mesh.metadata.roomName = room.name;
+        }
+        // Track beds for NPC assignment
+        if (spec.type === 'bed' || spec.type === 'bed_single' || spec.type === 'bed_double') {
+          beds?.push({
+            bedId: meshName,
+            roomName: room.name,
+            offsetX: room.offsetX + spec.offsetX,
+            offsetY: room.offsetY,
+            offsetZ: room.offsetZ + spec.offsetZ,
+          });
         }
         allFurniture.push(mesh);
       }
@@ -2452,31 +2499,60 @@ export class BuildingInteriorGenerator {
   }
 
   private getBedroomFurniture(w: number, d: number): FurnitureSpec[] {
+    return this.getBedroomFurnitureScaled(w, d, 1);
+  }
+
+  /**
+   * Generate bedroom furniture with beds scaled to resident count.
+   * Each bed is placed against a wall with 0.5m clearance, at Y=0.3 mattress height.
+   * Max beds = 1 per 8 sq meters of room area.
+   */
+  private getBedroomFurnitureScaled(w: number, d: number, residentCount: number): FurnitureSpec[] {
     const specs: FurnitureSpec[] = [];
     const wood = new Color3(0.45, 0.35, 0.25);
+    const bedColor = new Color3(0.55, 0.4, 0.3);
 
-    // Bed against back wall
-    specs.push({
-      type: 'bed', offsetX: -w * 0.2, offsetZ: d / 2 - 1.2,
-      width: 1.8, height: 0.6, depth: 2.2, color: new Color3(0.55, 0.4, 0.3)
-    });
+    // Calculate bed count: min 1, max by room area (1 per 8 sq m)
+    const roomArea = w * d;
+    const maxBeds = Math.max(1, Math.floor(roomArea / 8));
+    const bedCount = Math.max(1, Math.min(residentCount, maxBeds));
 
-    // Nightstand beside bed
-    specs.push({
-      type: 'table', offsetX: -w * 0.2 + 1.5, offsetZ: d / 2 - 0.8,
-      width: 0.5, height: 0.6, depth: 0.5, color: wood
-    });
+    // Bed dimensions: single beds for multi-bed rooms, standard otherwise
+    const bedWidth = bedCount > 1 ? 1.2 : 1.8;
+    const bedDepth = 2.2;
+    const bedHeight = 0.6;
+    const wallClearance = 0.5;
+
+    // Place beds along the back wall (+Z side) with 0.5m clearance
+    const availableWidth = w - wallClearance * 2;
+    const spacing = availableWidth / bedCount;
+
+    for (let i = 0; i < bedCount; i++) {
+      const bedX = -availableWidth / 2 + spacing * (i + 0.5);
+      specs.push({
+        type: bedCount > 1 ? 'bed_single' : 'bed',
+        offsetX: bedX,
+        offsetZ: d / 2 - bedDepth / 2 - wallClearance,
+        width: bedWidth,
+        height: bedHeight,
+        depth: bedDepth,
+        color: bedColor,
+      });
+
+      // Nightstand beside each bed (on the right side, or skip if no room)
+      const nightstandX = bedX + bedWidth / 2 + 0.4;
+      if (nightstandX < w / 2 - wallClearance) {
+        specs.push({
+          type: 'table', offsetX: nightstandX, offsetZ: d / 2 - 0.8,
+          width: 0.5, height: 0.6, depth: 0.5, color: wood,
+        });
+      }
+    }
 
     // Wardrobe against side wall
     specs.push({
-      type: 'wardrobe', offsetX: w / 2 - 0.6, offsetZ: 0,
-      width: 0.8, height: 2.2, depth: 1.5, color: wood
-    });
-
-    // Small chest at foot of bed
-    specs.push({
-      type: 'chest', offsetX: -w * 0.2, offsetZ: d / 2 - 2.5,
-      width: 1.2, height: 0.5, depth: 0.6, color: new Color3(0.4, 0.3, 0.15)
+      type: 'wardrobe', offsetX: w / 2 - 0.6, offsetZ: -d * 0.2,
+      width: 0.8, height: 2.2, depth: 1.5, color: wood,
     });
 
     return specs;

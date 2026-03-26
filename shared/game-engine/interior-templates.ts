@@ -704,12 +704,14 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
-      { name: 'living_room', function: 'living', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'living_room', function: 'living', offsetXFraction: -0.25, offsetZFraction: -0.2, widthFraction: 0.5, depthFraction: 0.6, floor: 0 },
+      { name: 'bedroom', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: -0.2, widthFraction: 0.5, depthFraction: 0.6, floor: 0 },
       { name: 'kitchen', function: 'kitchen', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
     ],
     furnitureSets: [
       { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
       { roomFunction: 'kitchen', furniture: KITCHEN_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
     ],
   },
 
