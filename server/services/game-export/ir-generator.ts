@@ -1360,6 +1360,33 @@ export async function generateWorldIR(
   const businessArrays = await Promise.all(businessPromises);
   const allBusinesses = businessArrays.flat();
 
+  // Fetch occupations for all businesses (for building occupantIds)
+  const occupationPromises = allBusinesses.map(b => storage.getOccupationsByBusiness(b.id));
+  const occupationArrays = await Promise.all(occupationPromises);
+  const allOccupations = occupationArrays.flat();
+
+  // Build lookup: businessId → active occupation characterIds
+  const activeOccupantsByBusiness = new Map<string, string[]>();
+  for (const occ of allOccupations) {
+    if (occ.endYear != null) continue; // skip ended occupations
+    const list = activeOccupantsByBusiness.get(occ.businessId) || [];
+    list.push(occ.characterId);
+    activeOccupantsByBusiness.set(occ.businessId, list);
+  }
+
+  // Fetch residences for all settlements
+  const residencePromises = settlements.map(s => storage.getResidencesBySettlement(s.id));
+  const residenceArrays = await Promise.all(residencePromises);
+  const allResidences = residenceArrays.flat();
+
+  // Build lookup: lotId → residentIds
+  const residentsByLot = new Map<string, string[]>();
+  for (const res of allResidences) {
+    if (res.lotId && Array.isArray(res.residentIds) && res.residentIds.length > 0) {
+      residentsByLot.set(res.lotId, res.residentIds);
+    }
+  }
+
   // Fetch lots per settlement (sequential to avoid overloading DB)
   const lotsBySettlement = new Map<string, any[]>();
   for (const s of allSettlements) {
@@ -1534,6 +1561,23 @@ export async function generateWorldIR(
       const spec = getBuildingSpec(business?.businessType || null);
       const buildingId = business ? `bld_${business.id}` : `bld_${s.id}_${i}`;
 
+      // Build occupantIds from DB data
+      let occupantIds: string[] = [];
+      if (business) {
+        // Business building: ownerId first, then active employee characterIds
+        const employeeIds = activeOccupantsByBusiness.get(business.id) || [];
+        if (business.ownerId) {
+          occupantIds = [business.ownerId, ...employeeIds.filter((id: string) => id !== business.ownerId)];
+        } else {
+          occupantIds = employeeIds;
+        }
+      } else if (lotIR?.id) {
+        // Residence building: use residentIds from residence matched by lotId
+        occupantIds = residentsByLot.get(lotIR.id) || [];
+      }
+      // Remove nulls and duplicates
+      occupantIds = Array.from(new Set(occupantIds.filter(Boolean)));
+
       allBuildingIRs.push({
         id: buildingId,
         settlementId: s.id,
@@ -1542,7 +1586,7 @@ export async function generateWorldIR(
         rotation,
         spec,
         style: buildingStyle,
-        occupantIds: [],
+        occupantIds,
         interior: null,
         businessId: business?.id || null,
         modelAssetKey: resolveBuildingModel(engine, collectionSnapshot, spec.buildingRole),

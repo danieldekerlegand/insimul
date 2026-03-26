@@ -326,13 +326,27 @@ func load_settlement_businesses(settlement_id: String) -> Array:
 		if str(b.get("settlementId", "")) == settlement_id and b.get("businessId", "") != "":
 			var spec: Dictionary = b.get("spec", {})
 			var occupants: Array = b.get("occupantIds", [])
-			var owner_id = occupants[0] if occupants.size() > 0 else null
+			var has_occupants: bool = occupants.size() > 0
+			# Fallback: look up BusinessIR.ownerId when occupantIds is empty
+			var biz_ir = null
+			var biz_id_str: String = str(b.get("businessId", ""))
+			if not has_occupants and businesses.size() > 0:
+				for biz in businesses:
+					if str(biz.get("id", "")) == biz_id_str:
+						biz_ir = biz
+						break
+			var owner_id = occupants[0] if has_occupants else (biz_ir.get("ownerId", null) if biz_ir != null else null)
 			var employees: Array = occupants.slice(1) if occupants.size() > 1 else []
+			var biz_type: String = spec.get("buildingRole", "Shop")
+			var biz_name: String = spec.get("buildingRole", "Business")
+			if biz_ir != null:
+				biz_type = biz_ir.get("businessType", biz_type)
+				biz_name = biz_ir.get("name", biz_name)
 			result.append({
 				"id": b.get("businessId", b.get("id", "")),
 				"settlementId": b.get("settlementId", ""),
-				"businessType": spec.get("buildingRole", "Shop"),
-				"name": spec.get("buildingRole", "Business"),
+				"businessType": biz_type,
+				"name": biz_name,
 				"ownerId": owner_id,
 				"employees": employees,
 				"lotId": b.get("lotId", ""),

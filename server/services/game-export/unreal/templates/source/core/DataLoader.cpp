@@ -912,6 +912,60 @@ FString UDataLoader::DeriveBusinessesFromBuildings(const FString& SettlementId) 
             }
             Biz->SetArrayField(TEXT("employees"), Employees);
         }
+        else
+        {
+            // Fallback: look up BusinessIR.ownerId from geography businesses
+            FString GeoJson2 = LoadDataFile(TEXT("geography.json"));
+            if (!GeoJson2.IsEmpty())
+            {
+                TSharedPtr<FJsonObject> GeoObj2;
+                if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(GeoJson2), GeoObj2) && GeoObj2.IsValid())
+                {
+                    const TArray<TSharedPtr<FJsonValue>>* Settlements2;
+                    if (GeoObj2->TryGetArrayField(TEXT("settlements"), Settlements2))
+                    {
+                        for (auto& SVal : *Settlements2)
+                        {
+                            auto SObj = SVal->AsObject();
+                            if (!SObj.IsValid()) continue;
+                            FString SId;
+                            SObj->TryGetStringField(TEXT("id"), SId);
+                            if (SId != SettlementId) continue;
+                            const TArray<TSharedPtr<FJsonValue>>* Bizs;
+                            if (SObj->TryGetArrayField(TEXT("businesses"), Bizs))
+                            {
+                                for (auto& BVal : *Bizs)
+                                {
+                                    auto BObj = BVal->AsObject();
+                                    if (!BObj.IsValid()) continue;
+                                    FString BId;
+                                    BObj->TryGetStringField(TEXT("id"), BId);
+                                    if (BId == BusinessId)
+                                    {
+                                        FString FallbackOwner;
+                                        if (BObj->TryGetStringField(TEXT("ownerId"), FallbackOwner))
+                                        {
+                                            Biz->SetStringField(TEXT("ownerId"), FallbackOwner);
+                                        }
+                                        FString BizType, BizName;
+                                        if (BObj->TryGetStringField(TEXT("businessType"), BizType))
+                                        {
+                                            Biz->SetStringField(TEXT("businessType"), BizType);
+                                        }
+                                        if (BObj->TryGetStringField(TEXT("name"), BizName))
+                                        {
+                                            Biz->SetStringField(TEXT("name"), BizName);
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         Results.Add(MakeShared<FJsonValueObject>(Biz));
     }

@@ -1826,16 +1826,25 @@ export class FileDataSource implements DataSource {
       (b: any) => b.settlementId === settlementId && b.businessId
     );
     console.log(`[FileDS] Matched ${buildings.length} businesses for settlement ${settlementId}`);
-    return buildings.map((b: any) => ({
-      id: b.businessId || b.id,
-      settlementId: b.settlementId,
-      businessType: b.spec?.buildingRole || 'Shop',
-      name: b.spec?.buildingRole || 'Business',
-      ownerId: b.occupantIds?.[0] || null,
-      employees: b.occupantIds?.slice(1) || [],
-      lotId: b.lotId,
-      position: b.position,
-    }));
+    // Look up BusinessIR data for ownerId fallback
+    const businessIRs = settlement?.businesses || [];
+    return buildings.map((b: any) => {
+      const bizIR = businessIRs.find((biz: any) => biz.id === b.businessId);
+      // Fallback: if occupantIds is empty but BusinessIR has ownerId, use it
+      const hasOccupants = b.occupantIds?.length > 0;
+      const ownerId = hasOccupants ? b.occupantIds[0] : (bizIR?.ownerId || null);
+      const employees = hasOccupants ? b.occupantIds.slice(1) : [];
+      return {
+        id: b.businessId || b.id,
+        settlementId: b.settlementId,
+        businessType: bizIR?.businessType || b.spec?.buildingRole || 'Shop',
+        name: bizIR?.name || b.spec?.buildingRole || 'Business',
+        ownerId,
+        employees,
+        lotId: b.lotId,
+        position: b.position,
+      };
+    });
   }
 
   async loadSettlementLots(settlementId: string): Promise<any[]> {
