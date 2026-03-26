@@ -272,6 +272,7 @@ export interface GameMenuCallbacks {
   getConversationHistory?: () => ConversationRecord[];
   getSkillTreeStats?: () => SkillTreeStats | null;
   getNoticeArticles?: () => { articles: NoticeArticle[]; playerFluency: number };
+  fetchServerTexts?: () => Promise<NoticeArticle[]>;
   getAssessmentData?: () => { data: PlayerAssessmentData | null; playerLevel: number };
   onNoticeWordClicked?: (word: string, meaning: string) => void;
   onNoticeQuestionAnswered?: (correct: boolean, articleId: string, selectedIndex: number, correctIndex: number) => void;
@@ -397,6 +398,11 @@ export class GameMenuSystem {
   private libraryActiveCategory: string = 'all';
   private libraryReadingArticle: NoticeArticle | null = null;
   private libraryReadArticleIds: Set<string> = new Set();
+  private libraryPageSize: number = 15;
+  private libraryVisibleCount: number = 15;
+  private libraryServerTexts: NoticeArticle[] = [];
+  private libraryServerTextsLoading: boolean = false;
+  private libraryServerTextsFetched: boolean = false;
 
   // Save/Load state
   private systemSubView: 'main' | 'save' | 'load' | 'playthrough' = 'main';
@@ -5229,6 +5235,21 @@ export class GameMenuSystem {
   ];
 
   private renderNoticesTab(): void {
+    // Fetch server texts once when tab opens
+    if (!this.libraryServerTextsFetched && !this.libraryServerTextsLoading && this.callbacks.fetchServerTexts) {
+      this.libraryServerTextsLoading = true;
+      this.callbacks.fetchServerTexts().then(texts => {
+        this.libraryServerTexts = texts;
+        this.libraryServerTextsFetched = true;
+        this.libraryServerTextsLoading = false;
+        if (this.activeTab === 'notices') this.refreshActiveTab();
+      }).catch(() => {
+        this.libraryServerTextsLoading = false;
+        this.libraryServerTextsFetched = true;
+        if (this.activeTab === 'notices') this.refreshActiveTab();
+      });
+    }
+
     if (this.libraryReadingArticle) {
       this.renderLibraryReadingView();
       return;
@@ -5243,7 +5264,29 @@ export class GameMenuSystem {
     this.addSectionHeader(stack, "Library");
     this.addSubHeader(stack, "Your collection of texts found throughout the world");
 
-    if (!noticeData || noticeData.articles.length === 0) {
+    // Show loading indicator while fetching server texts
+    if (this.libraryServerTextsLoading) {
+      const loadingText = new TextBlock();
+      loadingText.text = "Loading texts from server...";
+      loadingText.color = COLORS.textMuted;
+      loadingText.fontSize = 12;
+      loadingText.height = "30px";
+      stack.addControl(loadingText);
+    }
+
+    // Merge local notices with server texts, dedup by id
+    const localArticles = noticeData?.articles || [];
+    const playerFluency = noticeData?.playerFluency || 0;
+    const seenIds = new Set(localArticles.map(a => a.id));
+    const allArticles = [...localArticles];
+    for (const st of this.libraryServerTexts) {
+      if (!seenIds.has(st.id)) {
+        allArticles.push(st);
+        seenIds.add(st.id);
+      }
+    }
+
+    if (allArticles.length === 0 && !this.libraryServerTextsLoading) {
       const noData = new TextBlock();
       noData.text = "No readings collected yet. Find notice boards in settlements or documents in the world to start your collection!";
       noData.color = COLORS.textMuted;
@@ -5264,13 +5307,13 @@ export class GameMenuSystem {
 
     // Count articles per category for badges
     const categoryCounts = new Map<string, number>();
-    for (const a of noticeData.articles) {
+    for (const a of allArticles) {
       const cat = a.documentType || 'notice';
       categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1);
     }
 
     for (const cat of GameMenuSystem.LIBRARY_CATEGORIES) {
-      const count = cat.id === 'all' ? noticeData.articles.length : (categoryCounts.get(cat.id) || 0);
+      const count = cat.id === 'all' ? allArticles.length : (categoryCounts.get(cat.id) || 0);
       if (cat.id !== 'all' && count === 0) continue;
 
       const isActive = this.libraryActiveCategory === cat.id;
@@ -5287,15 +5330,16 @@ export class GameMenuSystem {
       (catBtn as any).borderColor = isActive ? COLORS.tabActiveBorder : "transparent";
       catBtn.onPointerClickObservable.add(() => {
         this.libraryActiveCategory = cat.id;
+        this.libraryVisibleCount = this.libraryPageSize;
         this.refreshActiveTab();
       });
       tabRow.addControl(catBtn);
     }
 
     // Stats row
-    const readCount = noticeData.articles.filter(a => this.libraryReadArticleIds.has(a.id)).length;
+    const readCount = allArticles.filter(a => this.libraryReadArticleIds.has(a.id)).length;
     const statsText = new TextBlock();
-    statsText.text = `${noticeData.articles.length} collected · ${readCount} read`;
+    statsText.text = `${allArticles.length} collected · ${readCount} read`;
     statsText.color = COLORS.textMuted;
     statsText.fontSize = 11;
     statsText.height = "20px";
@@ -5303,13 +5347,13 @@ export class GameMenuSystem {
     stack.addControl(statsText);
 
     // Filter by category + fluency
-    const articles = noticeData.articles.filter(a => {
+    const articles = allArticles.filter(a => {
       if (this.libraryActiveCategory !== 'all') {
         const cat = a.documentType || 'notice';
         if (cat !== this.libraryActiveCategory) return false;
       }
-      if (a.difficulty === 'intermediate' && noticeData.playerFluency < 25) return false;
-      if (a.difficulty === 'advanced' && noticeData.playerFluency < 55) return false;
+      if (a.difficulty === 'intermediate' && playerFluency < 25) return false;
+      if (a.difficulty === 'advanced' && playerFluency < 55) return false;
       return true;
     });
 
@@ -5323,12 +5367,19 @@ export class GameMenuSystem {
       return;
     }
 
+    // Pagination: only render up to libraryVisibleCount articles
+    const visibleArticles = articles.slice(0, this.libraryVisibleCount);
+
     // Article cards (compact list — click to read)
-    for (const article of articles) {
+    for (const article of visibleArticles) {
       const isRead = this.libraryReadArticleIds.has(article.id);
       const diffColor = article.difficulty === 'beginner' ? COLORS.accentGreen
         : (article.difficulty === 'intermediate' ? COLORS.accentYellow : COLORS.accentRed);
       const typeLabel = this.getDocumentTypeLabel(article);
+      const gameText = article as any;
+      const hasClue = !!(gameText.clueText);
+      const cefrLevel = gameText.cefrLevel as string | undefined;
+      const pages = gameText.pages as any[] | undefined;
 
       const card = this.makeCard(stack);
 
@@ -5339,28 +5390,32 @@ export class GameMenuSystem {
       titleRow.thickness = 0;
       card.addControl(titleRow);
 
+      const titlePrefix = `${isRead ? '✓ ' : ''}${hasClue ? '🔍 ' : ''}`;
       const titleText = new TextBlock();
-      titleText.text = `${isRead ? '✓ ' : ''}${article.title}`;
+      titleText.text = `${titlePrefix}${article.title}`;
       titleText.color = isRead ? COLORS.textSecondary : COLORS.textPrimary;
       titleText.fontSize = 13;
       titleText.fontWeight = "bold";
       titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       titleRow.addControl(titleText);
 
+      // Badge with CEFR level if available
+      const diffLabel = cefrLevel ? `${cefrLevel}` : article.difficulty;
       const badgeText = new TextBlock();
-      badgeText.text = `${typeLabel} · ${article.difficulty}`;
+      badgeText.text = `${typeLabel} · ${diffLabel}`;
       badgeText.color = diffColor;
       badgeText.fontSize = 11;
       badgeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       titleRow.addControl(badgeText);
 
-      // Author + XP row
-      if (article.author || article.readingXp) {
+      // Author + XP + page count row
+      const metaParts: string[] = [];
+      if (article.author) metaParts.push(`by ${article.author.name}`);
+      if (pages && pages.length > 0) metaParts.push(`${pages.length} pg`);
+      if (article.readingXp) metaParts.push(`${article.readingXp} XP`);
+      if (metaParts.length > 0) {
         const metaText = new TextBlock();
-        const parts: string[] = [];
-        if (article.author) parts.push(`by ${article.author.name}`);
-        if (article.readingXp) parts.push(`${article.readingXp} XP`);
-        metaText.text = parts.join(' · ');
+        metaText.text = metaParts.join(' · ');
         metaText.color = COLORS.textMuted;
         metaText.fontSize = 11;
         metaText.height = "16px";
@@ -5395,6 +5450,27 @@ export class GameMenuSystem {
         this.refreshActiveTab();
       });
       card.addControl(readBtn);
+    }
+
+    // "Load More" button when there are more articles to show
+    if (this.libraryVisibleCount < articles.length) {
+      const remaining = articles.length - this.libraryVisibleCount;
+      const loadMoreBtn = Button.CreateSimpleButton("libLoadMore", `Load More (${remaining} remaining)`);
+      loadMoreBtn.width = "200px";
+      loadMoreBtn.height = "32px";
+      loadMoreBtn.color = COLORS.textPrimary;
+      loadMoreBtn.background = COLORS.cardBg;
+      loadMoreBtn.cornerRadius = 6;
+      loadMoreBtn.fontSize = 12;
+      loadMoreBtn.thickness = 1;
+      (loadMoreBtn as any).borderColor = COLORS.accent;
+      loadMoreBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      loadMoreBtn.paddingTop = "8px";
+      loadMoreBtn.onPointerClickObservable.add(() => {
+        this.libraryVisibleCount += this.libraryPageSize;
+        this.refreshActiveTab();
+      });
+      stack.addControl(loadMoreBtn);
     }
   }
 
@@ -5516,6 +5592,22 @@ export class GameMenuSystem {
     });
     stack.addControl(toggleBtn);
 
+    // Clue indicator
+    const readGameText = article as any;
+    if (readGameText.clueText) {
+      const clueRow = new TextBlock();
+      clueRow.text = `🔍 Clue: ${readGameText.clueText}`;
+      clueRow.color = COLORS.accentYellow;
+      clueRow.fontSize = 12;
+      clueRow.fontWeight = "bold";
+      clueRow.textWrapping = true;
+      clueRow.resizeToFit = true;
+      clueRow.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      clueRow.paddingTop = "4px";
+      clueRow.paddingBottom = "4px";
+      stack.addControl(clueRow);
+    }
+
     this.addDivider(stack);
 
     // Vocabulary section
@@ -5630,10 +5722,19 @@ export class GameMenuSystem {
       stack.addControl(xpText);
     }
 
-    // Navigation — prev/next within current category
+    // Navigation — prev/next within current category (using merged articles)
     const noticeData = this.callbacks.getNoticeArticles?.();
-    if (noticeData) {
-      const filtered = noticeData.articles.filter(a => {
+    const navLocalArticles = noticeData?.articles || [];
+    const navSeenIds = new Set(navLocalArticles.map(a => a.id));
+    const navAllArticles = [...navLocalArticles];
+    for (const st of this.libraryServerTexts) {
+      if (!navSeenIds.has(st.id)) {
+        navAllArticles.push(st);
+        navSeenIds.add(st.id);
+      }
+    }
+    if (navAllArticles.length > 0) {
+      const filtered = navAllArticles.filter(a => {
         if (this.libraryActiveCategory !== 'all') {
           return (a.documentType || 'notice') === this.libraryActiveCategory;
         }

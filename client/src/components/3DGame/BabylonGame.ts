@@ -2163,6 +2163,17 @@ export class BabylonGame {
           playerFluency: tracker ? tracker.getFluency() : 0,
         };
       },
+      fetchServerTexts: async () => {
+        try {
+          const resp = await fetch(`/api/worlds/${this.config.worldId}/texts`);
+          if (!resp.ok) return [];
+          const texts = await resp.json();
+          if (!Array.isArray(texts)) return [];
+          return texts.map((t: any) => this.serverTextToNoticeArticle(t));
+        } catch {
+          return [];
+        }
+      },
       getAssessmentData: () => {
         const gamState = this.gamificationTracker?.getState();
         return {
@@ -14006,6 +14017,36 @@ export class BabylonGame {
       console.warn('[BabylonGame] Failed to sync reading progress:', err);
       this.readingProgressDirty = true; // retry next time
     }
+  }
+
+  private serverTextToNoticeArticle(t: any): import('./BabylonNoticeBoardPanel').NoticeArticle {
+    const pages = Array.isArray(t.pages) ? t.pages : [];
+    const body = pages.length > 0 ? pages.map((p: any) => p.content || '').join('\n\n') : (t.title || '');
+    const bodyTranslation = pages.length > 0 ? pages.map((p: any) => p.contentTranslation || '').join('\n\n') : (t.titleTranslation || '');
+    const cefrToDiff: Record<string, 'beginner' | 'intermediate' | 'advanced'> = { A1: 'beginner', A2: 'intermediate', B1: 'intermediate', B2: 'advanced' };
+    const difficulty = t.difficulty || (t.cefrLevel && cefrToDiff[t.cefrLevel]) || 'beginner';
+    const categoryToDocType: Record<string, string> = { book: 'book', journal: 'journal', letter: 'letter', flyer: 'notice', recipe: 'recipe' };
+    const documentType = categoryToDocType[t.textCategory] || t.textCategory || 'book';
+    return {
+      id: t.id,
+      title: t.title || '',
+      titleTranslation: t.titleTranslation || '',
+      body,
+      bodyTranslation,
+      difficulty,
+      vocabularyWords: Array.isArray(t.vocabularyHighlights)
+        ? t.vocabularyHighlights.map((v: any) => ({ word: v.word, meaning: v.translation || '' }))
+        : [],
+      comprehensionQuestion: Array.isArray(t.comprehensionQuestions) && t.comprehensionQuestions.length > 0
+        ? t.comprehensionQuestions[0]
+        : undefined,
+      author: t.authorName ? { characterId: '', name: t.authorName } : undefined,
+      readingXp: difficulty === 'beginner' ? 10 : (difficulty === 'intermediate' ? 15 : 25),
+      documentType: documentType as any,
+      clueText: t.clueText,
+      cefrLevel: t.cefrLevel,
+      pages,
+    } as any;
   }
 
   private recordQuizAnswer(correct: boolean, articleId: string, selectedIndex: number, correctIndex: number): void {
