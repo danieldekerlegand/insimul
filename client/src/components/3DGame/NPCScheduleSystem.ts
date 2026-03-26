@@ -472,6 +472,12 @@ export class NPCScheduleSystem {
       if (hasHome) {
         return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(180000, 300000));
       }
+      // Fallback: assign a random residence so NPC doesn't wander all night
+      const fallbackHome = this.pickRandomResidence(npcId);
+      if (fallbackHome) {
+        entry.homeBuildingId = fallbackHome;
+        return this.makeBuildingGoal(fallbackHome, now, this.randRange(180000, 300000));
+      }
       return { type: 'idle_at_building', expiresAt: now + 180000 };
     }
 
@@ -818,5 +824,25 @@ export class NPCScheduleSystem {
     }
 
     return parts.join(' | ');
+  }
+
+  /**
+   * Pick a random residence building as a fallback home for an NPC without one.
+   * Uses a hash of the NPC ID for deterministic assignment.
+   */
+  private pickRandomResidence(npcId: string): string | null {
+    const residences: string[] = [];
+    this.buildings.forEach((b, id) => {
+      if (b.buildingType === 'residence') {
+        residences.push(id);
+      }
+    });
+    if (residences.length === 0) return null;
+    // Deterministic pick based on NPC ID hash
+    let hash = 0;
+    for (let i = 0; i < npcId.length; i++) {
+      hash = ((hash << 5) - hash + npcId.charCodeAt(i)) | 0;
+    }
+    return residences[Math.abs(hash) % residences.length];
   }
 }

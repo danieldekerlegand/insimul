@@ -19,6 +19,7 @@ struct INSIMULEXPORT_API FInsimulCharacterData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Occupation;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CurrentLocation;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Status;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString HomeResidenceId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 BirthYear = 0;
 
     // Personality (Big Five)

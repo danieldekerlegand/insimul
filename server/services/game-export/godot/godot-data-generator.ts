@@ -31,6 +31,7 @@ function generateCharacters(ir: WorldIR): object[] {
     spouseId: c.spouseId || '',
     middleName: c.middleName || '',
     suffix: c.suffix || '',
+    homeResidenceId: c.homeResidenceId || '',
   }));
 }
 

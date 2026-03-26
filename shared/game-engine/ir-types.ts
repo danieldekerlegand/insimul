@@ -341,6 +341,7 @@ export interface CharacterIR {
   currentLocation: string;
   occupation: string | null;
   status: string | null;
+  homeResidenceId: string | null;
 }
 
 /** Activity type for a schedule time block */

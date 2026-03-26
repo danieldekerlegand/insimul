@@ -1060,6 +1060,7 @@ export function buildNPCSchedule(
     personality?: { openness?: number; conscientiousness?: number; extroversion?: number; agreeableness?: number; neuroticism?: number } | null;
     occupation?: string | null;
     friendIds?: string[];
+    assignedHomeBuildingId?: string | null;
   },
   buildings: { id: string; settlementId: string; businessId: string | null; spec: { buildingRole: string } }[],
   settlementId: string | null,
@@ -1086,8 +1087,9 @@ export function buildNPCSchedule(
     b.businessId != null && !b.spec.buildingRole.includes('residence')
   );
 
-  // Assign home: first available residence
-  const homeBuildingId = residences.length > 0 ? residences[0].id : null;
+  // Use the character's pre-resolved home building, fall back to first available residence
+  const homeBuildingId = character.assignedHomeBuildingId
+    ?? (residences.length > 0 ? residences[0].id : null);
 
   // Assign workplace if employed
   const workBuildingId = hasJob && workplaces.length > 0 ? workplaces[0].id : null;
@@ -1716,6 +1718,16 @@ export async function generateWorldIR(
   });
   console.log(`[Export] ✓ ${foliageLayerIRs.length} foliage layer(s) generated across ${settlementIRs.length} settlement(s)`);
 
+  // Build lookup: residence doc ID → building IR ID (via shared lotId)
+  const residenceIdToBuildingId = new Map<string, string>();
+  for (const res of allResidences) {
+    if (!res.lotId) continue;
+    const building = allBuildingIRs.find(b => b.lotId === res.lotId);
+    if (building) {
+      residenceIdToBuildingId.set(res.id, building.id);
+    }
+  }
+
   // ── 4. Characters & NPCs ──
   const characterIRs: CharacterIR[] = characters.map(c => ({
     id: c.id,
@@ -1745,6 +1757,7 @@ export async function generateWorldIR(
     currentLocation: c.currentLocation,
     occupation: c.occupation || null,
     status: c.status || null,
+    homeResidenceId: (c as any).currentResidenceId || null,
   }));
 
   // Select NPCs (up to MAX_NPCS)
@@ -1766,12 +1779,17 @@ export async function generateWorldIR(
       .filter(q => q.assignedByCharacterId === c.id)
       .map(q => q.id);
 
+    const resolvedHomeBuildingId = (c as any).currentResidenceId
+      ? residenceIdToBuildingId.get((c as any).currentResidenceId) || null
+      : null;
+
     const schedule = buildNPCSchedule(
       {
         id: c.id,
         personality: c.personality as any,
         occupation: c.occupation,
         friendIds: (c.friendIds as string[]) || [],
+        assignedHomeBuildingId: resolvedHomeBuildingId,
       },
       allBuildingIRs.map(b => ({ id: b.id, settlementId: b.settlementId, businessId: b.businessId, spec: b.spec })),
       settlement?.id || null,

@@ -287,8 +287,8 @@ export class WorldGenerator {
       });
     }
 
-    // TotT Integration: Housing Assignment
-    if (config.assignHousing !== false && config.generateGeography && population > 0) {
+    // TotT Integration: Housing Assignment — runs for all worlds with population
+    if (config.assignHousing !== false && population > 0) {
       console.log('\n🏠 Assigning housing...');
       await this.assignHousing({
         worldId: world.id,
@@ -921,14 +921,50 @@ export class WorldGenerator {
     currentYear: number;
   }): Promise<void> {
     const characters = await storage.getCharactersByWorld(config.worldId);
-    const residences = await storage.getResidencesBySettlement(config.settlementId);
+    let residences = await storage.getResidencesBySettlement(config.settlementId);
 
-    if (residences.length === 0) {
-      console.log('   ⚠ No residences available for housing assignment');
+    const livingCharacters = characters.filter(c => c.isAlive);
+
+    if (livingCharacters.length === 0) {
       return;
     }
 
-    const livingCharacters = characters.filter(c => c.isAlive);
+    // Generate overflow residences if there aren't enough for all characters
+    if (residences.length === 0 || this.totalCapacity(residences) < livingCharacters.length) {
+      const needed = livingCharacters.length - this.totalCapacity(residences);
+      const housesNeeded = Math.ceil(needed / 4); // cottages hold 4
+      console.log(`   Generating ${housesNeeded} additional cottage(s) to house ${needed} overflow character(s)`);
+
+      const lots = await storage.getLotsBySettlement(config.settlementId);
+      // Find an existing residential lot or use the first available lot
+      const residentialLot = lots.find((l: any) => l.zoning === 'residential') || lots[0];
+      const baseLotId = residentialLot?.id || config.settlementId;
+      const baseAddress = residentialLot?.address || 'Main Street';
+
+      const newResidences: any[] = [];
+      for (let i = 0; i < housesNeeded; i++) {
+        // Create a lot for each overflow residence
+        const lot = await storage.createLot({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          address: `${baseAddress} #${residences.length + i + 1}`,
+          zoning: 'residential',
+        });
+        newResidences.push({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          lotId: lot.id,
+          address: lot.address,
+          residenceType: 'cottage',
+          ownerIds: [],
+          residentIds: [],
+        });
+      }
+      if (newResidences.length > 0) {
+        const created = await (storage as any).createResidencesInBulk(newResidences);
+        residences = [...residences, ...created];
+      }
+    }
 
     // Group characters by family (last name) to keep families together
     const families = new Map<string, typeof livingCharacters>();
@@ -944,7 +980,7 @@ export class WorldGenerator {
     };
 
     // Track remaining capacity per residence
-    const residenceCapacity = residences.map(r => ({
+    const residenceCapacity = residences.map((r: any) => ({
       id: r.id,
       remaining: capacities[r.residenceType] || 4,
       residentIds: [] as string[],
@@ -1036,6 +1072,7 @@ export class WorldGenerator {
     }
 
     // Batch update all residences and characters
+    const assignedCharIds = new Set<string>();
     for (const res of residenceCapacity) {
       await storage.updateResidence(res.id, {
         residentIds: res.residentIds,
@@ -1044,6 +1081,21 @@ export class WorldGenerator {
       // Set currentResidenceId on each character
       for (const charId of res.residentIds) {
         await storage.updateCharacter(charId, { currentResidenceId: res.id });
+        assignedCharIds.add(charId);
+      }
+    }
+
+    // Warn about any unhoused characters
+    const unhoused = livingCharacters.filter(c => !assignedCharIds.has(c.id));
+    if (unhoused.length > 0) {
+      console.warn(`   ⚠ WARNING: ${unhoused.length} character(s) remain unhoused after assignment: ${unhoused.slice(0, 5).map(c => c.firstName + ' ' + c.lastName).join(', ')}${unhoused.length > 5 ? '...' : ''}`);
+      // Assign unhoused characters to a random existing residence as fallback
+      for (const char of unhoused) {
+        const fallbackRes = residenceCapacity[Math.floor(Math.random() * residenceCapacity.length)];
+        fallbackRes.residentIds.push(char.id);
+        await storage.updateResidence(fallbackRes.id, { residentIds: fallbackRes.residentIds });
+        await storage.updateCharacter(char.id, { currentResidenceId: fallbackRes.id });
+        assignedCount++;
       }
     }
 
@@ -1051,6 +1103,13 @@ export class WorldGenerator {
     const empty = residenceCapacity.filter(r => r.residentIds.length === 0).length;
     const owned = residenceCapacity.filter(r => r.ownerIds.length > 0).length;
     console.log(`   ✓ Assigned ${assignedCount} characters to ${occupied} residences (${owned} with owners, ${empty} empty)`);
+  }
+
+  private totalCapacity(residences: any[]): number {
+    const capacities: Record<string, number> = {
+      mansion: 12, house: 6, cottage: 4, apartment: 2, townhouse: 5, mobile_home: 3
+    };
+    return residences.reduce((sum: number, r: any) => sum + (capacities[r.residenceType] || 4), 0);
   }
 
   /**
