@@ -2441,6 +2441,11 @@ export class BabylonGame {
 
     // Initialize quest indicator manager
     this.questIndicatorManager = new QuestIndicatorManager(scene);
+    // Delegate completion checks to QuestCompletionEngine (single source of truth)
+    this.questIndicatorManager.setQuestCompletionChecker((questId: string) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      return engine?.isQuestComplete(questId) ?? false;
+    });
 
     // Initialize quest offer panel
     this.questOfferPanel = new QuestOfferPanel(scene);
@@ -12346,9 +12351,15 @@ export class BabylonGame {
 
   private async handleQuestObjectiveCompleted(questId: string, objectiveId: string, type: string): Promise<void> {
     try {
+      // Sync engine objective states to overlay FIRST so dataSource.loadQuests merges them
+      this.syncObjectiveStatesToOverlay();
+
       const quests = await this.dataSource.loadQuests(this.config.worldId);
       const quest = quests.find((q: any) => q.id === questId);
       if (!quest) return;
+
+      // Update this.quests so syncActiveQuestToHud and other reads see the change
+      this.quests = quests;
 
       const updatedProgress = { ...quest.progress };
 
@@ -12364,10 +12375,10 @@ export class BabylonGame {
 
       const allObjectivesComplete = quest.objectives?.every((obj: any) => obj.completed);
 
-      // TODO: Write progress/completion to playthrough delta layer, not world data.
-      // For now, only write progress updates (not status changes) to keep world data clean.
+      // Persist both progress and updated objectives to the data source
       await this.dataSource.updateQuest(questId, {
         progress: updatedProgress,
+        objectives: quest.objectives,
       });
 
       this.questTracker?.updateQuests(this.config.worldId);

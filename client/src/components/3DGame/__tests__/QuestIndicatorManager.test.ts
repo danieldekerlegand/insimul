@@ -140,7 +140,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: false }],
+        objectives: [{ completed: false }],
       }];
       manager.updateIndicators(npcs, quests);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBe('in_progress');
@@ -154,7 +154,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: true }, { isCompleted: true }],
+        objectives: [{ completed: true }, { completed: true }],
       }];
       manager.updateIndicators(npcs, quests);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBe('turn_in');
@@ -168,7 +168,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: true }],
+        objectives: [{ completed: true }],
       }];
       manager.updateIndicators(npcs, quests);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBe('turn_in');
@@ -227,7 +227,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'completed',
-        objectives: [{ isCompleted: true }],
+        objectives: [{ completed: true }],
       }];
       manager.updateIndicators(npcs, quests);
       // Should fall through to "available" since NPC is a teacher
@@ -252,7 +252,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: true }],
+        objectives: [{ completed: true }],
       }];
       manager.updateIndicators(npcs, quests);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBe('turn_in');
@@ -309,7 +309,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: true }],
+        objectives: [{ completed: true }],
       }];
       manager.refreshIndicator('npc1', mesh, character, quests);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBe('turn_in');
@@ -329,7 +329,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: false }],
+        objectives: [{ completed: false }],
       }];
       manager.updateIndicators(npcs, quests);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBe('in_progress');
@@ -370,6 +370,58 @@ describe('QuestIndicatorManager', () => {
     });
   });
 
+  describe('questCompletionChecker delegation', () => {
+    it('delegates to checker when set, ignoring objective fields', () => {
+      const checker = vi.fn().mockReturnValue(true);
+      manager.setQuestCompletionChecker(checker);
+
+      const npcs = makeNpcMap([
+        { id: 'npc1', character: { id: 'npc1', occupation: 'teacher' } },
+      ]);
+      // Objectives say false, but the checker says true
+      const quests = [{
+        id: 'q1',
+        assignedByCharacterId: 'npc1',
+        status: 'active',
+        objectives: [{ completed: false }],
+      }];
+      manager.updateIndicators(npcs, quests);
+      expect(checker).toHaveBeenCalledWith('q1');
+      expect(manager.getIndicatorTypeForNPC('npc1')).toBe('turn_in');
+    });
+
+    it('falls back to objective fields when checker not set', () => {
+      const npcs = makeNpcMap([
+        { id: 'npc1', character: { id: 'npc1', occupation: 'teacher' } },
+      ]);
+      const quests = [{
+        id: 'q1',
+        assignedByCharacterId: 'npc1',
+        status: 'active',
+        objectives: [{ completed: true }],
+      }];
+      manager.updateIndicators(npcs, quests);
+      expect(manager.getIndicatorTypeForNPC('npc1')).toBe('turn_in');
+    });
+
+    it('checker returning false shows in_progress', () => {
+      const checker = vi.fn().mockReturnValue(false);
+      manager.setQuestCompletionChecker(checker);
+
+      const npcs = makeNpcMap([
+        { id: 'npc1', character: { id: 'npc1', occupation: 'teacher' } },
+      ]);
+      const quests = [{
+        id: 'q1',
+        assignedByCharacterId: 'npc1',
+        status: 'active',
+        objectives: [{ completed: true }],
+      }];
+      manager.updateIndicators(npcs, quests);
+      expect(manager.getIndicatorTypeForNPC('npc1')).toBe('in_progress');
+    });
+  });
+
   describe('pulse animation', () => {
     it('adds pulse animation for "available" indicators', () => {
       mockedMeshBuilder.CreatePlane.mockClear();
@@ -395,7 +447,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: true }],
+        objectives: [{ completed: true }],
       }];
       manager.updateIndicators(npcs, quests);
 
@@ -414,7 +466,7 @@ describe('QuestIndicatorManager', () => {
         id: 'q1',
         assignedByCharacterId: 'npc1',
         status: 'active',
-        objectives: [{ isCompleted: false }],
+        objectives: [{ completed: false }],
       }];
       manager.updateIndicators(npcs, quests);
 

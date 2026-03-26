@@ -880,4 +880,60 @@ describe('QuestCompletionEngine', () => {
       expect(obj.completed).toBe(true);
     });
   });
+
+  // ── isObjectiveComplete / isQuestComplete ─────────────────────────────
+
+  describe('isObjectiveComplete', () => {
+    it('returns false for incomplete objective', () => {
+      const obj = makeObjective({ id: 'o1', questId: 'q1', type: 'talk_to_npc' });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      expect(engine.isObjectiveComplete('q1', 'o1')).toBe(false);
+    });
+
+    it('returns true after objective is completed', () => {
+      const obj = makeObjective({ id: 'o1', questId: 'q1', type: 'talk_to_npc', npcId: 'npc-1' });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackNPCConversation('npc-1');
+
+      expect(engine.isObjectiveComplete('q1', 'o1')).toBe(true);
+    });
+
+    it('returns false for unknown quest', () => {
+      expect(engine.isObjectiveComplete('unknown', 'o1')).toBe(false);
+    });
+
+    it('returns false for unknown objective', () => {
+      engine.addQuest(makeQuest('q1', []));
+      expect(engine.isObjectiveComplete('q1', 'unknown')).toBe(false);
+    });
+  });
+
+  describe('isQuestComplete', () => {
+    it('returns false when some objectives are incomplete', () => {
+      const o1 = makeObjective({ id: 'o1', questId: 'q1', type: 'talk_to_npc', completed: true });
+      const o2 = makeObjective({ id: 'o2', questId: 'q1', type: 'collect_item' });
+      engine.addQuest(makeQuest('q1', [o1, o2]));
+
+      expect(engine.isQuestComplete('q1')).toBe(false);
+    });
+
+    it('returns true when all objectives are complete', () => {
+      const o1 = makeObjective({ id: 'o1', questId: 'q1', type: 'talk_to_npc', completed: true });
+      const o2 = makeObjective({ id: 'o2', questId: 'q1', type: 'collect_item', completed: true });
+      engine.addQuest(makeQuest('q1', [o1, o2]));
+
+      expect(engine.isQuestComplete('q1')).toBe(true);
+    });
+
+    it('returns false for quest with no objectives', () => {
+      engine.addQuest(makeQuest('q1', []));
+      expect(engine.isQuestComplete('q1')).toBe(false);
+    });
+
+    it('returns false for unknown quest', () => {
+      expect(engine.isQuestComplete('unknown')).toBe(false);
+    });
+  });
 });

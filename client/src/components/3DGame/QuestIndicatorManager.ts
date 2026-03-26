@@ -37,13 +37,24 @@ interface Character {
   [key: string]: any;
 }
 
+export type QuestCompletionChecker = (questId: string) => boolean;
+
 export class QuestIndicatorManager {
   private scene: Scene;
   private indicators: Map<string, QuestIndicator> = new Map();
   private indicatorHeight: number = 3.5; // Height above NPC
-  
+  private questCompletionChecker: QuestCompletionChecker | null = null;
+
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Set a delegate that checks quest completion via QuestCompletionEngine.
+   * When set, isQuestReadyToTurnIn delegates to this instead of reimplementing.
+   */
+  setQuestCompletionChecker(checker: QuestCompletionChecker): void {
+    this.questCompletionChecker = checker;
   }
 
   /**
@@ -94,16 +105,21 @@ export class QuestIndicatorManager {
    * Check if a quest is ready to be turned in
    */
   private isQuestReadyToTurnIn(quest: Quest): boolean {
-    // Check objective-based completion
-    if (quest.objectives && Array.isArray(quest.objectives)) {
-      return quest.objectives.every((obj: any) => obj.isCompleted || obj.completed);
+    // Delegate to QuestCompletionEngine when available (single source of truth)
+    if (this.questCompletionChecker) {
+      return this.questCompletionChecker(quest.id);
     }
-    
-    // Check progress-based completion
+
+    // Fallback: check objective-based completion from quest data
+    if (quest.objectives && Array.isArray(quest.objectives)) {
+      return quest.objectives.every((obj: any) => !!obj.completed);
+    }
+
+    // Fallback: check progress-based completion
     if (quest.completionCriteria && quest.progress) {
       const criteria = quest.completionCriteria;
       const progress = quest.progress;
-      
+
       switch (criteria.type) {
         case 'vocabulary_usage':
           return (progress.currentCount || 0) >= (criteria.requiredCount || 10);
@@ -117,7 +133,7 @@ export class QuestIndicatorManager {
           return (progress.stepsCompleted || 0) >= (criteria.stepsRequired || criteria.requiredCount || 1);
       }
     }
-    
+
     return false;
   }
 

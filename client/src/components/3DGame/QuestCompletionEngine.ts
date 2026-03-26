@@ -384,6 +384,26 @@ export class QuestCompletionEngine {
   }
 
   /**
+   * Unified check: is a specific objective complete?
+   * All UI components should use this instead of reading objective fields directly.
+   */
+  isObjectiveComplete(questId: string, objectiveId: string): boolean {
+    const quest = this.quests.find(q => q.id === questId);
+    if (!quest) return false;
+    const objective = quest.objectives?.find(o => o.id === objectiveId);
+    return !!objective?.completed;
+  }
+
+  /**
+   * Check if all objectives for a quest are complete.
+   */
+  isQuestComplete(questId: string): boolean {
+    const quest = this.quests.find(q => q.id === questId);
+    if (!quest?.objectives?.length) return false;
+    return quest.objectives.every(o => o.completed);
+  }
+
+  /**
    * Get all locked (incomplete, dependencies not met) objectives for a quest.
    */
   getLockedObjectives(questId: string): CompletionObjective[] {
