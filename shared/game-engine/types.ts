@@ -1518,6 +1518,8 @@ export interface PhotoNounLabel {
   pronunciation?: string;
   /** Category (person, building, nature, item, animal, etc.) */
   category: string;
+  /** Current activity being performed (e.g. 'cooking', 'sweeping') */
+  activity?: string;
   /** Position within the photo as fraction 0-1 (x, y) */
   x: number;
   y: number;

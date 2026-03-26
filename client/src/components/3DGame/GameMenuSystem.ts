@@ -173,14 +173,36 @@ export interface MenuMapData {
   worldSize: number;
 }
 
+export interface MenuPhotoLabel {
+  name: string;
+  category: string;
+  activity?: string;
+  x: number;
+  y: number;
+}
+
 export interface MenuPhotoData {
   id: string;
   thumbnail: string;
+  imageData: string;
   takenAt: string;
   locationName: string;
   favorite: boolean;
   labelCount: number;
+  labels: MenuPhotoLabel[];
   caption?: string;
+}
+
+export interface PhotoQuestObjective {
+  questId: string;
+  questTitle: string;
+  objectiveDescription: string;
+  targetSubject?: string;
+  targetCategory?: string;
+  targetActivity?: string;
+  currentCount: number;
+  requiredCount: number;
+  completed: boolean;
 }
 
 export interface SaveSlotInfo {
@@ -250,6 +272,7 @@ export interface GameMenuCallbacks {
   getPhotos?: () => MenuPhotoData[];
   onDeletePhoto?: (photoId: string) => void;
   onTogglePhotoFavorite?: (photoId: string) => void;
+  getPhotoQuestObjectives?: () => PhotoQuestObjective[];
   getContacts?: () => MenuContactData[];
   onNPCSelected?: (npcId: string) => void;
   onNPCCalled?: (npcId: string) => void;
@@ -370,6 +393,9 @@ export class GameMenuSystem {
 
   // Playthrough management state
   private playthroughRenameBusy = false;
+
+  // Photos tab state
+  private selectedPhotoId: string | null = null;
 
   // Vocabulary tab state
   private vocabSubTab: 'vocabulary' | 'grammar' = 'vocabulary';
@@ -595,6 +621,7 @@ export class GameMenuSystem {
 
       btn.onPointerClickObservable.add(() => {
         this.activeTab = tab.id;
+        this.selectedPhotoId = null;
         this.refreshActiveTab();
         this.updateTabHighlights();
       });
@@ -3935,9 +3962,51 @@ export class GameMenuSystem {
   private renderPhotosTab(): void {
     const { stack } = this.makeScrollableContent("photos");
 
-    this.addSectionHeader(stack, "Photo Library");
-
     const photos = this.callbacks.getPhotos?.() ?? [];
+
+    // If a photo is selected, show detail view
+    if (this.selectedPhotoId) {
+      const selected = photos.find(p => p.id === this.selectedPhotoId);
+      if (selected) {
+        this.renderPhotoDetailView(stack, selected);
+        return;
+      }
+      this.selectedPhotoId = null;
+    }
+
+    // Photo Quests section (show active photo objectives)
+    const photoObjectives = this.callbacks.getPhotoQuestObjectives?.() ?? [];
+    if (photoObjectives.length > 0) {
+      this.addSectionHeader(stack, "Photo Quests");
+      const questCard = this.makeCard(stack);
+      for (const obj of photoObjectives) {
+        const row = new StackPanel(`photoQuestRow_${obj.questId}`);
+        row.isVertical = false;
+        row.height = "28px";
+        row.width = 1;
+        questCard.addControl(row);
+
+        const icon = new TextBlock();
+        icon.text = obj.completed ? "[x]" : "[ ]";
+        icon.color = obj.completed ? "#4CAF50" : COLORS.textMuted;
+        icon.fontSize = 12;
+        icon.width = "30px";
+        icon.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        row.addControl(icon);
+
+        const desc = new TextBlock();
+        desc.text = `${obj.questTitle}: ${obj.objectiveDescription} (${obj.currentCount}/${obj.requiredCount})`;
+        desc.color = obj.completed ? "#4CAF50" : COLORS.textPrimary;
+        desc.fontSize = 11;
+        desc.textWrapping = true;
+        desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        desc.resizeToFit = true;
+        row.addControl(desc);
+      }
+      this.addDivider(stack);
+    }
+
+    this.addSectionHeader(stack, "Photo Library");
 
     if (photos.length === 0) {
       const empty = new TextBlock();
@@ -3971,7 +4040,7 @@ export class GameMenuSystem {
         currentRow = new StackPanel(`photoRow_${Math.floor(i / GRID_COLS)}`);
         currentRow.isVertical = false;
         currentRow.width = 1;
-        currentRow.height = `${THUMB_SIZE + 30}px`;
+        currentRow.height = `${THUMB_SIZE + 40}px`;
         currentRow.paddingBottom = "4px";
         stack.addControl(currentRow);
       }
@@ -3979,7 +4048,7 @@ export class GameMenuSystem {
       const photo = photos[i];
       const cell = new Rectangle(`photoCell_${i}`);
       cell.width = `${THUMB_SIZE + 8}px`;
-      cell.height = `${THUMB_SIZE + 26}px`;
+      cell.height = `${THUMB_SIZE + 36}px`;
       cell.thickness = 0;
       cell.background = "transparent";
       cell.paddingRight = "4px";
@@ -4005,12 +4074,37 @@ export class GameMenuSystem {
         cell.addControl(star);
       }
 
+      // Label count badge
+      if (photo.labelCount > 0) {
+        const badge = new TextBlock();
+        badge.text = `${photo.labelCount}`;
+        badge.color = "white";
+        badge.fontSize = 10;
+        badge.width = "18px";
+        badge.height = "18px";
+        badge.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        badge.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+        cell.addControl(badge);
+      }
+
+      // Timestamp label
+      const date = new Date(photo.takenAt);
+      const timeText = new TextBlock();
+      timeText.text = `${date.toLocaleDateString()}`;
+      timeText.color = COLORS.textMuted;
+      timeText.fontSize = 8;
+      timeText.height = "12px";
+      timeText.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+      timeText.top = "-14px";
+      timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      cell.addControl(timeText);
+
       // Location label
       const loc = new TextBlock();
       loc.text = photo.locationName || "Unknown";
       loc.color = COLORS.textMuted;
       loc.fontSize = 9;
-      loc.height = "16px";
+      loc.height = "14px";
       loc.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
       loc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
       cell.addControl(loc);
@@ -4019,14 +4113,180 @@ export class GameMenuSystem {
       cell.onPointerEnterObservable.add(() => { cell.background = COLORS.tabHover; });
       cell.onPointerOutObservable.add(() => { cell.background = "transparent"; });
 
-      // Click to toggle favorite
+      // Click to open detail view
       cell.isPointerBlocker = true;
       cell.onPointerClickObservable.add(() => {
-        this.callbacks.onTogglePhotoFavorite?.(photo.id);
+        this.selectedPhotoId = photo.id;
         this.renderPhotosTab();
       });
 
       currentRow!.addControl(cell);
+    }
+  }
+
+  private renderPhotoDetailView(stack: StackPanel, photo: MenuPhotoData): void {
+    // Back button
+    const backRow = new StackPanel("photoDetailBackRow");
+    backRow.isVertical = false;
+    backRow.height = "30px";
+    backRow.width = 1;
+    stack.addControl(backRow);
+
+    const backBtn = Button.CreateSimpleButton("photoDetailBack", "< Back to Library");
+    backBtn.width = "140px";
+    backBtn.height = "26px";
+    backBtn.color = COLORS.textPrimary;
+    backBtn.background = COLORS.cardBg;
+    backBtn.fontSize = 11;
+    backBtn.cornerRadius = 4;
+    backBtn.thickness = 1;
+    (backBtn as any).borderColor = COLORS.cardBorder;
+    backBtn.onPointerClickObservable.add(() => {
+      this.selectedPhotoId = null;
+      this.renderPhotosTab();
+    });
+    backRow.addControl(backBtn);
+
+    // Action buttons
+    const favBtn = Button.CreateSimpleButton("photoDetailFav", photo.favorite ? "Unfavorite" : "Favorite");
+    favBtn.width = "90px";
+    favBtn.height = "26px";
+    favBtn.color = "white";
+    favBtn.background = photo.favorite ? "#B8860B" : COLORS.cardBg;
+    favBtn.fontSize = 11;
+    favBtn.cornerRadius = 4;
+    favBtn.thickness = 1;
+    (favBtn as any).borderColor = COLORS.cardBorder;
+    favBtn.onPointerClickObservable.add(() => {
+      this.callbacks.onTogglePhotoFavorite?.(photo.id);
+      this.refreshActiveTab();
+    });
+    backRow.addControl(favBtn);
+
+    const delBtn = Button.CreateSimpleButton("photoDetailDel", "Delete");
+    delBtn.width = "70px";
+    delBtn.height = "26px";
+    delBtn.color = "white";
+    delBtn.background = "rgba(180, 50, 50, 0.8)";
+    delBtn.fontSize = 11;
+    delBtn.cornerRadius = 4;
+    delBtn.thickness = 1;
+    (delBtn as any).borderColor = "#aa3333";
+    delBtn.onPointerClickObservable.add(() => {
+      this.callbacks.onDeletePhoto?.(photo.id);
+      this.selectedPhotoId = null;
+      this.refreshActiveTab();
+    });
+    backRow.addControl(delBtn);
+
+    // Full-size photo with label overlays
+    const photoContainer = new Rectangle("photoDetailImgContainer");
+    photoContainer.width = 1;
+    photoContainer.height = "260px";
+    photoContainer.thickness = 0;
+    photoContainer.background = "rgba(0,0,0,0.5)";
+    stack.addControl(photoContainer);
+
+    const photoImg = new Image("photoDetailImg", photo.imageData);
+    photoImg.stretch = Image.STRETCH_UNIFORM;
+    photoImg.width = "100%";
+    photoImg.height = "100%";
+    photoContainer.addControl(photoImg);
+
+    // Overlay label markers at their screen positions
+    const LABEL_COLORS: Record<string, string> = {
+      person: "#4A90D9",
+      building: "#8B6914",
+      nature: "#4CAF50",
+      item: "#FFC107",
+      animal: "#FF9800",
+    };
+    for (const label of photo.labels) {
+      const marker = new Rectangle(`detailMarker_${label.name}`);
+      marker.width = "12px";
+      marker.height = "12px";
+      marker.cornerRadius = 6;
+      marker.background = LABEL_COLORS[label.category] || COLORS.textMuted;
+      marker.thickness = 2;
+      marker.color = "white";
+      marker.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      marker.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      marker.left = `${label.x * 100}%`;
+      marker.top = `${label.y * 100}%`;
+      photoContainer.addControl(marker);
+    }
+
+    // Info line: location + timestamp
+    const date = new Date(photo.takenAt);
+    const infoLine = new TextBlock("photoDetailInfo");
+    infoLine.text = `${photo.locationName}  |  ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+    infoLine.color = COLORS.textMuted;
+    infoLine.fontSize = 11;
+    infoLine.height = "20px";
+    infoLine.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(infoLine);
+
+    // Caption
+    if (photo.caption) {
+      const captionText = new TextBlock("photoDetailCaption");
+      captionText.text = `"${photo.caption}"`;
+      captionText.color = "#E8E0C8";
+      captionText.fontSize = 12;
+      captionText.fontStyle = "italic";
+      captionText.height = "20px";
+      captionText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(captionText);
+    }
+
+    this.addDivider(stack);
+
+    // Subjects detected
+    this.addSectionHeader(stack, `Subjects Detected (${photo.labels.length})`);
+
+    if (photo.labels.length === 0) {
+      const noLabels = new TextBlock();
+      noLabels.text = "No subjects detected in this photo.";
+      noLabels.color = COLORS.textMuted;
+      noLabels.fontSize = 12;
+      noLabels.height = "24px";
+      noLabels.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(noLabels);
+    } else {
+      const labelCard = this.makeCard(stack);
+      for (const label of photo.labels) {
+        const labelRow = new StackPanel(`labelRow_${label.name}`);
+        labelRow.isVertical = false;
+        labelRow.height = "24px";
+        labelRow.width = 1;
+        labelCard.addControl(labelRow);
+
+        // Category dot
+        const dot = new TextBlock();
+        dot.text = "●";
+        dot.color = LABEL_COLORS[label.category] || COLORS.textMuted;
+        dot.fontSize = 10;
+        dot.width = "18px";
+        dot.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        labelRow.addControl(dot);
+
+        // Name + activity
+        const nameText = new TextBlock();
+        nameText.text = label.activity ? `${label.name} - ${label.activity}` : label.name;
+        nameText.color = COLORS.textPrimary;
+        nameText.fontSize = 12;
+        nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        nameText.resizeToFit = true;
+        labelRow.addControl(nameText);
+
+        // Category tag
+        const catTag = new TextBlock();
+        catTag.text = `[${label.category}]`;
+        catTag.color = COLORS.textMuted;
+        catTag.fontSize = 10;
+        catTag.width = "70px";
+        catTag.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        labelRow.addControl(catTag);
+      }
     }
   }
 

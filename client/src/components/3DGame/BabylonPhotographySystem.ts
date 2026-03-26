@@ -18,6 +18,8 @@ export interface SceneObject {
   targetWord?: string;
   targetLanguage?: string;
   pronunciation?: string;
+  /** Current activity being performed (for NPCs) */
+  activity?: string;
 }
 
 export interface PhotographyCallbacks {
@@ -351,6 +353,7 @@ export class BabylonPhotographySystem {
           targetLanguage: obj.targetLanguage,
           pronunciation: obj.pronunciation,
           category: obj.category,
+          activity: obj.activity,
           x: nx,
           y: ny,
         });

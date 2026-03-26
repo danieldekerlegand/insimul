@@ -101,6 +101,7 @@ export interface CompletionObjective {
   // photograph_subject
   targetSubject?: string;
   targetCategory?: 'item' | 'npc' | 'building' | 'nature';
+  targetActivity?: string;
   photographedSubjects?: string[];
 
   // teach_vocabulary / teach_phrase
@@ -172,7 +173,7 @@ export type CompletionEvent =
   | { type: 'text_found'; textId: string; textName: string; questId?: string }
   | { type: 'text_read'; textId: string; questId?: string }
   | { type: 'comprehension_answer'; isCorrect: boolean; questId?: string }
-  | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; questId?: string }
+  | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; subjectActivity?: string; questId?: string }
   | { type: 'assessment_phase_completed'; phaseId: string; score: number; maxScore: number; questId: string; objectiveId: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
@@ -315,7 +316,7 @@ export class QuestCompletionEngine {
         this.trackComprehensionAnswer(event.isCorrect, event.questId);
         break;
       case 'photo_taken':
-        this.trackPhotoTaken(event.subjectName, event.subjectCategory, event.questId);
+        this.trackPhotoTaken(event.subjectName, event.subjectCategory, event.subjectActivity, event.questId);
         break;
       case 'assessment_phase_completed':
         this.completeObjective(event.questId, event.objectiveId);
@@ -938,8 +939,9 @@ export class QuestCompletionEngine {
     });
   }
 
-  trackPhotoTaken(subjectName: string, subjectCategory: 'item' | 'npc' | 'building' | 'nature', questId?: string): void {
+  trackPhotoTaken(subjectName: string, subjectCategory: 'item' | 'npc' | 'building' | 'nature', subjectActivity?: string, questId?: string): void {
     const lowerName = subjectName.toLowerCase();
+    const lowerActivity = subjectActivity?.toLowerCase();
 
     this.forEachObjective(questId, 'photograph_subject', (quest, obj) => {
       // If objective specifies a category, it must match
@@ -948,11 +950,18 @@ export class QuestCompletionEngine {
       // If objective specifies a target subject, it must match
       if (obj.targetSubject && obj.targetSubject.toLowerCase() !== lowerName) return;
 
-      // Track unique subjects photographed
-      obj.photographedSubjects = obj.photographedSubjects || [];
-      if (obj.photographedSubjects.includes(lowerName)) return;
+      // If objective specifies a target activity, it must match
+      if (obj.targetActivity) {
+        if (!lowerActivity) return;
+        if (!lowerActivity.includes(obj.targetActivity.toLowerCase())) return;
+      }
 
-      obj.photographedSubjects.push(lowerName);
+      // Track unique subjects photographed (include activity in key for activity-specific objectives)
+      const trackingKey = obj.targetActivity ? `${lowerName}:${lowerActivity}` : lowerName;
+      obj.photographedSubjects = obj.photographedSubjects || [];
+      if (obj.photographedSubjects.includes(trackingKey)) return;
+
+      obj.photographedSubjects.push(trackingKey);
       obj.currentCount = (obj.currentCount || 0) + 1;
 
       if (obj.currentCount >= (obj.requiredCount || 1)) {

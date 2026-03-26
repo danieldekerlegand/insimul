@@ -2080,15 +2080,44 @@ export class BabylonGame {
         return photos.map(p => ({
           id: p.id,
           thumbnail: p.thumbnail,
+          imageData: p.imageData,
           takenAt: p.takenAt,
           locationName: p.location.settlementName || p.location.buildingName || 'Unknown',
           favorite: p.favorite,
           labelCount: p.labels.length,
+          labels: p.labels.map(l => ({ name: l.name, category: l.category, activity: l.activity, x: l.x, y: l.y })),
           caption: p.caption,
         }));
       },
       onDeletePhoto: (photoId: string) => this.photographySystem?.deletePhoto(photoId),
       onTogglePhotoFavorite: (photoId: string) => this.photographySystem?.toggleFavorite(photoId),
+      getPhotoQuestObjectives: () => {
+        const engine = this.questObjectManager?.getCompletionEngine();
+        if (!engine) return [];
+        const activeQuests = this.questObjectManager?.getActiveQuests() || [];
+        const completionQuests = engine.getQuests();
+        const objectives: Array<{ questId: string; questTitle: string; objectiveDescription: string; targetSubject?: string; targetCategory?: string; targetActivity?: string; currentCount: number; requiredCount: number; completed: boolean }> = [];
+        for (const cq of completionQuests) {
+          const activeQ = activeQuests.find(q => q.id === cq.id);
+          if (!activeQ || !cq.objectives) continue;
+          for (const obj of cq.objectives) {
+            if (obj.type === 'photograph_subject') {
+              objectives.push({
+                questId: cq.id,
+                questTitle: activeQ.title || cq.id,
+                objectiveDescription: obj.description || `Photograph ${obj.targetSubject || 'a subject'}`,
+                targetSubject: obj.targetSubject,
+                targetCategory: obj.targetCategory,
+                targetActivity: obj.targetActivity,
+                currentCount: obj.currentCount || 0,
+                requiredCount: obj.requiredCount || 1,
+                completed: obj.completed || false,
+              });
+            }
+          }
+        }
+        return objectives;
+      },
       onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
       onQuestSetActive: (questId: string) => this.handleSetActiveQuest(questId),
       onPayFines: () => this.handlePayFines(),
@@ -2554,6 +2583,15 @@ export class BabylonGame {
       {
         onPhotoTaken: (photo) => {
           this.photoBookPanel?.setPhotos(this.photographySystem?.getPhotos() || []);
+          // Dispatch photo_taken events to quest completion engine for each label
+          const engine = this.questObjectManager?.getCompletionEngine();
+          if (engine) {
+            for (const label of photo.labels) {
+              const cat = label.category === 'person' ? 'npc' : label.category as 'item' | 'npc' | 'building' | 'nature';
+              engine.trackEvent({ type: 'photo_taken', subjectName: label.name, subjectCategory: cat, subjectActivity: label.activity });
+            }
+            this.updateQuestIndicators();
+          }
         },
         getPlayerPosition: () => {
           const pos = this.playerMesh?.position;
@@ -8205,11 +8243,14 @@ export class BabylonGame {
       const dist = Vector3.Distance(playerPos, instance.mesh.position);
       if (dist > maxDist) return;
       const npcInfo = this.npcInfos.find(n => n.id === npcId);
+      // Get NPC's current activity from ambient life system
+      const activity = this.ambientLifeSystem.getActivityDescription(npcId) || undefined;
       objects.push({
         id: npcId,
         name: npcInfo?.name || 'Person',
         category: 'person',
         position: instance.mesh.position,
+        activity,
       });
     });
 
