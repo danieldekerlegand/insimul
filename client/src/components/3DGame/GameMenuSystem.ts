@@ -173,6 +173,16 @@ export interface MenuMapData {
   worldSize: number;
 }
 
+export interface MenuPhotoData {
+  id: string;
+  thumbnail: string;
+  takenAt: string;
+  locationName: string;
+  favorite: boolean;
+  labelCount: number;
+  caption?: string;
+}
+
 export interface SaveSlotInfo {
   slotIndex: number;
   savedAt: string;
@@ -237,6 +247,9 @@ export interface GameMenuCallbacks {
   onNoticeQuestionAnswered?: (correct: boolean, articleId: string, selectedIndex: number, correctIndex: number) => void;
   getAnsweredArticleIds?: () => Set<string>;
   onVocabWordSpeak?: (word: string) => void;
+  getPhotos?: () => MenuPhotoData[];
+  onDeletePhoto?: (photoId: string) => void;
+  onTogglePhotoFavorite?: (photoId: string) => void;
   getContacts?: () => MenuContactData[];
   onNPCSelected?: (npcId: string) => void;
   onNPCCalled?: (npcId: string) => void;
@@ -262,8 +275,10 @@ export interface GameMenuCallbacks {
   onReturnToMainMenu?: () => void;
   onQuitGame?: () => void;
   // Rest / time-skip
-  getTimeData?: () => { timeString: string; day: number; timeOfDay: string } | null;
+  getTimeData?: () => { timeString: string; day: number; timeOfDay: string; timeScale?: number; paused?: boolean } | null;
   onRest?: (hours: number) => void;
+  onTimeSpeedChange?: (delta: number) => void;
+  onTimePauseToggle?: () => void;
 }
 
 export type MenuTab =
@@ -273,6 +288,7 @@ export type MenuTab =
   | "quests"
   | "inventory"
   | "map"
+  | "photos"
   | "vocabulary"
   | "skills"
   | "notices"
@@ -293,6 +309,7 @@ const TABS: TabDef[] = [
   { id: "quests", label: "Quests", icon: "📜" },
   { id: "inventory", label: "Inventory", icon: "🎒" },
   { id: "map", label: "Map", icon: "🗺️" },
+  { id: "photos", label: "Photos", icon: "📷" },
   { id: "vocabulary", label: "Knowledge", icon: "📚" },
   { id: "skills", label: "Skill Tree", icon: "🌳" },
   { id: "notices", label: "Library", icon: "🏛️" },
@@ -644,6 +661,9 @@ export class GameMenuSystem {
       case "map":
         this.renderMapTab();
         break;
+      case "photos":
+        this.renderPhotosTab();
+        break;
       case "vocabulary":
         this.renderVocabularyTab();
         break;
@@ -950,6 +970,87 @@ export class GameMenuSystem {
       });
       row.addControl(restBtn);
     });
+
+    // ── Time Speed Controls ──
+    if (this.callbacks.onTimeSpeedChange || this.callbacks.onTimePauseToggle) {
+      this.addDivider(stack);
+      this.addSectionHeader(stack, "Time Speed");
+      this.addSubHeader(stack, "Control how fast time passes in the world");
+
+      const speedCard = this.makeCard(stack);
+
+      // Current speed display
+      const speedRow = new StackPanel();
+      speedRow.isVertical = false;
+      speedRow.height = "40px";
+      speedCard.addControl(speedRow);
+
+      const speedLabel = new TextBlock();
+      speedLabel.text = timeData?.paused ? "⏸ Paused" : `▶ ${timeData?.timeScale ?? 1}x speed`;
+      speedLabel.color = timeData?.paused ? "#FFC107" : COLORS.textPrimary;
+      speedLabel.fontSize = 16;
+      speedLabel.fontWeight = "bold";
+      speedLabel.width = "160px";
+      speedLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      speedLabel.left = "8px";
+      speedRow.addControl(speedLabel);
+
+      // Pause button
+      const pauseBtn = Button.CreateSimpleButton("time_pause", timeData?.paused ? "▶ Resume" : "⏸ Pause");
+      pauseBtn.width = "90px";
+      pauseBtn.height = "30px";
+      pauseBtn.color = "white";
+      pauseBtn.background = timeData?.paused ? "#4CAF50" : COLORS.cardBg;
+      pauseBtn.cornerRadius = 5;
+      pauseBtn.fontSize = 12;
+      pauseBtn.thickness = 1;
+      (pauseBtn as any).borderColor = COLORS.cardBorder;
+      pauseBtn.paddingRight = "4px";
+      pauseBtn.onPointerEnterObservable.add(() => { pauseBtn.background = COLORS.tabHover; });
+      pauseBtn.onPointerOutObservable.add(() => { pauseBtn.background = timeData?.paused ? "#4CAF50" : COLORS.cardBg; });
+      pauseBtn.onPointerClickObservable.add(() => {
+        this.callbacks.onTimePauseToggle?.();
+        setTimeout(() => this.refreshActiveTab(), 50);
+      });
+      speedRow.addControl(pauseBtn);
+
+      // Slower button
+      const slowerBtn = Button.CreateSimpleButton("time_slower", "◀ Slower");
+      slowerBtn.width = "80px";
+      slowerBtn.height = "30px";
+      slowerBtn.color = COLORS.textSecondary;
+      slowerBtn.background = COLORS.cardBg;
+      slowerBtn.cornerRadius = 5;
+      slowerBtn.fontSize = 12;
+      slowerBtn.thickness = 1;
+      (slowerBtn as any).borderColor = COLORS.cardBorder;
+      slowerBtn.paddingRight = "4px";
+      slowerBtn.onPointerEnterObservable.add(() => { slowerBtn.background = COLORS.tabHover; slowerBtn.color = COLORS.textPrimary; });
+      slowerBtn.onPointerOutObservable.add(() => { slowerBtn.background = COLORS.cardBg; slowerBtn.color = COLORS.textSecondary; });
+      slowerBtn.onPointerClickObservable.add(() => {
+        this.callbacks.onTimeSpeedChange?.(-1);
+        setTimeout(() => this.refreshActiveTab(), 50);
+      });
+      speedRow.addControl(slowerBtn);
+
+      // Faster button
+      const fasterBtn = Button.CreateSimpleButton("time_faster", "Faster ▶");
+      fasterBtn.width = "80px";
+      fasterBtn.height = "30px";
+      fasterBtn.color = COLORS.textSecondary;
+      fasterBtn.background = COLORS.cardBg;
+      fasterBtn.cornerRadius = 5;
+      fasterBtn.fontSize = 12;
+      fasterBtn.thickness = 1;
+      (fasterBtn as any).borderColor = COLORS.cardBorder;
+      fasterBtn.onPointerEnterObservable.add(() => { fasterBtn.background = COLORS.tabHover; fasterBtn.color = COLORS.textPrimary; });
+      fasterBtn.onPointerOutObservable.add(() => { fasterBtn.background = COLORS.cardBg; fasterBtn.color = COLORS.textSecondary; });
+      fasterBtn.onPointerClickObservable.add(() => {
+        this.callbacks.onTimeSpeedChange?.(1);
+        setTimeout(() => this.refreshActiveTab(), 50);
+      });
+      speedRow.addControl(fasterBtn);
+    }
   }
 
   // ─── CHARACTER TAB ──────────────────────────────────────────────────────
@@ -2645,19 +2746,20 @@ export class GameMenuSystem {
       { key: "ESC / M", action: "Open / Close this menu" },
       { key: "W / A / S / D", action: "Move" },
       { key: "Q / E", action: "Strafe left / right" },
-      { key: "Shift", action: "Sprint" },
+      { key: "Shift", action: "Sprint (hold)" },
+      { key: "CapsLock", action: "Toggle sprint" },
       { key: "Space", action: "Jump" },
-      { key: "Enter", action: "Enter / Exit building" },
-      { key: "G", action: "Talk to nearest NPC" },
-      { key: "F", action: "Attack" },
-      { key: "T", action: "Target nearest enemy" },
-      { key: "Y", action: "Eavesdrop on NPC conversation" },
+      { key: "B", action: "Cycle vehicle" },
+      { key: "Enter / Click", action: "Interact (NPC / building / object)" },
       { key: "X", action: "Examine nearby object" },
+      { key: "Y", action: "Eavesdrop on NPC conversation" },
       { key: "R", action: "Push-to-talk (hold to record)" },
-      { key: "J", action: "Quest log" },
-      { key: "Tab", action: "Full-screen map" },
+      { key: "F", action: "Attack / Respawn" },
+      { key: "T", action: "Target nearest enemy" },
+      { key: "C", action: "Camera viewfinder (photo mode)" },
       { key: "F5", action: "Quick save" },
       { key: "F9", action: "Quick load" },
+      { key: "Shift+V", action: "Toggle VR mode" },
     ];
 
     const shortcutCard = this.makeCard(stack);
@@ -3826,6 +3928,106 @@ export class GameMenuSystem {
   /** Quick-load from slot 0. Can be called externally (e.g. from F9 key). */
   public quickLoad(): void {
     this.executeLoad(0);
+  }
+
+  // ── PHOTOS TAB ────────────────────────────────────────────────────────
+
+  private renderPhotosTab(): void {
+    const { stack } = this.makeScrollableContent("photos");
+
+    this.addSectionHeader(stack, "Photo Library");
+
+    const photos = this.callbacks.getPhotos?.() ?? [];
+
+    if (photos.length === 0) {
+      const empty = new TextBlock();
+      empty.text = "No photos yet. Press C to enter camera mode, then Space to take a photo.";
+      empty.color = COLORS.textMuted;
+      empty.fontSize = 13;
+      empty.height = "40px";
+      empty.textWrapping = true;
+      empty.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(empty);
+      return;
+    }
+
+    // Stats
+    const statsCard = this.makeCard(stack);
+    this.addStatRow(statsCard, "Total Photos", `${photos.length}`, COLORS.textPrimary);
+    const favoriteCount = photos.filter(p => p.favorite).length;
+    this.addStatRow(statsCard, "Favorites", `${favoriteCount}`, "#FFC107");
+    const labeledCount = photos.filter(p => p.labelCount > 0).length;
+    this.addStatRow(statsCard, "Labeled", `${labeledCount}`, "#4CAF50");
+
+    this.addDivider(stack);
+
+    // Photo grid (thumbnails)
+    const GRID_COLS = 4;
+    const THUMB_SIZE = 100;
+    let currentRow: StackPanel | null = null;
+
+    for (let i = 0; i < photos.length; i++) {
+      if (i % GRID_COLS === 0) {
+        currentRow = new StackPanel(`photoRow_${Math.floor(i / GRID_COLS)}`);
+        currentRow.isVertical = false;
+        currentRow.width = 1;
+        currentRow.height = `${THUMB_SIZE + 30}px`;
+        currentRow.paddingBottom = "4px";
+        stack.addControl(currentRow);
+      }
+
+      const photo = photos[i];
+      const cell = new Rectangle(`photoCell_${i}`);
+      cell.width = `${THUMB_SIZE + 8}px`;
+      cell.height = `${THUMB_SIZE + 26}px`;
+      cell.thickness = 0;
+      cell.background = "transparent";
+      cell.paddingRight = "4px";
+
+      // Thumbnail image
+      const img = new Image(`photoThumb_${i}`, photo.thumbnail);
+      img.width = `${THUMB_SIZE}px`;
+      img.height = `${THUMB_SIZE}px`;
+      img.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      img.stretch = Image.STRETCH_UNIFORM;
+      cell.addControl(img);
+
+      // Favorite star
+      if (photo.favorite) {
+        const star = new TextBlock();
+        star.text = "★";
+        star.color = "#FFC107";
+        star.fontSize = 14;
+        star.width = "18px";
+        star.height = "18px";
+        star.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        star.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+        cell.addControl(star);
+      }
+
+      // Location label
+      const loc = new TextBlock();
+      loc.text = photo.locationName || "Unknown";
+      loc.color = COLORS.textMuted;
+      loc.fontSize = 9;
+      loc.height = "16px";
+      loc.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+      loc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      cell.addControl(loc);
+
+      // Hover effect
+      cell.onPointerEnterObservable.add(() => { cell.background = COLORS.tabHover; });
+      cell.onPointerOutObservable.add(() => { cell.background = "transparent"; });
+
+      // Click to toggle favorite
+      cell.isPointerBlocker = true;
+      cell.onPointerClickObservable.add(() => {
+        this.callbacks.onTogglePhotoFavorite?.(photo.id);
+        this.renderPhotosTab();
+      });
+
+      currentRow!.addControl(cell);
+    }
   }
 
   // ── VOCABULARY TAB ──────────────────────────────────────────────────────

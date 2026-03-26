@@ -249,7 +249,7 @@ export class InteractionPromptSystem {
         id: nb.id,
         name: nb.name,
         mesh,
-        promptText: `[G]: Read ${nb.name}`,
+        promptText: `[Enter]: Read ${nb.name}`,
       };
     }
 
@@ -331,7 +331,7 @@ export class InteractionPromptSystem {
           id: nb.id,
           name: nb.name,
           mesh,
-          promptText: `[G]: Read ${nb.name}`,
+          promptText: `[Enter]: Read ${nb.name}`,
         };
       }
     });
@@ -362,7 +362,7 @@ export class InteractionPromptSystem {
       id: npc.id,
       name: npc.name,
       mesh: npc.mesh,
-      promptText: `[G]: Talk to ${npc.name}`,
+      promptText: `[Enter]: Talk to ${npc.name}`,
       questIndicator: questIndicator ?? undefined,
     };
   }
@@ -373,7 +373,7 @@ export class InteractionPromptSystem {
       id: building.id,
       name: building.name,
       mesh: building.mesh,
-      promptText: `[G]: Enter ${building.name}`,
+      promptText: `[Enter]: Enter ${building.name}`,
     };
   }
 
@@ -388,7 +388,7 @@ export class InteractionPromptSystem {
         id: objectRole,
         name: prettyName,
         mesh,
-        promptText: `[G]: Read ${prettyName}`,
+        promptText: `[Enter]: Read ${prettyName}`,
         objectRole,
       };
     }
@@ -398,7 +398,7 @@ export class InteractionPromptSystem {
       id: objectRole,
       name: prettyName,
       mesh,
-      promptText: `[G]: Examine ${prettyName}`,
+      promptText: `[Enter]: Examine ${prettyName}`,
       objectRole,
     };
   }

@@ -2445,7 +2445,7 @@ export class BabylonGUIManager {
   private createHelpPanel() {
     const panel = new Rectangle("helpPanel");
     panel.width = "700px";
-    panel.height = "600px";
+    panel.height = "700px";
     panel.background = "rgba(0, 0, 0, 0.95)";
     panel.color = "white";
     panel.thickness = 2;
@@ -2488,36 +2488,35 @@ export class BabylonGUIManager {
     mainStack.addControl(subtitle);
 
     // Sections
-    this.addHelpSection(mainStack, "UI Panels", [
-      { key: "P", action: "Toggle Player Status Panel" },
-      { key: "N", action: "Toggle NPCs Nearby Panel" },
-      { key: "X", action: "Toggle Action Console" },
-      { key: "L", action: "Toggle World Data Panel" },
-      { key: "H", action: "Toggle Help (this menu)" }
-    ]);
-
     this.addHelpSection(mainStack, "Movement", [
       { key: "W/A/S/D", action: "Move Forward/Left/Backward/Right" },
-      { key: "Shift", action: "Sprint" },
-      { key: "Space", action: "Jump" }
+      { key: "Q/E", action: "Strafe Left/Right" },
+      { key: "Shift", action: "Sprint (hold)" },
+      { key: "CapsLock", action: "Toggle Sprint" },
+      { key: "Space", action: "Jump" },
+      { key: "B", action: "Cycle Vehicle (foot/bicycle/horse)" }
     ]);
 
     this.addHelpSection(mainStack, "Interactions", [
-      { key: "Space", action: "Interact with nearest NPC" },
-      { key: "C", action: "Open Chat Panel" },
-      { key: "Q", action: "Toggle Quest Tracker" },
-      { key: "M", action: "Toggle Minimap" },
-      { key: "I", action: "Toggle Inventory" },
-      { key: "R", action: "Toggle Rules Panel" },
-      { key: "Tab", action: "Action Menu (Radial)" }
+      { key: "Enter / Click", action: "Interact (NPC / building / object)" },
+      { key: "X", action: "Examine Nearest Object" },
+      { key: "Y", action: "Eavesdrop on NPC Conversation" },
+      { key: "R", action: "Push-to-Talk (hold to speak)" }
+    ]);
+
+    this.addHelpSection(mainStack, "UI Panels", [
+      { key: "C", action: "Camera Viewfinder (photo mode)" },
+      { key: "M", action: "Toggle Game Menu" }
     ]);
 
     this.addHelpSection(mainStack, "Combat", [
-      { key: "F", action: "Attack" },
+      { key: "F", action: "Attack / Respawn" },
       { key: "T", action: "Target Nearest Enemy" }
     ]);
 
-    this.addHelpSection(mainStack, "Other", [
+    this.addHelpSection(mainStack, "System", [
+      { key: "F5", action: "Quick Save" },
+      { key: "F9", action: "Quick Load" },
       { key: "Shift+V", action: "Toggle VR Mode" }
     ]);
 

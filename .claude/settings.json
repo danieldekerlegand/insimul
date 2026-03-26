@@ -30,7 +30,12 @@
       "Bash(find /Users/danieldekerlegand/Development/school/insimul -name *Interior*Preview* -o -name *AssetCollection*Editor*)",
       "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/src/components -name *AssetCollection* -type f)",
       "Bash(find /Users/danieldekerlegand/Development/school/insimul -name *.md -exec grep -l \"interior.*issue\\\\|interior.*problem\\\\|interior.*bug\\\\|preview.*interior\" {})",
-      "Bash(2)"
+      "Bash(2)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/src/components/3DGame -name *Control* -o -name *Help* -o -name *Menu*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/src/components/3DGame -type f -name *uest* -o -name *bjective*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul -name *manifest* -o -name *catalog* -o -name *registry*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul -name *manifest* -o -name *animation*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/client/public/assets -name *.json)"
     ],
     "additionalDirectories": [
       "/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron (1)/src",

@@ -91,21 +91,22 @@ interface Star {
 
 const CONTROLS_DATA = [
   { key: "W A S D / Arrows", action: "Move / Turn" },
+  { key: "Q / E", action: "Strafe Left / Right" },
   { key: "Space", action: "Jump" },
-  { key: "Shift", action: "Sprint" },
-  { key: "G", action: "Talk to NPC" },
-  { key: "Enter", action: "Enter / Exit Building" },
-  { key: "F", action: "Attack" },
-  { key: "T", action: "Target Enemy" },
+  { key: "Shift", action: "Sprint (hold)" },
+  { key: "CapsLock", action: "Toggle Sprint" },
+  { key: "B", action: "Cycle Vehicle" },
+  { key: "Enter / Click", action: "Interact (NPC / building / object)" },
   { key: "X", action: "Examine Object" },
   { key: "Y", action: "Eavesdrop" },
   { key: "R (hold)", action: "Push-to-Talk" },
-  { key: "J", action: "Journal" },
-  { key: "Tab", action: "Map" },
+  { key: "F", action: "Attack / Respawn" },
+  { key: "T", action: "Target Enemy" },
+  { key: "C", action: "Camera Viewfinder" },
   { key: "M", action: "Game Menu" },
   { key: "F5", action: "Quick Save" },
   { key: "F9", action: "Quick Load" },
-  { key: "1 / 2 / 3", action: "Camera Mode" },
+  { key: "Shift+V", action: "Toggle VR Mode" },
 ];
 
 // ─── Main class ─────────────────────────────────────────────────────────────

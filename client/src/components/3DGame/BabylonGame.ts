@@ -188,13 +188,11 @@ import {
 } from "@/components/3DGame/OnboardingLauncher.ts";
 import type { OnboardingLaunchResult } from "@/components/3DGame/OnboardingLauncher.ts";
 import {
-  KEY_NPC_INTERACT,
   KEY_BUILDING_INTERACT,
   KEY_ATTACK,
   KEY_TARGET_ENEMY,
   KEY_TOGGLE_VR,
   KEY_GAME_MENU,
-  KEY_QUEST_LOG,
   KEY_FULLSCREEN_MAP,
   KEY_PUSH_TO_TALK,
   KEY_EXAMINE_OBJECT,
@@ -204,9 +202,6 @@ import {
   KEY_CAMERA_MODE,
   KEY_PHOTO_BOOK,
   KEY_CYCLE_VEHICLE,
-  KEY_TIME_PAUSE,
-  KEY_TIME_SLOW,
-  KEY_TIME_FAST,
 } from "@/components/3DGame/KeyboardMap.ts";
 import { BabylonPhotographySystem, type SceneObject } from "@/components/3DGame/BabylonPhotographySystem.ts";
 import { BabylonPhotoBookPanel } from "@/components/3DGame/BabylonPhotoBookPanel.ts";
@@ -2047,6 +2042,20 @@ export class BabylonGame {
       onVocabWordSpeak: (word: string) => {
         this.chatPanel?.speakWord(word);
       },
+      getPhotos: () => {
+        const photos = this.photographySystem?.getPhotos() || [];
+        return photos.map(p => ({
+          id: p.id,
+          thumbnail: p.thumbnail,
+          takenAt: p.takenAt,
+          locationName: p.location.settlementName || p.location.buildingName || 'Unknown',
+          favorite: p.favorite,
+          labelCount: p.labels.length,
+          caption: p.caption,
+        }));
+      },
+      onDeletePhoto: (photoId: string) => this.photographySystem?.deletePhoto(photoId),
+      onTogglePhotoFavorite: (photoId: string) => this.photographySystem?.toggleFavorite(photoId),
       onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
       onQuestSetActive: (questId: string) => this.handleSetActiveQuest(questId),
       onPayFines: () => this.handlePayFines(),
@@ -2073,8 +2082,12 @@ export class BabylonGame {
         timeString: this.gameTimeManager.timeString,
         day: this.gameTimeManager.day,
         timeOfDay: this.gameTimeManager.timeOfDay,
+        timeScale: this.gameTimeManager.timeScale,
+        paused: this.gameTimeManager.paused,
       }),
       onRest: (hours: number) => this.gameTimeManager.advanceHours(hours),
+      onTimeSpeedChange: (delta: number) => this.handleTimeSpeedChange(delta),
+      onTimePauseToggle: () => this.handleTimePauseToggle(),
     };
 
     // Initialize WorldStateManager for save/load
@@ -7915,6 +7928,10 @@ export class BabylonGame {
       const npcId = metadata.npcId as string | undefined;
       if (npcId && this.npcMeshes.has(npcId)) {
         this.setSelectedNPC(npcId);
+        // Click on NPC opens conversation (same as Enter key interaction)
+        if (!this.conversationNPCId) {
+          this.handleOpenChat();
+        }
       }
     });
   }
@@ -9708,30 +9725,15 @@ export class BabylonGame {
       return;
     }
 
-    // Time controls — , . / (slow, pause, fast)
-    if (event.code === KEY_TIME_PAUSE && !event.repeat) {
-      event.preventDefault();
-      this.handleTimePauseToggle();
-      return;
-    }
-    if (event.code === KEY_TIME_SLOW && !event.repeat) {
-      event.preventDefault();
-      this.handleTimeSpeedChange(-1);
-      return;
-    }
-    if (event.code === KEY_TIME_FAST && !event.repeat) {
-      event.preventDefault();
-      this.handleTimeSpeedChange(1);
-      return;
-    }
+    // Time controls moved to Game Menu → Rest tab
 
     // If the unified menu is open, block all other game input
     if (this.gameMenuSystem?.isOpen) {
       return;
     }
 
-    // G - Universal interact: dispatch based on what the player is looking at
-    if (event.code === KEY_NPC_INTERACT && !event.repeat) {
+    // Enter - Universal interact: dispatch based on what the player is looking at
+    if (event.code === KEY_BUILDING_INTERACT && !event.repeat) {
       event.preventDefault();
       if (this.conversationNPCId) {
         // If in conversation, exit it
@@ -9751,12 +9753,6 @@ export class BabylonGame {
       }
     }
 
-    // Enter - Enter/exit nearest building (legacy fallback)
-    if (event.code === KEY_BUILDING_INTERACT && !event.repeat) {
-      event.preventDefault();
-      await this.handleBuildingInteraction();
-    }
-
     // F - Attack/Respawn
     if (event.code === KEY_ATTACK && !event.repeat) {
       event.preventDefault();
@@ -9769,16 +9765,12 @@ export class BabylonGame {
       this.handleTargetEnemy();
     }
 
-    // J - Open journal (game menu journal tab)
-    if (event.code === KEY_QUEST_LOG && !event.repeat) {
-      event.preventDefault();
-      this.gameMenuSystem?.open("journal");
-    }
+    // J shortcut removed — access Journal via Game Menu
 
-    // Tab - Toggle full-screen map
+    // Tab - Open game menu Map tab
     if (event.code === KEY_FULLSCREEN_MAP && !event.repeat) {
       event.preventDefault();
-      this.fullscreenMap?.toggle();
+      this.gameMenuSystem?.open("map");
     }
 
     // Shift+V - Toggle VR
@@ -9821,14 +9813,13 @@ export class BabylonGame {
       this.photographySystem.capturePhoto();
     }
 
-    // P - Toggle photo book panel
+    // P - Open game menu Photos tab
     if (event.code === KEY_PHOTO_BOOK && !event.repeat) {
       event.preventDefault();
       if (this.photographySystem?.active) {
         this.photographySystem.toggleViewfinder(); // close viewfinder first
       }
-      this.photoBookPanel?.setPhotos(this.photographySystem?.getPhotos() || []);
-      this.photoBookPanel?.toggle();
+      this.gameMenuSystem?.open("photos");
     }
 
     // B - Cycle vehicle (on foot → bicycle → horse → on foot)
