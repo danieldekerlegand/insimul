@@ -9,6 +9,12 @@
 import { Vector3, Mesh } from '@babylonjs/core';
 import type { InteriorLayout, RoomZone } from './BuildingInteriorGenerator';
 import type { AnimationState } from './NPCAnimationController';
+import {
+  getBusinessAnimationCycle,
+  selectFromCycle,
+  type AnimationCycleEntry,
+  type WorkAnimation,
+} from './AnimationAssetManager';
 
 /** NPC data needed for interior placement */
 export interface InteriorNPCData {
@@ -34,6 +40,12 @@ export interface PlacedInteriorNPC {
   animationState: AnimationState;
   /** Character data reference */
   characterData?: any;
+  /** Animation cycle for this NPC's role/business */
+  animationCycle?: AnimationCycleEntry[];
+  /** Timestamp (ms) when the current animation started */
+  animationStartTime?: number;
+  /** Duration (ms) before switching to next animation in cycle */
+  animationDuration?: number;
 }
 
 /** Employee entry with optional shift info */
@@ -156,6 +168,31 @@ export function isShiftActive(shift: 'day' | 'night', businessType: string | und
 
 /** Max NPCs to place in an interior for performance */
 const MAX_INTERIOR_NPCS = 6;
+
+/** Min/max animation cycle duration in milliseconds (10-30 seconds) */
+const ANIM_CYCLE_MIN_MS = 10_000;
+const ANIM_CYCLE_MAX_MS = 30_000;
+
+/** Generate a random cycle duration between min and max */
+function randomCycleDuration(): number {
+  return ANIM_CYCLE_MIN_MS + Math.random() * (ANIM_CYCLE_MAX_MS - ANIM_CYCLE_MIN_MS);
+}
+
+/**
+ * Resolve animation name to an AnimationState, applying the fallback chain:
+ * specific work animation -> 'work' -> 'idle'
+ */
+export function resolveAnimationState(animation: AnimationState | WorkAnimation): AnimationState {
+  const workAnimations: Set<string> = new Set([
+    'knead_dough', 'pour', 'hammer', 'chop', 'stir', 'write', 'sweep', 'type',
+    'work_sitting', 'work_standing',
+  ]);
+  if (workAnimations.has(animation)) {
+    // Specific work animations map to 'work' AnimationState for the controller
+    return 'work';
+  }
+  return animation as AnimationState;
+}
 
 /**
  * Maps business types to furniture role positions within interiors.
@@ -370,7 +407,13 @@ export class InteriorNPCManager {
         interior.position.z + offset.z
       );
 
-      const animState = furniture?.animation ?? 'idle';
+      // Determine animation: use business-type-specific cycle for work positions
+      const baseAnim = furniture?.animation ?? 'idle';
+      const cycle = (baseAnim === 'work' || baseAnim === 'idle' && (npc.role === 'employee' || npc.role === 'owner'))
+        ? getBusinessAnimationCycle(metadata.businessType, npc.role)
+        : undefined;
+      const initialAnim = cycle ? selectFromCycle(cycle) : baseAnim;
+      const animState = resolveAnimationState(initialAnim);
 
       // Save NPC state and teleport to interior
       const savedPos = npc.mesh.position.clone();
@@ -379,6 +422,7 @@ export class InteriorNPCManager {
       npc.mesh.position = interiorPos.clone();
       npc.mesh.setEnabled(true);
 
+      const now = Date.now();
       const placedNpc: PlacedInteriorNPC = {
         npcId: npc.id,
         mesh: npc.mesh,
@@ -388,6 +432,9 @@ export class InteriorNPCManager {
         wasEnabled,
         animationState: animState,
         characterData: npc.characterData,
+        animationCycle: cycle,
+        animationStartTime: now,
+        animationDuration: cycle ? randomCycleDuration() : undefined,
       };
 
       this.placedNPCs.set(npc.id, placedNpc);
@@ -675,6 +722,29 @@ export class InteriorNPCManager {
   }
 
   /**
+   * Update animation cycles for all placed NPCs.
+   * Call this each frame (or on a timer) while the player is inside a building.
+   * When an NPC's current animation duration expires, pick the next animation from their cycle.
+   */
+  updateAnimationCycles(): void {
+    const now = Date.now();
+    for (const npc of Array.from(this.placedNPCs.values())) {
+      if (!npc.animationCycle || !npc.animationStartTime || !npc.animationDuration) continue;
+      if (now - npc.animationStartTime < npc.animationDuration) continue;
+
+      // Time to switch — pick next animation from cycle
+      const nextAnim = selectFromCycle(npc.animationCycle);
+      const nextState = resolveAnimationState(nextAnim);
+
+      npc.animationState = nextState;
+      npc.animationStartTime = now;
+      npc.animationDuration = randomCycleDuration();
+
+      this.callbacks.onAnimationChange?.(npc.npcId, nextState);
+    }
+  }
+
+  /**
    * Add a single NPC to the active interior, placing them at available furniture.
    * Uses persistent assignments when available.
    * Returns the placed NPC or null if the NPC couldn't be added.
@@ -730,7 +800,12 @@ export class InteriorNPCManager {
       interior.position.y + 0.1,
       interior.position.z + offset.z
     );
-    const animState = furniture?.animation ?? 'idle';
+    const baseAnim = furniture?.animation ?? 'idle';
+    const cycle = (baseAnim === 'work' || baseAnim === 'idle' && (role === 'employee' || role === 'owner'))
+      ? getBusinessAnimationCycle(this.activeMetadata!.businessType, role)
+      : undefined;
+    const initialAnim = cycle ? selectFromCycle(cycle) : baseAnim;
+    const animState = resolveAnimationState(initialAnim);
 
     const savedPos = npcData.mesh.position.clone();
     const wasEnabled = npcData.mesh.isEnabled();
@@ -738,6 +813,7 @@ export class InteriorNPCManager {
     npcData.mesh.position = interiorPos.clone();
     npcData.mesh.setEnabled(true);
 
+    const now = Date.now();
     const placedNpc: PlacedInteriorNPC = {
       npcId,
       mesh: npcData.mesh,
@@ -747,6 +823,9 @@ export class InteriorNPCManager {
       wasEnabled,
       animationState: animState,
       characterData: npcData.characterData,
+      animationCycle: cycle,
+      animationStartTime: now,
+      animationDuration: cycle ? randomCycleDuration() : undefined,
     };
 
     this.placedNPCs.set(npcId, placedNpc);

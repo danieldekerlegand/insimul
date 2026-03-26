@@ -70,6 +70,84 @@ const CATEGORY_FALLBACKS: Record<string, AnimationState> = {
   'work_standing': 'work',
 };
 
+/** Animation name type — either a standard AnimationState or a specific work animation */
+export type WorkAnimation = 'knead_dough' | 'pour' | 'hammer' | 'chop' | 'stir' | 'write' | 'work_sitting' | 'work_standing' | 'sweep' | 'type';
+
+/** Animation cycle entry: animation name + weight (probability) */
+export interface AnimationCycleEntry {
+  animation: AnimationState | WorkAnimation;
+  weight: number;
+}
+
+/**
+ * Business-type-specific work animation cycles.
+ * Each entry defines the animations employees cycle through with relative weights.
+ */
+export const BUSINESS_WORK_ANIMATIONS: Record<string, AnimationCycleEntry[]> = {
+  Blacksmith:    [{ animation: 'hammer', weight: 0.6 }, { animation: 'idle', weight: 0.2 }, { animation: 'work_standing', weight: 0.2 }],
+  Bakery:        [{ animation: 'knead_dough', weight: 0.5 }, { animation: 'stir', weight: 0.3 }, { animation: 'idle', weight: 0.2 }],
+  Bar:           [{ animation: 'pour', weight: 0.5 }, { animation: 'idle', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+  Tavern:        [{ animation: 'pour', weight: 0.5 }, { animation: 'idle', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+  Carpenter:     [{ animation: 'chop', weight: 0.5 }, { animation: 'hammer', weight: 0.3 }, { animation: 'idle', weight: 0.2 }],
+  Restaurant:    [{ animation: 'stir', weight: 0.5 }, { animation: 'work_standing', weight: 0.3 }, { animation: 'idle', weight: 0.2 }],
+  Tailor:        [{ animation: 'work_sitting', weight: 0.6 }, { animation: 'idle', weight: 0.2 }, { animation: 'work_standing', weight: 0.2 }],
+  Library:       [{ animation: 'write', weight: 0.5 }, { animation: 'work_sitting', weight: 0.3 }, { animation: 'idle', weight: 0.2 }],
+  Bank:          [{ animation: 'write', weight: 0.5 }, { animation: 'work_sitting', weight: 0.3 }, { animation: 'idle', weight: 0.2 }],
+  Shop:          [{ animation: 'work_standing', weight: 0.5 }, { animation: 'idle', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+};
+
+/**
+ * Owner animation cycles — more idle/observing, less active labor.
+ */
+export const BUSINESS_OWNER_ANIMATIONS: Record<string, AnimationCycleEntry[]> = {
+  Blacksmith:    [{ animation: 'idle', weight: 0.5 }, { animation: 'hammer', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+  Bakery:        [{ animation: 'idle', weight: 0.5 }, { animation: 'knead_dough', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+  Bar:           [{ animation: 'idle', weight: 0.4 }, { animation: 'pour', weight: 0.4 }, { animation: 'work_standing', weight: 0.2 }],
+  Tavern:        [{ animation: 'idle', weight: 0.4 }, { animation: 'pour', weight: 0.4 }, { animation: 'work_standing', weight: 0.2 }],
+  Carpenter:     [{ animation: 'idle', weight: 0.5 }, { animation: 'chop', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+  Restaurant:    [{ animation: 'idle', weight: 0.5 }, { animation: 'stir', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+  Tailor:        [{ animation: 'idle', weight: 0.5 }, { animation: 'work_sitting', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+  Library:       [{ animation: 'idle', weight: 0.5 }, { animation: 'write', weight: 0.3 }, { animation: 'work_sitting', weight: 0.2 }],
+  Bank:          [{ animation: 'idle', weight: 0.5 }, { animation: 'write', weight: 0.3 }, { animation: 'work_sitting', weight: 0.2 }],
+  Shop:          [{ animation: 'idle', weight: 0.5 }, { animation: 'work_standing', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 }],
+};
+
+/** Default employee animation cycle for unknown business types */
+export const DEFAULT_WORK_CYCLE: AnimationCycleEntry[] = [
+  { animation: 'work', weight: 0.6 }, { animation: 'idle', weight: 0.2 }, { animation: 'work_standing', weight: 0.2 },
+];
+
+/** Default owner animation cycle for unknown business types */
+export const DEFAULT_OWNER_CYCLE: AnimationCycleEntry[] = [
+  { animation: 'idle', weight: 0.5 }, { animation: 'work', weight: 0.3 }, { animation: 'work_standing', weight: 0.2 },
+];
+
+/**
+ * Select a random animation from a cycle based on weights.
+ */
+export function selectFromCycle(cycle: AnimationCycleEntry[]): AnimationCycleEntry['animation'] {
+  const totalWeight = cycle.reduce((sum, e) => sum + e.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const entry of cycle) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.animation;
+  }
+  return cycle[cycle.length - 1].animation;
+}
+
+/**
+ * Get the animation cycle for a business type and NPC role.
+ */
+export function getBusinessAnimationCycle(
+  businessType: string | undefined,
+  role: 'employee' | 'owner' | 'visitor',
+): AnimationCycleEntry[] {
+  if (role === 'visitor') return [{ animation: 'idle', weight: 1 }];
+  if (!businessType) return role === 'owner' ? DEFAULT_OWNER_CYCLE : DEFAULT_WORK_CYCLE;
+  if (role === 'owner') return BUSINESS_OWNER_ANIMATIONS[businessType] ?? DEFAULT_OWNER_CYCLE;
+  return BUSINESS_WORK_ANIMATIONS[businessType] ?? DEFAULT_WORK_CYCLE;
+}
+
 /** States that loop by default */
 const LOOPING_CATEGORIES: Set<AnimationState> = new Set<AnimationState>([
   'idle', 'walk', 'run', 'talk', 'listen', 'work', 'sit', 'eat', 'sleep',
