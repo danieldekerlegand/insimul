@@ -18,6 +18,10 @@ export class Vector3 {
   static Maximize(a: Vector3, b: Vector3) {
     return new Vector3(Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z));
   }
+  static Distance(a: Vector3, b: Vector3): number {
+    const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
 }
 
 export class Color3 {

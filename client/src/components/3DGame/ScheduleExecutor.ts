@@ -27,7 +27,7 @@ import type {
   NearbyNPCInfo,
   ActiveAmbientBehavior,
 } from './AmbientLifeBehaviorSystem';
-import { isBusinessOpen } from './InteriorNPCManager';
+import { BUSINESS_OPERATING_HOURS, isBusinessOpen } from './InteriorNPCManager';
 
 // ---------- Types ----------
 
@@ -73,6 +73,14 @@ export interface NPCRoutineState {
   sleepHour: number;
   /** Personality-derived wake hour (fractional, 4-7) */
   wakeHour: number;
+  /** Per-NPC stagger offset in minutes (-10 to +10) for natural wake variation */
+  wakeStaggerMinutes: number;
+  /** Effective wake hour accounting for commute time and stagger */
+  effectiveWakeHour: number;
+  /** Whether the NPC is in the wake-up idle transition (at door before commuting) */
+  isWakingUp: boolean;
+  /** Real-time timestamp when the wake-up idle ends and commute begins */
+  wakeUpCompleteTime: number;
 }
 
 /** Action returned by evaluateNPC for BabylonGame to execute */
@@ -96,6 +104,18 @@ export interface ScheduleExecutorOptions {
 const MIN_IDLE_MS = 2000;
 /** Maximum idle time between goals (ms) */
 const MAX_IDLE_MS = 5000;
+/** Wake-up idle duration range (ms) — brief pause at door before commuting */
+const WAKE_IDLE_MIN_MS = 2000;
+const WAKE_IDLE_MAX_MS = 3000;
+
+/** Simple deterministic hash for NPC ID → integer. Used for stagger offsets. */
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
 
 // ---------- ScheduleExecutor ----------
 
@@ -159,6 +179,14 @@ export class ScheduleExecutor {
     const wakeHour = 6 - (p.conscientiousness - 0.5); // 5.5 – 6.5
     const sleepHour = 20 + (p.extroversion - 0.5) * 2 - (p.conscientiousness - 0.5); // ~19.5 – 22
 
+    // Deterministic per-NPC stagger: -10 to +10 minutes so NPCs don't all wake simultaneously
+    const wakeStaggerMinutes = (simpleHash(npcId) % 21) - 10;
+
+    const clampedWakeHour = Math.max(4, Math.min(8, wakeHour));
+    const effectiveWakeHour = this.computeEffectiveWakeHour(
+      npcId, clampedWakeHour, wakeStaggerMinutes,
+    );
+
     this.npcStates.set(npcId, {
       npcId,
       currentGoal: null,
@@ -174,7 +202,11 @@ export class ScheduleExecutor {
       isIdling: false,
       idleUntil: 0,
       sleepHour: Math.max(19, Math.min(23, sleepHour)),
-      wakeHour: Math.max(4, Math.min(8, wakeHour)),
+      wakeHour: clampedWakeHour,
+      wakeStaggerMinutes,
+      effectiveWakeHour,
+      isWakingUp: false,
+      wakeUpCompleteTime: 0,
     });
   }
 
@@ -243,7 +275,20 @@ export class ScheduleExecutor {
     for (const [npcId, state] of Array.from(this.npcStates.entries())) {
       if (state.isPaused) continue;
 
-      // Check if NPC should exit building
+      // Wake-up idle complete → immediately evaluate for commute goal
+      if (state.isWakingUp && now >= state.wakeUpCompleteTime) {
+        state.isWakingUp = false;
+        this.evaluateNPC(npcId, state);
+        continue;
+      }
+
+      // Check if sleeping NPC should wake up (exit home building)
+      if (state.isInsideBuilding && state.occasion === 'sleeping' && now >= state.buildingExitTime) {
+        this.handleWakeUp(npcId, state);
+        continue;
+      }
+
+      // Check if NPC should exit building (non-sleeping)
       if (state.isInsideBuilding && now >= state.buildingExitTime) {
         this.exitBuilding(npcId, state);
         continue;
@@ -277,6 +322,7 @@ export class ScheduleExecutor {
     for (const [npcId, state] of Array.from(this.npcStates.entries())) {
       if (state.isPaused) continue;
       if (state.isInsideBuilding) continue; // Don't interrupt building stays
+      if (state.isWakingUp) continue; // Don't interrupt wake-up idle transition
 
       this.evaluateNPC(npcId, state);
     }
@@ -301,17 +347,18 @@ export class ScheduleExecutor {
    */
   private evaluateNPC(npcId: string, state: NPCRoutineState): void {
     const currentHour = this.gameTime.hour;
+    const currentFractionalHour = this.gameTime.fractionalHour;
 
     // Skip if already evaluated this hour and goal hasn't expired
     if (state.lastEvaluatedHour === currentHour && state.currentGoal &&
-        !this.isGoalExpired(state, this.gameTime.fractionalHour)) {
+        !this.isGoalExpired(state, currentFractionalHour)) {
       return;
     }
 
     state.lastEvaluatedHour = currentHour;
 
     // --- Nighttime enforcement: send NPC home if past bedtime ---
-    if (this.isSleepTime(currentHour, state)) {
+    if (this.isSleepTime(currentFractionalHour, state)) {
       this.sendHome(npcId, state, 'sleeping');
       return;
     }
@@ -335,23 +382,26 @@ export class ScheduleExecutor {
       }
     }
 
-    // Apply the goal
-    this.applyGoal(npcId, state, goal);
+    // Apply the goal — mark as 'commuting' if this is a morning wake-up heading to work
+    const entry = this.scheduleSystem.getEntry(npcId);
+    const isMorningCommute = goal.buildingId && goal.buildingId === entry?.workBuildingId
+      && this.isNearWakeHour(state);
+    this.applyGoal(npcId, state, goal, isMorningCommute ? 'commuting' : undefined);
   }
 
   /**
    * Apply a goal to an NPC: compute path, set expiry, queue action for BabylonGame.
    */
-  private applyGoal(npcId: string, state: NPCRoutineState, goal: NPCGoal): void {
+  private applyGoal(npcId: string, state: NPCRoutineState, goal: NPCGoal, occasionOverride?: NPCOccasion): void {
     state.currentGoal = goal;
     state.isIdling = false;
 
     // Convert goal expiry from virtual ms to fractional game hour
     state.goalExpiryGameHour = (goal.expiresAt / 60000) % 24;
 
-    // Determine occasion from goal type
+    // Determine occasion from goal type (or use override for e.g. morning commute)
     const entry = this.scheduleSystem.getEntry(npcId);
-    state.occasion = this.determineOccasion(goal, entry);
+    state.occasion = occasionOverride ?? this.determineOccasion(goal, entry);
 
     // Compute sidewalk path
     const npcPos = this.getNPCPosition(npcId);
@@ -395,12 +445,29 @@ export class ScheduleExecutor {
     if (!door) return;
 
     const virtualNow = this.getVirtualNow();
+
+    // For sleeping, set goal expiry to effective wake hour so NPC exits at the right time
+    let stayVirtualMs: number;
+    if (occasion === 'sleeping') {
+      const currentFH = this.gameTime.fractionalHour;
+      let hoursUntilWake: number;
+      if (state.effectiveWakeHour > currentFH) {
+        hoursUntilWake = state.effectiveWakeHour - currentFH;
+      } else {
+        // Wraps midnight (e.g. current=22, wake=6 → 8 hours)
+        hoursUntilWake = (24 - currentFH) + state.effectiveWakeHour;
+      }
+      stayVirtualMs = this.hoursToVirtualMs(Math.max(1, hoursUntilWake));
+    } else {
+      stayVirtualMs = this.hoursToVirtualMs(8);
+    }
+
     const goal: NPCGoal = {
       type: 'go_to_building',
       buildingId: entry.homeBuildingId,
       targetPosition: door.clone(),
       doorPosition: door.clone(),
-      expiresAt: virtualNow + this.hoursToVirtualMs(8), // Stay home for 8 game hours
+      expiresAt: virtualNow + stayVirtualMs,
     };
 
     state.currentGoal = goal;
@@ -492,8 +559,8 @@ export class ScheduleExecutor {
       remainingGameHours = 1; // Default 1 game hour
     }
 
-    // Clamp to reasonable range: 0.5 to 6 game hours
-    remainingGameHours = Math.max(0.5, Math.min(6, remainingGameHours));
+    // Clamp to reasonable range: 0.5 to 12 game hours (sleeping NPCs may stay 8+ hours)
+    remainingGameHours = Math.max(0.5, Math.min(12, remainingGameHours));
 
     // Convert to real ms using the game time scale
     const stayDurationMs = remainingGameHours * this.gameTime.msPerGameHour / this.gameTime.timeScale;
@@ -681,8 +748,18 @@ export class ScheduleExecutor {
     return currentFractionalHour >= expiry;
   }
 
+  /** Check if the current game hour is within 1 hour of the NPC's effective wake hour. */
+  private isNearWakeHour(state: NPCRoutineState): boolean {
+    const fh = this.gameTime.fractionalHour;
+    const diff = Math.abs(fh - state.effectiveWakeHour);
+    return diff < 1 || diff > 23; // Handle midnight wrapping
+  }
+
   /** Check if the current hour is sleep time for this NPC. */
   private isSleepTime(hour: number, state: NPCRoutineState): boolean {
+    // Don't send back to sleep if in wake-up transition
+    if (state.isWakingUp) return false;
+
     // Check if NPC has a job that's currently active (don't force night-shift workers home)
     const entry = this.scheduleSystem.getEntry(state.npcId);
     if (entry?.workBuildingId) {
@@ -690,7 +767,7 @@ export class ScheduleExecutor {
       if (isBusinessOpen(businessType, hour)) return false; // Working — not bedtime
     }
 
-    return hour >= state.sleepHour || hour < state.wakeHour;
+    return hour >= state.sleepHour || hour < state.effectiveWakeHour;
   }
 
   /** Determine the occasion for a goal. */
@@ -723,6 +800,75 @@ export class ScheduleExecutor {
   /** Get an NPC's cached world position. */
   private getNPCPosition(npcId: string): Vector3 | null {
     return this.npcPositions.get(npcId) || null;
+  }
+
+  // ---------- Morning Wake-Up ----------
+
+  /**
+   * Handle the wake-up transition for a sleeping NPC.
+   * Exit building, play brief idle (2-3 seconds), then evaluate for commute.
+   */
+  private handleWakeUp(npcId: string, state: NPCRoutineState): void {
+    const doorPos = state.insideBuildingId
+      ? this.scheduleSystem.getBuildingDoor(state.insideBuildingId)
+      : null;
+
+    state.isInsideBuilding = false;
+    state.insideBuildingId = undefined;
+    state.buildingExitTime = 0;
+    state.currentGoal = null;
+    state.goalExpiryGameHour = -1;
+
+    // Brief idle at door before commuting (2-3 seconds real time)
+    const idleDurationMs = WAKE_IDLE_MIN_MS + Math.random() * (WAKE_IDLE_MAX_MS - WAKE_IDLE_MIN_MS);
+    state.isWakingUp = true;
+    state.wakeUpCompleteTime = Date.now() + idleDurationMs;
+    state.occasion = 'idle';
+
+    this.pendingActions.set(npcId, {
+      type: 'exit_building',
+      doorPosition: doorPos,
+    });
+  }
+
+  /**
+   * Compute effective wake hour for an NPC, accounting for commute time and stagger.
+   * Employed NPCs wake 30-60 game minutes before their business opens.
+   */
+  private computeEffectiveWakeHour(
+    npcId: string,
+    baseWakeHour: number,
+    staggerMinutes: number,
+  ): number {
+    const entry = this.scheduleSystem.getEntry(npcId);
+    const staggerHours = staggerMinutes / 60;
+
+    if (entry?.workBuildingId) {
+      const businessType = this.getBuildingBusinessType(entry.workBuildingId);
+      const hours = businessType && BUSINESS_OPERATING_HOURS[businessType]
+        ? BUSINESS_OPERATING_HOURS[businessType]
+        : { open: 7, close: 20 };
+
+      // Estimate commute time from distance between home and work
+      let commuteGameMinutes = 30; // default
+      if (entry.homeBuildingId) {
+        const homeDoor = this.scheduleSystem.getBuildingDoor(entry.homeBuildingId);
+        const workDoor = this.scheduleSystem.getBuildingDoor(entry.workBuildingId);
+        if (homeDoor && workDoor) {
+          const dist = Vector3.Distance(homeDoor, workDoor);
+          // Map distance to 30-60 minutes: further away → wake earlier
+          commuteGameMinutes = Math.min(60, Math.max(30, 30 + dist / 4));
+        }
+      }
+
+      // Wake = business open - commute time + stagger
+      const commuteWakeHour = hours.open - commuteGameMinutes / 60 + staggerHours;
+      // Don't wake earlier than 1 hour before base wake hour
+      return Math.max(baseWakeHour - 1, Math.min(commuteWakeHour, hours.open - 0.5));
+    }
+
+    // Unemployed: base wake hour + stagger
+    return Math.max(4, Math.min(8, baseWakeHour + staggerHours));
   }
 
   // ---------- Cleanup ----------
