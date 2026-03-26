@@ -11177,13 +11177,14 @@ export class BabylonGame {
 
   // ─── Shop / Mercantile Handlers ──────────────────────────────────────────
 
-  private async handleOpenShop(merchantId: string): Promise<void> {
+  private async handleOpenShop(merchantId: string, businessType?: string): Promise<void> {
     if (!this.shopPanel || !this.inventory) return;
 
     try {
       const merchantData = await this.dataSource.getMerchantInventory(
         this.config.worldId,
-        merchantId
+        merchantId,
+        businessType || this.currentBuildingBusinessType || undefined
       );
 
       if (!merchantData) {

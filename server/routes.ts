@@ -13966,17 +13966,18 @@ Make the action names thematic and immersive.`;
   app.get("/api/worlds/:worldId/merchants/:merchantId/inventory", async (req, res) => {
     try {
       const { worldId, merchantId } = req.params;
+      const requestedBusinessType = req.query.businessType as string | undefined;
       const character = await storage.getCharacter(merchantId);
       if (!character) {
         return res.status(404).json({ error: "Merchant not found" });
       }
 
       const occupation = (character.occupation || '').toLowerCase();
-      const isMerchant = ['merchant', 'shopkeeper', 'trader', 'vendor', 'blacksmith', 'apothecary', 'baker', 'butcher', 'tailor', 'jeweler', 'armorer', 'weaponsmith'].some(
-        term => occupation.includes(term)
-      );
+      const merchantOccupations = ['merchant', 'shopkeeper', 'trader', 'vendor', 'blacksmith', 'apothecary', 'baker', 'butcher', 'tailor', 'jeweler', 'armorer', 'weaponsmith'];
+      const isMerchant = merchantOccupations.some(term => occupation.includes(term));
 
-      if (!isMerchant) {
+      // Allow if occupation matches OR if businessType was provided (NPC is in a mercantile building)
+      if (!isMerchant && !requestedBusinessType) {
         return res.status(400).json({ error: "Character is not a merchant" });
       }
 
@@ -13988,18 +13989,20 @@ Make the action names thematic and immersive.`;
       }
 
       // Fallback: generate stock on the fly
-      const merchantStock = generateMerchantStock(occupation, worldId);
+      const merchantStock = generateMerchantStock(occupation, worldId, requestedBusinessType);
 
-      // Map occupation to business type for sell validation on client
+      // Determine business type: prefer requested, then derive from occupation
       const occupationToBusinessType: Record<string, string> = {
-        blacksmith: 'Shop', baker: 'Bakery', apothecary: 'Pharmacy',
-        tailor: 'Shop', jeweler: 'JewelryStore', merchant: 'Shop',
+        blacksmith: 'Blacksmith', baker: 'Bakery', apothecary: 'Pharmacy',
+        tailor: 'Tailor', jeweler: 'JewelryStore', merchant: 'Shop',
         shopkeeper: 'Shop', trader: 'Shop', vendor: 'Shop',
-        butcher: 'GroceryStore', armorer: 'Shop', weaponsmith: 'Shop',
+        butcher: 'Butcher', armorer: 'Shop', weaponsmith: 'Blacksmith',
       };
-      let businessType = 'Shop';
-      for (const [key, bType] of Object.entries(occupationToBusinessType)) {
-        if (occupation.includes(key)) { businessType = bType; break; }
+      let businessType = requestedBusinessType || 'Shop';
+      if (!requestedBusinessType) {
+        for (const [key, bType] of Object.entries(occupationToBusinessType)) {
+          if (occupation.includes(key)) { businessType = bType; break; }
+        }
       }
 
       res.json({
@@ -14287,7 +14290,7 @@ Make the action names thematic and immersive.`;
 
 // ─── Merchant Stock Generation ────────────────────────────────────────────
 
-function generateMerchantStock(occupation: string, worldId: string) {
+function generateMerchantStock(occupation: string, _worldId: string, businessType?: string) {
   const stockTemplates: Record<string, Array<{ name: string; type: string; basePrice: number; description: string }>> = {
     default: [
       { name: 'Bread', type: 'food', basePrice: 2, description: 'A fresh loaf of bread' },
@@ -14329,16 +14332,133 @@ function generateMerchantStock(occupation: string, worldId: string) {
     ],
   };
 
-  // Determine which template to use
+  // Business-type templates for when occupation doesn't match
+  const businessTypeTemplates: Record<string, Array<{ name: string; type: string; basePrice: number; description: string }>> = {
+    GroceryStore: [
+      { name: 'Bread', type: 'food', basePrice: 2, description: 'A fresh loaf of bread' },
+      { name: 'Cheese Wheel', type: 'food', basePrice: 4, description: 'A round of aged cheese' },
+      { name: 'Dried Meat', type: 'food', basePrice: 5, description: 'Salt-cured strips of meat' },
+      { name: 'Apple Basket', type: 'food', basePrice: 3, description: 'A basket of fresh apples' },
+      { name: 'Wine Bottle', type: 'drink', basePrice: 8, description: 'A bottle of local wine' },
+    ],
+    Bakery: [
+      { name: 'Bread', type: 'food', basePrice: 2, description: 'A fresh loaf of bread' },
+      { name: 'Pastry', type: 'food', basePrice: 3, description: 'A flaky butter pastry' },
+      { name: 'Flour Sack', type: 'material', basePrice: 4, description: 'A sack of milled flour' },
+      { name: 'Meat Pie', type: 'food', basePrice: 5, description: 'A hearty meat pie' },
+      { name: 'Sweet Roll', type: 'food', basePrice: 3, description: 'A delicious sweet roll' },
+    ],
+    Bar: [
+      { name: 'Ale', type: 'drink', basePrice: 3, description: 'A mug of house ale' },
+      { name: 'Wine', type: 'drink', basePrice: 5, description: 'A glass of local wine' },
+      { name: 'Spirits', type: 'drink', basePrice: 8, description: 'A shot of strong spirits' },
+      { name: 'Bread & Stew', type: 'food', basePrice: 4, description: 'A bowl of hearty stew with bread' },
+    ],
+    Restaurant: [
+      { name: 'Roast Chicken', type: 'food', basePrice: 8, description: 'A whole roasted chicken with herbs' },
+      { name: 'Fish Dinner', type: 'food', basePrice: 10, description: 'Pan-seared fish with vegetables' },
+      { name: 'Soup & Bread', type: 'food', basePrice: 4, description: 'A bowl of savory soup with fresh bread' },
+      { name: 'Wine', type: 'drink', basePrice: 5, description: 'A glass of fine wine' },
+    ],
+    Blacksmith: [
+      { name: 'Iron Sword', type: 'weapon', basePrice: 25, description: 'A well-forged iron sword' },
+      { name: 'Iron Shield', type: 'armor', basePrice: 20, description: 'A sturdy iron shield' },
+      { name: 'Dagger', type: 'weapon', basePrice: 10, description: 'A sharp steel dagger' },
+      { name: 'Iron Pickaxe', type: 'tool', basePrice: 15, description: 'A heavy pickaxe for mining' },
+      { name: 'Horseshoes', type: 'tool', basePrice: 6, description: 'A set of four iron horseshoes' },
+    ],
+    Tailor: [
+      { name: 'Leather Boots', type: 'armor', basePrice: 12, description: 'Comfortable leather boots' },
+      { name: 'Wool Cloak', type: 'armor', basePrice: 15, description: 'A warm wool cloak' },
+      { name: 'Traveler\'s Pack', type: 'tool', basePrice: 10, description: 'A sturdy leather backpack' },
+      { name: 'Fine Clothes', type: 'collectible', basePrice: 25, description: 'Elegant garments' },
+    ],
+    BookStore: [
+      { name: 'History Book', type: 'book', basePrice: 12, description: 'A volume of local history' },
+      { name: 'Language Primer', type: 'book', basePrice: 15, description: 'A beginner\'s language textbook' },
+      { name: 'Fiction Novel', type: 'book', basePrice: 8, description: 'A popular adventure novel' },
+      { name: 'Blank Journal', type: 'tool', basePrice: 5, description: 'A leather-bound blank journal' },
+      { name: 'Map', type: 'tool', basePrice: 10, description: 'A detailed regional map' },
+    ],
+    HerbShop: [
+      { name: 'Healing Herb', type: 'consumable', basePrice: 8, description: 'A herb with mild restorative properties' },
+      { name: 'Health Potion', type: 'consumable', basePrice: 15, description: 'Restores a moderate amount of health' },
+      { name: 'Antidote', type: 'consumable', basePrice: 12, description: 'Cures common poisons' },
+      { name: 'Dried Lavender', type: 'material', basePrice: 5, description: 'A bundle of dried lavender' },
+      { name: 'Energy Tonic', type: 'consumable', basePrice: 10, description: 'Restores energy and vigor' },
+    ],
+    Pharmacy: [
+      { name: 'Health Potion', type: 'consumable', basePrice: 15, description: 'Restores a moderate amount of health' },
+      { name: 'Antidote', type: 'consumable', basePrice: 12, description: 'Cures common poisons' },
+      { name: 'Healing Salve', type: 'consumable', basePrice: 8, description: 'A soothing salve for wounds' },
+      { name: 'Energy Tonic', type: 'consumable', basePrice: 10, description: 'Restores energy and vigor' },
+      { name: 'Bandages', type: 'consumable', basePrice: 3, description: 'Clean linen bandages' },
+    ],
+    JewelryStore: [
+      { name: 'Silver Ring', type: 'collectible', basePrice: 30, description: 'A finely crafted silver ring' },
+      { name: 'Gold Amulet', type: 'collectible', basePrice: 50, description: 'An ornate gold amulet' },
+      { name: 'Gemstone', type: 'material', basePrice: 40, description: 'A polished precious gemstone' },
+      { name: 'Pearl Earrings', type: 'collectible', basePrice: 35, description: 'Elegant pearl earrings' },
+    ],
+    Farm: [
+      { name: 'Fresh Eggs', type: 'food', basePrice: 2, description: 'A dozen fresh eggs' },
+      { name: 'Milk Jug', type: 'drink', basePrice: 3, description: 'A jug of fresh milk' },
+      { name: 'Vegetables', type: 'food', basePrice: 3, description: 'A bundle of fresh vegetables' },
+      { name: 'Grain Sack', type: 'material', basePrice: 5, description: 'A sack of grain' },
+      { name: 'Honey Jar', type: 'food', basePrice: 6, description: 'A jar of golden honey' },
+    ],
+    Brewery: [
+      { name: 'Ale Barrel', type: 'drink', basePrice: 10, description: 'A small barrel of ale' },
+      { name: 'Stout', type: 'drink', basePrice: 4, description: 'A dark, rich stout' },
+      { name: 'Mead', type: 'drink', basePrice: 6, description: 'A bottle of honey mead' },
+      { name: 'Cider', type: 'drink', basePrice: 4, description: 'A bottle of apple cider' },
+    ],
+    FishMarket: [
+      { name: 'Fresh Fish', type: 'food', basePrice: 4, description: 'A freshly caught fish' },
+      { name: 'Smoked Salmon', type: 'food', basePrice: 8, description: 'Hickory-smoked salmon fillet' },
+      { name: 'Oysters', type: 'food', basePrice: 6, description: 'A plate of fresh oysters' },
+      { name: 'Fish Oil', type: 'consumable', basePrice: 5, description: 'Concentrated fish oil supplement' },
+    ],
+    Butcher: [
+      { name: 'Beef Cut', type: 'food', basePrice: 6, description: 'A prime cut of beef' },
+      { name: 'Pork Chops', type: 'food', basePrice: 5, description: 'Thick-cut pork chops' },
+      { name: 'Sausages', type: 'food', basePrice: 4, description: 'A string of smoked sausages' },
+      { name: 'Dried Meat', type: 'food', basePrice: 5, description: 'Salt-cured strips of meat' },
+    ],
+    PawnShop: [
+      { name: 'Old Compass', type: 'tool', basePrice: 8, description: 'A slightly tarnished compass' },
+      { name: 'Used Dagger', type: 'weapon', basePrice: 7, description: 'A well-worn dagger' },
+      { name: 'Trinket Box', type: 'collectible', basePrice: 12, description: 'A small ornate box' },
+      { name: 'Lantern', type: 'tool', basePrice: 6, description: 'A brass lantern' },
+      { name: 'Worn Boots', type: 'armor', basePrice: 5, description: 'A pair of broken-in boots' },
+    ],
+    Carpenter: [
+      { name: 'Wooden Shield', type: 'armor', basePrice: 10, description: 'A sturdy wooden shield' },
+      { name: 'Walking Staff', type: 'weapon', basePrice: 8, description: 'A solid hardwood staff' },
+      { name: 'Wooden Chest', type: 'tool', basePrice: 15, description: 'A hand-crafted storage chest' },
+      { name: 'Repair Kit', type: 'tool', basePrice: 12, description: 'Wood and tools for basic repairs' },
+    ],
+  };
+
+  // Determine which template to use: first try occupation, then business type
   let templateKey = 'default';
+  let matched = false;
   for (const key of Object.keys(stockTemplates)) {
-    if (occupation.includes(key)) {
+    if (key !== 'default' && occupation.includes(key)) {
       templateKey = key;
+      matched = true;
       break;
     }
   }
 
-  const template = stockTemplates[templateKey];
+  let template = matched ? stockTemplates[templateKey] : stockTemplates.default;
+
+  // Fall back to business-type template when occupation didn't match a specific one
+  if (!matched && businessType && businessTypeTemplates[businessType]) {
+    template = businessTypeTemplates[businessType];
+    templateKey = businessType;
+  }
+
   const items = template.map((item, index) => ({
     id: `merchant_item_${templateKey}_${index}`,
     name: item.name,
