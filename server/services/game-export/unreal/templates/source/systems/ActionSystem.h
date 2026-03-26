@@ -157,6 +157,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Actions")
     float GetCooldown(const FString& ActionId);
 
+    /** Find actions that can satisfy a given quest objective type. Returns action IDs. */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    TArray<FString> FindActionForObjective(const FString& ObjectiveType);
+
+    /** Look up an action by its name (e.g., "fish", "cook"). Returns empty string if not found. */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    FString GetActionByName(const FString& ActionName);
+
     /** Fired when an action produces a gold effect the game should apply. */
     UPROPERTY(BlueprintAssignable, Category = "Actions")
     FOnGoldEffectApplied OnGoldEffect;

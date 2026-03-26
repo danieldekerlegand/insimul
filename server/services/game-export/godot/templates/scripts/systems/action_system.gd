@@ -245,3 +245,43 @@ func _generate_narrative_text(action: Dictionary, actor_name: String, target_nam
 	# Fallback
 	var verb: String = action.get("verbPast", action.get("name", "acted").to_lower())
 	return "You %s." % verb
+
+## Maps quest objective types to the action names that can satisfy them.
+const OBJECTIVE_TO_ACTION: Dictionary = {
+	"visit_location": ["travel_to_location", "enter_building"],
+	"discover_location": ["travel_to_location"],
+	"talk_to_npc": ["talk_to_npc"],
+	"complete_conversation": ["talk_to_npc"],
+	"collect_item": ["collect_item"],
+	"deliver_item": ["give_gift"],
+	"craft_item": ["craft_item", "craft", "cook"],
+	"defeat_enemies": ["attack_enemy"],
+	"build_friendship": ["talk_to_npc", "compliment_npc", "give_gift"],
+	"give_gift": ["give_gift"],
+	"examine_object": ["examine_object"],
+	"read_sign": ["read_sign"],
+	"listen_and_repeat": ["listen_and_repeat"],
+	"point_and_name": ["point_and_name"],
+	"read_text": ["read_book"],
+	"comprehension_quiz": ["answer_question"],
+	"photograph_subject": ["take_photo"],
+	"photograph_activity": ["take_photo"],
+}
+
+## Find actions that can satisfy a given quest objective type.
+func find_action_for_objective(objective_type: String) -> Array[Dictionary]:
+	if not OBJECTIVE_TO_ACTION.has(objective_type):
+		return []
+	var names: Array = OBJECTIVE_TO_ACTION[objective_type]
+	var result: Array[Dictionary] = []
+	for a in actions:
+		if names.has(a.get("name", "")):
+			result.append(a)
+	return result
+
+## Look up an action by its name (e.g., "fish", "cook", "attack_enemy").
+func get_action_by_name(action_name: String) -> Dictionary:
+	for a in actions:
+		if a.get("name", "") == action_name:
+			return a
+	return {}

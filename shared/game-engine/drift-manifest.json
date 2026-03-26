@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-26T16:15:22.176Z",
+  "lastUpdated": "2026-03-26T16:25:30.634Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -171,7 +171,7 @@
     {
       "path": "client/src/components/3DGame/actions/ActionManager.ts",
       "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
-      "hash": "965906c33933ca0728108164281dc38672332646bd4e220af26c66a9dacf7bba",
+      "hash": "4998dfdd5012a6e06dc68d97bc2b2210cf6290cb7e751e8630bf4ef8f535d323",
       "engineMappings": [
         {
           "engine": "unreal",

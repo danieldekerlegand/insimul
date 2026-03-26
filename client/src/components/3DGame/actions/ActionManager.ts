@@ -3,6 +3,73 @@
 import { Action, ActionState, ActionContext, ActionResult, ActionEffect, ACTION_UI_CONFIGS } from '../types/actions';
 import { rankActions, STANDARD_ACTION_AFFINITIES, type ActionCandidate, type PersonalityProfile } from '@shared/game-engine/action-selection';
 
+/**
+ * Maps quest objective types to the action names that can satisfy them.
+ * Used by findActionForObjective() to resolve which action fulfills a quest step.
+ */
+const OBJECTIVE_TO_ACTION: Record<string, string[]> = {
+  // Movement / exploration
+  visit_location: ['travel_to_location', 'enter_building'],
+  discover_location: ['travel_to_location'],
+
+  // NPC interaction
+  talk_to_npc: ['talk_to_npc'],
+  complete_conversation: ['talk_to_npc'],
+  conversation_initiation: ['talk_to_npc'],
+
+  // Items
+  collect_item: ['collect_item'],
+  deliver_item: ['give_gift'],
+  craft_item: ['craft_item', 'craft', 'cook'],
+
+  // Combat
+  defeat_enemies: ['attack_enemy'],
+
+  // Social
+  build_friendship: ['talk_to_npc', 'compliment_npc', 'give_gift'],
+  give_gift: ['give_gift'],
+  gain_reputation: ['compliment_npc', 'talk_to_npc'],
+
+  // Physical / resource-gathering
+  collect_vocabulary: ['examine_object', 'point_and_name'],
+  identify_object: ['point_and_name'],
+
+  // Language learning
+  examine_object: ['examine_object'],
+  read_sign: ['read_sign'],
+  write_response: ['write_response'],
+  listen_and_repeat: ['listen_and_repeat'],
+  point_and_name: ['point_and_name'],
+  ask_for_directions: ['ask_for_directions'],
+  order_food: ['order_food'],
+  haggle_price: ['haggle_price'],
+  introduce_self: ['introduce_self'],
+  describe_scene: ['describe_scene'],
+
+  // Text / reading
+  find_text: ['collect_item'],
+  read_text: ['read_book'],
+  collect_text: ['collect_item'],
+  comprehension_quiz: ['answer_question'],
+
+  // Physical activities
+  photograph_subject: ['take_photo'],
+  photograph_activity: ['take_photo'],
+
+  // Quest
+  escort_npc: ['travel_to_location'],
+
+  // Pronunciation / listening
+  pronunciation_check: ['listen_and_repeat'],
+  listening_comprehension: ['listen_and_repeat'],
+  translation_challenge: ['write_response'],
+  use_vocabulary: ['point_and_name', 'examine_object'],
+
+  // Navigation
+  navigate_language: ['ask_for_directions', 'travel_to_location'],
+  follow_directions: ['ask_for_directions'],
+};
+
 export class ActionManager {
   private availableActions: Action[] = [];
   private activeActionStates: Map<string, ActionState> = new Map();
@@ -324,5 +391,23 @@ export class ActionManager {
       cooldown,
       canUse: cooldown === 0
     };
+  }
+
+  /**
+   * Find actions that can satisfy a given quest objective type.
+   * E.g., findActionForObjective('craft_item') returns the 'craft_item' or 'craft' action.
+   */
+  findActionForObjective(objectiveType: string): Action[] {
+    const actionNames = OBJECTIVE_TO_ACTION[objectiveType];
+    if (!actionNames) return [];
+
+    return this.availableActions.filter(a => actionNames.includes(a.name));
+  }
+
+  /**
+   * Look up an action by its name (e.g., 'fish', 'cook', 'attack_enemy').
+   */
+  getActionByName(name: string): Action | undefined {
+    return this.availableActions.find(a => a.name === name);
   }
 }

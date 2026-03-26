@@ -444,3 +444,61 @@ FInsimulActionResult UActionSystem::ExecuteAction(const FString& ActionId, AActo
     Result.EnergyUsed = static_cast<int32>(ActionObj->GetNumberField(TEXT("energyCost")));
     return Result;
 }
+
+TArray<FString> UInsimulActionSystem::FindActionForObjective(const FString& ObjectiveType)
+{
+    // Maps quest objective types to action names that can satisfy them
+    static TMap<FString, TArray<FString>> ObjectiveToAction;
+    if (ObjectiveToAction.Num() == 0)
+    {
+        ObjectiveToAction.Add(TEXT("visit_location"), {TEXT("travel_to_location"), TEXT("enter_building")});
+        ObjectiveToAction.Add(TEXT("discover_location"), {TEXT("travel_to_location")});
+        ObjectiveToAction.Add(TEXT("talk_to_npc"), {TEXT("talk_to_npc")});
+        ObjectiveToAction.Add(TEXT("complete_conversation"), {TEXT("talk_to_npc")});
+        ObjectiveToAction.Add(TEXT("collect_item"), {TEXT("collect_item")});
+        ObjectiveToAction.Add(TEXT("deliver_item"), {TEXT("give_gift")});
+        ObjectiveToAction.Add(TEXT("craft_item"), {TEXT("craft_item"), TEXT("craft"), TEXT("cook")});
+        ObjectiveToAction.Add(TEXT("defeat_enemies"), {TEXT("attack_enemy")});
+        ObjectiveToAction.Add(TEXT("build_friendship"), {TEXT("talk_to_npc"), TEXT("compliment_npc"), TEXT("give_gift")});
+        ObjectiveToAction.Add(TEXT("give_gift"), {TEXT("give_gift")});
+        ObjectiveToAction.Add(TEXT("examine_object"), {TEXT("examine_object")});
+        ObjectiveToAction.Add(TEXT("read_sign"), {TEXT("read_sign")});
+        ObjectiveToAction.Add(TEXT("listen_and_repeat"), {TEXT("listen_and_repeat")});
+        ObjectiveToAction.Add(TEXT("point_and_name"), {TEXT("point_and_name")});
+        ObjectiveToAction.Add(TEXT("read_text"), {TEXT("read_book")});
+        ObjectiveToAction.Add(TEXT("comprehension_quiz"), {TEXT("answer_question")});
+        ObjectiveToAction.Add(TEXT("photograph_subject"), {TEXT("take_photo")});
+        ObjectiveToAction.Add(TEXT("photograph_activity"), {TEXT("take_photo")});
+    }
+
+    TArray<FString> Result;
+    const TArray<FString>* Names = ObjectiveToAction.Find(ObjectiveType);
+    if (!Names) return Result;
+
+    for (const auto& ActionObj : ParsedActions)
+    {
+        FString Name;
+        if (ActionObj->TryGetStringField(TEXT("name"), Name) && Names->Contains(Name))
+        {
+            FString Id;
+            ActionObj->TryGetStringField(TEXT("id"), Id);
+            Result.Add(Id);
+        }
+    }
+    return Result;
+}
+
+FString UInsimulActionSystem::GetActionByName(const FString& ActionName)
+{
+    for (const auto& ActionObj : ParsedActions)
+    {
+        FString Name;
+        if (ActionObj->TryGetStringField(TEXT("name"), Name) && Name == ActionName)
+        {
+            FString Id;
+            ActionObj->TryGetStringField(TEXT("id"), Id);
+            return Id;
+        }
+    }
+    return FString();
+}
