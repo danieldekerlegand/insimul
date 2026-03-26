@@ -176,6 +176,7 @@ import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { InteractionPromptSystem } from "@/components/3DGame/InteractionPromptSystem.ts";
 import { FurnitureInteractionManager } from "@/components/3DGame/FurnitureInteractionManager.ts";
 import { PlayerActionSystem } from "@/components/3DGame/PlayerActionSystem.ts";
+import { ResidenceActivitySystem, type BedSleepData } from "@/components/3DGame/ResidenceActivitySystem.ts";
 import { FishingSystem } from "@/components/3DGame/FishingSystem.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
@@ -741,6 +742,7 @@ export class BabylonGame {
   private npcActivityLabelSystem: NPCActivityLabelSystem | null = null;
   /** Unified NPC routine manager — replaces NPCLocationCycler */
   private scheduleExecutor!: ScheduleExecutor;
+  private residenceActivitySystem: ResidenceActivitySystem | null = null;
 
   // Volition System — Ensemble-style spontaneous NPC goal formation
   private volitionSystem: VolitionSystem = new VolitionSystem({
@@ -9278,12 +9280,31 @@ export class BabylonGame {
           instance.isInsideBuilding = true;
           instance.insideBuildingId = action.buildingId;
           instance.scheduleGoalExpiry = now + action.stayDurationMs;
+          instance.controller?.walk(false);
+
+          // If NPC is going to sleep and we can find a bed, position them visibly
+          if (action.occasion === 'sleeping') {
+            const bedData = this.findBedForNPC(npcId, action.buildingId);
+            if (bedData) {
+              // Keep NPC visible and position on bed
+              this.ensureResidenceActivitySystem();
+              this.residenceActivitySystem!.startOccasion(npcId, 'sleeping', undefined, bedData);
+              // Don't hide the mesh — the callback will position it
+              break;
+            }
+          }
+
+          // Default: hide NPC inside building (no bed found, or not sleeping)
           instance.mesh.setEnabled(false);
           if (instance.billboardLOD) instance.billboardLOD.setEnabled(false);
-          instance.controller?.walk(false);
           break;
         }
         case 'exit_building': {
+          // End residence activity if NPC was sleeping on a bed
+          if (this.residenceActivitySystem?.isSleepingOnBed(npcId)) {
+            this.residenceActivitySystem.endOccasion(npcId);
+          }
+
           instance.isInsideBuilding = false;
           instance.insideBuildingId = undefined;
           instance.scheduleGoalExpiry = undefined;
@@ -9319,6 +9340,92 @@ export class BabylonGame {
         }
       }
     }
+  }
+
+  // ---- Residence Activity (visible sleep on beds) ----
+
+  /**
+   * Lazily create the ResidenceActivitySystem with callbacks that
+   * position/un-position NPC meshes on beds.
+   */
+  private ensureResidenceActivitySystem(): void {
+    if (this.residenceActivitySystem) return;
+
+    this.residenceActivitySystem = new ResidenceActivitySystem({
+      onAnimationChange: (npcId, state) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.animController) {
+          instance.animController.setState(state as any);
+        }
+      },
+      onSleepOnBed: (npcId, bedData) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (!instance?.mesh) return;
+
+        // Position NPC mesh at the bed
+        instance.mesh.position.x = bedData.position.x;
+        instance.mesh.position.y = bedData.position.y + bedData.mattressHeight;
+        instance.mesh.position.z = bedData.position.z;
+        instance.mesh.rotation.y = bedData.rotation;
+
+        // Keep NPC visible on the bed
+        instance.mesh.setEnabled(true);
+        instance.mesh.visibility = 1;
+        instance.mesh.getChildMeshes().forEach(m => { m.visibility = 1; });
+        if (instance.billboardLOD) instance.billboardLOD.setEnabled(false);
+
+        // Play sleep animation
+        if (instance.animController) {
+          instance.animController.setState('sleep' as any);
+        }
+      },
+      onWakeFromBed: (npcId) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (!instance?.mesh) return;
+
+        // Switch to idle animation (brief pause before they walk to door)
+        if (instance.animController) {
+          instance.animController.setState('idle' as any);
+        }
+      },
+    });
+  }
+
+  /**
+   * Find a bed in the building's interior for an NPC to sleep on.
+   * Returns BedSleepData if a bed is available, undefined otherwise.
+   */
+  private findBedForNPC(npcId: string, buildingId: string): BedSleepData | undefined {
+    const interior = this.interiorGenerator?.getInterior(buildingId);
+    if (!interior?.beds?.length) return undefined;
+
+    // Collect beds already claimed by other sleeping NPCs
+    const claimedBedIds = new Set<string>();
+    if (this.residenceActivitySystem) {
+      for (const [otherId] of this.npcMeshes) {
+        if (otherId !== npcId && this.residenceActivitySystem.isSleepingOnBed(otherId)) {
+          const otherBed = this.residenceActivitySystem.getBedData(otherId);
+          if (otherBed) claimedBedIds.add(otherBed.bedId);
+        }
+      }
+    }
+
+    // Pick first unclaimed bed
+    const bed = interior.beds.find(b => !claimedBedIds.has(b.bedId));
+    if (!bed) return undefined;
+
+    // Convert BedAssignment offsets to world-space position
+    // Interior positions are relative to the interior's root position
+    return {
+      bedId: bed.bedId,
+      position: {
+        x: interior.position.x + bed.offsetX,
+        y: interior.position.y + bed.offsetY,
+        z: interior.position.z + bed.offsetZ,
+      },
+      rotation: 0, // Beds aligned with room; no extra rotation needed
+      mattressHeight: 0.25, // Half the mattress height (spec.height * 0.5 / 2)
+    };
   }
 
   // Distance thresholds for NPC optimization (Phase 7 enhanced)

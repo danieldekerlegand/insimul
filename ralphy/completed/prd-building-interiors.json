@@ -2,169 +2,169 @@
   "tasks": [
     {
       "title": "Populate building occupantIds in IR export",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "As a player, I need to see owners, employees, and residents listed for buildings so I know who works and lives where. Currently the IR generator hardcodes occupantIds: [] for all buildings. (1) In server/services/game-export/ir-generator.ts, at the building IR construction (~line 1545), replace the hardcoded `occupantIds: []` with actual data. (2) For business buildings: query the Occupation collection for all active occupations (endYear is null) where businessId matches, collect those characterIds. Also include business.ownerId as first element. (3) For residence buildings: look up the residence by matching the building to a residence (via lot or address), and use residence.residentIds. (4) Ensure the occupantIds array has no duplicates and no null entries. (5) In client/src/components/3DGame/DataSource.ts (~lines 1829-1865), verify that the business reconstruction logic correctly reads ownerId from the first occupantId and employees from the rest. (6) Add a fallback: if a business has ownerId set on the BusinessIR but occupantIds is empty, inject ownerId into occupantIds[0]. (7) Verify in the 3D game that business detail panels show owner name and employee names. (8) Verify that residence detail panels no longer show 'Vacant' when residents exist. (9) Typecheck passes. Root cause: ir-generator.ts line 1545 always exports occupantIds: []. The data exists in the DB (residence.residentIds, Occupation table, business.ownerId) but is never wired into the BuildingIR."
     },
     {
       "title": "Assign characters to residences during world generation if not already assigned",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "As a player, I need every character to have a home residence so they have somewhere to return at night and sleep. (1) Verify that server/generators/world-generator.ts housing assignment (lines 940-1054) runs for all worlds, including newly generated ones. (2) If a world is generated without the housing assignment step, add a post-generation hook that assigns unhoused characters to residences. (3) Ensure every character has a non-null currentResidenceId after world generation. (4) If there aren't enough residences for all characters, generate additional residences (small houses) to accommodate overflow. (5) Log a warning if any character remains unhoused after assignment. (6) In the IR generator, verify that character IR includes homeResidenceId and that it maps to a valid building. (7) In NPCScheduleSystem.ts, verify that homeBuildingId is populated for every NPC from their residence assignment. (8) Characters without a homeBuildingId should be assigned a random residence as fallback rather than wandering all night. (9) Typecheck passes. Housing assignment logic exists but may not run in all generation paths, or the IR export may not carry the assignment through."
     },
     {
       "title": "Assign employees to businesses during world generation",
-      "completed": false,
+      "completed": true,
       "parallel_group": 1,
       "description": "As a player, I need businesses to have owners and employees assigned during world generation so they appear staffed. (1) Verify that the hiring system (server/extensions/tott/hiring-system.ts) runs during world generation and assigns working-age characters to businesses. (2) If hiring doesn't run during generation, add a post-generation step that: assigns 1 owner per business (oldest/most experienced character), assigns 1-3 employees per business based on size. (3) Employment assignment rules: adults only (18+), prefer characters without existing jobs, match occupation to business type when possible. (4) Small businesses (shops, bakeries): 1 owner + 1 employee. (5) Medium businesses (taverns, restaurants): 1 owner + 2-3 employees. (6) Large businesses (factories, hotels): 1 owner + 3-5 employees. (7) Create Occupation records in the database for each assignment. (8) Set business.ownerId to the assigned owner's character ID. (9) Ensure the IR generator exports these relationships correctly. (10) Typecheck passes. The hiring system infrastructure exists but may not be invoked during world generation, leaving all businesses unstaffed."
     },
     {
       "title": "Add Theater and AutoRepair to building categories and asset collections",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "As a player, I want Theater and Auto Repair buildings to appear in settlements and have proper asset collection entries with interior/exterior configs. (1) Add 'Theater' to shared/game-engine/building-categories.ts under a new 'entertainment' category (or under 'civic' if entertainment doesn't exist). (2) Add 'AutoRepair' to building-categories.ts under 'commercial_service'. (3) Add default dimensions for AutoRepair in shared/game-engine/building-defaults.ts (Theater already exists there with 2 floors 18x20). (4) Add AutoRepair defaults: 1 floor, width 20, depth 24. (5) Update server/db/migrations/populate-world-type-collections.ts ALL_BUILDING_TYPES array to include 'Theater' and 'AutoRepair'. (6) Add interior layout templates for Theater (large open room with stage area + seating) and AutoRepair (open garage bay + small office) in shared/game-engine/interior-templates.ts. (7) Add item placement configs for Theater and AutoRepair in client/src/components/3DGame/InteriorItemManager.ts. (8) Verify both building types appear in the Asset Collection manager's building configuration panel. (9) Typecheck passes. Theater exists in building-defaults.ts but not in building-categories.ts. AutoRepair doesn't exist anywhere in the codebase."
     },
     {
       "title": "Add missing building types to categories for procedural generation",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "As a player, I want more building variety in procedurally generated settlements. Several building types exist in defaults but aren't in the category system, so they're never generated. (1) Add an 'entertainment' category to building-categories.ts with: Theater, Tavern, Inn. (2) Add a 'professional' category (or merge into commercial_service) with: Library, Clinic, Stables. (3) Add an 'industrial_craft' subcategory or expand 'industrial' with: Windmill, Watermill, Lumbermill, Mine. (4) Add 'military' category with: Barracks. (5) Add 'residential' entries for: ApartmentComplex (distinct from single apartment). (6) Update populate-world-type-collections.ts to include all new types in ALL_BUILDING_TYPES. (7) Add default dimensions in building-defaults.ts for any types that lack them. (8) Add interior templates for Tavern, Inn, Library, Clinic, Stables in interior-templates.ts (if not already present). (9) Ensure all new types have item placement entries in InteriorItemManager.ts. (10) Typecheck passes. Legacy types (Tavern, Inn, Library, Stables, Windmill, Watermill, Lumbermill, Barracks, Mine, Clinic, ApartmentComplex) are in building-defaults.ts but not in building-categories.ts, so they never get procedurally generated."
     },
     {
       "title": "Context-appropriate building type selection during procedural generation",
-      "completed": false,
+      "completed": true,
       "parallel_group": 2,
       "description": "As a player, I want settlements to only generate building types appropriate to their size, era, and geography — a small village shouldn't have a University or Factory. (1) Create shared/game-engine/building-generation-rules.ts with a function getEligibleBuildingTypes(settlementType, population, era?, geography?). (2) Define settlement tiers: village (<200 pop), town (200-2000), city (2000+). (3) Village-tier eligible: Farm, Blacksmith, Carpenter, Tavern, Inn, Church, Shop, Bakery, Stables, Clinic, Windmill, Butcher. (4) Town-tier adds: School, Bank, Hotel, Library, Restaurant, Bar, Brewery, Tailor, GroceryStore, Theater, Warehouse, TownHall, Barbershop, HerbShop. (5) City-tier adds: University, Hospital, Factory, PoliceStation, FireStation, DentalOffice, OptometryOffice, Pharmacy, LawFirm, InsuranceOffice, RealEstateOffice, AutoRepair, BookStore, JewelryStore, PawnShop. (6) Maritime buildings (Harbor, Boatyard, FishMarket, CustomsHouse, Lighthouse) only eligible if geography includes coast/river. (7) Industrial buildings (Mine, Lumbermill) only if geography includes mountains/forest respectively. (8) Integrate this function into the settlement generation pipeline so the IR generator uses it when placing buildings. (9) Typecheck passes."
     },
     {
       "title": "Add window meshes to procedural building interiors",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "As a player, I want procedural interiors to have windows so they feel like real rooms rather than enclosed boxes. (1) In client/src/components/3DGame/BuildingInteriorGenerator.ts, add a generateWindows() method called after wall generation. (2) Place window openings on left, right, and back walls (not front wall which has the door). (3) Window dimensions: 1.5m wide x 1.8m tall, bottom at Y=1.2m from floor. (4) Number of windows per wall: Math.max(1, Math.floor(wallWidth / 6)) — roughly 1 window per 6m of wall. (5) Each window: cut the wall plane into panels around the window opening (similar to how door openings work in front wall). (6) Add a translucent glass pane (StandardMaterial with alpha=0.3, light blue tint) inside each window frame. (7) Add a simple window frame using thin box meshes (0.05m thick) around each opening. (8) For upper floors, generate windows at the same relative positions offset by floor height. (9) Windows should let exterior light bleed in slightly (ambient light contribution). (10) Typecheck passes. Current procedural interiors have solid walls with no windows. Model-based interiors already include windows in the glTF."
     },
     {
       "title": "Improve floor and wall texturing in procedural interiors",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "As a player, I want interior floors and walls to have realistic textures rather than flat colors so rooms feel authentic. (1) In BuildingInteriorGenerator.ts, update the floor material to apply a wood plank or stone tile texture by default (using textures from the asset collection if configured, otherwise a built-in fallback). (2) Apply UV scaling so textures tile correctly based on room dimensions (e.g., 1 tile per 2m). (3) Add wall textures: plaster/stucco for residences, wood paneling for taverns, stone for churches/temples. (4) Map building types to default texture styles: residential -> wood floor + plaster walls, commercial -> stone floor + wood walls, civic -> stone floor + stone walls, industrial -> dirt/stone floor + brick walls. (5) Apply ceiling texture (wood beams pattern or plain plaster) matching the building style. (6) If the asset collection has wallTextureId/floorTextureId/ceilingTextureId configured for the building type, use those instead of defaults. (7) Partition walls should use the same wall material as outer walls. (8) Typecheck passes. Currently floors/walls use flat StandardMaterial colors. The config supports wallTextureId/floorTextureId/ceilingTextureId but they're not always applied."
     },
     {
       "title": "Expand furniture placement with business-specific items",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "As a player, I want each building type to have furniture and props that match its function — a bakery should have ovens and display cases, not just generic tables. (1) Review and expand the furniture definitions in FurnitureModelLoader.ts — add new furniture types: anvil, oven, loom, display_case, workbench, lectern, altar, throne, pew/bench, bed_single, bed_double, desk, cauldron, weapon_rack, armor_stand. (2) Map each new furniture type to available 3D models (from Polyhaven, Quaternius, or simple procedural meshes as fallback). (3) Update BuildingInteriorGenerator.ts room function furniture lists (lines 1273-1292) to use business-specific furniture: Bakery->oven+counter+display_case, Blacksmith->anvil+workbench+weapon_rack, Church->altar+pews+lectern, Tailor->loom+table+mannequin, Bar->counter+stools+barrels, Library->bookshelves+desk+chairs. (4) Add furniture placement rules: larger items against walls, seating around tables, workstations near light sources. (5) Ensure furniture collision meshes are set so player can navigate around them. (6) Minimum 4 furniture items per ground floor room, 2 per upper floor room. (7) Typecheck passes. Current furniture set is limited to: table, chair, stool, bed, shelf, bookshelf, wardrobe, counter, barrel, crate, chest. Many business types get generic furniture."
     },
     {
       "title": "Add beds to all residences and ensure bedroom placement",
-      "completed": false,
+      "completed": true,
       "parallel_group": 3,
       "description": "As a player, I want every residence to have at least one bed in a bedroom so NPCs have a visible place to sleep. (1) In BuildingInteriorGenerator.ts, ensure every residence type (small, medium, large, mansion) has at least one room with function 'bedroom'. (2) Every bedroom must have at least one bed placed against a wall. (3) Bed placement: positioned flat on floor (Y=0.3 for mattress height), oriented parallel to nearest wall with 0.5m clearance. (4) For multi-resident homes, add beds proportional to residentIds count (min 1, max based on room size: 1 bed per 8 sq meters). (5) Bed models: use GothicBed_01 or equivalent from FurnitureModelLoader; add bed_single variant if available. (6) Each bed should have a unique ID stored in the interior data so NPCs can be assigned to specific beds. (7) Bedrooms should also have: wardrobe, small table (nightstand equivalent). (8) Verify beds render correctly in both procedural and model-based interiors. (9) Typecheck passes. Beds exist in furniture types but aren't guaranteed in every residence. NPCs need identifiable bed positions for sleep animations."
     },
     {
       "title": "Visible NPC sleep animation on beds",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "As a player, I want to see NPCs actually lying in their beds at night rather than just disappearing into their homes. (1) In ResidenceActivitySystem.ts, when an NPC enters sleep state, instead of making them invisible, position them on their assigned bed mesh. (2) NPC sleep positioning: translate NPC to bed position, rotate to align with bed orientation, offset Y to mattress height. (3) Play the 'sleep' animation (already defined in NPCAnimationController.ts line 28 with 0.3x speed). (4) NPC should remain visible and animated on the bed while sleeping (not hidden inside building). (5) When the NPC wakes up (wakeHour reached), play a stand-up transition: stop sleep animation -> brief idle -> walk away from bed. (6) If player enters a residence at night, sleeping NPCs should be visible on their beds. (7) Handle edge case: if bed not found, fall back to current invisible sleep behavior. (8) Update InteriorNPCManager.ts to mark bed positions with 'sleep' animation instead of 'idle' (line 229 area). (9) Typecheck passes. Currently NPCs enter home, become invisible, and ResidenceActivitySystem cycles sleep animations while hidden. The 'sleep' animation state exists but is never visibly used on bed meshes."
     },
     {
       "title": "Staff businesses with owner and employee NPCs during operating hours",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "As a player, I want to see business owners and employees inside their workplaces during business hours, performing work animations. (1) In InteriorNPCManager.ts, when a business building interior is loaded, query the building's occupantIds (now populated) to identify owner and employees. (2) Position the owner behind the counter/desk (use 'work' animation), employees at workstations or moving between stations. (3) Owner placement priority: counter -> desk -> first available work position. (4) Employee placement priority: workstation -> shelf -> table -> standing work position. (5) NPCs should only appear inside during BUSINESS_OPERATING_HOURS (check InteriorNPCManager.ts lines 104-113). (6) When business closes, employees and owner should exit the building and follow their evening schedule. (7) Maximum occupants per building should respect the building's capacity (currently hardcoded to 6 in InteriorNPCManager.ts line 158). (8) Owner should have a distinct idle behavior (e.g., standing behind counter) vs employees (moving between tasks). (9) Typecheck passes. InteriorNPCManager already has role-based placement (owner->counter, employee->shelf) but occupantIds are always empty so no NPCs appear."
     },
     {
       "title": "Business-specific work animations for employed NPCs",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "As a player, I want to see NPCs performing animations relevant to their job — a blacksmith hammering, a baker kneading, a bartender pouring. (1) In AnimationAssetManager.ts, expand the work animation fallback mapping (lines 57-71) to be used as business-type-specific animation selection. (2) Create a mapping businessType -> preferred work animation: Blacksmith->hammer, Bakery->knead_dough, Bar/Tavern->pour, Carpenter->chop, Restaurant->stir, Tailor->work_sitting, Library->write, Bank->write, Shop->work_standing. (3) In InteriorNPCManager.ts, when placing an NPC at a work position, select the animation based on the building's businessType rather than always using generic 'work'. (4) If the specific animation isn't available on the NPC model, fall back gracefully: specific -> 'work' -> 'idle'. (5) Employees should cycle between 2-3 animations (e.g., blacksmith: hammer 60% -> idle 20% -> walk to shelf 20%) using a timer. (6) Animation cycle duration: 10-30 seconds per animation before switching. (7) Owner animations should be slightly different from employee animations (more idle/observing, less active labor). (8) Typecheck passes. AnimationAssetManager already maps specific animations (knead_dough, pour, hammer, etc.) to 'work' fallback. The infrastructure exists but isn't used based on business type."
     },
     {
       "title": "NPC patron visits to businesses during operating hours",
-      "completed": false,
+      "completed": true,
       "parallel_group": 4,
       "description": "As a player, I want to see NPC customers visiting shops, eating at restaurants, and browsing businesses during the day. (1) In NPCScheduleSystem.ts, when generating daytime goals for non-working NPCs, increase the probability of visiting open businesses. (2) Patron behavior: NPC walks to business -> enters building -> positioned at customer area (table, display area, counter) -> plays contextual animation (sit+eat at restaurant, idle+browse at shop, sit+read at library). (3) Visit duration: 30-90 game minutes based on business type (quick errand at shop vs. long meal at restaurant). (4) Maximum 3-4 patrons per business at once (separate from employee count). (5) In InteriorNPCManager.ts, add a 'patron' role distinct from 'visitor' with specific placement rules: patrons sit at tables (restaurants), stand near shelves (shops), sit in pews (church). (6) Patron animations by business type: Restaurant->eat, Bar->eat/sit, Shop->idle (browsing), Library->sit (reading), Church->sit (praying), Bakery->idle (browsing), Hotel->sit. (7) NPCs should occasionally have visible conversations with shop owners (trigger talk animation when near counter). (8) Typecheck passes. NPCScheduleSystem already has personality-driven business visits, but patrons don't appear inside buildings with contextual behavior."
     },
     {
       "title": "Increase procedural interior dimensions for navigability",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "As a player, I need building interiors to be large enough to walk around furniture without getting stuck. (1) Review and increase minimum interior dimensions in BuildingInteriorGenerator.ts (lines 498-528). (2) Minimum room dimensions: no room smaller than 8m x 8m (currently smallest is 14x18 for small residence). (3) Increase all interior dimensions by ~20%: small residence 17x22, medium 22x26, large 26x34, shops 22x28, taverns 26x34, temples 28x38. (4) Increase hallway/doorway widths from 2.0m to 2.5m for easier navigation (PARTITION_DOOR_WIDTH). (5) Ensure furniture placement leaves at least 1.5m clearance around all furniture items (currently not enforced). (6) Add collision detection during furniture placement: if a new item would overlap an existing item or block a doorway, skip it or reposition. (7) Test that the player character (capsule ~0.5m radius) can navigate through all doorways and around all furniture. (8) Typecheck passes. Current dimensions are adequate for viewing but tight for navigation. Furniture placement doesn't check for clearance."
     },
     {
       "title": "Multi-room interior layout improvements",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "As a player, I want building interiors to have logical multi-room layouts — a tavern with a main hall, kitchen, and upstairs rooms; a residence with living room, kitchen, and bedrooms. (1) Improve generateRoomZones() in BuildingInteriorGenerator.ts to create more varied layouts beyond the current front-60%/back-40% split. (2) Tavern/Inn layout: main hall (50% ground floor), kitchen (25%), storage (25%); upper floor: 2-4 guest rooms with beds. (3) Restaurant: dining room (60%), kitchen (30%), storage (10%). (4) Shop: showroom (70% front), storeroom (30% back). (5) Residence small: combined living/kitchen (60%), bedroom (40%). (6) Residence medium: living room (40%), kitchen (30%), bedroom(s) (30%); upper: 2 bedrooms + hallway. (7) Residence large/mansion: entry hall, living room, kitchen, dining room on ground; 3-4 bedrooms + study upstairs. (8) Church/Temple: main nave (70%), altar area (20%), vestry (10%). (9) Each room zone should have a labeled function that drives furniture placement. (10) Add visible room labels (TextBlock floating above door frame) so player knows room purpose. (11) Typecheck passes. Current room layout is always a simple 2-room partition (front/back). Multi-floor has basic left/right split upstairs."
     },
     {
       "title": "Interior door meshes between rooms",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "As a player, I want visible doors between interior rooms rather than just open doorways in partition walls. (1) In BuildingInteriorGenerator.ts partition wall generation (lines 869-1032), add door mesh to each doorway opening. (2) Door mesh: thin box (2m wide x 3m tall x 0.08m deep) with wood-colored material, positioned in the doorway opening. (3) Doors should be interactable: clicking opens/closes with a rotation animation (swing 90 degrees on Y axis). (4) Open doors stay open for 5 seconds then auto-close (unless player is in the doorway). (5) Front entrance door: always present, clicking from outside enters the building, clicking from inside exits. (6) Door material: match the building style (dark wood for taverns, light wood for residences, metal-banded for blacksmith). (7) Door collision: closed doors block NPC pathfinding, open doors allow passage. (8) Add a simple door handle detail (small box mesh on one side). (9) Typecheck passes. Current partition walls have doorway openings but no door meshes — just gaps in the wall."
     },
     {
       "title": "Staircase improvements for multi-floor buildings",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "As a player, I want usable staircases connecting floors in multi-story buildings so I can walk between floors naturally. (1) Review the existing stair generation in BuildingInteriorGenerator.ts (lines 1038-1089) and ensure stairs are walkable. (2) Stair mesh: series of box steps (each 0.3m tall x full width x 0.4m deep) arranged in a straight or L-shaped run. (3) Stair collision: each step should have a collision mesh so the player can walk up/down. (4) Stair railing: add simple railing meshes (thin boxes) on both sides for visual clarity. (5) Upper floor opening: ensure the ceiling/floor at the top of stairs has a cutout matching the stair footprint. (6) Player physics: verify the player character controller can smoothly ascend/descend stairs without getting stuck. (7) NPC pathfinding: NPCs should be able to navigate between floors using stairs (add stair nodes to interior navigation graph). (8) Landing at top of stairs: 1m x stair width flat area before the upper room begins. (9) Typecheck passes. Stairs exist in the code but may not be fully navigable. Upper floor access is critical for tavern guest rooms, residence bedrooms, etc."
     },
     {
       "title": "Building entry/exit transition improvements",
-      "completed": false,
+      "completed": true,
       "parallel_group": 5,
       "description": "As a player, I want smooth visual transitions when entering and exiting buildings rather than abrupt teleportation. (1) In BuildingEntrySystem.ts, add a brief fade-to-black transition (0.5s fade out, 0.3s black, 0.5s fade in) when entering/exiting buildings. (2) Implement the fade using a full-screen GUI Rectangle with animated alpha (0->1->1->0). (3) During the black period: reposition camera, load interior if needed, position player at spawn point. (4) Entry spawn: position player just inside the front door facing inward. (5) Exit spawn: position player just outside the front door facing outward (away from building). (6) Add a subtle door opening sound effect trigger (if audio system exists) or prepare a hook for it. (7) Ensure the interior scene is fully loaded before fade-in begins (no pop-in of furniture). (8) If interior takes >2 seconds to load, show a brief loading indicator during the black period. (9) Typecheck passes. Current building entry is functional but can feel jarring. A fade transition would significantly improve immersion."
     },
     {
       "title": "Fix society editor interior preview showing wrong asset",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "As a world builder, I need the society editor's Interior preview tab to correctly show the interior matching the building's type, not a mismatched asset. (1) In client/src/components/locations/BuildingModelPreview.tsx, trace how the interior preview resolves which model/template to show. (2) Verify that the buildingType and businessType are correctly passed from the society editor (SettlementHub.tsx) to BuildingModelPreview. (3) Fix: when interiorTemplate is resolved via getTemplateForBuildingType(), ensure it uses the building's actual businessType, not a default. (4) Fix: when interiorModelPath is used, verify the model path matches the building type (InteriorSceneManager.ts model mapping lines 32-60). (5) If neither interior model nor template exists for a building type, show a clear 'No interior configured' message instead of a wrong model. (6) Verify the exterior preview tab also works for all building types — if exterior model is missing, show a procedural preview. (7) Test with Theater and AutoRepair to confirm they show correct interior previews. (8) Typecheck passes. Users report interior preview showing wrong assets for many building types, and some buildings (Theater, Auto Repair) show no preview at all."
     },
     {
       "title": "Fix exterior preview not rendering for some building types",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "As a world builder, I need all building types to show an exterior preview in the society editor, either from an asset model or procedural generation. (1) In BuildingModelPreview.tsx, add fallback rendering when no exterior model asset is configured for a building type. (2) Fallback: generate a simple procedural exterior preview using ProceduralBuildingGenerator with the building's configured style preset. (3) If no style preset is configured either, use a generic preview box with the building type label. (4) Ensure the preview camera is positioned to show the full building exterior (auto-frame based on building dimensions). (5) Test all 54+ building types to confirm each shows either an asset model or procedural preview. (6) Typecheck passes. Some building types show blank/missing exterior previews because they have no asset model and no procedural fallback in the preview component."
     },
     {
       "title": "Apply configured textures and lighting in interior preview",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "As a world builder, I want the asset collection editor's interior preview to reflect my configured textures and lighting preset so I can see changes in real-time. (1) In BuildingModelPreview.tsx procedural interior preview (buildProceduralInterior function ~line 173), load and apply wallTextureId, floorTextureId, ceilingTextureId from the interior config. (2) Fetch texture URLs from the asset collection's texture records and apply them to the preview materials. (3) Apply the selected lightingPreset ('bright', 'dim', 'warm', 'cool', 'candlelit') to the preview scene's lighting. (4) Lighting preset values: bright->intensity 1.5, dim->0.4, warm->0.8 with orange tint, cool->0.8 with blue tint, candlelit->0.3 with flickering point lights. (5) Apply the furnitureSet selection by placing representative furniture items in the preview. (6) Preview should update in real-time when user changes any of these config values. (7) Typecheck passes. Currently the preview renders flat colors and shows texture/lighting/furniture as badge labels only, not visually applied."
     },
     {
       "title": "Residence furnishing based on occupant wealth and family size",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "As a player, I want residences to feel lived-in with furnishings that reflect the occupants' economic status and household composition. (1) Create a residence furnishing function in BuildingInteriorGenerator.ts that considers: residence type (cottage/house/mansion), number of residents, owner wealth/status. (2) Wealth tiers: poor (minimal furniture, bare floors), middle (standard furniture, rugs), wealthy (ornate furniture, decorations, multiple rooms furnished). (3) Family size affects: number of beds, table/chair count, kitchen size. (4) All residences get: at least 1 bed, 1 table, 1 chair, 1 storage item (wardrobe/chest). (5) Middle-tier adds: bookshelf, additional chairs, rug (ground plane decal), curtains (planes near windows). (6) Wealthy adds: multiple bookshelves, desk, decorative items, larger beds, multiple wardrobes. (7) Kitchen area always has: counter, at least 1 barrel/crate (food storage). (8) Living area has: table + chairs matching resident count, fireplace mesh (simple box + point light) for cottages/houses. (9) Typecheck passes."
     },
     {
       "title": "Morning wake-up and commute-to-work NPC behavior",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "As a player, I want to see NPCs wake up in the morning, leave their homes, and walk to their workplaces in a natural daily rhythm. (1) In ScheduleExecutor.ts, when wakeHour is reached for a sleeping NPC: stop sleep animation, play idle briefly (2-3 seconds), then generate 'go_to_building' goal targeting their workBuildingId. (2) NPCs should exit their home building visibly (appear at door, begin walking). (3) Commute timing: NPCs wake 30-60 game minutes before their business opens (based on distance to workplace). (4) Stagger wake times slightly per NPC (+/-10 minutes) so they don't all emerge simultaneously. (5) If NPC has no job, wake up and begin unemployed morning routine (from NPCScheduleSystem.ts lines 614-667). (6) During commute, NPC plays 'walk' animation along sidewalk path to workplace. (7) Upon arriving at workplace, NPC enters building and begins work animation. (8) Visual: streets should show morning commute traffic between 6:00-8:00 game hours. (9) Typecheck passes. NPCs already have wake hours and work goals, but the transition from sleeping->visible->walking to work needs to be more visually polished."
     },
     {
       "title": "Interior lighting that responds to day/night cycle",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "As a player, I want building interiors to have warm lighting at night (candles, lamps) and natural light during the day (from windows). (1) In BuildingInteriorGenerator.ts, add a lighting system per interior that responds to the DayNightCycle. (2) Daytime (6:00-18:00): primary light from window directions (directional light angled inward from each window), ambient at 0.6. (3) Dusk/Dawn (18:00-20:00, 5:00-6:00): reduce window light, begin warm interior lights. (4) Night (20:00-5:00): no window light, interior lit by point lights simulating candles/lamps placed near tables, counters, and on walls. (5) Candle/lamp point lights: warm color (255, 200, 120), intensity 0.5, range 8m, positioned at furniture Y + 1m. (6) Number of interior light sources: 2-4 for small rooms, 4-8 for large rooms (taverns, churches). (7) Light sources should cast soft shadows on furniture if shadow generator is available (performance permitting). (8) Businesses should have lights on during operating hours even if daytime (supplemental lighting). (9) Residences should turn off lights when all residents are sleeping. (10) Typecheck passes. Current interiors have static lighting from lightingPreset. DayNightCycle controls exterior lights but doesn't affect interior lighting."
     },
     {
       "title": "Interactive furniture and containers in interiors",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "As a player, I want to be able to interact with furniture — sit in chairs, open containers to see items, read books on shelves. (1) In InteriorItemManager.ts, expand interactive item types beyond containers (chest, barrel, crate). (2) Add chair/stool interaction: clicking seats the player (play 'sit' animation, lock movement until click again). (3) Add bed interaction: clicking at night offers 'Sleep until morning' option that advances game time. (4) Add bookshelf interaction: clicking shows a lore text popup (random from world's truths/knowledge base). (5) Add counter/workstation interaction: for businesses the player owns, show a 'Work' option. (6) Use the existing InteractionPromptSystem.ts to show contextual prompts when player is near interactable furniture. (7) Interaction range: 2.5m from furniture center. (8) Show interaction prompt label based on furniture type: 'Sit' for chairs, 'Open' for containers, 'Read' for bookshelves, 'Sleep' for beds. (9) Typecheck passes. InteractionPromptSystem exists and containers are already interactive. Extending to other furniture types is incremental."
     },
     {
       "title": "Add rugs, wall decorations, and ambient props to interiors",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "As a player, I want interiors to feel lived-in with decorative elements like rugs, wall hangings, potted plants, and ambient clutter. (1) Add rug/carpet meshes: flat ground planes with texture, placed in living rooms and bedrooms (1-2 per room). (2) Add wall decoration system: create thin plane meshes on walls (paintings, banners, weapons, shields) at eye height (Y=2m). (3) Taverns: mounted shields, animal heads (simple meshes), banners. (4) Residences: paintings (colored rectangle planes with simple frames), mirrors (reflective material plane). (5) Shops: display signs, price lists (text planes). (6) Churches: religious iconography, stained glass effect on windows (colored emissive material). (7) Add ambient props: candle holders (small cylinder + point light), flower pots (cylinder + green cone), lanterns on tables. (8) Props should be non-colliding (no physics) to avoid cluttering navigation. (9) Randomly place 3-6 decorations per room based on room function and building type. (10) Typecheck passes."
     },
     {
       "title": "Smoke, hearth, and ambient particle effects in interiors",
-      "completed": false,
+      "completed": true,
       "parallel_group": 7,
       "description": "As a player, I want to see atmospheric effects in building interiors — fireplace glow, kitchen steam, forge sparks. (1) Add a fireplace/hearth system for taverns and residences: orange-red point light (flickering intensity via sine wave) + simple fire particle emitter at the hearth position. (2) Fire particles: small orange/yellow squares, upward velocity, short lifetime (0.5s), 20-40 particles active. (3) Kitchen steam: white-gray particles rising from counter/oven area in restaurants, bakeries, tavern kitchens. (4) Forge sparks: orange-yellow particles with random lateral velocity near anvil in blacksmith interiors. (5) Candle flicker: point lights at candle positions with randomized intensity (0.3-0.6 range, update per frame). (6) Dust motes: very subtle slow-moving particles in warehouse, library, and old building interiors (optional, low-count). (7) All particle systems should use Babylon.js ParticleSystem with reasonable particle counts (max 50 per emitter) for performance. (8) Particle effects only active when player is inside the building (dispose when exiting). (9) Typecheck passes. Particle effects are low-cost atmospheric additions. Babylon.js ParticleSystem is already available."
     }

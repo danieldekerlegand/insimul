@@ -88,7 +88,7 @@ export interface NPCRoutineState {
 /** Action returned by evaluateNPC for BabylonGame to execute */
 export type NPCAction =
   | { type: 'new_goal'; goal: NPCGoal; pathWaypoints: Vector3[]; occasion: NPCOccasion }
-  | { type: 'enter_building'; buildingId: string; stayDurationMs: number }
+  | { type: 'enter_building'; buildingId: string; stayDurationMs: number; occasion?: NPCOccasion }
   | { type: 'exit_building'; doorPosition: Vector3 | null }
   | { type: 'idle'; durationMs: number }
   | { type: 'go_home'; pathWaypoints: Vector3[] }
@@ -630,6 +630,7 @@ export class ScheduleExecutor {
       type: 'enter_building',
       buildingId,
       stayDurationMs,
+      occasion: state.occasion,
     });
   }
 

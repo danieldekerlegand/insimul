@@ -155,6 +155,8 @@ namespace Insimul.Systems
         public string itemId;
         public string itemName;
         public int quantity;
+        /// <summary>Source of acquisition: container, shop, world, gift, craft, quest_reward.</summary>
+        public string source;
         public ItemTaxonomy taxonomy;
     }
 
