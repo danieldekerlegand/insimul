@@ -258,11 +258,159 @@ const townExplorer: QuestChainTemplate = {
   ],
 };
 
+/**
+ * Missing Writer Mystery - 8 quests: the main narrative arc
+ *
+ * A mysterious writer has vanished from the settlement. The player
+ * investigates through a chain of quests that each require different
+ * action types (reading, conversation, exploration, photography,
+ * item collection) while reinforcing language skills.
+ */
+const missingWriterMystery: QuestChainTemplate = {
+  name: 'The Missing Writer',
+  description: 'Investigate the disappearance of a beloved local writer through clues scattered across the settlement.',
+  category: 'narrative',
+  difficulty: 'beginner',
+  isLinear: true,
+  bonusXP: 500,
+  achievement: 'Mystery Solved',
+  quests: [
+    {
+      title: 'Arrival Assessment',
+      description: 'Complete your language assessment upon arriving in the settlement. This establishes your baseline proficiency and introduces you to the town.',
+      questType: 'assessment',
+      difficulty: 'beginner',
+      targetLanguage: '',
+      status: 'active',
+      experienceReward: 50,
+      objectives: [
+        { type: 'complete_assessment', description: 'Complete the arrival language assessment', target: 'arrival_assessment', required: 1, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'assessment_complete', description: 'Complete all arrival assessment phases' },
+      tags: ['assessment', 'arrival', 'main-quest', 'narrative'],
+    },
+    {
+      title: 'The Notice Board',
+      description: 'A weathered notice on the town board catches your eye — someone is missing. Read the notice, then visit the town clerk to learn more about the missing writer.',
+      questType: 'exploration',
+      difficulty: 'beginner',
+      targetLanguage: '',
+      status: 'pending',
+      experienceReward: 75,
+      objectives: [
+        { type: 'read_document', description: 'Read the missing person notice on the town board', target: 'notice_board', required: 1, current: 0, completed: false },
+        { type: 'talk_to_npc', description: "Talk to the town clerk about the missing writer", target: 'clerk', required: 1, current: 0, completed: false },
+        { type: 'collect_clue', description: "Learn the writer's name", target: 'writer_name', required: 1, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'all_objectives_complete', description: 'Read the notice and speak with the clerk' },
+      tags: ['reading', 'conversation', 'main-quest', 'narrative'],
+    },
+    {
+      title: "The Writer's Home",
+      description: "Visit the missing writer's residence on the edge of town. Search the house for their journal and read the first clue about where they may have gone.",
+      questType: 'exploration',
+      difficulty: 'beginner',
+      targetLanguage: '',
+      status: 'pending',
+      experienceReward: 100,
+      objectives: [
+        { type: 'visit_location', description: "Visit the writer's residence", target: 'writer_home', required: 1, current: 0, completed: false },
+        { type: 'collect_item', description: "Collect the writer's journal", target: 'writer_journal', required: 1, current: 0, completed: false },
+        { type: 'read_document', description: 'Read the first journal entry for a clue', target: 'journal_clue_1', required: 1, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'all_objectives_complete', description: "Find and read the writer's journal" },
+      tags: ['exploration', 'item-collection', 'reading', 'main-quest', 'narrative'],
+    },
+    {
+      title: 'Following the Trail',
+      description: 'The journal mentions three people who knew the writer well. Seek them out and hear their testimonies to piece together what happened.',
+      questType: 'conversation',
+      difficulty: 'intermediate',
+      targetLanguage: '',
+      status: 'pending',
+      experienceReward: 150,
+      objectives: [
+        { type: 'talk_to_npc', description: "Talk to the writer's neighbor about their last days", target: 'witness_neighbor', required: 1, current: 0, completed: false },
+        { type: 'talk_to_npc', description: "Talk to the writer's colleague at the library", target: 'witness_colleague', required: 1, current: 0, completed: false },
+        { type: 'talk_to_npc', description: "Talk to the writer's friend at the café", target: 'witness_friend', required: 1, current: 0, completed: false },
+        { type: 'collect_clue', description: 'Collect 3 witness testimonies', target: 'testimony', required: 3, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'all_objectives_complete', description: 'Gather all three witness testimonies' },
+      tags: ['conversation', 'social', 'main-quest', 'narrative'],
+    },
+    {
+      title: 'The Hidden Writings',
+      description: "The witnesses mention books the writer left around town. Find three of the writer's books scattered across the settlement and read them for embedded clues.",
+      questType: 'collection',
+      difficulty: 'intermediate',
+      targetLanguage: '',
+      status: 'pending',
+      experienceReward: 150,
+      objectives: [
+        { type: 'collect_item', description: "Find the writer's book at the library", target: 'writer_book_1', required: 1, current: 0, completed: false },
+        { type: 'collect_item', description: "Find the writer's book at the school", target: 'writer_book_2', required: 1, current: 0, completed: false },
+        { type: 'collect_item', description: "Find the writer's book at the park bench", target: 'writer_book_3', required: 1, current: 0, completed: false },
+        { type: 'read_document', description: 'Read all three books for hidden clues', target: 'book_clues', required: 3, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'all_objectives_complete', description: "Find and read all three of the writer's books" },
+      tags: ['item-collection', 'reading', 'exploration', 'main-quest', 'narrative'],
+    },
+    {
+      title: 'The Secret Location',
+      description: "The clues from the books point to a hidden spot the writer loved. Follow the trail to discover the writer's secret retreat and investigate the scene.",
+      questType: 'exploration',
+      difficulty: 'intermediate',
+      targetLanguage: '',
+      status: 'pending',
+      experienceReward: 175,
+      objectives: [
+        { type: 'visit_location', description: "Follow clues to the writer's secret spot", target: 'secret_location', required: 1, current: 0, completed: false },
+        { type: 'photograph', description: 'Photograph the scene at the secret location', target: 'secret_scene', required: 1, current: 0, completed: false },
+        { type: 'collect_item', description: "Collect the writer's final manuscript", target: 'final_manuscript', required: 1, current: 0, completed: false },
+        { type: 'read_document', description: 'Read the final manuscript', target: 'manuscript_content', required: 1, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'all_objectives_complete', description: 'Investigate the secret location thoroughly' },
+      tags: ['exploration', 'photography', 'reading', 'main-quest', 'narrative'],
+    },
+    {
+      title: 'The Final Chapter',
+      description: "You now know the truth. Confront the reality of the writer's disappearance through a conversation challenge — explain what you've discovered to the town, using everything you've learned.",
+      questType: 'conversation',
+      difficulty: 'advanced',
+      targetLanguage: '',
+      status: 'pending',
+      experienceReward: 200,
+      objectives: [
+        { type: 'complete_conversation', description: 'Present your findings to the town gathering', target: 'town_gathering', required: 1, current: 0, completed: false },
+        { type: 'use_vocabulary', description: 'Use investigation vocabulary to explain the mystery', target: 'investigation', required: 8, current: 0, completed: false },
+        { type: 'complete_conversation', description: "Deliver the writer's final message to the community", target: 'final_message', required: 1, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'conversation_turns', requiredTurns: 8, description: 'Complete the town gathering conversation challenge' },
+      tags: ['conversation', 'vocabulary', 'main-quest', 'narrative', 'climax'],
+    },
+    {
+      title: 'Departure Assessment',
+      description: "Your time in the settlement draws to a close. Complete your final language assessment to measure how far you've come since your arrival.",
+      questType: 'assessment',
+      difficulty: 'intermediate',
+      targetLanguage: '',
+      status: 'pending',
+      experienceReward: 500,
+      objectives: [
+        { type: 'complete_assessment', description: 'Complete the departure language assessment', target: 'departure_assessment', required: 1, current: 0, completed: false },
+      ],
+      completionCriteria: { type: 'assessment_complete', description: 'Complete all departure assessment phases' },
+      tags: ['assessment', 'departure', 'main-quest', 'narrative'],
+    },
+  ],
+};
+
 /** All available quest chain templates */
 export const questChainTemplates: Record<string, QuestChainTemplate> = {
   'first-words': firstWords,
   'market-day': marketDay,
   'town-explorer': townExplorer,
+  'missing-writer-mystery': missingWriterMystery,
 };
 
 /**

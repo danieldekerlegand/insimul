@@ -1600,6 +1600,15 @@ app.get("/api/rules", async (req, res) => {
       // Note: 3D assets are now managed through asset collections
       // Users can populate collections via the Polyhaven browser UI
       
+      // Seed the main quest chain (missing writer mystery) for new worlds
+      try {
+        const { seedMainQuestChain } = await import('./services/main-quest-chain-seeder.js');
+        await seedMainQuestChain(world.id, world.targetLanguage || '');
+      } catch (seedError) {
+        console.warn('[World Create] Failed to seed main quest chain:', seedError);
+        // Non-fatal: world is still usable without the quest chain
+      }
+
       // Fetch the updated world with collection assignment
       const updatedWorld = await storage.getWorld(world.id);
       res.status(201).json(updatedWorld || world);

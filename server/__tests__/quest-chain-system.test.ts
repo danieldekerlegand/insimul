@@ -12,11 +12,12 @@ import {
 // ── Template Tests ────────────────────────────────────────────────────────────
 
 describe('Quest Chain Templates', () => {
-  it('has three starter templates', () => {
+  it('has four templates including main quest', () => {
     const ids = Object.keys(questChainTemplates);
     expect(ids).toContain('first-words');
     expect(ids).toContain('market-day');
     expect(ids).toContain('town-explorer');
+    expect(ids).toContain('missing-writer-mystery');
   });
 
   it('first-words has 5 quests progressing in difficulty', () => {
@@ -44,6 +45,95 @@ describe('Quest Chain Templates', () => {
     const t = questChainTemplates['town-explorer'];
     expect(t.quests).toHaveLength(4);
     expect(t.name).toBe('Town Explorer');
+  });
+
+  it('missing-writer-mystery has 8 quests forming the main narrative arc', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    expect(t.quests).toHaveLength(8);
+    expect(t.name).toBe('The Missing Writer');
+    expect(t.isLinear).toBe(true);
+    expect(t.bonusXP).toBe(500);
+    expect(t.achievement).toBe('Mystery Solved');
+    expect(t.category).toBe('narrative');
+  });
+
+  it('missing-writer-mystery quests follow the correct order', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    const titles = t.quests.map(q => q.title);
+    expect(titles).toEqual([
+      'Arrival Assessment',
+      'The Notice Board',
+      "The Writer's Home",
+      'Following the Trail',
+      'The Hidden Writings',
+      'The Secret Location',
+      'The Final Chapter',
+      'Departure Assessment',
+    ]);
+  });
+
+  it('missing-writer-mystery first quest is active, rest pending', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    expect(t.quests[0].status).toBe('active');
+    for (let i = 1; i < t.quests.length; i++) {
+      expect(t.quests[i].status).toBe('pending');
+    }
+  });
+
+  it('missing-writer-mystery quests use diverse action types', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    const questTypes = new Set(t.quests.map(q => q.questType));
+    expect(questTypes.size).toBeGreaterThanOrEqual(4);
+    expect(questTypes).toContain('assessment');
+    expect(questTypes).toContain('exploration');
+    expect(questTypes).toContain('conversation');
+    expect(questTypes).toContain('collection');
+  });
+
+  it('missing-writer-mystery quests use diverse objective types', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    const objectiveTypes = new Set<string>();
+    for (const quest of t.quests) {
+      for (const obj of quest.objectives) {
+        objectiveTypes.add(obj.type as string);
+      }
+    }
+    // Should include reading, conversation, exploration, photography, item collection
+    expect(objectiveTypes).toContain('read_document');
+    expect(objectiveTypes).toContain('talk_to_npc');
+    expect(objectiveTypes).toContain('visit_location');
+    expect(objectiveTypes).toContain('photograph');
+    expect(objectiveTypes).toContain('collect_item');
+  });
+
+  it('missing-writer-mystery all quests are tagged main-quest', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    for (const quest of t.quests) {
+      expect(quest.tags).toContain('main-quest');
+      expect(quest.tags).toContain('narrative');
+    }
+  });
+
+  it('missing-writer-mystery assessment quests bookend the chain', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    expect(t.quests[0].questType).toBe('assessment');
+    expect(t.quests[0].tags).toContain('arrival');
+    expect(t.quests[7].questType).toBe('assessment');
+    expect(t.quests[7].tags).toContain('departure');
+  });
+
+  it('missing-writer-mystery difficulty progresses naturally', () => {
+    const t = questChainTemplates['missing-writer-mystery'];
+    const difficultyOrder = ['beginner', 'intermediate', 'advanced'];
+    let maxDifficulty = 0;
+    for (const quest of t.quests) {
+      const idx = difficultyOrder.indexOf(quest.difficulty);
+      expect(idx).toBeGreaterThanOrEqual(0);
+      expect(idx).toBeGreaterThanOrEqual(maxDifficulty - 1); // Allow same or higher
+      maxDifficulty = Math.max(maxDifficulty, idx);
+    }
+    // Should reach at least intermediate
+    expect(maxDifficulty).toBeGreaterThanOrEqual(1);
   });
 
   it('all templates have valid quest data', () => {
@@ -101,7 +191,7 @@ describe('getChainTemplate', () => {
 describe('listChainTemplates', () => {
   it('returns summary for all templates', () => {
     const list = listChainTemplates();
-    expect(list).toHaveLength(3);
+    expect(list).toHaveLength(4);
 
     for (const item of list) {
       expect(item.id).toBeTruthy();
