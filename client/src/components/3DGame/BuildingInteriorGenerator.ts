@@ -105,6 +105,9 @@ export interface FurnitureSpec {
   rotationY?: number;
 }
 
+/** Wealth tier for residence furnishing */
+export type WealthTier = 'poor' | 'middle' | 'wealthy';
+
 /** Furniture types that are interactive containers */
 const CONTAINER_TYPES = new Set(['chest', 'barrel', 'crate']);
 
@@ -298,6 +301,7 @@ export class BuildingInteriorGenerator {
     businessType?: string,
     overworldDoorPos?: Vector3,
     residentCount?: number,
+    wealthTier?: WealthTier,
   ): InteriorLayout {
     // Return cached interior if already generated
     const existing = this.interiors.get(buildingId);
@@ -361,7 +365,7 @@ export class BuildingInteriorGenerator {
 
     // Generate furniture for each room zone
     const beds: BedAssignment[] = [];
-    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate, residentCount, beds);
+    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate, residentCount, beds, wealthTier);
     furniture.push(...roomFurniture);
 
     // Generate floating room labels above doorways
@@ -2054,6 +2058,7 @@ export class BuildingInteriorGenerator {
     layoutTemplate?: FurnitureLayoutTemplate,
     residentCount?: number,
     beds?: BedAssignment[],
+    wealthTier?: WealthTier,
   ): Mesh[] {
     const allFurniture: Mesh[] = [];
     const prefix = `interior_${buildingId}`;
@@ -2064,6 +2069,10 @@ export class BuildingInteriorGenerator {
     // Count total bedrooms for distributing residents across rooms
     const bedroomRooms = rooms.filter(r => r.function === 'bedroom');
 
+    // Determine if this is a residential building for wealth-aware furnishing
+    const isResidential = this.isResidentialBuilding(buildingType, businessType);
+    const tier = wealthTier ?? 'middle';
+
     for (const room of rooms) {
       let specs: FurnitureSpec[];
       if (room.function === 'bedroom') {
@@ -2071,7 +2080,17 @@ export class BuildingInteriorGenerator {
         const residentsForRoom = residentCount && bedroomRooms.length > 0
           ? Math.max(1, Math.ceil((residentCount ?? 1) / bedroomRooms.length))
           : 1;
-        specs = this.getBedroomFurnitureScaled(room.width, room.depth, residentsForRoom);
+        specs = isResidential
+          ? this.getResidenceBedroomFurniture(room.width, room.depth, residentsForRoom, tier)
+          : this.getBedroomFurnitureScaled(room.width, room.depth, residentsForRoom);
+      } else if (isResidential && room.function === 'living') {
+        specs = this.getResidenceLivingFurniture(room.width, room.depth, residentCount ?? 1, tier, buildingType);
+      } else if (isResidential && room.function === 'kitchen') {
+        specs = this.getResidenceKitchenFurniture(room.width, room.depth, residentCount ?? 1, tier);
+      } else if (isResidential && room.function === 'dining') {
+        specs = this.getResidenceDiningFurniture(room.width, room.depth, residentCount ?? 1, tier);
+      } else if (isResidential && room.function === 'entry_hall') {
+        specs = this.getResidenceEntryHallFurniture(room.width, room.depth, tier);
       } else {
         specs = furnitureTemplate
           ? this.getFurnitureFromTemplate(furnitureTemplate, room)
@@ -3313,6 +3332,384 @@ export class BuildingInteriorGenerator {
       type: 'wardrobe', offsetX: w / 4, offsetZ: -d / 2 + 1,
       width: 0.8, height: 2.2, depth: 1.0, color: wood,
     });
+
+    return specs;
+  }
+
+  /**
+   * Check whether a building type is residential.
+   */
+  private isResidentialBuilding(buildingType: string, businessType?: string): boolean {
+    const bt = (businessType || buildingType || '').toLowerCase();
+    return bt.includes('residence') || bt.includes('house') || bt.includes('home')
+      || bt.includes('mansion') || bt.includes('cottage') || bt.includes('townhouse');
+  }
+
+  /**
+   * Residence bedroom furniture adjusted by wealth tier and resident count.
+   * All tiers get: at least 1 bed, 1 wardrobe/chest storage.
+   * Middle adds: rug.
+   * Wealthy adds: larger beds, multiple wardrobes, decorative items, desk.
+   */
+  private getResidenceBedroomFurniture(w: number, d: number, residentCount: number, tier: WealthTier): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+    const bedColor = tier === 'wealthy'
+      ? new Color3(0.6, 0.35, 0.2)
+      : tier === 'poor'
+        ? new Color3(0.4, 0.35, 0.3)
+        : new Color3(0.55, 0.4, 0.3);
+
+    const roomArea = w * d;
+    const maxBeds = Math.max(1, Math.floor(roomArea / 8));
+    const bedCount = Math.max(1, Math.min(residentCount, maxBeds));
+
+    const bedWidth = tier === 'wealthy'
+      ? (bedCount > 1 ? 1.5 : 2.2)
+      : tier === 'poor'
+        ? (bedCount > 1 ? 1.0 : 1.4)
+        : (bedCount > 1 ? 1.2 : 1.8);
+    const bedDepth = 2.2;
+    const bedHeight = tier === 'wealthy' ? 0.7 : 0.6;
+    const wallClearance = 0.5;
+
+    const availableWidth = w - wallClearance * 2;
+    const spacing = availableWidth / bedCount;
+
+    for (let i = 0; i < bedCount; i++) {
+      const bedX = -availableWidth / 2 + spacing * (i + 0.5);
+      specs.push({
+        type: bedCount > 1 ? 'bed_single' : (tier === 'wealthy' ? 'bed_double' : 'bed'),
+        offsetX: bedX,
+        offsetZ: d / 2 - bedDepth / 2 - wallClearance,
+        width: bedWidth, height: bedHeight, depth: bedDepth, color: bedColor,
+      });
+
+      const nightstandZ = d / 2 - bedDepth - wallClearance - FURNITURE_CLEARANCE - 0.5;
+      if (nightstandZ > -d / 2 + 1) {
+        specs.push({
+          type: 'table', offsetX: bedX, offsetZ: nightstandZ,
+          width: 0.5, height: 0.6, depth: 0.5, color: wood,
+        });
+      }
+    }
+
+    // Storage: poor gets chest, middle+ gets wardrobe — centered at front wall
+    // (center X avoids overlap with beds spread along back wall)
+    if (tier === 'poor') {
+      specs.push({
+        type: 'chest', offsetX: 0, offsetZ: -d / 2 + 1,
+        width: 1.0, height: 0.6, depth: 0.7, color: wood,
+      });
+    } else {
+      specs.push({
+        type: 'wardrobe', offsetX: 0, offsetZ: -d / 2 + 1,
+        width: 0.8, height: 2.2, depth: 1.0, color: wood,
+      });
+    }
+
+    // Middle+: rug
+    if (tier === 'middle' || tier === 'wealthy') {
+      specs.push({
+        type: 'rug', offsetX: 0, offsetZ: 0,
+        width: w * 0.3, height: 0.02, depth: d * 0.2, color: new Color3(0.6, 0.3, 0.25),
+      });
+    }
+
+    // Wealthy: second wardrobe on opposite side, desk, decoration
+    if (tier === 'wealthy') {
+      specs.push({
+        type: 'wardrobe', offsetX: -w * 0.35, offsetZ: -d / 2 + 1,
+        width: 0.8, height: 2.2, depth: 1.0, color: wood,
+      });
+      specs.push({
+        type: 'desk', offsetX: w * 0.35, offsetZ: -d / 2 + 1.5,
+        width: 1.5, height: 0.8, depth: 0.8, color: new Color3(0.5, 0.3, 0.2),
+      });
+      specs.push({
+        type: 'decoration', offsetX: w / 2 - 0.5, offsetZ: d * 0.25,
+        width: 0.3, height: 1.2, depth: 0.3, color: new Color3(0.85, 0.75, 0.4),
+      });
+    }
+
+    return specs;
+  }
+
+  /**
+   * Residence living room furniture adjusted by wealth tier and family size.
+   * All tiers: table + chairs (count matches residents), bench/sofa.
+   * Cottages/houses: fireplace mesh (box + point light representation).
+   * Middle adds: bookshelf, rug.
+   * Wealthy adds: multiple bookshelves, decorative items, curtains.
+   */
+  private getResidenceLivingFurniture(
+    w: number, d: number, residentCount: number, tier: WealthTier, buildingType: string,
+  ): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = tier === 'wealthy'
+      ? new Color3(0.5, 0.3, 0.2)
+      : new Color3(0.45, 0.35, 0.25);
+    const bt = buildingType.toLowerCase();
+
+    // Storage placed FIRST for overlap priority — bookshelf on left wall for middle+, chest for poor
+    if (tier === 'poor') {
+      specs.push({
+        type: 'chest', offsetX: w / 2 - 0.8, offsetZ: d / 2 - 0.8,
+        width: 1.0, height: 0.6, depth: 0.7, color: wood,
+      });
+    } else {
+      specs.push({
+        type: 'bookshelf', offsetX: -w / 2 + 0.5, offsetZ: d * 0.1,
+        width: 0.6, height: 2.2, depth: 1.5, color: new Color3(0.35, 0.25, 0.15),
+      });
+    }
+
+    // Bench/sofa along back wall center
+    specs.push({
+      type: 'bench', offsetX: 0, offsetZ: d / 2 - 1,
+      width: tier === 'wealthy' ? w * 0.5 : w * 0.35, height: 0.7, depth: 1.0,
+      color: tier === 'wealthy' ? new Color3(0.6, 0.2, 0.15) : new Color3(0.5, 0.35, 0.25),
+    });
+
+    // Table in center
+    specs.push({
+      type: 'table', offsetX: 0, offsetZ: 0,
+      width: 1.5, height: tier === 'wealthy' ? 0.9 : 0.5, depth: 1.0, color: wood,
+    });
+
+    // Chairs flanking the table — w*0.3 spacing avoids overlap with 1.5m clearance
+    const chairCount = Math.max(2, residentCount);
+    specs.push({
+      type: 'chair', offsetX: -w * 0.3, offsetZ: 0,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood,
+    });
+    specs.push({
+      type: 'chair', offsetX: w * 0.3, offsetZ: 0,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood,
+    });
+    // Additional chairs for larger families — stagger in Z
+    for (let i = 2; i < chairCount; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const row = Math.floor((i - 2) / 2);
+      const cx = side * w * 0.35;
+      const cz = -d * 0.25 - row * (d * 0.15);
+      if (Math.abs(cz) < d / 2 - 0.5) {
+        specs.push({
+          type: 'chair', offsetX: cx, offsetZ: cz,
+          width: 0.5, height: 0.9, depth: 0.5, color: wood,
+        });
+      }
+    }
+
+    // Fireplace for cottages and houses — right side of back wall
+    if (bt.includes('cottage') || bt.includes('house') || bt === 'residence' || bt === 'residence_medium') {
+      specs.push({
+        type: 'fireplace', offsetX: w / 2 - 1.0, offsetZ: d / 2 - 0.8,
+        width: 1.5, height: 1.2, depth: 1.0, color: new Color3(0.4, 0.25, 0.15),
+      });
+    }
+
+    // Middle+: rug (ground plane decal) — may be filtered by overlap
+    if (tier === 'middle' || tier === 'wealthy') {
+      specs.push({
+        type: 'rug', offsetX: 0, offsetZ: -d * 0.2,
+        width: w * 0.3, height: 0.02, depth: d * 0.2, color: new Color3(0.7, 0.5, 0.35),
+      });
+    }
+
+    // Wealthy: second bookshelf, decoration, curtains
+    if (tier === 'wealthy') {
+      specs.push({
+        type: 'bookshelf', offsetX: w / 2 - 0.5, offsetZ: -d * 0.2,
+        width: 0.6, height: 2.5, depth: 1.5, color: new Color3(0.35, 0.25, 0.15),
+      });
+      specs.push({
+        type: 'decoration', offsetX: -w * 0.35, offsetZ: d / 2 - 0.5,
+        width: 0.3, height: 1.5, depth: 0.3, color: new Color3(0.85, 0.75, 0.4),
+      });
+      specs.push({
+        type: 'curtain', offsetX: -w / 2 + 0.1, offsetZ: -d * 0.3,
+        width: 0.05, height: 2.0, depth: 1.5, color: new Color3(0.7, 0.25, 0.2),
+      });
+      specs.push({
+        type: 'curtain', offsetX: w / 2 - 0.1, offsetZ: -d * 0.3,
+        width: 0.05, height: 2.0, depth: 1.5, color: new Color3(0.7, 0.25, 0.2),
+      });
+    }
+
+    return specs;
+  }
+
+  /**
+   * Residence kitchen furniture adjusted by wealth tier and family size.
+   * All kitchens: counter, at least 1 barrel/crate for food storage.
+   * Family size affects chair count.
+   */
+  private getResidenceKitchenFurniture(w: number, d: number, residentCount: number, tier: WealthTier): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+
+    // Counter along back wall RIGHT side (placed first — required)
+    specs.push({
+      type: 'counter', offsetX: w * 0.3, offsetZ: d / 2 - 0.8,
+      width: tier === 'wealthy' ? w * 0.25 : w * 0.2, height: 1.0, depth: 0.8, color: wood,
+    });
+
+    // Food storage: barrel in front-right corner (placed early — required)
+    specs.push({
+      type: 'barrel', offsetX: w / 2 - 0.8, offsetZ: -d * 0.35,
+      width: 0.7, height: 1.0, depth: 0.7, color: new Color3(0.3, 0.25, 0.18),
+    });
+
+    // Stove/hearth against back wall LEFT side
+    specs.push({
+      type: 'forge', offsetX: -w * 0.3, offsetZ: d / 2 - 1,
+      width: 1.5, height: 1.0, depth: 1.0, color: new Color3(0.5, 0.2, 0.1),
+    });
+
+    // Kitchen table in center area
+    specs.push({
+      type: 'table', offsetX: 0, offsetZ: -d * 0.15,
+      width: 2.0, height: 0.85, depth: 1.2, color: wood,
+    });
+
+    // Chairs — width-relative spacing
+    specs.push({
+      type: 'chair', offsetX: -w * 0.2, offsetZ: -d * 0.15,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood,
+    });
+    specs.push({
+      type: 'chair', offsetX: w * 0.2, offsetZ: -d * 0.15,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood,
+    });
+
+    // Shelf on left wall
+    if (tier !== 'poor') {
+      specs.push({
+        type: 'shelf', offsetX: -w / 2 + 0.5, offsetZ: 0,
+        width: 0.5, height: 2.0, depth: d * 0.4, color: wood,
+      });
+    }
+
+    // Wealthy: extra crate + extra shelf
+    if (tier === 'wealthy') {
+      specs.push({
+        type: 'crate', offsetX: -w / 2 + 0.8, offsetZ: -d * 0.35,
+        width: 0.8, height: 0.8, depth: 0.8, color: new Color3(0.35, 0.28, 0.18),
+      });
+      specs.push({
+        type: 'shelf', offsetX: w / 2 - 0.5, offsetZ: 0,
+        width: 0.5, height: 2.0, depth: d * 0.3, color: wood,
+      });
+    }
+
+    return specs;
+  }
+
+  /**
+   * Residence dining room furniture adjusted by wealth and family size.
+   */
+  private getResidenceDiningFurniture(w: number, d: number, residentCount: number, tier: WealthTier): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = tier === 'wealthy'
+      ? new Color3(0.5, 0.3, 0.2)
+      : new Color3(0.45, 0.35, 0.25);
+
+    // Dining table
+    const tableCount = tier === 'wealthy' && w >= 12 ? 2 : 1;
+    for (let t = 0; t < tableCount; t++) {
+      const tx = tableCount > 1 ? (-w * 0.2 + t * w * 0.4) : 0;
+      specs.push({
+        type: 'table', offsetX: tx, offsetZ: 0,
+        width: tier === 'wealthy' ? 3.0 : 2.5, height: 0.85, depth: 1.2, color: wood,
+      });
+      // Chairs around table — width-relative spacing
+      const seatsPerTable = Math.max(4, Math.ceil(residentCount / tableCount));
+      const perSide = Math.ceil(seatsPerTable / 2);
+      for (let i = 0; i < perSide; i++) {
+        const cx = tx + (i - (perSide - 1) / 2) * (w * 0.15);
+        if (Math.abs(cx) < w / 2 - 0.5) {
+          specs.push({
+            type: 'chair', offsetX: cx, offsetZ: -d * 0.3,
+            width: 0.5, height: 0.9, depth: 0.5, color: wood,
+          });
+          specs.push({
+            type: 'chair', offsetX: cx, offsetZ: d * 0.3,
+            width: 0.5, height: 0.9, depth: 0.5, color: wood,
+          });
+        }
+      }
+    }
+
+    // Sideboard/buffet on right wall (avoid partition doorway on left wall)
+    specs.push({
+      type: 'shelf', offsetX: w / 2 - 0.5, offsetZ: d * 0.2,
+      width: 0.6, height: 1.2, depth: d * 0.3, color: wood,
+    });
+
+    // Middle+: rug
+    if (tier === 'middle' || tier === 'wealthy') {
+      specs.push({
+        type: 'rug', offsetX: 0, offsetZ: 0,
+        width: w * 0.4, height: 0.02, depth: d * 0.4,
+        color: tier === 'wealthy' ? new Color3(0.7, 0.3, 0.2) : new Color3(0.8, 0.75, 0.65),
+      });
+    }
+
+    // Wealthy: decoration, curtain
+    if (tier === 'wealthy') {
+      specs.push({
+        type: 'decoration', offsetX: w / 2 - 0.5, offsetZ: -d * 0.3,
+        width: 0.4, height: 1.0, depth: 0.4, color: new Color3(0.85, 0.75, 0.4),
+      });
+      specs.push({
+        type: 'curtain', offsetX: w / 2 - 0.1, offsetZ: -d * 0.2,
+        width: 0.05, height: 2.0, depth: 1.2, color: new Color3(0.6, 0.15, 0.15),
+      });
+    }
+
+    return specs;
+  }
+
+  /**
+   * Residence entry hall furniture adjusted by wealth tier.
+   */
+  private getResidenceEntryHallFurniture(w: number, d: number, tier: WealthTier): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+
+    // Side table on left wall, well away from doorway
+    specs.push({
+      type: 'table', offsetX: -w * 0.35, offsetZ: d * 0.3,
+      width: 0.8, height: 0.7, depth: 0.6, color: wood,
+    });
+
+    // Wealthy: decoration and bookshelf (placed early for priority)
+    if (tier === 'wealthy') {
+      specs.push({
+        type: 'decoration', offsetX: w * 0.35, offsetZ: d * 0.3,
+        width: 0.5, height: 1.5, depth: 0.5, color: new Color3(0.85, 0.75, 0.4),
+      });
+      specs.push({
+        type: 'bookshelf', offsetX: w * 0.35, offsetZ: -d * 0.25,
+        width: 0.6, height: 2.2, depth: d * 0.2, color: new Color3(0.35, 0.25, 0.15),
+      });
+    }
+
+    // Coat stand — poor/middle on right, wealthy on left (since right has bookshelf)
+    specs.push({
+      type: 'stand', offsetX: tier === 'wealthy' ? -w * 0.15 : w * 0.35, offsetZ: d * 0.3,
+      width: 0.4, height: 1.8, depth: 0.4, color: wood,
+    });
+
+    // Middle+: entry rug
+    if (tier === 'middle' || tier === 'wealthy') {
+      specs.push({
+        type: 'rug', offsetX: 0, offsetZ: -d * 0.1,
+        width: w * 0.3, height: 0.02, depth: d * 0.3,
+        color: tier === 'wealthy' ? new Color3(0.7, 0.2, 0.15) : new Color3(0.6, 0.15, 0.15),
+      });
+    }
 
     return specs;
   }
