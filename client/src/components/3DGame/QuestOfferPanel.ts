@@ -12,7 +12,6 @@ import {
   Button,
   Control,
   Rectangle,
-  ScrollViewer,
   StackPanel,
   TextBlock,
   TextWrapping,
@@ -99,23 +98,16 @@ export class QuestOfferPanel {
   }
 
   private buildUI(offer: QuestOfferData): void {
-    // Scrollable content area
-    const scroll = new ScrollViewer('quest_offer_scroll');
-    scroll.width = '100%';
-    scroll.height = '100%';
-    scroll.barSize = 8;
-    scroll.barColor = '#FFD700';
-    scroll.thickness = 0;
-    this.panel.addControl(scroll);
-
     const stack = new StackPanel('quest_offer_stack');
     stack.width = '100%';
     stack.isVertical = true;
-    stack.paddingTop = '14px';
-    stack.paddingBottom = '14px';
+    stack.adaptHeight = true;
+    stack.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    stack.paddingTop = '20px';
+    stack.paddingBottom = '20px';
     stack.paddingLeft = '18px';
     stack.paddingRight = '18px';
-    scroll.addControl(stack);
+    this.panel.addControl(stack);
 
     // NPC name header
     const npcLabel = new TextBlock('qo_npc');
@@ -148,7 +140,7 @@ export class QuestOfferPanel {
     stack.addControl(metaRow);
 
     // Separator
-    stack.addControl(this.makeSeparator());
+    stack.addControl(this.makeSeparator('24px'));
 
     // Description
     const desc = new TextBlock('qo_desc');
@@ -158,8 +150,7 @@ export class QuestOfferPanel {
     desc.textWrapping = TextWrapping.WordWrap;
     desc.resizeToFit = true;
     desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    desc.paddingTop = '6px';
-    desc.paddingBottom = '6px';
+    desc.paddingBottom = '24px';
     stack.addControl(desc);
 
     // Objectives header
@@ -180,7 +171,7 @@ export class QuestOfferPanel {
       objText.textWrapping = TextWrapping.WordWrap;
       objText.resizeToFit = true;
       objText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      objText.paddingBottom = '6px';
+      objText.paddingBottom = '24px';
       stack.addControl(objText);
     }
 
@@ -202,24 +193,24 @@ export class QuestOfferPanel {
       rwdText.textWrapping = TextWrapping.WordWrap;
       rwdText.resizeToFit = true;
       rwdText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      rwdText.paddingBottom = '6px';
+      rwdText.paddingBottom = '24px';
       stack.addControl(rwdText);
     }
 
     // Separator before buttons
-    stack.addControl(this.makeSeparator());
+    stack.addControl(this.makeSeparator('24px'));
 
     // Button row
     const btnRow = new StackPanel('qo_btn_row');
     btnRow.isVertical = false;
     btnRow.height = '44px';
-    btnRow.width = '100%';
-    btnRow.paddingTop = '8px';
+    btnRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    btnRow.adaptWidth = true;
     stack.addControl(btnRow);
 
     // Decline button
     const declineBtn = Button.CreateSimpleButton('qo_decline', 'Decline');
-    declineBtn.width = '45%';
+    declineBtn.width = '140px';
     declineBtn.height = '36px';
     declineBtn.color = '#FFFFFF';
     declineBtn.background = 'rgba(180, 60, 60, 0.8)';
@@ -228,7 +219,7 @@ export class QuestOfferPanel {
     declineBtn.fontWeight = 'bold';
     declineBtn.thickness = 1;
     declineBtn.hoverCursor = 'pointer';
-    declineBtn.paddingRight = '6px';
+    declineBtn.paddingRight = '12px';
     declineBtn.onPointerClickObservable.addOnce(() => {
       this.onResult?.('declined', offer);
       this.hide();
@@ -237,7 +228,7 @@ export class QuestOfferPanel {
 
     // Accept button
     const acceptBtn = Button.CreateSimpleButton('qo_accept', 'Accept Quest');
-    acceptBtn.width = '45%';
+    acceptBtn.width = '140px';
     acceptBtn.height = '36px';
     acceptBtn.color = '#000000';
     acceptBtn.background = 'rgba(255, 215, 0, 0.9)';
@@ -246,7 +237,7 @@ export class QuestOfferPanel {
     acceptBtn.fontWeight = 'bold';
     acceptBtn.thickness = 1;
     acceptBtn.hoverCursor = 'pointer';
-    acceptBtn.paddingLeft = '6px';
+    acceptBtn.paddingLeft = '12px';
     acceptBtn.onPointerClickObservable.addOnce(() => {
       this.onResult?.('accepted', offer);
       this.hide();
@@ -254,14 +245,14 @@ export class QuestOfferPanel {
     btnRow.addControl(acceptBtn);
   }
 
-  private makeSeparator(): Rectangle {
+  private makeSeparator(verticalMargin = '4px'): Rectangle {
     const sep = new Rectangle();
     sep.width = '100%';
     sep.height = '1px';
     sep.background = 'rgba(255, 215, 0, 0.3)';
     sep.thickness = 0;
-    sep.paddingTop = '4px';
-    sep.paddingBottom = '4px';
+    sep.paddingTop = verticalMargin;
+    sep.paddingBottom = verticalMargin;
     return sep;
   }
 

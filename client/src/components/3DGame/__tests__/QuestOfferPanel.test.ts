@@ -62,6 +62,8 @@ vi.mock('@babylonjs/gui', () => {
 
   class MockStackPanel extends MockControl {
     isVertical = true;
+    adaptHeight = false;
+    adaptWidth = false;
     spacing = 0;
     paddingTop: any = '';
     paddingBottom: any = '';
@@ -200,5 +202,93 @@ describe('QuestOfferPanel', () => {
     panel.show(makeOffer());
     panel.dispose();
     expect(panel.isVisible()).toBe(false);
+  });
+
+  describe('layout polish', () => {
+    function getPanelRect(p: QuestOfferPanel): any {
+      // panel is the second control added to the gui (after backdrop)
+      return (p as any).panel;
+    }
+
+    function getContentStack(p: QuestOfferPanel): any {
+      const rect = getPanelRect(p);
+      // After show(), the stack is added directly to the panel (no ScrollViewer)
+      return rect.children[0];
+    }
+
+    it('content stack uses adaptHeight for snug fit', () => {
+      panel.show(makeOffer());
+      const stack = getContentStack(panel);
+      expect(stack.adaptHeight).toBe(true);
+    });
+
+    it('content stack is vertically centered in the panel', () => {
+      panel.show(makeOffer());
+      const stack = getContentStack(panel);
+      // Control.VERTICAL_ALIGNMENT_CENTER = 1
+      expect(stack.verticalAlignment).toBe(1);
+    });
+
+    it('content stack has 20px top and bottom padding', () => {
+      panel.show(makeOffer());
+      const stack = getContentStack(panel);
+      expect(stack.paddingTop).toBe('20px');
+      expect(stack.paddingBottom).toBe('20px');
+    });
+
+    it('quest title is center-aligned', () => {
+      panel.show(makeOffer());
+      const stack = getContentStack(panel);
+      // Title is the second child (after NPC label)
+      const title = stack.children[1];
+      expect(title.text).toBe('Find the Lost Book');
+      expect(title.textHorizontalAlignment).toBe(1); // CENTER
+    });
+
+    it('button row is horizontally centered with adaptWidth', () => {
+      panel.show(makeOffer());
+      const stack = getContentStack(panel);
+      // Button row is the last child of the stack
+      const btnRow = stack.children[stack.children.length - 1];
+      expect(btnRow.horizontalAlignment).toBe(1); // CENTER
+      expect(btnRow.adaptWidth).toBe(true);
+    });
+
+    it('builds UI for short description without errors', () => {
+      panel.show(makeOffer({ questDescription: 'Short.' }));
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('builds UI for medium description without errors', () => {
+      panel.show(makeOffer({
+        questDescription: 'A mysterious merchant has appeared in the town square. He claims to have a rare artifact that could help the community, but he needs someone to retrieve a special ingredient from the forest.',
+      }));
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('builds UI for long multi-paragraph description without errors', () => {
+      const longDesc = [
+        'The ancient library holds many secrets.',
+        'Deep within its halls, a forbidden tome was stolen centuries ago.',
+        'Now strange occurrences plague the town — lights flicker, whispers echo.',
+        'The head librarian believes the tome must be found and returned.',
+        'Your journey will take you through dangerous ruins and forgotten passages.',
+      ].join(' ');
+      panel.show(makeOffer({ questDescription: longDesc }));
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('builds UI without objectives or rewards', () => {
+      panel.show(makeOffer({ objectives: '', rewards: undefined }));
+      expect(panel.isVisible()).toBe(true);
+      const stack = getContentStack(panel);
+      // Should have fewer children when objectives/rewards are omitted
+      const withAll = (() => {
+        panel.hide();
+        panel.show(makeOffer({ rewards: '100 gold' }));
+        return getContentStack(panel).children.length;
+      })();
+      expect(stack.children.length).toBeLessThan(withAll);
+    });
   });
 });
