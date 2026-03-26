@@ -72,16 +72,16 @@ export const ACTION_DEFINITIONS: Record<PhysicalActionType, PhysicalActionDefini
     displayName: 'Fish',
     animationClip: 'Farm_Harvest',
     animationFallback: 'Interact',
-    duration: 8,
-    energyCost: 5,
+    duration: 10,
+    energyCost: 15,
     xpReward: 15,
     itemRewards: [
-      { itemName: 'fish', chance: 0.7, minQuantity: 1, maxQuantity: 2 },
-      { itemName: 'rare_fish', chance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'common_fish', chance: 0.60, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'rare_fish', chance: 0.25, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'legendary_fish', chance: 0.10, minQuantity: 1, maxQuantity: 1 },
     ],
-    requiredTool: 'fishing_rod',
     promptVerb: 'Fish',
-    validLocations: ['water', 'river', 'lake', 'pond', 'dock', 'pier'],
+    validLocations: ['water', 'river', 'lake', 'pond', 'dock', 'pier', 'stream', 'marsh', 'canal'],
   },
 
   mining: {

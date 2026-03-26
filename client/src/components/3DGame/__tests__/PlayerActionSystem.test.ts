@@ -140,7 +140,7 @@ describe('PlayerActionSystem', () => {
       const { system, callbacks } = createSystem({
         hasInventoryItem: vi.fn().mockReturnValue(false),
       });
-      const result = system.startAction(ACTION_DEFINITIONS.fishing); // requires fishing_rod
+      const result = system.startAction(ACTION_DEFINITIONS.mining); // requires pickaxe
       expect(result).toBe(false);
       expect(callbacks.showToast).toHaveBeenCalledWith(
         expect.objectContaining({ title: 'Missing Tool' }),
@@ -149,7 +149,7 @@ describe('PlayerActionSystem', () => {
 
     it('allows actions without required tool if no tool check callback', () => {
       const { system } = createSystem({ hasInventoryItem: undefined });
-      const result = system.startAction(ACTION_DEFINITIONS.fishing);
+      const result = system.startAction(ACTION_DEFINITIONS.mining);
       expect(result).toBe(true);
     });
 

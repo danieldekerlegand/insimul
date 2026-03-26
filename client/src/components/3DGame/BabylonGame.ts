@@ -174,6 +174,7 @@ import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { InteractionPromptSystem } from "@/components/3DGame/InteractionPromptSystem.ts";
 import { FurnitureInteractionManager } from "@/components/3DGame/FurnitureInteractionManager.ts";
 import { PlayerActionSystem } from "@/components/3DGame/PlayerActionSystem.ts";
+import { FishingSystem } from "@/components/3DGame/FishingSystem.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { NPCModularAssembler, deriveBodyType as deriveModularBodyType } from "@/components/3DGame/NPCModularAssembler.ts";
@@ -725,6 +726,7 @@ export class BabylonGame {
   // Furniture interaction manager — chairs, beds, bookshelves, workstations
   private furnitureInteractionManager: FurnitureInteractionManager | null = null;
   private playerActionSystem: PlayerActionSystem | null = null;
+  private fishingSystem: FishingSystem | null = null;
 
   // World Object Action Manager — wires identify/examine/point-and-name/read-sign to world objects
   private worldObjectActionManager: WorldObjectActionManager | null = null;
@@ -1638,6 +1640,32 @@ export class BabylonGame {
       getCurrentBusinessType: () => this.currentBuildingBusinessType ?? null,
     });
     this.playerActionSystem.setEventBus(this.eventBus);
+
+    // Initialize fishing system (vocabulary, skill progression, water hotspot detection)
+    this.fishingSystem = new FishingSystem({
+      showToast: (opts) => this.guiManager?.showToast(opts),
+      addInventoryItem: (itemName, quantity) => {
+        const displayName = itemName.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const item: InventoryItem = {
+          id: `fish_${itemName}_${Date.now()}`,
+          name: displayName,
+          description: 'Caught while fishing',
+          type: 'material',
+          quantity,
+          value: 5,
+          sellValue: 3,
+          weight: 1,
+          category: 'food',
+          tradeable: true,
+        };
+        this.inventory?.addItem(item);
+      },
+      hasInventoryItem: (itemName) => {
+        const items = this.inventory?.getAllItems() ?? [];
+        return items.some((item: InventoryItem) => item.name.toLowerCase().replace(/\s+/g, '_') === itemName.toLowerCase() || item.id.includes(itemName));
+      },
+    });
+    this.fishingSystem.setEventBus(this.eventBus);
 
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
@@ -5412,6 +5440,15 @@ export class BabylonGame {
     }
 
     // Water generation disabled — rivers were overlapping with settlements.
+    // Register any existing water meshes as fishing hotspots
+    if (this.waterRenderer && this.interactionPrompt) {
+      const waterMeshes = this.waterRenderer.getWaterMeshes();
+      for (const wMesh of waterMeshes) {
+        wMesh.isPickable = true;
+        const prompt = PlayerActionSystem.getPromptText('fishing');
+        this.interactionPrompt.registerActionHotspot(wMesh, 'fishing', prompt);
+      }
+    }
 
     // Generate nature elements (trees, rocks, grass, flowers)
 
@@ -14168,6 +14205,8 @@ export class BabylonGame {
     this.roadGenerator?.dispose();
     this.riverGenerator?.dispose();
     this.waterRenderer?.dispose();
+    this.fishingSystem?.dispose();
+    this.fishingSystem = null;
     this.worldScaleManager = null;
   }
 
