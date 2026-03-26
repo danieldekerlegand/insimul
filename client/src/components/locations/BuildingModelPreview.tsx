@@ -15,7 +15,9 @@ import {
   resolveRoomZone,
   getFurnitureSetForRoom,
 } from '@shared/game-engine/interior-templates';
-import { BUILDING_TYPE_DEFAULTS } from '@shared/game-engine/building-defaults';
+import { BUILDING_TYPE_DEFAULTS, getBuildingDefaults } from '@shared/game-engine/building-defaults';
+import { getCategoryForType } from '@shared/game-engine/building-categories';
+import { getCategoryPreset } from '@shared/game-engine/building-style-presets';
 
 interface BuildingModelPreviewProps {
   /** Direct path to the 3D model file */
@@ -326,32 +328,43 @@ function centerAndFrameMeshes(
   ground.scaling = new BABYLON.Vector3(maxDim * 0.8, maxDim * 0.8, 1);
 }
 
-/** Resolve a style preset from the procedural config for preview rendering */
-function resolvePresetForPreview(
+/** Resolve a style preset from the procedural config for preview rendering.
+ *  Falls back to category-based default presets when no config is provided. */
+export function resolvePresetForPreview(
   config?: ProceduralBuildingConfig | null,
   buildingType?: string,
   zone?: 'commercial' | 'residential',
 ): ProceduralStylePreset | null {
-  if (!config || config.stylePresets.length === 0) return null;
+  if (config && config.stylePresets.length > 0) {
+    // Check type-specific override
+    const typeOverride = buildingType ? config.buildingTypeOverrides?.[buildingType] : undefined;
+    if (typeOverride?.stylePresetId) {
+      const preset = config.stylePresets.find(p => p.id === typeOverride.stylePresetId);
+      if (preset) return preset;
+    }
 
-  // Check type-specific override
-  const typeOverride = buildingType ? config.buildingTypeOverrides?.[buildingType] : undefined;
-  if (typeOverride?.stylePresetId) {
-    const preset = config.stylePresets.find(p => p.id === typeOverride.stylePresetId);
-    if (preset) return preset;
+    // Zone default
+    const defaultId = zone === 'commercial'
+      ? config.defaultCommercialStyleId
+      : config.defaultResidentialStyleId;
+    if (defaultId) {
+      const preset = config.stylePresets.find(p => p.id === defaultId);
+      if (preset) return preset;
+    }
+
+    // First from config presets
+    return config.stylePresets[0];
   }
 
-  // Zone default
-  const defaultId = zone === 'commercial'
-    ? config.defaultCommercialStyleId
-    : config.defaultResidentialStyleId;
-  if (defaultId) {
-    const preset = config.stylePresets.find(p => p.id === defaultId);
-    if (preset) return preset;
+  // Fallback: derive a style preset from the building's category
+  if (buildingType) {
+    const category = getCategoryForType(buildingType);
+    if (category) {
+      return getCategoryPreset(category, buildingType) ?? null;
+    }
   }
 
-  // Random from all presets
-  return config.stylePresets[0];
+  return null;
 }
 
 function buildProceduralPlaceholder(
@@ -661,10 +674,42 @@ function buildProceduralPlaceholder(
     chimney.material = chimneyMat;
   }
 
+  // Building type label on the front face when no preset (generic fallback)
+  if (!preset && buildingType) {
+    const labelText = buildingType.replace(/([A-Z])/g, ' $1').trim();
+    const dtWidth = 256;
+    const dtHeight = 64;
+    const dt = new BABYLON.DynamicTexture('labelTex', { width: dtWidth, height: dtHeight }, scene, false);
+    const ctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, dtWidth, dtHeight);
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(labelText, dtWidth / 2, dtHeight / 2);
+    dt.update();
+
+    const labelMat = new BABYLON.StandardMaterial('labelMat', scene);
+    labelMat.diffuseTexture = dt;
+    labelMat.emissiveColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+    labelMat.specularColor = BABYLON.Color3.Black();
+
+    const labelW = Math.min(bw * 0.8, 0.6);
+    const labelH = labelW * (dtHeight / dtWidth);
+    const label = BABYLON.MeshBuilder.CreatePlane('typeLabel', {
+      width: labelW, height: labelH,
+    }, scene);
+    label.position.set(0, bodyHeight * 0.6 + porchElev, bd / 2 + 0.015);
+    label.material = labelMat;
+  }
+
+  // Auto-frame camera based on actual building dimensions
   const roofPeak = roofStyle === 'flat' ? 0.05 : 0.4;
   const totalH = bodyHeight + roofPeak + porchElev;
+  const maxExtent = Math.max(bw, bd, totalH);
   camera.target = new BABYLON.Vector3(0, totalH / 2, 0);
-  camera.radius = Math.max(3, totalH * 2.2);
+  camera.radius = Math.max(2.5, maxExtent * 2.0);
   const groundScale = Math.max(bw, bd) * 1.5;
   ground.scaling = new BABYLON.Vector3(groundScale, groundScale, 1);
 }

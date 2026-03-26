@@ -331,16 +331,110 @@ const residential: ProceduralStylePreset[] = [
   }),
 ];
 
+// ─── Entertainment ──────────────────────────────────────────────────────────
+const entertainment: ProceduralStylePreset[] = [
+  preset('en_ornate_theater', 'Ornate Theater', {
+    baseColors: [c3(0.6, 0.3, 0.2), c3(0.65, 0.32, 0.22), c3(0.55, 0.28, 0.18)],
+    roofColor: c3(0.25, 0.15, 0.1),
+    windowColor: c3(0.95, 0.9, 0.7),
+    doorColor: c3(0.5, 0.25, 0.12),
+    materialType: 'brick',
+    architectureStyle: 'colonial',
+    roofStyle: 'hip',
+    hasBalcony: true,
+  }),
+  preset('en_rustic_inn', 'Rustic Inn', {
+    baseColors: [c3(0.5, 0.38, 0.25), c3(0.55, 0.4, 0.28), c3(0.48, 0.35, 0.22)],
+    roofColor: c3(0.35, 0.25, 0.18),
+    windowColor: c3(0.9, 0.85, 0.65),
+    doorColor: c3(0.45, 0.28, 0.15),
+    materialType: 'wood',
+    architectureStyle: 'rustic',
+    roofStyle: 'gable',
+    hasPorch: true,
+  }),
+  preset('en_creole_tavern', 'Creole Tavern', {
+    baseColors: [c3(0.82, 0.72, 0.5), c3(0.78, 0.68, 0.45), c3(0.85, 0.75, 0.55)],
+    roofColor: c3(0.28, 0.28, 0.32),
+    windowColor: c3(0.88, 0.9, 0.82),
+    doorColor: c3(0.38, 0.22, 0.12),
+    materialType: 'wood',
+    architectureStyle: 'creole',
+    roofStyle: 'hipped_dormers',
+    hasBalcony: true,
+    hasIronworkBalcony: true,
+  }),
+];
+
+// ─── Professional ───────────────────────────────────────────────────────────
+const professional: ProceduralStylePreset[] = [
+  preset('pr_stately_office', 'Stately Office', {
+    baseColors: [c3(0.72, 0.7, 0.65), c3(0.7, 0.68, 0.62), c3(0.74, 0.72, 0.68)],
+    roofColor: c3(0.3, 0.28, 0.25),
+    windowColor: c3(0.75, 0.8, 0.85),
+    doorColor: c3(0.4, 0.3, 0.22),
+    materialType: 'stone',
+    architectureStyle: 'colonial',
+    roofStyle: 'hip',
+  }),
+  preset('pr_wood_practice', 'Wooden Practice', {
+    baseColors: [c3(0.65, 0.55, 0.4), c3(0.62, 0.52, 0.38), c3(0.68, 0.58, 0.42)],
+    roofColor: c3(0.35, 0.25, 0.18),
+    windowColor: c3(0.85, 0.88, 0.9),
+    doorColor: c3(0.45, 0.32, 0.2),
+    materialType: 'wood',
+    architectureStyle: 'colonial',
+    roofStyle: 'gable',
+    hasPorch: true,
+  }),
+  preset('pr_brick_clinic', 'Brick Clinic', {
+    baseColors: [c3(0.6, 0.4, 0.3), c3(0.62, 0.42, 0.32), c3(0.58, 0.38, 0.28)],
+    roofColor: c3(0.3, 0.2, 0.15),
+    windowColor: c3(0.8, 0.85, 0.9),
+    doorColor: c3(0.35, 0.25, 0.18),
+    materialType: 'brick',
+    architectureStyle: 'colonial',
+    roofStyle: 'hip',
+    hasShutters: true,
+    shutterColor: c3(0.2, 0.25, 0.2),
+  }),
+];
+
+// ─── Military ───────────────────────────────────────────────────────────────
+const military: ProceduralStylePreset[] = [
+  preset('mi_stone_barracks', 'Stone Barracks', {
+    baseColors: [c3(0.55, 0.52, 0.48), c3(0.52, 0.5, 0.46), c3(0.58, 0.55, 0.5)],
+    roofColor: c3(0.3, 0.28, 0.25),
+    windowColor: c3(0.6, 0.62, 0.65),
+    doorColor: c3(0.35, 0.3, 0.25),
+    materialType: 'stone',
+    architectureStyle: 'colonial',
+    roofStyle: 'gable',
+  }),
+  preset('mi_brick_fort', 'Brick Fortification', {
+    baseColors: [c3(0.5, 0.35, 0.25), c3(0.52, 0.37, 0.27), c3(0.48, 0.33, 0.23)],
+    roofColor: c3(0.25, 0.2, 0.18),
+    windowColor: c3(0.55, 0.58, 0.6),
+    doorColor: c3(0.3, 0.25, 0.2),
+    materialType: 'brick',
+    architectureStyle: 'colonial',
+    roofStyle: 'flat',
+  }),
+];
+
 /**
  * Default style presets keyed by building category.
- * Each category has 3–5 visually distinct presets.
+ * Each category has 2–5 visually distinct presets.
  */
 export const CATEGORY_STYLE_PRESETS: Record<BuildingCategory, ProceduralStylePreset[]> = {
   commercial_food: commercialFood,
   commercial_retail: commercialRetail,
   commercial_service: commercialService,
   civic,
+  entertainment,
+  professional,
   industrial,
+  military,
   maritime,
   residential,
 };

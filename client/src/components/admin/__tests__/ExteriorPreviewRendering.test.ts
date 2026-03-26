@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import type { ProceduralStylePreset } from '@shared/game-engine/types';
+import type { ProceduralStylePreset, ProceduralBuildingConfig } from '@shared/game-engine/types';
 import type { VisualAsset } from '@shared/schema';
 import { BUILDING_TYPE_DEFAULTS } from '@shared/game-engine/building-defaults';
+import { BUILDING_CATEGORY_GROUPINGS, getCategoryForType } from '@shared/game-engine/building-categories';
+import { getCategoryPreset } from '@shared/game-engine/building-style-presets';
+import { resolvePresetForPreview } from '../../locations/BuildingModelPreview';
 
 /**
  * Tests for exterior preview rendering logic in BuildingConfigurationPanel.
@@ -274,5 +277,125 @@ describe('Exterior preview rendering', () => {
       // Empty array is truthy in JS, so it passes through
       expect(config.stylePresets[0].baseColors).toEqual([]);
     });
+  });
+});
+
+// ─── resolvePresetForPreview fallback tests ─────────────────────────────────
+
+describe('resolvePresetForPreview', () => {
+  const configPreset: ProceduralStylePreset = {
+    id: 'cfg-1',
+    name: 'Config Preset',
+    baseColors: [{ r: 1, g: 0, b: 0 }],
+    roofColor: { r: 0.5, g: 0, b: 0 },
+    windowColor: { r: 0, g: 0, b: 1 },
+    doorColor: { r: 0, g: 1, b: 0 },
+    materialType: 'brick',
+    architectureStyle: 'colonial',
+  };
+
+  it('returns config preset when proceduralConfig has style presets', () => {
+    const config: ProceduralBuildingConfig = {
+      stylePresets: [configPreset],
+    };
+    const result = resolvePresetForPreview(config, 'Bakery', 'commercial');
+    expect(result).toBe(configPreset);
+  });
+
+  it('returns type-specific override when configured', () => {
+    const override: ProceduralStylePreset = {
+      ...configPreset,
+      id: 'override-1',
+      name: 'Override',
+    };
+    const config: ProceduralBuildingConfig = {
+      stylePresets: [configPreset, override],
+      buildingTypeOverrides: {
+        Bakery: { stylePresetId: 'override-1' },
+      },
+    };
+    const result = resolvePresetForPreview(config, 'Bakery');
+    expect(result?.id).toBe('override-1');
+  });
+
+  it('falls back to category preset when no config provided', () => {
+    const result = resolvePresetForPreview(null, 'Bakery');
+    expect(result).not.toBeNull();
+    expect(result?.baseColors.length).toBeGreaterThan(0);
+  });
+
+  it('falls back to category preset when config has empty presets', () => {
+    const config: ProceduralBuildingConfig = { stylePresets: [] };
+    const result = resolvePresetForPreview(config, 'Hotel');
+    expect(result).not.toBeNull();
+  });
+
+  it('returns null when no config and no buildingType', () => {
+    const result = resolvePresetForPreview(null, undefined);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for unknown building type without config', () => {
+    const result = resolvePresetForPreview(null, 'NonExistentBuilding');
+    expect(result).toBeNull();
+  });
+});
+
+// ─── Full building type coverage ────────────────────────────────────────────
+
+describe('All building types have exterior preview coverage', () => {
+  // Collect all known building types from defaults + categories
+  const allBuildingTypes = new Set<string>([
+    ...Object.keys(BUILDING_TYPE_DEFAULTS),
+    ...Object.values(BUILDING_CATEGORY_GROUPINGS).flatMap(types => [...types]),
+  ]);
+
+  it('has at least 54 known building types', () => {
+    expect(allBuildingTypes.size).toBeGreaterThanOrEqual(54);
+  });
+
+  // Every building type in BUILDING_TYPE_DEFAULTS should have a category
+  // or at least get a non-null preset from the fallback chain
+  describe('every building type resolves a preview style', () => {
+    for (const type of allBuildingTypes) {
+      it(`${type} gets a style preset or has building defaults`, () => {
+        const preset = resolvePresetForPreview(null, type);
+        const defaults = BUILDING_TYPE_DEFAULTS[type];
+
+        // Every type should have EITHER a category preset OR building defaults
+        // (or both) to ensure a visible preview
+        const hasPreset = preset !== null;
+        const hasDefaults = defaults !== undefined;
+        expect(hasPreset || hasDefaults).toBe(true);
+      });
+    }
+  });
+
+  describe('every categorized type resolves a category preset', () => {
+    for (const [category, types] of Object.entries(BUILDING_CATEGORY_GROUPINGS)) {
+      for (const type of types) {
+        it(`${type} (${category}) resolves a category preset`, () => {
+          const cat = getCategoryForType(type);
+          expect(cat).toBe(category);
+
+          const preset = getCategoryPreset(cat!, type);
+          expect(preset).toBeDefined();
+          expect(preset!.baseColors.length).toBeGreaterThan(0);
+          expect(preset!.roofColor).toBeDefined();
+          expect(preset!.materialType).toBeDefined();
+        });
+      }
+    }
+  });
+
+  describe('every building type has dimension defaults', () => {
+    for (const type of Object.keys(BUILDING_TYPE_DEFAULTS)) {
+      it(`${type} has valid dimensions`, () => {
+        const defaults = BUILDING_TYPE_DEFAULTS[type];
+        expect(defaults.floors).toBeGreaterThan(0);
+        expect(defaults.width).toBeGreaterThan(0);
+        expect(defaults.depth).toBeGreaterThan(0);
+      });
+    }
   });
 });
