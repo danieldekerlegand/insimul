@@ -11,7 +11,7 @@ namespace Insimul.Systems
     public enum InsimulItemType
     {
         Quest, Collectible, Key, Consumable,
-        Weapon, Armor, Food, Drink, Material, Tool
+        Weapon, Armor, Food, Drink, Material, Tool, Crafted
     }
 
     /// <summary>
@@ -164,6 +164,7 @@ namespace Insimul.Systems
         {
             var item = _items.Find(s => s.id == itemId);
             if (item == null || item.quantity < quantity) return false;
+            if (item.type == InsimulItemType.Quest && !string.IsNullOrEmpty(item.questId)) return false;
             item.quantity -= quantity;
             if (item.quantity <= 0) _items.Remove(item);
             OnItemRemoved?.Invoke(itemId, quantity);

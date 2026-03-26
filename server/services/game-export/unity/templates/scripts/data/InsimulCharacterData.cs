@@ -22,9 +22,45 @@ namespace Insimul.Data
         public string mood;
         public float energy;
         public PersonalityData personality;
+        public string homeResidenceId;
         public string[] coworkerIds;
         public string[] friendIds;
         public string spouseId;
+    }
+
+    [Serializable]
+    public class InsimulRecipeIngredient
+    {
+        public string itemId;
+        public string nameFr;
+        public string nameEn;
+        public int quantity = 1;
+    }
+
+    [Serializable]
+    public class InsimulRecipeLanguageData
+    {
+        public string targetWord;
+        public string nativeWord;
+        public string pronunciation;
+        public string category;
+        public string exampleSentence;
+    }
+
+    [Serializable]
+    public class InsimulRecipeData
+    {
+        public string id;
+        public string nameFr;
+        public string nameEn;
+        public string station;
+        public InsimulRecipeIngredient[] ingredients;
+        public string resultItemId;
+        public int resultQuantity = 1;
+        public int difficulty;
+        public int xpReward;
+        public int craftTime;
+        public InsimulRecipeLanguageData languageData;
     }
 
     [Serializable]

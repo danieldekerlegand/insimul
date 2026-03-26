@@ -188,6 +188,7 @@ namespace Insimul.Core
         public static T[] LoadRoads<T>() => LoadArray<T>(DataRoot + "roads");
         public static T[] LoadDialogueContexts<T>() => LoadArray<T>(DataRoot + "dialogue_contexts");
         public static T[] LoadResources<T>() => LoadArray<T>(DataRoot + "resources");
+        public static T[] LoadRecipes<T>() => LoadArray<T>(DataRoot + "recipes");
         public static T[] LoadCountries<T>() => LoadArray<T>(DataRoot + "countries");
         public static T[] LoadStates<T>() => LoadArray<T>(DataRoot + "states");
 
@@ -329,19 +330,40 @@ namespace Insimul.Core
             var buildings = LoadArray<InsimulBuildingData>(DataRoot + "buildings");
             if (buildings == null || buildings.Length == 0) return new T[0];
 
+            // Load BusinessIR data for ownerId/businessType fallback
+            var allBusinesses = LoadArray<InsimulDerivedBusiness>(DataRoot + "businesses");
+
             var results = new List<T>();
             foreach (var b in buildings)
             {
                 if (b.settlementId == settlementId && !string.IsNullOrEmpty(b.businessId))
                 {
+                    // Look up BusinessIR for ownerId fallback when occupantIds is empty
+                    InsimulDerivedBusiness bizIR = null;
+                    if (allBusinesses != null)
+                    {
+                        foreach (var biz in allBusinesses)
+                        {
+                            if (biz.id == b.businessId) { bizIR = biz; break; }
+                        }
+                    }
+                    // Derive ownerId from occupantIds[0]; fall back to BusinessIR.ownerId
+                    bool hasOccupants = b.occupantIds != null && b.occupantIds.Length > 0;
+                    string ownerId = hasOccupants ? b.occupantIds[0] : bizIR?.ownerId;
+                    string[] employees = (b.occupantIds != null && b.occupantIds.Length > 1)
+                        ? b.occupantIds[1..] : new string[0];
                     // Create a derived business entry via JSON round-trip
+                    string bizType = bizIR?.businessType ?? (!string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "Shop");
+                    string bizName = bizIR?.name ?? (!string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "Business");
                     string json = JsonUtility.ToJson(new InsimulDerivedBusiness
                     {
                         id = !string.IsNullOrEmpty(b.businessId) ? b.businessId : b.id,
                         settlementId = b.settlementId,
-                        businessType = !string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "Shop",
-                        name = !string.IsNullOrEmpty(b.buildingRole) ? b.buildingRole : "Business",
-                        lotId = b.lotId
+                        businessType = bizType,
+                        name = bizName,
+                        lotId = b.lotId,
+                        ownerId = ownerId,
+                        employees = employees
                     });
                     var item = JsonUtility.FromJson<T>(json);
                     if (item != null) results.Add(item);
@@ -868,6 +890,8 @@ namespace Insimul.Core
         public string businessType;
         public string name;
         public string lotId;
+        public string ownerId;
+        public string[] employees;
     }
 
     [Serializable]

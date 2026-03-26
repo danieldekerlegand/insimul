@@ -39,11 +39,32 @@ namespace Insimul.Systems
 
         /// <summary>Words already used (for deduplication).</summary>
         public List<string> wordsUsed = new();
+
+        /// <summary>Item name for collect_item / deliver_item objectives.</summary>
+        public string itemName;
+
+        /// <summary>NPC ID for NPC-targeted objectives.</summary>
+        public string npcId;
+    }
+
+    /// <summary>
+    /// Result struct returned by TrackCollectedItemByName for each matched objective.
+    /// </summary>
+    [Serializable]
+    public struct CollectedItemMatch
+    {
+        public string questId;
+        public string objectiveId;
+        public string matchedName;
+        public int collectedCount;
+        public int requiredCount;
+        public bool completed;
     }
 
     public class QuestSystem : MonoBehaviour
     {
         public event Action<string, string> OnStoryTTS;
+        public event Action<string, string, string> OnQuestItemCollected;
 
         /// <summary>Scavenger hunt categories for vocabulary rotation.</summary>
         public static readonly string[] SCAVENGER_CATEGORIES = {
@@ -245,6 +266,45 @@ namespace Insimul.Systems
             }
         }
 
+        /// <summary>Track a crafted item for craft_item objectives.</summary>
+        public void TrackCraftedItem(string recipeId, string itemName, string stationType = null, string questId = null)
+        {
+            string lowerItem = itemName.ToLowerInvariant();
+            string lowerRecipe = recipeId.ToLowerInvariant();
+
+            foreach (var obj in _objectives)
+            {
+                if (obj.completed) continue;
+                if (!string.IsNullOrEmpty(questId) && obj.questId != questId) continue;
+                if (obj.type != "craft_item") continue;
+
+                string objItemLower = (obj.itemName ?? "").ToLowerInvariant();
+                bool nameMatch = false;
+
+                // Exact match on item name or recipe id
+                if (!string.IsNullOrEmpty(objItemLower) &&
+                    (objItemLower == lowerItem || objItemLower == lowerRecipe))
+                {
+                    nameMatch = true;
+                }
+                // No item name on objective means any craft counts
+                else if (string.IsNullOrEmpty(objItemLower))
+                {
+                    nameMatch = true;
+                }
+
+                if (!nameMatch) continue;
+
+                obj.currentCount++;
+
+                int required = obj.requiredCount > 0 ? obj.requiredCount : 1;
+                if (obj.currentCount >= required)
+                {
+                    CompleteObjective(obj.questId, obj.id);
+                }
+            }
+        }
+
         /// <summary>Track a gift given to an NPC for give_gift objectives.</summary>
         public void TrackGiftGiven(string npcId, string itemName, string questId = null)
         {
@@ -257,6 +317,69 @@ namespace Insimul.Systems
 
                 CompleteObjective(obj.questId, obj.id);
             }
+        }
+
+        /// <summary>Track a collected item by name for collect_item / identify_object / find_vocabulary_items objectives.</summary>
+        public List<CollectedItemMatch> TrackCollectedItemByName(string itemName, string category = null, string questId = null)
+        {
+            var matches = new List<CollectedItemMatch>();
+            string lowerItem = itemName.ToLowerInvariant();
+
+            foreach (var obj in _objectives)
+            {
+                if (obj.completed) continue;
+                if (!string.IsNullOrEmpty(questId) && obj.questId != questId) continue;
+                if (obj.type != "collect_item" && obj.type != "identify_object" && obj.type != "find_vocabulary_items") continue;
+
+                string objItemLower = (obj.itemName ?? "").ToLowerInvariant();
+                bool nameMatch = false;
+
+                // Exact match
+                if (!string.IsNullOrEmpty(objItemLower) && objItemLower == lowerItem)
+                {
+                    nameMatch = true;
+                }
+                // Partial match: item name contains objective name or vice versa
+                else if (!string.IsNullOrEmpty(objItemLower) && (lowerItem.Contains(objItemLower) || objItemLower.Contains(lowerItem)))
+                {
+                    nameMatch = true;
+                }
+                // Category match: objective's vocabularyCategory matches the provided category
+                else if (!string.IsNullOrEmpty(category) && !string.IsNullOrEmpty(obj.vocabularyCategory) &&
+                         string.Equals(obj.vocabularyCategory, category, StringComparison.OrdinalIgnoreCase))
+                {
+                    nameMatch = true;
+                }
+                // No item name on objective means any item counts
+                else if (string.IsNullOrEmpty(objItemLower) && string.IsNullOrEmpty(obj.vocabularyCategory))
+                {
+                    nameMatch = true;
+                }
+
+                if (!nameMatch) continue;
+
+                obj.currentCount++;
+
+                int required = obj.requiredCount > 0 ? obj.requiredCount : 1;
+                bool completed = obj.currentCount >= required;
+                if (completed)
+                {
+                    CompleteObjective(obj.questId, obj.id);
+                }
+
+                matches.Add(new CollectedItemMatch
+                {
+                    questId = obj.questId,
+                    objectiveId = obj.id,
+                    matchedName = itemName,
+                    collectedCount = obj.currentCount,
+                    requiredCount = required,
+                    completed = completed
+                });
+
+                OnQuestItemCollected?.Invoke(obj.questId, obj.id, itemName);
+            }
+            return matches;
         }
 
         /// <summary>
