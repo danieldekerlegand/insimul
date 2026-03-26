@@ -38,12 +38,27 @@ export interface ContainerData {
 /** Loot table entry: describes an item that may appear in a container. */
 export interface LootEntry {
   name: string;
+  /** English name for description field */
+  nameEn: string;
   type: string;
   category?: string;
   rarity?: InventoryItem['rarity'];
   value?: number;
   /** Weight for random selection (higher = more likely). */
   weight: number;
+  /** Language learning data for vocabulary acquisition */
+  languageLearning: {
+    targetWord: string;
+    pronunciation: string;
+    category: string;
+  };
+}
+
+/** Quest objective info for item injection. */
+export interface QuestItemObjective {
+  questId: string;
+  itemName: string;
+  buildingContexts: string[];
 }
 
 /** Outdoor spawn point for a container near a building. */
@@ -54,56 +69,121 @@ export interface OutdoorSpawnPoint {
   businessType?: string;
 }
 
+// ── Deterministic PRNG ──────────────────────────────────────────────────────
+
+/** Simple seeded PRNG (mulberry32). Produces values in [0, 1). */
+export function seededRandom(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Hash a string to a 32-bit integer for seeding. */
+export function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return hash;
+}
+
 // ── Loot tables by context ──────────────────────────────────────────────────
 
-const LOOT_TABLES: Record<string, LootEntry[]> = {
+export const LOOT_TABLES: Record<string, LootEntry[]> = {
   tavern: [
-    { name: 'Ale', type: 'drink', category: 'food_drink', weight: 5 },
-    { name: 'Bread', type: 'food', category: 'food_drink', weight: 4 },
-    { name: 'Cheese', type: 'food', category: 'food_drink', weight: 3 },
-    { name: 'Wine Bottle', type: 'drink', category: 'food_drink', rarity: 'uncommon', value: 8, weight: 2 },
-    { name: 'Coin Pouch', type: 'collectible', category: 'treasure', rarity: 'uncommon', value: 15, weight: 1 },
+    { name: 'Chope de bière', nameEn: 'Ale mug', type: 'drink', category: 'food_drink', weight: 5, languageLearning: { targetWord: 'chope de bière', pronunciation: 'shop duh bee-ehr', category: 'food_drink' } },
+    { name: 'Bouteille de vin', nameEn: 'Wine bottle', type: 'drink', category: 'food_drink', rarity: 'uncommon', value: 8, weight: 3, languageLearning: { targetWord: 'bouteille de vin', pronunciation: 'boo-tay duh van', category: 'food_drink' } },
+    { name: 'Bourse de pièces', nameEn: 'Coin pouch', type: 'collectible', category: 'treasure', rarity: 'uncommon', value: 15, weight: 2, languageLearning: { targetWord: 'bourse de pièces', pronunciation: 'boors duh pee-ess', category: 'treasure' } },
+    { name: 'Pain', nameEn: 'Bread', type: 'food', category: 'food_drink', weight: 4, languageLearning: { targetWord: 'pain', pronunciation: 'pan', category: 'food_drink' } },
+    { name: 'Fromage', nameEn: 'Cheese', type: 'food', category: 'food_drink', weight: 3, languageLearning: { targetWord: 'fromage', pronunciation: 'fro-mahzh', category: 'food_drink' } },
+  ],
+  bakery: [
+    { name: 'Pain frais', nameEn: 'Fresh bread', type: 'food', category: 'food_drink', weight: 5, languageLearning: { targetWord: 'pain frais', pronunciation: 'pan freh', category: 'food_drink' } },
+    { name: 'Pâtisserie', nameEn: 'Pastry', type: 'food', category: 'food_drink', weight: 4, languageLearning: { targetWord: 'pâtisserie', pronunciation: 'pah-tee-suh-ree', category: 'food_drink' } },
+    { name: 'Sac de farine', nameEn: 'Flour sack', type: 'material', category: 'crafting', weight: 3, languageLearning: { targetWord: 'sac de farine', pronunciation: 'sak duh fah-reen', category: 'crafting' } },
+    { name: 'Miel', nameEn: 'Honey', type: 'food', category: 'food_drink', rarity: 'uncommon', value: 6, weight: 2, languageLearning: { targetWord: 'miel', pronunciation: 'mee-el', category: 'food_drink' } },
+    { name: 'Beurre', nameEn: 'Butter', type: 'food', category: 'food_drink', weight: 3, languageLearning: { targetWord: 'beurre', pronunciation: 'buhr', category: 'food_drink' } },
+  ],
+  library: [
+    { name: 'Vieux livre', nameEn: 'Old book', type: 'collectible', category: 'books', weight: 5, languageLearning: { targetWord: 'vieux livre', pronunciation: 'vyuh leevr', category: 'books' } },
+    { name: 'Parchemin', nameEn: 'Scroll', type: 'collectible', category: 'books', weight: 4, languageLearning: { targetWord: 'parchemin', pronunciation: 'par-shuh-man', category: 'books' } },
+    { name: "Bouteille d'encre", nameEn: 'Ink bottle', type: 'tool', category: 'tools', weight: 3, languageLearning: { targetWord: "bouteille d'encre", pronunciation: 'boo-tay donkr', category: 'tools' } },
+    { name: 'Plume', nameEn: 'Quill pen', type: 'tool', category: 'tools', weight: 3, languageLearning: { targetWord: 'plume', pronunciation: 'ploom', category: 'tools' } },
+    { name: 'Carte ancienne', nameEn: 'Ancient map', type: 'collectible', category: 'books', rarity: 'rare', value: 20, weight: 1, languageLearning: { targetWord: 'carte ancienne', pronunciation: 'kart on-see-en', category: 'books' } },
+  ],
+  church: [
+    { name: 'Eau bénite', nameEn: 'Holy water', type: 'consumable', category: 'consumables', weight: 4, languageLearning: { targetWord: 'eau bénite', pronunciation: 'oh bay-neet', category: 'consumables' } },
+    { name: 'Bougie', nameEn: 'Candle', type: 'tool', category: 'tools', weight: 5, languageLearning: { targetWord: 'bougie', pronunciation: 'boo-zhee', category: 'tools' } },
+    { name: 'Chapelet', nameEn: 'Prayer beads', type: 'collectible', category: 'accessories', weight: 3, languageLearning: { targetWord: 'chapelet', pronunciation: 'shah-pleh', category: 'accessories' } },
+    { name: 'Encens', nameEn: 'Incense', type: 'consumable', category: 'consumables', weight: 3, languageLearning: { targetWord: 'encens', pronunciation: 'on-son', category: 'consumables' } },
+    { name: 'Croix en bois', nameEn: 'Wooden cross', type: 'collectible', category: 'accessories', rarity: 'uncommon', value: 10, weight: 2, languageLearning: { targetWord: 'croix en bois', pronunciation: 'kwah on bwah', category: 'accessories' } },
+  ],
+  farm: [
+    { name: 'Graines', nameEn: 'Seeds', type: 'material', category: 'crafting', weight: 5, languageLearning: { targetWord: 'graines', pronunciation: 'gren', category: 'crafting' } },
+    { name: 'Légumes', nameEn: 'Vegetables', type: 'food', category: 'food_drink', weight: 4, languageLearning: { targetWord: 'légumes', pronunciation: 'lay-goom', category: 'food_drink' } },
+    { name: 'Pot de lait', nameEn: 'Milk jug', type: 'food', category: 'food_drink', weight: 3, languageLearning: { targetWord: 'pot de lait', pronunciation: 'poh duh leh', category: 'food_drink' } },
+    { name: 'Œufs', nameEn: 'Eggs', type: 'food', category: 'food_drink', weight: 4, languageLearning: { targetWord: 'œufs', pronunciation: 'uhf', category: 'food_drink' } },
+    { name: 'Foin', nameEn: 'Hay', type: 'material', category: 'materials', weight: 3, languageLearning: { targetWord: 'foin', pronunciation: 'fwan', category: 'materials' } },
+  ],
+  blacksmith: [
+    { name: "Lingot de fer", nameEn: 'Iron ingot', type: 'material', category: 'crafting', weight: 4, languageLearning: { targetWord: 'lingot de fer', pronunciation: 'lan-go duh fehr', category: 'crafting' } },
+    { name: 'Fer à cheval', nameEn: 'Horseshoe', type: 'material', category: 'crafting', weight: 4, languageLearning: { targetWord: 'fer à cheval', pronunciation: 'fehr ah shuh-val', category: 'crafting' } },
+    { name: 'Dague', nameEn: 'Dagger', type: 'weapon', category: 'weapons', rarity: 'uncommon', value: 12, weight: 2, languageLearning: { targetWord: 'dague', pronunciation: 'dag', category: 'weapons' } },
+    { name: 'Clous', nameEn: 'Nails', type: 'material', category: 'crafting', weight: 5, languageLearning: { targetWord: 'clous', pronunciation: 'kloo', category: 'crafting' } },
+    { name: 'Marteau', nameEn: 'Hammer', type: 'tool', category: 'tools', weight: 3, languageLearning: { targetWord: 'marteau', pronunciation: 'mar-toh', category: 'tools' } },
   ],
   shop: [
-    { name: 'Thread', type: 'material', category: 'crafting', weight: 4 },
-    { name: 'Cloth', type: 'material', category: 'crafting', weight: 3 },
-    { name: 'Candle', type: 'tool', category: 'tools', weight: 3 },
-    { name: 'Small Gem', type: 'collectible', category: 'treasure', rarity: 'rare', value: 25, weight: 1 },
+    { name: 'Fil', nameEn: 'Thread', type: 'material', category: 'crafting', weight: 4, languageLearning: { targetWord: 'fil', pronunciation: 'feel', category: 'crafting' } },
+    { name: 'Tissu', nameEn: 'Cloth', type: 'material', category: 'crafting', weight: 3, languageLearning: { targetWord: 'tissu', pronunciation: 'tee-soo', category: 'crafting' } },
+    { name: 'Bougie', nameEn: 'Candle', type: 'tool', category: 'tools', weight: 3, languageLearning: { targetWord: 'bougie', pronunciation: 'boo-zhee', category: 'tools' } },
+    { name: 'Petite gemme', nameEn: 'Small gem', type: 'collectible', category: 'treasure', rarity: 'rare', value: 25, weight: 1, languageLearning: { targetWord: 'petite gemme', pronunciation: 'puh-teet zhemm', category: 'treasure' } },
   ],
   workshop: [
-    { name: 'Iron Ingot', type: 'material', category: 'crafting', weight: 4 },
-    { name: 'Nails', type: 'material', category: 'crafting', weight: 5 },
-    { name: 'Hammer', type: 'tool', category: 'tools', weight: 2 },
-    { name: 'Steel Fragment', type: 'material', category: 'crafting', rarity: 'uncommon', value: 12, weight: 1 },
+    { name: 'Lingot de fer', nameEn: 'Iron ingot', type: 'material', category: 'crafting', weight: 4, languageLearning: { targetWord: 'lingot de fer', pronunciation: 'lan-go duh fehr', category: 'crafting' } },
+    { name: 'Clous', nameEn: 'Nails', type: 'material', category: 'crafting', weight: 5, languageLearning: { targetWord: 'clous', pronunciation: 'kloo', category: 'crafting' } },
+    { name: 'Marteau', nameEn: 'Hammer', type: 'tool', category: 'tools', weight: 2, languageLearning: { targetWord: 'marteau', pronunciation: 'mar-toh', category: 'tools' } },
+    { name: "Fragment d'acier", nameEn: 'Steel fragment', type: 'material', category: 'crafting', rarity: 'uncommon', value: 12, weight: 1, languageLearning: { targetWord: "fragment d'acier", pronunciation: 'frag-mon dah-see-ay', category: 'crafting' } },
   ],
   warehouse: [
-    { name: 'Rope', type: 'tool', category: 'tools', weight: 4 },
-    { name: 'Crate Nails', type: 'material', category: 'crafting', weight: 4 },
-    { name: 'Lantern Oil', type: 'consumable', category: 'consumables', weight: 3 },
-    { name: 'Stored Goods', type: 'material', category: 'materials', weight: 3 },
-    { name: 'Hidden Stash', type: 'collectible', category: 'treasure', rarity: 'rare', value: 30, weight: 1 },
+    { name: 'Corde', nameEn: 'Rope', type: 'tool', category: 'tools', weight: 4, languageLearning: { targetWord: 'corde', pronunciation: 'kord', category: 'tools' } },
+    { name: 'Clous de caisse', nameEn: 'Crate nails', type: 'material', category: 'crafting', weight: 4, languageLearning: { targetWord: 'clous de caisse', pronunciation: 'kloo duh kess', category: 'crafting' } },
+    { name: 'Huile de lanterne', nameEn: 'Lantern oil', type: 'consumable', category: 'consumables', weight: 3, languageLearning: { targetWord: 'huile de lanterne', pronunciation: 'weel duh lon-tehrn', category: 'consumables' } },
+    { name: 'Marchandises', nameEn: 'Stored goods', type: 'material', category: 'materials', weight: 3, languageLearning: { targetWord: 'marchandises', pronunciation: 'mar-shon-deez', category: 'materials' } },
+    { name: 'Cachette', nameEn: 'Hidden stash', type: 'collectible', category: 'treasure', rarity: 'rare', value: 30, weight: 1, languageLearning: { targetWord: 'cachette', pronunciation: 'kah-shet', category: 'treasure' } },
   ],
   residence: [
-    { name: 'Bread', type: 'food', category: 'food_drink', weight: 4 },
-    { name: 'Apple', type: 'food', category: 'food_drink', weight: 4 },
-    { name: 'Candle', type: 'tool', category: 'tools', weight: 3 },
-    { name: 'Coin Pouch', type: 'collectible', category: 'treasure', rarity: 'uncommon', value: 10, weight: 1 },
-    { name: 'Family Heirloom', type: 'collectible', category: 'treasure', rarity: 'rare', value: 40, weight: 1 },
+    { name: 'Pain', nameEn: 'Bread', type: 'food', category: 'food_drink', weight: 4, languageLearning: { targetWord: 'pain', pronunciation: 'pan', category: 'food_drink' } },
+    { name: 'Pomme', nameEn: 'Apple', type: 'food', category: 'food_drink', weight: 4, languageLearning: { targetWord: 'pomme', pronunciation: 'pom', category: 'food_drink' } },
+    { name: 'Bougie', nameEn: 'Candle', type: 'tool', category: 'tools', weight: 3, languageLearning: { targetWord: 'bougie', pronunciation: 'boo-zhee', category: 'tools' } },
+    { name: 'Bourse de pièces', nameEn: 'Coin pouch', type: 'collectible', category: 'treasure', rarity: 'uncommon', value: 10, weight: 1, languageLearning: { targetWord: 'bourse de pièces', pronunciation: 'boors duh pee-ess', category: 'treasure' } },
+    { name: 'Héritage familial', nameEn: 'Family heirloom', type: 'collectible', category: 'treasure', rarity: 'rare', value: 40, weight: 1, languageLearning: { targetWord: 'héritage familial', pronunciation: 'ay-ree-tahzh fam-ee-lee-al', category: 'treasure' } },
   ],
   outdoor: [
-    { name: 'Stone', type: 'material', category: 'materials', weight: 5 },
-    { name: 'Stick', type: 'material', category: 'materials', weight: 5 },
-    { name: 'Mushroom', type: 'food', category: 'food_drink', weight: 3 },
-    { name: 'Herb', type: 'consumable', category: 'consumables', weight: 3 },
-    { name: 'Old Coin', type: 'collectible', category: 'treasure', rarity: 'uncommon', value: 5, weight: 1 },
+    { name: 'Pierre', nameEn: 'Stone', type: 'material', category: 'materials', weight: 5, languageLearning: { targetWord: 'pierre', pronunciation: 'pee-ehr', category: 'materials' } },
+    { name: 'Bâton', nameEn: 'Stick', type: 'material', category: 'materials', weight: 5, languageLearning: { targetWord: 'bâton', pronunciation: 'bah-ton', category: 'materials' } },
+    { name: 'Champignon', nameEn: 'Mushroom', type: 'food', category: 'food_drink', weight: 3, languageLearning: { targetWord: 'champignon', pronunciation: 'shom-pee-nyon', category: 'food_drink' } },
+    { name: 'Herbe', nameEn: 'Herb', type: 'consumable', category: 'consumables', weight: 3, languageLearning: { targetWord: 'herbe', pronunciation: 'ehrb', category: 'consumables' } },
+    { name: 'Vieille pièce', nameEn: 'Old coin', type: 'collectible', category: 'treasure', rarity: 'uncommon', value: 5, weight: 1, languageLearning: { targetWord: 'vieille pièce', pronunciation: 'vyay pee-ess', category: 'treasure' } },
   ],
   _default: [
-    { name: 'Bread', type: 'food', category: 'food_drink', weight: 4 },
-    { name: 'Candle', type: 'tool', category: 'tools', weight: 3 },
-    { name: 'Rope', type: 'tool', category: 'tools', weight: 3 },
-    { name: 'Coin', type: 'collectible', category: 'treasure', value: 3, weight: 2 },
+    { name: 'Pain', nameEn: 'Bread', type: 'food', category: 'food_drink', weight: 4, languageLearning: { targetWord: 'pain', pronunciation: 'pan', category: 'food_drink' } },
+    { name: 'Bougie', nameEn: 'Candle', type: 'tool', category: 'tools', weight: 3, languageLearning: { targetWord: 'bougie', pronunciation: 'boo-zhee', category: 'tools' } },
+    { name: 'Corde', nameEn: 'Rope', type: 'tool', category: 'tools', weight: 3, languageLearning: { targetWord: 'corde', pronunciation: 'kord', category: 'tools' } },
+    { name: 'Pièce', nameEn: 'Coin', type: 'collectible', category: 'treasure', value: 3, weight: 2, languageLearning: { targetWord: 'pièce', pronunciation: 'pee-ess', category: 'treasure' } },
   ],
 };
+
+/** Clue items that can appear with 5% probability in any container. */
+const CLUE_ITEMS: LootEntry[] = [
+  { name: 'Page déchirée', nameEn: 'Torn page', type: 'clue', category: 'clues', rarity: 'rare', value: 0, weight: 1, languageLearning: { targetWord: 'page déchirée', pronunciation: 'pahzh day-shee-ray', category: 'clues' } },
+  { name: 'Note cryptique', nameEn: 'Cryptic note', type: 'clue', category: 'clues', rarity: 'rare', value: 0, weight: 1, languageLearning: { targetWord: 'note cryptique', pronunciation: 'noht kreep-teek', category: 'clues' } },
+  { name: 'Symbole gravé', nameEn: 'Engraved symbol', type: 'clue', category: 'clues', rarity: 'rare', value: 0, weight: 1, languageLearning: { targetWord: 'symbole gravé', pronunciation: 'sam-bol grah-vay', category: 'clues' } },
+  { name: 'Lettre ancienne', nameEn: 'Old letter', type: 'clue', category: 'clues', rarity: 'rare', value: 0, weight: 1, languageLearning: { targetWord: 'lettre ancienne', pronunciation: 'letr on-see-en', category: 'clues' } },
+];
 
 /** Minimum and maximum items per container type. */
 const CONTAINER_ITEM_COUNTS: Record<ContainerType, { min: number; max: number }> = {
@@ -117,18 +197,23 @@ const CONTAINER_ITEM_COUNTS: Record<ContainerType, { min: number; max: number }>
 /** Resolve a business/building type string to a loot table key. */
 export function resolveLootTableKey(businessType?: string, buildingType?: string): string {
   const bt = (businessType || buildingType || '').toLowerCase();
-  if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) return 'tavern';
-  if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) return 'workshop';
+  if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar') || bt.includes('pub')) return 'tavern';
+  if (bt.includes('bakery') || bt.includes('boulangerie') || bt.includes('baker')) return 'bakery';
+  if (bt.includes('library') || bt.includes('bibliothèque')) return 'library';
+  if (bt.includes('church') || bt.includes('chapel') || bt.includes('église') || bt.includes('cathedral')) return 'church';
+  if (bt.includes('farm') || bt.includes('ferme') || bt.includes('ranch')) return 'farm';
+  if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('forgeron')) return 'blacksmith';
+  if (bt.includes('workshop') || bt.includes('atelier')) return 'workshop';
   if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) return 'shop';
   if (bt.includes('warehouse') || bt.includes('storage')) return 'warehouse';
   if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) return 'residence';
   return '_default';
 }
 
-/** Weighted random pick from a loot table. Returns one LootEntry. */
-export function weightedPick(entries: LootEntry[]): LootEntry {
+/** Weighted random pick from a loot table using a provided random function. */
+export function weightedPick(entries: LootEntry[], random: () => number = Math.random): LootEntry {
   const totalWeight = entries.reduce((sum, e) => sum + e.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = random() * totalWeight;
   for (const entry of entries) {
     roll -= entry.weight;
     if (roll <= 0) return entry;
@@ -136,25 +221,28 @@ export function weightedPick(entries: LootEntry[]): LootEntry {
   return entries[entries.length - 1];
 }
 
-/** Generate items for a container. */
+/** Generate items for a container with deterministic seeding. */
 export function generateContainerItems(
   containerType: ContainerType,
   lootTableKey: string,
   containerId: string,
+  questObjectives?: QuestItemObjective[],
 ): InventoryItem[] {
+  const seed = hashString(containerId);
+  const random = seededRandom(seed);
+
   const table = LOOT_TABLES[lootTableKey] || LOOT_TABLES['_default'];
   const counts = CONTAINER_ITEM_COUNTS[containerType];
-  const count = Math.floor(Math.random() * (counts.max - counts.min + 1)) + counts.min;
+  const count = Math.floor(random() * (counts.max - counts.min + 1)) + counts.min;
 
   const items: InventoryItem[] = [];
   const usedNames = new Set<string>();
 
   for (let i = 0; i < count; i++) {
-    const entry = weightedPick(table);
+    const entry = weightedPick(table, random);
     // Avoid exact duplicates by name in one container
     if (usedNames.has(entry.name) && table.length > 1) {
-      // Try once more
-      const retry = weightedPick(table);
+      const retry = weightedPick(table, random);
       if (!usedNames.has(retry.name)) {
         items.push(lootEntryToItem(retry, containerId, i));
         usedNames.add(retry.name);
@@ -165,20 +253,58 @@ export function generateContainerItems(
     usedNames.add(entry.name);
   }
 
+  // Quest item injection: 30% chance per matching objective
+  if (questObjectives) {
+    for (const obj of questObjectives) {
+      if (obj.buildingContexts.includes(lootTableKey) && random() < 0.3) {
+        items.push({
+          id: `${containerId}_quest_${obj.questId}`,
+          name: obj.itemName,
+          description: `Quest item`,
+          type: 'quest_item' as InventoryItem['type'],
+          quantity: 1,
+          value: 0,
+          category: 'quest',
+          rarity: 'uncommon',
+          questId: obj.questId,
+          tradeable: false,
+        });
+        break; // Only inject one quest item per container
+      }
+    }
+  }
+
+  // 5% chance of a clue item
+  if (random() < 0.05) {
+    const clue = CLUE_ITEMS[Math.floor(random() * CLUE_ITEMS.length)];
+    items.push(lootEntryToItem(clue, containerId, items.length, true));
+  }
+
   return items;
 }
 
-function lootEntryToItem(entry: LootEntry, containerId: string, index: number): InventoryItem {
+function lootEntryToItem(
+  entry: LootEntry,
+  containerId: string,
+  index: number,
+  isClue = false,
+): InventoryItem {
   return {
-    id: `${containerId}_item_${index}_${Date.now()}`,
+    id: `${containerId}_item_${index}`,
     name: entry.name,
-    description: `Found in a container`,
-    type: entry.type as InventoryItem['type'],
+    description: entry.nameEn,
+    type: (isClue ? 'clue' : entry.type) as InventoryItem['type'],
     quantity: 1,
-    value: entry.value ?? Math.floor(Math.random() * 5) + 1,
-    category: entry.category,
+    value: entry.value ?? 1,
+    category: isClue ? 'clues' : entry.category,
     rarity: entry.rarity ?? 'common',
-    tradeable: true,
+    tradeable: !isClue,
+    languageLearningData: {
+      targetWord: entry.languageLearning.targetWord,
+      targetLanguage: 'French',
+      pronunciation: entry.languageLearning.pronunciation,
+      category: entry.languageLearning.category,
+    },
   };
 }
 
@@ -207,6 +333,9 @@ export class ContainerSpawnSystem {
   /** Callback invoked when a container is opened with its items. */
   public onContainerOpened: ((container: ContainerData) => void) | null = null;
 
+  /** Optional provider of active quest collect_item objectives for loot injection. */
+  public questObjectiveProvider: (() => QuestItemObjective[]) | null = null;
+
   constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
     this.eventBus = eventBus ?? null;
@@ -227,6 +356,7 @@ export class ContainerSpawnSystem {
   ): ContainerData[] {
     const registered: ContainerData[] = [];
     const lootKey = resolveLootTableKey(businessType, buildingType);
+    const questObjectives = this.questObjectiveProvider?.() ?? undefined;
 
     for (const mesh of furnitureMeshes) {
       if (!mesh.metadata?.isContainer) continue;
@@ -237,7 +367,7 @@ export class ContainerSpawnSystem {
       if (this.containers.has(containerId)) continue;
 
       const containerType = mesh.metadata.containerType as ContainerType;
-      const items = generateContainerItems(containerType, lootKey, containerId);
+      const items = generateContainerItems(containerType, lootKey, containerId, questObjectives);
 
       const data: ContainerData = {
         id: containerId,
@@ -264,6 +394,7 @@ export class ContainerSpawnSystem {
    */
   spawnOutdoorContainers(spawnPoints: OutdoorSpawnPoint[]): ContainerData[] {
     const spawned: ContainerData[] = [];
+    const questObjectives = this.questObjectiveProvider?.() ?? undefined;
 
     for (const point of spawnPoints) {
       const containerId = `outdoor_${point.containerType}_${point.position.x.toFixed(0)}_${point.position.z.toFixed(0)}`;
@@ -274,7 +405,7 @@ export class ContainerSpawnSystem {
       const lootKey = point.businessType
         ? resolveLootTableKey(point.businessType)
         : 'outdoor';
-      const items = generateContainerItems(point.containerType, lootKey, containerId);
+      const items = generateContainerItems(point.containerType, lootKey, containerId, questObjectives);
 
       const mesh = this.createOutdoorContainerMesh(containerId, point.containerType, point.position);
 
