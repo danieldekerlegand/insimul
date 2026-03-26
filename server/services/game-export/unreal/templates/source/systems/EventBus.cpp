@@ -129,6 +129,9 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("conversation_turn_counted"),        EInsimulEventType::ConversationTurnCounted },
         // Physical action events
         { TEXT("physical_action_completed"),        EInsimulEventType::PhysicalActionCompleted },
+        // Reading completion events
+        { TEXT("reading_completed"),                 EInsimulEventType::ReadingCompleted },
+        { TEXT("questions_answered"),                EInsimulEventType::QuestionsAnswered },
     };
     return Map;
 }

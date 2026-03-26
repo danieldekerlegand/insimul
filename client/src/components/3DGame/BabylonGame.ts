@@ -2199,6 +2199,13 @@ export class BabylonGame {
           duration: 2000,
         });
       },
+      onReadingCompleted: (articleId: string, title: string) => {
+        this.eventBus.emit({ type: 'reading_completed', textId: articleId, title });
+      },
+      onQuestionsAnswered: (articleId: string, questionsCorrect: number, questionsTotal: number) => {
+        const score = questionsTotal > 0 ? questionsCorrect / questionsTotal : 0;
+        this.eventBus.emit({ type: 'questions_answered', textId: articleId, score, questionsCorrect, questionsTotal });
+      },
       getAnsweredArticleIds: () => this.readingProgressAnsweredIds,
       onVocabWordSpeak: (word: string) => {
         this.chatPanel?.speakWord(word);
@@ -3094,6 +3101,25 @@ export class BabylonGame {
           itemName: item.itemName,
           quantity: item.quantity,
         });
+      }
+      this.updateQuestIndicators();
+    });
+
+    // Bridge reading events → QuestCompletionEngine
+    this.eventBus.on('text_collected', (event) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'text_found', textId: event.textId, textName: event.title });
+      this.updateQuestIndicators();
+    });
+    this.eventBus.on('reading_completed', (event) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'text_read', textId: event.textId });
+      this.updateQuestIndicators();
+    });
+    this.eventBus.on('questions_answered', (event) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      for (let i = 0; i < event.questionsTotal; i++) {
+        engine?.trackEvent({ type: 'comprehension_answer', isCorrect: i < event.questionsCorrect });
       }
       this.updateQuestIndicators();
     });
@@ -13067,6 +13093,13 @@ export class BabylonGame {
           worldId: quest.worldId || this.config.worldId,
           title: quest.title,
         });
+        // Reveal clue if this is a reading quest about a main-quest text
+        if (quest.tags?.includes('main-quest-clue') && quest.relatedTruthIds?.length) {
+          const textId = quest.relatedTruthIds[0];
+          const textObj = quest.objectives?.find((o: any) => o.textId === textId);
+          const bookTitle = textObj?.itemName || quest.title.replace('Read & Understand: ', '');
+          this.clueStore?.addTextClue(bookTitle, `Clue discovered by completing reading quest: ${quest.title}`, undefined);
+        }
       }
 
       this.guiManager?.showToast({

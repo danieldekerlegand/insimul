@@ -494,7 +494,7 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'listen': 'listening_comprehension',
   'comprehension': 'listening_comprehension',
   'listen_to_story': 'listening_comprehension',
-  'answer_questions': 'listening_comprehension',
+  'answer_questions': 'comprehension_quiz',
 
   'translate': 'translation_challenge',
   'translation': 'translation_challenge',
@@ -639,6 +639,7 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'read_letter': 'read_text',
   'read_page': 'read_text',
   'study_text': 'read_text',
+  'complete_reading': 'read_text',
 
   'text_quiz': 'comprehension_quiz',
   'reading_quiz': 'comprehension_quiz',

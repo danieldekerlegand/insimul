@@ -146,6 +146,9 @@ const EVENT_CONVERSATIONAL_ACTION := "conversational_action"
 const EVENT_CONVERSATION_TURN_COUNTED := "conversation_turn_counted"
 # Physical action events
 const EVENT_PHYSICAL_ACTION_COMPLETED := "physical_action_completed"
+# Reading completion events
+const EVENT_READING_COMPLETED := "reading_completed"
+const EVENT_QUESTIONS_ANSWERED := "questions_answered"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -238,6 +241,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_CONVERSATION_TURN_COUNTED,
 	# Physical action events
 	EVENT_PHYSICAL_ACTION_COMPLETED,
+	# Reading completion events
+	EVENT_READING_COMPLETED,
+	EVENT_QUESTIONS_ANSWERED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

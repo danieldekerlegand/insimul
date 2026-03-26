@@ -10754,6 +10754,56 @@ Make the action names thematic and immersive.`;
     }
   });
 
+  // ─── Reading Quest Generation ───────────────────────────────────────────────
+
+  app.post("/api/worlds/:worldId/quests/generate-reading", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { assignedTo, maxQuests } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const [characters, texts] = await Promise.all([
+        storage.getCharactersByWorld(worldId),
+        storage.getTextsByWorld(worldId),
+      ]);
+
+      const { generateReadingQuests } = await import('./services/reading-quest-generator.js');
+      const quests = generateReadingQuests({
+        world,
+        characters,
+        texts,
+        assignedTo: assignedTo || 'Player',
+        maxQuests,
+      });
+
+      if (quests.length === 0) {
+        return res.status(422).json({
+          error: "No reading quests generated",
+          detail: "No published texts with comprehension questions found in this world.",
+        });
+      }
+
+      const saved = [];
+      for (const quest of quests) {
+        try {
+          const created = await storage.createQuest(quest);
+          saved.push(created);
+        } catch (e) {
+          console.warn('[ReadingQuest] Failed to persist quest:', e);
+        }
+      }
+
+      res.status(201).json({ count: saved.length, quests: saved });
+    } catch (error) {
+      console.error('[ReadingQuest] Error:', error);
+      res.status(500).json({ error: "Failed to generate reading quests" });
+    }
+  });
+
   // ─── Main Quest Progression Endpoints ─────────────────────────────────────
 
   app.get("/api/worlds/:worldId/main-quest/:playerId", async (req, res) => {

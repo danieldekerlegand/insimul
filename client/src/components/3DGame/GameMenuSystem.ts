@@ -276,6 +276,8 @@ export interface GameMenuCallbacks {
   getAssessmentData?: () => { data: PlayerAssessmentData | null; playerLevel: number };
   onNoticeWordClicked?: (word: string, meaning: string) => void;
   onNoticeQuestionAnswered?: (correct: boolean, articleId: string, selectedIndex: number, correctIndex: number) => void;
+  onReadingCompleted?: (articleId: string, title: string) => void;
+  onQuestionsAnswered?: (articleId: string, questionsCorrect: number, questionsTotal: number) => void;
   getAnsweredArticleIds?: () => Set<string>;
   onVocabWordSpeak?: (word: string) => void;
   getPhotos?: () => MenuPhotoData[];
@@ -5446,7 +5448,11 @@ export class GameMenuSystem {
       readBtn.paddingTop = "4px";
       readBtn.onPointerClickObservable.add(() => {
         this.libraryReadingArticle = article;
+        const isFirstRead = !this.libraryReadArticleIds.has(article.id);
         this.libraryReadArticleIds.add(article.id);
+        if (isFirstRead) {
+          this.callbacks.onReadingCompleted?.(article.id, article.title);
+        }
         this.refreshActiveTab();
       });
       card.addControl(readBtn);
@@ -5696,6 +5702,7 @@ export class GameMenuSystem {
         optBtn.onPointerClickObservable.add(() => {
           this.answeredNoticeQuestions.add(article.id);
           this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id, i, q.correctIndex);
+          this.callbacks.onQuestionsAnswered?.(article.id, isCorrect ? 1 : 0, 1);
           this.refreshActiveTab();
         });
         stack.addControl(optBtn);

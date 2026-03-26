@@ -147,7 +147,10 @@ enum class EInsimulEventType : uint8
     ConversationalAction UMETA(DisplayName = "Conversational Action"),
     ConversationTurnCounted UMETA(DisplayName = "Conversation Turn Counted"),
     // Physical action events
-    PhysicalActionCompleted UMETA(DisplayName = "Physical Action Completed")
+    PhysicalActionCompleted UMETA(DisplayName = "Physical Action Completed"),
+    // Reading completion events
+    ReadingCompleted UMETA(DisplayName = "Reading Completed"),
+    QuestionsAnswered UMETA(DisplayName = "Questions Answered")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

@@ -152,6 +152,9 @@ export type GameEvent =
   | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string }
   // Text collection events
   | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number; clueText?: string; authorName?: string }
+  // Reading completion events (emitted from Library reading view)
+  | { type: 'reading_completed'; textId: string; title: string }
+  | { type: 'questions_answered'; textId: string; score: number; questionsCorrect: number; questionsTotal: number }
   // Photography events
   | { type: 'photo_taken'; subjectId: string; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; location?: string }
   // XP and level-up events

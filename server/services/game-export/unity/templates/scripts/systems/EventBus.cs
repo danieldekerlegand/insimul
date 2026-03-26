@@ -110,7 +110,12 @@ namespace Insimul.Systems
         ClueDiscovered,
         // Conversational action events
         ConversationalAction,
-        ConversationTurnCounted
+        ConversationTurnCounted,
+        // Physical action events
+        PhysicalActionCompleted,
+        // Reading completion events
+        ReadingCompleted,
+        QuestionsAnswered
     }
 
     /// <summary>
@@ -896,6 +901,32 @@ namespace Insimul.Systems
         public string npcId;
         public int totalTurns;
         public int meaningfulTurns;
+    }
+
+    public class PhysicalActionCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.PhysicalActionCompleted;
+        public string actionType;
+        public string locationId;
+        public string buildingId;
+        public int energyCost;
+        public int xpGained;
+    }
+
+    public class ReadingCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ReadingCompleted;
+        public string textId;
+        public string title;
+    }
+
+    public class QuestionsAnsweredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.QuestionsAnswered;
+        public string textId;
+        public float score;
+        public int questionsCorrect;
+        public int questionsTotal;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────
