@@ -76,6 +76,7 @@ import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInve
 import { TerrainRenderer } from "@/components/3DGame/TerrainRenderer.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
 import { BabylonContainerPanel, ContainerTransaction } from "@/components/3DGame/BabylonContainerPanel.ts";
+import { ContainerSpawnSystem } from "@/components/3DGame/ContainerSpawnSystem.ts";
 import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel.ts";
 import { RuleEnforcer, RuleViolation } from "@/components/3DGame/RuleEnforcer.ts";
 import { CombatSystem, CombatStyle, DamageResult } from "@/components/3DGame/CombatSystem.ts";
@@ -491,6 +492,7 @@ export class BabylonGame {
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
   private containerPanel: BabylonContainerPanel | null = null;
+  private containerSpawnSystem: ContainerSpawnSystem | null = null;
   private rulesPanel: BabylonRulesPanel | null = null;
   private vocabularyPanel: BabylonVocabularyPanel | null = null;
   private conversationHistoryPanel: BabylonConversationHistoryPanel | null = null;
@@ -2770,12 +2772,13 @@ export class BabylonGame {
       }
     });
 
-    // Initialize container panel
+    // Initialize container panel and spawn system
     this.containerPanel = new BabylonContainerPanel(this.guiManager.advancedTexture);
     this.containerPanel.setOnTake((transaction) => this.handleContainerTake(transaction));
     this.containerPanel.setOnPlace((transaction) => this.handleContainerPlace(transaction));
     this.containerPanel.setOnExamine((transaction) => this.handleContainerExamine(transaction));
     this.containerPanel.setOnClose(() => {});
+    this.containerSpawnSystem = new ContainerSpawnSystem(scene, this.eventBus);
 
     // Initialize rules panel
     this.rulesPanel = new BabylonRulesPanel(scene, this.guiManager.advancedTexture);
@@ -8032,6 +8035,37 @@ export class BabylonGame {
       }
     }
 
+    // Register container meshes for interaction
+    if (this.activeInterior && this.containerSpawnSystem && this.interactionPrompt) {
+      this.interactionPrompt.clearContainers();
+      const containers = this.containerSpawnSystem.registerInteriorContainers(
+        this.activeInterior.furniture,
+        buildingId,
+        businessType,
+        buildingType,
+      );
+      for (const container of containers) {
+        if (container.mesh) {
+          this.interactionPrompt.registerContainer(
+            container.mesh,
+            container.id,
+            container.type,
+            container.type,
+            false,
+          );
+          for (const child of container.mesh.getChildMeshes()) {
+            this.interactionPrompt.registerContainer(
+              child,
+              container.id,
+              container.type,
+              container.type,
+              false,
+            );
+          }
+        }
+      }
+    }
+
     const label = businessType || buildingType || 'Building';
     this.guiManager?.showToast({
       title: `Entered ${label}`,
@@ -8180,9 +8214,11 @@ export class BabylonGame {
     // Stand up if seated before exiting; cancel any in-progress physical action
     this.furnitureInteractionManager?.standUp();
     this.playerActionSystem?.cancelAction();
-    // Clear furniture and action hotspot registrations
+    // Clear furniture, action hotspot, and container registrations
     this.interactionPrompt?.clearFurniture();
     this.interactionPrompt?.clearActionHotspots();
+    this.interactionPrompt?.clearContainers();
+    this.containerPanel?.hide();
 
     // Clear business behavior tracking
     this.businessBehaviorSystem?.clearAll();
@@ -10624,6 +10660,11 @@ export class BabylonGame {
         break;
       }
 
+      case 'container': {
+        this.handleContainerInteraction(target);
+        break;
+      }
+
       default:
         await this.handleProximityInteraction();
     }
@@ -11266,6 +11307,50 @@ export class BabylonGame {
 
   // ─── Container Interaction Handlers ───────────────────────────────────────
 
+  private handleContainerInteraction(target: import('./InteractionPromptSystem').InteractableTarget): void {
+    if (!this.containerSpawnSystem || !this.containerPanel) return;
+
+    const mesh = target.mesh as Mesh;
+    const containerData = this.containerSpawnSystem.openContainerByMesh(mesh);
+    if (!containerData) {
+      // Already opened — re-open the panel with current state
+      const containerId = target.containerId || mesh.metadata?.containerId;
+      if (containerId) {
+        const existing = this.containerSpawnSystem.getContainer(containerId);
+        if (existing) {
+          this.openContainerPanel(existing);
+          return;
+        }
+      }
+      this.guiManager?.showToast({ title: 'This container is empty', duration: 1500 });
+      return;
+    }
+
+    this.openContainerPanel(containerData);
+  }
+
+  private openContainerPanel(containerData: import('./ContainerSpawnSystem').ContainerData): void {
+    if (!this.containerPanel) return;
+
+    const playerItems = this.inventory?.getAllItems() || [];
+    this.containerPanel.open({
+      container: {
+        id: containerData.id,
+        name: this.formatContainerName(containerData.type),
+        containerType: containerData.type as any,
+        items: containerData.items,
+        capacity: containerData.items.length + 5,
+        isLocked: false,
+        buildingId: containerData.buildingId,
+      },
+      playerItems,
+    });
+  }
+
+  private formatContainerName(type: string): string {
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+
   private handleContainerTake(transaction: ContainerTransaction): void {
     const item = transaction.item;
     this.inventory?.addItem({
@@ -11281,6 +11366,7 @@ export class BabylonGame {
       languageLearningData: item.languageLearningData,
     });
     this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity });
+    this.questObjectManager?.trackCollectedItemByName(item.name, undefined, item.category);
   }
 
   private handleContainerPlace(transaction: ContainerTransaction): void {
@@ -14201,6 +14287,7 @@ export class BabylonGame {
     this.inventory?.dispose();
     this.shopPanel?.dispose();
     this.containerPanel?.dispose();
+    this.containerSpawnSystem?.dispose();
     this.rulesPanel?.dispose();
     this.vocabularyPanel?.dispose();
     this.conversationHistoryPanel?.dispose();

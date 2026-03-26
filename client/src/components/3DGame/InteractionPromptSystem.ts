@@ -38,7 +38,8 @@ export type InteractableType =
   | 'object'
   | 'notice_board'
   | 'furniture'
-  | 'action_hotspot';
+  | 'action_hotspot'
+  | 'container';
 
 export interface InteractableTarget {
   type: InteractableType;
@@ -55,6 +56,9 @@ export interface InteractableTarget {
   conversationPartnerName?: string;
   /** For action hotspots */
   actionHotspotType?: string;
+  /** For containers */
+  containerId?: string;
+  containerType?: string;
 }
 
 export interface RegisteredNPC {
@@ -119,6 +123,7 @@ export class InteractionPromptSystem {
   private noticeBoardMeshes = new Map<AbstractMesh, { id: string; name: string }>();
   private furnitureMeshes = new Map<AbstractMesh, { furnitureType: FurnitureInteractionType; subType: string; buildingId?: string }>();
   private actionHotspotMeshes = new Map<AbstractMesh, { actionType: string; promptText: string; buildingId?: string }>();
+  private containerMeshes = new Map<AbstractMesh, { containerId: string; containerType: string; name: string; isLocked?: boolean }>();
 
   // Callbacks
   private getConversationPartner: GetConversationPartnerFn | null = null;
@@ -218,6 +223,18 @@ export class InteractionPromptSystem {
 
   clearActionHotspots(): void {
     this.actionHotspotMeshes.clear();
+  }
+
+  registerContainer(mesh: AbstractMesh, containerId: string, containerType: string, name: string, isLocked?: boolean): void {
+    this.containerMeshes.set(mesh, { containerId, containerType, name, isLocked });
+  }
+
+  unregisterContainer(mesh: AbstractMesh): void {
+    this.containerMeshes.delete(mesh);
+  }
+
+  clearContainers(): void {
+    this.containerMeshes.clear();
   }
 
   // ── Query ─────────────────────────────────────────────────────────────
@@ -323,6 +340,12 @@ export class InteractionPromptSystem {
       };
     }
 
+    // Container (walk parent chain)
+    const container = this.findContainerFromMesh(mesh);
+    if (container && distance <= MAX_OBJECT_DISTANCE) {
+      return this.buildContainerTarget(container.mesh, container.info);
+    }
+
     // World prop (walk parent chain to find registered prop)
     const prop = this.findWorldPropFromMesh(mesh);
     if (prop && distance <= MAX_OBJECT_DISTANCE) {
@@ -416,6 +439,19 @@ export class InteractionPromptSystem {
       if (dot >= COS_CONE) {
         bestDist = dist;
         best = this.buildFurnitureTarget(mesh, info);
+      }
+    });
+
+    // Containers
+    this.containerMeshes.forEach((info, mesh) => {
+      if (!mesh || (mesh as Mesh).isDisposed?.()) return;
+      const toTarget = mesh.absolutePosition.subtract(cameraPos);
+      const dist = toTarget.length();
+      if (dist > MAX_OBJECT_DISTANCE || dist >= bestDist) return;
+      const dot = Vector3.Dot(toTarget.normalize(), fwd);
+      if (dot >= COS_CONE) {
+        bestDist = dist;
+        best = this.buildContainerTarget(mesh, info);
       }
     });
 
@@ -531,6 +567,25 @@ export class InteractionPromptSystem {
     };
   }
 
+  private buildContainerTarget(
+    mesh: AbstractMesh,
+    info: { containerId: string; containerType: string; name: string; isLocked?: boolean },
+  ): InteractableTarget {
+    const prettyName = this.formatObjectName(info.name || info.containerType);
+    const promptText = info.isLocked
+      ? `[Enter]: Open ${prettyName} (Locked)`
+      : `[Enter]: Open ${prettyName}`;
+    return {
+      type: 'container',
+      id: info.containerId,
+      name: prettyName,
+      mesh,
+      promptText,
+      containerId: info.containerId,
+      containerType: info.containerType,
+    };
+  }
+
   // ── Mesh → interactable lookups ───────────────────────────────────────
 
   private findNPCFromMesh(mesh: AbstractMesh): RegisteredNPC | null {
@@ -583,6 +638,16 @@ export class InteractionPromptSystem {
     let current: AbstractMesh | null = mesh;
     while (current) {
       const info = this.actionHotspotMeshes.get(current);
+      if (info) return { mesh: current, info };
+      current = current.parent as AbstractMesh | null;
+    }
+    return null;
+  }
+
+  private findContainerFromMesh(mesh: AbstractMesh): { mesh: AbstractMesh; info: { containerId: string; containerType: string; name: string; isLocked?: boolean } } | null {
+    let current: AbstractMesh | null = mesh;
+    while (current) {
+      const info = this.containerMeshes.get(current);
       if (info) return { mesh: current, info };
       current = current.parent as AbstractMesh | null;
     }
@@ -693,6 +758,8 @@ export class InteractionPromptSystem {
         return 2.0;
       case 'furniture':
         return 1.5;
+      case 'container':
+        return 1.8;
       default:
         return 2.5;
     }
@@ -866,5 +933,6 @@ export class InteractionPromptSystem {
     this.noticeBoardMeshes.clear();
     this.furnitureMeshes.clear();
     this.actionHotspotMeshes.clear();
+    this.containerMeshes.clear();
   }
 }
