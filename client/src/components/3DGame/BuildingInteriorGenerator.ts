@@ -16,6 +16,9 @@ import {
   Color3,
   Texture,
   DynamicTexture,
+  ActionManager,
+  ExecuteCodeAction,
+  Animation,
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate, InteriorLightingPreset, LightingPreset } from '@shared/game-engine/types';
@@ -78,6 +81,8 @@ export interface InteriorLayout {
   floorCount: number;
   /** Bed positions for NPC sleep assignment */
   beds: BedAssignment[];
+  /** Front entrance door mesh (if present) */
+  frontDoor?: Mesh;
 }
 
 export interface FurnitureSpec {
@@ -106,6 +111,18 @@ const PARTITION_DOOR_HEIGHT = 3.0;
 
 /** Minimum clearance (meters) around furniture for player navigation (player capsule ~0.5m radius) */
 const FURNITURE_CLEARANCE = 1.5;
+
+/** Interior door mesh dimensions */
+const INTERIOR_DOOR_WIDTH = 2.0;
+const INTERIOR_DOOR_DEPTH = 0.08;
+
+/** Door handle dimensions */
+const DOOR_HANDLE_W = 0.06;
+const DOOR_HANDLE_H = 0.2;
+const DOOR_HANDLE_D = 0.06;
+
+/** Auto-close delay for opened doors (ms) */
+const DOOR_AUTO_CLOSE_MS = 5000;
 
 /** Staircase dimensions */
 const STAIR_WIDTH = 2.0;
@@ -310,11 +327,15 @@ export class BuildingInteriorGenerator {
     // Build the room shell with configured colors
     const roomMesh = this.buildRoom(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType, config);
 
-    // Build partition walls between rooms
-    this.buildPartitions(buildingId, position, rooms, dims.height, buildingType, businessType, config);
+    // Build partition walls between rooms (returns door meshes)
+    const partitionDoors = this.buildPartitions(buildingId, position, rooms, dims.height, buildingType, businessType, config);
+
+    // Front entrance door at south wall
+    const entranceDoorMeshes = this.createFrontEntranceDoor(buildingId, position, dims, buildingType, businessType);
+    const frontDoorMesh = entranceDoorMeshes.find(m => m.metadata?.isDoor);
 
     // Build staircase if multi-floor
-    const furniture: Mesh[] = [];
+    const furniture: Mesh[] = [...partitionDoors, ...entranceDoorMeshes];
     if (floorCount > 1) {
       const stairMesh = this.buildStaircase(buildingId, position, dims.width, dims.depth, dims.height);
       if (stairMesh) furniture.push(stairMesh);
@@ -364,6 +385,7 @@ export class BuildingInteriorGenerator {
       rooms,
       floorCount,
       beds,
+      frontDoor: frontDoorMesh,
     };
 
     this.interiors.set(buildingId, layout);
@@ -1188,8 +1210,9 @@ export class BuildingInteriorGenerator {
   }
 
   /**
-   * Build partition walls between room zones with doorway cutouts.
+   * Build partition walls between room zones with doorway cutouts and door meshes.
    * Detects adjacent room boundaries on each floor and builds walls between them.
+   * @returns All door meshes (panels + handles) created in doorway openings.
    */
   private buildPartitions(
     buildingId: string,
@@ -1199,7 +1222,8 @@ export class BuildingInteriorGenerator {
     buildingType: string,
     businessType?: string,
     config?: InteriorTemplateConfig | null,
-  ): void {
+  ): Mesh[] {
+    const doorMeshes: Mesh[] = [];
     const prefix = `interior_${buildingId}`;
     const colors = this.getConfiguredColors(buildingType, businessType, config);
     const textureStyle = this.getTextureStyle(buildingType, businessType);
@@ -1207,6 +1231,16 @@ export class BuildingInteriorGenerator {
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
     this.applyTextureToMaterial(wallMat, config?.wallTextureId, textureStyle.wall, 10, height);
+
+    // Door materials based on building style
+    const doorStyle = this.getDoorMaterialStyle(buildingType, businessType);
+    const doorMat = new StandardMaterial(`${prefix}_door_mat`, this.scene);
+    doorMat.diffuseColor = doorStyle.color;
+    doorMat.specularColor = doorStyle.specular;
+
+    const handleMat = new StandardMaterial(`${prefix}_handle_mat`, this.scene);
+    handleMat.diffuseColor = new Color3(0.7, 0.65, 0.4);
+    handleMat.specularColor = new Color3(0.5, 0.5, 0.5);
 
     // Process each floor independently
     const floors = Array.from(new Set(rooms.map(r => r.floor)));
@@ -1235,11 +1269,11 @@ export class BuildingInteriorGenerator {
               built.add(key);
               const centerX = (Math.max(a.offsetX - a.width / 2, b.offsetX - b.width / 2) +
                                Math.min(a.offsetX + a.width / 2, b.offsetX + b.width / 2)) / 2;
-              this.buildPartitionWall(
+              doorMeshes.push(...this.buildPartitionWall(
                 `${prefix}_f${floor}_w${wallIdx++}`,
                 new Vector3(floorPos.x + centerX, floorPos.y, floorPos.z),
-                span, height, partitionZ, 'z', wallMat
-              );
+                span, height, partitionZ, 'z', wallMat, doorMat, handleMat
+              ));
             }
           }
           // Check reverse direction
@@ -1253,11 +1287,11 @@ export class BuildingInteriorGenerator {
               built.add(key);
               const centerX = (Math.max(a.offsetX - a.width / 2, b.offsetX - b.width / 2) +
                                Math.min(a.offsetX + a.width / 2, b.offsetX + b.width / 2)) / 2;
-              this.buildPartitionWall(
+              doorMeshes.push(...this.buildPartitionWall(
                 `${prefix}_f${floor}_w${wallIdx++}`,
                 new Vector3(floorPos.x + centerX, floorPos.y, floorPos.z),
-                span, height, partitionZ, 'z', wallMat
-              );
+                span, height, partitionZ, 'z', wallMat, doorMat, handleMat
+              ));
             }
           }
 
@@ -1272,11 +1306,11 @@ export class BuildingInteriorGenerator {
               built.add(key);
               const centerZ = (Math.max(a.offsetZ - a.depth / 2, b.offsetZ - b.depth / 2) +
                                Math.min(a.offsetZ + a.depth / 2, b.offsetZ + b.depth / 2)) / 2;
-              this.buildPartitionWall(
+              doorMeshes.push(...this.buildPartitionWall(
                 `${prefix}_f${floor}_w${wallIdx++}`,
                 new Vector3(floorPos.x, floorPos.y, floorPos.z + centerZ),
-                span, height, partitionX, 'x', wallMat
-              );
+                span, height, partitionX, 'x', wallMat, doorMat, handleMat
+              ));
             }
           }
           // Check reverse direction
@@ -1290,16 +1324,18 @@ export class BuildingInteriorGenerator {
               built.add(key);
               const centerZ = (Math.max(a.offsetZ - a.depth / 2, b.offsetZ - b.depth / 2) +
                                Math.min(a.offsetZ + a.depth / 2, b.offsetZ + b.depth / 2)) / 2;
-              this.buildPartitionWall(
+              doorMeshes.push(...this.buildPartitionWall(
                 `${prefix}_f${floor}_w${wallIdx++}`,
                 new Vector3(floorPos.x, floorPos.y, floorPos.z + centerZ),
-                span, height, partitionX, 'x', wallMat
-              );
+                span, height, partitionX, 'x', wallMat, doorMat, handleMat
+              ));
             }
           }
         }
       }
     }
+
+    return doorMeshes;
   }
 
   /** Human-readable display names for room functions */
@@ -1386,8 +1422,9 @@ export class BuildingInteriorGenerator {
   }
 
   /**
-   * Build a single partition wall with a doorway cutout.
+   * Build a single partition wall with a doorway cutout and door mesh.
    * @param axis 'z' for east-west wall (spans width), 'x' for north-south wall (spans depth)
+   * @returns Door meshes (panel + handle) created in the doorway opening.
    */
   private buildPartitionWall(
     prefix: string,
@@ -1397,7 +1434,9 @@ export class BuildingInteriorGenerator {
     offset: number,
     axis: 'x' | 'z',
     material: StandardMaterial,
-  ): void {
+    doorMaterial: StandardMaterial,
+    handleMaterial: StandardMaterial,
+  ): Mesh[] {
     const leftPanelWidth = (span - PARTITION_DOOR_WIDTH) / 2;
     const rightPanelWidth = leftPanelWidth;
 
@@ -1503,6 +1542,223 @@ export class BuildingInteriorGenerator {
         lintel.checkCollisions = true;
       }
     }
+
+    // Create door mesh in the doorway opening
+    let doorCenter: Vector3;
+    if (axis === 'z') {
+      doorCenter = new Vector3(position.x, position.y, position.z + offset);
+    } else {
+      doorCenter = new Vector3(position.x + offset, position.y, position.z);
+    }
+    return this.createInteriorDoor(prefix, doorCenter, axis, doorMaterial, handleMaterial);
+  }
+
+  /**
+   * Get door material color and specular based on building style.
+   */
+  private getDoorMaterialStyle(
+    buildingType: string,
+    businessType?: string,
+  ): { color: Color3; specular: Color3 } {
+    const bt = (businessType || buildingType || '').toLowerCase();
+    // Dark wood for taverns
+    if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar') || bt.includes('pub')) {
+      return { color: new Color3(0.35, 0.2, 0.1), specular: new Color3(0.1, 0.08, 0.05) };
+    }
+    // Metal-banded for blacksmiths
+    if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('smithy') || bt.includes('armorer')) {
+      return { color: new Color3(0.3, 0.25, 0.2), specular: new Color3(0.3, 0.3, 0.3) };
+    }
+    // Light wood for residences
+    if (bt.includes('residence') || bt.includes('house') || bt.includes('cottage') || bt.includes('mansion')) {
+      return { color: new Color3(0.6, 0.45, 0.25), specular: new Color3(0.1, 0.08, 0.05) };
+    }
+    // Default medium wood
+    return { color: new Color3(0.5, 0.35, 0.2), specular: new Color3(0.1, 0.08, 0.05) };
+  }
+
+  /**
+   * Create an interior door mesh with handle in a doorway opening.
+   * The door has a pivot at the hinge edge for swing animation.
+   */
+  private createInteriorDoor(
+    prefix: string,
+    doorwayCenter: Vector3,
+    axis: 'x' | 'z',
+    doorMaterial: StandardMaterial,
+    handleMaterial: StandardMaterial,
+    isFrontEntrance: boolean = false,
+  ): Mesh[] {
+    const meshes: Mesh[] = [];
+
+    // Door panel
+    const door = MeshBuilder.CreateBox(`${prefix}_door_panel`, {
+      width: INTERIOR_DOOR_WIDTH,
+      height: PARTITION_DOOR_HEIGHT,
+      depth: INTERIOR_DOOR_DEPTH,
+    }, this.scene);
+
+    door.position = doorwayCenter.clone();
+    door.position.y += PARTITION_DOOR_HEIGHT / 2;
+    const baseRotY = axis === 'x' ? Math.PI / 2 : 0;
+    door.rotation.y = baseRotY;
+
+    // Pivot at left edge (hinge side) so door swings from one side
+    door.setPivotPoint(new Vector3(-INTERIOR_DOOR_WIDTH / 2, 0, 0));
+
+    door.material = doorMaterial;
+    door.checkCollisions = true;
+    door.isPickable = true;
+    door.metadata = {
+      isDoor: true,
+      isOpen: false,
+      isFrontEntrance,
+      doorAxis: axis,
+      baseRotationY: baseRotY,
+      autoCloseTimer: null as ReturnType<typeof setTimeout> | null,
+      onExitCallback: null as (() => void) | null,
+      skipMerge: true,
+    };
+
+    meshes.push(door);
+
+    // Door handle (small box on one side)
+    const handle = MeshBuilder.CreateBox(`${prefix}_door_handle`, {
+      width: DOOR_HANDLE_W,
+      height: DOOR_HANDLE_H,
+      depth: DOOR_HANDLE_D,
+    }, this.scene);
+    handle.parent = door;
+    handle.position = new Vector3(
+      INTERIOR_DOOR_WIDTH / 2 - 0.15,
+      -PARTITION_DOOR_HEIGHT / 2 + 1.0,
+      INTERIOR_DOOR_DEPTH / 2 + DOOR_HANDLE_D / 2,
+    );
+    handle.material = handleMaterial;
+    handle.isPickable = false;
+
+    meshes.push(handle);
+
+    // Click interaction
+    this.setupDoorInteraction(door);
+
+    return meshes;
+  }
+
+  /**
+   * Set up click-to-toggle interaction on a door mesh.
+   * Front entrance doors call onExitCallback if set; others toggle open/close.
+   */
+  private setupDoorInteraction(door: Mesh): void {
+    door.actionManager = new ActionManager(this.scene);
+    door.actionManager.registerAction(
+      new ExecuteCodeAction(ActionManager.OnPickTrigger, () => {
+        const meta = door.metadata;
+        if (!meta?.isDoor) return;
+
+        // Front entrance doors trigger exit callback if available
+        if (meta.isFrontEntrance && meta.onExitCallback) {
+          meta.onExitCallback();
+          return;
+        }
+
+        if (meta.isOpen) {
+          this.closeDoor(door);
+        } else {
+          this.openDoor(door);
+        }
+      })
+    );
+  }
+
+  /**
+   * Animate a door open (90-degree swing on Y axis) and start auto-close timer.
+   */
+  private openDoor(door: Mesh): void {
+    const meta = door.metadata;
+    meta.isOpen = true;
+    door.checkCollisions = false;
+
+    const baseRot = meta.baseRotationY as number;
+    const openRot = baseRot + Math.PI / 2;
+
+    const anim = new Animation(
+      `${door.name}_swing`, 'rotation.y',
+      30, Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CONSTANT,
+    );
+    anim.setKeys([
+      { frame: 0, value: baseRot },
+      { frame: 15, value: openRot },
+    ]);
+    door.animations = [anim];
+    this.scene.beginAnimation(door, 0, 15, false);
+
+    // Auto-close after delay
+    if (meta.autoCloseTimer) {
+      clearTimeout(meta.autoCloseTimer);
+    }
+    meta.autoCloseTimer = setTimeout(() => {
+      if (meta.isOpen) {
+        this.closeDoor(door);
+      }
+    }, DOOR_AUTO_CLOSE_MS);
+  }
+
+  /**
+   * Animate a door closed and clear the auto-close timer.
+   */
+  private closeDoor(door: Mesh): void {
+    const meta = door.metadata;
+    meta.isOpen = false;
+    door.checkCollisions = true;
+
+    const baseRot = meta.baseRotationY as number;
+
+    const anim = new Animation(
+      `${door.name}_swing`, 'rotation.y',
+      30, Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CONSTANT,
+    );
+    anim.setKeys([
+      { frame: 0, value: baseRot + Math.PI / 2 },
+      { frame: 15, value: baseRot },
+    ]);
+    door.animations = [anim];
+    this.scene.beginAnimation(door, 0, 15, false);
+
+    if (meta.autoCloseTimer) {
+      clearTimeout(meta.autoCloseTimer);
+      meta.autoCloseTimer = null;
+    }
+  }
+
+  /**
+   * Create a front entrance door at the south wall of the interior.
+   */
+  private createFrontEntranceDoor(
+    buildingId: string,
+    position: Vector3,
+    dims: { width: number; depth: number; height: number },
+    buildingType: string,
+    businessType?: string,
+  ): Mesh[] {
+    const prefix = `interior_${buildingId}_entrance`;
+
+    const doorStyle = this.getDoorMaterialStyle(buildingType, businessType);
+    const doorMat = new StandardMaterial(`${prefix}_door_mat`, this.scene);
+    doorMat.diffuseColor = doorStyle.color;
+    doorMat.specularColor = doorStyle.specular;
+
+    const handleMat = new StandardMaterial(`${prefix}_handle_mat`, this.scene);
+    handleMat.diffuseColor = new Color3(0.7, 0.65, 0.4);
+    handleMat.specularColor = new Color3(0.5, 0.5, 0.5);
+
+    const doorCenter = new Vector3(
+      position.x,
+      position.y,
+      position.z - dims.depth / 2,
+    );
+
+    return this.createInteriorDoor(prefix, doorCenter, 'z', doorMat, handleMat, true);
   }
 
   /**

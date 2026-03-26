@@ -75,6 +75,8 @@ export class Mesh {
   }
   rotation = new Vector3();
   checkCollisions = false;
+  actionManager: any = null;
+  setPivotPoint(_point: any) {}
   clone(name: string) {
     const m = new Mesh(name);
     m.material = this.material;
@@ -135,9 +137,10 @@ export class Animation {
   static ANIMATIONTYPE_FLOAT = 0;
   static ANIMATIONTYPE_VECTOR3 = 1;
   static ANIMATIONLOOPMODE_CYCLE = 1;
+  static ANIMATIONLOOPMODE_CONSTANT = 2;
   name: string;
   constructor(name: string, ..._args: any[]) { this.name = name; }
-  setKeys() {}
+  setKeys(_keys: any[]) {}
 }
 
 export class Light {
@@ -167,6 +170,7 @@ export class TransformNode {
 
 export class ActionManager {
   static OnIntersectionEnterTrigger = 0;
+  static OnPickTrigger = 1;
   constructor(_scene: any) {}
   registerAction() {}
 }

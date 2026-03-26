@@ -134,6 +134,8 @@ console.log('\nfurniture collision detection (no overlapping items):');
       for (let j = i + 1; j < furniture.length; j++) {
         const a = furniture[i];
         const b = furniture[j];
+        // Skip door meshes (handles are children with identical local positions)
+        if (a.name.includes('_door_') || b.name.includes('_door_')) continue;
         // Skip if on different floors (Y difference > 2m)
         if (Math.abs(a.position.y - b.position.y) > 2) continue;
         const dx = Math.abs(a.position.x - b.position.x);
@@ -171,8 +173,8 @@ console.log('\nplayer navigation (capsule 0.5m radius fits through 2.5m doorways
   let blockedEntrance = false;
 
   for (const f of layout.furniture) {
-    // Skip non-collidable elements like room labels and staircases
-    if (f.name.endsWith('_label') || f.name.includes('staircase')) continue;
+    // Skip non-collidable elements like room labels, staircases, and doors
+    if (f.name.endsWith('_label') || f.name.includes('staircase') || f.name.includes('_door_')) continue;
     const dx = Math.abs(f.position.x - doorX);
     const dz = Math.abs(f.position.z - doorZ);
     if (dx < 1.25 && dz < 1.0) {
