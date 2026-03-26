@@ -3787,7 +3787,8 @@ export class BabylonGame {
         // Validate item positions against roads and buildings
         this.exteriorItemManager.setPositionValidator((x, z) => {
           if (this.isPointInsideAnyBuilding(x, z)) return true;
-          if (this.roadGenerator?.isPointOnRoad(x, z)) return true;
+          // roadHalfWidth + 1.5m clearance for exterior items
+          if (this.roadGenerator?.isPointOnRoad(x, z, 1.5)) return true;
           return false;
         });
         const extMeshes = this.exteriorItemManager.spawnItems(this.worldItems);
@@ -5465,6 +5466,18 @@ export class BabylonGame {
 
     // Generate nature elements (trees, rocks, grass, flowers)
 
+    // Validate nature positions against roads, sidewalks, and buildings
+    natureGenerator.setPositionValidator((x, z) => {
+      if (this.isPointInsideAnyBuilding(x, z)) return true;
+      // roadHalfWidth + 2m margin covers road surface + sidewalk buffer
+      if (this.roadGenerator?.isPointOnRoad(x, z, 2)) return true;
+      return false;
+    });
+    // Extra building proximity check for geological features (5m clearance)
+    natureGenerator.setBuildingProximityChecker((x, z, margin) => {
+      return this.isPointNearAnyBuilding(x, z, margin);
+    });
+
     const worldBounds = {
       minX: -terrainSize / 2 + 50, // Leave space at edges
       maxX: terrainSize / 2 - 50,
@@ -5507,6 +5520,12 @@ export class BabylonGame {
     if (biome.hasFlowers) {
       const flowerCount = Math.floor((terrainSize / 10) * vegetationScale);
       natureGenerator.generateFlowers(biome, worldBounds, flowerCount, sampleHeight);
+    }
+
+    // Post-spawn cleanup: remove any nature elements that ended up on roads
+    if (this.roadGenerator) {
+      const rg = this.roadGenerator;
+      natureGenerator.removeRoadOverlaps((x, z) => rg.isPointOnRoad(x, z, 1.5));
     }
 
     // Ambient animals (cats, dogs, birds) for world ambiance
@@ -7566,6 +7585,20 @@ export class BabylonGame {
       const lx = dx * b.cos - dz * b.sin;
       const lz = dx * b.sin + dz * b.cos;
       if (Math.abs(lx) < b.halfW && Math.abs(lz) < b.halfD) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Check whether a world-space XZ point is within `margin` meters of any building footprint edge. */
+  private isPointNearAnyBuilding(x: number, z: number, margin: number): boolean {
+    for (const b of this.buildingFootprints) {
+      const dx = x - b.cx;
+      const dz = z - b.cz;
+      const lx = dx * b.cos - dz * b.sin;
+      const lz = dx * b.sin + dz * b.cos;
+      if (Math.abs(lx) < b.halfW + margin && Math.abs(lz) < b.halfD + margin) {
         return true;
       }
     }

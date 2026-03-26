@@ -169,8 +169,36 @@ export class ProceduralNatureGenerator {
     }
   };
 
+  /**
+   * Position validator callback — returns true if a position is blocked
+   * (on a road, sidewalk, or inside a building). Used by all generate methods.
+   */
+  private isPointBlocked: ((x: number, z: number) => boolean) | null = null;
+
+  /**
+   * Building proximity checker — returns true if within given radius of any building footprint.
+   * Used for extra geological feature clearance.
+   */
+  private isNearBuilding: ((x: number, z: number, margin: number) => boolean) | null = null;
+
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Set a callback that returns true if a position is blocked (on a road, sidewalk, or building).
+   * Nature elements at blocked positions will be skipped.
+   */
+  public setPositionValidator(isBlocked: (x: number, z: number) => boolean): void {
+    this.isPointBlocked = isBlocked;
+  }
+
+  /**
+   * Set a callback for building proximity checks with configurable margin.
+   * Used to enforce extra clearance for geological features near buildings.
+   */
+  public setBuildingProximityChecker(isNear: (x: number, z: number, margin: number) => boolean): void {
+    this.isNearBuilding = isNear;
   }
 
   /**
@@ -495,7 +523,12 @@ export class ProceduralNatureGenerator {
         Vector3.Distance(position, avoid) < avoidRadius
       );
 
-      if (!tooClose) {
+      // Skip positions on roads, sidewalks, or inside buildings
+      if (tooClose || (this.isPointBlocked && this.isPointBlocked(x, z))) {
+        continue;
+      }
+
+      {
         const chosenTemplate = allTreeTemplates[Math.floor(Math.random() * allTreeTemplates.length)];
         const scale = 0.8 + Math.random() * 0.4;
 
@@ -857,6 +890,11 @@ export class ProceduralNatureGenerator {
           slope: 0,
         }));
 
+    // Filter out placements on roads, sidewalks, or buildings
+    const filteredRockPlacements = this.isPointBlocked
+      ? rockPlacements.filter(p => !this.isPointBlocked!(p.x, p.z))
+      : rockPlacements;
+
     // Use asset-based rock if available
     if (this.rockOverrideTemplate) {
       // Build pool of all available rock templates (primary + variants)
@@ -866,8 +904,8 @@ export class ProceduralNatureGenerator {
         allRockTemplates.push(variant);
       }
 
-      for (let i = 0; i < rockPlacements.length; i++) {
-        const { x, z, height: baseHeight } = rockPlacements[i];
+      for (let i = 0; i < filteredRockPlacements.length; i++) {
+        const { x, z, height: baseHeight } = filteredRockPlacements[i];
 
         // Pick randomly from all available rock templates for variety
         const chosenTemplate = allRockTemplates[Math.floor(Math.random() * allRockTemplates.length)];
@@ -951,8 +989,8 @@ export class ProceduralNatureGenerator {
     }
     rockTemplate.addLODLevel(rockLOD.lodCull, null);
 
-    for (let i = 0; i < rockPlacements.length; i++) {
-      const { x, z, height: baseHeight } = rockPlacements[i];
+    for (let i = 0; i < filteredRockPlacements.length; i++) {
+      const { x, z, height: baseHeight } = filteredRockPlacements[i];
 
       // Random rock size
       const scale = 1 + Math.random() * 3;
@@ -1005,12 +1043,17 @@ export class ProceduralNatureGenerator {
           slope: 0,
         }));
 
+    // Filter out placements on roads, sidewalks, or buildings
+    const filteredShrubPlacements = this.isPointBlocked
+      ? shrubPlacements.filter(p => !this.isPointBlocked!(p.x, p.z))
+      : shrubPlacements;
+
     // Use asset-based shrub/bush if available
     const template = this.shrubOverrideTemplate || this.bushOverrideTemplate;
 
     if (template) {
-      for (let i = 0; i < shrubPlacements.length; i++) {
-        const { x, z, height: baseHeight } = shrubPlacements[i];
+      for (let i = 0; i < filteredShrubPlacements.length; i++) {
+        const { x, z, height: baseHeight } = filteredShrubPlacements[i];
         const scaleVariation = 0.7 + Math.random() * 0.6;
 
         // glTF root nodes have 0 vertices — use instantiateHierarchy
@@ -1068,8 +1111,8 @@ export class ProceduralNatureGenerator {
     // LOD: hide bushes at configured distance (instances inherit)
     bushTemplate.addLODLevel(this.lodProfile.shrub.lodCull, null);
 
-    for (let i = 0; i < shrubPlacements.length; i++) {
-      const { x, z, height: baseHeight } = shrubPlacements[i];
+    for (let i = 0; i < filteredShrubPlacements.length; i++) {
+      const { x, z, height: baseHeight } = filteredShrubPlacements[i];
 
       const size = 1 + Math.random() * 2;
       const bush = bushTemplate.createInstance(`bush_${i}`);
@@ -1143,16 +1186,21 @@ export class ProceduralNatureGenerator {
           slope: 0,
         }));
 
+    // Filter out placements on roads, sidewalks, or buildings
+    const filteredGrassPlacements = this.isPointBlocked
+      ? grassPlacements.filter(p => !this.isPointBlocked!(p.x, p.z))
+      : grassPlacements;
+
     // Phase 2: Use ThinInstances for ultra-dense grass — single draw call
     // Build a Float32Array of 4x4 world matrices for all grass patches
-    const matrices = new Float32Array(grassPlacements.length * 16);
+    const matrices = new Float32Array(filteredGrassPlacements.length * 16);
     const tmpMatrix = Matrix.Identity();
     const tmpRotation = Quaternion.Identity();
     const tmpScaling = Vector3.Zero();
     const tmpPosition = Vector3.Zero();
 
-    for (let i = 0; i < grassPlacements.length; i++) {
-      const { x, z, height: baseHeight } = grassPlacements[i];
+    for (let i = 0; i < filteredGrassPlacements.length; i++) {
+      const { x, z, height: baseHeight } = filteredGrassPlacements[i];
 
       const rotY = Math.random() * Math.PI * 2;
       const scaleVar = 0.3 + Math.random() * 0.3;
@@ -1232,6 +1280,8 @@ export class ProceduralNatureGenerator {
 
     for (let i = 0; i < flowerPlacements.length; i++) {
       const { x, z, height: baseHeight } = flowerPlacements[i];
+      // Skip positions on roads, sidewalks, or buildings
+      if (this.isPointBlocked && this.isPointBlocked(x, z)) continue;
       const colorIdx = Math.floor(Math.random() * flowerTemplates.length);
       const s = 0.8 + Math.random() * 0.5;
       positionsPerColor[colorIdx].push({ x, z, y: baseHeight, s });
@@ -1414,14 +1464,22 @@ export class ProceduralNatureGenerator {
 
     const adjustedCount = Math.max(1, Math.floor(count * biome.geologicalDensity));
 
-    for (let i = 0; i < adjustedCount; i++) {
+    let placed = 0;
+    const maxAttempts = adjustedCount * 3;
+    for (let attempt = 0; attempt < maxAttempts && placed < adjustedCount; attempt++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
       const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+
+      // Geological features need extra clearance: 3m from road edges, 5m from buildings
+      if (this.isPointBlocked && this.isPointBlocked(x, z)) continue;
+      if (this.isNearBuilding && this.isNearBuilding(x, z, 5)) continue;
+
       const baseHeight = heightSampler ? heightSampler(x, z) : 0;
 
       const featureType = biome.geologicalFeatures[
         Math.floor(Math.random() * biome.geologicalFeatures.length)
       ];
+      const i = placed;
 
       const mesh = this.createGeologicalFeature(featureType, `geo_${featureType}_${i}`, biome, baseHeight);
       if (!mesh) continue;
@@ -1476,6 +1534,7 @@ export class ProceduralNatureGenerator {
 
 
       this.geologicalMeshes.push(mesh);
+      placed++;
     }
   }
 
@@ -1685,6 +1744,39 @@ export class ProceduralNatureGenerator {
   /**
    * Dispose all nature elements
    */
+  /**
+   * Post-spawn cleanup: remove any nature meshes that overlap road zones.
+   * Catches edge cases where items were placed before road data was available.
+   * Returns the number of meshes removed.
+   */
+  public removeRoadOverlaps(isOnRoad: (x: number, z: number) => boolean): number {
+    let removed = 0;
+    const cleanList = (meshes: AbstractMesh[]): AbstractMesh[] => {
+      const keep: AbstractMesh[] = [];
+      for (const mesh of meshes) {
+        if (mesh.isDisposed()) continue;
+        const pos = mesh.position;
+        if (isOnRoad(pos.x, pos.z)) {
+          mesh.dispose(false, true);
+          removed++;
+        } else {
+          keep.push(mesh);
+        }
+      }
+      return keep;
+    };
+
+    this.treeMeshes = cleanList(this.treeMeshes);
+    this.rockMeshes = cleanList(this.rockMeshes);
+    this.vegetationMeshes = cleanList(this.vegetationMeshes);
+    this.geologicalMeshes = cleanList(this.geologicalMeshes);
+
+    if (removed > 0) {
+      console.log(`[NatureGen] Post-spawn cleanup removed ${removed} nature meshes from road zones`);
+    }
+    return removed;
+  }
+
   public dispose(): void {
     this.treeMeshes.forEach(mesh => mesh.dispose());
     this.rockMeshes.forEach(mesh => mesh.dispose());
