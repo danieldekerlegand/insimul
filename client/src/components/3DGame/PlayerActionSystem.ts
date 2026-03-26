@@ -89,17 +89,18 @@ export const ACTION_DEFINITIONS: Record<PhysicalActionType, PhysicalActionDefini
     displayName: 'Mine',
     animationClip: 'TreeChopping_Loop',
     animationFallback: 'Interact',
-    duration: 7,
-    energyCost: 8,
+    duration: 8,
+    energyCost: 20,
     xpReward: 20,
     itemRewards: [
-      { itemName: 'ore', chance: 0.6, minQuantity: 1, maxQuantity: 3 },
-      { itemName: 'gem', chance: 0.1, minQuantity: 1, maxQuantity: 1 },
-      { itemName: 'stone', chance: 0.8, minQuantity: 1, maxQuantity: 2 },
+      { itemName: 'stone', chance: 0.45, minQuantity: 1, maxQuantity: 2 },
+      { itemName: 'iron_ore', chance: 0.25, minQuantity: 1, maxQuantity: 2 },
+      { itemName: 'copper_ore', chance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'gem', chance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { itemName: 'rare_gem', chance: 0.02, minQuantity: 1, maxQuantity: 1 },
     ],
-    requiredTool: 'pickaxe',
     promptVerb: 'Mine',
-    validLocations: ['mine', 'quarry', 'rock', 'cave', 'mountain'],
+    validLocations: ['mine', 'quarry', 'rock', 'cave', 'mountain', 'ore_deposit'],
   },
 
   harvesting: {
@@ -249,6 +250,7 @@ export const BUSINESS_ACTION_HOTSPOTS: Record<string, { actionType: PhysicalActi
   garden: [{ actionType: 'harvesting', furnitureSubType: 'counter' }],
   art_studio: [{ actionType: 'painting', furnitureSubType: 'workbench' }],
   mine: [{ actionType: 'mining', furnitureSubType: 'workbench' }],
+  blacksmith_yard: [{ actionType: 'mining', furnitureSubType: 'anvil' }],
 };
 
 // ── Progress State ───────────────────────────────────────────────────────────

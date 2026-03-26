@@ -209,6 +209,7 @@ namespace Insimul.Systems
             ["trade"] = new() { ["conscientiousness"] = 0.4f, ["agreeableness"] = 0.1f },
             ["steal"] = new() { ["agreeableness"] = -0.6f, ["conscientiousness"] = -0.4f, ["neuroticism"] = 0.2f },
             ["craft"] = new() { ["conscientiousness"] = 0.5f, ["openness"] = 0.3f },
+            ["mine"] = new() { ["conscientiousness"] = 0.4f, ["openness"] = 0.2f },
             ["work"] = new() { ["conscientiousness"] = 0.6f },
             // Romance actions
             ["flirt"] = new() { ["extroversion"] = 0.4f, ["openness"] = 0.3f, ["agreeableness"] = 0.1f },
@@ -391,6 +392,62 @@ namespace Insimul.Systems
             // Fallback
             string verb = !string.IsNullOrEmpty(action.verbPast) ? action.verbPast : action.name.ToLower();
             return $"You {verb}.";
+        }
+
+        /// <summary>
+        /// Maps quest objective types to the action names that can satisfy them.
+        /// </summary>
+        private static readonly Dictionary<string, string[]> ObjectiveToAction = new Dictionary<string, string[]>
+        {
+            { "visit_location", new[] { "travel_to_location", "enter_building" } },
+            { "discover_location", new[] { "travel_to_location" } },
+            { "talk_to_npc", new[] { "talk_to_npc" } },
+            { "complete_conversation", new[] { "talk_to_npc" } },
+            { "collect_item", new[] { "collect_item" } },
+            { "deliver_item", new[] { "give_gift" } },
+            { "craft_item", new[] { "craft_item", "craft", "cook" } },
+            { "defeat_enemies", new[] { "attack_enemy" } },
+            { "build_friendship", new[] { "talk_to_npc", "compliment_npc", "give_gift" } },
+            { "give_gift", new[] { "give_gift" } },
+            { "examine_object", new[] { "examine_object" } },
+            { "read_sign", new[] { "read_sign" } },
+            { "listen_and_repeat", new[] { "listen_and_repeat" } },
+            { "point_and_name", new[] { "point_and_name" } },
+            { "read_text", new[] { "read_book" } },
+            { "comprehension_quiz", new[] { "answer_question" } },
+            { "photograph_subject", new[] { "take_photo" } },
+            { "photograph_activity", new[] { "take_photo" } },
+            { "mine_mineral", new[] { "mine", "mine_ore" } },
+        };
+
+        /// <summary>
+        /// Find actions that can satisfy a given quest objective type.
+        /// </summary>
+        public List<InsimulActionData> FindActionForObjective(string objectiveType)
+        {
+            var result = new List<InsimulActionData>();
+            if (!ObjectiveToAction.TryGetValue(objectiveType, out var names)) return result;
+
+            var nameSet = new HashSet<string>(names);
+            foreach (var action in allActions)
+            {
+                if (nameSet.Contains(action.name))
+                    result.Add(action);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Look up an action by its name (e.g., "fish", "cook", "attack_enemy").
+        /// </summary>
+        public InsimulActionData GetActionByName(string actionName)
+        {
+            foreach (var action in allActions)
+            {
+                if (action.name == actionName)
+                    return action;
+            }
+            return null;
         }
     }
 

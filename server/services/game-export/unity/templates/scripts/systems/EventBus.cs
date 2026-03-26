@@ -115,7 +115,12 @@ namespace Insimul.Systems
         PhysicalActionCompleted,
         // Reading completion events
         ReadingCompleted,
-        QuestionsAnswered
+        QuestionsAnswered,
+        // Assessment objective triggers
+        WritingSubmitted,
+        ListeningCompleted,
+        // Mining events
+        MineralMined
     }
 
     /// <summary>
@@ -927,6 +932,31 @@ namespace Insimul.Systems
         public float score;
         public int questionsCorrect;
         public int questionsTotal;
+    }
+
+    public class WritingSubmittedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.WritingSubmitted;
+        public string text;
+        public int wordCount;
+    }
+
+    public class ListeningCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ListeningCompleted;
+    }
+
+    // ── Mining Events ───────────────────────────────────────────────────────
+
+    public class MineralMinedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.MineralMined;
+        public string mineralId;
+        public string mineralNameFr;
+        public string mineralNameEn;
+        public int quantity;
+        public bool bonusItem;
+        public string locationId;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────
