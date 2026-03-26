@@ -268,8 +268,22 @@ export async function fillVacancy(
     throw new Error(`Business ${businessId} not found`);
   }
 
-  // Create occupation record
-  const occupationId = `occ_${Date.now()}_${candidateId.slice(0, 8)}`;
+  // Create occupation record in the database
+  const worldId = (candidate as any).worldId;
+  const dbOccupation = await storage.createOccupation({
+    worldId: worldId || '',
+    characterId: candidateId,
+    businessId,
+    vocation,
+    shift,
+    startYear: currentYear,
+    yearsExperience: 0,
+    level: vocation === 'Owner' || vocation === 'Manager' ? 5 : 1,
+    isSupplemental,
+    hiredAsFavor
+  });
+
+  const occupationId = dbOccupation.id;
   const newOccupation: OccupationData = {
     id: occupationId,
     businessId,
@@ -282,12 +296,12 @@ export async function fillVacancy(
     hiredAsFavor
   };
 
-  // Store in character's customData
+  // Store in character's customData for in-memory access
   const existingData = (candidate as any).customData as Record<string, any> | undefined;
   const customData = existingData || {};
   const occupations = (customData.occupations as OccupationData[]) || [];
   occupations.push(newOccupation);
-  
+
   await storage.updateCharacter(candidateId, {
     ...(existingData && {
       customData: {
@@ -310,7 +324,6 @@ export async function fillVacancy(
   await storage.updateBusiness(businessId, { vacancies });
 
   // Sync hiring fact to Prolog knowledge base
-  const worldId = (candidate as any).worldId;
   if (worldId) {
     await prologAssertFact(worldId, `occupation(${candidateId.toLowerCase().replace(/[^a-z0-9_]/g, '_')}, ${vocation.toLowerCase().replace(/[^a-z0-9_]/g, '_')})`);
   }

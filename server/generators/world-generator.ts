@@ -756,22 +756,29 @@ export class WorldGenerator {
     day: OccupationVocation[];
     night: OccupationVocation[];
   } {
+    // Vacancy counts per task requirements:
+    // Small (shops, bakeries): 1 employee beyond owner
+    // Medium (taverns, restaurants): 2-3 employees beyond owner
+    // Large (factories, hotels, hospitals): 3-5 employees beyond owner
     const vacancies: Partial<Record<BusinessType, { day: OccupationVocation[]; night: OccupationVocation[] }>> = {
-      'Farm': { day: ['Farmer', 'Farmhand'], night: [] },
-      'GroceryStore': { day: ['Grocer', 'Cashier'], night: [] },
-      'Shop': { day: ['Cashier', 'Cashier'], night: [] },
+      // Small businesses (1 employee)
+      'Farm': { day: ['Farmhand'], night: [] },
+      'GroceryStore': { day: ['Cashier'], night: [] },
+      'Shop': { day: ['Cashier'], night: [] },
+      'Carpenter': { day: ['Carpenter'], night: [] },
+      'Blacksmith': { day: ['Blacksmith'], night: [] },
+      'Harbor': { day: ['Laborer'], night: [] },
+      'Clinic': { day: ['Nurse'], night: [] },
+      // Medium businesses (2-3 employees)
       'Restaurant': { day: ['Cook', 'Waiter'], night: ['Bartender'] },
-      'Clinic': { day: ['Doctor', 'Nurse'], night: ['Nurse'] },
-      'Hospital': { day: ['Doctor', 'Nurse'], night: ['Nurse'] },
-      'Carpenter': { day: ['Carpenter', 'Carpenter'], night: [] },
-      'Factory': { day: ['Laborer', 'Laborer'], night: [] },
+      'Bar': { day: ['Bartender', 'Waiter'], night: ['Bartender'] },
       'LawFirm': { day: ['Lawyer', 'Secretary'], night: [] },
       'School': { day: ['Teacher', 'Teacher'], night: [] },
       'Bank': { day: ['BankTeller', 'BankTeller'], night: [] },
-      'Bar': { day: ['Bartender'], night: ['Bartender'] },
-      'TownHall': { day: ['Manager'], night: [] },
-      'Blacksmith': { day: ['Blacksmith', 'Blacksmith'], night: [] },
-      'Harbor': { day: ['Laborer'], night: [] },
+      'TownHall': { day: ['Manager', 'Secretary'], night: [] },
+      // Large businesses (3-5 employees)
+      'Factory': { day: ['Laborer', 'Laborer', 'Laborer'], night: ['Laborer', 'Laborer'] },
+      'Hospital': { day: ['Doctor', 'Nurse', 'Nurse'], night: ['Nurse', 'Nurse'] },
     };
 
     return vacancies[businessType] || { day: [], night: [] };
@@ -819,6 +826,27 @@ export class WorldGenerator {
       c.isAlive &&
       !ownerIds.has(c.id)
     );
+
+    // Create Owner occupation records in the database for all business owners
+    for (const business of config.businesses) {
+      if (!business.ownerId) continue;
+      try {
+        await storage.createOccupation({
+          worldId: config.worldId,
+          characterId: business.ownerId,
+          businessId: business.id,
+          vocation: 'Owner',
+          shift: 'day',
+          startYear: config.currentYear,
+          yearsExperience: 0,
+          level: 5,
+          isSupplemental: false,
+          hiredAsFavor: false
+        });
+      } catch (error) {
+        console.error(`   ✗ Failed to create Owner occupation for business ${business.name}:`, error);
+      }
+    }
 
     // Shuffle to randomize hiring
     const candidatePool = employableCharacters.sort(() => Math.random() - 0.5);
