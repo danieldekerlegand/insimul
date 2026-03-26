@@ -119,6 +119,11 @@ export interface CompletionObjective {
   quizCorrect?: number;
   quizPassThreshold?: number;
 
+  // perform_physical_action
+  actionType?: string;
+  actionsCompleted?: number;
+  actionsRequired?: number;
+
   // timed objectives
   timeLimitSeconds?: number;
   startedAt?: number;
@@ -176,7 +181,8 @@ export type CompletionEvent =
   | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; subjectActivity?: string; questId?: string }
   | { type: 'assessment_phase_completed'; phaseId: string; score: number; maxScore: number; questId: string; objectiveId: string }
   | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
-  | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number; questId?: string };
+  | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number; questId?: string }
+  | { type: 'physical_action'; actionType: string; itemsProduced: string[]; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -328,6 +334,9 @@ export class QuestCompletionEngine {
         break;
       case 'conversation_turn_counted':
         this.trackConversationTurnCounted(event.npcId, event.totalTurns, event.meaningfulTurns, event.questId);
+        break;
+      case 'physical_action':
+        this.trackPhysicalAction(event.actionType, event.itemsProduced, event.questId);
         break;
     }
   }
@@ -548,6 +557,35 @@ export class QuestCompletionEngine {
         }
       }
     });
+  }
+
+  trackPhysicalAction(actionType: string, itemsProduced: string[], questId?: string): void {
+    this.forEachObjective(questId, 'perform_physical_action', (quest, obj) => {
+      if (obj.actionType && obj.actionType !== actionType) return;
+
+      obj.actionsCompleted = (obj.actionsCompleted || 0) + 1;
+
+      if (obj.actionsCompleted >= (obj.actionsRequired || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+
+    // Physical actions that produce items also count toward collect_item objectives
+    for (const itemName of itemsProduced) {
+      this.trackCollectedItemByName(itemName, questId);
+    }
+
+    // Also count toward craft_item if items were produced
+    for (const itemName of itemsProduced) {
+      this.forEachObjective(questId, 'craft_item', (quest, obj) => {
+        if (obj.craftedItemId === itemName || obj.itemName === itemName) {
+          obj.craftedCount = (obj.craftedCount || 0) + 1;
+          if (obj.craftedCount >= (obj.requiredCount || 1)) {
+            this.completeObjective(quest.id, obj.id);
+          }
+        }
+      });
+    }
   }
 
   trackLocationVisit(locationId: string, locationName: string, questId?: string): void {

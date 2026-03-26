@@ -166,7 +166,9 @@ export type GameEvent =
   | { type: 'clue_discovered'; clueId: string; clueCategory: string; clueSource: string; clueCount: number; totalClueCount: number }
   // Conversational action events (detected patterns during NPC dialogue)
   | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
-  | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number };
+  | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number }
+  // Physical action events (player performing activities at hotspots)
+  | { type: 'physical_action_completed'; actionType: string; locationId?: string; buildingId?: string; itemsProduced: Array<{ itemName: string; quantity: number }>; energyCost: number; xpGained: number };
 
 export type GameEventType = GameEvent['type'];
 

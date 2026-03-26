@@ -144,6 +144,8 @@ const EVENT_CLUE_DISCOVERED := "clue_discovered"
 # Conversational action events
 const EVENT_CONVERSATIONAL_ACTION := "conversational_action"
 const EVENT_CONVERSATION_TURN_COUNTED := "conversation_turn_counted"
+# Physical action events
+const EVENT_PHYSICAL_ACTION_COMPLETED := "physical_action_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -234,6 +236,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	# Conversational action events
 	EVENT_CONVERSATIONAL_ACTION,
 	EVENT_CONVERSATION_TURN_COUNTED,
+	# Physical action events
+	EVENT_PHYSICAL_ACTION_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

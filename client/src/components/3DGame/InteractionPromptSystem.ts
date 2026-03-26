@@ -37,7 +37,8 @@ export type InteractableType =
   | 'sign'
   | 'object'
   | 'notice_board'
-  | 'furniture';
+  | 'furniture'
+  | 'action_hotspot';
 
 export interface InteractableTarget {
   type: InteractableType;
@@ -52,6 +53,8 @@ export interface InteractableTarget {
   furnitureType?: FurnitureInteractionType;
   /** For eavesdrop targets */
   conversationPartnerName?: string;
+  /** For action hotspots */
+  actionHotspotType?: string;
 }
 
 export interface RegisteredNPC {
@@ -115,6 +118,7 @@ export class InteractionPromptSystem {
   private worldPropSource: Mesh[] | null = null;
   private noticeBoardMeshes = new Map<AbstractMesh, { id: string; name: string }>();
   private furnitureMeshes = new Map<AbstractMesh, { furnitureType: FurnitureInteractionType; subType: string; buildingId?: string }>();
+  private actionHotspotMeshes = new Map<AbstractMesh, { actionType: string; promptText: string; buildingId?: string }>();
 
   // Callbacks
   private getConversationPartner: GetConversationPartnerFn | null = null;
@@ -204,6 +208,18 @@ export class InteractionPromptSystem {
     this.furnitureMeshes.clear();
   }
 
+  registerActionHotspot(mesh: AbstractMesh, actionType: string, promptText: string, buildingId?: string): void {
+    this.actionHotspotMeshes.set(mesh, { actionType, promptText, buildingId });
+  }
+
+  unregisterActionHotspot(mesh: AbstractMesh): void {
+    this.actionHotspotMeshes.delete(mesh);
+  }
+
+  clearActionHotspots(): void {
+    this.actionHotspotMeshes.clear();
+  }
+
   // ── Query ─────────────────────────────────────────────────────────────
 
   /** The currently targeted interactable (null if nothing in view). */
@@ -276,6 +292,19 @@ export class InteractionPromptSystem {
     const furn = this.findFurnitureFromMesh(mesh);
     if (furn && distance <= MAX_FURNITURE_DISTANCE) {
       return this.buildFurnitureTarget(furn.mesh, furn.info);
+    }
+
+    // Action hotspot (walk parent chain)
+    const hotspot = this.findActionHotspotFromMesh(mesh);
+    if (hotspot && distance <= MAX_FURNITURE_DISTANCE) {
+      return {
+        type: 'action_hotspot',
+        id: `hotspot_${hotspot.info.actionType}`,
+        name: hotspot.info.actionType,
+        mesh: hotspot.mesh,
+        promptText: hotspot.info.promptText,
+        actionHotspotType: hotspot.info.actionType,
+      };
     }
 
     // World prop (walk parent chain to find registered prop)
@@ -515,6 +544,16 @@ export class InteractionPromptSystem {
     let current: AbstractMesh | null = mesh;
     while (current) {
       const info = this.furnitureMeshes.get(current);
+      if (info) return { mesh: current, info };
+      current = current.parent as AbstractMesh | null;
+    }
+    return null;
+  }
+
+  private findActionHotspotFromMesh(mesh: AbstractMesh): { mesh: AbstractMesh; info: { actionType: string; promptText: string; buildingId?: string } } | null {
+    let current: AbstractMesh | null = mesh;
+    while (current) {
+      const info = this.actionHotspotMeshes.get(current);
       if (info) return { mesh: current, info };
       current = current.parent as AbstractMesh | null;
     }
@@ -797,5 +836,6 @@ export class InteractionPromptSystem {
     this.worldPropMeshes.clear();
     this.noticeBoardMeshes.clear();
     this.furnitureMeshes.clear();
+    this.actionHotspotMeshes.clear();
   }
 }

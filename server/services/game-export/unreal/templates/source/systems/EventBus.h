@@ -145,7 +145,9 @@ enum class EInsimulEventType : uint8
     ClueDiscovered UMETA(DisplayName = "Clue Discovered"),
     // Conversational action events
     ConversationalAction UMETA(DisplayName = "Conversational Action"),
-    ConversationTurnCounted UMETA(DisplayName = "Conversation Turn Counted")
+    ConversationTurnCounted UMETA(DisplayName = "Conversation Turn Counted"),
+    // Physical action events
+    PhysicalActionCompleted UMETA(DisplayName = "Physical Action Completed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

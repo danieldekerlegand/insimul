@@ -169,6 +169,7 @@ import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, getCl
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { InteractionPromptSystem } from "@/components/3DGame/InteractionPromptSystem.ts";
 import { FurnitureInteractionManager } from "@/components/3DGame/FurnitureInteractionManager.ts";
+import { PlayerActionSystem } from "@/components/3DGame/PlayerActionSystem.ts";
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { NPCModularAssembler, deriveBodyType as deriveModularBodyType } from "@/components/3DGame/NPCModularAssembler.ts";
@@ -715,6 +716,7 @@ export class BabylonGame {
 
   // Furniture interaction manager — chairs, beds, bookshelves, workstations
   private furnitureInteractionManager: FurnitureInteractionManager | null = null;
+  private playerActionSystem: PlayerActionSystem | null = null;
 
   // World Object Action Manager — wires identify/examine/point-and-name/read-sign to world objects
   private worldObjectActionManager: WorldObjectActionManager | null = null;
@@ -1592,6 +1594,41 @@ export class BabylonGame {
     if (this.gameTimeManager) {
       this.furnitureInteractionManager.setTimeManager(this.gameTimeManager);
     }
+
+    // Initialize player action system (physical actions: fishing, mining, cooking, etc.)
+    this.playerActionSystem = new PlayerActionSystem({
+      showToast: (opts) => this.guiManager?.showToast(opts),
+      setMovementLocked: (locked) => {
+        const ctrl = (this as any)._interiorPlayerController ?? this.playerController;
+        ctrl?.enableKeyBoard(!locked);
+      },
+      playPlayerAnimation: (_name) => { /* animation integration deferred */ },
+      stopPlayerAnimation: (_name) => { /* animation integration deferred */ },
+      getPlayerEnergy: () => this.playerEnergy,
+      setPlayerEnergy: (energy) => { this.playerEnergy = energy; },
+      addInventoryItem: (itemName, quantity) => {
+        const displayName = itemName.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const item: InventoryItem = {
+          id: `action_${itemName}_${Date.now()}`,
+          name: displayName,
+          description: `Obtained from physical action`,
+          type: 'material',
+          quantity,
+          value: 5,
+          sellValue: 3,
+          weight: 1,
+          tradeable: true,
+        };
+        this.inventory?.addItem(item);
+      },
+      hasInventoryItem: (itemName) => {
+        const items = this.inventory?.getAllItems() ?? [];
+        return items.some((item: InventoryItem) => item.name.toLowerCase().replace(/\s+/g, '_') === itemName.toLowerCase() || item.id.includes(itemName));
+      },
+      getCurrentBuildingId: () => this.activeInterior?.buildingId ?? null,
+      getCurrentBusinessType: () => this.currentBuildingBusinessType ?? null,
+    });
+    this.playerActionSystem.setEventBus(this.eventBus);
 
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
@@ -2974,6 +3011,26 @@ export class BabylonGame {
         engine?.trackEvent({ type: 'object_pointed_and_named', objectName: event.targetWord });
         this.updateQuestIndicators();
       }
+    });
+
+    // Bridge physical action events → QuestCompletionEngine
+    this.eventBus.on('physical_action_completed', (event) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({
+        type: 'physical_action',
+        actionType: event.actionType,
+        itemsProduced: event.itemsProduced.map(i => i.itemName),
+      });
+      // Also emit item_collected for each produced item so quest tracking picks it up
+      for (const item of event.itemsProduced) {
+        this.eventBus.emit({
+          type: 'item_collected',
+          itemId: `action_${item.itemName}_${Date.now()}`,
+          itemName: item.itemName,
+          quantity: item.quantity,
+        });
+      }
+      this.updateQuestIndicators();
     });
 
     // Wire escort quest events — make NPC follow the player
@@ -7771,6 +7828,24 @@ export class BabylonGame {
       }
     }
 
+    // Register action hotspots based on business type
+    if (this.activeInterior && this.interactionPrompt && businessType) {
+      this.interactionPrompt.clearActionHotspots();
+      const hotspots = PlayerActionSystem.getHotspotsForBusiness(businessType);
+      for (const hotspot of hotspots) {
+        for (const mesh of this.activeInterior.furniture) {
+          const meta = mesh.metadata;
+          if (meta?.isFurniture && meta.furnitureSubType === hotspot.furnitureSubType) {
+            const prompt = PlayerActionSystem.getPromptText(hotspot.actionType);
+            this.interactionPrompt.registerActionHotspot(mesh, hotspot.actionType, prompt, buildingId);
+            for (const child of mesh.getChildMeshes()) {
+              this.interactionPrompt.registerActionHotspot(child, hotspot.actionType, prompt, buildingId);
+            }
+          }
+        }
+      }
+    }
+
     const label = businessType || buildingType || 'Building';
     this.guiManager?.showToast({
       title: `Entered ${label}`,
@@ -7915,10 +7990,12 @@ export class BabylonGame {
     this.savedOverworldPosition = null;
     this.currentBuildingBusinessType = undefined;
 
-    // Stand up if seated before exiting
+    // Stand up if seated before exiting; cancel any in-progress physical action
     this.furnitureInteractionManager?.standUp();
-    // Clear furniture registrations
+    this.playerActionSystem?.cancelAction();
+    // Clear furniture and action hotspot registrations
     this.interactionPrompt?.clearFurniture();
+    this.interactionPrompt?.clearActionHotspots();
 
     // Clear business behavior tracking
     this.businessBehaviorSystem?.clearAll();
@@ -9834,6 +9911,9 @@ export class BabylonGame {
       this.gameTimeManager.update(this.engine!.getDeltaTime());
       this.dayNightCycle?.update();
 
+      // Update physical action progress (fishing, mining, cooking, etc.)
+      this.playerActionSystem?.update(this.engine!.getDeltaTime());
+
       // Process NPC schedule actions from the unified routine manager
       this.processScheduleExecutorActions();
 
@@ -10133,6 +10213,11 @@ export class BabylonGame {
 
       case 'furniture': {
         await this.furnitureInteractionManager?.handleInteraction(target);
+        break;
+      }
+
+      case 'action_hotspot': {
+        this.playerActionSystem?.handleInteraction(target);
         break;
       }
 
@@ -13332,6 +13417,11 @@ export class BabylonGame {
     if (this.furnitureInteractionManager) {
       this.furnitureInteractionManager.dispose();
       this.furnitureInteractionManager = null;
+    }
+    // Clean up player action system
+    if (this.playerActionSystem) {
+      this.playerActionSystem.dispose();
+      this.playerActionSystem = null;
     }
     // Clean up world object action manager
     if (this.worldObjectActionManager) {
