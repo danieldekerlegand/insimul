@@ -134,6 +134,7 @@ import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts"
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
 import { VehicleSystem } from "@/components/3DGame/VehicleSystem.ts";
 import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo } from "@/components/3DGame/AmbientLifeBehaviorSystem.ts";
+import { NPCActivityLabelSystem } from "@/components/3DGame/NPCActivityLabelSystem.ts";
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
@@ -727,6 +728,7 @@ export class BabylonGame {
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
   private ambientLifeSystem: AmbientLifeBehaviorSystem = new AmbientLifeBehaviorSystem();
+  private npcActivityLabelSystem: NPCActivityLabelSystem | null = null;
   /** Unified NPC routine manager — replaces NPCLocationCycler */
   private scheduleExecutor!: ScheduleExecutor;
 
@@ -1900,6 +1902,21 @@ export class BabylonGame {
       this.ambientLifeSystem,
     );
 
+    // Initialize activity label + observation system
+    this.npcActivityLabelSystem = new NPCActivityLabelSystem(scene, {
+      getPlayerPosition: () => this.playerMesh?.position ?? null,
+      getNPCActivity: (npcId) => this.scheduleExecutor?.getCurrentActivity(npcId)
+        || this.ambientLifeSystem.getActivityDescription(npcId)
+        || null,
+      getNPCName: (npcId) => this.npcInfos.find(n => n.id === npcId)?.name || 'Person',
+      getNPCMesh: (npcId) => this.npcMeshes.get(npcId)?.mesh ?? null,
+      onActivityObserved: (npcId, npcName, activity, duration) => {
+        const engine = this.questObjectManager?.getCompletionEngine();
+        engine?.trackEvent({ type: 'activity_observed', npcId, npcName, activity, durationSeconds: duration });
+        this.updateQuestIndicators();
+      },
+    });
+
     // Initialize texture manager with DataSource for API-free asset resolution
     this.textureManager = new TextureManager(scene);
     this.textureManager.setDataSource(this.dataSource);
@@ -2698,6 +2715,12 @@ export class BabylonGame {
             for (const label of photo.labels) {
               const cat = label.category === 'person' ? 'npc' : label.category as 'item' | 'npc' | 'building' | 'nature';
               engine.trackEvent({ type: 'photo_taken', subjectName: label.name, subjectCategory: cat, subjectActivity: label.activity });
+              // Also dispatch activity_photographed for NPC activity photography objectives
+              if (cat === 'npc' && label.activity) {
+                // Extract base NPC name (strip " - Activity" suffix added for display)
+                const baseName = label.name.includes(' - ') ? label.name.split(' - ')[0] : label.name;
+                engine.trackEvent({ type: 'activity_photographed', npcId: label.id, npcName: baseName, activity: label.activity });
+              }
             }
             this.updateQuestIndicators();
           }
@@ -7237,6 +7260,7 @@ export class BabylonGame {
           agreeableness: personality.agreeableness ?? personality.Agreeableness,
           neuroticism: personality.neuroticism ?? personality.Neuroticism,
         } : undefined);
+        this.npcActivityLabelSystem?.registerNPC(character.id);
 
         // Assign NPC to settlement zone for boundary confinement
         {
@@ -8392,11 +8416,15 @@ export class BabylonGame {
       const dist = Vector3.Distance(playerPos, instance.mesh.position);
       if (dist > maxDist) return;
       const npcInfo = this.npcInfos.find(n => n.id === npcId);
-      // Get NPC's current activity from ambient life system
-      const activity = this.ambientLifeSystem.getActivityDescription(npcId) || undefined;
+      // Get NPC's current activity: check schedule executor first (work activities),
+      // then ambient life system (idle activities)
+      const activity = this.scheduleExecutor?.getCurrentActivity(npcId)
+        || this.ambientLifeSystem.getActivityDescription(npcId)
+        || undefined;
+      const npcName = npcInfo?.name || 'Person';
       objects.push({
         id: npcId,
-        name: npcInfo?.name || 'Person',
+        name: activity ? `${npcName} - ${activity.charAt(0).toUpperCase() + activity.slice(1)}` : npcName,
         category: 'person',
         position: instance.mesh.position,
         activity,
@@ -8866,6 +8894,9 @@ export class BabylonGame {
 
     // Run the executor's per-frame update (checks expiry, etc.)
     this.scheduleExecutor.update(now);
+
+    // Update activity labels and observation tracking
+    this.npcActivityLabelSystem?.update(now);
 
     // Drain and apply pending actions
     const actions = this.scheduleExecutor.drainPendingActions();
@@ -13728,6 +13759,8 @@ export class BabylonGame {
     this.assessmentActive = false;
     this.onboardingResult = null;
     this.scheduleExecutor?.dispose();
+    this.npcActivityLabelSystem?.dispose();
+    this.npcActivityLabelSystem = null;
     this.ambientConversationManager?.dispose();
     this.npcInitiatedConversationController?.dispose();
     this.socializationController?.dispose();

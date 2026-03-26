@@ -98,11 +98,15 @@ export interface CompletionObjective {
   pronunciationBestScore?: number;
   targetPhrase?: string;
 
-  // photograph_subject
+  // photograph_subject / photograph_activity
   targetSubject?: string;
   targetCategory?: 'item' | 'npc' | 'building' | 'nature';
   targetActivity?: string;
   photographedSubjects?: string[];
+
+  // observe_activity
+  observedActivities?: string[];
+  observeDurationRequired?: number;
 
   // teach_vocabulary / teach_phrase
   wordsTaught?: string[];
@@ -182,7 +186,9 @@ export type CompletionEvent =
   | { type: 'assessment_phase_completed'; phaseId: string; score: number; maxScore: number; questId: string; objectiveId: string }
   | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
   | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number; questId?: string }
-  | { type: 'physical_action'; actionType: string; itemsProduced: string[]; questId?: string };
+  | { type: 'physical_action'; actionType: string; itemsProduced: string[]; questId?: string }
+  | { type: 'activity_observed'; npcId: string; npcName: string; activity: string; durationSeconds: number; questId?: string }
+  | { type: 'activity_photographed'; npcId: string; npcName: string; activity: string; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -337,6 +343,12 @@ export class QuestCompletionEngine {
         break;
       case 'physical_action':
         this.trackPhysicalAction(event.actionType, event.itemsProduced, event.questId);
+        break;
+      case 'activity_observed':
+        this.trackActivityObserved(event.npcId, event.npcName, event.activity, event.durationSeconds, event.questId);
+        break;
+      case 'activity_photographed':
+        this.trackActivityPhotographed(event.npcId, event.npcName, event.activity, event.questId);
         break;
     }
   }
@@ -1016,6 +1028,61 @@ export class QuestCompletionEngine {
     });
   }
 
+  trackActivityPhotographed(npcId: string, npcName: string, activity: string, questId?: string): void {
+    const lowerName = npcName.toLowerCase();
+    const lowerActivity = activity.toLowerCase();
+
+    this.forEachObjective(questId, 'photograph_activity', (quest, obj) => {
+      // If objective specifies a target NPC, it must match
+      if (obj.npcName && obj.npcName.toLowerCase() !== lowerName) return;
+
+      // Activity must match
+      if (obj.targetActivity && !lowerActivity.includes(obj.targetActivity.toLowerCase())) return;
+
+      // Track unique NPC:activity pairs
+      const trackingKey = `${lowerName}:${lowerActivity}`;
+      obj.photographedSubjects = obj.photographedSubjects || [];
+      if (obj.photographedSubjects.includes(trackingKey)) return;
+
+      obj.photographedSubjects.push(trackingKey);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackActivityObserved(npcId: string, npcName: string, activity: string, durationSeconds: number, questId?: string): void {
+    const lowerName = npcName.toLowerCase();
+    const lowerActivity = activity.toLowerCase();
+    const requiredDuration = 5; // 5 seconds minimum observation
+
+    this.forEachObjective(questId, 'observe_activity', (quest, obj) => {
+      // If objective specifies a target NPC, it must match
+      if (obj.npcName && obj.npcName.toLowerCase() !== lowerName) return;
+
+      // Activity must match
+      if (obj.targetActivity && !lowerActivity.includes(obj.targetActivity.toLowerCase())) return;
+
+      // Must have observed for long enough
+      const required = obj.observeDurationRequired || requiredDuration;
+      if (durationSeconds < required) return;
+
+      // Track unique NPC:activity observations
+      const trackingKey = `${lowerName}:${lowerActivity}`;
+      obj.observedActivities = obj.observedActivities || [];
+      if (obj.observedActivities.includes(trackingKey)) return;
+
+      obj.observedActivities.push(trackingKey);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
   // ── Serialization ──────────────────────────────────────────────────────
 
   /** Progress-relevant fields that change at runtime and need persistence. */
@@ -1028,7 +1095,7 @@ export class QuestCompletionEngine {
     'translationsCorrect', 'waypointsReached', 'stepsCompleted',
     'wordsTaught', 'phrasesTaught', 'startedAt', 'itemsPurchased',
     'textsFound', 'textsRead', 'quizAnswered', 'quizCorrect',
-    'photographedSubjects',
+    'photographedSubjects', 'observedActivities',
   ];
 
   /**

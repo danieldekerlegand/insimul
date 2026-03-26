@@ -310,6 +310,22 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     requiresTarget: 'none',
     countable: true,
   },
+  {
+    type: 'photograph_activity',
+    description: 'Take a photograph of an NPC performing a specific activity (cooking, painting, reading, etc.)',
+    playerAction: 'Use the camera to photograph an NPC while they are performing the target activity',
+    requiresTarget: 'npc',
+    countable: true,
+  },
+
+  // ── Observation ────────────────────────────────────────────────────────
+  {
+    type: 'observe_activity',
+    description: 'Watch an NPC performing a specific activity by staying nearby for a period of time',
+    playerAction: 'Stand within 10m of an NPC performing the target activity for 5+ seconds',
+    requiresTarget: 'npc',
+    countable: true,
+  },
 
   // ── Teaching (player teaches NPC) ────────────────────────────────────────
   {
@@ -643,6 +659,20 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'photograph_building': 'photograph_subject',
   'photograph_nature': 'photograph_subject',
   'photo_subject': 'photograph_subject',
+
+  // Photography activity aliases
+  'photo_activity': 'photograph_activity',
+  'photograph_npc_activity': 'photograph_activity',
+  'capture_activity': 'photograph_activity',
+  'photo_action': 'photograph_activity',
+
+  // Observation activity aliases
+  'watch_activity': 'observe_activity',
+  'observe_npc': 'observe_activity',
+  'watch_npc': 'observe_activity',
+  'observe_work': 'observe_activity',
+  'watch_work': 'observe_activity',
+  'observe': 'observe_activity',
 
   // Grammar-focused objective aliases (map to canonical types)
   'grammar_pattern': 'use_vocabulary',

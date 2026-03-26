@@ -81,6 +81,8 @@ export interface NPCRoutineState {
   isWakingUp: boolean;
   /** Real-time timestamp when the wake-up idle ends and commute begins */
   wakeUpCompleteTime: number;
+  /** Current visible activity label (e.g., 'Cooking', 'Hammering metal') — set by external systems */
+  currentActivityLabel: string | null;
 }
 
 /** Action returned by evaluateNPC for BabylonGame to execute */
@@ -97,6 +99,63 @@ export interface ScheduleExecutorOptions {
   /** Enable schedule execution (default: true) */
   enabled?: boolean;
 }
+
+// ---------- Activity Mappings ----------
+
+/**
+ * Maps business types to visible activity labels for working NPCs.
+ * These are human-readable descriptions shown in floating labels and photo captions.
+ */
+export const BUSINESS_ACTIVITY_LABELS: Record<string, string[]> = {
+  Bakery:        ['Kneading dough', 'Checking oven', 'Arranging pastries'],
+  Blacksmith:    ['Hammering metal', 'Stoking the forge', 'Shaping iron'],
+  Restaurant:    ['Cooking', 'Stirring pot', 'Preparing ingredients'],
+  Tailor:        ['Sewing', 'Cutting fabric', 'Measuring cloth'],
+  BookStore:     ['Shelving books', 'Reading', 'Organizing'],
+  Library:       ['Reading', 'Shelving books', 'Writing notes'],
+  Bar:           ['Pouring drinks', 'Cleaning glasses', 'Wiping counter'],
+  Farm:          ['Harvesting', 'Tending crops', 'Feeding animals'],
+  Carpenter:     ['Sawing wood', 'Hammering', 'Assembling furniture'],
+  Shop:          ['Organizing shelves', 'Minding counter', 'Restocking'],
+  GroceryStore:  ['Stocking shelves', 'Sorting produce', 'At the register'],
+  Hospital:      ['Tending patients', 'Making rounds', 'Reviewing charts'],
+  School:        ['Teaching', 'Grading papers', 'Lecturing'],
+  Church:        ['Preaching', 'Meditating', 'Preparing sermon'],
+  Bank:          ['Handling transactions', 'Counting currency', 'Writing'],
+  Factory:       ['Operating machinery', 'Assembling parts', 'Inspecting'],
+  PoliceStation: ['Patrolling', 'Filing reports', 'At desk'],
+  FireStation:   ['Maintaining equipment', 'On standby', 'Training'],
+  Hotel:         ['At front desk', 'Checking rooms', 'Managing reservations'],
+  TownHall:      ['At desk', 'Meeting citizens', 'Reviewing paperwork'],
+  Pharmacy:      ['Preparing prescriptions', 'Organizing medicine', 'At counter'],
+  Brewery:       ['Brewing', 'Checking barrels', 'Inspecting vats'],
+  HerbShop:      ['Grinding herbs', 'Mixing remedies', 'Tending plants'],
+  Barbershop:    ['Cutting hair', 'Trimming beards', 'Cleaning tools'],
+  Butcher:       ['Cutting meat', 'Preparing orders', 'Minding counter'],
+  Bathhouse:     ['Heating water', 'Preparing towels', 'Checking rooms'],
+  Stables:       ['Feeding horses', 'Exercising horses', 'Mucking stalls'],
+  Clinic:        ['Examining patients', 'Preparing medicine', 'Writing notes'],
+  PawnShop:      ['Appraising items', 'Organizing inventory', 'Minding counter'],
+  JewelryStore:  ['Crafting jewelry', 'Polishing display', 'Inspecting gems'],
+  Daycare:       ['Supervising children', 'Organizing activities', 'Watching playground'],
+};
+
+/**
+ * Maps business types to specific work animation names.
+ * These are WorkAnimation types from AnimationAssetManager.
+ */
+export const BUSINESS_ACTIVITY_ANIMATIONS: Record<string, string[]> = {
+  Bakery:        ['knead_dough', 'stir', 'work_standing'],
+  Blacksmith:    ['hammer', 'work_standing', 'work_standing'],
+  Restaurant:    ['stir', 'chop', 'work_standing'],
+  Tailor:        ['work_sitting', 'work_standing', 'work_sitting'],
+  BookStore:     ['work_standing', 'work_sitting', 'work_standing'],
+  Library:       ['work_sitting', 'write', 'work_standing'],
+  Bar:           ['pour', 'work_standing', 'work_standing'],
+  Farm:          ['work_standing', 'work_standing', 'work_standing'],
+  Carpenter:     ['chop', 'hammer', 'work_standing'],
+  Shop:          ['work_standing', 'work_standing', 'work_standing'],
+};
 
 // ---------- Constants ----------
 
@@ -207,6 +266,7 @@ export class ScheduleExecutor {
       effectiveWakeHour,
       isWakingUp: false,
       wakeUpCompleteTime: 0,
+      currentActivityLabel: null,
     });
   }
 
@@ -587,6 +647,7 @@ export class ScheduleExecutor {
     state.currentGoal = null;
     state.goalExpiryGameHour = -1;
     state.lastEvaluatedHour = -1; // Force re-evaluation on next cycle
+    state.currentActivityLabel = null; // Clear activity when exiting
 
     this.pendingActions.set(npcId, {
       type: 'exit_building',
@@ -617,6 +678,68 @@ export class ScheduleExecutor {
    */
   isIdling(npcId: string): boolean {
     return this.npcStates.get(npcId)?.isIdling ?? false;
+  }
+
+  // ---------- Activity Tracking ----------
+
+  /**
+   * Get the current visible activity label for an NPC (e.g., 'Cooking', 'Hammering metal').
+   * Returns null if the NPC has no current activity or is not registered.
+   * Used by quest/photo systems to detect what an NPC is doing.
+   *
+   * Priority: explicit label (set by external system) > derived from occasion + business type.
+   */
+  getCurrentActivity(npcId: string): string | null {
+    const state = this.npcStates.get(npcId);
+    if (!state) return null;
+
+    // Explicit activity set by external system (e.g., OccupationActivitySystem)
+    if (state.currentActivityLabel) return state.currentActivityLabel;
+
+    // Derive from working occasion + business type
+    if (state.occasion === 'working' && state.currentGoal?.buildingId) {
+      const businessType = this.getBuildingBusinessType(state.currentGoal.buildingId);
+      if (businessType) {
+        const labels = BUSINESS_ACTIVITY_LABELS[businessType];
+        if (labels && labels.length > 0) {
+          // Use deterministic selection based on NPC ID for consistency
+          const idx = simpleHash(npcId) % labels.length;
+          return labels[idx];
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Set the current visible activity label for an NPC.
+   * Called by external systems (e.g., OccupationActivitySystem) when activity changes.
+   */
+  setCurrentActivity(npcId: string, activity: string | null): void {
+    const state = this.npcStates.get(npcId);
+    if (state) {
+      state.currentActivityLabel = activity;
+    }
+  }
+
+  /**
+   * Get the specific work animation name for a working NPC based on business type.
+   * Returns null if the NPC is not working or has no specific animation.
+   */
+  getActivityAnimation(npcId: string): string | null {
+    const state = this.npcStates.get(npcId);
+    if (!state || state.occasion !== 'working' || !state.currentGoal?.buildingId) return null;
+
+    const businessType = this.getBuildingBusinessType(state.currentGoal.buildingId);
+    if (!businessType) return null;
+
+    const anims = BUSINESS_ACTIVITY_ANIMATIONS[businessType];
+    if (!anims || anims.length === 0) return null;
+
+    // Use deterministic selection (same index as activity label)
+    const idx = simpleHash(npcId) % anims.length;
+    return anims[idx];
   }
 
   // ---------- Ambient Behavior Integration ----------
