@@ -22,6 +22,7 @@ import {
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import type { InteriorTemplateConfig, InteriorLayoutTemplate, InteriorLightingPreset, LightingPreset } from '@shared/game-engine/types';
+import { InteriorLightingSystem, type LampPlacement } from './InteriorLightingSystem';
 import {
   INTERIOR_LAYOUT_TEMPLATES,
   getFurnitureSetForRoom,
@@ -227,6 +228,7 @@ export class BuildingInteriorGenerator {
   private nextSlotIndex: number = 0;
   private furnitureLoader: FurnitureModelLoader | null = null;
   private interiorConfigs: Record<string, InteriorTemplateConfig> = {};
+  private lightingSystem: InteriorLightingSystem | null = null;
   private interiorTextures: Map<string, Texture> = new Map();
 
   // When using a dedicated interior scene, interiors are placed at Y=0.
@@ -248,6 +250,11 @@ export class BuildingInteriorGenerator {
   /** Set the furniture model loader for glTF-based furniture. */
   public setFurnitureLoader(loader: FurnitureModelLoader): void {
     this.furnitureLoader = loader;
+  }
+
+  /** Set the interior lighting system for dynamic time-of-day lighting. */
+  public setLightingSystem(system: InteriorLightingSystem): void {
+    this.lightingSystem = system;
   }
 
   /**
@@ -377,6 +384,25 @@ export class BuildingInteriorGenerator {
       ?? (config?.lightingPreset ? resolveLightingPreset(config.lightingPreset) : undefined);
     if (lightingConfig) {
       this.applyLightingPreset(lightingConfig);
+    }
+
+    // Create dynamic interior lighting (time-of-day responsive)
+    if (this.lightingSystem) {
+      const lampPlacements = this.extractLampPlacementsFromFurniture(roomFurniture, position);
+      // Windows are on back (north), left (west), right (east) walls
+      const windowWalls = ['north', 'west', 'east'];
+      this.lightingSystem.createInteriorLighting({
+        buildingId,
+        buildingType,
+        businessType,
+        position,
+        width: dims.width,
+        depth: dims.depth,
+        height: dims.height,
+        lampPlacements,
+        windowWalls,
+        operatingHours: this.getDefaultOperatingHours(businessType),
+      });
     }
 
     // Door position (center of south wall, at floor level)
@@ -4200,6 +4226,60 @@ export class BuildingInteriorGenerator {
     return specs;
   }
 
+  /** Furniture types eligible for lamp placement on top */
+  private static readonly LAMP_ELIGIBLE = new Set([
+    'table', 'counter', 'workbench', 'desk', 'altar', 'podium',
+    'shelf', 'bookshelf', 'cabinet', 'wardrobe',
+  ]);
+
+  /**
+   * Extract lamp placement positions from generated furniture meshes.
+   * Scans mesh names for eligible furniture types and uses their positions.
+   */
+  private extractLampPlacementsFromFurniture(
+    furnitureMeshes: Mesh[],
+    _basePosition: Vector3,
+  ): LampPlacement[] {
+    const placements: LampPlacement[] = [];
+    for (const mesh of furnitureMeshes) {
+      // Mesh names follow pattern: interior_{id}_{room}_furn_{i}_{type}
+      const nameParts = mesh.name.split('_');
+      const furnitureType = nameParts[nameParts.length - 1];
+      if (BuildingInteriorGenerator.LAMP_ELIGIBLE.has(furnitureType)) {
+        const pos = mesh.position;
+        // Get the mesh bounding height to place lamp on top
+        const bounds = mesh.getBoundingInfo?.();
+        const topY = bounds
+          ? bounds.boundingBox.maximumWorld.y
+          : pos.y + 0.5;
+        placements.push({
+          x: pos.x,
+          y: topY,
+          z: pos.z,
+          furnitureType,
+        });
+      }
+    }
+    return placements;
+  }
+
+  /**
+   * Get default operating hours for a business type.
+   * Returns [open, close] in fractional hours, or null for residences.
+   */
+  private getDefaultOperatingHours(businessType?: string): [number, number] | null {
+    if (!businessType) return null;
+    const bt = businessType.toLowerCase();
+    if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar') || bt.includes('pub')) {
+      return [10, 2]; // 10am - 2am (wraps midnight)
+    }
+    if (bt.includes('bakery')) return [5, 14];
+    if (bt.includes('restaurant') || bt.includes('cafe')) return [7, 22];
+    if (bt.includes('church') || bt.includes('temple') || bt.includes('cathedral')) return [6, 21];
+    // Default business hours
+    return [8, 18];
+  }
+
   /**
    * Dispose a single interior by building ID and remove it from the cache.
    * Used when the player exits a building in dedicated-scene mode so the
@@ -4210,6 +4290,7 @@ export class BuildingInteriorGenerator {
     if (!layout) return;
     layout.furniture.forEach((f) => { if (!f.isDisposed()) f.dispose(); });
     if (!layout.roomMesh.isDisposed()) layout.roomMesh.dispose(false, true);
+    this.lightingSystem?.disposeInterior(buildingId);
     this.interiors.delete(buildingId);
   }
 
@@ -4221,6 +4302,7 @@ export class BuildingInteriorGenerator {
       layout.furniture.forEach((f) => f.dispose());
       layout.roomMesh.dispose(false, true);
     });
+    this.lightingSystem?.dispose();
     this.interiors.clear();
     this.nextSlotIndex = 0;
   }
