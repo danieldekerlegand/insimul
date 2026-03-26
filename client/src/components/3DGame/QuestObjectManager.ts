@@ -5,7 +5,7 @@
  * Connects procedurally generated quests with actual game entities.
  */
 
-import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Animation, ActionManager, ExecuteCodeAction } from '@babylonjs/core';
+import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Color4, Animation, ActionManager, ExecuteCodeAction, ParticleSystem } from '@babylonjs/core';
 
 import * as GUI from '@babylonjs/gui';
 import { ProceduralQuestObjects } from './ProceduralQuestObjects';
@@ -202,6 +202,10 @@ export class QuestObjectManager {
   private currentBuildingId: string | null = null;
   /** Saved overworld positions for markers moved to interior space */
   private savedMarkerPositions: Map<string, Vector3> = new Map();
+  /** Ground-level target positions for proximity checking (not raised like the visual marker) */
+  private locationGroundPositions: Map<string, Vector3> = new Map();
+  /** Toast notification callback */
+  private showToast?: (title: string, description?: string) => void;
 
   constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
@@ -992,10 +996,43 @@ export class QuestObjectManager {
 
     this.locationMarkers.set(markerId, beacon);
 
+    // Store ground-level position for proximity checking (separate from raised visual marker)
+    const groundPos = objective.locationPosition.clone();
+    groundPos.y = 0;
+    this.locationGroundPositions.set(markerId, groundPos);
+
+    // Create ground-level visual ring to show the activation zone
+    const triggerRadius = objective.locationRadius || 8;
+    const ring = MeshBuilder.CreateTorus(
+      `quest_location_ring_${markerId}`,
+      { diameter: triggerRadius * 2, thickness: 0.3, tessellation: 48 },
+      this.scene
+    );
+    ring.position = objective.locationPosition.clone();
+    ring.position.y = 0.1;
+    const ringMat = new StandardMaterial(`quest_ring_mat_${markerId}`, this.scene);
+    ringMat.diffuseColor = new Color3(0.2, 1, 0.4);
+    ringMat.emissiveColor = new Color3(0.1, 0.5, 0.2);
+    ringMat.alpha = 0.5;
+    ring.material = ringMat;
+    const ringPulse = new Animation(
+      `quest_ring_pulse_${markerId}`, 'material.alpha', 30,
+      Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+    );
+    ringPulse.setKeys([
+      { frame: 0, value: 0.3 },
+      { frame: 30, value: 0.6 },
+      { frame: 60, value: 0.3 }
+    ]);
+    ring.animations.push(ringPulse);
+    this.scene.beginAnimation(ring, 0, 60, true);
+    beacon.metadata = { ...(beacon.metadata || {}), groundRing: ring };
+
     // If the marker is for a building interior, hide it unless the player is inside that building
     if (objective.buildingId) {
       if (this.currentBuildingId !== objective.buildingId) {
         beacon.setEnabled(false);
+        ring.setEnabled(false);
       }
     }
   }
@@ -1424,12 +1461,20 @@ export class QuestObjectManager {
           const marker = this.locationMarkers.get(objective.id);
           if (!marker || !marker.isEnabled()) return;
 
-          // Use the marker's actual position (accounts for interior repositioning)
-          const distance = Vector3.Distance(playerPosition, marker.position);
-          const radius = objective.locationRadius || 5;
+          // Use stored ground-level position for proximity (marker visual is raised y+5)
+          const groundPos = this.locationGroundPositions.get(objective.id);
+          const targetPos = groundPos || marker.position;
+          // Compare in XZ plane only to avoid vertical offset issues
+          const dx = playerPosition.x - targetPos.x;
+          const dz = playerPosition.z - targetPos.z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+          const radius = objective.locationRadius || 8;
+
+          console.debug(`[QuestObjectManager] Proximity check: objective=${objective.id} distance=${distance.toFixed(1)} radius=${radius}`);
 
           if (distance <= radius) {
-            this.visitLocation(quest.id, objective.id);
+            console.log(`[QuestObjectManager] Location proximity triggered: objective=${objective.id} quest=${quest.id} distance=${distance.toFixed(1)}`);
+            this.visitLocation(quest.id, objective.id, objective.description);
           }
         }
       });
@@ -1439,13 +1484,28 @@ export class QuestObjectManager {
   /**
    * Handle location visit
    */
-  private visitLocation(questId: string, objectiveId: string) {
+  private visitLocation(questId: string, objectiveId: string, description?: string) {
     const marker = this.locationMarkers.get(objectiveId);
     if (!marker) return;
+
+    // Play completion particle burst at marker ground position
+    const groundPos = this.locationGroundPositions.get(objectiveId) || marker.position;
+    this.playLocationCompletionParticles(groundPos);
+
+    // Show toast notification
+    const desc = description || 'Visit location';
+    this.showToast?.(`Objective completed: ${desc}`);
+
+    // Dispose ground ring if it exists
+    const ring = marker.metadata?.groundRing;
+    if (ring && !ring.isDisposed()) {
+      ring.dispose();
+    }
 
     // Mark as visited (dispose marker)
     marker.dispose();
     this.locationMarkers.delete(objectiveId);
+    this.locationGroundPositions.delete(objectiveId);
 
     // Notify callback
     if (this.onLocationVisited) {
@@ -1454,6 +1514,35 @@ export class QuestObjectManager {
 
     // Mark objective complete via engine
     this.completionEngine.completeObjective(questId, objectiveId);
+  }
+
+  /**
+   * Play green sparkle particle burst at a location for objective completion
+   */
+  private playLocationCompletionParticles(position: Vector3): void {
+    try {
+      const ps = new ParticleSystem('locationComplete', 100, this.scene);
+      ps.createPointEmitter(new Vector3(-2, 1, -2), new Vector3(2, 5, 2));
+      ps.emitter = new Vector3(position.x, position.y + 1, position.z);
+      ps.minSize = 0.05;
+      ps.maxSize = 0.15;
+      ps.minLifeTime = 0.8;
+      ps.maxLifeTime = 1.5;
+      ps.emitRate = 0; // Use manual burst
+      ps.gravity = new Vector3(0, -2, 0);
+      ps.minEmitPower = 2;
+      ps.maxEmitPower = 4;
+      // Green sparkle colors
+      ps.color1 = new Color4(0.2, 1, 0.4, 1);
+      ps.color2 = new Color4(0.4, 1, 0.6, 1);
+      ps.colorDead = new Color4(0.1, 0.5, 0.2, 0);
+      ps.manualEmitCount = 80;
+      ps.start();
+      // Auto-dispose after particles fade
+      setTimeout(() => { try { ps.dispose(); } catch { /* already disposed */ } }, 2000);
+    } catch (err) {
+      console.warn('[QuestObjectManager] Failed to play completion particles:', err);
+    }
   }
 
   /**
@@ -1638,8 +1727,11 @@ export class QuestObjectManager {
       const quest = this.activeQuests.find(q => q.id === questId);
       const objective = quest?.objectives?.find(o => o.id === markerId);
       if (objective) {
+        const ring = marker.metadata?.groundRing;
+        if (ring && !ring.isDisposed()) ring.dispose();
         marker.dispose();
         this.locationMarkers.delete(markerId);
+        this.locationGroundPositions.delete(markerId);
       }
     });
 
@@ -1670,6 +1762,11 @@ export class QuestObjectManager {
     this.onStoryTTS = callback;
   }
 
+  /** Register a toast notification callback for objective completion messages. */
+  public setShowToast(callback: (title: string, description?: string) => void) {
+    this.showToast = callback;
+  }
+
   /** Register a building-check callback so spawned items avoid building interiors. */
   public setPointInBuildingCheck(check: (x: number, z: number) => boolean) {
     this.isPointInBuilding = check;
@@ -1697,10 +1794,18 @@ export class QuestObjectManager {
             interiorPosition.y + 1,
             interiorPosition.z + (objective.locationPosition?.z ?? 0)
           );
+          // Update ground position for proximity checking
+          this.locationGroundPositions.set(objective.id, new Vector3(
+            marker.position.x, 0, marker.position.z
+          ));
           marker.setEnabled(true);
+          const ring = marker.metadata?.groundRing;
+          if (ring) ring.setEnabled(true);
         } else if (!objective.buildingId) {
           // Hide overworld markers while inside
           marker.setEnabled(false);
+          const ring = marker.metadata?.groundRing;
+          if (ring) ring.setEnabled(false);
         }
       });
     });
@@ -1724,10 +1829,20 @@ export class QuestObjectManager {
             marker.position = savedPos;
             this.savedMarkerPositions.delete(objective.id);
           }
+          // Restore ground position
+          if (objective.locationPosition) {
+            const gp = objective.locationPosition.clone();
+            gp.y = 0;
+            this.locationGroundPositions.set(objective.id, gp);
+          }
           marker.setEnabled(false);
+          const ring = marker.metadata?.groundRing;
+          if (ring) ring.setEnabled(false);
         } else {
           // Show overworld markers again
           marker.setEnabled(true);
+          const ring = marker.metadata?.groundRing;
+          if (ring) ring.setEnabled(true);
         }
       });
     });

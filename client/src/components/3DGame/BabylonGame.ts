@@ -2404,6 +2404,9 @@ export class BabylonGame {
     this.questObjectManager.setOnObjectiveCompleted((questId, objectiveId) => {
       this.handleQuestObjectiveCompleted(questId, objectiveId, 'objective');
     });
+    this.questObjectManager.setShowToast((title, description) => {
+      this.guiManager?.showToast({ title, description, duration: 3000 });
+    });
     this.questObjectManager.setOnStoryTTS((text, _npcId) => {
       // Speak the listening comprehension story text via TTS
       this.chatPanel?.speakWord(text);
