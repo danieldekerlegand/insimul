@@ -10,7 +10,7 @@ import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Color4, An
 import * as GUI from '@babylonjs/gui';
 import { ProceduralQuestObjects } from './ProceduralQuestObjects';
 import { VisualVocabularyDetector, type VocabularyTarget, type IdentificationPrompt, type IdentificationResult } from './VisualVocabularyDetector';
-import { QuestCompletionEngine } from './QuestCompletionEngine';
+import { QuestCompletionEngine, type CollectedItemMatch } from './QuestCompletionEngine';
 import type { GameEventBus } from './GameEventBus';
 import { isConversationOnlyQuest } from '@shared/quest-objective-types';
 
@@ -193,6 +193,7 @@ export class QuestObjectManager {
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
   private onObjectiveCompleted?: (questId: string, objectiveId: string) => void;
+  private onQuestItemCollected?: (questId: string, objectiveId: string, itemName: string) => void;
   private onStoryTTS?: (text: string, npcId?: string) => void;
   private onIdentificationPrompt?: (prompt: IdentificationPrompt) => void;
   /** Check whether a world-space XZ point falls inside a building footprint. */
@@ -1445,6 +1446,16 @@ export class QuestObjectManager {
       this.questObjects.delete(itemId);
     });
 
+    // Notify quest item collected for inventory integration
+    const questObj = Array.from(this.questObjects.values()).find(
+      q => q.questId === questId && q.objectiveId === objectiveId
+    );
+    // Find the objective to get the item name
+    const quest = this.activeQuests.find(q => q.id === questId);
+    const objective = quest?.objectives?.find(o => o.id === objectiveId);
+    const itemName = objective?.itemName || 'Quest Item';
+    this.onQuestItemCollected?.(questId, objectiveId, itemName);
+
     // Notify callback
     if (this.onObjectCollected) {
       this.onObjectCollected(questId, objectiveId);
@@ -1651,8 +1662,8 @@ export class QuestObjectManager {
     this.completionEngine.trackConversationTurn(keywords, questId);
   }
 
-  public trackCollectedItemByName(itemName: string, questId?: string) {
-    this.completionEngine.trackCollectedItemByName(itemName, questId);
+  public trackCollectedItemByName(itemName: string, questId?: string, category?: string): CollectedItemMatch[] {
+    return this.completionEngine.trackCollectedItemByName(itemName, questId, category);
   }
 
   public trackFoodOrdered(itemName: string, merchantId: string, businessType: string, questId?: string) {
@@ -1744,6 +1755,10 @@ export class QuestObjectManager {
    */
   public setOnObjectCollected(callback: (questId: string, objectiveId: string) => void) {
     this.onObjectCollected = callback;
+  }
+
+  public setOnQuestItemCollected(callback: (questId: string, objectiveId: string, itemName: string) => void) {
+    this.onQuestItemCollected = callback;
   }
 
   public setOnLocationVisited(callback: (questId: string, objectiveId: string) => void) {

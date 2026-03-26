@@ -6,6 +6,7 @@ signal quest_accepted(quest_id: String)
 signal quest_completed(quest_id: String)
 signal objective_completed(quest_id: String, objective_id: String)
 signal story_tts(story_text: String, npc_id: String)
+signal quest_item_collected(quest_id: String, objective_id: String, item_name: String)
 
 ## Scavenger hunt categories for vocabulary rotation.
 const SCAVENGER_CATEGORIES: Array[String] = [
@@ -284,6 +285,61 @@ func track_gift_given(npc_id: String, item_name: String, quest_id: String = "") 
 		if not obj_npc.is_empty() and obj_npc != npc_id:
 			continue
 		complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track a collected item by name for collect_item / identify_object / find_vocabulary_items objectives.
+## Returns Array of match dictionaries with quest_id, objective_id, matched_name, collected_count, required_count, completed.
+func track_collected_item_by_name(item_name: String, category: String = "", quest_id: String = "") -> Array[Dictionary]:
+	var matches: Array[Dictionary] = []
+	var lower_item := item_name.to_lower()
+
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		var obj_type: String = obj.get("type", "")
+		if obj_type != "collect_item" and obj_type != "identify_object" and obj_type != "find_vocabulary_items":
+			continue
+
+		var obj_item: String = obj.get("item_name", "").to_lower()
+		var name_match := false
+
+		# Exact match
+		if not obj_item.is_empty() and obj_item == lower_item:
+			name_match = true
+		# Partial match: item name contains objective name or vice versa
+		elif not obj_item.is_empty() and (lower_item.contains(obj_item) or obj_item.contains(lower_item)):
+			name_match = true
+		# Category match: objective's vocabulary_category matches the provided category
+		elif not category.is_empty() and not obj.get("vocabulary_category", "").is_empty() and obj.get("vocabulary_category", "").to_lower() == category.to_lower():
+			name_match = true
+		# No item name on objective means any item counts
+		elif obj_item.is_empty() and obj.get("vocabulary_category", "").is_empty():
+			name_match = true
+
+		if not name_match:
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 1)
+		var completed := obj["current_count"] >= required
+		if completed:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+		matches.append({
+			"quest_id": obj.get("quest_id", ""),
+			"objective_id": obj.get("id", ""),
+			"matched_name": item_name,
+			"collected_count": obj["current_count"],
+			"required_count": required,
+			"completed": completed,
+		})
+
+		quest_item_collected.emit(obj.get("quest_id", ""), obj.get("id", ""), item_name)
+
+	return matches
 
 
 ## Track an enemy defeat for defeat_enemies objectives.

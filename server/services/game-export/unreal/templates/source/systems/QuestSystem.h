@@ -89,7 +89,24 @@ struct FQuestEntrySummary
     UPROPERTY(BlueprintReadWrite) TArray<FString> Tags;
 };
 
+/**
+ * Result struct returned by TrackCollectedItemByName for each matched objective.
+ */
+USTRUCT(BlueprintType)
+struct FCollectedItemMatch
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite) FString QuestId;
+    UPROPERTY(BlueprintReadWrite) FString ObjectiveId;
+    UPROPERTY(BlueprintReadWrite) FString MatchedName;
+    UPROPERTY(BlueprintReadWrite) int32 CollectedCount = 0;
+    UPROPERTY(BlueprintReadWrite) int32 RequiredCount = 1;
+    UPROPERTY(BlueprintReadWrite) bool bCompleted = false;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStoryTTS, const FString&, StoryText, const FString&, NpcId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnQuestItemCollected, const FString&, QuestId, const FString&, ObjectiveId, const FString&, ItemName);
 
 /** Delegate to test whether a world-space XZ point falls inside a building footprint. */
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FPointInBuildingCheck, float /*X*/, float /*Z*/);
@@ -220,9 +237,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     static void SetMarkerDebugLabel(AActor* Marker, const FString& Label);
 
+    /** Track a collected item by name for collect_item / identify_object / find_vocabulary_items objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    TArray<FCollectedItemMatch> TrackCollectedItemByName(const FString& ItemName, const FString& Category = TEXT(""), const FString& QuestId = TEXT(""));
+
     /** Fired when a listening_comprehension objective starts and story should be spoken. */
     UPROPERTY(BlueprintAssignable, Category = "Quests")
     FOnStoryTTS OnStoryTTS;
+
+    /** Fired when a quest-spawned item is collected. */
+    UPROPERTY(BlueprintAssignable, Category = "Quests")
+    FOnQuestItemCollected OnQuestItemCollected;
 
     /** Quest summaries for the journal widget. Populated during LoadFromIR. */
     UPROPERTY(BlueprintReadOnly, Category = "Quests")

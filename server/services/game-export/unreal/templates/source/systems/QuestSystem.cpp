@@ -421,6 +421,65 @@ void UQuestSystem::TrackPriceHaggled(const FString& ItemName, const FString& Mer
     }
 }
 
+TArray<FCollectedItemMatch> UQuestSystem::TrackCollectedItemByName(const FString& ItemName, const FString& Category, const FString& QuestId)
+{
+    TArray<FCollectedItemMatch> Matches;
+    FString LowerItem = ItemName.ToLower();
+
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("collect_item") && Obj.Type != TEXT("identify_object") && Obj.Type != TEXT("find_vocabulary_items")) continue;
+
+        FString ObjItemLower = Obj.ItemName.ToLower();
+        bool bNameMatch = false;
+
+        // Exact match
+        if (!ObjItemLower.IsEmpty() && ObjItemLower == LowerItem)
+        {
+            bNameMatch = true;
+        }
+        // Partial match: item name contains objective name or vice versa
+        else if (!ObjItemLower.IsEmpty() && (LowerItem.Contains(ObjItemLower) || ObjItemLower.Contains(LowerItem)))
+        {
+            bNameMatch = true;
+        }
+        // Category match: objective's VocabularyCategory matches the provided category
+        else if (!Category.IsEmpty() && !Obj.VocabularyCategory.IsEmpty() && Obj.VocabularyCategory.ToLower() == Category.ToLower())
+        {
+            bNameMatch = true;
+        }
+        // No item name on objective means any item counts
+        else if (ObjItemLower.IsEmpty() && Obj.VocabularyCategory.IsEmpty())
+        {
+            bNameMatch = true;
+        }
+
+        if (!bNameMatch) continue;
+
+        Obj.CurrentCount++;
+
+        FCollectedItemMatch Match;
+        Match.QuestId = Obj.QuestId;
+        Match.ObjectiveId = Obj.Id;
+        Match.MatchedName = ItemName;
+        Match.CollectedCount = Obj.CurrentCount;
+        Match.RequiredCount = Obj.RequiredCount > 0 ? Obj.RequiredCount : 1;
+
+        if (Obj.CurrentCount >= Match.RequiredCount)
+        {
+            Obj.bCompleted = true;
+            Match.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Collect objective completed: %s"), *Obj.Id);
+        }
+
+        Matches.Add(Match);
+        OnQuestItemCollected.Broadcast(Obj.QuestId, Obj.Id, ItemName);
+    }
+    return Matches;
+}
+
 void UQuestSystem::CheckDirectionProximity(const FVector& PlayerPos)
 {
     for (auto& Obj : Objectives)

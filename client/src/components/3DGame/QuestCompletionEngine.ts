@@ -146,6 +146,16 @@ export interface CompletionQuest {
 export type ObjectiveCompletedCallback = (questId: string, objectiveId: string) => void;
 export type QuestCompletedCallback = (questId: string) => void;
 
+export interface CollectedItemMatch {
+  questId: string;
+  objectiveId: string;
+  questName: string;
+  objectiveDescription: string;
+  completed: boolean;
+  current: number;
+  required: number;
+}
+
 // ── Event types for trackEvent dispatch ──────────────────────────────────────
 
 export type CompletionEvent =
@@ -510,15 +520,42 @@ export class QuestCompletionEngine {
     });
   }
 
-  trackCollectedItemByName(itemName: string, questId?: string): void {
+  /**
+   * Track a collected item against collect_item objectives.
+   * Supports exact match, partial match (objective 'herbs' matches 'Healing Herbs'),
+   * and category match. Handles quantity-based objectives (itemCount/collectedCount).
+   * Returns matched quest/objective info for notification display.
+   */
+  trackCollectedItemByName(itemName: string, questId?: string, category?: string): CollectedItemMatch[] {
     const key = itemName.toLowerCase();
+    const catKey = category?.toLowerCase();
+    const matches: CollectedItemMatch[] = [];
 
     this.forEachObjective(questId, 'collect_item', (quest, obj) => {
       const objName = (obj.itemName || '').toLowerCase();
-      if (objName && objName === key) {
-        this.completeObjective(quest.id, obj.id);
+      if (!objName) return;
+
+      // Match: exact, partial (collected name contains objective name or vice versa), or category
+      const exactMatch = objName === key;
+      const partialMatch = key.includes(objName) || objName.includes(key);
+      const categoryMatch = catKey ? objName === catKey : false;
+
+      if (!exactMatch && !partialMatch && !categoryMatch) return;
+
+      // Quantity-based: increment collectedCount, complete when >= itemCount
+      const required = obj.itemCount || 1;
+      obj.collectedCount = (obj.collectedCount || 0) + 1;
+
+      if (obj.collectedCount >= required) {
+        if (this.completeObjective(quest.id, obj.id)) {
+          matches.push({ questId: quest.id, objectiveId: obj.id, questName: '', objectiveDescription: obj.description, completed: true, current: obj.collectedCount, required });
+        }
+      } else {
+        matches.push({ questId: quest.id, objectiveId: obj.id, questName: '', objectiveDescription: obj.description, completed: false, current: obj.collectedCount, required });
       }
     });
+
+    return matches;
   }
 
   trackItemDelivery(npcId: string, playerItemNames: string[], questId?: string): void {
@@ -541,7 +578,11 @@ export class QuestCompletionEngine {
 
     this.forEachObjective(questId, ['collect_item', 'collect_items'], (quest, obj) => {
       const objName = (obj.itemName || '').toLowerCase();
-      if (objName && normalizedItems.includes(objName)) {
+      if (!objName) return;
+
+      // Exact or partial match against any inventory item
+      const matched = normalizedItems.some(n => n === objName || n.includes(objName) || objName.includes(n));
+      if (matched) {
         this.completeObjective(quest.id, obj.id);
       }
     });

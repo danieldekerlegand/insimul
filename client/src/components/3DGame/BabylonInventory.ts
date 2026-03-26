@@ -405,6 +405,11 @@ export class BabylonInventory {
       return false;
     }
 
+    // Prevent dropping quest items while quest is active
+    if (item.type === 'quest' && item.questId) {
+      return false;
+    }
+
     item.quantity -= quantity;
 
     if (item.quantity <= 0) {

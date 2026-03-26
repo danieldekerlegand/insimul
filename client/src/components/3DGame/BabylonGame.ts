@@ -35,6 +35,7 @@ import {
   Vector3,
   Observer
 } from "@babylonjs/core";
+import * as GUI from "@babylonjs/gui";
 import "@babylonjs/loaders/glTF";
 import "@babylonjs/inspector";
 
@@ -2551,6 +2552,29 @@ export class BabylonGame {
     // Initialize quest object manager
     this.questObjectManager = new QuestObjectManager(scene);
     this.questObjectManager.setPointInBuildingCheck((x, z) => this.isPointInsideAnyBuilding(x, z));
+    this.questObjectManager.setOnQuestItemCollected((questId, objectiveId, itemName) => {
+      // Add quest-spawned item to inventory with quest type tag
+      if (this.inventory) {
+        const questItem: InventoryItem = {
+          id: `quest_${questId}_${objectiveId}_${Date.now()}`,
+          name: itemName,
+          description: `Quest item`,
+          type: 'quest',
+          quantity: 1,
+          questId,
+        };
+        this.inventory.addItem(questItem);
+      }
+      // Persist to server
+      this.dataSource.transferItem(this.config.worldId, {
+        toEntityId: 'player',
+        itemId: `quest_${questId}_${objectiveId}`,
+        itemName,
+        itemType: 'quest',
+        quantity: 1,
+        transactionType: 'collect',
+      }).catch(() => {});
+    });
     this.questObjectManager.setOnObjectCollected((questId, objectiveId) => {
       this.handleQuestObjectiveCompleted(questId, objectiveId, 'collect');
     });
@@ -8252,32 +8276,119 @@ export class BabylonGame {
 
     const item = this.createInventoryItemForObjectRole(objectRole);
 
+    // Track quest matches before adding to inventory
+    const questMatches = this.questObjectManager?.trackCollectedItemByName(item.name, undefined, item.category) || [];
+
+    // Tag as quest item if it matched a quest objective
+    if (questMatches.length > 0) {
+      item.type = 'quest';
+      item.questId = questMatches[0].questId;
+    }
+
     if (this.inventory) {
       this.inventory.addItem(item);
     }
 
-    if (this.questObjectManager) {
-      this.questObjectManager.trackCollectedItemByName(item.name);
-    }
     this.eventBus.emit({
       type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1,
       taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
     });
+
+    // Persist to server-side playthrough state
+    this.dataSource.transferItem(this.config.worldId, {
+      toEntityId: 'player',
+      itemId: item.id,
+      itemName: item.name,
+      itemDescription: item.description,
+      itemType: item.type,
+      quantity: 1,
+      transactionType: 'collect',
+    }).catch(() => {});
+
+    // Show language learning word briefly if applicable
+    if (item.languageLearningData?.targetWord) {
+      this.showLanguageWordOverlay(item.languageLearningData.targetWord, item.languageLearningData.targetLanguage, item.name);
+    }
 
     // Use target language name for language-learning games
     const targetWord = item.languageLearningData?.targetWord;
     const displayName = (targetWord && isLanguageLearningWorld(this.worldData))
       ? targetWord
       : item.name;
-    const subtitle = (targetWord && isLanguageLearningWorld(this.worldData))
-      ? `(${item.name}) — ${item.description || ''}`
-      : (item.description || `Added to your inventory (${item.type})`);
 
-    this.guiManager?.showToast({
-      title: `Collected ${displayName}`,
-      description: subtitle,
-      duration: 2500,
-    });
+    // Quest-context notification
+    if (questMatches.length > 0) {
+      const m = questMatches[0];
+      const progressText = m.required > 1 ? ` (${m.current}/${m.required})` : '';
+      const questDesc = m.completed ? 'Objective complete!' : m.objectiveDescription;
+      this.guiManager?.showToast({
+        title: `${displayName} collected!${progressText}`,
+        description: `Quest: ${questDesc}`,
+        duration: 3000,
+      });
+    } else {
+      const subtitle = (targetWord && isLanguageLearningWorld(this.worldData))
+        ? `(${item.name}) — ${item.description || ''}`
+        : (item.description || `Added to your inventory (${item.type})`);
+      this.guiManager?.showToast({
+        title: `Collected ${displayName}`,
+        description: subtitle,
+        duration: 2500,
+      });
+    }
+  }
+
+  /**
+   * Briefly show the target language word as a large centered overlay when collecting
+   * an item with languageLearningData.
+   */
+  private showLanguageWordOverlay(targetWord: string, targetLanguage?: string, englishName?: string): void {
+    if (!this.guiManager?.advancedTexture) return;
+
+    const container = new GUI.Rectangle('lang_word_overlay');
+    container.width = '400px';
+    container.height = '120px';
+    container.cornerRadius = 12;
+    container.color = 'white';
+    container.thickness = 2;
+    container.background = 'rgba(0, 0, 0, 0.8)';
+    container.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    container.top = '-100px';
+
+    const stack = new GUI.StackPanel();
+    container.addControl(stack);
+
+    const wordText = new GUI.TextBlock();
+    wordText.text = targetWord;
+    wordText.color = '#FFD700';
+    wordText.fontSize = 36;
+    wordText.height = '50px';
+    stack.addControl(wordText);
+
+    if (englishName) {
+      const engText = new GUI.TextBlock();
+      engText.text = `(${englishName})`;
+      engText.color = '#CCCCCC';
+      engText.fontSize = 18;
+      engText.height = '30px';
+      stack.addControl(engText);
+    }
+
+    if (targetLanguage) {
+      const langText = new GUI.TextBlock();
+      langText.text = targetLanguage;
+      langText.color = '#AAAAAA';
+      langText.fontSize = 14;
+      langText.height = '25px';
+      stack.addControl(langText);
+    }
+
+    this.guiManager.advancedTexture.addControl(container);
+
+    // Fade out after 2.5 seconds
+    setTimeout(() => {
+      container.dispose();
+    }, 2500);
   }
 
   /**

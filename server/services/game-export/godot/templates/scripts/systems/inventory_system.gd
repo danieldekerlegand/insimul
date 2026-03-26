@@ -111,6 +111,8 @@ func remove_item(item_id: String, quantity: int = 1) -> bool:
 			var current: int = _slots[i].get("quantity", _slots[i].get("count", 0))
 			if current < quantity:
 				return false
+			if str(_slots[i].get("type", "")) == "quest" and not str(_slots[i].get("quest_id", "")).is_empty():
+				return false
 			_slots[i]["quantity"] = current - quantity
 			if _slots[i]["quantity"] <= 0:
 				_slots.remove_at(i)

@@ -98,6 +98,7 @@ bool UInventorySystem::RemoveItem(const FString& ItemId, int32 Count)
 {
     FInsimulInventoryItem* Existing = FindItem(ItemId);
     if (!Existing || Existing->Quantity < Count) return false;
+    if (Existing->Type == EInsimulItemType::Quest && !Existing->QuestId.IsEmpty()) return false;
     Existing->Quantity -= Count;
     if (Existing->Quantity <= 0)
     {
