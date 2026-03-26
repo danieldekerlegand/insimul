@@ -83,6 +83,15 @@ export interface InteriorLayout {
   beds: BedAssignment[];
   /** Front entrance door mesh (if present) */
   frontDoor?: Mesh;
+  /** Navigation nodes for stair traversal (bottom, per-step, landing, top) */
+  stairNavNodes?: StairNavNode[];
+}
+
+/** A navigation waypoint on a staircase for NPC floor transitions */
+export interface StairNavNode {
+  position: Vector3;
+  floor: number;
+  type: 'bottom' | 'step' | 'landing' | 'top';
 }
 
 export interface FurnitureSpec {
@@ -126,7 +135,11 @@ const DOOR_AUTO_CLOSE_MS = 5000;
 
 /** Staircase dimensions */
 const STAIR_WIDTH = 2.0;
-const STAIR_STEP_COUNT = 10;
+const STAIR_STEP_HEIGHT = 0.3;
+const STAIR_STEP_DEPTH = 0.4;
+const STAIR_LANDING_DEPTH = 1.0;
+const STAIR_RAILING_HEIGHT = 1.0;
+const STAIR_RAILING_THICKNESS = 0.08;
 
 /** Window dimensions */
 const WINDOW_WIDTH = 1.5;
@@ -336,9 +349,13 @@ export class BuildingInteriorGenerator {
 
     // Build staircase if multi-floor
     const furniture: Mesh[] = [...partitionDoors, ...entranceDoorMeshes];
+    let stairNavNodes: StairNavNode[] | undefined;
     if (floorCount > 1) {
-      const stairMesh = this.buildStaircase(buildingId, position, dims.width, dims.depth, dims.height);
-      if (stairMesh) furniture.push(stairMesh);
+      const stairResult = this.buildStaircase(buildingId, position, dims.width, dims.depth, dims.height);
+      if (stairResult) {
+        furniture.push(stairResult.mesh);
+        stairNavNodes = stairResult.navNodes;
+      }
       this.buildUpperFloor(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType, config);
     }
 
@@ -386,6 +403,7 @@ export class BuildingInteriorGenerator {
       floorCount,
       beds,
       frontDoor: frontDoorMesh,
+      stairNavNodes,
     };
 
     this.interiors.set(buildingId, layout);
@@ -1763,6 +1781,8 @@ export class BuildingInteriorGenerator {
 
   /**
    * Build a staircase connecting ground floor to upper floor.
+   * Each step is 0.3m tall x full width x 0.4m deep with collision.
+   * Railings on both sides, 1m landing at top.
    * Placed against the east wall to minimize obstruction.
    */
   private buildStaircase(
@@ -1771,7 +1791,7 @@ export class BuildingInteriorGenerator {
     width: number,
     _depth: number,
     height: number,
-  ): Mesh | null {
+  ): { mesh: Mesh; navNodes: StairNavNode[] } | null {
     const prefix = `interior_${buildingId}`;
     const parent = new Mesh(`${prefix}_staircase`, this.scene);
 
@@ -1779,43 +1799,115 @@ export class BuildingInteriorGenerator {
     stairMat.diffuseColor = new Color3(0.4, 0.3, 0.18);
     stairMat.specularColor = new Color3(0.05, 0.05, 0.05);
 
-    const stepHeight = height / STAIR_STEP_COUNT;
-    const stepDepth = (height * 0.8) / STAIR_STEP_COUNT; // stairs span 80% of height horizontally
+    const railMat = new StandardMaterial(`${prefix}_railing_mat`, this.scene);
+    railMat.diffuseColor = new Color3(0.3, 0.22, 0.12);
+    railMat.specularColor = new Color3(0.05, 0.05, 0.05);
 
-    for (let i = 0; i < STAIR_STEP_COUNT; i++) {
+    const stepCount = Math.ceil(height / STAIR_STEP_HEIGHT);
+    const actualStepHeight = height / stepCount;
+    const stairRunDepth = stepCount * STAIR_STEP_DEPTH;
+    const totalDepth = stairRunDepth + STAIR_LANDING_DEPTH;
+
+    // Stair X position: against east wall
+    const stairX = position.x + width / 2 - STAIR_WIDTH / 2 - 0.5;
+    // Stair Z starts from south end, steps go north
+    const stairZStart = position.z - totalDepth / 2;
+
+    const navNodes: StairNavNode[] = [];
+
+    // Bottom approach node
+    navNodes.push({
+      position: new Vector3(stairX, position.y, stairZStart - 0.5),
+      floor: 0,
+      type: 'bottom',
+    });
+
+    // Build steps
+    for (let i = 0; i < stepCount; i++) {
       const step = MeshBuilder.CreateBox(
         `${prefix}_step_${i}`,
-        { width: STAIR_WIDTH, height: stepHeight, depth: stepDepth },
+        { width: STAIR_WIDTH, height: actualStepHeight, depth: STAIR_STEP_DEPTH },
         this.scene,
       );
-      step.position = new Vector3(
-        position.x + width / 2 - STAIR_WIDTH / 2 - 0.5,
-        position.y + stepHeight * (i + 0.5),
-        position.z - (STAIR_STEP_COUNT / 2 - i) * stepDepth,
-      );
+      const stepZ = stairZStart + (i + 0.5) * STAIR_STEP_DEPTH;
+      const stepY = position.y + actualStepHeight * (i + 0.5);
+      step.position = new Vector3(stairX, stepY, stepZ);
       step.material = stairMat;
       step.checkCollisions = true;
       step.parent = parent;
+
+      // Nav node every 3 steps
+      if (i % 3 === 0 || i === stepCount - 1) {
+        navNodes.push({
+          position: new Vector3(stairX, position.y + actualStepHeight * (i + 1), stepZ),
+          floor: 0,
+          type: 'step',
+        });
+      }
     }
 
-    // Stair railing (thin box along the open side)
-    const railingHeight = 1.0;
-    const railingLength = Math.sqrt(height * height + (STAIR_STEP_COUNT * stepDepth) * (STAIR_STEP_COUNT * stepDepth));
-    const railing = MeshBuilder.CreateBox(
-      `${prefix}_railing`,
-      { width: 0.08, height: railingHeight, depth: railingLength * 0.6 },
+    // Landing at top of stairs (flat 1m area)
+    const landingZ = stairZStart + stairRunDepth + STAIR_LANDING_DEPTH / 2;
+    const landingY = position.y + height;
+    const landing = MeshBuilder.CreateBox(
+      `${prefix}_stair_landing`,
+      { width: STAIR_WIDTH, height: actualStepHeight, depth: STAIR_LANDING_DEPTH },
       this.scene,
     );
-    railing.position = new Vector3(
-      position.x + width / 2 - STAIR_WIDTH - 0.5,
-      position.y + height / 2 + railingHeight / 2,
-      position.z,
-    );
-    railing.material = stairMat;
-    railing.checkCollisions = true;
-    railing.parent = parent;
+    landing.position = new Vector3(stairX, landingY - actualStepHeight / 2, landingZ);
+    landing.material = stairMat;
+    landing.checkCollisions = true;
+    landing.parent = parent;
 
-    return parent;
+    navNodes.push({
+      position: new Vector3(stairX, landingY, landingZ),
+      floor: 1,
+      type: 'landing',
+    });
+
+    // Top exit node (onto upper floor)
+    navNodes.push({
+      position: new Vector3(stairX, landingY, landingZ + STAIR_LANDING_DEPTH / 2 + 0.5),
+      floor: 1,
+      type: 'top',
+    });
+
+    // Railings on both sides of the staircase run + landing
+    const railingRunLength = totalDepth;
+    for (const side of [-1, 1]) {
+      const railX = stairX + side * (STAIR_WIDTH / 2 + STAIR_RAILING_THICKNESS / 2);
+
+      // Vertical posts at bottom and top
+      for (const postZ of [stairZStart, stairZStart + totalDepth]) {
+        const postY = postZ === stairZStart ? position.y : landingY;
+        const post = MeshBuilder.CreateBox(
+          `${prefix}_railing_post_${side}_${postZ.toFixed(1)}`,
+          { width: STAIR_RAILING_THICKNESS, height: STAIR_RAILING_HEIGHT, depth: STAIR_RAILING_THICKNESS },
+          this.scene,
+        );
+        post.position = new Vector3(railX, postY + STAIR_RAILING_HEIGHT / 2, postZ);
+        post.material = railMat;
+        post.checkCollisions = true;
+        post.parent = parent;
+      }
+
+      // Angled rail along the staircase (approximated as a tilted box)
+      const railing = MeshBuilder.CreateBox(
+        `${prefix}_railing_${side > 0 ? 'right' : 'left'}`,
+        { width: STAIR_RAILING_THICKNESS, height: STAIR_RAILING_HEIGHT * 0.08, depth: railingRunLength },
+        this.scene,
+      );
+      railing.position = new Vector3(
+        railX,
+        position.y + height / 2 + STAIR_RAILING_HEIGHT,
+        stairZStart + totalDepth / 2,
+      );
+      railing.material = railMat;
+      railing.checkCollisions = true;
+      railing.parent = parent;
+    }
+
+    return { mesh: parent, navNodes };
   }
 
   /**
@@ -1840,9 +1932,11 @@ export class BuildingInteriorGenerator {
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
     this.applyTextureToMaterial(floorMat, config?.floorTextureId, textureStyle.floor, width, depth);
 
-    // Upper floor (with stairwell hole near east wall)
+    // Upper floor (with stairwell hole matching stair footprint + landing)
+    const stepCount = Math.ceil(height / STAIR_STEP_HEIGHT);
+    const stairRunDepth = stepCount * STAIR_STEP_DEPTH;
     const stairwellWidth = STAIR_WIDTH + 1.0;
-    const stairwellDepth = (height * 0.8) + 1.0;
+    const stairwellDepth = stairRunDepth + STAIR_LANDING_DEPTH + 1.0;
     const floorWithoutStairwell = width - stairwellWidth;
 
     // Main floor section (west side, full depth)
