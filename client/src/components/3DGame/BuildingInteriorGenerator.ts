@@ -93,6 +93,12 @@ const PARTITION_DOOR_HEIGHT = 3.0;
 const STAIR_WIDTH = 2.0;
 const STAIR_STEP_COUNT = 10;
 
+/** Window dimensions */
+const WINDOW_WIDTH = 1.5;
+const WINDOW_HEIGHT = 1.8;
+const WINDOW_BOTTOM_Y = 1.2;
+const WINDOW_FRAME_THICKNESS = 0.05;
+
 /** Maps lighting preset names to concrete InteriorLightingPreset values */
 const LIGHTING_PRESET_CONFIGS: Record<LightingPreset, InteriorLightingPreset> = {
   bright: {
@@ -581,40 +587,14 @@ export class BuildingInteriorGenerator {
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
     this.applyTextureToMaterial(wallMat, config?.wallTextureId);
 
-    // Back wall (north)
-    const backWall = MeshBuilder.CreatePlane(
-      `${prefix}_wall_back`,
-      { width, height },
-      this.scene
-    );
-    backWall.position = new Vector3(0, height / 2, depth / 2);
-    backWall.parent = parent;
-    backWall.material = wallMat;
-    backWall.checkCollisions = true;
+    // Back wall (north) — with windows
+    this.generateWindows(prefix, 'wall_back', parent, wallMat, width, height, 0, 0, depth / 2, 0);
 
-    // Left wall (west)
-    const leftWall = MeshBuilder.CreatePlane(
-      `${prefix}_wall_left`,
-      { width: depth, height },
-      this.scene
-    );
-    leftWall.position = new Vector3(-width / 2, height / 2, 0);
-    leftWall.rotation.y = Math.PI / 2;
-    leftWall.parent = parent;
-    leftWall.material = wallMat;
-    leftWall.checkCollisions = true;
+    // Left wall (west) — with windows
+    this.generateWindows(prefix, 'wall_left', parent, wallMat, depth, height, -width / 2, 0, 0, Math.PI / 2);
 
-    // Right wall (east)
-    const rightWall = MeshBuilder.CreatePlane(
-      `${prefix}_wall_right`,
-      { width: depth, height },
-      this.scene
-    );
-    rightWall.position = new Vector3(width / 2, height / 2, 0);
-    rightWall.rotation.y = -Math.PI / 2;
-    rightWall.parent = parent;
-    rightWall.material = wallMat;
-    rightWall.checkCollisions = true;
+    // Right wall (east) — with windows
+    this.generateWindows(prefix, 'wall_right', parent, wallMat, depth, height, width / 2, 0, 0, -Math.PI / 2);
 
     // Front wall (south) — with door opening (two panels leaving a gap)
     const doorWidth = 2;
@@ -691,6 +671,178 @@ export class BuildingInteriorGenerator {
     };
 
     return parent;
+  }
+
+  /**
+   * Generate window openings on a wall. Splits the wall into panels around
+   * window cutouts and adds translucent glass panes with frames.
+   *
+   * @param prefix - Mesh name prefix (e.g. "interior_bld1")
+   * @param wallName - Wall identifier (e.g. "wall_back")
+   * @param parent - Parent mesh for child panels (null for absolute positioning)
+   * @param wallMat - Material for solid wall panels
+   * @param wallWidth - Width of the wall (along its plane)
+   * @param wallHeight - Height of the wall
+   * @param baseX - X position of wall bottom-center
+   * @param baseY - Y position of the floor level for this wall
+   * @param baseZ - Z position of wall bottom-center
+   * @param wallRotY - Y rotation of the wall plane
+   */
+  private generateWindows(
+    prefix: string,
+    wallName: string,
+    parent: Mesh | null,
+    wallMat: StandardMaterial,
+    wallWidth: number,
+    wallHeight: number,
+    baseX: number,
+    baseY: number,
+    baseZ: number,
+    wallRotY: number,
+  ): void {
+    // If the wall is too short for windows, skip
+    const windowTopY = WINDOW_BOTTOM_Y + WINDOW_HEIGHT;
+    if (wallHeight < windowTopY + 0.1) return;
+
+    const windowCount = Math.max(1, Math.floor(wallWidth / 6));
+    const bottomH = WINDOW_BOTTOM_Y;
+    const topH = wallHeight - windowTopY;
+
+    // Direction along the wall in parent/world space (Babylon left-handed)
+    const alongX = Math.cos(wallRotY);
+    const alongZ = Math.sin(wallRotY);
+
+    const panelPos = (dx: number, centerY: number) =>
+      new Vector3(baseX + dx * alongX, baseY + centerY, baseZ + dx * alongZ);
+
+    const assignParent = (mesh: Mesh) => {
+      if (parent) mesh.parent = parent;
+    };
+
+    // Bottom strip (below all windows, full width)
+    if (bottomH > 0.01) {
+      const bottom = MeshBuilder.CreatePlane(
+        `${prefix}_${wallName}_bottom`, { width: wallWidth, height: bottomH }, this.scene,
+      );
+      bottom.position = panelPos(0, bottomH / 2);
+      bottom.rotation.y = wallRotY;
+      assignParent(bottom);
+      bottom.material = wallMat;
+      bottom.checkCollisions = true;
+    }
+
+    // Top strip (above all windows, full width)
+    if (topH > 0.01) {
+      const top = MeshBuilder.CreatePlane(
+        `${prefix}_${wallName}_top`, { width: wallWidth, height: topH }, this.scene,
+      );
+      top.position = panelPos(0, windowTopY + topH / 2);
+      top.rotation.y = wallRotY;
+      assignParent(top);
+      top.material = wallMat;
+      top.checkCollisions = true;
+    }
+
+    // Window centers (in wall-local X, where 0 = wall center)
+    const segmentWidth = wallWidth / windowCount;
+    const windowCenters: number[] = [];
+    for (let i = 0; i < windowCount; i++) {
+      windowCenters.push((i + 0.5) * segmentWidth - wallWidth / 2);
+    }
+
+    // Solid panel edges in the middle band: alternate solid/window regions
+    const edges: number[] = [-wallWidth / 2];
+    for (const cx of windowCenters) {
+      edges.push(cx - WINDOW_WIDTH / 2);
+      edges.push(cx + WINDOW_WIDTH / 2);
+    }
+    edges.push(wallWidth / 2);
+
+    // Each pair (edges[2k], edges[2k+1]) is a solid panel
+    for (let i = 0; i < edges.length; i += 2) {
+      const left = edges[i];
+      const right = edges[i + 1];
+      const panelW = right - left;
+      if (panelW > 0.01) {
+        const panel = MeshBuilder.CreatePlane(
+          `${prefix}_${wallName}_mid_${i}`, { width: panelW, height: WINDOW_HEIGHT }, this.scene,
+        );
+        panel.position = panelPos((left + right) / 2, WINDOW_BOTTOM_Y + WINDOW_HEIGHT / 2);
+        panel.rotation.y = wallRotY;
+        assignParent(panel);
+        panel.material = wallMat;
+        panel.checkCollisions = true;
+      }
+    }
+
+    // Shared glass material (translucent light blue with slight emissive for light bleed)
+    const glassMat = new StandardMaterial(`${prefix}_${wallName}_glass_mat`, this.scene);
+    glassMat.diffuseColor = new Color3(0.7, 0.85, 1.0);
+    glassMat.emissiveColor = new Color3(0.15, 0.18, 0.25);
+    glassMat.alpha = 0.3;
+    glassMat.specularColor = new Color3(0.3, 0.3, 0.3);
+
+    // Shared frame material (dark wood)
+    const frameMat = new StandardMaterial(`${prefix}_${wallName}_frame_mat`, this.scene);
+    frameMat.diffuseColor = new Color3(0.35, 0.25, 0.15);
+    frameMat.specularColor = new Color3(0.1, 0.1, 0.1);
+
+    const ft = WINDOW_FRAME_THICKNESS;
+
+    for (let i = 0; i < windowCenters.length; i++) {
+      const cx = windowCenters[i];
+      const winMidY = WINDOW_BOTTOM_Y + WINDOW_HEIGHT / 2;
+
+      // Glass pane
+      const glass = MeshBuilder.CreatePlane(
+        `${prefix}_${wallName}_glass_${i}`, { width: WINDOW_WIDTH, height: WINDOW_HEIGHT }, this.scene,
+      );
+      glass.position = panelPos(cx, winMidY);
+      glass.rotation.y = wallRotY;
+      assignParent(glass);
+      glass.material = glassMat;
+
+      // Frame: 4 thin boxes around the window opening
+      // Top bar
+      const topBar = MeshBuilder.CreateBox(
+        `${prefix}_${wallName}_ftop_${i}`,
+        { width: WINDOW_WIDTH + ft * 2, height: ft, depth: ft }, this.scene,
+      );
+      topBar.position = panelPos(cx, WINDOW_BOTTOM_Y + WINDOW_HEIGHT + ft / 2);
+      topBar.rotation.y = wallRotY;
+      assignParent(topBar);
+      topBar.material = frameMat;
+
+      // Bottom bar (sill)
+      const bottomBar = MeshBuilder.CreateBox(
+        `${prefix}_${wallName}_fbot_${i}`,
+        { width: WINDOW_WIDTH + ft * 2, height: ft, depth: ft }, this.scene,
+      );
+      bottomBar.position = panelPos(cx, WINDOW_BOTTOM_Y - ft / 2);
+      bottomBar.rotation.y = wallRotY;
+      assignParent(bottomBar);
+      bottomBar.material = frameMat;
+
+      // Left bar
+      const leftBar = MeshBuilder.CreateBox(
+        `${prefix}_${wallName}_fleft_${i}`,
+        { width: ft, height: WINDOW_HEIGHT, depth: ft }, this.scene,
+      );
+      leftBar.position = panelPos(cx - WINDOW_WIDTH / 2 - ft / 2, winMidY);
+      leftBar.rotation.y = wallRotY;
+      assignParent(leftBar);
+      leftBar.material = frameMat;
+
+      // Right bar
+      const rightBar = MeshBuilder.CreateBox(
+        `${prefix}_${wallName}_fright_${i}`,
+        { width: ft, height: WINDOW_HEIGHT, depth: ft }, this.scene,
+      );
+      rightBar.position = panelPos(cx + WINDOW_WIDTH / 2 + ft / 2, winMidY);
+      rightBar.rotation.y = wallRotY;
+      assignParent(rightBar);
+      rightBar.material = frameMat;
+    }
   }
 
   /**
@@ -1182,28 +1334,32 @@ export class BuildingInteriorGenerator {
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
 
-    const upperWalls = [
-      { name: 'back', pos: new Vector3(0, height + height / 2, depth / 2), w: width, h: height },
-      { name: 'left', pos: new Vector3(-width / 2, height + height / 2, 0), w: depth, h: height, rotY: Math.PI / 2 },
-      { name: 'right', pos: new Vector3(width / 2, height + height / 2, 0), w: depth, h: height, rotY: -Math.PI / 2 },
-      { name: 'front', pos: new Vector3(0, height + height / 2, -depth / 2), w: width, h: height, rotY: Math.PI },
-    ];
+    // Back, left, right upper walls — with windows
+    this.generateWindows(
+      prefix, 'upper_wall_back', null, wallMat, width, height,
+      position.x, position.y + height, position.z + depth / 2, 0,
+    );
+    this.generateWindows(
+      prefix, 'upper_wall_left', null, wallMat, depth, height,
+      position.x - width / 2, position.y + height, position.z, Math.PI / 2,
+    );
+    this.generateWindows(
+      prefix, 'upper_wall_right', null, wallMat, depth, height,
+      position.x + width / 2, position.y + height, position.z, -Math.PI / 2,
+    );
 
-    for (const w of upperWalls) {
-      const wall = MeshBuilder.CreatePlane(
-        `${prefix}_upper_wall_${w.name}`,
-        { width: w.w, height: w.h },
-        this.scene,
-      );
-      wall.position = new Vector3(
-        position.x + w.pos.x,
-        position.y + w.pos.y,
-        position.z + w.pos.z,
-      );
-      if (w.rotY) wall.rotation.y = w.rotY;
-      wall.material = wallMat;
-      wall.checkCollisions = true;
-    }
+    // Front upper wall — solid (no windows, matches ground floor door wall)
+    const frontWall = MeshBuilder.CreatePlane(
+      `${prefix}_upper_wall_front`,
+      { width, height },
+      this.scene,
+    );
+    frontWall.position = new Vector3(
+      position.x, position.y + height + height / 2, position.z - depth / 2,
+    );
+    frontWall.rotation.y = Math.PI;
+    frontWall.material = wallMat;
+    frontWall.checkCollisions = true;
   }
 
   /**
