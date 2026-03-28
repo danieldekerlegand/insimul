@@ -7,8 +7,10 @@
  */
 
 import type { CEFRLevel } from './assessment/assessment-types';
+import { getCEFRTextComplexity, filterQuestsByCEFR } from './language/cefr-adaptation';
 
 export type { CEFRLevel };
+export { getCEFRTextComplexity, filterQuestsByCEFR };
 
 export type QuestDifficulty = 'beginner' | 'intermediate' | 'advanced';
 
@@ -161,4 +163,29 @@ export function cefrLevelLabel(level: CEFRLevel): string {
     case 'B1': return 'B1 Intermediate';
     case 'B2': return 'B2 Upper-Intermediate';
   }
+}
+
+/**
+ * Filter text documents by CEFR level.
+ * At A1, only show A1-level documents. As the player advances, include
+ * documents at the current level and all levels below.
+ */
+export function filterTextsByCEFR<T extends { cefrLevel?: string | null }>(
+  texts: T[],
+  playerCefrLevel: CEFRLevel,
+): T[] {
+  const playerOrder = CEFR_ORDER[playerCefrLevel];
+  return texts.filter(t => {
+    if (!t.cefrLevel) return true;
+    return CEFR_ORDER[t.cefrLevel as CEFRLevel] <= playerOrder;
+  });
+}
+
+/**
+ * Get the comprehension question type appropriate for a CEFR level.
+ */
+export function getComprehensionQuestionType(
+  cefrLevel: CEFRLevel,
+): 'true_false' | 'simple_factual' | 'inferential' | 'analytical' {
+  return getCEFRTextComplexity(cefrLevel).comprehensionQuestionType;
 }

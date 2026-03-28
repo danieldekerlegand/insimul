@@ -14,6 +14,7 @@ import type { PlayerProficiency } from './utils';
 import type { CEFRLevel } from '../assessment/cefr-mapping';
 import { cefrToFluencyTier } from '../assessment/cefr-mapping';
 import { getOccupationDifficultyModifier } from './utils';
+import { getHintBehavior, type HintBehaviorConfig } from './cefr-adaptation';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ export interface SpeechComplexityParams {
   allowSlang: boolean;
   /** Encouragement level: how much to praise attempts */
   encouragementLevel: 'high' | 'moderate' | 'low' | 'none';
+  /** Hint/translation behavior config derived from CEFR level */
+  hintConfig: HintBehaviorConfig;
 }
 
 // ── Complexity thresholds ────────────────────────────────────────────────────
@@ -61,7 +64,7 @@ export interface SpeechComplexityParams {
 const COMPLEXITY_TIERS: Array<{
   maxFluency: number;
   level: SpeechComplexityLevel;
-  params: Omit<SpeechComplexityParams, 'level' | 'effectiveFluency'>;
+  params: Omit<SpeechComplexityParams, 'level' | 'effectiveFluency' | 'hintConfig'>;
 }> = [
   {
     maxFluency: 20,
@@ -158,10 +161,18 @@ export function getSpeechComplexity(
 
   const tier = COMPLEXITY_TIERS.find(t => effectiveFluency < t.maxFluency) ?? COMPLEXITY_TIERS[COMPLEXITY_TIERS.length - 1];
 
+  // Derive CEFR level for hint config
+  const derivedCefr: CEFRLevel = cefrLevel ?? (
+    effectiveFluency < 20 ? 'A1' :
+    effectiveFluency < 40 ? 'A2' :
+    effectiveFluency < 60 ? 'B1' : 'B2'
+  );
+
   return {
     level: tier.level,
     effectiveFluency,
     ...tier.params,
+    hintConfig: getHintBehavior(derivedCefr),
   };
 }
 
@@ -264,6 +275,7 @@ export function speechComplexityToDifficultyParams(params: SpeechComplexityParam
       allowIdioms: params.allowIdioms,
       allowSlang: params.allowSlang,
       encouragementLevel: params.encouragementLevel,
+      hintConfig: params.hintConfig,
     },
   };
 }

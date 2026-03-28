@@ -11,10 +11,21 @@
  *  3. Fetch on-demand translations for unknown words via API
  */
 
+import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import {
+  getHintBehavior,
+  shouldShowVocabHint,
+  isWordMastered,
+  type TranslationDisplayMode,
+  type HintBehaviorConfig,
+} from '../../language/cefr-adaptation';
+
 export interface VocabHint {
   word: string;
   translation: string;
   context?: string;
+  partOfSpeech?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
 }
 
 export interface TranslationResult {
@@ -30,6 +41,14 @@ export class HoverTranslationSystem {
   /** In-flight API requests to avoid duplicate fetches */
   private _pendingRequests: Map<string, Promise<TranslationResult | null>> = new Map();
   private _targetLanguage: string | null = null;
+  /** Current CEFR level for adaptive behavior */
+  private _cefrLevel: CEFRLevel = 'A1';
+  /** Track word encounter counts for hint frequency */
+  private _wordEncounterCounts: Map<string, number> = new Map();
+  /** Track word mastery (encounters + correct uses) */
+  private _wordMastery: Map<string, { encountered: number; usedCorrectly: number }> = new Map();
+  /** Counter for new words seen (for hint frequency modulo) */
+  private _newWordIndex: number = 0;
 
   setTargetLanguage(lang: string): void {
     this._targetLanguage = lang;
@@ -37,6 +56,63 @@ export class HoverTranslationSystem {
 
   getTargetLanguage(): string | null {
     return this._targetLanguage;
+  }
+
+  setCEFRLevel(level: CEFRLevel): void {
+    this._cefrLevel = level;
+  }
+
+  getCEFRLevel(): CEFRLevel {
+    return this._cefrLevel;
+  }
+
+  /** Get the current hint behavior config based on CEFR level. */
+  getHintBehavior(): HintBehaviorConfig {
+    return getHintBehavior(this._cefrLevel);
+  }
+
+  /** Get the translation display mode for the current CEFR level. */
+  getTranslationDisplayMode(): TranslationDisplayMode {
+    return getHintBehavior(this._cefrLevel).translationMode;
+  }
+
+  /**
+   * Record a word encounter for hint frequency tracking.
+   * Returns whether a vocab hint card should be shown for this word.
+   */
+  recordWordEncounter(
+    word: string,
+    difficulty: 'beginner' | 'intermediate' | 'advanced' = 'beginner',
+  ): boolean {
+    const normalized = this.normalizeWord(word);
+    const count = (this._wordEncounterCounts.get(normalized) ?? 0) + 1;
+    this._wordEncounterCounts.set(normalized, count);
+
+    const mastery = this._wordMastery.get(normalized);
+    const mastered = mastery ? isWordMastered(mastery.encountered, mastery.usedCorrectly) : false;
+
+    if (count === 1) {
+      // First encounter — this is a new word
+      const index = this._newWordIndex++;
+      return shouldShowVocabHint(this._cefrLevel, index, difficulty, mastered);
+    }
+    return false;
+  }
+
+  /**
+   * Update word mastery tracking.
+   */
+  updateWordMastery(word: string, encountered: number, usedCorrectly: number): void {
+    this._wordMastery.set(this.normalizeWord(word), { encountered, usedCorrectly });
+  }
+
+  /**
+   * Check if a word is mastered (seen 5+ times and used correctly at least once).
+   */
+  isWordMastered(word: string): boolean {
+    const mastery = this._wordMastery.get(this.normalizeWord(word));
+    if (!mastery) return false;
+    return isWordMastered(mastery.encountered, mastery.usedCorrectly);
   }
 
   /**
@@ -138,6 +214,8 @@ export class HoverTranslationSystem {
   clear(): void {
     this._translations.clear();
     this._pendingRequests.clear();
+    this._wordEncounterCounts.clear();
+    this._newWordIndex = 0;
   }
 
   /** Get the count of cached translations */

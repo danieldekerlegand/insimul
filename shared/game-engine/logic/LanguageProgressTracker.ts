@@ -38,6 +38,12 @@ import type { PatternEntry } from '@shared/feature-modules/pattern-recognition/t
 import type { ProficiencyProgress } from '@shared/feature-modules/proficiency/types';
 import type { ConversationRecord as GenericConversationRecord } from '@shared/feature-modules/conversation-analytics/types';
 import type { IDataSource } from '@shared/game-engine/data-source';
+import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import {
+  checkCEFRAdvancement,
+  type CEFRProgressSnapshot,
+  type CEFRAdvancementResult,
+} from '@shared/language/cefr-adaptation';
 
 export class LanguageProgressTracker {
   private progress: LanguageProgress;
@@ -55,12 +61,17 @@ export class LanguageProgressTracker {
   // DataSource for server communication
   private dataSource: IDataSource | null = null;
 
+  // CEFR progression tracking
+  private _cefrLevel: CEFRLevel = 'A1';
+  private _textsRead: number = 0;
+
   // Callbacks
   private onFluencyGain: ((result: FluencyGainResult) => void) | null = null;
   private onNewWordLearned: ((entry: VocabularyEntry) => void) | null = null;
   private onWordMastered: ((entry: VocabularyEntry) => void) | null = null;
   private onVocabularyUsed: ((usages: VocabularyUsage[]) => void) | null = null;
   private onGrammarFeedback: ((feedback: GrammarFeedback) => void) | null = null;
+  private onCEFRAdvancement: ((oldLevel: CEFRLevel, newLevel: CEFRLevel) => void) | null = null;
 
   constructor(playerId: string, worldId: string, language: string, playthroughId?: string) {
     this.progress = {
@@ -540,11 +551,69 @@ export class LanguageProgressTracker {
       .map(v => v.word);
   }
 
+  // -- CEFR progression --
+
+  public setCEFRLevel(level: CEFRLevel): void {
+    this._cefrLevel = level;
+  }
+
+  public getCEFRLevel(): CEFRLevel {
+    return this._cefrLevel;
+  }
+
+  public recordTextRead(): void {
+    this._textsRead++;
+  }
+
+  public getTextsRead(): number {
+    return this._textsRead;
+  }
+
+  public setOnCEFRAdvancement(cb: (oldLevel: CEFRLevel, newLevel: CEFRLevel) => void): void {
+    this.onCEFRAdvancement = cb;
+  }
+
+  /**
+   * Build a snapshot of the player's CEFR progression metrics.
+   */
+  public getCEFRProgressSnapshot(): CEFRProgressSnapshot {
+    return {
+      currentLevel: this._cefrLevel,
+      wordsLearned: this.progress.totalWordsLearned,
+      wordsMastered: this.progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+      conversationsCompleted: this.progress.totalConversations,
+      textsRead: this._textsRead,
+      grammarPatternsRecognized: this.progress.grammarPatterns.length,
+    };
+  }
+
+  /**
+   * Check whether the player should advance to the next CEFR level.
+   * If advancement thresholds are met, updates the level and fires the callback.
+   * Returns the advancement result (with progress toward next level).
+   */
+  public checkAndAdvanceCEFR(): CEFRAdvancementResult {
+    const snapshot = this.getCEFRProgressSnapshot();
+    const result = checkCEFRAdvancement(snapshot);
+
+    if (result.shouldAdvance && result.nextLevel) {
+      const oldLevel = this._cefrLevel;
+      this._cefrLevel = result.nextLevel;
+      this.onCEFRAdvancement?.(oldLevel, result.nextLevel);
+    }
+
+    return result;
+  }
+
   /**
    * Export progress for saving
    */
   public exportProgress(): string {
-    return JSON.stringify(this.progress);
+    return JSON.stringify({
+      ...this.progress,
+      cefrLevel: this._cefrLevel,
+      textsRead: this._textsRead,
+    });
   }
 
   /**
@@ -552,7 +621,16 @@ export class LanguageProgressTracker {
    */
   public importProgress(json: string): void {
     try {
-      this.progress = JSON.parse(json);
+      const data = JSON.parse(json);
+      if (data.cefrLevel) {
+        this._cefrLevel = data.cefrLevel;
+        delete data.cefrLevel;
+      }
+      if (data.textsRead != null) {
+        this._textsRead = data.textsRead;
+        delete data.textsRead;
+      }
+      this.progress = data;
     } catch (e) {
       console.error('[LanguageProgressTracker] Failed to import progress:', e);
     }

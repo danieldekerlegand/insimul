@@ -14,7 +14,8 @@ import {
   buildObjectiveTypePrompt,
   validateAndNormalizeObjectives,
 } from '../../shared/quest-objective-types.js';
-import { getQuestDifficultyInfo } from '../../shared/quest-difficulty.js';
+import { getQuestDifficultyInfo, type CEFRLevel } from '../../shared/quest-difficulty.js';
+import { cefrToVocabularyRange, getQuestPoolSizes } from '../../shared/language/cefr-adaptation.js';
 import {
   buildHintGenerationPrompt,
   buildQuestHints,
@@ -440,4 +441,63 @@ Return JSON format as specified above.`;
   }
 
   return quest;
+}
+
+/**
+ * Map CEFR level to quest difficulty.
+ */
+function cefrToDifficulty(level: CEFRLevel): string {
+  switch (level) {
+    case 'A1': return 'beginner';
+    case 'A2': return 'beginner';
+    case 'B1': return 'intermediate';
+    case 'B2': return 'advanced';
+  }
+}
+
+/**
+ * Generate CEFR-stratified quest pools for world creation.
+ * Produces quest batches at each CEFR level with vocabulary drawn from
+ * frequency-ranked ranges.
+ */
+export async function generateCEFRStratifiedQuests(
+  world: World,
+  options?: {
+    worldStateContext?: WorldStateContext;
+    provider?: ILLMProvider;
+  },
+): Promise<InsertQuest[]> {
+  const poolSizes = getQuestPoolSizes();
+  const levels: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
+  const allQuests: InsertQuest[] = [];
+
+  for (const level of levels) {
+    const count = poolSizes[level];
+    const vocabRange = cefrToVocabularyRange(level);
+    const difficulty = cefrToDifficulty(level);
+
+    const proficiency: PlayerProficiency = {
+      overallFluency: level === 'A1' ? 10 : level === 'A2' ? 30 : level === 'B1' ? 50 : 70,
+      vocabularyCount: vocabRange.min,
+      masteredWordCount: 0,
+      weakGrammarPatterns: [],
+      strongGrammarPatterns: [],
+      conversationCount: 0,
+    };
+
+    const quests = await generateQuestsForWorld(world, count, {
+      difficulty,
+      playerProficiency: proficiency,
+      worldStateContext: options?.worldStateContext,
+      provider: options?.provider,
+    });
+
+    // Tag each quest with the target CEFR level and vocabulary range
+    for (const quest of quests) {
+      quest.cefrLevel = level;
+      allQuests.push(quest);
+    }
+  }
+
+  return allQuests;
 }

@@ -83,6 +83,8 @@ describe('getSpeechComplexity', () => {
     expect(result.allowSlang).toBe(false);
     expect(result.encouragementLevel).toBe('high');
     expect(result.grammarCorrectionsPerMessage).toBe(0);
+    expect(result.hintConfig).toBeDefined();
+    expect(result.hintConfig.translationMode).toBe('inline');
   });
 
   it('returns correct structured params for intermediate', () => {

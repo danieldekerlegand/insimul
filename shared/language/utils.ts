@@ -11,6 +11,7 @@ import { getQuestTypeForWorld, type QuestTypeDefinition } from '../quest-types';
 import type { CEFRLevel } from '../assessment/cefr-mapping';
 import { cefrToFluencyTier } from '../assessment/cefr-mapping';
 import { getSpeechComplexity, buildDialogueRulesFromComplexity } from './speech-complexity';
+import { getNPCLanguageBehavior } from './cefr-adaptation';
 
 // ==========================================
 // Types
@@ -78,6 +79,7 @@ export function buildWorldLanguageContext(
 }
 
 export interface CharacterInfo {
+  id?: string;
   firstName: string;
   lastName: string;
   age?: number | null;
@@ -753,7 +755,8 @@ export function buildPlayerProficiencySection(
   proficiency: PlayerProficiency,
   targetLanguage: string,
   npcOccupation?: string | null,
-  cefrLevel?: CEFRLevel | null
+  cefrLevel?: CEFRLevel | null,
+  npcId?: string | null,
 ): string {
   const { overallFluency, vocabularyCount, masteredWordCount, weakGrammarPatterns, strongGrammarPatterns, conversationCount } = proficiency;
 
@@ -778,6 +781,12 @@ export function buildPlayerProficiencySection(
     section += `\nAs a ${npcOccupation}, you are naturally patient and accommodating with language learners. Simplify your speech more than usual.\n`;
   } else if (occupationMod > 0) {
     section += `\nAs a ${npcOccupation}, you naturally use formal and complex language. You may be less accommodating but still helpful.\n`;
+  }
+
+  // Add CEFR-based language mode directive when CEFR level and NPC ID are available
+  if (cefrLevel && npcId) {
+    const behavior = getNPCLanguageBehavior(cefrLevel, npcId, targetLanguage);
+    section += '\n' + behavior.promptDirective;
   }
 
   // Build dialogue rules from speech complexity params
@@ -846,7 +855,7 @@ ${buildLanguageSection(fluencies, worldContext?.targetLanguage, isLanguageLearni
 
   // Add player proficiency section for language-learning games
   if (isLanguageLearning && playerProficiency && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
-    prompt += buildPlayerProficiencySection(playerProficiency, worldContext.targetLanguage, occupation, cefrLevel);
+    prompt += buildPlayerProficiencySection(playerProficiency, worldContext.targetLanguage, occupation, cefrLevel, character.id);
     prompt += '\n';
   }
 
