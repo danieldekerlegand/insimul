@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-28T21:00:44.686Z",
+  "lastUpdated": "2026-03-28T21:22:10.710Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -262,7 +262,7 @@
     {
       "path": "shared/game-engine/logic/GameEventBus.ts",
       "description": "Centralized typed event bus (120+ event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "d10935dcf4e08b2fd76b5ec005920c75bdef946c69e64b8c87ec27a52b649b69",
+      "hash": "01ca2c3eb65f3416c3075c19a74ee430b4b1e24febb29d8dea2e775138ad88cc",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "03c362dd305f4851ed29b79dc1fea78deaf2c82b66c17ec30ee851eae1f0974a",
+      "hash": "042003c924844dad3bb010049346e739b5523adc24fe32c4bd98e512194d7c72",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "934ba21c0bed3c8d3bef7db331807018f97dcfe11b2438602cd92da43dd31b57",
+      "hash": "702229ae8974f856a469a1e5dc55fcaac240589749ae6cdfbebafd014cd8e98b",
       "engineMappings": [
         {
           "engine": "unity",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "ad702e128aacb9262150733d852bb76d75af3a2859d091e5073af2a37c3064f1",
+      "hash": "2396023652dce34e63c2b1333af966c1e0b0eec86e4906194fa01f5598b233d2",
       "engineMappings": [
         {
           "engine": "babylon",

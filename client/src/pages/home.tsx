@@ -24,6 +24,7 @@ import { WorldBrowser } from '@/components/WorldBrowser';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { NarrativeTab } from '@/components/NarrativeTab';
 import { InsimulRuleCompiler } from '@/lib/unified-syntax';
 
 interface Character {
@@ -201,6 +202,12 @@ export default function Home() {
       {activeTab === 'languages' && selectedWorld && (
         <div className="px-6 py-4">
           <LanguagesHub worldId={selectedWorld} />
+        </div>
+      )}
+
+      {activeTab === 'narrative' && selectedWorld && (
+        <div className="px-6 py-4">
+          <NarrativeTab worldId={selectedWorld} />
         </div>
       )}
 

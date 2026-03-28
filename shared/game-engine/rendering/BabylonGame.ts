@@ -152,6 +152,8 @@ import { BookSpawnManager, type BookTextData } from "@shared/game-engine/renderi
 import { ExteriorItemManager } from "@shared/game-engine/rendering/ExteriorItemManager";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData, type MenuClueData } from "@shared/game-engine/rendering/GameMenuSystem";
 import { ClueStore } from "@shared/game-engine/logic/ClueStore";
+import { NarrativeCutscenePanel, NarrativeBeatDispatcher } from "@shared/game-engine/rendering/NarrativeCutscenePanel";
+import type { PendingNarrativeBeat } from "@shared/quest/main-quest-chapters";
 import { MainMenuScreen, type PlaythroughInfo } from "@shared/game-engine/rendering/MainMenuScreen";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager";
 import { SaveIndicator } from "@shared/game-engine/rendering/SaveIndicator";
@@ -556,6 +558,8 @@ export class BabylonGame {
   private mainQuestJournalData: MenuJournalData | null = null;
   private portfolioData: import('@shared/quest/portfolio-types').PortfolioData | null = null;
   private clueStore: ClueStore | null = null;
+  private cutscenePanel: NarrativeCutscenePanel | null = null;
+  private narrativeBeatDispatcher: NarrativeBeatDispatcher | null = null;
 
   // NPCs
   private npcMeshes: Map<string, NPCInstance> = new Map();
@@ -1362,6 +1366,34 @@ export class BabylonGame {
         );
       }
     });
+
+    // Auto-discover physical evidence clues from hidden location investigations
+    this.eventBus.on('investigation_completed', (event: any) => {
+      if (event.contentType === 'clue') {
+        this.clueStore?.addPhysicalClue(
+          event.content || 'Physical evidence found',
+          event.locationName || 'Unknown location',
+          [event.locationId, 'investigation', 'writer'].filter(Boolean),
+        );
+      }
+    });
+
+    // Auto-discover clues from hidden location discovery (writer secret spots)
+    this.eventBus.on('location_discovered', (event: any) => {
+      if (event.isWriterSecret) {
+        this.clueStore?.addPhysicalClue(
+          `Discovered writer's secret location: ${event.locationName}`,
+          event.locationName || 'Secret location',
+          [event.locationId, 'writer', 'secret', 'location'].filter(Boolean),
+        );
+      }
+    });
+  }
+
+  private initCutscenePanel(): void {
+    if (!this.guiManager) return;
+    this.cutscenePanel = new NarrativeCutscenePanel(this.guiManager.advancedTexture, this.eventBus);
+    this.narrativeBeatDispatcher = new NarrativeBeatDispatcher(this.cutscenePanel);
   }
 
   private getNpcNameById(npcId: string): string | null {
@@ -2334,6 +2366,7 @@ export class BabylonGame {
     );
 
     this.initClueStore();
+    this.initCutscenePanel();
 
     this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
     this.gameMenuSystem.setOnMenuOpened(() => {
@@ -12255,21 +12288,30 @@ export class BabylonGame {
       const response = await this.dataSource.recordMainQuestCompletion(worldId, playerId, questType, this.playerCefrLevel);
       if (!response) return;
       const { result } = response;
-      if (result?.chapterAdvance?.advanced) {
+      if (result?.chapterAdvance?.advanced && this.narrativeBeatDispatcher) {
+        const advance = result.chapterAdvance;
+        const outroBeat: PendingNarrativeBeat | null = advance.outroNarrative ? {
+          id: `chapter_outro:${advance.completedChapterId || 'unknown'}`,
+          type: 'chapter_outro',
+          chapterId: advance.completedChapterId || 'unknown',
+          chapterTitle: advance.completedChapterTitle || 'Chapter Complete',
+          text: advance.outroNarrative,
+        } : null;
+        const introBeat: PendingNarrativeBeat | null = (advance.nextChapterTitle && advance.introNarrative) ? {
+          id: `chapter_intro:${advance.nextChapterId || 'unknown'}`,
+          type: 'chapter_intro',
+          chapterId: advance.nextChapterId || 'unknown',
+          chapterTitle: advance.nextChapterTitle,
+          text: advance.introNarrative,
+        } : null;
+        this.narrativeBeatDispatcher.queueChapterTransition(outroBeat, introBeat);
+      } else if (result?.chapterAdvance?.advanced) {
+        // Fallback to toast if cutscene panel unavailable
         this.guiManager?.showToast({
           title: `Chapter Complete: ${result.chapterAdvance.completedChapterTitle}`,
           description: result.chapterAdvance.outroNarrative || '',
           duration: 6000,
         });
-        if (result.chapterAdvance.nextChapterTitle) {
-          setTimeout(() => {
-            this.guiManager?.showToast({
-              title: `New Chapter: ${result.chapterAdvance.nextChapterTitle}`,
-              description: result.chapterAdvance.introNarrative || '',
-              duration: 6000,
-            });
-          }, 3000);
-        }
       }
       // Refresh journal and portfolio data
       await this.fetchMainQuestJournalData();

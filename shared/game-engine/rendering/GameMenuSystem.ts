@@ -1327,9 +1327,12 @@ export class GameMenuSystem {
     writerRow.paddingLeft = "4px";
     boardCard.addControl(writerRow);
 
-    // Evidence stats row
-    const cluesFound = board?.cluesFound ?? 0;
-    const evidenceCollected = board?.evidenceCollected ?? 0;
+    // Evidence stats row — merge server board data with real-time ClueStore data
+    const clueData = this.callbacks.getClueData?.();
+    const cluesFound = clueData ? clueData.clueCount : (board?.cluesFound ?? 0);
+    const evidenceCollected = clueData
+      ? clueData.clues.filter(c => c.category === 'written_evidence' || c.category === 'physical_evidence').length
+      : (board?.evidenceCollected ?? 0);
     const completedCount = data.chapters.filter(c => c.progress.status === 'completed').length;
 
     this.addStatRow(boardCard, "Clues Found", `${cluesFound}`, COLORS.accentGreen);

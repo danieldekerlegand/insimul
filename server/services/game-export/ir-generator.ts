@@ -72,7 +72,12 @@ import type {
   TerrainFeatureIR,
   BiomeZoneIR,
   BiomeZoneSpeciesIR,
+  MainQuestLocationIR,
+  NarrativeIR,
 } from '@shared/game-engine/ir-types';
+import { getDefaultHiddenLocations } from '@shared/game-engine/rendering/ExplorationDiscoverySystem';
+import { getWriterName, MAIN_QUEST_CHAPTERS, resolveNarrativeText } from '@shared/quest/main-quest-chapters';
+import { generateNarrative } from '@shared/narrative/narrative-generator';
 import { computeElevationProfile } from '../../generators/settlement-elevation';
 import { TerrainGenerator, type TerrainType, type TerrainFeature } from '../../generators/terrain-generator';
 import {
@@ -2258,6 +2263,8 @@ export async function generateWorldIR(
         languages: languages || [],
         waterFeatures: waterFeatures || [],
       }),
+      mainQuestLocations: buildMainQuestLocations(world),
+      narrative: buildNarrativeIR(world, characters, settlements),
     },
 
     theme: {
@@ -2858,6 +2865,48 @@ export function generateBiomeZones(
 
   zones.sort((a, b) => b.coverageFraction - a.coverageFraction);
   return zones;
+}
+
+// ── Main quest location + narrative helpers ──
+
+function buildMainQuestLocations(world: any): MainQuestLocationIR[] {
+  const terrainSize = world?.mapWidth || 500;
+  const hiddenLocations = getDefaultHiddenLocations(terrainSize);
+  return hiddenLocations.map(loc => ({
+    id: loc.id,
+    nameEn: loc.nameEn,
+    nameFr: loc.nameFr,
+    description: loc.description,
+    locationType: 'hidden_location' as const,
+    position: loc.position,
+    rarity: loc.rarity,
+    isWriterSecret: loc.isWriterSecret,
+    investigationPoints: loc.investigationPoints.map(ip => ({
+      id: ip.id,
+      offset: ip.offset,
+      contentType: ip.contentType,
+      contentFr: ip.contentFr,
+      contentEn: ip.contentEn,
+    })),
+  }));
+}
+
+function buildNarrativeIR(world: any, characters: any[], settlements: any[]): NarrativeIR | null {
+  const targetLanguage = world?.targetLanguage || world?.config?.targetLanguage || 'french';
+  const worldId = world?.id;
+  if (!worldId) return null;
+
+  const writerName = getWriterName(targetLanguage, worldId);
+  const settlementNames = settlements.map((s: any) => s.name).filter(Boolean);
+  const npcNames = characters.slice(0, 10).map((c: any) => `${c.firstName} ${c.lastName}`).filter(Boolean);
+
+  return generateNarrative({
+    worldId,
+    targetLanguage,
+    writerName,
+    settlementNames,
+    npcNames,
+  });
 }
 
 // ── Exported helpers for testing ──

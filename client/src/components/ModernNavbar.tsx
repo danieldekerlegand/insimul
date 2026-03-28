@@ -65,6 +65,7 @@ const tabMeta: Record<string, { label: string; icon: any }> = {
   items: { label: "Items", icon: Package },
   grammars: { label: "Grammars", icon: FileText },
   languages: { label: "Languages", icon: Sparkles },
+  narrative: { label: "Narrative", icon: BookOpen },
   "world-intelligence": { label: "World Intelligence", icon: Brain },
   "3d-game": { label: "Explore World", icon: Gamepad2 },
   analytics: { label: "Analytics", icon: BarChart3 },

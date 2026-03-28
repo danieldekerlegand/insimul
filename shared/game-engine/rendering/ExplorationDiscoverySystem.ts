@@ -360,6 +360,7 @@ export class ExplorationDiscoverySystem {
       type: 'location_discovered',
       locationId: loc.id,
       locationName: loc.nameFr,
+      isWriterSecret: loc.isWriterSecret,
     });
 
     // Award XP

@@ -751,6 +751,43 @@ export interface LootTableIR {
   goldMax: number;
 }
 
+export interface MainQuestLocationIR {
+  id: string;
+  nameEn: string;
+  nameFr: string;
+  description: string;
+  locationType: 'hidden_location' | 'building' | 'exterior_point';
+  position: { x: number; z: number };
+  rarity: 'common' | 'uncommon' | 'rare';
+  isWriterSecret: boolean;
+  investigationPoints: {
+    id: string;
+    offset: { x: number; z: number };
+    contentType: 'lore' | 'vocabulary' | 'clue';
+    contentFr: string;
+    contentEn: string;
+  }[];
+}
+
+export interface NarrativeIR {
+  writerName: string;
+  writerFirstName: string;
+  writerLastName: string;
+  writerBackstory: string;
+  disappearanceReason: string;
+  chapters: {
+    chapterId: string;
+    chapterNumber: number;
+    title: string;
+    introNarrative: string;
+    outroNarrative: string;
+    mysteryDetails: string;
+    clueDescriptions: { clueId: string; text: string; locationId?: string; npcRole?: string }[];
+  }[];
+  redHerrings: { description: string; source: string }[];
+  finalRevelation: string;
+}
+
 export interface SystemsIR {
   rules: RuleIR[];
   baseRules: RuleIR[];
@@ -765,6 +802,10 @@ export interface SystemsIR {
   dialogueContexts: NPCDialogueContext[];
   /** Prolog knowledge base content (combined .pl from all entities) */
   knowledgeBase: string | null;
+  /** Main quest hidden/special locations */
+  mainQuestLocations: MainQuestLocationIR[];
+  /** Generated narrative data for the main quest */
+  narrative: NarrativeIR | null;
 }
 
 export interface NPCDialogueContext {

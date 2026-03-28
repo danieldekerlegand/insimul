@@ -39,7 +39,7 @@ export type GameEvent =
   | { type: 'item_purchased'; itemId: string; itemName: string; quantity: number; totalPrice: number }
   | { type: 'gift_given'; npcId: string; npcName: string; itemName: string }
   | { type: 'item_crafted'; itemId: string; itemName: string; quantity: number; taxonomy?: ItemTaxonomy }
-  | { type: 'location_discovered'; locationId: string; locationName: string }
+  | { type: 'location_discovered'; locationId: string; locationName: string; isWriterSecret?: boolean }
   | { type: 'settlement_entered'; settlementId: string; settlementName: string }
   | { type: 'puzzle_solved'; puzzleId: string }
   | { type: 'item_removed'; itemId: string; itemName: string; quantity: number }

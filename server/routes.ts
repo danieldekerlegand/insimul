@@ -14272,6 +14272,91 @@ Make the action names thematic and immersive.`;
   // Register narrative arc (main quest) routes
   app.use('/api', createNarrativeArcRoutes());
 
+  // ── Narrative (main quest narrative data) ──────────────────────────────────
+
+  app.get("/api/worlds/:worldId/narrative", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const truths = await storage.getTruthsByWorld(worldId);
+      const narrativeTruth = truths.find((t: any) => t.category === 'world_narrative');
+      if (!narrativeTruth) {
+        return res.json(null);
+      }
+      res.json(JSON.parse(narrativeTruth.content || '{}'));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch narrative" });
+    }
+  });
+
+  app.put("/api/worlds/:worldId/narrative", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const narrativeData = req.body;
+      const truths = await storage.getTruthsByWorld(worldId);
+      const existing = truths.find((t: any) => t.category === 'world_narrative');
+
+      if (existing) {
+        await storage.updateTruth(existing.id, {
+          content: JSON.stringify(narrativeData),
+        });
+      } else {
+        await storage.createTruth({
+          worldId,
+          title: 'World Narrative',
+          content: JSON.stringify(narrativeData),
+          category: 'world_narrative',
+          isSecret: false,
+        });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to save narrative" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/narrative/regenerate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const world = await storage.getWorld(worldId);
+      if (!world) return res.status(404).json({ error: "World not found" });
+
+      const { generateNarrative } = await import('../shared/narrative/narrative-generator');
+      const { getWriterName } = await import('../shared/quest/main-quest-chapters');
+
+      const targetLanguage = world.targetLanguage || (world.config as any)?.targetLanguage || 'french';
+      const writerName = getWriterName(targetLanguage, worldId);
+      const settlements = await storage.getSettlementsByWorld(worldId);
+      const characters = await storage.getCharactersByWorld(worldId);
+
+      const narrative = generateNarrative({
+        worldId,
+        targetLanguage,
+        writerName,
+        settlementNames: settlements.map((s: any) => s.name).filter(Boolean),
+        npcNames: characters.slice(0, 10).map((c: any) => `${c.firstName} ${c.lastName}`).filter(Boolean),
+      });
+
+      // Store as truth
+      const truths = await storage.getTruthsByWorld(worldId);
+      const existing = truths.find((t: any) => t.category === 'world_narrative');
+      if (existing) {
+        await storage.updateTruth(existing.id, { content: JSON.stringify(narrative) });
+      } else {
+        await storage.createTruth({
+          worldId,
+          title: 'World Narrative',
+          content: JSON.stringify(narrative),
+          category: 'world_narrative',
+          isSecret: false,
+        });
+      }
+
+      res.json(narrative);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to regenerate narrative" });
+    }
+  });
+
   // Water features routes
   app.get("/api/worlds/:worldId/water-features", async (req, res) => {
     try {

@@ -306,6 +306,7 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
     { id: 'items', label: 'Items', icon: Package, description: 'World items, loot, and equipment', color: 'from-yellow-500/20 to-amber-500/20', iconColor: 'text-yellow-500', quickLinks: itemsLinks, totalCount: items.length, emptyHint: 'No custom items defined yet' },
     { id: 'grammars', label: 'Grammars', icon: FileText, description: 'Tracery grammars for narrative', color: 'from-emerald-500/20 to-green-500/20', iconColor: 'text-emerald-500', quickLinks: grammarsLinks, totalCount: grammars.length, emptyHint: 'No grammars defined yet' },
     { id: 'languages', label: 'Languages', icon: Sparkles, description: 'Constructed languages', color: 'from-pink-500/20 to-fuchsia-500/20', iconColor: 'text-pink-500', quickLinks: languagesLinks, totalCount: languages.length, emptyHint: 'No languages created yet' },
+    { id: 'narrative', label: 'Narrative', icon: BookOpen, description: 'Main quest narrative and mystery arc', color: 'from-teal-500/20 to-cyan-500/20', iconColor: 'text-teal-500', emptyHint: 'Generate a narrative for the Missing Writer quest' },
     { id: 'world-intelligence', label: 'World Intelligence', icon: Brain, description: 'History, knowledge base, simulations, truths & telemetry', color: 'from-indigo-500/20 to-blue-500/20', iconColor: 'text-indigo-500', quickLinks: truthLinks, totalCount: truths.length, emptyHint: 'No truths established yet' },
   ];
 
