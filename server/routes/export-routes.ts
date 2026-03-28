@@ -16,6 +16,7 @@ import { exportBabylonProject, exportBabylonProjectAsZip as packageBabylonExport
 import type { ExportTelemetryConfig } from '../services/game-export/telemetry-config';
 import { buildExportName } from '../services/game-export/export-naming';
 import { checkLocalAIAvailability } from '../services/game-export/ai-bundler';
+import { validateWorldForExport, serializeValidationReport } from '@shared/game-export-validator';
 
 export function registerExportRoutes(app: Express): void {
 
@@ -28,6 +29,39 @@ export function registerExportRoutes(app: Express): void {
   app.get('/api/export/local-ai-status', (_req, res) => {
     const status = checkLocalAIAvailability();
     res.json(status);
+  });
+
+  /**
+   * POST /api/worlds/:worldId/export/validate
+   *
+   * Run pre-export validation against a world. Returns a report with
+   * quest feasibility, dependency graph, and structural completeness checks.
+   */
+  app.post('/api/worlds/:worldId/export/validate', async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const engine = (req.body.engine || 'babylon') as TargetEngine;
+      console.log(`[Export] Running pre-export validation for world ${worldId}...`);
+
+      const startTime = Date.now();
+      const ir = await generateWorldIR(worldId, engine);
+      const report = validateWorldForExport(ir);
+      const elapsed = Date.now() - startTime;
+
+      console.log(`[Export] Validation complete in ${elapsed}ms: ${report.summary.errors} errors, ${report.summary.warnings} warnings`);
+
+      res.json({
+        success: true,
+        validationTimeMs: elapsed,
+        report: serializeValidationReport(report),
+      });
+    } catch (error: any) {
+      console.error('[Export] Validation failed:', error);
+      res.status(error.message?.includes('not found') ? 404 : 500).json({
+        success: false,
+        error: error.message || 'Validation failed',
+      });
+    }
   });
 
   /**
@@ -50,9 +84,21 @@ export function registerExportRoutes(app: Express): void {
       console.log(`[Export]   ${ir.geography.settlements.length} settlements, ${ir.entities.characters.length} characters, ${ir.entities.buildings.length} buildings, ${ir.entities.roads.length} roads`);
       console.log(`[Export]   ${ir.systems.rules.length} rules, ${ir.systems.actions.length} actions, ${ir.systems.quests.length} quests`);
 
+      // Run pre-export validation
+      const validationReport = validateWorldForExport(ir);
+      if (validationReport.summary.errors > 0) {
+        console.warn(`[Export] Validation: ${validationReport.summary.errors} errors, ${validationReport.summary.warnings} warnings`);
+        for (const entry of validationReport.entries.filter(e => e.severity === 'error')) {
+          console.warn(`[Export]   ERROR: ${entry.message}`);
+        }
+      } else if (validationReport.summary.warnings > 0) {
+        console.log(`[Export] Validation passed with ${validationReport.summary.warnings} warnings`);
+      }
+
       res.json({
         success: true,
         generationTimeMs: elapsed,
+        validation: serializeValidationReport(validationReport),
         ir,
       });
     } catch (error: any) {
