@@ -8,10 +8,22 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Sparkles } from 'lucide-react';
+import {
+  selectStreetPattern,
+  getGridLotCount,
+  GRID_SIZE,
+  LOTS_PER_BLOCK,
+  type LayoutPattern,
+} from '@shared/street-pattern-selection';
 
 // ── Settlement Layout Preview ───────────────────────────────────────────────
-
-type LayoutPattern = 'grid' | 'linear' | 'waterfront' | 'hillside' | 'organic' | 'radial';
+//
+// This SVG preview must stay in sync with server-side generation.
+// Pattern selection is shared via shared/street-pattern-selection.ts.
+// Related server files:
+//   - server/generators/street-network-generator.ts (generateStreetNetwork, placeLots)
+//   - server/generators/street-generator.ts (StreetGenerator pattern methods)
+//   - server/generators/geography-generator.ts (orchestrator)
 
 const PATTERN_LABELS: Record<LayoutPattern, string> = {
   grid: 'Grid',
@@ -31,26 +43,21 @@ const PATTERN_DESCRIPTIONS: Record<LayoutPattern, string> = {
   radial: 'Streets radiating from a central plaza',
 };
 
-// Server grid sizes (from street-network-generator.ts GRID_SIZE)
-const SERVER_GRID_SIZE: Record<SettlementType, number> = { hamlet: 3, village: 4, town: 6, city: 8 };
-const LOTS_PER_BLOCK = 6; // 3 cols × 2 rows per block
+// Server grid sizes — imported from shared module
+const SERVER_GRID_SIZE = GRID_SIZE as Record<SettlementType, number>;
 
 /** Compute lot count from grid size: (gridSize-1)^2 blocks, minus 1 park block, × 6 lots */
 function getLotCount(type: SettlementType): number {
-  const g = SERVER_GRID_SIZE[type];
-  const blocks = (g - 1) * (g - 1);
-  return (blocks - 1) * LOTS_PER_BLOCK;
+  return getGridLotCount(type);
 }
 
 function selectPattern(terrain: string, settlementType: SettlementType, foundedYear: number): LayoutPattern {
-  if (terrain === 'coast') return 'waterfront';
-  if (terrain === 'river') return 'linear';
-  if (terrain === 'mountains') return 'hillside';
-  if (settlementType === 'city' && POPULATION_BY_TYPE[settlementType] >= 10000) return 'grid';
-  if (settlementType === 'city') return 'radial';
-  if (settlementType === 'village') return 'organic';
-  if (foundedYear < 1800) return 'organic';
-  return 'grid';
+  return selectStreetPattern({
+    terrain,
+    settlementType,
+    foundedYear,
+    population: POPULATION_BY_TYPE[settlementType],
+  });
 }
 
 /** Seeded random so the preview is stable for a given type+terrain combo */

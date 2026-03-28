@@ -8,6 +8,7 @@ import {
   type StreetSegment,
 } from '@shared/game-engine/rendering/StreetAlignedPlacement';
 import { getBuildingDefaults, DEFAULT_BUILDING_DIMENSIONS } from '../../../../shared/game-engine/building-defaults';
+import { generateSettlementLayout } from '@shared/settlement-layout-svg';
 import type { MapLayer } from './MapLayersPanel';
 
 export type ViewLevel = 'world' | 'country' | 'settlement';
@@ -574,6 +575,72 @@ export function LocationMapPreview({
           new BABYLON.Color3(0.45, 0.4, 0.35), 32, true, markerNode,
         );
         tagMesh(sBorder, 'districts');
+
+        // Settlement footprint — miniature layout visible at country zoom
+        const footprintSize = Math.max(1, borderRadius * 1.6);
+        try {
+          const layout = generateSettlementLayout(
+            128, 90,
+            s.settlementType ?? 'town',
+            s.terrain ?? country.terrain ?? 'plains',
+            s.foundedYear ?? 1800,
+            s.population,
+          );
+          const texSize = 256;
+          const dtex = new BABYLON.DynamicTexture(`sFootprint_${s.id}`, texSize, scene, false);
+          const ctx = dtex.getContext();
+          const scaleX = texSize / 128;
+          const scaleY = texSize / 90;
+
+          // Background
+          ctx.fillStyle = 'rgba(210, 200, 180, 0.4)';
+          ctx.fillRect(0, 0, texSize, texSize);
+
+          // Streets
+          ctx.strokeStyle = 'rgba(120, 100, 70, 0.8)';
+          for (const st of layout.streets) {
+            ctx.lineWidth = st.main ? 2 : 1;
+            ctx.beginPath();
+            ctx.moveTo(st.x1 * scaleX, st.y1 * scaleY);
+            ctx.lineTo(st.x2 * scaleX, st.y2 * scaleY);
+            ctx.stroke();
+          }
+
+          // Buildings
+          for (const b of layout.buildings) {
+            ctx.fillStyle = b.biz ? 'rgba(140, 100, 60, 0.9)' : 'rgba(80, 90, 110, 0.8)';
+            ctx.fillRect(b.x * scaleX, b.y * scaleY, b.w * scaleX, b.h * scaleY);
+          }
+
+          // Park
+          if (layout.park) {
+            ctx.fillStyle = 'rgba(70, 130, 70, 0.6)';
+            ctx.fillRect(
+              layout.park.x * scaleX, layout.park.y * scaleY,
+              layout.park.w * scaleX, layout.park.h * scaleY,
+            );
+          }
+
+          dtex.update();
+
+          const footprintPlane = BABYLON.MeshBuilder.CreateGround(
+            `sFootprintPlane_${s.id}`,
+            { width: footprintSize, height: footprintSize * 0.7 },
+            scene,
+          );
+          footprintPlane.position = new BABYLON.Vector3(0, 0.03, 0);
+          footprintPlane.parent = markerNode;
+          const fMat = new BABYLON.StandardMaterial(`sFootprintMat_${s.id}`, scene);
+          fMat.diffuseTexture = dtex;
+          fMat.specularColor = BABYLON.Color3.Black();
+          fMat.useAlphaFromDiffuseTexture = true;
+          fMat.backFaceCulling = false;
+          footprintPlane.material = fMat;
+          footprintPlane.isPickable = false;
+          tagMesh(footprintPlane, 'buildings');
+        } catch {
+          // Footprint is non-critical, ignore errors
+        }
 
         // Settlement label — italic, cartographic
         const sLabelAnchor = BABYLON.MeshBuilder.CreateBox(`sLabel_${s.id}`, { size: 0.01 }, scene);

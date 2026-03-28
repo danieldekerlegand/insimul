@@ -9,6 +9,9 @@
  * Seeded by settlement type and founding era for deterministic output.
  */
 
+import { StreetGenerator } from './street-generator';
+import { selectStreetPattern as sharedSelectPattern } from '../../shared/street-pattern-selection';
+
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
@@ -63,6 +66,10 @@ export interface StreetNetworkConfig {
    * street nodes, segments, and lots that overlap water are pruned.
    */
   isWater?: (x: number, z: number) => boolean;
+  /** Terrain type for terrain-aware street pattern selection */
+  terrain?: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
+  /** Population — used for pattern selection (city ≥10k → grid, city <10k → radial) */
+  population?: number;
 }
 
 // ─────────────────────────────────────────────
@@ -113,7 +120,7 @@ function createSeededRandom(seed: string): () => number {
 // Localized street name pools
 // ─────────────────────────────────────────────
 
-interface StreetNamePool {
+export interface StreetNamePool {
   ns: string[];
   ew: string[];
   organic: string[];
@@ -224,6 +231,21 @@ function getStreetNames(targetLanguage?: string, grammarNames?: string[]): Stree
 // Public API
 // ─────────────────────────────────────────────
 
+export type StreetPatternType = 'organic' | 'grid' | 'radial' | 'linear' | 'hillside' | 'waterfront';
+
+/**
+ * Select street pattern based on terrain, settlement type, and founding era.
+ * Delegates to shared/street-pattern-selection.ts for consistency with client.
+ */
+export function selectStreetPattern(config: StreetNetworkConfig): StreetPatternType {
+  return sharedSelectPattern({
+    terrain: config.terrain ?? 'plains',
+    settlementType: config.settlementType,
+    foundedYear: config.foundedYear,
+    population: config.population,
+  });
+}
+
 /**
  * Choose layout algorithm based on settlement type and founding era.
  */
@@ -233,16 +255,71 @@ export function chooseLayout(
   layoutOverride?: 'grid' | 'organic',
 ): 'grid' | 'organic' {
   if (layoutOverride) return layoutOverride;
-  // Default to grid — it's the most recognisable street layout and
-  // matches what users see in the Society preview.  Organic can be
-  // requested explicitly via layoutOverride (future UI option).
   return 'grid';
 }
 
 /**
  * Generate a street network for a settlement.
+ *
+ * When `terrain` is set in config, selects from 6 terrain-aware patterns
+ * (grid, organic, linear, waterfront, hillside, radial). Otherwise falls
+ * back to grid/organic based on founding year.
+ *
+ * Returns the network and the pattern name used.
  */
-export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwork {
+export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwork & { pattern?: string } {
+  // If terrain is provided, use terrain-aware pattern selection
+  if (config.terrain) {
+    const pattern = selectStreetPattern(config);
+
+    // Grid and organic are handled by the existing generators
+    if (pattern === 'grid') {
+      return { ...generateGridNetwork(config), pattern };
+    }
+    if (pattern === 'organic') {
+      return { ...generateOrganicNetwork(config), pattern };
+    }
+
+    // Non-grid patterns: use StreetGenerator and convert via adapter
+    const gen = new StreetGenerator();
+
+    const radius = {
+      hamlet: (GRID_SIZE.hamlet * GRID_SPACING.hamlet) / 2,
+      village: (GRID_SIZE.village * GRID_SPACING.village) / 2,
+      town: (GRID_SIZE.town * GRID_SPACING.town) / 2,
+      city: (GRID_SIZE.city * GRID_SPACING.city) / 2,
+    }[config.settlementType] ?? 100;
+
+    const genConfig = {
+      center: { x: config.centerX, z: config.centerZ },
+      radius,
+      settlementType: config.settlementType,
+      seed: config.seed,
+    };
+
+    const geographyConfig = {
+      worldId: '',
+      settlementId: '',
+      settlementName: '',
+      settlementType: config.settlementType as 'hamlet' | 'village' | 'town' | 'city',
+      population: config.population ?? 500,
+      foundedYear: config.foundedYear,
+      terrain: config.terrain as 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert',
+    };
+
+    const { network: edgeNetwork } = gen.generate(genConfig, geographyConfig);
+
+    // Assign names before conversion
+    gen.assignStreetNames(edgeNetwork, config.seed);
+
+    // Convert edge-based output to segment-based output
+    const names = getStreetNames(config.targetLanguage, config.grammarStreetNames);
+    const converted = convertEdgesToSegments(edgeNetwork, names);
+
+    return { ...converted, pattern };
+  }
+
+  // Legacy path: no terrain, use founding year to pick grid vs organic
   const layout = chooseLayout(
     config.settlementType,
     config.foundedYear,
@@ -250,9 +327,9 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
   );
 
   if (layout === 'grid') {
-    return generateGridNetwork(config);
+    return { ...generateGridNetwork(config), pattern: 'grid' };
   }
-  return generateOrganicNetwork(config);
+  return { ...generateOrganicNetwork(config), pattern: 'organic' };
 }
 
 // ─────────────────────────────────────────────
@@ -686,6 +763,151 @@ export function placeLots(
   return placements;
 }
 
+/**
+ * Place lots along street edges for non-grid patterns (linear, waterfront,
+ * organic, radial, hillside). Each lot sits beside a street edge, offset
+ * perpendicular to the street centerline.
+ *
+ * Works for any StreetNetwork regardless of topology — places lots at regular
+ * intervals along each segment's waypoints, on both sides of the street.
+ *
+ * The `pattern` hint influences park placement:
+ *   - linear: park at center of main street
+ *   - radial: park at center (plaza)
+ *   - waterfront: park near waterfront
+ *   - hillside: park on the middle terrace
+ *   - organic: park near the network center
+ */
+export function placeLotsAlongStreets(
+  network: StreetNetwork,
+  lotCount: number,
+  seed: string,
+  settlementType: string = 'town',
+  pattern?: string,
+  isWater?: (x: number, z: number) => boolean,
+): LotPlacement[] {
+  const placements: LotPlacement[] = [];
+  if (network.segments.length === 0 || lotCount <= 0) return placements;
+
+  const targetLotWidth = TARGET_LOT_WIDTHS[settlementType] || 12;
+  const lotDepth = MIN_LOT_DEPTHS[settlementType] || 24;
+
+  // Compute network centroid for park placement
+  let sumX = 0, sumZ = 0, wpCount = 0;
+  for (const seg of network.segments) {
+    for (const wp of seg.waypoints) {
+      sumX += wp.x;
+      sumZ += wp.z;
+      wpCount++;
+    }
+  }
+  const centroidX = wpCount > 0 ? sumX / wpCount : 0;
+  const centroidZ = wpCount > 0 ? sumZ / wpCount : 0;
+
+  // Track placed lot positions to prevent overlap
+  const placedPositions: { x: number; z: number; r: number }[] = [];
+  const lotHalfDiag = Math.sqrt(targetLotWidth ** 2 + lotDepth ** 2) / 2;
+
+  function isTooClose(x: number, z: number): boolean {
+    for (const p of placedPositions) {
+      const d = Math.sqrt((x - p.x) ** 2 + (z - p.z) ** 2);
+      if (d < lotHalfDiag * 0.9) return true;
+    }
+    return false;
+  }
+
+  let houseNum = 1;
+  let parkPlaced = false;
+
+  // Sort segments by width (wider = more important streets, place lots first)
+  const sortedSegments = [...network.segments].sort((a, b) => (b.width || 6) - (a.width || 6));
+
+  for (const seg of sortedSegments) {
+    if (placements.length >= lotCount) break;
+    if (seg.waypoints.length < 2) continue;
+
+    const totalLen = polylineLen(seg.waypoints);
+    if (totalLen < targetLotWidth) continue;
+
+    // Number of lots along this segment (each side)
+    const numLots = Math.max(1, Math.floor(totalLen / targetLotWidth));
+
+    for (let li = 0; li < numLots; li++) {
+      if (placements.length >= lotCount) break;
+
+      const t = (li + 0.5) / numLots;
+      const pos = interpolatePolyline(seg.waypoints, t);
+      const tangent = polylineTangent(seg.waypoints, t);
+
+      // Perpendicular direction (rotated 90°)
+      const perpX = -tangent.z;
+      const perpZ = tangent.x;
+
+      // Facing angle: toward the street
+      const streetAngle = Math.atan2(tangent.z, tangent.x);
+
+      // Place lots on both sides of the street
+      for (const side of ['left', 'right'] as const) {
+        if (placements.length >= lotCount) break;
+
+        const sideSign = side === 'left' ? -1 : 1;
+        const offset = (seg.width || 6) / 2 + lotDepth / 2;
+        const lotX = pos.x + perpX * sideSign * offset;
+        const lotZ = pos.z + perpZ * sideSign * offset;
+
+        if (isWater && isWater(lotX, lotZ)) continue;
+        if (isTooClose(lotX, lotZ)) continue;
+
+        // Check if this should be the park lot (near centroid, on a wide street)
+        const distToCenter = Math.sqrt((lotX - centroidX) ** 2 + (lotZ - centroidZ) ** 2);
+        if (!parkPlaced && distToCenter < targetLotWidth * 3 && (seg.width || 6) >= 6) {
+          parkPlaced = true;
+          placements.push({
+            x: lotX, z: lotZ,
+            streetId: seg.id, streetName: seg.name,
+            houseNumber: 0,
+            side,
+            facingAngle: streetAngle + (sideSign === 1 ? Math.PI : 0),
+            lotWidth: targetLotWidth * 2,
+            lotDepth: lotDepth * 2,
+            zone: 'park',
+          });
+          placedPositions.push({ x: lotX, z: lotZ, r: lotHalfDiag * 2 });
+          continue;
+        }
+
+        placements.push({
+          x: lotX, z: lotZ,
+          streetId: seg.id, streetName: seg.name,
+          houseNumber: houseNum++,
+          side,
+          facingAngle: streetAngle + (sideSign === 1 ? Math.PI : 0),
+          lotWidth: targetLotWidth,
+          lotDepth,
+        });
+        placedPositions.push({ x: lotX, z: lotZ, r: lotHalfDiag });
+      }
+    }
+  }
+
+  // If no park was placed, convert the lot closest to center into a park
+  if (!parkPlaced && placements.length > 0) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < placements.length; i++) {
+      if (placements[i].zone === 'park') continue;
+      const d = Math.sqrt((placements[i].x - centroidX) ** 2 + (placements[i].z - centroidZ) ** 2);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    placements[bestIdx].zone = 'park';
+    placements[bestIdx].houseNumber = 0;
+    placements[bestIdx].lotWidth = targetLotWidth * 2;
+    placements[bestIdx].lotDepth = lotDepth * 2;
+  }
+
+  return placements;
+}
+
 /** Minimum distance from a point to a polyline (series of line segments). */
 function pointToPolylineDist(px: number, pz: number, waypoints: { x: number; z: number }[]): number {
   let minDist = Infinity;
@@ -751,6 +973,183 @@ function interpolatePolyline(
     }
   }
   return { ...points[points.length - 1] };
+}
+
+// ─────────────────────────────────────────────
+// Adapter: StreetGenerator edges → StreetNetwork segments
+// ─────────────────────────────────────────────
+
+import type {
+  StreetNode as SharedStreetNode,
+  StreetEdge,
+  StreetNetwork as SharedStreetNetwork,
+} from '../../shared/game-engine/types';
+
+/**
+ * Convert a StreetGenerator output ({nodes, edges} from shared/game-engine/types)
+ * into the StreetNetwork format used by street-network-generator ({nodes, segments}).
+ *
+ * This adapter bridges the orphaned terrain-aware StreetGenerator patterns
+ * (organic, linear, waterfront, hillside, radial) into the active format
+ * consumed by geography-generator, placeLots, and the DB persistence layer.
+ */
+export function convertEdgesToSegments(
+  input: SharedStreetNetwork,
+  streetNames?: StreetNamePool,
+): StreetNetwork {
+  const nodeMap = new Map<string, SharedStreetNode>();
+  for (const n of input.nodes) nodeMap.set(n.id, n);
+
+  // Group edges into continuous street chains (edges sharing nodes in sequence).
+  // Each chain becomes one StreetSegment.
+  const edgeUsed = new Set<string>();
+  const chains: StreetEdge[][] = [];
+
+  // Build adjacency: node → edges
+  const nodeEdges = new Map<string, StreetEdge[]>();
+  for (const edge of input.edges) {
+    if (!nodeEdges.has(edge.fromNodeId)) nodeEdges.set(edge.fromNodeId, []);
+    if (!nodeEdges.has(edge.toNodeId)) nodeEdges.set(edge.toNodeId, []);
+    nodeEdges.get(edge.fromNodeId)!.push(edge);
+    nodeEdges.get(edge.toNodeId)!.push(edge);
+  }
+
+  // Chain edges that share the same streetType and form a continuous path
+  for (const edge of input.edges) {
+    if (edgeUsed.has(edge.id)) continue;
+
+    const chain: StreetEdge[] = [edge];
+    edgeUsed.add(edge.id);
+
+    // Extend forward from toNodeId
+    let currentNodeId = edge.toNodeId;
+    while (true) {
+      const candidates = (nodeEdges.get(currentNodeId) ?? []).filter(
+        e => !edgeUsed.has(e.id) && e.streetType === edge.streetType,
+      );
+      if (candidates.length !== 1) break; // Stop at intersections or dead ends
+      const next = candidates[0];
+      edgeUsed.add(next.id);
+      // Orient the edge so it continues from currentNodeId
+      if (next.fromNodeId === currentNodeId) {
+        chain.push(next);
+        currentNodeId = next.toNodeId;
+      } else {
+        chain.push(next);
+        currentNodeId = next.fromNodeId;
+      }
+    }
+
+    // Extend backward from fromNodeId
+    currentNodeId = edge.fromNodeId;
+    while (true) {
+      const candidates = (nodeEdges.get(currentNodeId) ?? []).filter(
+        e => !edgeUsed.has(e.id) && e.streetType === edge.streetType,
+      );
+      if (candidates.length !== 1) break;
+      const prev = candidates[0];
+      edgeUsed.add(prev.id);
+      if (prev.toNodeId === currentNodeId) {
+        chain.unshift(prev);
+        currentNodeId = prev.fromNodeId;
+      } else {
+        chain.unshift(prev);
+        currentNodeId = prev.toNodeId;
+      }
+    }
+
+    chains.push(chain);
+  }
+
+  // Convert each chain to a StreetSegment
+  const segments: StreetSegment[] = [];
+  const convertedNodes: StreetNode[] = [];
+  const nodeIdSet = new Set<string>();
+
+  // Default name pools
+  const defaultNames = streetNames ?? getStreetNames();
+
+  for (let ci = 0; ci < chains.length; ci++) {
+    const chain = chains[ci];
+    const firstEdge = chain[0];
+
+    // Collect ordered waypoints and node IDs from the chain
+    const waypoints: { x: number; z: number }[] = [];
+    const nodeIds: string[] = [];
+
+    for (let ei = 0; ei < chain.length; ei++) {
+      const e = chain[ei];
+      // For each edge, add from-node waypoint (skip if already added from previous edge)
+      const fromNode = nodeMap.get(e.fromNodeId);
+      const toNode = nodeMap.get(e.toNodeId);
+
+      if (ei === 0) {
+        // First edge: add from-node
+        if (fromNode) {
+          waypoints.push({ x: fromNode.position.x, z: fromNode.position.z });
+          nodeIds.push(fromNode.id);
+        }
+      }
+
+      // Add intermediate waypoints (skip first and last which are node positions)
+      if (e.waypoints.length > 2) {
+        for (let wi = 1; wi < e.waypoints.length - 1; wi++) {
+          waypoints.push({ x: e.waypoints[wi].x, z: e.waypoints[wi].z });
+        }
+      }
+
+      // Add to-node
+      if (toNode) {
+        waypoints.push({ x: toNode.position.x, z: toNode.position.z });
+        nodeIds.push(toNode.id);
+      }
+    }
+
+    // Determine direction from the dominant axis of the chain
+    const dx = Math.abs(waypoints[waypoints.length - 1]?.x - waypoints[0]?.x);
+    const dz = Math.abs(waypoints[waypoints.length - 1]?.z - waypoints[0]?.z);
+    const direction: 'NS' | 'EW' = dz >= dx ? 'NS' : 'EW';
+
+    // Assign name from pool
+    const namePool = direction === 'NS' ? defaultNames.ns : defaultNames.ew;
+    const name = firstEdge.name || namePool[ci % namePool.length];
+
+    const segId = `street_${ci}`;
+
+    segments.push({
+      id: segId,
+      name,
+      direction,
+      nodeIds,
+      waypoints,
+      width: firstEdge.width,
+    });
+
+    // Collect unique nodes for output
+    for (const nid of nodeIds) {
+      if (nodeIdSet.has(nid)) continue;
+      nodeIdSet.add(nid);
+      const sn = nodeMap.get(nid);
+      if (sn) {
+        convertedNodes.push({
+          id: sn.id,
+          x: sn.position.x,
+          z: sn.position.z,
+          intersectionOf: [],
+        });
+      }
+    }
+  }
+
+  // Populate intersectionOf for each node
+  for (const seg of segments) {
+    for (const nid of seg.nodeIds) {
+      const node = convertedNodes.find(n => n.id === nid);
+      if (node) node.intersectionOf.push(seg.id);
+    }
+  }
+
+  return { nodes: convertedNodes, segments };
 }
 
 /** Get the normalized tangent direction at parameter t along a polyline. */

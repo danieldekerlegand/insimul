@@ -13,6 +13,7 @@ import { generateHarborAndDocks, type HarborZone } from './harbor-dock-generator
 import {
   generateStreetNetwork,
   placeLots,
+  placeLotsAlongStreets,
   type StreetNetwork,
   type StreetNetworkConfig,
   type LotPlacement,
@@ -210,8 +211,13 @@ export class GeographyGenerator {
       targetLanguage: config.targetLanguage,
       grammarStreetNames,
       isWater: isWaterFn,
+      terrain: config.terrain,
+      population: config.population,
     };
     const streetNetwork = generateStreetNetwork(streetNetworkConfig);
+    if (streetNetwork.pattern) {
+      console.log(`   Street pattern: ${streetNetwork.pattern} (terrain: ${config.terrain}, type: ${config.settlementType})`);
+    }
 
     // Convert street segments to Location objects for backward compatibility
     const streets = streetNetwork.segments.map((seg, i) => ({
@@ -327,6 +333,7 @@ export class GeographyGenerator {
     }
 
     // Update settlement with geography metadata including street network and boundary
+    const streetPattern = (streetNetwork as any).pattern as string | undefined;
     await storage.updateSettlement(config.settlementId, {
       districts,
       streets: streetNetwork.segments.map(seg => ({
@@ -340,10 +347,11 @@ export class GeographyGenerator {
       landmarks,
       boundaryPolygon: boundary.polygon,
       settlementSubtype,
-    });
+      ...(streetPattern ? { streetPattern } : {}),
+    } as any);
 
     // Persist lots, residences, and businesses as proper database records
-    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings, streetNetwork, isWaterFn);
+    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings, streetNetwork, isWaterFn, streetPattern);
 
     const harborMsg = harborZones ? `, ${harborZones.length} harbor zones` : '';
     console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones${harborMsg}`);
@@ -914,6 +922,7 @@ export class GeographyGenerator {
     buildings: Location[],
     streetNetwork?: StreetNetwork,
     isWater?: (x: number, z: number) => boolean,
+    streetPattern?: string,
   ): Promise<string[]> {
     const districtById = new Map(districts.map(d => [d.id, d]));
     const streetById = new Map(streets.map(s => [s.id, s]));
@@ -924,7 +933,15 @@ export class GeographyGenerator {
     let allPlacements: LotPlacement[] = [];
     if (streetNetwork) {
       const seed = `${config.worldId}_${config.settlementId}`;
-      allPlacements = placeLots(streetNetwork, Infinity, seed, config.settlementType, isWater);
+      // Use grid-specific placement for grid pattern, edge-based for everything else
+      const isGridPattern = !streetPattern || streetPattern === 'grid';
+      if (isGridPattern) {
+        allPlacements = placeLots(streetNetwork, Infinity, seed, config.settlementType, isWater);
+      } else {
+        allPlacements = placeLotsAlongStreets(
+          streetNetwork, Infinity, seed, config.settlementType, streetPattern, isWater,
+        );
+      }
     }
     // Separate park placements from buildable placements
     const parkPlacements = allPlacements.filter(p => p.zone === 'park');
