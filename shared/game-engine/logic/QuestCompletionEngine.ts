@@ -134,6 +134,17 @@ export interface CompletionObjective {
   actionsCompleted?: number;
   actionsRequired?: number;
 
+  // conversation_goal — LLM-evaluated conversation objectives
+  conversationGoal?: string;
+  conversationGoalKeywords?: string[];
+  conversationGoalMet?: boolean;
+  conversationGoalConfidence?: number;
+  conversationGoalExtractedInfo?: string;
+
+  // eavesdrop — overhear NPC conversation about a topic
+  eavesdropTopic?: string;
+  eavesdropCompleted?: boolean;
+
   // timed objectives
   timeLimitSeconds?: number;
   startedAt?: number;
@@ -213,7 +224,9 @@ export type CompletionEvent =
   | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number; questId?: string }
   | { type: 'physical_action'; actionType: string; itemsProduced: string[]; questId?: string }
   | { type: 'activity_observed'; npcId: string; npcName: string; activity: string; durationSeconds: number; questId?: string }
-  | { type: 'activity_photographed'; npcId: string; npcName: string; activity: string; questId?: string };
+  | { type: 'activity_photographed'; npcId: string; npcName: string; activity: string; questId?: string }
+  | { type: 'conversation_goal_evaluated'; questId: string; objectiveId: string; goalMet: boolean; confidence: number; extractedInfo: string }
+  | { type: 'eavesdrop'; npcId1: string; npcId2: string; topic: string; languageUsed: string; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -403,6 +416,12 @@ export class QuestCompletionEngine {
         break;
       case 'activity_photographed':
         this.trackActivityPhotographed(event.npcId, event.npcName, event.activity, event.questId);
+        break;
+      case 'conversation_goal_evaluated':
+        this.trackConversationGoalResult(event.questId, event.objectiveId, event.goalMet, event.confidence, event.extractedInfo);
+        break;
+      case 'eavesdrop':
+        this.trackEavesdrop(event.npcId1, event.npcId2, event.topic, event.languageUsed, event.questId);
         break;
     }
   }
@@ -1182,6 +1201,71 @@ export class QuestCompletionEngine {
     });
   }
 
+  // ── Conversation goal evaluation ────────────────────────────────────────
+
+  /**
+   * Track the result of a conversation goal evaluation (from LLM or keyword fallback).
+   * Completes the objective if goalMet is true and confidence > 0.7.
+   */
+  trackConversationGoalResult(questId: string, objectiveId: string, goalMet: boolean, confidence: number, extractedInfo: string): void {
+    const quest = this.quests.find(q => q.id === questId);
+    if (!quest) return;
+
+    const obj = quest.objectives?.find(o => o.id === objectiveId);
+    if (!obj || obj.completed) return;
+
+    obj.conversationGoalConfidence = confidence;
+    obj.conversationGoalExtractedInfo = extractedInfo;
+
+    if (goalMet && confidence >= 0.7) {
+      obj.conversationGoalMet = true;
+      this.completeObjective(questId, objectiveId);
+    }
+  }
+
+  /**
+   * Get objectives with conversation goals for a specific quest or all quests.
+   * Used by the conversation system to know which goals to evaluate after a conversation ends.
+   */
+  getConversationGoalObjectives(questId?: string): Array<{ questId: string; objective: CompletionObjective }> {
+    const results: Array<{ questId: string; objective: CompletionObjective }> = [];
+    for (const quest of this.quests) {
+      if (questId && quest.id !== questId) continue;
+      for (const obj of quest.objectives || []) {
+        if (obj.completed) continue;
+        if (obj.conversationGoal && !this.isObjectiveLocked(quest, obj)) {
+          results.push({ questId: quest.id, objective: obj });
+        }
+      }
+    }
+    return results;
+  }
+
+  // ── Eavesdrop tracking ──────────────────────────────────────────────────
+
+  /**
+   * Track an overheard conversation event against eavesdrop objectives.
+   * Completes eavesdrop objectives when the topic matches.
+   */
+  trackEavesdrop(npcId1: string, npcId2: string, topic: string, languageUsed: string, questId?: string): void {
+    const lowerTopic = topic.toLowerCase();
+
+    this.forEachObjective(questId, 'eavesdrop', (quest, obj) => {
+      // If objective specifies a topic, it must match
+      if (obj.eavesdropTopic) {
+        const targetTopic = obj.eavesdropTopic.toLowerCase();
+        if (!lowerTopic.includes(targetTopic) && !targetTopic.includes(lowerTopic)) return;
+      }
+
+      obj.eavesdropCompleted = true;
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
   // ── Serialization ──────────────────────────────────────────────────────
 
   /** Progress-relevant fields that change at runtime and need persistence. */
@@ -1195,6 +1279,8 @@ export class QuestCompletionEngine {
     'wordsTaught', 'phrasesTaught', 'startedAt', 'itemsPurchased',
     'textsFound', 'textsRead', 'quizAnswered', 'quizCorrect',
     'photographedSubjects', 'observedActivities',
+    'conversationGoalMet', 'conversationGoalConfidence', 'conversationGoalExtractedInfo',
+    'eavesdropCompleted',
   ];
 
   /**

@@ -145,6 +145,15 @@ export const QUEST_ACTION_MAPPINGS: QuestActionMapping[] = [
     quantity: { currentField: 'craftedCount', requiredField: 'requiredCount', defaultRequired: 1 },
     description: 'Player crafts an item',
   },
+  {
+    objectiveType: 'eavesdrop',
+    eventType: 'conversation_overheard',
+    matchFields: [
+      { eventField: 'topic', objectiveField: 'eavesdropTopic', comparison: 'contains_lower', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player overhears an NPC-to-NPC conversation about a topic',
+  },
   // ─── Inventory action mappings ──────────────────────────────────────────────
   {
     objectiveType: 'use_item',

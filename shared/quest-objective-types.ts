@@ -318,6 +318,15 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     countable: true,
   },
 
+  // ── Eavesdropping ──────────────────────────────────────────────────────
+  {
+    type: 'eavesdrop',
+    description: 'Overhear a conversation between NPCs about a specific topic',
+    playerAction: 'Stand near two NPCs who are conversing to overhear their discussion',
+    requiresTarget: 'none',
+    countable: true,
+  },
+
   // ── Observation ────────────────────────────────────────────────────────
   {
     type: 'observe_activity',
@@ -674,6 +683,13 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'observe_work': 'observe_activity',
   'watch_work': 'observe_activity',
   'observe': 'observe_activity',
+
+  // Eavesdrop aliases
+  'overhear': 'eavesdrop',
+  'overhear_conversation': 'eavesdrop',
+  'listen_to_conversation': 'eavesdrop',
+  'eavesdrop_conversation': 'eavesdrop',
+  'spy_on_conversation': 'eavesdrop',
 
   // Grammar-focused objective aliases (map to canonical types)
   'grammar_pattern': 'use_vocabulary',

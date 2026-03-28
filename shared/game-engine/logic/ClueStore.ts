@@ -183,6 +183,35 @@ export class ClueStore {
   }
 
   /**
+   * Process an overheard NPC-to-NPC conversation for potential clue discovery.
+   * If the topic contains investigation-relevant keywords, creates a witness_testimony clue.
+   * Returns true if a clue was added.
+   */
+  addEavesdropClue(npc1Name: string, npc2Name: string, topic: string, overheardContent?: string): boolean {
+    const topicWords = topic.toLowerCase().split(/\s+/);
+    const relevant = topicWords.filter(w =>
+      INVESTIGATION_KEYWORDS.some(ik => w.includes(ik)),
+    );
+    if (relevant.length === 0 && !ClueStore.isInvestigationRelevant(topicWords)) return false;
+
+    const text = overheardContent
+      ?? `Overheard ${npc1Name} and ${npc2Name} discussing: ${topic}`;
+    const tags = [
+      npc1Name.toLowerCase(),
+      npc2Name.toLowerCase(),
+      ...relevant,
+      topic.toLowerCase(),
+    ];
+
+    return this.addClue({
+      text,
+      category: 'witness_testimony',
+      source: `Overheard: ${npc1Name} & ${npc2Name}`,
+      tags,
+    });
+  }
+
+  /**
    * Process a photo of a quest-relevant subject — creates a photo_evidence clue.
    */
   addPhotoClue(

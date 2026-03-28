@@ -187,7 +187,9 @@ export type GameEvent =
   // Unified action execution event (emitted for all player/NPC actions for quest tracking and notifications)
   | { type: 'action_executed'; actionName: string; actorId: string; actorName?: string; targetId?: string; targetName?: string; category?: string; result?: 'success' | 'failure'; itemName?: string; itemType?: string; xpGained?: number; energyCost?: number }
   // NPC speech act events (detected from NPC responses during conversation)
-  | { type: 'npc_speech_act'; npcId: string; npcName: string; actionType: string; extractedData?: Record<string, string> };
+  | { type: 'npc_speech_act'; npcId: string; npcName: string; actionType: string; extractedData?: Record<string, string> }
+  // NPC activity observation events (player watched NPC for required duration)
+  | { type: 'activity_observed'; npcId: string; npcName: string; activity: string; durationSeconds: number; questId?: string };
 
 export type GameEventType = GameEvent['type'];
 

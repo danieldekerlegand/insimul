@@ -156,7 +156,9 @@ enum class EInsimulEventType : uint8
     WritingSubmitted UMETA(DisplayName = "Writing Submitted"),
     ListeningCompleted UMETA(DisplayName = "Listening Completed"),
     // Exploration discovery events
-    InvestigationCompleted UMETA(DisplayName = "Investigation Completed")
+    InvestigationCompleted UMETA(DisplayName = "Investigation Completed"),
+    // NPC activity observation events
+    ActivityObserved UMETA(DisplayName = "Activity Observed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

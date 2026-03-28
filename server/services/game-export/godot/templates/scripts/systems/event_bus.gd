@@ -153,6 +153,8 @@ const EVENT_WRITING_SUBMITTED := "writing_submitted"
 const EVENT_LISTENING_COMPLETED := "listening_completed"
 # Exploration discovery events
 const EVENT_INVESTIGATION_COMPLETED := "investigation_completed"
+# NPC activity observation events
+const EVENT_ACTIVITY_OBSERVED := "activity_observed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -253,6 +255,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_LISTENING_COMPLETED,
 	# Exploration discovery events
 	EVENT_INVESTIGATION_COMPLETED,
+	# NPC activity observation events
+	EVENT_ACTIVITY_OBSERVED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

@@ -138,6 +138,8 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("listening_completed"),               EInsimulEventType::ListeningCompleted },
         // Exploration discovery events
         { TEXT("investigation_completed"),          EInsimulEventType::InvestigationCompleted },
+        // NPC activity observation events
+        { TEXT("activity_observed"),                EInsimulEventType::ActivityObserved },
     };
     return Map;
 }
