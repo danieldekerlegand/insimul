@@ -28,7 +28,7 @@ namespace Insimul.Systems
             _tmp.fontSize = 5;
             _tmp.color = Color.white;
             _tmp.alignment = TextAlignmentOptions.Center;
-            _tmp.enableWordWrapping = false;
+            _tmp.textWrappingMode = TextWrappingModes.NoWrap;
             _tmp.outlineWidth = 0.2f;
             _tmp.outlineColor = new Color32(0, 0, 0, 180);
 

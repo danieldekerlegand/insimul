@@ -20,6 +20,7 @@ import { bundleGodotPlugin } from '../plugin-bundler';
 import type { AIModelPaths } from '../plugin-bundler';
 import { bundleAIModels, type AIBundleOptions, type AIBundleManifest } from '../ai-bundler';
 import { buildExportName } from '../export-naming';
+import { validateGDScriptFiles } from './gdscript-validator';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -191,6 +192,24 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
     content: generateAssetManifestJson(assetBundle.manifest),
   });
 
+  // 5. Validate generated GDScript files
+  const validationErrors = validateGDScriptFiles(allFiles);
+  const gdErrors = validationErrors.filter(e => e.severity === 'error');
+  const gdWarnings = validationErrors.filter(e => e.severity === 'warning');
+  if (gdWarnings.length > 0) {
+    console.warn(`[Export] GDScript validation: ${gdWarnings.length} warning(s)`);
+    for (const w of gdWarnings) {
+      console.warn(`  ${w.file}:${w.line} — ${w.message}`);
+    }
+  }
+  if (gdErrors.length > 0) {
+    console.error(`[Export] GDScript validation failed with ${gdErrors.length} error(s):`);
+    for (const e of gdErrors) {
+      console.error(`  ${e.file}:${e.line} — ${e.message}`);
+    }
+    throw new Error(`GDScript validation failed: ${gdErrors.length} error(s) found. Fix template issues before exporting.`);
+  }
+
   const projectName = options?.projectName || buildExportName(ir.meta.worldName, 'Godot', ir.aiConfig?.apiMode);
 
   // Merge all binary assets (game assets + AI models)
@@ -229,11 +248,24 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
 /**
  * Generate all Godot project files from an already-built IR.
  */
-export function generateGodotFilesFromIR(ir: WorldIR): GeneratedFile[] {
+export function generateGodotFilesFromIR(ir: WorldIR, validate = true): GeneratedFile[] {
   const projectFiles = generateProjectFiles(ir);
   const gdscriptFiles = generateGDScriptFiles(ir);
   const dataFiles = generateDataFiles(ir);
   const sceneFiles = generateSceneFiles(ir);
 
-  return [...projectFiles, ...gdscriptFiles, ...dataFiles, ...sceneFiles];
+  const allFiles = [...projectFiles, ...gdscriptFiles, ...dataFiles, ...sceneFiles];
+
+  if (validate) {
+    const errors = validateGDScriptFiles(allFiles);
+    const critical = errors.filter(e => e.severity === 'error');
+    if (critical.length > 0) {
+      for (const e of critical) {
+        console.error(`[GDScript] ${e.file}:${e.line} — ${e.message}`);
+      }
+      throw new Error(`GDScript validation failed: ${critical.length} error(s)`);
+    }
+  }
+
+  return allFiles;
 }

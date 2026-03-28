@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { BabylonGame } from "@/components/3DGame/BabylonGame.ts";
+import { BabylonGame } from "@shared/game-engine/rendering/BabylonGame";
 import { useAuth } from "@/contexts/AuthContext.tsx";
 
 interface BabylonWorldProps {

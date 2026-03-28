@@ -46,7 +46,7 @@ namespace Insimul.Systems
         {
             if (PlayerPrefs.GetInt("OnboardingComplete", 0) == 1) { enabled = false; return; }
 
-            var questSystem = FindObjectOfType<QuestSystem>();
+            var questSystem = FindFirstObjectByType<QuestSystem>();
             if (questSystem != null) questSystem.OnQuestAccepted += _ => _questAccepted = true;
 
             BuildUI();

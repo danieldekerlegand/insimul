@@ -24,7 +24,7 @@ import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
 import { MapLayersPanel, ALL_LAYERS, type MapLayer } from './MapLayersPanel';
 import { BuildingModelPreview } from './BuildingModelPreview';
-import { getInteriorModelPath } from '@/components/3DGame/InteriorSceneManager';
+import { getInteriorModelPath } from '@shared/game-engine/rendering/InteriorSceneManager';
 
 const BUSINESS_TYPES = [
   'Generic', 'LawFirm', 'ApartmentComplex', 'Bakery', 'Hospital', 'Bank',
@@ -49,6 +49,9 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const { toast } = useToast();
   const { token } = useAuth();
   const { canEdit } = useWorldPermissions(worldId);
+
+  // World name for map display
+  const [worldName, setWorldName] = useState<string>('World');
 
   // Location tree
   const [countries, setCountries] = useState<any[]>([]);
@@ -106,6 +109,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const [buildingModelInfo, setBuildingModelInfo] = useState<Record<string, { filePath: string; assetName: string }>>({});
   // Procedural building config from the asset collection (for preview rendering)
   const [proceduralBuildingConfig, setProceduralBuildingConfig] = useState<any>(null);
+  // Building types whose interiors should be procedurally generated (not model-based)
+  const [proceduralInteriorTypes, setProceduralInteriorTypes] = useState<Set<string>>(new Set());
 
   // Fetch building model paths when world changes
   useEffect(() => {
@@ -122,6 +127,9 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         // Store procedural building config for preview rendering
         if (config3D?.proceduralBuildings) {
           setProceduralBuildingConfig(config3D.proceduralBuildings);
+        }
+        if (config3D?.proceduralInteriorTypes) {
+          setProceduralInteriorTypes(new Set(config3D.proceduralInteriorTypes));
         }
         if (!config3D?.buildingModels) return;
         const info: Record<string, { filePath: string; assetName: string }> = {};
@@ -148,21 +156,27 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     }
     if (buildingType === 'business' && businessType) {
       const bt = businessType.toLowerCase();
-      if (bt === 'tavern' || bt === 'inn') return 'tavern';
-      if (bt === 'shop' || bt === 'market') return 'shop';
+      if (bt === 'tavern' || bt === 'inn' || bt === 'bar' || bt === 'brewery') return 'tavern';
+      if (bt === 'shop' || bt === 'market' || bt === 'grocerystore' || bt === 'grocery_store') return 'shop';
       if (bt === 'blacksmith') return 'blacksmith';
       if (bt === 'church') return 'church';
       if (bt === 'library') return 'library';
-      if (bt === 'hospital') return 'hospital';
+      if (bt === 'hospital' || bt === 'clinic') return 'hospital';
       if (bt === 'school') return 'school';
       if (bt === 'bank') return 'bank';
       if (bt === 'theater') return 'theater';
       if (bt === 'windmill') return 'windmill';
       if (bt === 'watermill') return 'watermill';
+      if (bt === 'restaurant' || bt === 'bakery' || bt === 'cafe') return 'tavern';
+      if (bt === 'farm') return 'farm';
+      if (bt === 'factory' || bt === 'carpenter') return 'workshop';
+      if (bt === 'lawfirm' || bt === 'law_firm' || bt === 'townhall' || bt === 'town_hall') return 'townhall';
+      if (bt === 'harbor') return 'harbor';
       if (bt.includes('lumber')) return 'lumbermill';
       if (bt.includes('barrack') || bt.includes('military')) return 'barracks';
       if (bt.includes('mine') || bt.includes('mining')) return 'mine';
-      return 'default';
+      // Try the business type itself as a role (in case asset collection uses it directly)
+      return bt;
     }
     return 'default';
   };
@@ -309,6 +323,16 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     fetchAllCharacters();
     fetchTruths();
     fetchWaterFeatures();
+    // Fetch world name for map display
+    (async () => {
+      try {
+        const res = await fetch(`/api/worlds/${worldId}`);
+        if (res.ok) {
+          const world = await res.json();
+          if (world?.name) setWorldName(world.name);
+        }
+      } catch { /* ignore */ }
+    })();
   }, [worldId]);
 
   useEffect(() => {
@@ -851,6 +875,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           waterFeatures={waterFeatures}
           selectedCountryId={selectedCountry?.id}
           worldId={worldId}
+          worldName={worldName}
+          selectedLotId={selectedBuilding?.lot?.id || null}
           onSettlementClick={selectSettlement}
           onCountryClick={selectCountry}
           onBuildingClick={(lotId) => {
@@ -1242,24 +1268,27 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           </SheetHeader>
           {selectedBuilding && (
             <div className="mt-4 space-y-4">
-              {/* 3D Building Preview */}
-              <Card>
+              {/* 3D Building Preview (not shown for bare lots) */}
+              {selectedBuilding.type !== 'lot' && <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">3D Preview</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <BuildingModelPreview
                     modelPath={selectedBuilding.modelPath}
-                    interiorModelPath={getInteriorModelPath(
-                      selectedBuilding.type === 'business'
+                    interiorModelPath={(() => {
+                      // Skip model-based interior path if asset collection says interior is procedural
+                      const interiorKey = selectedBuilding.type === 'business'
                         ? selectedBuilding.data.businessType
                         : selectedBuilding.type === 'residence'
                           ? (selectedBuilding.data.residenceType || 'residence')
-                          : (selectedBuilding.data.buildingType || selectedBuilding.type),
-                      selectedBuilding.type === 'business'
-                        ? selectedBuilding.data.businessType
-                        : undefined
-                    )}
+                          : (selectedBuilding.data.buildingType || selectedBuilding.type);
+                      if (interiorKey && proceduralInteriorTypes.has(interiorKey)) return null;
+                      return getInteriorModelPath(
+                        interiorKey,
+                        selectedBuilding.type === 'business' ? selectedBuilding.data.businessType : undefined
+                      );
+                    })()}
                     tintColor={
                       selectedBuilding.type === 'business'
                         ? { r: 0.55, g: 0.4, b: 0.25 }
@@ -1318,7 +1347,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                     )}
                   </div>
                 </CardContent>
-              </Card>
+              </Card>}
 
               {/* Building details (business/lot only; residence uses ResidenceDetailView) */}
               {selectedBuilding.type !== 'residence' && (
@@ -1415,7 +1444,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
               {/* Residents/Employees */}
               {selectedBuilding.type === 'business' && (() => {
-                const employees = allCharacters.filter((c: any) => c.employerId === selectedBuilding.data.id);
+                const employeeIds: string[] = (selectedBuilding.data.employees || []).map((e: any) => e.id || e);
+                const employees = allCharacters.filter((c: any) => employeeIds.includes(c.id));
                 return employees.length > 0 ? (
                   <Card>
                     <CardHeader className="pb-2">

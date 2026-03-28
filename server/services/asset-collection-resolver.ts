@@ -23,6 +23,8 @@ export type World3DConfig = {
   audioAssets?: Record<string, string>;
   modelScaling?: Record<string, { x: number; y: number; z: number }>;
   proceduralBuildings?: ProceduralBuildingConfig | null;
+  /** Building types whose interiors are procedurally generated (not asset-based) */
+  proceduralInteriorTypes?: string[];
 };
 
 /**
@@ -72,8 +74,13 @@ function flattenWorldTypeConfig(wtc: WorldTypeCollectionConfig): World3DConfig {
     }
 
     // Process per-type building configs
+    const proceduralInteriorTypes: string[] = [];
     if (wtc.buildingConfig.buildingTypeConfigs) {
       for (const [typeName, typeConfig] of Object.entries(wtc.buildingConfig.buildingTypeConfigs)) {
+        // Track building types with procedural interiors
+        if (typeConfig.interiorConfig?.mode === 'procedural') {
+          proceduralInteriorTypes.push(typeName);
+        }
         if (typeConfig.mode === 'asset' && typeConfig.assetId) {
           buildingModels[typeName] = typeConfig.assetId;
         }
@@ -154,6 +161,9 @@ function flattenWorldTypeConfig(wtc: WorldTypeCollectionConfig): World3DConfig {
     config.proceduralBuildings = proceduralBuildings.stylePresets.length > 0
       ? proceduralBuildings
       : null;
+    if (proceduralInteriorTypes.length > 0) {
+      config.proceduralInteriorTypes = proceduralInteriorTypes;
+    }
   }
 
   // Character config

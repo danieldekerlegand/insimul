@@ -17,6 +17,7 @@ interface GenerationConfig {
   marriageRate: number;
   fertilityRate: number;
   deathRate: number;
+  targetLanguage?: string;
 }
 
 interface FamilyLine {
@@ -25,18 +26,66 @@ interface FamilyLine {
   founders: { father: any; mother: any };
 }
 
+/** Language-specific fallback name pools for when LLM generation is unavailable */
+const LANGUAGE_NAME_POOLS: Record<string, { male: string[]; female: string[]; surnames: string[] }> = {
+  french: {
+    male: ['Jean', 'Pierre', 'Jacques', 'Louis', 'Henri', 'François', 'Antoine', 'Michel', 'Claude', 'André',
+           'Philippe', 'René', 'Marcel', 'Étienne', 'Gérard', 'Yves', 'Alain', 'Bernard', 'Thierry', 'Lucien',
+           'Évariste', 'Gervais', 'Théo', 'Émile', 'Gustave', 'Léon', 'Raoul', 'Gaston', 'Armand', 'Julien'],
+    female: ['Marie', 'Jeanne', 'Marguerite', 'Céleste', 'Geneviève', 'Françoise', 'Madeleine', 'Catherine',
+             'Thérèse', 'Élise', 'Claire', 'Hélène', 'Isabelle', 'Adèle', 'Charlotte', 'Colette', 'Simone',
+             'Lucienne', 'Renée', 'Odette', 'Sylvie', 'Monique', 'Brigitte', 'Yvette', 'Solange',
+             'Delphine', 'Cécile', 'Josette', 'Paulette', 'Bernadette'],
+    surnames: ['Broussard', 'Fontenot', 'Thibodeaux', 'Landry', 'Mouton', 'Guidry', 'Boudreaux', 'Hébert',
+               'Doucet', 'Arceneaux', 'Trahan', 'Melancon', 'Leblanc', 'Comeaux', 'Dugas', 'Richard',
+               'Gaudet', 'Pellerin', 'Aucoin', 'Babineaux', 'Theriot', 'Breaux', 'Leger', 'Picard',
+               'Robichaux', 'Arnaud', 'Bergeron', 'Castille', 'Daigle', 'Girard'],
+  },
+  spanish: {
+    male: ['Carlos', 'Miguel', 'José', 'Juan', 'Pedro', 'Luis', 'Antonio', 'Francisco', 'Manuel', 'Rafael',
+           'Diego', 'Alejandro', 'Fernando', 'Pablo', 'Enrique', 'Sergio', 'Ricardo', 'Andrés', 'Tomás', 'Javier'],
+    female: ['María', 'Carmen', 'Isabel', 'Ana', 'Rosa', 'Elena', 'Lucía', 'Teresa', 'Pilar', 'Dolores',
+             'Sofía', 'Catalina', 'Beatriz', 'Marta', 'Laura', 'Patricia', 'Alicia', 'Inés', 'Clara', 'Raquel'],
+    surnames: ['García', 'Rodríguez', 'Martínez', 'López', 'González', 'Hernández', 'Pérez', 'Sánchez',
+               'Ramírez', 'Torres', 'Flores', 'Rivera', 'Gómez', 'Díaz', 'Cruz', 'Morales', 'Reyes',
+               'Ortiz', 'Gutiérrez', 'Ramos'],
+  },
+  german: {
+    male: ['Hans', 'Friedrich', 'Wilhelm', 'Karl', 'Heinrich', 'Otto', 'Ernst', 'Werner', 'Klaus', 'Dieter',
+           'Günther', 'Helmut', 'Manfred', 'Walter', 'Kurt', 'Rolf', 'Jürgen', 'Gerhard', 'Bernd', 'Wolfgang'],
+    female: ['Anna', 'Maria', 'Greta', 'Helga', 'Ingrid', 'Ursula', 'Elke', 'Monika', 'Renate', 'Brigitte',
+             'Hildegard', 'Gertrud', 'Liesel', 'Käthe', 'Irmgard', 'Elfriede', 'Hilde', 'Erika', 'Waltraud', 'Christa'],
+    surnames: ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz',
+               'Hoffmann', 'Schäfer', 'Koch', 'Bauer', 'Richter', 'Klein', 'Wolf', 'Schröder', 'Neumann',
+               'Schwarz', 'Braun'],
+  },
+};
+
+const DEFAULT_NAME_POOL = {
+  male: ['James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
+         'Christopher', 'Daniel', 'Matthew', 'Anthony', 'Donald', 'Mark', 'Paul', 'Steven', 'Andrew', 'Kenneth',
+         'Joshua', 'George', 'Kevin', 'Brian', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan'],
+  female: ['Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara', 'Elizabeth', 'Susan', 'Jessica', 'Sarah', 'Karen',
+           'Nancy', 'Betty', 'Margaret', 'Sandra', 'Ashley', 'Dorothy', 'Kimberly', 'Emily', 'Donna', 'Michelle',
+           'Carol', 'Amanda', 'Melissa', 'Deborah', 'Stephanie', 'Rebecca', 'Laura', 'Sharon', 'Cynthia', 'Anna'],
+  surnames: ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
+            'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin',
+            'Lee', 'Thompson', 'White', 'Harris', 'Clark', 'Lewis', 'Robinson', 'Walker', 'Hall', 'Young'],
+};
+
+/** Resolve the name pool for a target language, falling back to English defaults */
+function resolveNamePool(targetLanguage?: string): typeof DEFAULT_NAME_POOL {
+  if (!targetLanguage) return DEFAULT_NAME_POOL;
+  const lang = targetLanguage.toLowerCase();
+  for (const [key, pool] of Object.entries(LANGUAGE_NAME_POOLS)) {
+    if (lang.includes(key)) return pool;
+  }
+  return DEFAULT_NAME_POOL;
+}
+
 export class GenealogyGenerator {
-  private namePool = {
-    male: ['James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
-           'Christopher', 'Daniel', 'Matthew', 'Anthony', 'Donald', 'Mark', 'Paul', 'Steven', 'Andrew', 'Kenneth',
-           'Joshua', 'George', 'Kevin', 'Brian', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan'],
-    female: ['Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara', 'Elizabeth', 'Susan', 'Jessica', 'Sarah', 'Karen',
-             'Nancy', 'Betty', 'Margaret', 'Sandra', 'Ashley', 'Dorothy', 'Kimberly', 'Emily', 'Donna', 'Michelle',
-             'Carol', 'Amanda', 'Melissa', 'Deborah', 'Stephanie', 'Rebecca', 'Laura', 'Sharon', 'Cynthia', 'Anna'],
-    surnames: ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
-              'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin',
-              'Lee', 'Thompson', 'White', 'Harris', 'Clark', 'Lewis', 'Robinson', 'Walker', 'Hall', 'Young']
-  };
+  private namePool = DEFAULT_NAME_POOL;
+  private targetLanguage: string | undefined;
 
   private usedNames = new Set<string>();
   private worldContext: any = null;
@@ -137,7 +186,8 @@ export class GenealogyGenerator {
         settlementType: this.settlementContext?.settlementType,
         gender: 'male',
         generation: 0,
-        isFounder: true
+        isFounder: true,
+        targetLanguage: this.targetLanguage,
       }, numFamilies);
 
       // Generate all female names (for mothers) in one batch
@@ -152,7 +202,8 @@ export class GenealogyGenerator {
         settlementType: this.settlementContext?.settlementType,
         gender: 'female',
         generation: 0,
-        isFounder: true
+        isFounder: true,
+        targetLanguage: this.targetLanguage,
       }, numFamilies);
 
       // Combine into founder records
@@ -408,7 +459,8 @@ export class GenealogyGenerator {
           settlementType: this.settlementContext?.settlementType,
           gender: 'male',
           generation,
-          isFounder: false
+          isFounder: false,
+          targetLanguage: this.targetLanguage,
         }, maleCount) : [];
 
         const femaleNames = femaleCount > 0 ? await nameGenerator.generateCharacterNamesBatch({
@@ -422,7 +474,8 @@ export class GenealogyGenerator {
           settlementType: this.settlementContext?.settlementType,
           gender: 'female',
           generation,
-          isFounder: false
+          isFounder: false,
+          targetLanguage: this.targetLanguage,
         }, femaleCount) : [];
         
         // Interleave names based on original gender order
@@ -611,9 +664,10 @@ export class GenealogyGenerator {
           settlementType: this.settlementContext?.settlementType,
           gender,
           generation,
-          isFounder
+          isFounder,
+          targetLanguage: this.targetLanguage,
         }, 1);
-        
+
         if (names.length > 0) {
           const firstName = names[0].firstName;
           if (!this.usedNames.has(firstName)) {
@@ -625,8 +679,8 @@ export class GenealogyGenerator {
         console.warn('LLM name generation failed, using fallback');
       }
     }
-    
-    // Fallback to pool
+
+    // Fallback to language-appropriate pool
     const pool = this.namePool[gender];
     let name;
     let attempts = 0;
@@ -660,7 +714,8 @@ export class GenealogyGenerator {
           settlementType: this.settlementContext?.settlementType,
           gender: 'male', // Use male for surname generation
           generation: 0,
-          isFounder: true
+          isFounder: true,
+          targetLanguage: this.targetLanguage,
         }, 1);
         
         if (names.length > 0) {
@@ -708,7 +763,9 @@ export class GenealogyGenerator {
   private async loadContext(config: GenerationConfig): Promise<void> {
     try {
       this.worldContext = await storage.getWorld(config.worldId);
-      
+      this.targetLanguage = config.targetLanguage || this.worldContext?.targetLanguage;
+      this.namePool = resolveNamePool(this.targetLanguage);
+
       if (config.settlementId) {
         this.settlementContext = await storage.getSettlement(config.settlementId);
         if (this.settlementContext?.countryId) {
@@ -729,6 +786,7 @@ export class GenealogyGenerator {
     settlementId: string;
     currentYear: number;
     count: number;
+    targetLanguage?: string;
   }): Promise<number> {
     if (config.count <= 0) return 0;
 
@@ -743,13 +801,14 @@ export class GenealogyGenerator {
       marriageRate: 0,
       fertilityRate: 0,
       deathRate: 0,
+      targetLanguage: config.targetLanguage,
     });
 
     let created = 0;
     for (let i = 0; i < config.count; i++) {
       const gender: 'male' | 'female' = Math.random() > 0.5 ? 'male' : 'female';
-      const firstName = this.getFallbackName(gender);
-      const lastName = this.namePool.surnames[Math.floor(Math.random() * this.namePool.surnames.length)];
+      const firstName = await this.getUniqueName(gender, 0, false);
+      const lastName = await this.getUniqueSurname();
       const age = 18 + Math.floor(Math.random() * 45); // 18-62
       const birthYear = config.currentYear - age;
       const personality = this.generatePersonality();
@@ -783,5 +842,7 @@ export class GenealogyGenerator {
     this.worldContext = null;
     this.countryContext = null;
     this.settlementContext = null;
+    this.targetLanguage = undefined;
+    this.namePool = DEFAULT_NAME_POOL;
   }
 }

@@ -6,7 +6,7 @@ import { Loader2, Maximize, Minimize, ZoomIn, ZoomOut, Pause, Play } from 'lucid
 import {
   generateStreetAlignedLots,
   type StreetSegment,
-} from '../3DGame/StreetAlignedPlacement';
+} from '@shared/game-engine/rendering/StreetAlignedPlacement';
 import { getBuildingDefaults, DEFAULT_BUILDING_DIMENSIONS } from '../../../../shared/game-engine/building-defaults';
 import type { MapLayer } from './MapLayersPanel';
 
@@ -35,6 +35,8 @@ interface LocationMapPreviewProps {
   onSettlementClick?: (settlement: any) => void;
   onCountryClick?: (country: any) => void;
   onBuildingClick?: (lotId: string) => void;
+  /** Lot ID to highlight and focus the camera on */
+  selectedLotId?: string | null;
   className?: string;
   visibleLayers?: Set<MapLayer>;
 }
@@ -209,6 +211,7 @@ export function LocationMapPreview({
   onSettlementClick,
   onCountryClick,
   onBuildingClick,
+  selectedLotId,
   className = '',
   visibleLayers,
 }: LocationMapPreviewProps) {
@@ -241,7 +244,7 @@ export function LocationMapPreview({
 
     const scene = new BABYLON.Scene(engine);
     sceneRef.current = scene;
-    scene.clearColor = new BABYLON.Color4(0.08, 0.1, 0.14, 1);
+    scene.clearColor = new BABYLON.Color4(0.62, 0.60, 0.52, 1); // Warm parchment edge
 
     const camera = new BABYLON.ArcRotateCamera('cam', -Math.PI / 4, Math.PI / 4.5, 20, BABYLON.Vector3.Zero(), scene);
     camera.attachControl(canvas, true);
@@ -347,16 +350,31 @@ export function LocationMapPreview({
     const countryRadius = Math.min(countryCount * 6, 40);
     refs.worldRadius = Math.max(countryRadius + 15, 25);
 
-    // Large world ground
+    // Large world ground — parchment/cartographic base
     const ground = BABYLON.MeshBuilder.CreateGround('ground', {
       width: refs.worldRadius * 2.5,
       height: refs.worldRadius * 2.5,
     }, scene);
     const groundMat = new BABYLON.StandardMaterial('groundMat', scene);
-    groundMat.diffuseColor = new BABYLON.Color3(0.15, 0.2, 0.12);
+    groundMat.diffuseColor = new BABYLON.Color3(0.78, 0.75, 0.65); // Parchment
     groundMat.specularColor = BABYLON.Color3.Black();
     ground.material = groundMat;
     tagMesh(ground, 'terrain');
+
+    // World name label (centered at top of map)
+    {
+      const worldLabelAnchor = BABYLON.MeshBuilder.CreateBox('worldLabelAnchor', { size: 0.01 }, scene);
+      worldLabelAnchor.position = new BABYLON.Vector3(0, 6, 0);
+      worldLabelAnchor.isVisible = false;
+      worldLabelAnchor.isPickable = false;
+      tagMesh(worldLabelAnchor, 'labels');
+      addLabel(newGui, worldLabelAnchor, worldName, 18, '#3A2E1E', 0, {
+        fontFamily: '"Georgia", "Times New Roman", serif',
+        fontWeight: 'bold',
+        outlineColor: 'rgba(200, 190, 170, 0.6)',
+        outlineWidth: 1,
+      });
+    }
 
     // Place countries
     countries.forEach((country, ci) => {
@@ -367,29 +385,40 @@ export function LocationMapPreview({
       refs.countryPositions.set(country.id, countryPos);
 
       const terrain = country.terrain ?? 'plains';
-      const groundCol = getGroundColor(terrain);
       const terrainCol = getTerrainColor(terrain);
 
-      // Country terrain disc
-      const disc = BABYLON.MeshBuilder.CreateDisc(`country_${country.id}`, { radius: 8, tessellation: 24 }, scene);
-      disc.rotation.x = Math.PI / 2;
-      disc.position = new BABYLON.Vector3(cx, 0.02, cz);
-      const discMat = new BABYLON.StandardMaterial(`cMat_${ci}`, scene);
-      discMat.diffuseColor = groundCol;
-      discMat.specularColor = BABYLON.Color3.Black();
-      discMat.alpha = 0.7;
-      disc.material = discMat;
-      disc.id = `country_pick_${country.id}`;
-      refs.pickableMap.set(disc.id, { type: 'country', data: country });
-      tagMesh(disc, 'districts');
+      // Compute country border radius to encompass all its settlements.
+      // Settlements are placed at radius 6 from country center; each settlement's
+      // detail content extends ~15 units from its own center.
+      const countryBorderRadius = Math.max(12, 6 + 18);
 
-      // Country label
+      // Country border line (replaces filled disc)
+      const countryBorder = drawBorderCircle(
+        scene, `countryBorder_${country.id}`, countryPos, countryBorderRadius,
+        terrainCol.scale(0.6), 48, false,
+      );
+      tagMesh(countryBorder, 'districts');
+
+      // Invisible pick disc for click detection (lines aren't pickable)
+      const pickDisc = BABYLON.MeshBuilder.CreateDisc(`country_${country.id}`, { radius: countryBorderRadius, tessellation: 24 }, scene);
+      pickDisc.rotation.x = Math.PI / 2;
+      pickDisc.position = new BABYLON.Vector3(cx, 0.01, cz);
+      pickDisc.visibility = 0;
+      pickDisc.id = `country_pick_${country.id}`;
+      refs.pickableMap.set(pickDisc.id, { type: 'country', data: country });
+      tagMesh(pickDisc, 'districts');
+
+      // Country label — uppercase, serif, cartographic style
       const anchor = BABYLON.MeshBuilder.CreateBox(`cAnchor_${ci}`, { size: 0.01 }, scene);
-      anchor.position = new BABYLON.Vector3(cx, 5, cz);
+      anchor.position = new BABYLON.Vector3(cx, 1.5, cz);
       anchor.isVisible = false;
       anchor.isPickable = false;
       tagMesh(anchor, 'labels');
-      addLabel(newGui, anchor, country.name, 13, '#FFD700', 0);
+      addLabel(newGui, anchor, country.name.toUpperCase(), 14, '#4A3C28', 0, {
+        fontFamily: '"Georgia", "Times New Roman", serif',
+        outlineColor: 'rgba(200, 190, 170, 0.7)',
+        outlineWidth: 1,
+      });
 
       // Place settlement markers within this country
       const countrySettlements = settlements.filter(s => s.countryId === country.id);
@@ -407,31 +436,43 @@ export function LocationMapPreview({
         markerNode.position = settlementPos;
         refs.settlementMarkerNodes.set(s.id, markerNode);
 
+        // Flat circle dot (map-style marker) instead of 3D cone
         const scale = SETTLEMENT_SCALE[s.settlementType] ?? 0.5;
-        const marker = BABYLON.MeshBuilder.CreateCylinder(`s_${s.id}`, {
-          diameterTop: 0.3 * scale,
-          diameterBottom: 1.0 * scale,
-          height: 1.5 * scale,
-          tessellation: 8,
+        const marker = BABYLON.MeshBuilder.CreateDisc(`s_${s.id}`, {
+          radius: 0.5 * scale,
+          tessellation: 16,
         }, scene);
-        marker.position = new BABYLON.Vector3(0, 0.75 * scale, 0);
+        marker.rotation.x = Math.PI / 2;
+        marker.position = new BABYLON.Vector3(0, 0.04, 0);
         marker.parent = markerNode;
         const mMat = new BABYLON.StandardMaterial(`sMat_${s.id}`, scene);
-        mMat.diffuseColor = terrainCol;
-        mMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        mMat.diffuseColor = new BABYLON.Color3(0.3, 0.2, 0.15);
+        mMat.specularColor = BABYLON.Color3.Black();
         marker.material = mMat;
         marker.id = `settlement_pick_${s.id}`;
         refs.pickableMap.set(marker.id, { type: 'settlement', data: s });
         tagMesh(marker, 'buildings');
 
-        // Settlement label
+        // Settlement boundary ring (dashed)
+        const sBorder = drawBorderCircle(
+          scene, `sBorder_${s.id}`, BABYLON.Vector3.Zero(), 1.5 * scale,
+          new BABYLON.Color3(0.45, 0.4, 0.35), 32, true, markerNode,
+        );
+        tagMesh(sBorder, 'districts');
+
+        // Settlement label — italic, cartographic
         const sLabelAnchor = BABYLON.MeshBuilder.CreateBox(`sLabel_${s.id}`, { size: 0.01 }, scene);
-        sLabelAnchor.position = new BABYLON.Vector3(0, 2.5, 0);
+        sLabelAnchor.position = new BABYLON.Vector3(0, 0.8, 0);
         sLabelAnchor.parent = markerNode;
         sLabelAnchor.isVisible = false;
         sLabelAnchor.isPickable = false;
         tagMesh(sLabelAnchor, 'labels');
-        addLabel(newGui, sLabelAnchor, s.name, 10, '#CCC', 0);
+        addLabel(newGui, sLabelAnchor, s.name, 10, '#5A4A38', 0, {
+          fontFamily: '"Georgia", "Times New Roman", serif',
+          fontStyle: 'italic',
+          outlineColor: 'rgba(200, 190, 170, 0.7)',
+          outlineWidth: 1,
+        });
 
         // Detail group placeholder (populated lazily)
         const detailNode = new BABYLON.TransformNode(`sDetailNode_${s.id}`, scene);
@@ -501,10 +542,11 @@ export function LocationMapPreview({
     if (!scene || scene.isDisposed || !camera || !refs) return;
 
     if (viewLevel === 'world') {
-      animateCameraTo(camera, scene, BABYLON.Vector3.Zero(), refs.worldRadius, Math.PI / 4.5);
+      // Nearly top-down for cartographic world overview
+      animateCameraTo(camera, scene, BABYLON.Vector3.Zero(), refs.worldRadius * 0.9, Math.PI / 8);
     } else if (viewLevel === 'country' && selectedCountryId) {
       const pos = refs.countryPositions.get(selectedCountryId);
-      if (pos) animateCameraTo(camera, scene, pos.clone(), 22, Math.PI / 4.2);
+      if (pos) animateCameraTo(camera, scene, pos.clone(), 18, Math.PI / 5);
     } else if (viewLevel === 'settlement') {
       // Find the selected settlement from the settlements prop
       const selected = settlements.find(s =>
@@ -515,7 +557,7 @@ export function LocationMapPreview({
         const settlementId = lots[0]?.settlementId;
         if (settlementId) {
           const pos = refs.settlementPositions.get(settlementId);
-          if (pos) animateCameraTo(camera, scene, pos.clone(), 6, Math.PI / 3.5);
+          if (pos) animateCameraTo(camera, scene, pos.clone(), 35, Math.PI / 3.5);
         }
       }
     }
@@ -532,14 +574,16 @@ export function LocationMapPreview({
     const settlementId = lots[0]?.settlementId;
     if (!settlementId) return;
     if (refs.settlementLoaded.has(settlementId)) {
-      // Already loaded — just make sure detail is visible and zoom
+      // Already loaded — just make sure detail is visible and zoom to frame the whole settlement
       const detailNode = refs.settlementDetailNodes.get(settlementId);
       const markerNode = refs.settlementMarkerNodes.get(settlementId);
       if (detailNode) detailNode.setEnabled(true);
       if (markerNode) markerNode.setEnabled(false);
       const pos = refs.settlementPositions.get(settlementId);
       if (pos && cameraRef.current) {
-        animateCameraTo(cameraRef.current, scene, pos.clone(), 6, Math.PI / 3.5);
+        // Radius that frames the entire settlement (layout spans ~24 preview units)
+        const settlementViewRadius = 35;
+        animateCameraTo(cameraRef.current, scene, pos.clone(), settlementViewRadius, Math.PI / 3.5);
       }
       return;
     }
@@ -577,15 +621,32 @@ export function LocationMapPreview({
         renderStreetsAtNode(scene, gui, layoutStreets, detailNode);
       }
 
-      // Settlement ground (local to detailNode)
-      const sGround = BABYLON.MeshBuilder.CreateGround('sGround_' + settlementId, { width: 30, height: 30 }, scene);
-      const sGroundMat = new BABYLON.StandardMaterial('sGroundMat_' + settlementId, scene);
-      sGroundMat.diffuseColor = new BABYLON.Color3(0.25, 0.3, 0.2);
-      sGroundMat.specularColor = BABYLON.Color3.Black();
-      sGround.material = sGroundMat;
-      sGround.parent = detailNode;
-      sGround.position = BABYLON.Vector3.Zero();
-      tagMesh(sGround, 'terrain');
+      // Settlement boundary — compute actual extent from lot + street positions,
+      // then draw a dashed border line instead of a filled ground plane
+      let extentMax = 15; // minimum half-extent
+      positions.forEach(pos => {
+        extentMax = Math.max(extentMax, Math.abs(pos.x) + 5, Math.abs(pos.z) + 5);
+      });
+      for (const seg of layoutStreets) {
+        extentMax = Math.max(extentMax, Math.abs(seg.from.x) + 3, Math.abs(seg.from.z) + 3,
+                                        Math.abs(seg.to.x) + 3, Math.abs(seg.to.z) + 3);
+      }
+      if (hasStoredStreets) {
+        const ss = computeStreetScale(normalizedStreets);
+        for (const seg of normalizedStreets) {
+          for (const wp of seg.waypoints) {
+            const sx = (wp.x - ss.cx) * ss.scale;
+            const sz = (wp.z - ss.cz) * ss.scale;
+            extentMax = Math.max(extentMax, Math.abs(sx) + 3, Math.abs(sz) + 3);
+          }
+        }
+      }
+      // Dashed settlement limits border
+      const settlementBorder = drawBorderCircle(
+        scene, `settlementLimits_${settlementId}`, BABYLON.Vector3.Zero(),
+        extentMax * 1.1, new BABYLON.Color3(0.5, 0.45, 0.35), 64, true, detailNode,
+      );
+      tagMesh(settlementBorder, 'districts');
 
       // Build lots/buildings using existing buildSettlementView logic
       const bizByLot = new Map<string, any>();
@@ -737,10 +798,11 @@ export function LocationMapPreview({
       const markerNode = refs.settlementMarkerNodes.get(settlementId);
       if (markerNode) markerNode.setEnabled(false);
 
-      // Animate camera to settlement
+      // Animate camera to frame the entire settlement
       const sPos = refs.settlementPositions.get(settlementId);
       if (sPos && cameraRef.current) {
-        animateCameraTo(cameraRef.current, scene, sPos.clone(), 6, Math.PI / 3.5);
+        const settlementViewRadius = 35;
+        animateCameraTo(cameraRef.current, scene, sPos.clone(), settlementViewRadius, Math.PI / 3.5);
       }
 
       setIsLoading(false);
@@ -777,6 +839,65 @@ export function LocationMapPreview({
     if (!visibleLayers || !sceneRef.current || sceneRef.current.isDisposed) return;
     applyLayerVisibility(sceneRef.current, guiRef.current, visibleLayers);
   }, [visibleLayers]);
+
+  // Highlight selected lot and focus camera on it
+  const prevHighlightRef = useRef<BABYLON.AbstractMesh[]>([]);
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    if (!scene || scene.isDisposed || !camera) return;
+
+    // Remove previous highlight
+    for (const mesh of prevHighlightRef.current) {
+      if (!mesh.isDisposed()) {
+        mesh.dispose();
+      }
+    }
+    prevHighlightRef.current = [];
+
+    if (!selectedLotId) return;
+
+    // Find the meshes belonging to the selected lot
+    let targetPosition: BABYLON.Vector3 | null = null;
+    for (const mesh of scene.meshes) {
+      if (mesh.metadata?.lotMeta?.id === selectedLotId) {
+        targetPosition = mesh.absolutePosition.clone();
+        break;
+      }
+    }
+
+    if (!targetPosition) return;
+
+    // Create a highlight ring around the selected lot
+    const ring = BABYLON.MeshBuilder.CreateTorus(
+      '__lot_highlight',
+      { diameter: 6, thickness: 0.3, tessellation: 32 },
+      scene
+    );
+    ring.position = new BABYLON.Vector3(targetPosition.x, targetPosition.y + 0.3, targetPosition.z);
+    ring.rotation.x = 0;
+    const ringMat = new BABYLON.StandardMaterial('__lot_highlight_mat', scene);
+    ringMat.diffuseColor = new BABYLON.Color3(1, 0.85, 0.2);
+    ringMat.emissiveColor = new BABYLON.Color3(1, 0.85, 0.2);
+    ringMat.alpha = 0.8;
+    ringMat.disableLighting = true;
+    ring.material = ringMat;
+    ring.isPickable = false;
+    prevHighlightRef.current.push(ring);
+
+    // Animate camera to focus on the lot
+    isRotatingRef.current = false;
+    setIsRotating(false);
+    const targetAlpha = Math.atan2(targetPosition.x - camera.target.x, targetPosition.z - camera.target.z);
+    BABYLON.Animation.CreateAndStartAnimation(
+      'camTarget', camera, 'target', 30, 20,
+      camera.target.clone(), targetPosition, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    BABYLON.Animation.CreateAndStartAnimation(
+      'camRadius', camera, 'radius', 30, 20,
+      camera.radius, Math.min(camera.radius, 30), BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+  }, [selectedLotId]);
 
   const toggleRotation = useCallback(() => {
     const next = !isRotatingRef.current;
@@ -2196,7 +2317,8 @@ function addLabel(
   text: string,
   fontSize: number,
   color: string,
-  yOffset: number
+  yOffset: number,
+  style?: { fontFamily?: string; fontStyle?: string; fontWeight?: string; outlineColor?: string; outlineWidth?: number },
 ) {
   // Guard against disposed scene/texture (async model loading may finish after unmount)
   if (!gui || !mesh || mesh.isDisposed()) return;
@@ -2206,13 +2328,15 @@ function addLabel(
   label.text = text;
   label.color = color;
   label.fontSize = fontSize;
-  label.fontFamily = 'system-ui, -apple-system, sans-serif';
-  label.outlineWidth = 2;
-  label.outlineColor = 'black';
+  label.fontFamily = style?.fontFamily ?? 'system-ui, -apple-system, sans-serif';
+  if (style?.fontStyle) (label as any).fontStyle = style.fontStyle;
+  if (style?.fontWeight) label.fontWeight = style.fontWeight;
+  label.outlineWidth = style?.outlineWidth ?? 2;
+  label.outlineColor = style?.outlineColor ?? 'black';
   label.resizeToFit = true;
 
   const container = new GUI.Rectangle();
-  container.width = '200px';
+  container.width = '300px';
   container.height = `${fontSize + 8}px`;
   container.thickness = 0;
   container.addControl(label);
@@ -2223,4 +2347,36 @@ function addLabel(
 
   // Store GUI control reference on the mesh for layer visibility toggling
   mesh.metadata = { ...mesh.metadata, guiControl: container };
+}
+
+// ─── Border Drawing ──────────────────────────────────────────────────────────
+
+/** Draw a circular border line (solid or dashed) at a given position and radius. */
+function drawBorderCircle(
+  scene: BABYLON.Scene,
+  name: string,
+  center: BABYLON.Vector3,
+  radius: number,
+  color: BABYLON.Color3,
+  segments: number = 48,
+  dashed: boolean = false,
+  parent?: BABYLON.TransformNode,
+): BABYLON.LinesMesh {
+  const points: BABYLON.Vector3[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    points.push(new BABYLON.Vector3(
+      center.x + Math.cos(angle) * radius,
+      center.y + 0.03,
+      center.z + Math.sin(angle) * radius,
+    ));
+  }
+
+  const lines = dashed
+    ? BABYLON.MeshBuilder.CreateDashedLines(name, { points, dashSize: 1, gapSize: 0.5, dashNb: segments * 3 }, scene)
+    : BABYLON.MeshBuilder.CreateLines(name, { points }, scene);
+  lines.color = color;
+  lines.isPickable = false;
+  if (parent) lines.parent = parent;
+  return lines;
 }

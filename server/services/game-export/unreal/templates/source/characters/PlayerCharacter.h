@@ -91,7 +91,6 @@ private:
     UPROPERTY() ANPCCharacter* NearbyNPC = nullptr;
 
     /** Interaction prompt text (shown via HUD) */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
     FString InteractionPrompt;
 
     /** Line-trace range for interactions */

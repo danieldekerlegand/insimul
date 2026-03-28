@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { formatDuration, formatDate } from '../3DGame/PlaythroughMainMenu';
+import { formatDuration, formatDate } from '@shared/game-engine/rendering/PlaythroughMainMenu';
 
 interface Playthrough {
   id: string;

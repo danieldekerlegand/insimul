@@ -101,7 +101,7 @@ namespace Insimul.UI
 
         private void BuildUI()
         {
-            var canvas = FindObjectOfType<Canvas>();
+            var canvas = FindFirstObjectByType<Canvas>();
             if (canvas == null) return;
 
             root = new GameObject("RadialMenu");

@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-28T09:28:42.609Z",
+  "lastUpdated": "2026-03-28T12:53:28.440Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -31,7 +31,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/CombatSystem.ts",
+      "path": "shared/game-engine/rendering/CombatSystem.ts",
       "description": "Combat system: damage, critical hits, blocks, dodge. Changes require updating combat templates in all engines.",
       "hash": "689448bf4514f81c20f11ee66b5ff213a6b607c52fbf2a9ee8f4c7394e2f38d4",
       "engineMappings": [
@@ -54,9 +54,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/RuleEnforcer.ts",
+      "path": "shared/game-engine/rendering/RuleEnforcer.ts",
       "description": "Rule enforcement: condition evaluation, violation callbacks. Changes require updating rule enforcer templates.",
-      "hash": "f11e7c6c2f3cc6df52b3575c3531965157d420aadbfb2aef6f3e2d6777477061",
+      "hash": "ca968b1f0d79616ad3790221f69b7450266a417045f9d7aa6486e707a6a00168",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -77,7 +77,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/CraftingSystem.ts",
+      "path": "shared/game-engine/logic/CraftingSystem.ts",
       "description": "Crafting: recipe matching, ingredient deduction, output production.",
       "hash": "d0dcf6c86a91f4daacde03c292e65fe9878c74d936be99291877b042e7fab5d1",
       "engineMappings": [
@@ -100,7 +100,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/ResourceSystem.ts",
+      "path": "shared/game-engine/rendering/ResourceSystem.ts",
       "description": "Resource nodes: harvesting, respawn timers.",
       "hash": "b88d14b1a604ca235b55355c075c3c00da0aabff358c0732450b89ba81f12a09",
       "engineMappings": [
@@ -123,7 +123,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/BabylonInventory.ts",
+      "path": "shared/game-engine/rendering/BabylonInventory.ts",
       "description": "Inventory: stacking, weight, add/remove items.",
       "hash": "539c56c59a849373de839287a007d5b07a4460a72db0a3694978d296d419bd45",
       "engineMappings": [
@@ -146,9 +146,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/BabylonDialogueActions.ts",
+      "path": "shared/game-engine/rendering/BabylonDialogueActions.ts",
       "description": "Dialogue tree traversal, choice selection, NPC conversation flow.",
-      "hash": "f4d698a054f4e479bda39d76f8b9e6d7a3b5c3bbd6997d6ea17805b260e5cc91",
+      "hash": "3f2a8f8f7d200e6760b62d8031059c3b6b9111310bc759c07ede24d344e960ae",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -169,9 +169,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/actions/ActionManager.ts",
+      "path": "shared/game-engine/logic/actions/ActionManager.ts",
       "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
-      "hash": "4998dfdd5012a6e06dc68d97bc2b2210cf6290cb7e751e8630bf4ef8f535d323",
+      "hash": "328748c07702bc34471c0591345d504a2914ede628324a53a2c7c735be7e4e92",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -192,7 +192,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
+      "path": "shared/game-engine/rendering/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
       "hash": "0db70cd4191088625b26cefccf2a63a3fcc9db0271b525c44d9a092eba2f0b76",
       "engineMappings": [
@@ -215,7 +215,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/WorldScaleManager.ts",
+      "path": "shared/game-engine/rendering/WorldScaleManager.ts",
       "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
       "hash": "6f9db2e4028c527342cb9c583d07bae67e9675a01e001025ead08f16a45c1e86",
       "engineMappings": [
@@ -260,8 +260,8 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/GameEventBus.ts",
-      "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
+      "path": "shared/game-engine/logic/GameEventBus.ts",
+      "description": "Centralized typed event bus (120+ event types). Exported engines need equivalent event routing for gameplay actions.",
       "hash": "3243912446954266749c4d941b07e7d57eed96bebab4fa5bb7209bb42537a808",
       "engineMappings": [
         {
@@ -287,7 +287,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/GamePrologEngine.ts",
+      "path": "shared/game-engine/logic/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
       "hash": "cdb84b09c9585b391c09d9ef65314001bfae7af2d67bf05e3404703b918be682",
       "engineMappings": [
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "49c17373a40bc7ba65bb6e43e2f6338d0e15570d2ba5e0c405e9caa37557a3d2",
+      "hash": "7e3b12d6908ca481e0a6701b8d366ce5ac173958fbc792136d65023524dc65f0",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "37410088a5e23560127dce536adce4039b77bba487036b82ec4d53efbdc4acaf",
+      "hash": "f4c2ddfab680ed10429a7ec6ad2fcf9b97073c856d6d7921f2c3b9682a39f918",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -390,9 +390,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/QuestObjectManager.ts",
+      "path": "shared/game-engine/rendering/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "1a7e6308cc4627bfa213ae70173595a1205b1a9f348f640580b277a62bd4de65",
+      "hash": "a5b3e86003090bb8bad1bf608390ec3fe4f6f25e8c5639eb0af1152739606694",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -444,7 +444,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/FightingCombatSystem.ts",
+      "path": "shared/game-engine/rendering/FightingCombatSystem.ts",
       "description": "Fighting combo combat: moveset, frame data, special meter, combo scaling.",
       "hash": "159a42ab1f019bd3ec3f0b8fe6a9c7913efefbb7e36bef785d791fa43957f648",
       "engineMappings": [
@@ -459,7 +459,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/TurnBasedCombatSystem.ts",
+      "path": "shared/game-engine/rendering/TurnBasedCombatSystem.ts",
       "description": "Turn-based RPG combat: speed-ordered turns, status effects, MP system.",
       "hash": "714992f754ce54e15da3c55fa8b33f5f5e29cd90276106515bc97431045983b1",
       "engineMappings": [
@@ -474,7 +474,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/RangedCombatSystem.ts",
+      "path": "shared/game-engine/rendering/RangedCombatSystem.ts",
       "description": "Ranged weapon combat: hitscan/projectile, spread, magazine, reload.",
       "hash": "33fd3f0a548a15d885ab74adbf772061519fea6dadf8146cc3fb10dc95e05502",
       "engineMappings": [
@@ -489,9 +489,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/DayNightCycle.ts",
+      "path": "shared/game-engine/rendering/DayNightCycle.ts",
       "description": "8-keyframe day/night cycle: sun direction, lighting, sky color, street lamp toggle.",
-      "hash": "9df7c7d929bd574eb665e907e3413a73b31aad502f1a2a851d68bc0c99caf50f",
+      "hash": "cde8163ce17e7a428da1a2227ca3eca1eadc4bca5782229e307c09b3a4f2fba2",
       "engineMappings": [
         {
           "engine": "unity",
@@ -509,7 +509,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/WeatherSystem.ts",
+      "path": "shared/game-engine/rendering/WeatherSystem.ts",
       "description": "5-state weather with Markov transitions, rain particles, fog, clouds.",
       "hash": "5ae8cf33f4d43ab13024048b9a35049bab6b65f498bb9f0748e9c5e32efc6ffe",
       "engineMappings": [
@@ -529,9 +529,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/ProceduralNatureGenerator.ts",
+      "path": "shared/game-engine/rendering/ProceduralNatureGenerator.ts",
       "description": "Biome-driven nature placement: 4 tree types, rocks, geological features, grass.",
-      "hash": "ba93eb6be169adba89dd2decb071a1fdf1de42f1bcbfa6bad6c0b7401ecfbecb",
+      "hash": "9810747b8723cc94ee2df208f81d3decdc6660cac4399ca9ffcddbd45136abc8",
       "engineMappings": [
         {
           "engine": "unity",
@@ -549,9 +549,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/RoadGenerator.ts",
+      "path": "shared/game-engine/rendering/RoadGenerator.ts",
       "description": "Road network: ribbon meshes, sidewalks, center lines, crosswalks, street lights.",
-      "hash": "71c4f8fa5b628fc336a889b069cb77db7edb524c9b064529e302f779a6b16a63",
+      "hash": "436deb57bcddd83ffb06e9230c5147e3f9f57ca86c538387742ca9dd58c32d36",
       "engineMappings": [
         {
           "engine": "unity",
@@ -569,7 +569,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/BuildingInteriorGenerator.ts",
+      "path": "shared/game-engine/rendering/BuildingInteriorGenerator.ts",
       "description": "Interior generation: multi-room layouts, role-specific furniture, entry/exit transitions.",
       "hash": "a043eaaa1122d4d98ae59fa76ac2a534fdc9d4d030b4dadc0589da73fabd4287",
       "engineMappings": [
@@ -590,9 +590,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/BabylonChatPanel.ts",
+      "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "54e4d8db56815ed4e5ad8110a3f6da8b49a3319619f35f6688ce06327a06d5f2",
+      "hash": "aadfe9539460ad7e9828f3a47fcfd0b41de80651f05516e7b8742c198258451c",
       "engineMappings": [
         {
           "engine": "unity",
@@ -610,7 +610,7 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/BabylonMinimap.ts",
+      "path": "shared/game-engine/rendering/BabylonMinimap.ts",
       "description": "Minimap: top-down rendering, building/NPC/quest markers, player indicator.",
       "hash": "2cf7441c05272a8d92375bb9919012bc1f1b89c87f9bd6b19689e20550d29a0e",
       "engineMappings": [
@@ -630,9 +630,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/GameMenuSystem.ts",
+      "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "3c7d191e4de8c17963c75358091cb95493d7856130448e64ea38f14fa1bbc039",
+      "hash": "3d0e1d1cac8e900ada08937705158f7708c2132e862b54f376a784014a59fd6c",
       "engineMappings": [
         {
           "engine": "unity",
@@ -650,9 +650,9 @@
       ]
     },
     {
-      "path": "client/src/components/3DGame/AssessmentEngine.ts",
+      "path": "shared/game-engine/logic/AssessmentEngine.ts",
       "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
-      "hash": "b5862443e5e81088dc1ca83de15a78e5c2104bdbc8330bfd38330547d90c5c30",
+      "hash": "41e10c60bf4670720e2fede5e482ffe9639f64fd9b48caf4b00a6d32dc8e1dba",
       "engineMappings": [
         {
           "engine": "babylon",

@@ -36,7 +36,7 @@ namespace Insimul.UI
             foreach (var m in markers) if (m.root) Destroy(m.root);
             markers.Clear();
 
-            var questSystem = FindObjectOfType<QuestSystem>();
+            var questSystem = FindFirstObjectByType<QuestSystem>();
             if (questSystem == null || worldData == null) return;
 
             foreach (var quest in questSystem.GetActiveQuests())
@@ -156,7 +156,7 @@ namespace Insimul.UI
 
         private void UpdateVisibility()
         {
-            var qs = FindObjectOfType<QuestSystem>();
+            var qs = FindFirstObjectByType<QuestSystem>();
             if (qs == null) return;
 
             var activeIds = new HashSet<string>();

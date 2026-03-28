@@ -54,7 +54,10 @@ func _ready() -> void:
 			_unlocked[skill["id"]] = true
 
 func toggle() -> void:
-	if _is_open: close_panel() else: open_panel()
+	if _is_open:
+		close_panel()
+	else:
+		open_panel()
 
 func open_panel() -> void:
 	_is_open = true

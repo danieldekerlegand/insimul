@@ -21,6 +21,7 @@
     "pdf:vr": "node scripts/generate-pdf.js VR_SUPPORT_ROADMAP.md",
     "pdf:assets": "node scripts/generate-pdf.js ASSET_PIPELINE_SURVEY.md",
     "test:export": "tsx server/services/game-export/babylon/test-export-build.ts",
+    "lint:godot": "./scripts/lint-godot-templates.sh",
     "drift:check": "tsx scripts/check-engine-drift.ts",
     "drift:update": "tsx scripts/check-engine-drift.ts --update",
     "prepare": "git config core.hooksPath .githooks"

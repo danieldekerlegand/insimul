@@ -1556,6 +1556,90 @@ export interface SavedPhotoBookState {
   photos: PlayerPhoto[];
 }
 
+// ─── NPC Animation & Behavior ───────────────────────────────────────────────
+
+/** Animation states for NPC character controllers. */
+export type AnimationState =
+  | 'idle'
+  | 'walk'
+  | 'run'
+  | 'talk'
+  | 'listen'
+  | 'work'
+  | 'sit'
+  | 'eat'
+  | 'wave'
+  | 'sleep';
+
+/** NPC role within a building interior. */
+export type InteriorNPCRole = 'employee' | 'owner' | 'visitor' | 'patron';
+
+/** NPC personality traits (Big Five model, 0–1 scale). */
+export interface NPCPersonality {
+  openness?: number;
+  conscientiousness?: number;
+  extroversion?: number;
+  agreeableness?: number;
+  neuroticism?: number;
+}
+
+// ─── Interaction ────────────────────────────────────────────────────────────
+
+/** Types of interactable objects in the game world. */
+export type InteractableType =
+  | 'npc'
+  | 'npc_eavesdrop'
+  | 'building'
+  | 'sign'
+  | 'object'
+  | 'notice_board'
+  | 'furniture'
+  | 'action_hotspot'
+  | 'container';
+
+/** Furniture sub-types for seated/usable interactions. */
+export type FurnitureInteractionType = 'seat' | 'bed' | 'bookshelf' | 'workstation';
+
+// ─── Notice Board ───────────────────────────────────────────────────────────
+
+/** An article displayed on a settlement notice board. */
+export interface NoticeArticle {
+  id: string;
+  title: string;
+  titleTranslation: string;
+  body: string;
+  bodyTranslation: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  vocabularyWords: { word: string; meaning: string }[];
+  comprehensionQuestion?: {
+    question: string;
+    questionTranslation: string;
+    options: string[];
+    correctIndex: number;
+  };
+  author?: { characterId: string; name: string; occupation?: string };
+  settlementId?: string;
+  questHook?: { questId: string; questTitle: string; questTitleTranslation: string };
+  noticeType?: 'letter' | 'flyer' | 'official' | 'wanted' | 'advertisement';
+  readingXp?: number;
+  documentType?: 'notice' | 'story' | 'poem' | 'document' | 'book' | 'journal' | 'letter' | 'recipe';
+  assessmentHook?: { assessmentType: 'arrival' | 'departure'; buttonLabel: string; buttonLabelTranslation: string };
+}
+
+// ─── Local AI Provider ──────────────────────────────────────────────────────
+
+/** Options for local AI text generation (Electron Whisper/llama.cpp). */
+export interface LocalAIGenerateOptions {
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/** Abstraction over local AI capabilities (Electron IPC or server-side). */
+export interface ILocalAIProvider {
+  isAvailable(): boolean;
+  generate(prompt: string, systemPrompt?: string, options?: LocalAIGenerateOptions): Promise<string>;
+}
+
 // ─── UI Configuration ───────────────────────────────────────────────────────
 
 export interface UIConfig {

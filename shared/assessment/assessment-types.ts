@@ -312,3 +312,25 @@ export interface AssessmentSession {
   /** When the session completed */
   completedAt?: string | number;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Assessment Modal UI Config
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Configuration for the assessment modal (reading/writing/listening phases). */
+export interface AssessmentModalConfig {
+  phaseType: 'reading' | 'writing' | 'listening';
+  phaseName: string;
+  phaseIndex: number;
+  totalPhases: number;
+  /** Reading/listening passage text (in target language) */
+  passage?: string;
+  /** Comprehension questions for reading/listening */
+  questions?: Array<{ id: string; questionText: string; maxPoints: number }>;
+  /** Writing prompts */
+  writingPrompts?: string[];
+  /** Audio URL for listening section (TTS-generated) */
+  audioUrl?: string;
+  /** Called when the player submits their answers */
+  onSubmit: (answers: Record<string, string>) => void;
+}

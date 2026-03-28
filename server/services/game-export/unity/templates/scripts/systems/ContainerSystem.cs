@@ -24,7 +24,7 @@ namespace Insimul.Systems
 
         public void Interact()
         {
-            var ui = FindObjectOfType<ContainerPanelUI>();
+            var ui = FindFirstObjectByType<ContainerPanelUI>();
             if (ui != null) ui.Open(this);
         }
     }
@@ -164,7 +164,7 @@ namespace Insimul.Systems
 
         private void BuildUI()
         {
-            var canvas = FindObjectOfType<Canvas>();
+            var canvas = FindFirstObjectByType<Canvas>();
             if (canvas == null) return;
 
             overlay = new GameObject("ContainerOverlay");
@@ -235,9 +235,9 @@ namespace Insimul.Systems
         private void TakeItem(ContainerItem item, GameObject row)
         {
             if (item.itemType == "gold")
-                FindObjectOfType<InventorySystem>()?.AddGold(item.value);
+                FindFirstObjectByType<InventorySystem>()?.AddGold(item.value);
             else
-                FindObjectOfType<InventorySystem>()?.AddItem(item.name, item.itemType, item.value, item.quantity);
+                FindFirstObjectByType<InventorySystem>()?.AddItem(item.name, item.itemType, item.value, item.quantity);
             currentContainer.items.Remove(item);
             if (row != null) Destroy(row);
             RefreshGold();
@@ -251,9 +251,9 @@ namespace Insimul.Systems
             {
                 var item = currentContainer.items[0];
                 if (item.itemType == "gold")
-                    FindObjectOfType<InventorySystem>()?.AddGold(item.value);
+                    FindFirstObjectByType<InventorySystem>()?.AddGold(item.value);
                 else
-                    FindObjectOfType<InventorySystem>()?.AddItem(item.name, item.itemType, item.value, item.quantity);
+                    FindFirstObjectByType<InventorySystem>()?.AddItem(item.name, item.itemType, item.value, item.quantity);
                 currentContainer.items.RemoveAt(0);
             }
             AudioSource.PlayClipAtPoint(Resources.Load<AudioClip>("Audio/pickup"), Camera.main.transform.position);
@@ -262,7 +262,7 @@ namespace Insimul.Systems
 
         private void RefreshGold()
         {
-            var inv = FindObjectOfType<InventorySystem>();
+            var inv = FindFirstObjectByType<InventorySystem>();
             if (goldText != null && inv != null) goldText.text = $"Gold: {inv.Gold}";
         }
 

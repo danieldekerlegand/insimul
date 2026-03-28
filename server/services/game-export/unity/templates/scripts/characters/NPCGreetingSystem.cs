@@ -96,7 +96,7 @@ namespace Insimul.Characters
             tmp.fontSize = 4;
             tmp.color = new Color(1f, 0.95f, 0.85f);
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.enableWordWrapping = false;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
 
             go.AddComponent<GreetingBubble>();
         }

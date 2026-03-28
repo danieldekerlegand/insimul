@@ -36,6 +36,7 @@ interface CharacterNameContext {
   gender: 'male' | 'female';
   generation: number;
   isFounder?: boolean;
+  targetLanguage?: string;
 }
 
 export class NameGenerator {
@@ -455,8 +456,14 @@ export class NameGenerator {
     }
     prompt += '\n';
     
-    prompt += `\nGenerate ${count} full name${count > 1 ? 's' : ''} (first and last name) that fit this world's culture and naming conventions. `;
-    prompt += `The names should feel authentic to the setting. `;
+    if (context.targetLanguage) {
+      prompt += `Target Language: ${context.targetLanguage}\n`;
+      prompt += `\nGenerate ${count} full name${count > 1 ? 's' : ''} (first and last name) that are authentic ${context.targetLanguage} names. `;
+      prompt += `Use proper ${context.targetLanguage} given names and surnames with correct diacritics/accents. `;
+    } else {
+      prompt += `\nGenerate ${count} full name${count > 1 ? 's' : ''} (first and last name) that fit this world's culture and naming conventions. `;
+      prompt += `The names should feel authentic to the setting. `;
+    }
     prompt += `Return one name per line in the format: FirstName LastName\n`;
     prompt += `Return ONLY the names, no numbers, no explanations, no extra text.`;
     
@@ -757,6 +764,7 @@ export class NameGenerator {
     customPrompt?: string;
     customLabel?: string;
     gameType?: string;
+    targetLanguage?: string;
     numCountries?: number;
     numStatesPerCountry?: number;
     governmentType?: string;
@@ -957,6 +965,11 @@ export class NameGenerator {
     });
     prompt += `\n`;
     
+    if (request.targetLanguage) {
+      prompt += `**TARGET LANGUAGE: ${request.targetLanguage}**\n`;
+      prompt += `All character names (first names, surnames, maiden names) MUST be authentic ${request.targetLanguage} names with correct diacritics/accents.\n`;
+      prompt += `Settlement, country, and state names should also reflect ${request.targetLanguage} naming conventions.\n\n`;
+    }
     prompt += `**IMPORTANT:** All names must fit the world's culture and setting. Create diverse, authentic names that match the theme.\n\n`;
     
     prompt += `**Return JSON in this exact format:**\n`;
@@ -1025,17 +1038,17 @@ export class NameGenerator {
         for (let c = 0; c < settlement.childrenPerFamily; c++) {
           const gender = Math.random() > 0.5 ? 'male' : 'female';
           children.push({
-            firstName: this.getFallbackName(gender),
+            firstName: this.getFallbackName(gender, request.targetLanguage),
             gender
           });
         }
         
         families.push({
           settlementIndex: settlementIdx,
-          surname: this.getFallbackName('male') + 'son',
-          fatherFirstName: this.getFallbackName('male'),
-          motherFirstName: this.getFallbackName('female'),
-          motherMaidenName: this.getFallbackName('male') + 'son',
+          surname: this.getFallbackSurname(request.targetLanguage),
+          fatherFirstName: this.getFallbackName('male', request.targetLanguage),
+          motherFirstName: this.getFallbackName('female', request.targetLanguage),
+          motherMaidenName: this.getFallbackSurname(request.targetLanguage),
           children
         });
         
@@ -1049,11 +1062,53 @@ export class NameGenerator {
   /**
    * Get fallback name from pool
    */
-  private getFallbackName(gender: 'male' | 'female'): string {
-    const maleNames = ['James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard'];
-    const femaleNames = ['Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara', 'Elizabeth', 'Susan'];
-    const names = gender === 'male' ? maleNames : femaleNames;
-    return names[Math.floor(Math.random() * names.length)];
+  private getFallbackName(gender: 'male' | 'female', targetLanguage?: string): string {
+    const langPools: Record<string, { male: string[]; female: string[] }> = {
+      french: {
+        male: ['Jean', 'Pierre', 'Jacques', 'Louis', 'Henri', 'François', 'Antoine', 'Michel', 'Claude', 'André'],
+        female: ['Marie', 'Jeanne', 'Marguerite', 'Céleste', 'Geneviève', 'Françoise', 'Madeleine', 'Catherine', 'Thérèse', 'Élise'],
+      },
+      spanish: {
+        male: ['Carlos', 'Miguel', 'José', 'Juan', 'Pedro', 'Luis', 'Antonio', 'Francisco', 'Manuel', 'Rafael'],
+        female: ['María', 'Carmen', 'Isabel', 'Ana', 'Rosa', 'Elena', 'Lucía', 'Teresa', 'Pilar', 'Dolores'],
+      },
+      german: {
+        male: ['Hans', 'Friedrich', 'Wilhelm', 'Karl', 'Heinrich', 'Otto', 'Ernst', 'Werner', 'Klaus', 'Dieter'],
+        female: ['Anna', 'Maria', 'Greta', 'Helga', 'Ingrid', 'Ursula', 'Elke', 'Monika', 'Renate', 'Brigitte'],
+      },
+    };
+
+    let pool: string[];
+    if (targetLanguage) {
+      const lang = targetLanguage.toLowerCase();
+      const langPool = Object.entries(langPools).find(([key]) => lang.includes(key))?.[1];
+      pool = langPool ? langPool[gender] : (gender === 'male'
+        ? ['James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard']
+        : ['Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara', 'Elizabeth', 'Susan']);
+    } else {
+      pool = gender === 'male'
+        ? ['James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard']
+        : ['Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara', 'Elizabeth', 'Susan'];
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  private getFallbackSurname(targetLanguage?: string): string {
+    const langPools: Record<string, string[]> = {
+      french: ['Broussard', 'Fontenot', 'Thibodeaux', 'Landry', 'Mouton', 'Guidry', 'Boudreaux', 'Hébert', 'Doucet', 'Leblanc'],
+      spanish: ['García', 'Rodríguez', 'Martínez', 'López', 'González', 'Hernández', 'Pérez', 'Sánchez', 'Ramírez', 'Torres'],
+      german: ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann'],
+    };
+
+    let pool: string[];
+    if (targetLanguage) {
+      const lang = targetLanguage.toLowerCase();
+      pool = Object.entries(langPools).find(([key]) => lang.includes(key))?.[1]
+        || ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis'];
+    } else {
+      pool = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis'];
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   /**

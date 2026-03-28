@@ -7,127 +7,29 @@
  */
 
 import { SaveQueue, SaveConflictError, type QueuedOperation, type ConflictHandler } from './SaveQueue';
-import { PlaythroughQuestOverlay } from './PlaythroughQuestOverlay';
+import { PlaythroughQuestOverlay } from '@shared/game-engine/logic/PlaythroughQuestOverlay';
 import {
   detectConflict,
   resolveConflict,
   type ConflictDialogHandler,
   type SaveConflict,
-} from './SaveConflictResolver';
+} from '@shared/game-engine/logic/SaveConflictResolver';
 import type { GameSaveState } from '@shared/game-engine/types';
 import type { VisualAsset } from '@shared/schema';
 
-export interface DataSource {
-  /** Playthrough-scoped quest overlay. When set, loadQuests merges overlay
-   *  state on top of base world quests, and updateQuest writes to the overlay
-   *  instead of the world. */
+// Re-export the canonical interface and supporting types from shared
+export type { IDataSource, GenerationJobSummary, NpcConversationResult, IQuestOverlay } from '@shared/game-engine/data-source';
+import type { IDataSource } from '@shared/game-engine/data-source';
+
+/**
+ * DataSource — backward-compatible alias for IDataSource.
+ *
+ * New code should import IDataSource from '@shared/game-engine/data-source'.
+ * This alias narrows questOverlay to the concrete PlaythroughQuestOverlay
+ * used by the in-app game.
+ */
+export interface DataSource extends IDataSource {
   questOverlay: PlaythroughQuestOverlay | null;
-  loadWorld(worldId: string): Promise<any>;
-  loadCharacters(worldId: string): Promise<any[]>;
-  loadActions(worldId: string): Promise<any[]>;
-  loadBaseActions(): Promise<any[]>;
-  loadQuests(worldId: string): Promise<any[]>;
-  loadSettlements(worldId: string): Promise<any[]>;
-  loadRules(worldId: string): Promise<any[]>;
-  loadBaseRules(): Promise<any[]>;
-  loadCountries(worldId: string): Promise<any[]>;
-  loadStates(worldId: string): Promise<any[]>;
-  loadBaseResources(worldId: string): Promise<any>;
-  loadAssets(worldId: string): Promise<any[]>;
-  loadConfig3D(worldId: string): Promise<any>;
-  loadTruths(worldId: string, playthroughId?: string): Promise<any[]>;
-  loadCharacter(characterId: string): Promise<any>;
-  listPlaythroughs(worldId: string, authToken: string): Promise<any[]>;
-  startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any>;
-  updateQuest(questId: string, data: any): Promise<void>;
-  completeQuest(worldId: string, questId: string): Promise<any>;
-  getNpcQuestGuidance(worldId: string, npcId: string): Promise<{ hasGuidance: boolean; systemPromptAddition?: string } | null>;
-  getMainQuestJournal(worldId: string, playerId: string, cefrLevel?: string): Promise<any>;
-  tryUnlockMainQuest(worldId: string, playerId: string, cefrLevel: string): Promise<void>;
-  recordMainQuestCompletion(worldId: string, playerId: string, questType: string, cefrLevel?: string): Promise<any>;
-  loadSettlementBusinesses(settlementId: string): Promise<any[]>;
-  loadSettlementLots(settlementId: string): Promise<any[]>;
-  loadSettlementResidences(settlementId: string): Promise<any[]>;
-  payFines(playthroughId: string, settlementId: string): Promise<any>;
-  getEntityInventory(worldId: string, entityId: string): Promise<any>;
-  transferItem(worldId: string, transfer: {
-    fromEntityId?: string;
-    toEntityId?: string;
-    itemId: string;
-    itemName?: string;
-    itemDescription?: string;
-    itemType?: string;
-    quantity?: number;
-    transactionType: 'buy' | 'sell' | 'steal' | 'discard' | 'give' | 'quest_reward';
-    totalPrice?: number;
-  }): Promise<any>;
-  getMerchantInventory(worldId: string, merchantId: string, businessType?: string): Promise<any>;
-  loadPrologContent(worldId: string): Promise<string | null>;
-  getPlayerInventory(worldId: string, playerId: string): Promise<any>;
-  getContainerContents(containerId: string): Promise<any>;
-  loadWorldItems(worldId: string): Promise<any[]>;
-  loadContainers(worldId: string): Promise<any[]>;
-  loadContainersByLocation(worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<any[]>;
-  updateContainer(containerId: string, data: any): Promise<any>;
-  transferContainerItem(containerId: string, transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any>;
-  saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void>;
-  loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null>;
-  deleteGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<void>;
-  saveQuestProgress(playthroughId: string, questProgress: any): Promise<void>;
-  loadQuestProgress(playthroughId: string): Promise<any | null>;
-  loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
-  loadAIConfig(worldId: string): Promise<any | null>;
-  loadDialogueContexts(worldId: string): Promise<any[]>;
-  saveConversation(playthroughId: string, conversation: any): Promise<any>;
-  updateConversation(playthroughId: string, conversationId: string, updates: any): Promise<any>;
-  getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]>;
-  getPlaythrough(playthroughId: string): Promise<any | null>;
-  updatePlaythrough(playthroughId: string, data: any): Promise<any>;
-  deletePlaythrough(playthroughId: string): Promise<void>;
-  markPlaythroughInitialized(playthroughId: string): Promise<void>;
-  loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
-  getReputations(playthroughId: string): Promise<any[]>;
-  updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
-  loadLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any>;
-  saveLanguageProgress(data: { playerId: string; worldId: string; playthroughId?: string; progress: Record<string, unknown>; vocabulary: Array<Record<string, unknown>>; grammarPatterns: Array<Record<string, unknown>>; conversations: Array<Record<string, unknown>> }): Promise<void>;
-  getLanguageProfile(worldId: string, playerId: string): Promise<any>;
-  getLanguages(worldId: string): Promise<any[]>;
-  /** Fetch full asset metadata by ID. Returns null if not found. */
-  resolveAssetById(assetId: string): Promise<VisualAsset | null>;
-  /** Return a loadable URL/path for an asset without fetching full metadata. Returns null if unknown. */
-  resolveAssetUrl(assetId: string): string | null;
-  startNpcNpcConversation(worldId: string, npc1Id: string, npc2Id: string, topic?: string): Promise<NpcConversationResult | null>;
-  createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any>;
-  submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any>;
-  completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any>;
-  getPlayerAssessments(playerId: string, worldId: string): Promise<any[]>;
-  checkConversationHealth(baseUrl?: string): Promise<boolean>;
-  simulateRichConversation(worldId: string, char1Id: string, char2Id: string, turnCount?: number): Promise<{ utterances: Array<{ speaker: string; text: string; gender?: string }> } | null>;
-  textToSpeech(text: string, voice: string, gender: string, targetLanguage?: string | null): Promise<Blob | null>;
-  getPortfolio(worldId: string, playerName: string): Promise<any | null>;
-  loadReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null>;
-  syncReadingProgress(data: { playerId: string; worldId: string; playthroughId?: string; quizAnswers: any[]; totalCorrect: number; totalAttempted: number }): Promise<void>;
-  /** Load active AI generation jobs for a world (queued + processing). */
-  loadGenerationJobs(worldId: string): Promise<GenerationJobSummary[]>;
-}
-
-/** Lightweight summary of an AI generation job for loading screen display. */
-export interface GenerationJobSummary {
-  id: string;
-  jobType: string;
-  assetType: string | null;
-  status: string;
-  progress: number;
-  completedCount: number;
-  batchSize: number;
-}
-
-/** Result from an NPC-NPC conversation */
-export interface NpcConversationResult {
-  exchanges: Array<{ speakerId: string; speakerName: string; text: string }>;
-  relationshipDelta: { friendshipChange: number; trustChange: number; romanceSpark: number };
-  topic: string;
-  languageUsed: string;
 }
 
 /**

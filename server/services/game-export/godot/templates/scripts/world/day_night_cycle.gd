@@ -99,9 +99,9 @@ func generate_from_data(_world_data: Dictionary) -> void:
 		_environment.fog_enabled = true
 		_environment.fog_light_color = Color(0.65, 0.75, 0.9)
 		_environment.fog_density = 0.001
-	# Collect street lights (PointLight3D nodes in "street_light" group)
+	# Collect street lights (OmniLight3D nodes in "street_light" group)
 	for light in get_tree().get_nodes_in_group("street_light"):
-		if light is PointLight3D:
+		if light is OmniLight3D:
 			_street_lights.append({"light": light, "base_intensity": light.light_energy})
 	# Apply initial state
 	_apply_cycle(GameClock.current_hour)
@@ -228,7 +228,7 @@ func _apply_fog(kf: PackedFloat64Array) -> void:
 func _apply_street_lights(hour: float) -> void:
 	var factor: float = _get_lamp_factor(hour)
 	for entry in _street_lights:
-		var light: PointLight3D = entry["light"]
+		var light: OmniLight3D = entry["light"]
 		var base_i: float = entry["base_intensity"]
 		light.visible = factor > 0.01
 		light.light_energy = base_i * factor

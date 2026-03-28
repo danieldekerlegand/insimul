@@ -167,8 +167,14 @@ export function BuildingModelPreview({
         },
         undefined,
         () => {
-          buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset, buildingType, interiorAssets);
-          setMeshSource('placeholder');
+          // If interior model fails to load, fall back to procedural interior
+          if (viewMode === 'interior' && interiorTemplate) {
+            buildProceduralInterior(scene, camera, ground, interiorTemplate, interiorConfig, interiorAssets);
+            setMeshSource('model');
+          } else {
+            buildProceduralPlaceholder(scene, camera, ground, tintColor, resolvedPreset, buildingType, interiorAssets);
+            setMeshSource('placeholder');
+          }
           setIsLoading(false);
         }
       );

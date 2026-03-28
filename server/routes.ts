@@ -4293,6 +4293,11 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           // Compute total states for name generation
           const totalStatesForNames = countryConfigs.reduce((sum, cc) => sum + (cc.generateStates ? (cc.numStatesPerCountry || 1) : 0), 0);
 
+          // Resolve target language for culturally appropriate names
+          const worldLanguages = await storage.getWorldLanguagesByWorld(config.worldId);
+          const learningTarget = worldLanguages?.find((l: any) => l.isLearningTarget);
+          const targetLanguage = learningTarget?.name || world?.targetLanguage || undefined;
+
           // Generate ALL names in ONE API call
           const allNames = await nameGenerator.generateCompleteWorldNames({
             worldId: config.worldId,
@@ -4302,6 +4307,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             customPrompt,
             customLabel,
             gameType,
+            targetLanguage,
             numCountries: numCountriesTotal,
             numStatesPerCountry: totalStatesForNames > 0 ? Math.ceil(totalStatesForNames / numCountriesTotal) : 0,
             governmentType: config.governmentType || 'monarchy',
@@ -4469,6 +4475,20 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
               });
             }
             console.log(`🗺️  Generated geography for ${allSettlements.length} settlements`);
+
+            // Post-process: assign business owners, employment, occupations, and housing
+            const currentYear = new Date().getFullYear();
+            for (const settlement of allSettlements) {
+              const cc = countryConfigs[0];
+              const result = await generator.postProcessSettlement({
+                worldId: config.worldId,
+                settlementId: settlement.id,
+                currentYear,
+                terrain: cc.terrain || 'plains',
+                worldType: config.worldType,
+              });
+              console.log(`   ✓ Post-processed ${settlement.name}: ${result.businesses} businesses, ${result.employed} employed, ${result.housed} housed`);
+            }
           }
 
           console.log(`🎉 Single-shot generation complete: ${numSettlements} settlements, ${totalPopulation} characters`);
@@ -4643,9 +4663,18 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
               }
 
               if (config.generateGeography) {
-                const generator = new WorldGenerator();
-                await generator.generateGeography(settlement.id, {
+                const geoGenerator = new WorldGenerator();
+                await geoGenerator.generateGeography(settlement.id, {
                   foundedYear: cc.foundedYear
+                });
+                // Post-process: assign business owners, employment, occupations, and housing
+                const currentYear = new Date().getFullYear();
+                await geoGenerator.postProcessSettlement({
+                  worldId: config.worldId,
+                  settlementId: settlement.id,
+                  currentYear,
+                  terrain: cc.terrain || 'plains',
+                  worldType: config.worldType,
                 });
               }
             }

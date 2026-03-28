@@ -170,7 +170,7 @@ func _update_projectiles(delta: float) -> void:
 			to_remove.append(i)
 			continue
 
-		var move := proj["direction"] * proj["speed"] * delta
+		var move: Vector3 = proj["direction"] * proj["speed"] * delta
 		node.position += move
 		proj["distance"] += move.length()
 

@@ -22,9 +22,9 @@ import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
 import { AssetSelect } from '../AssetSelect';
 import type { Character, VisualAsset, Business, Residence } from '@shared/schema';
 import { characterModelPath } from '@shared/asset-paths';
-import { selectQuaterniusConfig, isCompleteCharacterModel, type QuaterniusAppearanceOverride } from '@/components/3DGame/QuaterniusNPCLoader';
+import { selectQuaterniusConfig, isCompleteCharacterModel, type QuaterniusAppearanceOverride } from '@shared/game-engine/rendering/QuaterniusNPCLoader';
 import { bodies, hair, outfits } from '@shared/game-engine/quaternius-asset-manifest';
-import type { NPCRole } from '@/components/3DGame/NPCModelInstancer';
+import type { NPCRole } from '@shared/game-engine/types';
 
 // Bundled NPC models available for selection
 const BUNDLED_NPC_MODELS: { key: string; name: string; filePath: string }[] = [

@@ -8,7 +8,7 @@
  */
 
 import type { DataSource } from './DataSource';
-import type { PlaythroughQuestOverlay } from './PlaythroughQuestOverlay';
+import type { PlaythroughQuestOverlay } from '@shared/game-engine/logic/PlaythroughQuestOverlay';
 import type {
   GameSaveState,
   SavedNPCState,
@@ -24,7 +24,7 @@ import type {
   InventoryItem,
   Vec3,
 } from '@shared/game-engine/types';
-import type { GameEventBus, GameEventType } from './GameEventBus';
+import type { GameEventBus, GameEventType } from '@shared/game-engine/logic/GameEventBus';
 
 const SAVE_VERSION = 3;
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes

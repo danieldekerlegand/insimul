@@ -330,58 +330,69 @@ These must be completed by the user inside the respective engine editor. Require
 
 ### 7.1 Motivation
 
-The game's source of truth currently lives in `client/src/components/3DGame/` (376+ TypeScript files). The Babylon.js export pipeline copies these files and rewrites import paths to produce a standalone project — a fragile process that breaks whenever paths or module boundaries change. Moving game logic into `shared/game-engine/` would let both the in-app game and the Babylon exporter import from the same location, eliminating the copy-and-rewrite step entirely and making the codebase easier to reason about.
+The game's source of truth currently lives in `client/src/components/3DGame/` (376+ TypeScript files). The Babylon.js export pipeline copies these files and rewrites import paths to produce a standalone project — a fragile process that breaks whenever paths or module boundaries change. Moving game logic into `shared/game-engine/` lets both the in-app game and the Babylon exporter import from the same location, eliminating the copy-and-rewrite step and making the codebase easier to reason about.
 
-### 7.2 File Breakdown
+### 7.2 Phase 1 — Complete: Pure Logic (40 files)
 
-| Category | Files | Babylon.js Deps | Browser API Deps | Move Difficulty |
-| --- | --- | --- | --- | --- |
-| **Pure business logic** (event bus, quest engine, reputation, crafting, volition, scheduling, gamification, action systems, type definitions) | 63 | None | None | Trivial |
-| **Rendering & UI** (procedural generators, UI panels, camera, combat visuals, minimap, VR) | 151 | `@babylonjs/core`, `@babylonjs/gui` | None | Low — Babylon.js becomes a `shared/` dependency |
-| **Browser-dependent** (DataSource, ConversationClient, audio managers, VR, streaming) | 50+ | Some | `fetch`, `WebSocket`, `localStorage`, `navigator`, `MediaRecorder` | Medium — needs interface abstraction |
-| **React wrapper** (`BabylonWorld.tsx`) | 1 | None | None | Stays in `client/` |
+**Status: Done.** 40 pure-logic files moved to `shared/game-engine/logic/`. These files have zero dependencies on Babylon.js, browser APIs, or React.
 
-### 7.3 Key Blocker: DataSource.ts
+The old files in `3DGame/` are now one-line re-export stubs for backward compatibility:
 
-`DataSource.ts` is imported by nearly every game system. It has hard dependencies on `fetch` (for API calls) and `localStorage` (for saves). Before the browser-dependent files can move, this needs to be refactored into an `IDataSource` interface with two implementations:
+```typescript
+// Re-export from shared/game-engine/logic — this file has been moved.
+export * from '../../../../shared/game-engine/logic/GameEventBus';
+```
 
-- **ApiDataSource** — for the in-app web game (uses `fetch` with auth tokens, server sync)
-- **FileDataSource** — for the standalone Babylon export (reads bundled JSON, saves to `localStorage`)
+**Files moved** (organized by function):
 
-The interface would live in `shared/game-engine/`, and each implementation would be injected at initialization time by the host environment.
+| Category | Files |
+| --- | --- |
+| **Foundation** (zero imports) | `GameEventBus`, `GameTimeManager`, `KeyboardMap`, `NatureLODConfig`, `NotificationStore`, `RunManager`, `TemporaryStateSystem`, `VRComfortSettings`, `ConversationalActionDetector` |
+| **Game systems** | `QuestCompletionEngine`, `QuestAutoCompletionDetector`, `QuestPostConditionValidator`, `DynamicQuestWaypointDirector`, `VolitionSystem`, `ContentGatingManager`, `CulturalEventManager`, `RelationshipManager`, `RomanceSystem`, `KnowledgeCollectionSystem`, `VocabularyCollectionSystem`, `VisualVocabularyDetector`, `ObjectIdentificationSystem`, `UtteranceQuestSystem`, `OnboardingManager`, `ClueStore`, `SaveConflictResolver`, `GamePrologEngine` |
+| **World/NPC logic** | `StreetNetworkLayout`, `TerrainVegetationPlacer`, `NPCModelManifest`, `ContainerManager`, `PlaythroughQuestOverlay` |
+| **Survival/crafting** | `FishingSystem`, `HerbalismSystem`, `MiningSystem` |
+| **Actions** | `PointAndNameAction`, `WorldObjectActionManager`, `actions/AskForDirectionsAction`, `actions/ListenAndRepeatAction`, `actions/ReadSignAction` |
 
-### 7.4 Migration Phases
+**DataSource dependencies abstracted:** `RelationshipManager` and `ContainerManager` previously imported `DataSource` directly. These now define minimal interfaces (`RelationshipDataSource`, `ContainerDataSource`) instead, removing the browser dependency and previewing the pattern for Phase 3.
 
-#### Phase 1 — Pure logic (63 files) → `shared/game-engine/logic/`
+### 7.3 Phase 1b — Complete: Type-Blocked Files (13 of 16 moved)
 
-- Copy files as-is (no code changes needed)
-- Update ~35 import paths in external consumers (server tests, shared tests, client components)
-- Update `game-file-copier.ts` to read from new location
-- Risk: minimal
+16 files were clean business logic but imported **types** from Babylon-dependent files. Types were extracted to shared locations, unblocking 13 of 16. The remaining 3 are blocked by Babylon.js vector/mesh types in their interfaces.
 
-#### Phase 2 — Rendering & Babylon files (151 files) → `shared/game-engine/rendering/`
+**Types extracted to `shared/game-engine/types.ts`:** `AnimationState`, `InteriorNPCRole`, `NPCPersonality`, `InteractableType`, `FurnitureInteractionType`, `NoticeArticle`, `ILocalAIProvider`, `LocalAIGenerateOptions`
 
-- Add `@babylonjs/*` to shared package dependencies
-- Update import paths in external consumers
-- Create barrel exports (`index.ts`)
-- Risk: low (Babylon.js is a public library, no client-specific coupling)
+**Types extracted to `shared/assessment/assessment-types.ts`:** `AssessmentModalConfig`
 
-#### Phase 3 — Refactor DataSource & browser APIs
+**Types already in shared (no extraction needed):** `NPCRole`, `Quest`, `QuestObjective`
 
-- Extract `IDataSource` interface
-- Create `ApiDataSource` (stays in `client/`) and `FileDataSource` (moves to `shared/`)
-- Update all game systems to accept `IDataSource` via constructor/init rather than importing directly
-- Apply same pattern to other browser-dependent modules (audio, WebSocket, etc.)
-- Risk: medium (touches core save/load path)
+**Interface abstractions applied:** `LocalNpcConversation` now accepts `ILocalAIProvider` parameter instead of importing `LocalAIClient` directly. `AssessmentEngine` defines a lightweight `AssessmentResult` inline instead of importing from `OnboardingLauncher`.
 
-#### Phase 4 — Update export pipeline
+**Files moved in Phase 1b:** `AmbientLifeBehaviorSystem`, `BusinessBehaviorSystem`, `ResidenceActivitySystem`, `GameTextTypes`, `NoticeGenerator`, `NPCModelVariety`, `AssessmentEngine`, `NpcListeningExamController`, `QuestMinimapMarkers`, `LocalNpcConversation`, `CraftingSystem`, `EquipmentManager`, `PlayerActionTracker`
+
+**Still blocked (3 files):** `NPCLocationCycler` (uses `NPCGoal` with `Vector3`), `NPCBusinessInteractionSystem` (uses `PlacedInteriorNPC` with `Mesh`/`Vector3`), `PlayerActionSystem` (uses `InteractableTarget` with `AbstractMesh`). These require either converting Babylon.js types to engine-agnostic `Vec3` equivalents or moving to Phase 2 alongside the rendering code.
+
+### 7.4 Phase 2 — Complete: Rendering & Babylon Files (140 files)
+
+**Status: Done.** 140 rendering/UI files moved to `shared/game-engine/rendering/`. These files import from `@babylonjs/core` and `@babylonjs/gui` — Babylon.js is available as a root dependency so no package changes were needed.
+
+Cross-directory imports (rendering → logic) rewritten to use `../logic/` relative paths. A handful of rendering files import browser-dependent modules (`DataSource`, `ConversationClient`, `LocalAIClient`) that remain in `client/` — these use the `@/components/3DGame/` vite alias to reach the original location.
+
+**Categories moved:** procedural generators (buildings, nature, roads, dungeons, terrain, interiors, water), NPC systems (animation, appearance, schedule, movement, greeting, socialization), Babylon UI panels (chat, inventory, quest tracker, minimap, shop, skill tree, radial menu, etc.), combat systems (base + 3 variants + UI), VR systems (9 files), camera, audio, character controller, game menu, and all supporting managers.
+
+### 7.5 Phase 3 — Complete: DataSource Interface Extraction
+
+**Status: Done.** `IDataSource` interface extracted to `shared/game-engine/data-source.ts` (160+ methods organized into 10 sections). Supporting types also moved to shared: `GenerationJobSummary`, `NpcConversationResult`, `IQuestOverlay`.
+
+The original `DataSource` interface in `client/` is now a thin extension of `IDataSource` (just narrows `questOverlay` to the concrete `PlaythroughQuestOverlay`). `ApiDataSource` and `FileDataSource` implementations remain in `client/` since they use browser APIs (`fetch`, `localStorage`).
+
+### 7.6 Phase 4 — Update Export Pipeline
 
 - Update `game-file-copier.ts` to point at `shared/game-engine/` instead of `client/src/components/3DGame/`
 - Simplify or remove import-path rewriting (files are already in shared)
 - Test full export → standalone Electron build
 - Risk: low
 
-### 7.5 What Stays in `client/`
+### 7.7 What Stays in `client/`
 
 - `BabylonWorld.tsx` — thin React wrapper (mounts/unmounts BabylonGame)
 - `ApiDataSource` implementation — requires React auth context for tokens
@@ -444,6 +455,94 @@ Voice input in standalone exports uses a 3-tier fallback chain (implemented in `
 
 The `serverSideSTT()` function automatically detects the Electron environment and routes through the IPC bridge before attempting the server endpoint, ensuring voice input works offline.
 
+### 8.8 Export Template Validation
+
+Exported game projects are generated from engine-specific template files (C# for Unity, GDScript for Godot, C++ for Unreal). Since these templates are authored in the Insimul Node.js codebase but compiled by external game engine editors, validation happens in two tiers:
+
+#### Tier 1: Pre-Export Lint Tests (Automated, No Engine Required)
+
+The test suite `server/__tests__/unity-csharp-lint.test.ts` runs as part of `npm test` and validates all C# templates **before** any Unity project is generated. It catches:
+
+| Check | What It Catches |
+| --- | --- |
+| Registration completeness | Template .cs files that exist on disk but aren't registered in `unity-csharp-generator.ts` (tests all conditional genre/combat code paths) |
+| Token substitution | Unreplaced `{{TOKEN}}` placeholders after IR-driven generation |
+| Balanced braces | Significantly mismatched `{`/`}` counts (tolerates C# string interpolation) |
+| Namespace declarations | Files missing `namespace Insimul.*` |
+| Deprecated API detection | `FindObjectOfType` (should be `FindFirstObjectByType`), `enableWordWrapping` (should be `textWrappingMode`) |
+| Cross-namespace imports | Files using `InsimulWorldIR` without `using Insimul.Data`, `GameClock` without `using Insimul.Core`, `InventoryItem`/`IInteractable` without `using Insimul.Systems` |
+| LINQ imports | Files calling `.Select()`, `.Where()`, `.OrderBy()` etc. without `using System.Linq` |
+| Non-existent type references | References to types that were renamed or removed (e.g., `InventorySlot` → `InventoryItem`) |
+| Type declaration presence | Files with no `class`, `struct`, `enum`, or `interface` |
+| File size limits | Files exceeding 2000 lines |
+| Unity module dependencies | `ParticleSystem` requires `com.unity.modules.particlesystem` in manifest, `NavMeshAgent` requires `com.unity.modules.ai`, `AudioSource` requires `com.unity.modules.audio`, `TextMeshPro` requires `com.unity.textmeshpro` |
+
+An equivalent lint suite exists for Godot (`.gd` files) and Unreal (`.h`/`.cpp` files).
+
+**Unreal C++ Validation** is implemented in `server/__tests__/unreal-cpp-lint.test.ts` (23 tests). It generates all C++ files through `unreal-cpp-generator.ts` with a comprehensive WorldIR fixture (covering RPG genre, crafting, survival, assessment, and language learning paths) and validates:
+
+| Check | What It Catches |
+| --- | --- |
+| Generator stability | `generateCppFiles()` throws on malformed IR fixtures |
+| Registration completeness | Template .h/.cpp files that exist on disk but aren't registered in `unreal-cpp-generator.ts` (tests multiple conditional code paths) |
+| Token substitution | Unreplaced `{{TOKEN}}` placeholders after IR-driven generation |
+| Balanced braces | Significantly mismatched `{`/`}` counts (tolerates ±2 for C++ initializer lists and macros) |
+| Include guards | Header files missing `#pragma once` |
+| GENERATED_BODY() macro | UCLASS/USTRUCT declarations without the required `GENERATED_BODY()` macro |
+| UHT: TSharedPtr in UFUNCTION | TSharedPtr parameters in UFUNCTION-annotated methods (not supported by Unreal Header Tool) |
+| UHT: Blueprint on private members | `BlueprintReadOnly`/`BlueprintReadWrite` specifiers on private members (UHT error) |
+| UHT: TArray default params | `TArray<T>()` default parameter values in UFUNCTION signatures (UHT parse failure) |
+| Deprecated API: FSlateDrawElement | `FSlateDrawElement&` parameter types (replaced by `FSlateWindowElementList&` in UE 5.7) |
+| Invalid float literals | `= 100f` patterns (must be `100.0f` or `100.f` in C++) |
+| Self-include consistency | .cpp files that don't include their corresponding .h file |
+| MaterialInstanceDynamic include | Files using `UMaterialInstanceDynamic` without including the header |
+| ConstructorHelpers include | Files using `ConstructorHelpers::` without including the header |
+| static_cast anti-pattern | `static_cast<FSlateWindowElementList*>` casts (should pass by reference directly) |
+| Duplicate USTRUCT names | Same USTRUCT name defined in multiple header files (UHT error) |
+| Class name mismatches | .cpp method definitions using a different class name than the .h declaration (e.g., `UInsimulActionSystem::` when the class is `UActionSystem`) |
+| Type declaration presence | Header files with no `class`, `struct`, or `enum` declaration |
+| File size limits | Files exceeding 2000 lines |
+| Build.cs: HTTP module | `FHttpModule` usage requires `"HTTP"` in module dependencies |
+| Build.cs: AnimGraphRuntime | `KismetAnimationLibrary` usage requires `"AnimGraphRuntime"` in module dependencies |
+| Build.cs: ProceduralMeshComponent | `UProceduralMeshComponent` usage requires `"ProceduralMeshComponent"` in module dependencies |
+| .uproject plugin names | Detects renamed/removed UE 5.7 plugins (`InterchangePlugins`, `GLTFImporter`) |
+
+**Godot GDScript Validation** is implemented as two complementary systems:
+
+1. **Built-in TypeScript validator** (`server/services/game-export/godot/gdscript-validator.ts`) — runs automatically at export time inside `exportGodotProject()` and `generateGodotFilesFromIR()`. No external dependencies. Errors throw and block the export; warnings are logged. Checks:
+
+| Check | What It Catches |
+| --- | --- |
+| Invalid class names | Godot 3→4 renames: `PointLight3D`→`OmniLight3D`, `Spatial`→`Node3D`, `KinematicBody`→`CharacterBody3D`, `.instance()`→`.instantiate()` |
+| Reserved keyword variables | `for trait in ...`, `var class := ...` — words that are GDScript keywords used as identifiers |
+| Type inference failures | `var x := dict[key]` or `var x := dict.get(...)` patterns where GDScript can't infer the type |
+| Invalid unicode escapes | `\u{1F495}` syntax (must be `\U0001F495` in GDScript) |
+| Duplicate constants | Same `const` name declared twice in one file |
+| Unsubstituted template tokens | `{{PLAYER_SPEED}}` remaining in generated output after token replacement |
+| Autoload/class_name conflicts | `class_name EventBus` on a script registered as the `EventBus` autoload |
+
+1. **Developer-time Python linter** (`npm run lint:godot` / `scripts/lint-godot-templates.sh`) — uses `gdtoolkit` (gdparse 4.5.0) for full GDScript parser validation. Substitutes `{{TOKEN}}` placeholders with dummy values before parsing. Catches syntax errors the regex-based TS validator might miss (e.g., mismatched indentation, invalid expressions, one-liner `if/else` forms). Requires `pip install gdtoolkit` (project uses `.venv-gdtoolkit/`).
+
+#### Tier 2: Full Compilation (Requires Game Engine)
+
+The following categories of errors **cannot** be caught without the actual engine's compiler and would require opening the exported project:
+
+| Category | Example | How to Catch |
+| --- | --- | --- |
+| **Type mismatches** | Passing `InsimulRuleData[]` where `IEnumerable<InsimulRule>` is expected | `dotnet build` with Unity DLL stubs, or open project in Unity editor |
+| **Missing method signatures** | Calling `AddItem(name, type, value, qty)` when `InventorySystem.AddItem` has a different signature | Same — requires actual C# compilation |
+| **Missing fields on data classes** | Referencing `quest.assignedByCharacterId` when `InsimulQuestData` has no such field | Could be partially caught by parsing data class files and building a field registry in the lint test |
+| **Unity version API differences** | APIs that exist in Unity 6 but not 2022.3, or vice versa | Maintain a known-API allowlist per target Unity version |
+| **Runtime-only errors** | `NullReferenceException` from missing GameObjects, wrong tag names, missing scene objects | Requires actually running the exported game |
+| **Shader/material compatibility** | Standard shader property names changing between render pipelines (Built-in vs URP vs HDRP) | Requires engine-specific testing |
+
+**Future improvement path:** To achieve Tier 2 validation without the full Unity editor, a CI pipeline could:
+
+1. Create a minimal `.csproj` referencing Unity DLL stubs (available from Unity's `netstandard2.1` reference assemblies or the [Unity Stub Libraries](https://github.com/AnnulusGames/UnityCodeGen) approach)
+2. Run `dotnet build` on all generated `.cs` files against those stubs
+3. This would catch all type mismatches, missing methods, and import errors at CI time
+4. Estimated effort: medium — requires assembling ~20 stub DLLs for `UnityEngine`, `UnityEngine.UI`, `TMPro`, `UnityEngine.AI`, etc.
+
 ---
 
 ## 9. Key File Reference
@@ -486,7 +585,8 @@ The `serverSideSTT()` function automatically detects the Electron environment an
 | `server/services/game-export/unity/unity-exporter.ts` | Main orchestrator |
 | `server/services/game-export/unity/unity-csharp-generator.ts` | C# code generation (86 files) |
 | `server/services/game-export/unity/unity-scene-generator.ts` | YAML scene generation |
-| `server/services/game-export/unity/unity-project-generator.ts` | Project structure |
+| `server/services/game-export/unity/unity-project-generator.ts` | Project structure + Unity version selection |
+| `server/__tests__/unity-csharp-lint.test.ts` | Pre-export C# template validation (18 lint checks) |
 
 ### 9.5Godot Export
 
@@ -496,6 +596,8 @@ The `serverSideSTT()` function automatically detects the Electron environment an
 | `server/services/game-export/godot/godot-gdscript-generator.ts` | GDScript generation (54 files) |
 | `server/services/game-export/godot/godot-scene-generator.ts` | .tscn scene generation |
 | `server/services/game-export/godot/godot-project-generator.ts` | Project structure |
+| `server/services/game-export/godot/gdscript-validator.ts` | Pre-export GDScript validation (7 lint checks) |
+| `scripts/lint-godot-templates.sh` | Developer-time gdtoolkit full-parser lint |
 
 ### 9.6Unreal Export
 

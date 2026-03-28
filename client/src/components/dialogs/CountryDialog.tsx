@@ -84,6 +84,7 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
           generateGeography: true,
           generateGenealogy: true,
           generateBusinesses,
+          assignEmployment: generateBusinesses,
           governmentType: form.governmentType || 'monarchy',
           economicSystem: form.economicSystem || 'feudal'
         })

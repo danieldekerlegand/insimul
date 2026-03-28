@@ -157,7 +157,13 @@ export class WorldGenerator {
     let generationsCreated = 0;
     let districts = 0;
     let buildings = 0;
-    
+
+    // Fetch target language early — needed by both genealogy (names) and geography (streets)
+    const worldForLang = await storage.getWorld(world.id);
+    const worldLanguages = await storage.getWorldLanguagesByWorld(world.id);
+    const learningTarget = worldLanguages?.find((l: any) => l.isLearningTarget);
+    const targetLanguage = learningTarget?.name || worldForLang?.targetLanguage || undefined;
+
     // Generate genealogy for the settlement
     if (config.generateGenealogy) {
       console.log('\n📖 Generating genealogy...');
@@ -170,7 +176,8 @@ export class WorldGenerator {
         generationsToGenerate: config.generations,
         marriageRate: config.marriageRate,
         fertilityRate: config.fertilityRate,
-        deathRate: config.deathRate
+        deathRate: config.deathRate,
+        targetLanguage,
       });
       
       population = genealogyResult.totalCharacters;
@@ -193,11 +200,6 @@ export class WorldGenerator {
     // Generate geography for the settlement
     if (config.generateGeography) {
       console.log('\n🗺️  Generating geography...');
-      // Fetch target language for localized street names
-      const worldForLang = await storage.getWorld(world.id);
-      const worldLanguages = await storage.getWorldLanguagesByWorld(world.id);
-      const learningTarget = worldLanguages?.find((l: any) => l.isLearningTarget);
-      const targetLanguage = learningTarget?.name || worldForLang?.targetLanguage || undefined;
 
       const geographyResult = await this.geographyGen.generate({
         worldId: world.id,
@@ -228,6 +230,7 @@ export class WorldGenerator {
             settlementId: settlement.id,
             currentYear: config.currentYear,
             count: deficit,
+            targetLanguage,
           });
           population += immigrantsCreated;
           console.log(`   ✅ Population scaled: ${population} people`);
@@ -553,6 +556,78 @@ export class WorldGenerator {
       targetLanguage,
       worldType: world?.worldType || undefined,
     });
+  }
+
+  /**
+   * Post-process a settlement after geography/character generation:
+   * assigns business owners, employment, default occupations, and housing.
+   * Used by the hierarchical generation endpoint which creates characters
+   * and geography separately but skips the full WorldGenerator pipeline.
+   */
+  async postProcessSettlement(config: {
+    worldId: string;
+    settlementId: string;
+    currentYear: number;
+    terrain: string;
+    worldType?: string;
+  }): Promise<{ businesses: number; employed: number; occupations: number; housed: number }> {
+    const characters = await storage.getCharactersByWorld(config.worldId);
+    const population = characters.filter(c => c.isAlive).length;
+    let businessCount = 0;
+    let employedCount = 0;
+
+    // Step 1: Business ownership + employment
+    if (population > 0) {
+      const businesses = await this.generateInitialBusinesses({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        population,
+        currentYear: config.currentYear,
+        terrain: config.terrain,
+      });
+      businessCount = businesses.length;
+
+      if (businesses.length > 0) {
+        employedCount = await this.assignInitialEmployment({
+          worldId: config.worldId,
+          businesses,
+          currentYear: config.currentYear,
+        });
+      }
+    }
+
+    // Step 2: Default occupations for anyone still unassigned
+    const occupations = population > 0
+      ? await assignDefaultOccupations({
+          worldId: config.worldId,
+          currentYear: config.currentYear,
+          terrain: config.terrain,
+        })
+      : 0;
+
+    // Step 3: Housing assignment
+    let housed = 0;
+    if (population > 0) {
+      await this.assignHousing({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        currentYear: config.currentYear,
+      });
+      // Count assigned
+      const residences = await storage.getResidencesBySettlement(config.settlementId);
+      housed = residences.reduce((sum, r: any) => sum + ((r.residentIds as string[])?.length || 0), 0);
+    }
+
+    // Step 4: Place items
+    if (businessCount > 0 || population > 0) {
+      try {
+        await placeItemsInWorld(config.worldId, config.worldType);
+      } catch (e) {
+        console.warn('Item placement during post-processing failed:', e);
+      }
+    }
+
+    return { businesses: businessCount, employed: employedCount, occupations, housed };
   }
 
   /**

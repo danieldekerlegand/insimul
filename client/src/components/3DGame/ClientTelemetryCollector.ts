@@ -6,7 +6,7 @@
  * batching and server delivery.
  */
 
-import type { GameEventBus, GameEvent } from './GameEventBus';
+import type { GameEventBus, GameEvent } from '@shared/game-engine/logic/GameEventBus';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
