@@ -256,6 +256,9 @@ func load_items() -> Array:
 func load_world_items() -> Array:
 	return load_items()
 
+func load_texts() -> Array:
+	return _load_json_array("texts.json")
+
 func load_loot_tables() -> Array:
 	return _load_json_array("loot_tables.json")
 

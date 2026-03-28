@@ -22,6 +22,8 @@ import { visualAssetGenerator } from '../services/visual-asset-generator.js';
 import { placeItemsInWorld } from './item-placement-generator.js';
 // Main quest NPC spawning
 import { spawnMainQuestNPCs } from '../services/main-quest-npc-spawner.js';
+// Text document seeding
+import { seedTextsForWorld } from '../services/text-seed-generator.js';
 import { assignDefaultOccupations } from './occupation-assignment.js';
 // Population scaling
 import { countBuildings, calculatePopulationTarget } from './population-scaling.js';
@@ -91,6 +93,7 @@ export class WorldGenerator {
     routines: number;
     events: number;
     itemsPlaced: number;
+    textsSeeded: number;
     visualAssets: {
       portraits: number;
       buildings: number;
@@ -307,6 +310,7 @@ export class WorldGenerator {
     let routineCount = 0;
     let eventCount = 0;
     let itemsPlaced = 0;
+    let textsSeeded = 0;
     
     // TotT Integration: Business Generation
     if (config.generateBusinesses && population > 0) {
@@ -370,6 +374,23 @@ export class WorldGenerator {
         for (const npc of mqResult.npcs) {
           console.log(`   - ${npc.role}: ${npc.name} (${npc.characterId})`);
         }
+      }
+    }
+
+    // Text Document Seeding: generate reading texts (books, journals, letters, recipes, notices)
+    if (population > 0) {
+      console.log('\n📚 Seeding text documents...');
+      const worldForLang2 = await storage.getWorld(world.id);
+      const targetLang2 = worldForLang2?.targetLanguage || 'French';
+      const seedResult = await seedTextsForWorld(storage, {
+        worldId: world.id,
+        targetLanguage: targetLang2,
+      });
+      textsSeeded = seedResult.created;
+      if (textsSeeded > 0) {
+        console.log(`   Seeded ${textsSeeded} text documents`);
+      } else if (seedResult.skipped) {
+        console.log(`   Texts already exist for this world`);
       }
     }
 
@@ -489,6 +510,7 @@ export class WorldGenerator {
     console.log(`   Employed: ${employedCount}`);
     console.log(`   Routines: ${routineCount}`);
     console.log(`   Items Placed: ${itemsPlaced}`);
+    console.log(`   Texts Seeded: ${textsSeeded}`);
     console.log(`   Historical Events: ${eventCount}`);
     if (config.generateVisualAssets) {
       console.log(`   Visual Assets Generated:`);
@@ -511,6 +533,7 @@ export class WorldGenerator {
       routines: routineCount,
       events: eventCount,
       itemsPlaced,
+      textsSeeded,
       visualAssets: {
         portraits: portraitCount,
         buildings: buildingAssetCount,

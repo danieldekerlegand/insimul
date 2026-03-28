@@ -424,6 +424,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'grammars', data: generateGrammars(ir) },
     { name: 'truths', data: generateTruths(ir) },
     { name: 'items', data: generateItems(ir) },
+    { name: 'texts', data: (ir.systems.texts || []) },
     { name: 'loot_tables', data: generateLootTables(ir) },
     { name: 'biome_zones', data: generateBiomeZones(ir) },
     { name: 'animations', data: generateAnimations(ir) },

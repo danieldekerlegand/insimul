@@ -253,6 +253,11 @@ FString UDataLoader::LoadWorldItems()
     return LoadDataFile(TEXT("items.json"));
 }
 
+FString UDataLoader::LoadTexts()
+{
+    return LoadDataFile(TEXT("texts.json"));
+}
+
 FString UDataLoader::LoadContainers()
 {
     return LoadDataFile(TEXT("containers.json"));

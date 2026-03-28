@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-28T21:48:23.116Z",
+  "lastUpdated": "2026-03-28T22:13:46.598Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "efe94d22de2d5d4e1a4df38027d398848aa43a3a5e50a2a8662a6641f843c30f",
+      "hash": "0611e67efbb53bd17583d70db8dc3456245c4859d33d5e6558b006674f45dc97",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "042003c924844dad3bb010049346e739b5523adc24fe32c4bd98e512194d7c72",
+      "hash": "6e41976ee4588953c25cd90173c89bf74da3ec661d6828188ca18ebc1a001c35",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "2396023652dce34e63c2b1333af966c1e0b0eec86e4906194fa01f5598b233d2",
+      "hash": "471195195b5f199374f5bf2505749422a0d5f84651ba4686e2512339e29e0a9f",
       "engineMappings": [
         {
           "engine": "babylon",

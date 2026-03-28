@@ -63,6 +63,7 @@ const tabMeta: Record<string, { label: string; icon: any }> = {
   actions: { label: "Actions", icon: Zap },
   quests: { label: "Quests", icon: Target },
   items: { label: "Items", icon: Package },
+  texts: { label: "Texts", icon: FileText },
   grammars: { label: "Grammars", icon: FileText },
   languages: { label: "Languages", icon: Sparkles },
   narrative: { label: "Narrative", icon: BookOpen },

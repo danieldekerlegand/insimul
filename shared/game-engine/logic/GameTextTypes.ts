@@ -78,3 +78,34 @@ export function noticeArticleToGameText(article: NoticeArticle): GameText {
     collected: true,
   };
 }
+
+/** Convert a DB GameText (from texts collection) to a NoticeArticle for the notice board */
+export function dbTextToNoticeArticle(text: {
+  id: string;
+  title: string;
+  titleTranslation?: string;
+  textCategory?: string;
+  cefrLevel?: string;
+  pages?: { content: string; contentTranslation: string }[];
+  vocabularyHighlights?: { word: string; translation: string }[];
+  comprehensionQuestions?: { question: string; options: string[]; correctIndex: number }[];
+  authorName?: string;
+}): NoticeArticle {
+  const firstPage = text.pages?.[0];
+  return {
+    id: text.id,
+    title: text.title,
+    titleTranslation: text.titleTranslation || '',
+    body: firstPage?.content || '',
+    bodyTranslation: firstPage?.contentTranslation || '',
+    difficulty: cefrToDifficulty((text.cefrLevel || 'A1') as CefrLevel),
+    vocabularyWords: (text.vocabularyHighlights || []).map(v => ({ word: v.word, meaning: v.translation })),
+    comprehensionQuestion: text.comprehensionQuestions?.[0] ? {
+      question: text.comprehensionQuestions[0].question,
+      questionTranslation: '',
+      options: text.comprehensionQuestions[0].options,
+      correctIndex: text.comprehensionQuestions[0].correctIndex,
+    } : undefined,
+    documentType: (text.textCategory || 'notice') as NoticeArticle['documentType'],
+  };
+}

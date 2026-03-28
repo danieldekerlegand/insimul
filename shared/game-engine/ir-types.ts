@@ -722,6 +722,24 @@ export interface WaterFeatureIR {
   transparency: number;
 }
 
+export interface TextIR {
+  id: string;
+  title: string;
+  titleTranslation: string;
+  textCategory: string;
+  cefrLevel: string;
+  pages: { content: string; contentTranslation: string }[];
+  vocabularyHighlights: { word: string; translation: string; partOfSpeech?: string }[];
+  comprehensionQuestions: { question: string; options: string[]; correctIndex: number }[];
+  targetLanguage: string;
+  authorName: string | null;
+  clueText: string | null;
+  difficulty: string;
+  tags: string[];
+  spawnLocationHint: string;
+  isMainQuest: boolean;
+}
+
 // ─────────────────────────────────────────────
 // Systems
 // ─────────────────────────────────────────────
@@ -806,6 +824,8 @@ export interface SystemsIR {
   mainQuestLocations: MainQuestLocationIR[];
   /** Generated narrative data for the main quest */
   narrative: NarrativeIR | null;
+  /** Reading texts (books, journals, letters, etc.) for language learning */
+  texts: TextIR[];
 }
 
 export interface NPCDialogueContext {

@@ -431,6 +431,11 @@ export class ApiDataSource implements DataSource {
     return res.ok ? await res.json() : [];
   }
 
+  async loadTexts(worldId: string): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/texts`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
+  }
+
   async loadContainers(worldId: string): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/containers`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
@@ -1991,6 +1996,14 @@ export class FileDataSource implements DataSource {
   async loadWorldItems(worldId: string): Promise<any[]> {
     try {
       return await readDataFile('data/items.json');
+    } catch {
+      return [];
+    }
+  }
+
+  async loadTexts(_worldId: string): Promise<any[]> {
+    try {
+      return await readDataFile('data/texts.json');
     } catch {
       return [];
     }

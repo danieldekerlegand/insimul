@@ -69,6 +69,7 @@ export interface IDataSource {
   loadDialogueContexts(worldId: string): Promise<any[]>;
   loadPrologContent(worldId: string): Promise<string | null>;
   loadWorldItems(worldId: string): Promise<any[]>;
+  loadTexts(worldId: string): Promise<any[]>;
   getLanguages(worldId: string): Promise<any[]>;
   loadGenerationJobs(worldId: string): Promise<GenerationJobSummary[]>;
 

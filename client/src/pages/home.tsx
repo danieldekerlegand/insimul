@@ -8,6 +8,7 @@ import { ActionsHub } from '@/components/actions/ActionsHub';
 import { WorldManagementTab } from '@/components/WorldManagementTab';
 import { QuestsHub } from '@/components/quests/QuestsHub';
 import { ItemsHub } from '@/components/items/ItemsHub';
+import { TextsHub } from '@/components/texts/TextsHub';
 import { WorldIntelligenceTab } from '@/components/WorldIntelligenceTab';
 import { GrammarsHub } from '@/components/grammars/GrammarsHub';
 import { LanguagesHub } from '@/components/languages/LanguagesHub';
@@ -190,6 +191,12 @@ export default function Home() {
       {activeTab === 'items' && selectedWorld && (
         <div className="px-6 py-4">
           <ItemsHub worldId={selectedWorld} />
+        </div>
+      )}
+
+      {activeTab === 'texts' && selectedWorld && (
+        <div className="px-6 py-4">
+          <TextsHub worldId={selectedWorld} />
         </div>
       )}
 

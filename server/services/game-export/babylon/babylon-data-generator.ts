@@ -72,6 +72,14 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Texts (reading content)
+  if (ir.systems.texts?.length > 0) {
+    files.push({
+      path: 'public/data/texts.json',
+      content: JSON.stringify(ir.systems.texts, null, 2),
+    });
+  }
+
   // Loot tables
   if (ir.systems.lootTables?.length > 0) {
     files.push({

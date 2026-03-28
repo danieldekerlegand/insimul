@@ -115,6 +115,7 @@ import { SettlementNoticeBoard } from "@shared/game-engine/rendering/SettlementN
 import { createTownSquare } from "@shared/game-engine/rendering/TownSquareGenerator";
 import { getCenterBlockBounds, getBlockCellSize } from "@shared/game-engine/rendering/StreetAlignedPlacement";
 import { generateSettlementNotices, type NPCAuthorInfo } from "@shared/game-engine/logic/NoticeGenerator";
+import { dbTextToNoticeArticle } from "@shared/game-engine/logic/GameTextTypes";
 import { ContentGatingManager } from "@shared/game-engine/logic/ContentGatingManager";
 import { generateQuestSuggestions, selectQuestForNPC } from "@shared/game-engine/logic/DynamicQuestBoard";
 import { VRChatPanel } from "@shared/game-engine/rendering/VRChatPanel";
@@ -149,6 +150,8 @@ import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITU
 import { FurnitureModelLoader } from "@shared/game-engine/rendering/FurnitureModelLoader";
 import { InteriorItemManager } from "@shared/game-engine/rendering/InteriorItemManager";
 import { BookSpawnManager, type BookTextData } from "@shared/game-engine/rendering/BookSpawnManager";
+import { DocumentReadingPanel, type ReadableDocument } from "@shared/game-engine/rendering/DocumentReadingPanel";
+import { TextSpawner, type CollectibleTextData } from "@shared/game-engine/rendering/TextSpawner";
 import { ExteriorItemManager } from "@shared/game-engine/rendering/ExteriorItemManager";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData, type MenuClueData } from "@shared/game-engine/rendering/GameMenuSystem";
 import { ClueStore } from "@shared/game-engine/logic/ClueStore";
@@ -713,6 +716,9 @@ export class BabylonGame {
   private interiorItemManager: InteriorItemManager | null = null;
   private bookSpawnManager: BookSpawnManager | null = null;
   private worldTextCache: BookTextData[] = [];
+  private documentReadingPanel: DocumentReadingPanel | null = null;
+  private textSpawner: TextSpawner | null = null;
+  private fullTextCache: ReadableDocument[] = [];
   private exteriorItemManager: ExteriorItemManager | null = null;
   private buildingEntrySystem: BuildingEntrySystem | null = null;
   private interiorNPCManager: InteriorNPCManager | null = null;
@@ -2948,6 +2954,52 @@ export class BabylonGame {
         this.noticeBoardPanel.show();
       }
     });
+
+    // Initialize document reading panel for text documents
+    this.documentReadingPanel = new DocumentReadingPanel(this.guiManager.advancedTexture);
+    this.documentReadingPanel.setOnClose(() => {});
+    this.documentReadingPanel.setOnWordClicked((word, translation) => {
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        tracker.analyzeNPCResponse(word);
+      }
+      this.guiManager?.showToast({ title: word, description: translation, duration: 2500 });
+    });
+    this.documentReadingPanel.setOnQuestionAnswered((correct, docId, xp) => {
+      if (correct) {
+        this.gamificationTracker?.onQuestCompleted('cultural');
+        this.guiManager?.showToast({ title: 'Correct!', description: `+${xp} XP`, duration: 3000 });
+        this.eventBus.emit('questions_answered', { correct: true, textId: docId, xp });
+      } else {
+        this.guiManager?.showToast({ title: 'Not quite...', description: 'Try again next time!', duration: 3000 });
+      }
+    });
+    this.documentReadingPanel.setOnDocumentRead((docId) => {
+      this.eventBus.emit('text_collected', {
+        textId: docId,
+        title: this.fullTextCache.find(t => t.id === docId)?.title || '',
+        authorName: this.fullTextCache.find(t => t.id === docId)?.authorName || undefined,
+        clueText: this.fullTextCache.find(t => t.id === docId)?.clueText || undefined,
+      });
+    });
+    this.documentReadingPanel.setOnClueDiscovered((_docId, clueText) => {
+      this.guiManager?.showToast({ title: 'Clue Discovered!', description: clueText, duration: 5000 });
+    });
+    this.documentReadingPanel.setOnVocabularyAdded((words) => {
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        for (const w of words) {
+          tracker.analyzeNPCResponse(w.word);
+        }
+      }
+    });
+
+    // Initialize text spawner for outdoor document placement
+    this.textSpawner = new TextSpawner(scene);
+    this.textSpawner.setOnTextCollected((data) => {
+      this.openDocumentReader(data.id);
+    });
+    this.initializeTextSpawner();
 
     // Initialize content gating manager (unlockable content by fluency/level)
     this.contentGatingManager = new ContentGatingManager();
@@ -5576,6 +5628,11 @@ export class BabylonGame {
               occupation: c.occupation || undefined,
             }));
           const articles = generateSettlementNotices(settlement.id, settlement.name, settlementNPCs);
+          // Add notice-type DB texts to the board
+          const noticeTexts = this.fullTextCache.filter(t => t.textCategory === 'notice');
+          for (const nt of noticeTexts) {
+            articles.push(dbTextToNoticeArticle(nt as any));
+          }
           const boardNode = this.settlementNoticeBoard.createBoard({
             settlementId: settlement.id,
             settlementName: settlement.name,
@@ -8861,6 +8918,66 @@ export class BabylonGame {
       quantity: 1,
       transactionType: 'collect',
     }).catch(() => {});
+
+    // Open the document reading panel
+    this.openDocumentReader(bookData.textId);
+  }
+
+  /** Initialize outdoor text spawner with world texts. */
+  private async initializeTextSpawner(): Promise<void> {
+    if (!this.textSpawner) return;
+    try {
+      const texts = await this.dataSource.loadTexts(this.config.worldId);
+      if (!Array.isArray(texts) || texts.length === 0) return;
+
+      // Cache full text data for reading panel
+      this.fullTextCache = texts.map((t: any): ReadableDocument => ({
+        id: t.id,
+        title: t.title || '',
+        titleTranslation: t.titleTranslation || '',
+        textCategory: t.textCategory || 'book',
+        cefrLevel: t.cefrLevel || 'A1',
+        pages: t.pages || [],
+        vocabularyHighlights: t.vocabularyHighlights || [],
+        comprehensionQuestions: t.comprehensionQuestions || [],
+        authorName: t.authorName || null,
+        clueText: t.clueText || null,
+        spawnLocationHint: t.spawnLocationHint || 'market',
+      }));
+
+      // Build CollectibleTextData for the spawner — only outdoor spawn hints
+      const outdoorHints = ['market', 'town_square', 'park', 'dock', 'exterior', 'hidden'];
+      const outdoorTexts = texts
+        .filter((t: any) => outdoorHints.includes(t.spawnLocationHint))
+        .map((t: any) => ({
+          id: t.id as string,
+          title: (t.title || '') as string,
+          textCategory: (t.textCategory || 'book') as CollectibleTextData['textCategory'],
+          cefrLevel: (t.cefrLevel || 'A1') as string,
+          spawnLocationHint: (t.spawnLocationHint || 'market') as CollectibleTextData['spawnLocationHint'],
+          authorName: t.authorName as string | undefined,
+          clueText: t.clueText as string | undefined,
+          isMainQuest: ((t.tags || []) as string[]).includes('main-quest'),
+        }));
+
+      if (outdoorTexts.length > 0) {
+        const buildings: { id: string; businessType?: string; position: { x: number; y: number; z: number } }[] = [];
+        this.buildingData.forEach((bd, id) => {
+          buildings.push({ id, businessType: bd.metadata?.businessType, position: { x: bd.position.x, y: bd.position.y, z: bd.position.z } });
+        });
+        this.textSpawner.spawnTexts(outdoorTexts, buildings, []);
+      }
+    } catch {
+      // Texts unavailable — outdoor texts won't spawn
+    }
+  }
+
+  /** Open the document reading panel for a specific text. */
+  private openDocumentReader(textId: string): void {
+    const doc = this.fullTextCache.find(t => t.id === textId);
+    if (doc && this.documentReadingPanel) {
+      this.documentReadingPanel.openDocument(doc);
+    }
   }
 
   /** Fetch server texts and cache for book spawning. */

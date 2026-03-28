@@ -74,6 +74,7 @@ import type {
   BiomeZoneSpeciesIR,
   MainQuestLocationIR,
   NarrativeIR,
+  TextIR,
 } from '@shared/game-engine/ir-types';
 import { getDefaultHiddenLocations } from '@shared/game-engine/rendering/ExplorationDiscoverySystem';
 import { getWriterName, MAIN_QUEST_CHAPTERS, resolveNarrativeText } from '@shared/quest/main-quest-chapters';
@@ -1319,6 +1320,7 @@ export async function generateWorldIR(
     languages,
     worldItems,
     waterFeatures,
+    gameTexts,
   ] = await Promise.all([
     storage.getWorld(worldId).then(r => { console.log(`[Export] ✓ getWorld`); return r; }),
     storage.getCountriesByWorld(worldId).then(r => { console.log(`[Export] ✓ getCountriesByWorld`); return r; }),
@@ -1335,6 +1337,7 @@ export async function generateWorldIR(
     storage.getWorldLanguagesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWorldLanguagesByWorld`); return r; }),
     storage.getItemsByWorld(worldId).then(r => { console.log(`[Export] ✓ getItemsByWorld`); return r; }),
     storage.getWaterFeaturesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWaterFeaturesByWorld`); return r; }),
+    storage.getGameTextsByWorld(worldId).then(r => { console.log(`[Export] ✓ getGameTextsByWorld`); return r; }),
   ]);
   
   const parallelTime = Date.now() - startTime;
@@ -2265,6 +2268,23 @@ export async function generateWorldIR(
       }),
       mainQuestLocations: buildMainQuestLocations(world),
       narrative: buildNarrativeIR(world, characters, settlements),
+      texts: (gameTexts || []).map((t: any): TextIR => ({
+        id: t.id,
+        title: t.title,
+        titleTranslation: t.titleTranslation || '',
+        textCategory: t.textCategory || 'book',
+        cefrLevel: t.cefrLevel || 'A1',
+        pages: t.pages || [],
+        vocabularyHighlights: t.vocabularyHighlights || [],
+        comprehensionQuestions: t.comprehensionQuestions || [],
+        targetLanguage: t.targetLanguage || '',
+        authorName: t.authorName || null,
+        clueText: t.clueText || null,
+        difficulty: t.difficulty || 'easy',
+        tags: t.tags || [],
+        spawnLocationHint: t.spawnLocationHint || 'market',
+        isMainQuest: (t.tags || []).includes('main-quest') || (t.tags || []).includes('writer-journal'),
+      })),
     },
 
     theme: {

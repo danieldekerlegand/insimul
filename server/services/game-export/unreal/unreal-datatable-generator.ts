@@ -628,6 +628,7 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_Roads', data: generateRoadsDT(ir) },
     { name: 'DT_Businesses', data: generateBusinessesDT(ir) },
     { name: 'DT_Items', data: generateItemsDT(ir) },
+    { name: 'DT_Texts', data: (ir.systems.texts || []).map(t => ({ Name: t.id, TextId: t.id, Title: t.title, TitleTranslation: t.titleTranslation, TextCategory: t.textCategory, CefrLevel: t.cefrLevel, SpawnLocationHint: t.spawnLocationHint, IsMainQuest: t.isMainQuest })) },
     { name: 'DT_LootTables', data: generateLootTablesDT(ir) },
     { name: 'DT_SurvivalNeeds', data: generateSurvivalNeedsDT(ir) },
     { name: 'DT_SurvivalModifierPresets', data: generateSurvivalModifierPresetsDT(ir) },
