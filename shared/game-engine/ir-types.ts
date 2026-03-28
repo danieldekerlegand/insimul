@@ -294,6 +294,16 @@ export interface BoundsIR {
 // Entities
 // ─────────────────────────────────────────────
 
+export interface ContainerIR {
+  id: string;
+  buildingId: string;
+  containerType: 'chest' | 'barrel' | 'crate';
+  position: Vec3;
+  location: 'interior' | 'outdoor';
+  items: Array<{ itemName: string; itemType: string; quantity: number; rarity?: string }>;
+  businessType?: string;
+}
+
 export interface EntitiesIR {
   characters: CharacterIR[];
   npcs: NPCIR[];
@@ -304,6 +314,7 @@ export interface EntitiesIR {
   animals: AnimalIR[];
   dungeons: DungeonIR[];
   questObjects: QuestObjectIR[];
+  containers: ContainerIR[];
 }
 
 export interface CharacterIR {

@@ -3097,6 +3097,27 @@ export class BabylonGame {
       this.questObjectManager?.trackConversationInitiation(event.npcId, event.accepted);
     });
 
+    // Show notifications for action_executed events (unified action tracking)
+    this.eventBus.on('action_executed', (event) => {
+      const actorLabel = event.actorId === 'player' ? 'You' : (event.actorName || 'NPC');
+      const targetLabel = event.itemName || event.targetName || '';
+      const details: string[] = [];
+      if (targetLabel) details.push(targetLabel);
+      if (event.xpGained) details.push(`+${event.xpGained} XP`);
+      if (event.energyCost) details.push(`-${event.energyCost} energy`);
+
+      this.guiManager?.showToast({
+        title: `${actorLabel}: ${event.actionName.replace(/_/g, ' ')}`,
+        description: details.join(', ') || undefined,
+        duration: 2500,
+      });
+
+      // Track in quest completion engine
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'action_executed' as any, actionName: event.actionName });
+      this.updateQuestIndicators();
+    });
+
     // Bridge object-interaction GameEventBus events → QuestCompletionEngine
     this.eventBus.on('object_examined', (event) => {
       const engine = this.questObjectManager?.getCompletionEngine();
@@ -5289,6 +5310,38 @@ export class BabylonGame {
             for (const seg of streetNetwork.segments) {
               if (seg.waypoints.length >= 2) {
                 this._minimapStreets.push({ waypoints: seg.waypoints, width: seg.width });
+              }
+            }
+          }
+        }
+
+        // Spawn outdoor containers near buildings
+        if (this.containerSpawnSystem && this.interactionPrompt) {
+          const allOutdoorSpawnPoints: import('./ContainerSpawnSystem').OutdoorSpawnPoint[] = [];
+          for (const [buildingId, buildingInfo] of this.buildingData) {
+            const meta = buildingInfo.metadata as Record<string, any> | undefined;
+            if (!meta?.settlementId || meta.settlementId !== settlement.id) continue;
+            const points = this.containerSpawnSystem.generateOutdoorSpawnPoints(
+              buildingInfo.position,
+              10, // approximate building width
+              10, // approximate building depth
+              0,
+              buildingId,
+              meta?.businessType,
+            );
+            allOutdoorSpawnPoints.push(...points);
+          }
+          if (allOutdoorSpawnPoints.length > 0) {
+            const spawned = this.containerSpawnSystem.spawnOutdoorContainers(allOutdoorSpawnPoints);
+            for (const container of spawned) {
+              if (container.mesh) {
+                this.interactionPrompt.registerContainer(
+                  container.mesh,
+                  container.id,
+                  container.type,
+                  container.type,
+                  false,
+                );
               }
             }
           }
@@ -11749,6 +11802,7 @@ export class BabylonGame {
     this.inventory?.removeItem(item.id, 1);
 
     this.eventBus.emit({ type: 'item_dropped', itemId: item.id, itemName: item.name, quantity: 1 });
+    this.eventBus.emit({ type: 'action_executed', actionName: 'drop_item', actorId: 'player', targetId: item.id, itemName: item.name, itemType: item.type, category: 'items', result: 'success' });
 
     this.dataSource.transferItem(this.config.worldId, {
       fromEntityId: 'player',
@@ -11805,6 +11859,9 @@ export class BabylonGame {
         descriptions.push('Energy +15');
       }
 
+      // Emit unified action_executed for quest tracking
+      this.eventBus.emit({ type: 'action_executed', actionName: 'consume', actorId: 'player', targetId: item.id, itemName: item.name, itemType: item.type, category: 'items', result: 'success' });
+
       this.guiManager?.showToast({
         title: `Used ${item.name}`,
         description: descriptions.join(', '),
@@ -11833,6 +11890,7 @@ export class BabylonGame {
         itemName: item.name,
         slot: result.slot,
       });
+      this.eventBus.emit({ type: 'action_executed', actionName: 'equip_item', actorId: 'player', targetId: item.id, itemName: item.name, itemType: item.type, category: 'items', result: 'success' });
 
       const entity = this.combatSystem?.getEntity('player');
       this.guiManager?.showToast({

@@ -145,6 +145,70 @@ export const QUEST_ACTION_MAPPINGS: QuestActionMapping[] = [
     quantity: { currentField: 'craftedCount', requiredField: 'requiredCount', defaultRequired: 1 },
     description: 'Player crafts an item',
   },
+  // ─── Inventory action mappings ──────────────────────────────────────────────
+  {
+    objectiveType: 'use_item',
+    eventType: 'item_used',
+    matchFields: [
+      { eventField: 'itemName', objectiveField: 'itemName', comparison: 'contains_lower', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player uses an item from inventory',
+  },
+  {
+    objectiveType: 'equip_item',
+    eventType: 'item_equipped',
+    matchFields: [
+      { eventField: 'itemName', objectiveField: 'itemName', comparison: 'contains_lower', optional: true },
+    ],
+    description: 'Player equips an item',
+  },
+  {
+    objectiveType: 'drop_item',
+    eventType: 'item_dropped',
+    matchFields: [
+      { eventField: 'itemName', objectiveField: 'itemName', comparison: 'contains_lower', optional: true },
+    ],
+    description: 'Player drops an item',
+  },
+  {
+    objectiveType: 'deliver_item',
+    eventType: 'item_delivered',
+    matchFields: [
+      { eventField: 'npcId', objectiveField: 'npcId', comparison: 'exact', optional: true },
+      { eventField: 'itemName', objectiveField: 'itemName', comparison: 'contains_lower', optional: true },
+    ],
+    description: 'Player delivers an item to an NPC',
+  },
+  {
+    objectiveType: 'buy_item',
+    eventType: 'item_purchased',
+    matchFields: [
+      { eventField: 'itemName', objectiveField: 'itemName', comparison: 'contains_lower', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player purchases an item from a merchant',
+  },
+  // ─── Generic action_executed mapping (catches any action for flexible quests) ─
+  {
+    objectiveType: 'perform_action',
+    eventType: 'action_executed',
+    matchFields: [
+      { eventField: 'actionName', objectiveField: 'actionName', comparison: 'exact', optional: true },
+    ],
+    quantity: { currentField: 'actionsCompleted', requiredField: 'actionsRequired', defaultRequired: 1 },
+    description: 'Player performs a specific action (generic)',
+  },
+  // ─── NPC speech act mapping ──────────────────────────────────────────────────
+  {
+    objectiveType: 'receive_directions',
+    eventType: 'npc_speech_act',
+    matchFields: [
+      { eventField: 'npcId', objectiveField: 'npcId', comparison: 'exact', optional: true },
+      { eventField: 'actionType', objectiveField: 'speechActType', comparison: 'exact', optional: true },
+    ],
+    description: 'NPC performs a speech act (gives directions, teaches vocabulary, etc.)',
+  },
 ];
 
 // ── Lookup indexes ───────────────────────────────────────────────────────────

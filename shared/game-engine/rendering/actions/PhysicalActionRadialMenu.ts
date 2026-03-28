@@ -24,6 +24,10 @@ const ACTION_ICONS: Record<string, string> = {
   praying: '🙏',
   sweeping: '🧹',
   chopping: '🪓',
+  herbalism: '🌿',
+  farm_plant: '🌱',
+  farm_water: '💧',
+  farm_harvest: '🌾',
 };
 
 // ── Availability check result ────────────────────────────────────────────────

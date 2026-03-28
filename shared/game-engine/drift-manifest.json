@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-28T20:27:48.211Z",
+  "lastUpdated": "2026-03-28T21:00:44.686Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -171,7 +171,7 @@
     {
       "path": "shared/game-engine/logic/actions/ActionManager.ts",
       "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
-      "hash": "328748c07702bc34471c0591345d504a2914ede628324a53a2c7c735be7e4e92",
+      "hash": "0a5db84737d1bc5576c6280b9354c314d70d18434cd41b595ffbc9986887dbeb",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -262,7 +262,7 @@
     {
       "path": "shared/game-engine/logic/GameEventBus.ts",
       "description": "Centralized typed event bus (120+ event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "3243912446954266749c4d941b07e7d57eed96bebab4fa5bb7209bb42537a808",
+      "hash": "d10935dcf4e08b2fd76b5ec005920c75bdef946c69e64b8c87ec27a52b649b69",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "7e3b12d6908ca481e0a6701b8d366ce5ac173958fbc792136d65023524dc65f0",
+      "hash": "efe94d22de2d5d4e1a4df38027d398848aa43a3a5e50a2a8662a6641f843c30f",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "ce6c31081b86f919a6f7a9de87caf08c5e9103e108f6dfabe14838ece6ae85de",
+      "hash": "03c362dd305f4851ed29b79dc1fea78deaf2c82b66c17ec30ee851eae1f0974a",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "3d0e1d1cac8e900ada08937705158f7708c2132e862b54f376a784014a59fd6c",
+      "hash": "934ba21c0bed3c8d3bef7db331807018f97dcfe11b2438602cd92da43dd31b57",
       "engineMappings": [
         {
           "engine": "unity",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "3141e4fc80dc66880a3b176d8401eec7a3929ec78fc26b328d68c5b48e9cc4cf",
+      "hash": "ad702e128aacb9262150733d852bb76d75af3a2859d091e5073af2a37c3064f1",
       "engineMappings": [
         {
           "engine": "babylon",

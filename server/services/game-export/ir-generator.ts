@@ -56,6 +56,7 @@ import type {
   DungeonIR,
   QuestObjectIR,
   AnimalIR,
+  ContainerIR,
   RuleIR,
   ActionIR,
   QuestIR,
@@ -368,6 +369,91 @@ export function getAnimalCounts(population: number): { cats: number; dogs: numbe
  * Animals are distributed around settlements, with counts scaling by population.
  * Cats and dogs stay near buildings; birds can roam wider.
  */
+// ── Container Placement Generator ───────────────────────────────────────────
+
+/** Item templates per business type for container population. */
+const CONTAINER_ITEM_TEMPLATES: Record<string, Array<{ itemName: string; itemType: string; rarity?: string }>> = {
+  Bakery: [
+    { itemName: 'Bread', itemType: 'food' }, { itemName: 'Pastry', itemType: 'food' },
+    { itemName: 'Flour', itemType: 'material' }, { itemName: 'Butter', itemType: 'food' },
+  ],
+  Restaurant: [
+    { itemName: 'Prepared Meal', itemType: 'food' }, { itemName: 'Wine', itemType: 'food' },
+    { itemName: 'Cheese', itemType: 'food' }, { itemName: 'Spices', itemType: 'material' },
+  ],
+  Blacksmith: [
+    { itemName: 'Iron Ingot', itemType: 'material' }, { itemName: 'Hammer', itemType: 'tool' },
+    { itemName: 'Nails', itemType: 'material' }, { itemName: 'Horseshoe', itemType: 'material' },
+  ],
+  Shop: [
+    { itemName: 'Candles', itemType: 'material' }, { itemName: 'Rope', itemType: 'material' },
+    { itemName: 'Cloth', itemType: 'material' }, { itemName: 'Small Gem', itemType: 'material', rarity: 'uncommon' },
+  ],
+  Farm: [
+    { itemName: 'Seeds', itemType: 'material' }, { itemName: 'Vegetables', itemType: 'food' },
+    { itemName: 'Eggs', itemType: 'food' }, { itemName: 'Milk', itemType: 'food' },
+  ],
+  default: [
+    { itemName: 'Coin Pouch', itemType: 'material' }, { itemName: 'Candle', itemType: 'material' },
+    { itemName: 'Old Book', itemType: 'material' }, { itemName: 'Bread', itemType: 'food' },
+  ],
+};
+
+export function generateContainerPlacements(
+  buildings: BuildingIR[],
+  businesses: BusinessIR[],
+  seed: string,
+): ContainerIR[] {
+  const rand = createSeededRandom(`${seed}_containers`);
+  const containers: ContainerIR[] = [];
+  const businessMap = new Map(businesses.map(b => [b.id, b]));
+
+  for (const building of buildings) {
+    const business = building.businessId ? businessMap.get(building.businessId) : null;
+    const businessType = business?.businessType || '';
+    const containerCount = 1 + Math.floor(rand() * 3); // 1-3 containers per building
+
+    for (let i = 0; i < containerCount; i++) {
+      const types: Array<'chest' | 'barrel' | 'crate'> = ['chest', 'barrel', 'crate'];
+      const containerType = types[Math.floor(rand() * types.length)];
+
+      // Position offset from building center
+      const offset = { x: (rand() - 0.5) * 6, y: 0, z: (rand() - 0.5) * 6 };
+      const pos = {
+        x: (building.position?.x || 0) + offset.x,
+        y: (building.position?.y || 0) + offset.y,
+        z: (building.position?.z || 0) + offset.z,
+      };
+
+      // Generate 3-8 items from appropriate template
+      const template = CONTAINER_ITEM_TEMPLATES[businessType] || CONTAINER_ITEM_TEMPLATES.default;
+      const itemCount = 3 + Math.floor(rand() * 6);
+      const items: Array<{ itemName: string; itemType: string; quantity: number; rarity?: string }> = [];
+      for (let j = 0; j < itemCount; j++) {
+        const item = template[Math.floor(rand() * template.length)];
+        items.push({
+          itemName: item.itemName,
+          itemType: item.itemType,
+          quantity: 1 + Math.floor(rand() * 3),
+          rarity: item.rarity || 'common',
+        });
+      }
+
+      containers.push({
+        id: `container_${building.id}_${i}`,
+        buildingId: building.id,
+        containerType,
+        position: pos,
+        location: 'interior',
+        items,
+        businessType: businessType || undefined,
+      });
+    }
+  }
+
+  return containers;
+}
+
 export function generateAnimals(
   settlementIRs: SettlementIR[],
   seed: string,
@@ -1772,9 +1858,29 @@ export async function generateWorldIR(
     homeResidenceId: (c as any).currentResidenceId || null,
   }));
 
-  // Select NPCs (up to MAX_NPCS)
-  const npcCandidates = characters.filter(c => c.isAlive !== false).slice(0, MAX_NPCS);
+  // Select NPCs (up to MAX_NPCS), ensuring business owners are always included
+  const aliveCharacters = characters.filter(c => c.isAlive !== false);
+  const businessOwnerIds = new Set(
+    allBusinesses
+      .filter((b: any) => b.ownerId && !b.isOutOfBusiness)
+      .map((b: any) => b.ownerId as string)
+  );
+  // Partition: owners first, then remaining characters
+  const ownerCharacters = aliveCharacters.filter(c => businessOwnerIds.has(c.id));
+  const nonOwnerCharacters = aliveCharacters.filter(c => !businessOwnerIds.has(c.id));
+  const npcCandidates = [
+    ...ownerCharacters,
+    ...nonOwnerCharacters.slice(0, Math.max(0, MAX_NPCS - ownerCharacters.length)),
+  ];
   const npcRand = createSeededRandom(`${seed}_npcs`);
+
+  // Build owner-to-business-type map for role assignment
+  const ownerBusinessTypeMap = new Map<string, string>();
+  for (const b of allBusinesses as any[]) {
+    if (b.ownerId && !b.isOutOfBusiness) {
+      ownerBusinessTypeMap.set(b.ownerId, b.businessType || '');
+    }
+  }
 
   const npcIRs: NPCIR[] = npcCandidates.map(c => {
     // Place NPC near a settlement
@@ -1786,7 +1892,11 @@ export async function generateWorldIR(
       ? { x: settlement.position.x + offsetX, y: 0, z: settlement.position.z + offsetZ }
       : { x: 0, y: 0, z: 0 };
 
-    const role = assignNPCRole(c, quests);
+    // Business owners get merchant role regardless of occupation text
+    let role = assignNPCRole(c, quests);
+    if (role === 'civilian' && ownerBusinessTypeMap.has(c.id)) {
+      role = 'merchant';
+    }
     const questIds = quests
       .filter(q => q.assignedByCharacterId === c.id)
       .map(q => q.id);
@@ -2103,7 +2213,8 @@ export async function generateWorldIR(
       natureObjects: [], // Populated by engine at runtime from biome data
       animals: generateAnimals(settlementIRs, seed),
       dungeons: [],      // Populated on demand per genre
-      questObjects: generateQuestObjects(questIRs, allBuildingIRs, seed)
+      questObjects: generateQuestObjects(questIRs, allBuildingIRs, seed),
+      containers: generateContainerPlacements(allBuildingIRs, businessIRs, seed),
     },
 
     systems: {

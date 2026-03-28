@@ -383,13 +383,17 @@ export function convertEnsembleAction(action: EnsembleAction, category: string):
 
   lines.push(`% ${displayName}`);
 
-  // Core action fact
+  // Core action fact: action(Id, Name, Type, EnergyCost).
   const catAtom = sanitizeAtom(category);
   lines.push(`action(${name}, '${escapeString(displayName)}', ${catAtom}, 0).`);
   lines.push(`action_source(${name}, ensemble).`);
 
   // Tags from category
   lines.push(`action_tag(${name}, ${catAtom}).`);
+
+  // Recommended metadata predicates (fixes "Missing recommended predicate" errors)
+  lines.push(`action_difficulty(${name}, 0.5).`);
+  lines.push(`action_duration(${name}, 1).`);
 
   // leadsTo transitions
   if (action.leadsTo && action.leadsTo.length > 0) {
@@ -426,10 +430,10 @@ export function convertEnsembleAction(action: EnsembleAction, category: string):
     lines.push(`can_perform(X, ${name}) :- person(X).`);
   }
 
-  // Effects
+  // Effects — use action_effect/2 (not rule_effect/2) for actions
   if (action.effects) {
     for (const effect of action.effects) {
-      const effectClause = effectToProlog(effect, name);
+      const effectClause = effectToActionProlog(effect, name);
       if (effectClause) {
         lines.push(`${effectClause}.`);
       }
@@ -441,6 +445,85 @@ export function convertEnsembleAction(action: EnsembleAction, category: string):
     prologContent: lines.join('\n'),
     skipped: false,
   };
+}
+
+/**
+ * Convert an Ensemble effect to a Prolog action_effect/2 fact.
+ * Actions use action_effect/2 instead of rule_effect/2 to distinguish
+ * action effects from volition rule effects.
+ */
+function effectToActionProlog(effect: EnsembleEffect, actionName: string): string | null {
+  const cat = effect.category?.toLowerCase();
+  const type = sanitizeAtom(effect.type || 'unknown');
+  const first = actorToVar(effect.first || 'x');
+  const second = effect.second ? actorToVar(effect.second) : null;
+
+  switch (cat) {
+    case 'network': {
+      if (!second) return null;
+      const op = effect.operator || '+';
+      const val = effect.value ?? 0;
+      return `action_effect(${actionName}, modify_network(${first}, ${second}, ${type}, '${op}', ${val}))`;
+    }
+
+    case 'attribute': {
+      const op = effect.operator || '+';
+      const val = effect.value ?? 0;
+      return `action_effect(${actionName}, modify_attribute(${first}, ${type}, '${op}', ${val}))`;
+    }
+
+    case 'trait': {
+      if (effect.value === false) {
+        return `action_effect(${actionName}, remove_trait(${first}, ${type}))`;
+      }
+      return `action_effect(${actionName}, add_trait(${first}, ${type}))`;
+    }
+
+    case 'status': {
+      if (effect.value === false) {
+        return `action_effect(${actionName}, remove_status(${first}, ${type}))`;
+      }
+      return `action_effect(${actionName}, add_status(${first}, ${type}))`;
+    }
+
+    case 'relationship': {
+      if (!second) return null;
+      if (effect.value === false) {
+        return `action_effect(${actionName}, remove_relationship(${first}, ${second}, ${type}))`;
+      }
+      return `action_effect(${actionName}, add_relationship(${first}, ${second}, ${type}))`;
+    }
+
+    case 'directed status': {
+      if (!second) return null;
+      if (effect.value === false) {
+        return `action_effect(${actionName}, remove_directed_status(${first}, ${second}, ${type}))`;
+      }
+      return `action_effect(${actionName}, add_directed_status(${first}, ${second}, ${type}))`;
+    }
+
+    case 'event':
+    case 'event undirected': {
+      const target = second || '_';
+      return `action_effect(${actionName}, record_event(${first}, ${target}, ${type}))`;
+    }
+
+    case 'intent': {
+      const target = second || '_';
+      const weight = effect.weight ?? 1;
+      return `action_effect(${actionName}, set_intent(${first}, ${type}, ${target}, ${weight}))`;
+    }
+
+    case 'mood': {
+      if (effect.value === false) {
+        return `action_effect(${actionName}, remove_mood(${first}, ${type}))`;
+      }
+      return `action_effect(${actionName}, set_mood(${first}, ${type}))`;
+    }
+
+    default:
+      return null;
+  }
 }
 
 // ── Batch Converters ────────────────────────────────────────────────────

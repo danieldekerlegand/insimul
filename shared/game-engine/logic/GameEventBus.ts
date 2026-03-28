@@ -183,7 +183,11 @@ export type GameEvent =
   // Physical action events (player performing activities at hotspots)
   | { type: 'physical_action_completed'; actionType: string; locationId?: string; buildingId?: string; itemsProduced: Array<{ itemName: string; quantity: number }>; energyCost: number; xpGained: number }
   // Exploration discovery events
-  | { type: 'investigation_completed'; locationId: string; locationName: string; investigationPointId: string; contentType: 'lore' | 'vocabulary' | 'clue'; content: string };
+  | { type: 'investigation_completed'; locationId: string; locationName: string; investigationPointId: string; contentType: 'lore' | 'vocabulary' | 'clue'; content: string }
+  // Unified action execution event (emitted for all player/NPC actions for quest tracking and notifications)
+  | { type: 'action_executed'; actionName: string; actorId: string; actorName?: string; targetId?: string; targetName?: string; category?: string; result?: 'success' | 'failure'; itemName?: string; itemType?: string; xpGained?: number; energyCost?: number }
+  // NPC speech act events (detected from NPC responses during conversation)
+  | { type: 'npc_speech_act'; npcId: string; npcName: string; actionType: string; extractedData?: Record<string, string> };
 
 export type GameEventType = GameEvent['type'];
 

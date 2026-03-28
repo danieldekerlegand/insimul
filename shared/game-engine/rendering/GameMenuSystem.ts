@@ -310,6 +310,9 @@ export interface GameMenuCallbacks {
   onDeletePlaythrough?: () => Promise<void>;
   onReturnToMainMenu?: () => void;
   onQuitGame?: () => void;
+  // Crafting
+  getCraftingRecipes?: () => Array<{ id: string; name: string; category: string; ingredients: Array<{ name: string; required: number; available: number }>; canCraft: boolean; outputName: string; outputQuantity: number }>;
+  onCraftItem?: (recipeId: string) => void;
   // Rest / time-skip
   getTimeData?: () => { timeString: string; day: number; timeOfDay: string; timeScale?: number; paused?: boolean } | null;
   onRest?: (hours: number) => void;
@@ -324,6 +327,7 @@ export type MenuTab =
   | "clues"
   | "quests"
   | "inventory"
+  | "crafting"
   | "map"
   | "photos"
   | "vocabulary"
@@ -346,6 +350,7 @@ const TABS: TabDef[] = [
   { id: "clues", label: "Clues", icon: "🔎" },
   { id: "quests", label: "Quests", icon: "📜" },
   { id: "inventory", label: "Inventory", icon: "🎒" },
+  { id: "crafting", label: "Crafting", icon: "🔨" },
   { id: "map", label: "Map", icon: "🗺️" },
   { id: "photos", label: "Photos", icon: "📷" },
   { id: "vocabulary", label: "Knowledge", icon: "📚" },
@@ -710,6 +715,9 @@ export class GameMenuSystem {
         break;
       case "inventory":
         this.renderInventoryTab();
+        break;
+      case "crafting":
+        this.renderCraftingTab();
         break;
       case "map":
         this.renderMapTab();
@@ -2979,6 +2987,87 @@ export class GameMenuSystem {
   }
 
   // ─── SYSTEM TAB ─────────────────────────────────────────────────────────
+
+  private renderCraftingTab(): void {
+    const { stack } = this.makeScrollableContent("crafting");
+    this.addSectionHeader(stack, "Crafting");
+
+    const recipes = this.callbacks.getCraftingRecipes?.() || [];
+
+    if (recipes.length === 0) {
+      const empty = new TextBlock();
+      empty.text = "No recipes discovered yet. Find recipe documents or visit crafting stations to learn new recipes.";
+      empty.color = COLORS.textMuted;
+      empty.fontSize = 12;
+      empty.height = "33px";
+      empty.textWrapping = true;
+      stack.addControl(empty);
+      return;
+    }
+
+    this.addSubHeader(stack, `${recipes.length} recipe${recipes.length !== 1 ? "s" : ""}`);
+
+    // Group recipes by category
+    const grouped = new Map<string, typeof recipes>();
+    for (const recipe of recipes) {
+      const cat = recipe.category || "misc";
+      if (!grouped.has(cat)) grouped.set(cat, []);
+      grouped.get(cat)!.push(recipe);
+    }
+
+    grouped.forEach((catRecipes, category) => {
+      const catHeader = new TextBlock();
+      catHeader.text = category.charAt(0).toUpperCase() + category.slice(1);
+      catHeader.color = COLORS.accent;
+      catHeader.fontSize = 12;
+      catHeader.fontWeight = "bold";
+      catHeader.height = "24px";
+      catHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      catHeader.paddingTop = "6px";
+      stack.addControl(catHeader);
+
+      for (const recipe of catRecipes) {
+        const card = this.makeCard(stack);
+
+        // Recipe name and output
+        const nameText = new TextBlock();
+        nameText.text = `${recipe.name} → ${recipe.outputName} ×${recipe.outputQuantity}`;
+        nameText.color = COLORS.textPrimary;
+        nameText.fontSize = 12;
+        nameText.fontWeight = "bold";
+        nameText.height = "20px";
+        nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        card.addControl(nameText);
+
+        // Ingredients list
+        for (const ing of recipe.ingredients) {
+          const ingText = new TextBlock();
+          const hasEnough = ing.available >= ing.required;
+          ingText.text = `  ${hasEnough ? "✓" : "✗"} ${ing.name}: ${ing.available}/${ing.required}`;
+          ingText.color = hasEnough ? COLORS.accentGreen || "#4ade80" : "#ef4444";
+          ingText.fontSize = 11;
+          ingText.height = "16px";
+          ingText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          card.addControl(ingText);
+        }
+
+        // Craft button
+        const craftBtn = Button.CreateSimpleButton(`craft_${recipe.id}`, recipe.canCraft ? "Craft" : "Missing ingredients");
+        craftBtn.width = "140px";
+        craftBtn.height = "28px";
+        craftBtn.color = "white";
+        craftBtn.background = recipe.canCraft ? (COLORS.accent || "#6366f1") : "#374151";
+        craftBtn.cornerRadius = 4;
+        craftBtn.fontSize = 11;
+        craftBtn.isEnabled = recipe.canCraft;
+        craftBtn.onPointerUpObservable.add(() => {
+          this.callbacks.onCraftItem?.(recipe.id);
+          setTimeout(() => this.refreshActiveTab(), 100);
+        });
+        card.addControl(craftBtn);
+      }
+    });
+  }
 
   private renderSystemTab(): void {
     switch (this.systemSubView) {

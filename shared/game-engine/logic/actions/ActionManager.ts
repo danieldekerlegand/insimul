@@ -2,12 +2,16 @@
 
 import { type Action, type ActionState, type ActionContext, type ActionResult, type ActionEffect, ACTION_UI_CONFIGS } from '@shared/game-engine/types';
 import { rankActions, STANDARD_ACTION_AFFINITIES, type ActionCandidate, type PersonalityProfile } from '@shared/game-engine/action-selection';
+import { getActionNamesForObjective } from '@shared/game-engine/action-matrix';
 
 /**
  * Maps quest objective types to the action names that can satisfy them.
  * Used by findActionForObjective() to resolve which action fulfills a quest step.
+ *
+ * First checks the action-matrix (canonical source), then falls back to these
+ * legacy mappings for objective types not yet in the matrix.
  */
-const OBJECTIVE_TO_ACTION: Record<string, string[]> = {
+const LEGACY_OBJECTIVE_TO_ACTION: Record<string, string[]> = {
   // Movement / exploration
   visit_location: ['travel_to_location', 'enter_building'],
   discover_location: ['travel_to_location'],
@@ -398,8 +402,12 @@ export class ActionManager {
    * E.g., findActionForObjective('craft_item') returns the 'craft_item' or 'craft' action.
    */
   findActionForObjective(objectiveType: string): Action[] {
-    const actionNames = OBJECTIVE_TO_ACTION[objectiveType];
-    if (!actionNames) return [];
+    // Check the canonical action-matrix first, then legacy mapping
+    let actionNames = getActionNamesForObjective(objectiveType);
+    if (actionNames.length === 0) {
+      actionNames = LEGACY_OBJECTIVE_TO_ACTION[objectiveType] || [];
+    }
+    if (actionNames.length === 0) return [];
 
     return this.availableActions.filter(a => actionNames.includes(a.name));
   }

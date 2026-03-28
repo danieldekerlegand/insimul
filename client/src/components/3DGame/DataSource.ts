@@ -872,6 +872,7 @@ export interface LocalStateData {
   questUpdates: Record<string, any>;
   inventories: Record<string, { items: any[]; gold: number }>;
   merchantInventories: Record<string, any>;
+  containers: Record<string, any>;
   finesPaid: Record<string, number>;
   transactions: any[];
 }
@@ -930,6 +931,7 @@ export class LocalGameState {
       questUpdates: {},
       inventories: {},
       merchantInventories: {},
+      containers: {},
       finesPaid: {},
       transactions: [],
     };
@@ -1141,6 +1143,21 @@ export class LocalGameState {
   setMerchantInventory(merchantId: string, inventory: any): void {
     this.state.merchantInventories[merchantId] = inventory;
     this.persist();
+  }
+
+  getContainer(containerId: string): any | null {
+    return this.state.containers?.[containerId] || null;
+  }
+
+  setContainer(containerId: string, data: any): void {
+    if (!this.state.containers) this.state.containers = {};
+    this.state.containers[containerId] = data;
+    this.persist();
+  }
+
+  getAllContainers(): any[] {
+    if (!this.state.containers) return [];
+    return Object.values(this.state.containers);
   }
 
   payFines(settlementId: string): { success: true; finesPaid: number; timestamp: number } {
@@ -1924,12 +1941,22 @@ export class FileDataSource implements DataSource {
                       npcs.find((c: any) => c.id === merchantId);
     if (!character) return null;
 
+    // Resolve businessType from world data if NPC owns a business
+    let resolvedBusinessType = businessType;
+    if (!resolvedBusinessType) {
+      const businesses = this.worldData?.businesses || [];
+      const ownedBusiness = businesses.find((b: any) => b.ownerId === merchantId && !b.isOutOfBusiness);
+      if (ownedBusiness) {
+        resolvedBusinessType = ownedBusiness.businessType;
+      }
+    }
+
     const occupation = (character.occupation || character.role || '').toLowerCase();
     const isMerchant = MERCHANT_OCCUPATIONS.some(term => occupation.includes(term));
-    // Allow if occupation matches OR if a businessType was provided (NPC is in a mercantile business)
-    if (!isMerchant && !businessType) return null;
+    // Allow if occupation matches, NPC owns a business, or businessType was provided
+    if (!isMerchant && !resolvedBusinessType) return null;
 
-    const stock = generateLocalMerchantStock(occupation, businessType);
+    const stock = generateLocalMerchantStock(occupation, resolvedBusinessType);
     const inventory = {
       merchantId,
       merchantName: `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.name || 'Merchant',
@@ -1937,7 +1964,7 @@ export class FileDataSource implements DataSource {
       goldReserve: stock.goldReserve,
       buyMultiplier: stock.buyMultiplier,
       sellMultiplier: stock.sellMultiplier,
-      businessType: businessType || 'Shop',
+      businessType: resolvedBusinessType || 'Shop',
     };
     this.localState.setMerchantInventory(merchantId, inventory);
     return inventory;
@@ -1970,18 +1997,42 @@ export class FileDataSource implements DataSource {
   }
 
   async loadContainers(_worldId: string): Promise<any[]> {
-    return [];
+    // Load from local state (populated at runtime by ContainerSpawnSystem)
+    return this.localState.getAllContainers();
   }
 
-  async loadContainersByLocation(_worldId: string, _location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<any[]> {
-    return [];
+  async loadContainersByLocation(_worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<any[]> {
+    const all = this.localState.getAllContainers();
+    return all.filter((c: any) => {
+      if (location.businessId && c.buildingId === location.businessId) return true;
+      if (location.residenceId && c.buildingId === location.residenceId) return true;
+      if (location.lotId && c.lotId === location.lotId) return true;
+      return false;
+    });
   }
 
-  async updateContainer(_containerId: string, _data: any): Promise<any> {
-    return null;
+  async updateContainer(containerId: string, data: any): Promise<any> {
+    this.localState.setContainer(containerId, data);
+    return data;
   }
 
-  async transferContainerItem(_containerId: string, _transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any> {
+  async transferContainerItem(containerId: string, transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any> {
+    const container = this.localState.getContainer(containerId);
+    if (!container) return null;
+
+    const items = container.items || [];
+    if (transfer.direction === 'withdraw') {
+      const idx = items.findIndex((i: any) => i.id === transfer.itemId);
+      if (idx >= 0) {
+        const removed = items.splice(idx, 1)[0];
+        this.localState.setContainer(containerId, { ...container, items });
+        return removed;
+      }
+    } else {
+      items.push({ id: transfer.itemId, name: transfer.itemName, quantity: transfer.quantity || 1 });
+      this.localState.setContainer(containerId, { ...container, items });
+      return { success: true };
+    }
     return null;
   }
 

@@ -29,7 +29,10 @@ export type PhysicalActionType =
   | 'praying'
   | 'sweeping'
   | 'chopping'
-  | 'herbalism';
+  | 'herbalism'
+  | 'farm_plant'
+  | 'farm_water'
+  | 'farm_harvest';
 
 export interface ActionItemReward {
   itemName: string;
@@ -251,6 +254,51 @@ export const ACTION_DEFINITIONS: Record<PhysicalActionType, PhysicalActionDefini
     promptVerb: 'Pick',
     validLocations: ['garden', 'forest', 'meadow', 'farm', 'herb_shop', 'greenhouse', 'grove'],
   },
+
+  farm_plant: {
+    type: 'farm_plant',
+    displayName: 'Plant Crops',
+    animationClip: 'Farm_Harvest',
+    animationFallback: 'Interact',
+    duration: 5,
+    energyCost: 8,
+    xpReward: 10,
+    itemRewards: [],
+    promptVerb: 'Plant',
+    validLocations: ['farm', 'field', 'garden', 'plantation', 'greenhouse'],
+  },
+
+  farm_water: {
+    type: 'farm_water',
+    displayName: 'Water Crops',
+    animationClip: 'Farm_Watering',
+    animationFallback: 'Interact',
+    duration: 4,
+    energyCost: 5,
+    xpReward: 8,
+    itemRewards: [],
+    promptVerb: 'Water',
+    validLocations: ['farm', 'field', 'garden', 'plantation', 'greenhouse'],
+  },
+
+  farm_harvest: {
+    type: 'farm_harvest',
+    displayName: 'Harvest Crops',
+    animationClip: 'Farm_Harvest',
+    animationFallback: 'Interact',
+    duration: 6,
+    energyCost: 10,
+    xpReward: 15,
+    itemRewards: [
+      { itemName: 'wheat', chance: 0.40, minQuantity: 1, maxQuantity: 3 },
+      { itemName: 'corn', chance: 0.30, minQuantity: 1, maxQuantity: 2 },
+      { itemName: 'vegetables', chance: 0.50, minQuantity: 1, maxQuantity: 3 },
+      { itemName: 'fruit', chance: 0.25, minQuantity: 1, maxQuantity: 2 },
+      { itemName: 'cotton', chance: 0.15, minQuantity: 1, maxQuantity: 2 },
+    ],
+    promptVerb: 'Harvest',
+    validLocations: ['farm', 'field', 'garden', 'plantation', 'greenhouse'],
+  },
 };
 
 // ── Business-to-Action Hotspot Mapping ───────────────────────────────────────
@@ -269,8 +317,17 @@ export const BUSINESS_ACTION_HOTSPOTS: Record<string, { actionType: PhysicalActi
   church: [{ actionType: 'praying', furnitureSubType: 'pew' }],
   chapel: [{ actionType: 'praying', furnitureSubType: 'pew' }],
   temple: [{ actionType: 'praying', furnitureSubType: 'pew' }],
-  farm: [{ actionType: 'harvesting', furnitureSubType: 'counter' }],
-  garden: [{ actionType: 'harvesting', furnitureSubType: 'counter' }],
+  farm: [
+    { actionType: 'farm_plant', furnitureSubType: 'counter' },
+    { actionType: 'farm_water', furnitureSubType: 'counter' },
+    { actionType: 'farm_harvest', furnitureSubType: 'counter' },
+    { actionType: 'harvesting', furnitureSubType: 'counter' },
+  ],
+  garden: [
+    { actionType: 'farm_plant', furnitureSubType: 'counter' },
+    { actionType: 'farm_harvest', furnitureSubType: 'counter' },
+    { actionType: 'harvesting', furnitureSubType: 'counter' },
+  ],
   art_studio: [{ actionType: 'painting', furnitureSubType: 'workbench' }],
   mine: [{ actionType: 'mining', furnitureSubType: 'workbench' }],
   blacksmith_yard: [{ actionType: 'mining', furnitureSubType: 'anvil' }],
