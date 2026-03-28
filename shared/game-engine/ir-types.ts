@@ -107,6 +107,9 @@ export interface MetaIR {
 
 export interface GeographyIR {
   terrainSize: number;
+  /** Runtime scale factor applied to all world positions (default 1.0).
+   *  Compact ≈ 0.6, Standard = 1.0, Expansive ≈ 1.7. */
+  worldScaleFactor?: number;
   /** Optional heightmap as row-major 2D array of normalised heights [0,1] */
   heightmap?: number[][];
   /** Optional slope map derived from heightmap (gradient magnitudes) */

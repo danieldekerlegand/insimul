@@ -123,7 +123,10 @@
       "/Users/danieldekerlegand/Downloads/InsimulGodot",
       "/tmp",
       "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scripts/world",
-      "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scripts/ui"
+      "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scripts/ui",
+      "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scenes",
+      "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scripts/core",
+      "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scripts/systems"
     ]
   }
 }

@@ -10,6 +10,8 @@
  * - Unsubstituted template tokens
  * - Cross-file type mismatches (var declared type vs function return type)
  * - @onready with % unique-name lookups (fragile when nodes are built in code)
+ * - Shadowed built-in function names used as variable names
+ * - StringName vs String mismatch when using .name in ternary assignments
  */
 
 import type { GeneratedFile } from './godot-project-generator';
@@ -24,6 +26,13 @@ const INVALID_CLASSES = [
   { wrong: /\bRigidBody\b(?!3D)/, correct: 'RigidBody3D' },
   { wrong: /\bArea\b(?!3D)/, correct: 'Area3D' },
   { wrong: /\.instance\(\)/, correct: '.instantiate()' },
+];
+
+// GDScript built-in function names that should not be shadowed by variables
+const BUILTIN_FUNCTIONS = [
+  'len', 'str', 'int', 'float', 'bool', 'print', 'range', 'abs',
+  'max', 'min', 'clamp', 'sign', 'round', 'ceil', 'floor', 'sqrt',
+  'pow', 'sin', 'cos', 'tan', 'log', 'exp', 'hash', 'typeof', 'type_string',
 ];
 
 // GDScript reserved keywords that can't be used as variable names
@@ -202,6 +211,31 @@ function validateSingleFile(file: GeneratedFile, returnTypes: Map<string, string
         });
       }
       seenConstants.add(constName);
+    }
+
+    // Check for variable names that shadow GDScript built-in functions
+    const varDeclMatch = trimmed.match(/^var\s+(\w+)\s*[:=]/);
+    if (varDeclMatch) {
+      const varName = varDeclMatch[1];
+      if (BUILTIN_FUNCTIONS.includes(varName)) {
+        errors.push({
+          file: file.path,
+          line: lineNum,
+          message: `Variable "${varName}" shadows a GDScript built-in function`,
+          severity: 'warning',
+        });
+      }
+    }
+
+    // Check for StringName vs String mismatch: var x: String = something.name if ...
+    // .name returns StringName, not String, which can cause type errors in ternaries
+    if (/var\s+\w+\s*:\s*String\s*=\s*\w+\.name\s+if\b/.test(trimmed)) {
+      errors.push({
+        file: file.path,
+        line: lineNum,
+        message: `.name returns StringName, not String — use String(...name) or declare as StringName`,
+        severity: 'warning',
+      });
     }
 
     // Check for class_name conflicting with autoload

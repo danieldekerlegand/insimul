@@ -3,7 +3,7 @@
 void UWorldScaleManager::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] WorldScaleManager initialized (terrain: %d)"), TerrainSize);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] WorldScaleManager initialized (terrain: %d, scale: %.2f)"), TerrainSize, ScaleFactor);
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +209,7 @@ TArray<FScaledSettlement> UWorldScaleManager::DistributeSettlementsInTerritory(
 
         if (bHasWorldPos)
         {
-            Position = FVector(WorldPositionsX[Index], 0.f, WorldPositionsZ[Index]);
+            Position = FVector(WorldPositionsX[Index] * ScaleFactor, 0.f, WorldPositionsZ[Index] * ScaleFactor);
         }
         else if (Count == 1)
         {

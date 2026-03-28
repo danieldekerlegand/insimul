@@ -99,6 +99,8 @@ namespace Insimul.World
     {
         [Header("World")]
         public int terrainSize = {{TERRAIN_SIZE}};
+        /// <summary>Runtime scale factor applied to all world positions (default 1.0).</summary>
+        public float scaleFactor = {{WORLD_SCALE_FACTOR}}f;
         public Color groundColor = new Color({{GROUND_COLOR_R}}f, {{GROUND_COLOR_G}}f, {{GROUND_COLOR_B}}f);
         public Color skyColor = new Color({{SKY_COLOR_R}}f, {{SKY_COLOR_G}}f, {{SKY_COLOR_B}}f);
         public Color roadColor = new Color({{ROAD_COLOR_R}}f, {{ROAD_COLOR_G}}f, {{ROAD_COLOR_B}}f);
@@ -122,7 +124,9 @@ namespace Insimul.World
         public void Initialize(InsimulWorldIR worldData)
         {
             terrainSize = worldData.geography.terrainSize;
-            Debug.Log($"[Insimul] WorldScaleManager initialized (terrain: {terrainSize})");
+            if (worldData.geography.worldScaleFactor > 0f)
+                scaleFactor = worldData.geography.worldScaleFactor;
+            Debug.Log($"[Insimul] WorldScaleManager initialized (terrain: {terrainSize}, scale: {scaleFactor:F2})");
 
             // Set skybox color
             RenderSettings.ambientSkyColor = skyColor;
@@ -363,7 +367,7 @@ namespace Insimul.World
 
                 if (hasWorldPos)
                 {
-                    position = new Vector3(worldPositionsX[index], 0f, worldPositionsZ[index]);
+                    position = new Vector3(worldPositionsX[index] * scaleFactor, 0f, worldPositionsZ[index] * scaleFactor);
                 }
                 else if (count == 1)
                 {

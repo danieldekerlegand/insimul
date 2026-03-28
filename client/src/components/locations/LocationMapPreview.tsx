@@ -34,6 +34,7 @@ interface LocationMapPreviewProps {
   worldName?: string;
   /** World record with mapWidth/mapDepth for geographic coordinate rendering */
   worldData?: { mapWidth?: number; mapDepth?: number; mapCenter?: { x: number; z: number } } | null;
+  onWorldClick?: () => void;
   onSettlementClick?: (settlement: any) => void;
   onCountryClick?: (country: any) => void;
   onBuildingClick?: (lotId: string) => void;
@@ -211,6 +212,7 @@ export function LocationMapPreview({
   worldId,
   worldName = 'World',
   worldData,
+  onWorldClick,
   onSettlementClick,
   onCountryClick,
   onBuildingClick,
@@ -226,6 +228,8 @@ export function LocationMapPreview({
   const guiRef = useRef<GUI.AdvancedDynamicTexture | null>(null);
   const sceneRefsRef = useRef<SceneRefs | null>(null);
   const isRotatingRef = useRef(true);
+  const onWorldClickRef = useRef(onWorldClick);
+  onWorldClickRef.current = onWorldClick;
   const onBuildingClickRef = useRef(onBuildingClick);
   onBuildingClickRef.current = onBuildingClick;
   const onSettlementClickRef = useRef(onSettlementClick);
@@ -366,13 +370,14 @@ export function LocationMapPreview({
       polygon.map(p => new BABYLON.Vector3((p.x * previewScale) - mapCenterX, 0.03, (p.z * previewScale) - mapCenterZ));
 
     const countryCount = Math.max(countries.length, 1);
-    // Fallback layout for worlds without real coordinates
-    const fallbackCountryRadius = Math.min(countryCount * 6, 40);
-    const fallbackSettlementRadius = 6;
+    // Fallback layout for worlds without real coordinates —
+    // ensure clear visual hierarchy: world >> country >> settlement
+    const fallbackCountryRadius = Math.max(countryCount * 8, 14);
+    const fallbackSettlementSpread = fallbackCountryRadius * 0.55;
 
     refs.worldRadius = hasRealCoords
       ? (PREVIEW_TARGET_SIZE / 2) * 1.2
-      : Math.max(fallbackCountryRadius + 15, 25);
+      : fallbackCountryRadius + 12;
 
     // Large world ground — parchment/cartographic base
     const groundSize = hasRealCoords ? PREVIEW_TARGET_SIZE * 1.3 : refs.worldRadius * 2.5;
@@ -386,7 +391,17 @@ export function LocationMapPreview({
     ground.material = groundMat;
     tagMesh(ground, 'terrain');
 
-    // World name label (centered at top of map)
+    // World boundary circle — subtle blue-grey, distinct from country borders
+    const worldBorderRadius = hasRealCoords
+      ? (PREVIEW_TARGET_SIZE / 2) * 1.1
+      : refs.worldRadius;
+    const worldBorder = drawBorderCircle(
+      scene, 'worldBorder', BABYLON.Vector3.Zero(), worldBorderRadius,
+      new BABYLON.Color3(0.45, 0.50, 0.55), 64, true,
+    );
+    tagMesh(worldBorder, 'districts');
+
+    // World name label (centered at top of map) — clickable to zoom back to world view
     {
       const worldLabelAnchor = BABYLON.MeshBuilder.CreateBox('worldLabelAnchor', { size: 0.01 }, scene);
       worldLabelAnchor.position = new BABYLON.Vector3(0, 6, 0);
@@ -399,6 +414,15 @@ export function LocationMapPreview({
         outlineColor: 'rgba(200, 190, 170, 0.6)',
         outlineWidth: 1,
       });
+      // Make the GUI container clickable for navigation
+      const guiContainer = worldLabelAnchor.metadata?.guiControl;
+      if (guiContainer) {
+        guiContainer.isPointerBlocker = true;
+        guiContainer.cursor = 'pointer';
+        guiContainer.onPointerClickObservable.add(() => {
+          if (onWorldClickRef.current) onWorldClickRef.current();
+        });
+      }
     }
 
     // Place countries
@@ -420,26 +444,48 @@ export function LocationMapPreview({
       const terrain = country.terrain ?? 'plains';
       const terrainCol = getTerrainColor(terrain);
 
-      // Draw country border from real territory polygon or fallback circle
+      // Draw country territory fill and border — warm olive tint, distinct from cool world border
+      const countryBorderColor = new BABYLON.Color3(
+        0.55 + terrainCol.r * 0.2,
+        0.48 + terrainCol.g * 0.15,
+        0.35 + terrainCol.b * 0.1,
+      );
       if (hasRealCoords && country.territoryPolygon && country.territoryPolygon.length >= 3) {
         const polyPoints = toPreviewPoly(country.territoryPolygon);
-        // Close the polygon
         polyPoints.push(polyPoints[0].clone());
         const borderLine = BABYLON.MeshBuilder.CreateLines(
           `countryBorder_${country.id}`,
           { points: polyPoints },
           scene,
         );
-        borderLine.color = terrainCol.scale(0.6);
+        borderLine.color = countryBorderColor;
         borderLine.isPickable = false;
         tagMesh(borderLine, 'districts');
       } else {
         const countryBorderRadius = hasRealCoords
           ? (country.territoryRadius ?? 800) * previewScale
-          : Math.max(12, fallbackSettlementRadius + 18);
+          : fallbackCountryRadius;
+
+        // Subtle filled territory disc
+        const territoryFill = BABYLON.MeshBuilder.CreateDisc(
+          `countryFill_${country.id}`,
+          { radius: countryBorderRadius, tessellation: 48 },
+          scene,
+        );
+        territoryFill.rotation.x = Math.PI / 2;
+        territoryFill.position = new BABYLON.Vector3(countryPos.x, 0.015, countryPos.z);
+        const fillMat = new BABYLON.StandardMaterial(`countryFillMat_${country.id}`, scene);
+        fillMat.diffuseColor = terrainCol.scale(0.85);
+        fillMat.specularColor = BABYLON.Color3.Black();
+        fillMat.alpha = 0.15;
+        territoryFill.material = fillMat;
+        territoryFill.isPickable = false;
+        tagMesh(territoryFill, 'districts');
+
+        // Country border line
         const countryBorder = drawBorderCircle(
           scene, `countryBorder_${country.id}`, countryPos, countryBorderRadius,
-          terrainCol.scale(0.6), 48, false,
+          countryBorderColor, 48, false,
         );
         tagMesh(countryBorder, 'districts');
       }
@@ -447,7 +493,7 @@ export function LocationMapPreview({
       // Invisible pick disc for click detection
       const pickRadius = hasRealCoords
         ? (country.territoryRadius ?? 800) * previewScale
-        : Math.max(12, fallbackSettlementRadius + 18);
+        : fallbackCountryRadius;
       const pickDisc = BABYLON.MeshBuilder.CreateDisc(`country_${country.id}`, { radius: pickRadius, tessellation: 24 }, scene);
       pickDisc.rotation.x = Math.PI / 2;
       pickDisc.position = new BABYLON.Vector3(countryPos.x, 0.01, countryPos.z);
@@ -456,7 +502,7 @@ export function LocationMapPreview({
       refs.pickableMap.set(pickDisc.id, { type: 'country', data: country });
       tagMesh(pickDisc, 'districts');
 
-      // Country label — uppercase, serif, cartographic style
+      // Country label — uppercase, serif, cartographic style — clickable to zoom into country
       const anchor = BABYLON.MeshBuilder.CreateBox(`cAnchor_${ci}`, { size: 0.01 }, scene);
       anchor.position = new BABYLON.Vector3(countryPos.x, 1.5, countryPos.z);
       anchor.isVisible = false;
@@ -467,6 +513,14 @@ export function LocationMapPreview({
         outlineColor: 'rgba(200, 190, 170, 0.7)',
         outlineWidth: 1,
       });
+      const countryGuiContainer = anchor.metadata?.guiControl;
+      if (countryGuiContainer) {
+        countryGuiContainer.isPointerBlocker = true;
+        countryGuiContainer.cursor = 'pointer';
+        countryGuiContainer.onPointerClickObservable.add(() => {
+          if (onCountryClickRef.current) onCountryClickRef.current(country);
+        });
+      }
 
       // Place settlement markers within this country
       const countrySettlements = settlements.filter(s => s.countryId === country.id);
@@ -479,9 +533,9 @@ export function LocationMapPreview({
           const sCount = Math.max(countrySettlements.length, 1);
           const sAngle = (si / sCount) * Math.PI * 2 + Math.PI / 4;
           settlementPos = new BABYLON.Vector3(
-            countryPos.x + Math.cos(sAngle) * fallbackSettlementRadius,
+            countryPos.x + Math.cos(sAngle) * fallbackSettlementSpread,
             0,
-            countryPos.z + Math.sin(sAngle) * fallbackSettlementRadius,
+            countryPos.z + Math.sin(sAngle) * fallbackSettlementSpread,
           );
         }
         refs.settlementPositions.set(s.id, settlementPos);
@@ -602,6 +656,23 @@ export function LocationMapPreview({
     const refs = sceneRefsRef.current;
     if (!scene || scene.isDisposed || !camera || !refs) return;
 
+    // When navigating away from settlement detail, hide all detail nodes immediately
+    // (don't wait for LOD distance check which lags during camera animation)
+    if (viewLevel !== 'settlement') {
+      refs.settlementDetailNodes.forEach((detailNode) => {
+        detailNode.setEnabled(false);
+        for (const child of detailNode.getChildMeshes()) {
+          if (child.metadata?.guiControl) {
+            child.metadata.guiControl.isVisible = false;
+          }
+        }
+      });
+      // Re-enable all settlement markers
+      refs.settlementMarkerNodes.forEach((markerNode) => {
+        markerNode.setEnabled(true);
+      });
+    }
+
     if (viewLevel === 'world') {
       // Nearly top-down for cartographic world overview
       animateCameraTo(camera, scene, BABYLON.Vector3.Zero(), refs.worldRadius * 0.9, Math.PI / 8);
@@ -625,7 +696,10 @@ export function LocationMapPreview({
         const settlementId = lots[0]?.settlementId;
         if (settlementId) {
           const pos = refs.settlementPositions.get(settlementId);
-          if (pos) animateCameraTo(camera, scene, pos.clone(), 35, Math.PI / 3.5);
+          const sType2 = settlements.find(s => s.id === settlementId)?.settlementType;
+          const sFallback2 = Math.max(countries.length * 8, 14);
+          const sViewR = Math.max(4, (SETTLEMENT_SCALE[sType2] ?? 0.5) * sFallback2 * 0.8) * 0.7;
+          if (pos) animateCameraTo(camera, scene, pos.clone(), sViewR, Math.PI / 3.5);
         }
       }
     }
@@ -638,6 +712,8 @@ export function LocationMapPreview({
     const refs = sceneRefsRef.current;
     if (!scene || scene.isDisposed || !gui || !refs) return;
     if (lots.length === 0) return;
+    // Only show settlement detail when actually at settlement view level
+    if (viewLevel !== 'settlement') return;
 
     const settlementId = lots[0]?.settlementId;
     if (!settlementId) return;
@@ -650,7 +726,10 @@ export function LocationMapPreview({
       const pos = refs.settlementPositions.get(settlementId);
       if (pos && cameraRef.current) {
         // Radius that frames the entire settlement (layout spans ~24 preview units)
-        const settlementViewRadius = 35;
+        const sType = settlements.find(s => s.id === settlementId)?.settlementType;
+        const sFallback = Math.max(countries.length * 8, 14);
+        const sDetailSize = (SETTLEMENT_SCALE[sType] ?? 0.5) * sFallback * 0.8;
+        const settlementViewRadius = Math.max(4, sDetailSize) * 0.7;
         animateCameraTo(cameraRef.current, scene, pos.clone(), settlementViewRadius, Math.PI / 3.5);
       }
       return;
@@ -679,33 +758,46 @@ export function LocationMapPreview({
       const normalizedStreets = normalizeStreets(streets);
       const hasStoredStreets = normalizedStreets.length > 0;
 
+      // Scale settlement detail to fit proportionally within the country.
+      // A hamlet should be visually small inside its country circle, a city larger.
+      const settlement = settlements.find(s => s.id === settlementId);
+      const hasReal = !!(worldData?.mapWidth && worldData.mapWidth > 0);
+      const previewTargetSize = 50;
+      const countryRadiusFallback = Math.max(countries.length * 8, 14);
+      const detailTargetSize = hasReal && settlement?.radius
+        ? settlement.radius * (previewTargetSize / Math.max(worldData!.mapWidth!, worldData!.mapDepth ?? worldData!.mapWidth!)) * 2
+        : (SETTLEMENT_SCALE[settlement?.settlementType] ?? 0.5) * countryRadiusFallback * 0.8;
+      const clampedDetailSize = Math.max(4, detailTargetSize);
+
       if (hasStoredStreets) {
-        renderStreetNetworkAtNode(scene, gui, normalizedStreets, detailNode);
+        renderStreetNetworkAtNode(scene, gui, normalizedStreets, detailNode, clampedDetailSize);
       }
 
-      const { positions, streets: layoutStreets, scale: layoutScale } = computeSettlementLayout(lots, worldId, hasStoredStreets ? normalizedStreets : undefined);
+      const { positions, streets: layoutStreets, scale: layoutScale } = computeSettlementLayout(lots, worldId, hasStoredStreets ? normalizedStreets : undefined, clampedDetailSize);
 
       if (!hasStoredStreets) {
         renderStreetsAtNode(scene, gui, layoutStreets, detailNode);
       }
 
-      // Settlement boundary — compute actual extent from lot + street positions,
-      // then draw a dashed border line instead of a filled ground plane
-      let extentMax = 15; // minimum half-extent
+      // Settlement boundary — compute actual extent from lot + street positions
+      // (all already in the scaled-down targetSize coordinate space)
+      const margin = clampedDetailSize * 0.1;
+      let extentMax = clampedDetailSize * 0.4; // minimum half-extent proportional to detail size
       positions.forEach(pos => {
-        extentMax = Math.max(extentMax, Math.abs(pos.x) + 5, Math.abs(pos.z) + 5);
+        extentMax = Math.max(extentMax, Math.abs(pos.x) + margin, Math.abs(pos.z) + margin);
       });
       for (const seg of layoutStreets) {
-        extentMax = Math.max(extentMax, Math.abs(seg.from.x) + 3, Math.abs(seg.from.z) + 3,
-                                        Math.abs(seg.to.x) + 3, Math.abs(seg.to.z) + 3);
+        extentMax = Math.max(extentMax, Math.abs(seg.from.x) + margin, Math.abs(seg.from.z) + margin,
+                                        Math.abs(seg.to.x) + margin, Math.abs(seg.to.z) + margin);
       }
       if (hasStoredStreets) {
         const ss = computeStreetScale(normalizedStreets);
+        const ssFactor = clampedDetailSize / 24;
         for (const seg of normalizedStreets) {
           for (const wp of seg.waypoints) {
-            const sx = (wp.x - ss.cx) * ss.scale;
-            const sz = (wp.z - ss.cz) * ss.scale;
-            extentMax = Math.max(extentMax, Math.abs(sx) + 3, Math.abs(sz) + 3);
+            const sx = (wp.x - ss.cx) * ss.scale * ssFactor;
+            const sz = (wp.z - ss.cz) * ss.scale * ssFactor;
+            extentMax = Math.max(extentMax, Math.abs(sx) + margin, Math.abs(sz) + margin);
           }
         }
       }
@@ -869,7 +961,10 @@ export function LocationMapPreview({
       // Animate camera to frame the entire settlement
       const sPos = refs.settlementPositions.get(settlementId);
       if (sPos && cameraRef.current) {
-        const settlementViewRadius = 35;
+        const sType = settlements.find(s => s.id === settlementId)?.settlementType;
+        const sFallback = Math.max(countries.length * 8, 14);
+        const sDetailSize = (SETTLEMENT_SCALE[sType] ?? 0.5) * sFallback * 0.8;
+        const settlementViewRadius = Math.max(4, sDetailSize) * 0.7;
         animateCameraTo(cameraRef.current, scene, sPos.clone(), settlementViewRadius, Math.PI / 3.5);
       }
 
@@ -878,7 +973,7 @@ export function LocationMapPreview({
     };
 
     buildDetail();
-  }, [lots, businesses, residences, streets, worldId]);
+  }, [lots, businesses, residences, streets, worldId, viewLevel]);
 
   // ── LOD: toggle detail vs markers based on camera distance ─────────────────
   useEffect(() => {
@@ -894,7 +989,16 @@ export function LocationMapPreview({
         const showDetail = dist < LOD_THRESHOLD && refs.settlementLoaded.has(id);
         const detailNode = refs.settlementDetailNodes.get(id);
         const markerNode = refs.settlementMarkerNodes.get(id);
-        if (detailNode) detailNode.setEnabled(showDetail);
+        if (detailNode) {
+          detailNode.setEnabled(showDetail);
+          // Toggle GUI labels parented to this detail node so they don't
+          // bleed through at world/country zoom levels
+          for (const child of detailNode.getChildMeshes()) {
+            if (child.metadata?.guiControl) {
+              child.metadata.guiControl.isVisible = showDetail;
+            }
+          }
+        }
         if (markerNode) markerNode.setEnabled(!showDetail);
       });
     });
@@ -1398,6 +1502,8 @@ export function computeSettlementLayout(
   settlementId?: string,
   /** Pass normalized street data so lot positions use the same coordinate space */
   storedStreets?: StreetSegmentData[],
+  /** Target size in preview units for the layout. Defaults to 24. */
+  targetSize: number = 24,
 ): { positions: Map<string, { x: number; z: number; angle: number }>; streets: StreetSegment[]; scale: number } {
   const positions = new Map<string, { x: number; z: number; angle: number }>();
   let streets: StreetSegment[] = [];
@@ -1420,9 +1526,9 @@ export function computeSettlementLayout(
     let centerZ: number;
 
     if (storedStreets && storedStreets.length > 0) {
-      // Use the exact same transform as renderStreetNetwork
+      // Use the same center as renderStreetNetwork, but scale to targetSize
       const streetScale = computeStreetScale(storedStreets);
-      scale = streetScale.scale;
+      scale = streetScale.scale * (targetSize / 24); // computeStreetScale uses editorSize=24
       centerX = streetScale.cx;
       centerZ = streetScale.cz;
     } else {
@@ -1436,8 +1542,7 @@ export function computeSettlementLayout(
       }
       const rangeX = maxX - minX || 1;
       const rangeZ = maxZ - minZ || 1;
-      const editorSize = 24; // match computeStreetScale
-      scale = editorSize / Math.max(rangeX, rangeZ);
+      scale = targetSize / Math.max(rangeX, rangeZ);
       centerX = (minX + maxX) / 2;
       centerZ = (minZ + maxZ) / 2;
     }
@@ -1879,8 +1984,10 @@ function renderStreetNetworkAtNode(
   gui: GUI.AdvancedDynamicTexture,
   streets: StreetSegmentData[],
   parent: BABYLON.TransformNode,
+  /** Target size in preview units. Default 24 matches computeStreetScale's editorSize. */
+  targetSize: number = 24,
 ) {
-  renderStreetNetwork(scene, gui, streets, parent);
+  renderStreetNetwork(scene, gui, streets, parent, targetSize);
 }
 
 function renderStreets(
@@ -1983,8 +2090,11 @@ function renderStreetNetwork(
   gui: GUI.AdvancedDynamicTexture,
   streets: StreetSegmentData[],
   parent?: BABYLON.TransformNode,
+  /** Target size in preview units. Default 24 matches computeStreetScale's editorSize. */
+  targetSize: number = 24,
 ) {
-  const { scale, cx, cz } = computeStreetScale(streets);
+  const { scale: baseScale, cx, cz } = computeStreetScale(streets);
+  const scale = baseScale * (targetSize / 24);
 
   const roadMat = new BABYLON.StandardMaterial('roadMat', scene);
   roadMat.diffuseColor = new BABYLON.Color3(0.35, 0.33, 0.3);

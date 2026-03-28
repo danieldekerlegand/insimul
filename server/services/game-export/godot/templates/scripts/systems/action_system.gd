@@ -205,7 +205,7 @@ func execute_action(action_id: String, source: Node, target: Node = null) -> Dic
 		effects.append(effect_data)
 
 	# Generate narrative text
-	var target_name: String = target.name if target else "someone"
+	var target_name: String = str(target.name) if target else "someone"
 	var narrative_text: String = _generate_narrative_text(action, "You", target_name)
 
 	# Update action state and start cooldown

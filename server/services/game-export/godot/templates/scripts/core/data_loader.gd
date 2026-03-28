@@ -413,7 +413,7 @@ func get_entity_inventory(entity_id: String) -> Dictionary:
 
 ## Get player inventory. Delegates to get_entity_inventory.
 ## world_id is accepted for interface compatibility but unused in exported mode.
-func get_player_inventory(world_id: String, player_id: String) -> Dictionary:
+func get_player_inventory(_world_id: String, player_id: String) -> Dictionary:
 	return get_entity_inventory(player_id)
 
 ## Get container contents by container ID from containers.json.

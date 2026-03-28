@@ -131,9 +131,9 @@ func _spawn_npc(data: Dictionary) -> void:
 	npc.add_child(nav)
 
 	var pos: Dictionary = data.get("homePosition", {})
-	npc.global_position = Vector3(pos.get("x", 0), pos.get("y", 0), pos.get("z", 0))
 	npc.name = "NPC_%s" % char_id
 	add_child(npc)
+	npc.global_position = Vector3(pos.get("x", 0), pos.get("y", 0), pos.get("z", 0))
 
 	# Attach animation controller
 	var anim_ctrl_script := load("res://scripts/characters/character_animation_controller.gd")

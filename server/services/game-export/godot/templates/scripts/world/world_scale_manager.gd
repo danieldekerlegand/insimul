@@ -31,6 +31,8 @@ const _POP_TIERS: Array[Dictionary] = [
 ]
 
 var _seed: String = "world"
+## Runtime scale factor applied to all world positions (default 1.0)
+var scale_factor: float = 1.0
 
 func _ready() -> void:
 	add_to_group("world_generator")
@@ -38,7 +40,8 @@ func _ready() -> void:
 func generate_from_data(world_data: Dictionary) -> void:
 	var geo: Dictionary = world_data.get("geography", {})
 	terrain_size = geo.get("terrainSize", terrain_size)
-	print("[Insimul] WorldScaleManager initialized (terrain: %d)" % terrain_size)
+	scale_factor = geo.get("worldScaleFactor", 1.0)
+	print("[Insimul] WorldScaleManager initialized (terrain: %d, scale: %.2f)" % [terrain_size, scale_factor])
 	_generate_terrain()
 	_setup_sky()
 
@@ -268,7 +271,9 @@ func distribute_settlements_in_territory(
 		)
 
 		if has_world_pos:
-			position = Vector3(world_positions_x[index], 0.0, world_positions_z[index])
+			position = Vector3(
+				world_positions_x[index] * scale_factor, 0.0,
+				world_positions_z[index] * scale_factor)
 		elif count == 1:
 			position = Vector3(bounds_dict["centerX"], 0.0, bounds_dict["centerZ"])
 		else:
@@ -462,14 +467,14 @@ func generate_street_aligned_settlement(
 			break
 		var street: Dictionary = streets[si]
 		var dir: Vector3 = street["end"] - street["start"]
-		var len := dir.length()
-		if len < 1.0:
+		var street_len := dir.length()
+		if street_len < 1.0:
 			continue
 
-		var dir_n := dir / len
+		var dir_n := dir / street_len
 		var perp_n := Vector3(-dir_n.z, 0.0, dir_n.x)
 
-		var lots_per_side := maxi(1, floori(len / lot_spacing))
+		var lots_per_side := maxi(1, floori(street_len / lot_spacing))
 
 		for side_idx in [-1, 1]:
 			for li in range(lots_per_side):

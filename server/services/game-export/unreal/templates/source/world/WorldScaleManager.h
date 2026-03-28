@@ -167,6 +167,10 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "World")
     int32 TerrainSize = {{TERRAIN_SIZE}};
 
+    /** Runtime scale factor applied to all world positions (default 1.0). */
+    UPROPERTY(BlueprintReadOnly, Category = "World")
+    float ScaleFactor = {{WORLD_SCALE_FACTOR}};
+
     UPROPERTY(BlueprintReadOnly, Category = "World")
     FLinearColor GroundColor = FLinearColor({{GROUND_COLOR_R}}, {{GROUND_COLOR_G}}, {{GROUND_COLOR_B}});
 

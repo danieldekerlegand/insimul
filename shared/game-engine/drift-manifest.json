@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-28T17:26:15.790Z",
+  "lastUpdated": "2026-03-28T20:27:48.211Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -217,7 +217,7 @@
     {
       "path": "shared/game-engine/rendering/WorldScaleManager.ts",
       "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
-      "hash": "1be7ac983e6ff1732a8e9f804d8e9df16e63d47e34be050a915c9df034bb5601",
+      "hash": "871093f9ba21a29aaca784a465f67aefea6b1f3168d8d4a7e6fe74eb8c581322",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "6c84d56cd8c0965979dfaad0fa0f5efe3ba0683664c36350c65166cb18e8cca2",
+      "hash": "ce6c31081b86f919a6f7a9de87caf08c5e9103e108f6dfabe14838ece6ae85de",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "9ce708e2a2e4d9521d1ac03de325c4f2437cba7649cf6031b9597705e80be328",
+      "hash": "3141e4fc80dc66880a3b176d8401eec7a3929ec78fc26b328d68c5b48e9cc4cf",
       "engineMappings": [
         {
           "engine": "babylon",

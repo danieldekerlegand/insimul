@@ -5,7 +5,6 @@ extends Node
 signal quest_accepted(quest_id: String)
 signal quest_completed(quest_id: String)
 signal objective_completed(quest_id: String, objective_id: String)
-signal story_tts(story_text: String, npc_id: String)
 signal quest_item_collected(quest_id: String, objective_id: String, item_name: String)
 
 ## Scavenger hunt categories for vocabulary rotation.
@@ -1093,7 +1092,7 @@ func handle_game_event(event_data: Dictionary) -> int:
 	if event_type.is_empty():
 		return 0
 
-	var affected := 0
+	var affected := [0]
 
 	for mapping in _action_mappings:
 		if mapping.get("event_type", "") != event_type:
@@ -1119,7 +1118,7 @@ func handle_game_event(event_data: Dictionary) -> int:
 				if not obj_activity.is_empty() and (ev_activity.is_empty() or not ev_activity.contains(obj_activity)):
 					return
 
-			affected += 1
+			affected[0] += 1
 
 			if mapping.get("has_quantity", false):
 				var qty: Dictionary = mapping.get("quantity", {})
@@ -1134,7 +1133,7 @@ func handle_game_event(event_data: Dictionary) -> int:
 				complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 		)
 
-	return affected
+	return affected[0]
 
 
 func _matches_field(rule: Dictionary, event_value: String, objective_value: String) -> bool:
@@ -1183,7 +1182,7 @@ func generate_item_positions(count: int) -> Array[Vector3]:
 
 ## Generate a single location position that avoids building interiors.
 func generate_location_position() -> Vector3:
-	for attempt in range(8):
+	for _attempt in range(8):
 		var angle := randf_range(0.0, PI * 2.0)
 		var dist := 20.0 + randf_range(0.0, 20.0)
 		var x := cos(angle) * dist
@@ -1191,9 +1190,9 @@ func generate_location_position() -> Vector3:
 		if not _point_in_building_check.is_valid() or not _point_in_building_check.call(x, z):
 			return Vector3(x, 0.0, z)
 	# Fallback — push farther out
-	var angle := randf_range(0.0, PI * 2.0)
+	var fallback_angle := randf_range(0.0, PI * 2.0)
 	var dist := 40.0 + randf_range(0.0, 10.0)
-	return Vector3(cos(angle) * dist, 0.0, sin(angle) * dist)
+	return Vector3(cos(fallback_angle) * dist, 0.0, sin(fallback_angle) * dist)
 
 
 ## Attach debug metadata to a quest marker node (used for hover tooltips).

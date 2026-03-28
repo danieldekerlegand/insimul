@@ -147,7 +147,8 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
   const theme = ir.theme.visualTheme;
 
   const worldScaleTokens: TokenMap = {
-    TERRAIN_SIZE:   ir.geography.terrainSize,
+    TERRAIN_SIZE:      ir.geography.terrainSize,
+    WORLD_SCALE_FACTOR: ir.geography.worldScaleFactor ?? 1.0,
     GROUND_COLOR_R: theme.groundColor.r,
     GROUND_COLOR_G: theme.groundColor.g,
     GROUND_COLOR_B: theme.groundColor.b,

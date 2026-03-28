@@ -130,7 +130,7 @@ function createSeededRandom(seed: string): () => number {
   }
   return () => {
     hash = (hash * 9301 + 49297) % 233280;
-    return hash / 233280;
+    return Math.abs(hash) / 233280;
   };
 }
 
@@ -2082,6 +2082,7 @@ export async function generateWorldIR(
 
     geography: {
       terrainSize,
+      worldScaleFactor: world.generationConfig?.worldScaleFactor ?? 1.0,
       heightmap,
       slopeMap,
       terrainFeatures: terrainFeatureIRs,

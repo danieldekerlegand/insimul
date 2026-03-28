@@ -3690,7 +3690,8 @@ export class BabylonGame {
         // Resume: NPC behavior loop will pick back up naturally
       }
     );
-    this.worldScaleManager = new WorldScaleManager(512, this.config.worldId);
+    const scaleFactor = (this.worldData as any)?.generationConfig?.worldScaleFactor ?? 1.0;
+    this.worldScaleManager = new WorldScaleManager(512, this.config.worldId, scaleFactor);
 
     if (this.buildingGenerator) {
       await this.buildingGenerator.initializeAssets(this.config.worldType);

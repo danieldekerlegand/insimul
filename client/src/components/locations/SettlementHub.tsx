@@ -53,6 +53,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   // World name for map display
   const [worldName, setWorldName] = useState<string>('World');
   const [worldData, setWorldData] = useState<any>(null);
+  const [worldScaleFactor, setWorldScaleFactor] = useState<number>(1.0);
 
   // Location tree
   const [countries, setCountries] = useState<any[]>([]);
@@ -331,6 +332,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         if (res.ok) {
           const world = await res.json();
           if (world?.name) setWorldName(world.name);
+          if (world?.generationConfig?.worldScaleFactor != null) setWorldScaleFactor(world.generationConfig.worldScaleFactor);
           setWorldData(world);
         }
       } catch { /* ignore */ }
@@ -577,14 +579,14 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           >
             <button className="flex items-center gap-1.5 flex-1 min-w-0" onClick={selectWorld}>
               <Globe className="w-3.5 h-3.5 shrink-0 text-primary" />
-              <span className="truncate">World</span>
+              <span className="truncate">{worldName}</span>
             </button>
             <span className="text-xs text-muted-foreground">{settlements.length}</span>
             {canEdit && (
               <span
                 role="button"
                 className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-primary transition-opacity"
-                onClick={() => setRegenerateTarget({ type: 'world', id: worldId, name: 'World Society' })}
+                onClick={() => setRegenerateTarget({ type: 'world', id: worldId, name: `${worldName} Society` })}
                 title="Regenerate all society data"
               >
                 <RefreshCw className="w-3 h-3" />
@@ -765,7 +767,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   const renderBreadcrumb = () => {
     const crumbs: { label: string; onClick: () => void }[] = [
-      { label: 'World', onClick: selectWorld },
+      { label: worldName, onClick: selectWorld },
     ];
     if (selectedCountry && (viewLevel === 'country' || viewLevel === 'settlement')) {
       crumbs.push({ label: selectedCountry.name, onClick: () => selectCountry(selectedCountry) });
@@ -798,6 +800,18 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const renderCenter = () => (
     <div className="flex-1 flex flex-col min-h-0">
       {renderBreadcrumb()}
+
+      {/* World header when at world level */}
+      {viewLevel === 'world' && (
+        <div className="px-4 py-3 border-b shrink-0">
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="text-lg font-bold">{worldName}</h2>
+            <span className="text-xs text-muted-foreground">
+              {countries.length} {countries.length === 1 ? 'country' : 'countries'} &middot; {settlements.length} settlements
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Settlement header when at settlement level */}
       {viewLevel === 'settlement' && selectedSettlement && (
@@ -880,6 +894,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           worldName={worldName}
           worldData={worldData}
           selectedLotId={selectedBuilding?.lot?.id || null}
+          onWorldClick={selectWorld}
           onSettlementClick={selectSettlement}
           onCountryClick={selectCountry}
           onBuildingClick={(lotId) => {

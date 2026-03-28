@@ -53,6 +53,8 @@ export interface ScaledSettlement {
 export class WorldScaleManager {
   private worldSize: number;
   private seed: string;
+  /** Runtime scale factor applied to all world positions (default 1.0) */
+  private scaleFactor: number;
 
   // Scale constants
   private static readonly COUNTRY_MIN_SIZE = 200; // Minimum country dimension
@@ -69,9 +71,19 @@ export class WorldScaleManager {
     huge: { min: 5001, max: Infinity, radius: 120 }
   };
 
-  constructor(worldSize: number = 1024, seed: string = 'world') {
+  constructor(worldSize: number = 1024, seed: string = 'world', scaleFactor: number = 1.0) {
     this.worldSize = worldSize;
     this.seed = seed;
+    this.scaleFactor = scaleFactor;
+  }
+
+  /** Update the runtime scale factor (no regeneration needed) */
+  public setScaleFactor(factor: number): void {
+    this.scaleFactor = factor;
+  }
+
+  public getScaleFactor(): number {
+    return this.scaleFactor;
   }
 
   /**
@@ -220,9 +232,13 @@ export class WorldScaleManager {
 
       let position: Vector3;
 
-      // Use stored world coordinates if available (from territory generator)
+      // Use stored world coordinates if available (from territory generator), scaled by runtime factor
       if (settlement.worldPositionX != null && settlement.worldPositionZ != null) {
-        position = new Vector3(settlement.worldPositionX, 0, settlement.worldPositionZ);
+        position = new Vector3(
+          settlement.worldPositionX * this.scaleFactor,
+          0,
+          settlement.worldPositionZ * this.scaleFactor,
+        );
       } else {
         // Fallback: procedural placement within territory bounds
         const boundsW = territory.bounds.maxX - territory.bounds.minX;
