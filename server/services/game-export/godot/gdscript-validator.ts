@@ -8,6 +8,8 @@
  * - Invalid unicode escapes
  * - Duplicate constant names
  * - Unsubstituted template tokens
+ * - Cross-file type mismatches (var declared type vs function return type)
+ * - @onready with % unique-name lookups (fragile when nodes are built in code)
  */
 
 import type { GeneratedFile } from './godot-project-generator';
@@ -46,16 +48,51 @@ export interface ValidationError {
 export function validateGDScriptFiles(files: GeneratedFile[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
+  // Build a cross-file return-type map: funcName -> returnType
+  const returnTypes = buildReturnTypeMap(files);
+
   for (const file of files) {
     if (!file.path.endsWith('.gd')) continue;
-    const fileErrors = validateSingleFile(file);
+    const fileErrors = validateSingleFile(file, returnTypes);
     errors.push(...fileErrors);
   }
 
   return errors;
 }
 
-function validateSingleFile(file: GeneratedFile): ValidationError[] {
+/**
+ * Scan all .gd files for `func name(...) -> Type:` signatures and build
+ * a map from function name to its declared return type.
+ * When multiple functions share the same name, the entry is removed to
+ * avoid false positives from ambiguity.
+ */
+function buildReturnTypeMap(files: GeneratedFile[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const ambiguous = new Set<string>();
+
+  for (const file of files) {
+    if (!file.path.endsWith('.gd')) continue;
+    for (const line of file.content.split('\n')) {
+      const m = line.match(/^func\s+(\w+)\s*\(.*\)\s*->\s*(\w+)\s*:/);
+      if (m) {
+        const [, name, type] = m;
+        if (map.has(name) && map.get(name) !== type) {
+          ambiguous.add(name);
+        } else {
+          map.set(name, type);
+        }
+      }
+    }
+  }
+
+  for (const name of ambiguous) {
+    map.delete(name);
+  }
+
+  return map;
+}
+
+function validateSingleFile(file: GeneratedFile, returnTypes: Map<string, string>): ValidationError[] {
   const errors: ValidationError[] = [];
   const lines = file.content.split('\n');
 
@@ -104,6 +141,17 @@ function validateSingleFile(file: GeneratedFile): ValidationError[] {
       });
     }
 
+    // Check for @onready with % unique-name references — these fail if the
+    // nodes are created programmatically in _ready/_build_ui instead of in the scene
+    if (/^@onready\s+var\s+\w+.*=\s*%/.test(trimmed)) {
+      errors.push({
+        file: file.path,
+        line: lineNum,
+        message: `@onready with % unique-name lookup will error if nodes are built programmatically — use plain "var" and assign in _build_ui()`,
+        severity: 'warning',
+      });
+    }
+
     // Check for type inference from dict indexing: "var x := dict[...]"
     const dictIndexInfer = trimmed.match(/var\s+\w+\s*:=\s*\w+\[/);
     if (dictIndexInfer) {
@@ -113,6 +161,22 @@ function validateSingleFile(file: GeneratedFile): ValidationError[] {
         message: `Type inference from dictionary/array indexing may fail — use explicit type annotation`,
         severity: 'warning',
       });
+    }
+
+    // Check for type mismatch: var x: DeclaredType = something.func()
+    // where func() has a known return type that differs from DeclaredType
+    const typedCallMatch = trimmed.match(/var\s+\w+\s*:\s*(\w+)\s*=\s*(?:\w+\.)+(\w+)\s*\(/);
+    if (typedCallMatch) {
+      const [, declaredType, funcName] = typedCallMatch;
+      const knownReturn = returnTypes.get(funcName);
+      if (knownReturn && knownReturn !== declaredType) {
+        errors.push({
+          file: file.path,
+          line: lineNum,
+          message: `Type mismatch: variable declared as "${declaredType}" but "${funcName}()" returns "${knownReturn}"`,
+          severity: 'error',
+        });
+      }
     }
 
     // Check for invalid unicode escapes: \u{XXXX}

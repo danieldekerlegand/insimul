@@ -122,8 +122,9 @@ func _create_item_mesh(item_type: String) -> MeshInstance3D:
 
 func _try_load_model(role: String) -> Node3D:
 	# Check asset manifest for model path
-	var manifest: Array = DataLoader.load_asset_manifest()
-	for entry in manifest:
+	var manifest: Dictionary = DataLoader.load_asset_manifest()
+	var assets: Array = manifest.get("assets", [])
+	for entry in assets:
 		if entry.get("role", "") == role and entry.get("category", "") == "prop":
 			var path: String = entry.get("exportPath", "")
 			if not path.is_empty() and ResourceLoader.exists("res://" + path):

@@ -104,14 +104,26 @@
       "Bash(cd /Users/danieldekerlegand/Development/school/insimul __NEW_LINE_18fb81da89ed953f__ echo \"=== SurvivalNeedsSystem.ts ===\" cat client/src/components/3DGame/SurvivalNeedsSystem.ts echo \"\" echo \"=== WorldStateManager.ts — browser deps ===\" grep -n \"navigator\\\\.\\\\|window\\\\.\\\\|document\\\\.\\\\|localStorage\\\\|fetch\\(\" client/src/components/3DGame/WorldStateManager.ts)",
       "Bash(head -5 echo --- ls /Users/danieldekerlegand/Development/school/insimul/ralphy/completed/*.json)",
       "Bash(grep -c '\"\"id\"\"' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/quests.json)",
-      "Bash(grep -c '\"\"id\"\"' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/items.json)"
+      "Bash(grep -c '\"\"id\"\"' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/items.json)",
+      "Bash(/tmp/action_analysis.txt:*)",
+      "Bash(find /Users/danieldekerlegand/Development/school/insimul/server/services/game-export -type f -name *.ts -o -name *.js -o -name *.py)",
+      "Bash(for id:*)",
+      "Bash(echo \"Checking $id\")",
+      "Bash(grep -q \"\"\"$id\"\"\" /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/npcs.json)",
+      "Bash(jq '.[] | select\\(.settlementId == \"\"69c7efb954de6edea916a67b\"\"\\) | .characterId' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/npcs.json)",
+      "Bash(jq '.[] | select\\(.settlementId == \"\"69c7efb954de6edea916a67b\"\"\\) | {name, ownerId}' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/businesses.json)",
+      "Bash(jq '.[] | select\\(.characterId == \"\"69c7efe254de6edea916a6d5\"\"\\) | .role' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/npcs.json)",
+      "Bash(jq '.[] | select\\(.spec.buildingRole == \"\"Theater\"\"\\) | {id, occupantIds, businessId}' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/buildings.json)",
+      "Bash(jq '.[] | select\\(.businessId == \"\"69c7efe554de6edea916a773\"\"\\) | {id, spec, occupantIds, businessId}' /Users/danieldekerlegand/Development/school/insimul/export/LaLouisiane/public/data/buildings.json)"
     ],
     "additionalDirectories": [
       "/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron (1)/src",
       "/Users/danieldekerlegand/Downloads/InsimulExport_LaLouisiane_Electron/electron",
       "/Users/danieldekerlegand/Downloads/InsimulUnreal",
       "/Users/danieldekerlegand/Downloads/InsimulGodot",
-      "/tmp"
+      "/tmp",
+      "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scripts/world",
+      "/Users/danieldekerlegand/Downloads/LaLouisianeGodotCloud/scripts/ui"
     ]
   }
 }

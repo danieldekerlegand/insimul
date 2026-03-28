@@ -1,8 +1,0 @@
-{
-  "apiMode": "insimul",
-  "insimulEndpoint": "/api/gemini/chat",
-  "geminiModel": "gemini-3.1-flash",
-  "geminiApiKeyPlaceholder": "YOUR_GEMINI_API_KEY",
-  "voiceEnabled": true,
-  "defaultVoice": "Kore"
-}

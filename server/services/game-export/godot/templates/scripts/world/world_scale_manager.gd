@@ -430,7 +430,7 @@ func generate_street_aligned_settlement(
 
 		pair = _seeded_random(h)
 		h = pair[1]
-		var side_len := settlement_radius * (0.3 + pair[0] * 0.3)
+		var side_len: float = settlement_radius * (0.3 + float(pair[0]) * 0.3)
 
 		pair = _seeded_random(h)
 		h = pair[1]

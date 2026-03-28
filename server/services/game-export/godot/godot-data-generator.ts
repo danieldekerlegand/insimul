@@ -10,6 +10,20 @@
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import type { GeneratedFile } from './godot-project-generator';
 
+/**
+ * JSON replacer that converts null values to type-appropriate defaults.
+ * GDScript's Dictionary.get("key", default) returns the stored null rather
+ * than the fallback when the key exists with an explicit null value, which
+ * causes "Cannot assign Nil to String/int/float" errors at runtime.
+ */
+function nullSafeReplacer(_key: string, value: unknown): unknown {
+  return value === null ? '' : value;
+}
+
+function toJSON(data: unknown): string {
+  return JSON.stringify(data, nullSafeReplacer, 2);
+}
+
 // ─────────────────────────────────────────────
 // Individual data files
 // ─────────────────────────────────────────────
@@ -384,13 +398,13 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
   // Full WorldIR (runtime loader reads this)
   files.push({
     path: `${base}/world_ir.json`,
-    content: JSON.stringify(ir, null, 2),
+    content: toJSON(ir),
   });
 
   // Meta (world metadata, asset collection config, asset ID mappings)
   files.push({
     path: `${base}/meta.json`,
-    content: JSON.stringify(ir.meta, null, 2),
+    content: toJSON(ir.meta),
   });
 
   // Individual data files
@@ -418,21 +432,21 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
   for (const table of tables) {
     files.push({
       path: `${base}/${table.name}.json`,
-      content: JSON.stringify(table.data, null, 2),
+      content: toJSON(table.data),
     });
   }
 
   // UI configuration (includes menu config)
   files.push({
     path: `${base}/ui.json`,
-    content: JSON.stringify(ir.ui, null, 2),
+    content: toJSON(ir.ui),
   });
 
   // NPC dialogue contexts (pre-built system prompts for AI chat)
   if (ir.systems.dialogueContexts?.length > 0) {
     files.push({
       path: `${base}/dialogue_contexts.json`,
-      content: JSON.stringify(ir.systems.dialogueContexts, null, 2),
+      content: toJSON(ir.systems.dialogueContexts),
     });
   }
 
@@ -440,7 +454,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
   if (ir.aiConfig) {
     files.push({
       path: `${base}/ai_config.json`,
-      content: JSON.stringify(ir.aiConfig, null, 2),
+      content: toJSON(ir.aiConfig),
     });
   }
 
@@ -448,7 +462,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
   if (ir.resources) {
     files.push({
       path: `${base}/resources.json`,
-      content: JSON.stringify(ir.resources, null, 2),
+      content: toJSON(ir.resources),
     });
   }
 
@@ -456,7 +470,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
   if (ir.survival) {
     files.push({
       path: `${base}/survival.json`,
-      content: JSON.stringify(ir.survival, null, 2),
+      content: toJSON(ir.survival),
     });
   }
 
@@ -472,7 +486,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
   if (ir.assessment) {
     files.push({
       path: `${base}/assessment.json`,
-      content: JSON.stringify(ir.assessment, null, 2),
+      content: toJSON(ir.assessment),
     });
   }
 
@@ -480,7 +494,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
   if (ir.languageLearning) {
     files.push({
       path: `${base}/language_learning.json`,
-      content: JSON.stringify(ir.languageLearning, null, 2),
+      content: toJSON(ir.languageLearning),
     });
   }
 

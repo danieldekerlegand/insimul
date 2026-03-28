@@ -7,12 +7,12 @@ var _current_character_id := ""
 var _is_streaming := false
 var _streaming_label: RichTextLabel = null
 
-@onready var header_label: Label = %HeaderLabel
-@onready var scroll_container: ScrollContainer = %ScrollContainer
-@onready var message_container: VBoxContainer = %MessageContainer
-@onready var input_field: LineEdit = %InputField
-@onready var send_button: Button = %SendButton
-@onready var close_button: Button = %CloseButton
+var header_label: Label = null
+var scroll_container: ScrollContainer = null
+var message_container: VBoxContainer = null
+var input_field: LineEdit = null
+var send_button: Button = null
+var close_button: Button = null
 
 func _ready() -> void:
 	visible = false

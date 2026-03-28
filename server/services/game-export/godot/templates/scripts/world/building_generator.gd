@@ -20,7 +20,8 @@ func generate_from_data(world_data: Dictionary) -> void:
 		var pos_dict: Dictionary = bld.get("position", {})
 		var pos := Vector3(pos_dict.get("x", 0), pos_dict.get("y", 0), pos_dict.get("z", 0))
 		var rot: float = bld.get("rotation", 0.0)
-		var model_key: String = bld.get("modelAssetKey", "")
+		var model_key_raw = bld.get("modelAssetKey", "")
+		var model_key: String = model_key_raw if model_key_raw is String else ""
 
 		if model_key != "":
 			var scene := load("res://" + model_key) as PackedScene
