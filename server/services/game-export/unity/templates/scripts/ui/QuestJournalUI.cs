@@ -60,7 +60,7 @@ namespace Insimul.UI
 
         private void Start()
         {
-            _questSystem = FindObjectOfType<QuestSystem>();
+            _questSystem = FindFirstObjectByType<QuestSystem>();
 
             tabAll.onClick.AddListener(() => SetFilterTab(QuestFilterTab.All));
             tabActive.onClick.AddListener(() => SetFilterTab(QuestFilterTab.Active));

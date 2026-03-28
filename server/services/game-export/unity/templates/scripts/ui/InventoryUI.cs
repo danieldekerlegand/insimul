@@ -59,8 +59,8 @@ namespace Insimul.UI
 
         private void Start()
         {
-            _inventory = FindObjectOfType<InventorySystem>();
-            _player = FindObjectOfType<InsimulPlayerController>();
+            _inventory = FindFirstObjectByType<InventorySystem>();
+            _player = FindFirstObjectByType<InsimulPlayerController>();
 
             tabAll.onClick.AddListener(() => SetCategoryFilter(FilterCategory.All));
             tabWeapons.onClick.AddListener(() => SetCategoryFilter(FilterCategory.WeaponsArmor));

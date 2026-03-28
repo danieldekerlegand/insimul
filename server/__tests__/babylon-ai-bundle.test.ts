@@ -122,7 +122,7 @@ function createMockIR(overrides: {
     aiConfig: overrides.aiConfig ?? {
       apiMode: 'insimul',
       insimulEndpoint: '/api/gemini/chat',
-      geminiModel: 'gemini-2.5-flash',
+      geminiModel: 'gemini-3.1-flash',
       geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
       voiceEnabled: true,
       defaultVoice: 'Kore',
@@ -142,7 +142,7 @@ describe('Babylon AI bundle — data generator', () => {
     const parsed = JSON.parse(aiConfigFile!.content);
     expect(parsed.apiMode).toBe('insimul');
     expect(parsed.insimulEndpoint).toBe('/api/gemini/chat');
-    expect(parsed.geminiModel).toBe('gemini-2.5-flash');
+    expect(parsed.geminiModel).toBe('gemini-3.1-flash');
     expect(parsed.voiceEnabled).toBe(true);
     expect(parsed.defaultVoice).toBe('Kore');
   });
@@ -183,7 +183,7 @@ describe('Babylon AI bundle — data generator', () => {
       aiConfig: {
         apiMode: 'gemini',
         insimulEndpoint: '/api/gemini/chat',
-        geminiModel: 'gemini-2.5-pro',
+        geminiModel: 'gemini-3.1-pro',
         geminiApiKeyPlaceholder: 'MY_KEY',
         voiceEnabled: false,
         defaultVoice: 'Aoede',
@@ -194,7 +194,7 @@ describe('Babylon AI bundle — data generator', () => {
     const parsed = JSON.parse(aiConfigFile!.content);
 
     expect(parsed.apiMode).toBe('gemini');
-    expect(parsed.geminiModel).toBe('gemini-2.5-pro');
+    expect(parsed.geminiModel).toBe('gemini-3.1-pro');
     expect(parsed.voiceEnabled).toBe(false);
     expect(parsed.defaultVoice).toBe('Aoede');
   });
@@ -230,7 +230,7 @@ describe('Babylon AI bundle — plugin config', () => {
       aiConfig: {
         apiMode: 'gemini',
         insimulEndpoint: '/api/gemini/chat',
-        geminiModel: 'gemini-2.5-pro',
+        geminiModel: 'gemini-3.1-pro',
         geminiApiKeyPlaceholder: 'CUSTOM_KEY',
         voiceEnabled: false,
         defaultVoice: 'Aoede',
@@ -240,7 +240,7 @@ describe('Babylon AI bundle — plugin config', () => {
     const configFile = files.find(f => f.path.includes('insimul-config.ts'));
 
     expect(configFile!.content).toContain('"gemini"');
-    expect(configFile!.content).toContain('gemini-2.5-pro');
+    expect(configFile!.content).toContain('gemini-3.1-pro');
     expect(configFile!.content).toContain('CUSTOM_KEY');
     expect(configFile!.content).toContain('Aoede');
   });

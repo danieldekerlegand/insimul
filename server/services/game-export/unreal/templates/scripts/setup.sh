@@ -18,7 +18,7 @@ if [[ -n "${UE_ENGINE_DIR:-}" ]]; then
 fi
 
 if [[ -z "$UE_EXE" ]]; then
-    for VERSION in 5.5 5.4 5.3 5.2; do
+    for VERSION in 5.7 5.5 5.4 5.3 5.2; do
         MAC_PATH="/Users/Shared/Epic Games/UE_$VERSION/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor"
         LIN_PATH="/opt/unreal-engine-$VERSION/Engine/Binaries/Linux/UnrealEditor"
         if [[ -x "$MAC_PATH" ]]; then UE_EXE="$MAC_PATH"; break; fi

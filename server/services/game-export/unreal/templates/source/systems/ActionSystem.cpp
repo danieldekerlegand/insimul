@@ -445,7 +445,7 @@ FInsimulActionResult UActionSystem::ExecuteAction(const FString& ActionId, AActo
     return Result;
 }
 
-TArray<FString> UInsimulActionSystem::FindActionForObjective(const FString& ObjectiveType)
+TArray<FString> UActionSystem::FindActionForObjective(const FString& ObjectiveType)
 {
     // Maps quest objective types to action names that can satisfy them
     static TMap<FString, TArray<FString>> ObjectiveToAction;
@@ -488,7 +488,7 @@ TArray<FString> UInsimulActionSystem::FindActionForObjective(const FString& Obje
     return Result;
 }
 
-FString UInsimulActionSystem::GetActionByName(const FString& ActionName)
+FString UActionSystem::GetActionByName(const FString& ActionName)
 {
     for (const auto& ActionObj : ParsedActions)
     {

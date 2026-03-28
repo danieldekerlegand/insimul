@@ -2020,7 +2020,7 @@ export async function generateWorldIR(
   const aiConfig: AIConfigIR = {
     apiMode: isLocal ? 'local' : 'insimul',
     insimulEndpoint: '/api/gemini/chat',
-    geminiModel: 'gemini-2.5-flash',
+    geminiModel: 'gemini-3.1-flash',
     geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
     voiceEnabled: true,
     defaultVoice: 'Kore',

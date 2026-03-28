@@ -64,12 +64,23 @@ function genSystemScripts(ir: WorldIR): GeneratedFile[] {
   };
 
   const files: GeneratedFile[] = [
+    { path: 'scripts/systems/event_bus.gd',         content: loadStaticTemplate('scripts/systems/event_bus.gd') },
     { path: 'scripts/systems/action_system.gd',    content: loadStaticTemplate('scripts/systems/action_system.gd') },
     { path: 'scripts/systems/rule_enforcer.gd',    content: loadStaticTemplate('scripts/systems/rule_enforcer.gd') },
     { path: 'scripts/systems/combat_system.gd',    content: loadTemplate('scripts/systems/combat_system.gd', combatTokens) },
     { path: 'scripts/systems/quest_system.gd',     content: loadStaticTemplate('scripts/systems/quest_system.gd') },
     { path: 'scripts/systems/inventory_system.gd', content: loadStaticTemplate('scripts/systems/inventory_system.gd') },
     { path: 'scripts/systems/dialogue_system.gd',  content: loadStaticTemplate('scripts/systems/dialogue_system.gd') },
+    { path: 'scripts/systems/building_entry_system.gd', content: loadStaticTemplate('scripts/systems/building_entry_system.gd') },
+    { path: 'scripts/systems/audio_manager.gd', content: loadStaticTemplate('scripts/systems/audio_manager.gd') },
+    { path: 'scripts/systems/save_system.gd', content: loadStaticTemplate('scripts/systems/save_system.gd') },
+    { path: 'scripts/ui/shop_panel.gd', content: loadStaticTemplate('scripts/ui/shop_panel.gd') },
+    { path: 'scripts/ui/container_panel.gd', content: loadStaticTemplate('scripts/ui/container_panel.gd') },
+    { path: 'scripts/ui/combat_ui.gd', content: loadStaticTemplate('scripts/ui/combat_ui.gd') },
+    { path: 'scripts/ui/radial_menu.gd', content: loadStaticTemplate('scripts/ui/radial_menu.gd') },
+    { path: 'scripts/ui/vocabulary_panel.gd', content: loadStaticTemplate('scripts/ui/vocabulary_panel.gd') },
+    { path: 'scripts/ui/skill_tree_panel.gd', content: loadStaticTemplate('scripts/ui/skill_tree_panel.gd') },
+    { path: 'scripts/ui/notice_board_panel.gd', content: loadStaticTemplate('scripts/ui/notice_board_panel.gd') },
   ];
 
   const genre = ir.meta.genreConfig;
@@ -82,6 +93,11 @@ function genSystemScripts(ir: WorldIR): GeneratedFile[] {
   if (ir.survival != null) {
     files.push({ path: 'scripts/systems/survival_system.gd', content: loadStaticTemplate('scripts/systems/survival_system.gd') });
   }
+
+  // Combat variant scripts (always included — activated based on combat.style)
+  files.push({ path: 'scripts/systems/fighting_combat_system.gd', content: loadStaticTemplate('scripts/systems/fighting_combat_system.gd') });
+  files.push({ path: 'scripts/systems/turn_based_combat_system.gd', content: loadStaticTemplate('scripts/systems/turn_based_combat_system.gd') });
+  files.push({ path: 'scripts/systems/ranged_combat_system.gd', content: loadStaticTemplate('scripts/systems/ranged_combat_system.gd') });
 
   return files;
 }
@@ -147,6 +163,10 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
     { path: 'scripts/world/road_generator.gd',      content: loadTemplate('scripts/world/road_generator.gd', roadTokens) },
     { path: 'scripts/world/water_generator.gd',     content: loadTemplate('scripts/world/water_generator.gd', waterTokens) },
     { path: 'scripts/world/nature_generator.gd',    content: loadStaticTemplate('scripts/world/nature_generator.gd') },
+    { path: 'scripts/world/day_night_cycle.gd',    content: loadStaticTemplate('scripts/world/day_night_cycle.gd') },
+    { path: 'scripts/world/item_spawner.gd',       content: loadStaticTemplate('scripts/world/item_spawner.gd') },
+    { path: 'scripts/world/weather_system.gd',    content: loadStaticTemplate('scripts/world/weather_system.gd') },
+    { path: 'scripts/world/animal_system.gd',    content: loadStaticTemplate('scripts/world/animal_system.gd') },
     { path: 'scripts/world/dungeon_generator.gd',   content: loadStaticTemplate('scripts/world/dungeon_generator.gd') },
   ];
 }

@@ -96,12 +96,12 @@ func _cache_blend_shape_indices() -> void:
 			target_mesh = parent as MeshInstance3D
 	if target_mesh == null or target_mesh.mesh == null:
 		return
-	var blend_count := target_mesh.mesh.get_blend_shape_count()
+	var blend_count: int = target_mesh.mesh.get_blend_shape_count()
 	for i in range(blend_count):
-		var name := target_mesh.mesh.get_blend_shape_name(i)
-		_blend_shape_indices[name] = i
-		_current_weights[name] = 0.0
-		_target_weights[name] = 0.0
+		var blend_name: String = target_mesh.mesh.get_blend_shape_name(i)
+		_blend_shape_indices[blend_name] = i
+		_current_weights[blend_name] = 0.0
+		_target_weights[blend_name] = 0.0
 
 
 func _start_next_facial_data() -> void:

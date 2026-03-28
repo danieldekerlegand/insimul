@@ -53,7 +53,6 @@ public:
     void ResetVisemes();
 
     /** Check if lip sync is currently active */
-    UFUNCTION(BlueprintPure, Category = "Insimul|FaceSync")
     bool IsActive() const { return bIsActive; }
 
 protected:

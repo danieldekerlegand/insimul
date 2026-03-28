@@ -148,7 +148,7 @@ namespace Insimul.UI
                 var tmp = textObj.AddComponent<TextMeshProUGUI>();
                 tmp.fontSize = 14;
                 tmp.color = Color.white;
-                tmp.enableWordWrapping = true;
+                tmp.textWrappingMode = TextWrappingModes.Normal;
 
                 var textLayout = textObj.AddComponent<LayoutElement>();
                 textLayout.preferredWidth = 300;

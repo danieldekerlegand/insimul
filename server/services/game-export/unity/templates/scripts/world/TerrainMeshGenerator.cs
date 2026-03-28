@@ -125,14 +125,17 @@ namespace Insimul.World
                 normals[triangles[i + 2]] += normal;
             }
 
-            // Normalize accumulated normals and compute slope-based vertex colors
+            // Normalize accumulated normals and compute elevation+slope-based vertex colors
+            // Matches Babylon.js: green lowlands → brown midlands → gray highlands → white peaks
             Color[] colors = new Color[vertCount];
+            float maxY = elevationScale > 0 ? elevationScale : 1f;
 
             for (int i = 0; i < vertCount; i++)
             {
                 normals[i] = normals[i].normalized;
-                float slope = 1f - Mathf.Abs(normals[i].y); // 0 = flat, 1 = vertical
-                colors[i] = SlopeToVertexColor(slope);
+                float slope = 1f - Mathf.Abs(normals[i].y);
+                float elevNorm = Mathf.Clamp01(vertices[i].y / maxY); // 0=low, 1=peak
+                colors[i] = ElevationToVertexColor(elevNorm, slope);
             }
 
             // Build Unity mesh
@@ -151,9 +154,11 @@ namespace Insimul.World
 
             meshFilter.mesh = mesh;
 
-            // Apply material
+            // Apply material — use vertex colors for biome-based terrain coloring
             Material mat = new Material(Shader.Find("Standard"));
-            mat.color = groundColor;
+            mat.color = Color.white; // white base so vertex colors show through
+            mat.SetFloat("_Glossiness", 0.1f);
+            mat.SetFloat("_Metallic", 0f);
             meshRenderer.material = mat;
 
             // Set up collision
@@ -163,25 +168,55 @@ namespace Insimul.World
         }
 
         /// <summary>
-        /// Map slope value to vertex color for material blending.
-        /// R = cliff weight, G = grass weight, B = rock weight.
+        /// Map elevation and slope to a direct vertex color matching Babylon.js biome coloring.
+        /// Low = deep green, Mid = light green → brown, High = gray, Peak = white.
+        /// Steep slopes blend toward rock gray regardless of elevation.
         /// </summary>
-        private Color SlopeToVertexColor(float slope)
+        private Color ElevationToVertexColor(float elevNorm, float slope)
         {
-            if (slope < grassSlopeMax)
+            // Base color from elevation bands
+            Color baseColor;
+            if (elevNorm < 0.3f)
             {
-                return new Color(0f, 1f, 0f); // Grass
+                float t = elevNorm / 0.3f;
+                baseColor = Color.Lerp(
+                    new Color(0.15f, 0.42f, 0.12f), // deep green
+                    new Color(0.30f, 0.55f, 0.18f), // light green
+                    t);
             }
-            else if (slope < rockSlopeMax)
+            else if (elevNorm < 0.6f)
             {
-                float t = (slope - grassSlopeMax) / (rockSlopeMax - grassSlopeMax);
-                return new Color(0f, 1f - t, t); // Blend grass -> rock
+                float t = (elevNorm - 0.3f) / 0.3f;
+                baseColor = Color.Lerp(
+                    new Color(0.30f, 0.55f, 0.18f), // light green
+                    new Color(0.45f, 0.35f, 0.20f), // brown
+                    t);
+            }
+            else if (elevNorm < 0.85f)
+            {
+                float t = (elevNorm - 0.6f) / 0.25f;
+                baseColor = Color.Lerp(
+                    new Color(0.45f, 0.35f, 0.20f), // brown
+                    new Color(0.55f, 0.53f, 0.50f), // gray
+                    t);
             }
             else
             {
-                float t = Mathf.Clamp01((slope - rockSlopeMax) / (1f - rockSlopeMax));
-                return new Color(t, 0f, 1f - t); // Blend rock -> cliff
+                float t = (elevNorm - 0.85f) / 0.15f;
+                baseColor = Color.Lerp(
+                    new Color(0.55f, 0.53f, 0.50f), // gray
+                    new Color(0.92f, 0.92f, 0.95f), // white/snow
+                    t);
             }
+
+            // Blend toward rock gray on steep slopes
+            if (slope > grassSlopeMax)
+            {
+                float slopeBlend = Mathf.Clamp01((slope - grassSlopeMax) / (rockSlopeMax - grassSlopeMax));
+                baseColor = Color.Lerp(baseColor, new Color(0.50f, 0.48f, 0.45f), slopeBlend);
+            }
+
+            return baseColor;
         }
     }
 }

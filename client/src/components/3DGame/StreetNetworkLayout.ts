@@ -85,18 +85,38 @@ function generateLayout(config: StreetLayoutConfig): StreetNetwork {
   return generateGridLayout(config);
 }
 
+// ─── Grid constants (shared with StreetAlignedPlacement) ────────────────────
+
+/** Street width for intra-settlement roads (world units). */
+export const GRID_STREET_WIDTH = 6;
+
+/**
+ * Compute grid parameters for a settlement of the given radius.
+ * Exported so StreetAlignedPlacement can derive identical block geometry.
+ */
+export function getGridParams(radius: number) {
+  // Use even grid sizes (4, 6) so the number of blocks is odd (3×3, 5×5),
+  // giving us a single center block per row/column for the town square.
+  const gridSize = radius < 50 ? 4 : 6;
+
+  // Spacing must be large enough for buildings to fit inside each block.
+  // Block interior = spacing - GRID_STREET_WIDTH.
+  // Target ~24 units of interior for a 3×2 building layout (3 × ~7 width + gaps).
+  // Use radius-based scaling with a floor to guarantee minimum block size.
+  const MIN_SPACING = 30; // guarantees 24 interior with 6-wide streets
+  const spacing = Math.max(MIN_SPACING, (radius * 3.5) / gridSize);
+  const halfGrid = ((gridSize - 1) * spacing) / 2;
+
+  return { gridSize, spacing, halfGrid };
+}
+
 // ─── Grid Layout ────────────────────────────────────────────────────────────
 
 function generateGridLayout(config: StreetLayoutConfig): StreetNetwork {
   const { centerX, centerZ, radius, settlementId } = config;
   const names = config.streetNames?.length ? config.streetNames : [...NS_NAMES, ...EW_NAMES];
 
-  // Scale grid size to settlement radius.
-  // Use even grid sizes (4, 6) so the number of blocks is odd (3×3=9, 5×5=25),
-  // giving us a single center block for the town square / park.
-  const gridSize = radius < 50 ? 4 : 6;
-  const spacing = (radius * 1.4) / gridSize;
-  const halfGrid = ((gridSize - 1) * spacing) / 2;
+  const { gridSize, spacing, halfGrid } = getGridParams(radius);
 
   const nodes: StreetNode[] = [];
   const nodeMap = new Map<string, StreetNode>(); // "row,col" → node
@@ -138,7 +158,7 @@ function generateGridLayout(config: StreetLayoutConfig): StreetNetwork {
       direction: 'NS',
       nodeIds: segNodeIds,
       waypoints,
-      width: 12
+      width: GRID_STREET_WIDTH
     });
   }
 
@@ -163,7 +183,7 @@ function generateGridLayout(config: StreetLayoutConfig): StreetNetwork {
       direction: 'EW',
       nodeIds: segNodeIds,
       waypoints,
-      width: 12
+      width: GRID_STREET_WIDTH
     });
   }
 

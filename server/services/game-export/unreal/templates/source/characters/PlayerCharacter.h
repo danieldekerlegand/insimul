@@ -6,6 +6,9 @@
 
 class USpringArmComponent;
 class UCameraComponent;
+class UTextBlock;
+class UBuildingInteriorSystem;
+class ANPCCharacter;
 
 UCLASS()
 class INSIMULEXPORT_API APlayerCharacter : public ACharacter
@@ -28,22 +31,22 @@ public:
 
     // Stats
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float Health = {{PLAYER_INITIAL_HEALTH}}f;
+    float Health = {{PLAYER_INITIAL_HEALTH}}.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float MaxHealth = {{PLAYER_INITIAL_HEALTH}}f;
+    float MaxHealth = {{PLAYER_INITIAL_HEALTH}}.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float Energy = {{PLAYER_INITIAL_ENERGY}}f;
+    float Energy = {{PLAYER_INITIAL_ENERGY}}.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
     int32 Gold = {{PLAYER_INITIAL_GOLD}};
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-    float MoveSpeed = {{PLAYER_SPEED}}f;
+    float MoveSpeed = {{PLAYER_SPEED}}.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-    float JumpStrength = {{PLAYER_JUMP_HEIGHT}}f;
+    float JumpStrength = {{PLAYER_JUMP_HEIGHT}}.0f;
 
     // Movement input
     void MoveForward(float Value);
@@ -56,4 +59,44 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Interaction")
     void Interact();
+
+private:
+    // Visible body parts (primitive meshes)
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* HeadMesh;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* TorsoMesh;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperArmL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperArmR;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerArmL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerArmR;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperLegL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperLegR;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerLegL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerLegR;
+
+    void ApplyBodyMaterials();
+
+    // Interaction system
+    void CheckDoorProximity();
+    void CheckNPCProximity();
+
+    /** Currently targeted building (for door entry) */
+    UPROPERTY() AActor* NearbyBuilding = nullptr;
+    FString NearbyBuildingId;
+    FString NearbyBuildingRole;
+    float NearbyBuildingWidth = 0.f;
+    float NearbyBuildingDepth = 0.f;
+    int32 NearbyBuildingFloors = 1;
+
+    /** Currently targeted NPC */
+    UPROPERTY() ANPCCharacter* NearbyNPC = nullptr;
+
+    /** Interaction prompt text (shown via HUD) */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
+    FString InteractionPrompt;
+
+    /** Line-trace range for interactions */
+    float InteractRange = 250.f;
+
+    /** Door proximity range */
+    float DoorProximityRange = 200.f;
 };

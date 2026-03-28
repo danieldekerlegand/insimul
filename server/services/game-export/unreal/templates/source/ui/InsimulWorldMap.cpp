@@ -202,13 +202,13 @@ FReply UInsimulWorldMap::NativeOnMouseMove(const FGeometry& InGeometry, const FP
 // ─────────────────────────────────────────────
 
 int32 UInsimulWorldMap::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
-    const FSlateRect& MyCullingRect, FSlateDrawElement& OutDrawElements,
+    const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
     int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
     // Semi-transparent background overlay
     const FVector2D GeoSize = AllottedGeometry.GetLocalSize();
     FSlateDrawElement::MakeBox(
-        *static_cast<FSlateWindowElementList*>(&OutDrawElements),
+        OutDrawElements,
         LayerId,
         AllottedGeometry.ToPaintGeometry(),
         FCoreStyle::Get().GetBrush("WhiteBrush"),
@@ -221,7 +221,7 @@ int32 UInsimulWorldMap::NativePaint(const FPaintArgs& Args, const FGeometry& All
     const FString Title = TEXT("WORLD MAP");
     FSlateFontInfo TitleFont = FCoreStyle::GetDefaultFontStyle("Bold", 24);
     FSlateDrawElement::MakeText(
-        *static_cast<FSlateWindowElementList*>(&OutDrawElements),
+        OutDrawElements,
         LayerId,
         AllottedGeometry.ToPaintGeometry(FVector2D(GeoSize.X * 0.5f - 60.f, 10.f), FVector2D(200.f, 40.f)),
         Title,
@@ -242,7 +242,7 @@ int32 UInsimulWorldMap::NativePaint(const FPaintArgs& Args, const FGeometry& All
             LinePoints.Add(A);
             LinePoints.Add(B);
             FSlateDrawElement::MakeLines(
-                *static_cast<FSlateWindowElementList*>(&OutDrawElements),
+                OutDrawElements,
                 LayerId,
                 AllottedGeometry.ToPaintGeometry(),
                 LinePoints,
@@ -258,7 +258,7 @@ int32 UInsimulWorldMap::NativePaint(const FPaintArgs& Args, const FGeometry& All
     // Draw markers
     for (const FInsimulMapMarker& Marker : Markers)
     {
-        DrawMarker(Marker, AllottedGeometry, *static_cast<FSlateWindowElementList*>(&OutDrawElements), LayerId);
+        DrawMarker(Marker, AllottedGeometry, OutDrawElements, LayerId);
     }
     ++LayerId;
 
@@ -281,7 +281,7 @@ int32 UInsimulWorldMap::NativePaint(const FPaintArgs& Args, const FGeometry& All
         Arrow.Add(BaseR);
         Arrow.Add(Tip); // close the triangle
         FSlateDrawElement::MakeLines(
-            *static_cast<FSlateWindowElementList*>(&OutDrawElements),
+            OutDrawElements,
             LayerId,
             AllottedGeometry.ToPaintGeometry(),
             Arrow,
@@ -298,7 +298,7 @@ int32 UInsimulWorldMap::NativePaint(const FPaintArgs& Args, const FGeometry& All
     const float LegendY = GeoSize.Y - 80.f;
     const float LegendX = 20.f;
     FSlateDrawElement::MakeText(
-        *static_cast<FSlateWindowElementList*>(&OutDrawElements),
+        OutDrawElements,
         LayerId,
         AllottedGeometry.ToPaintGeometry(FVector2D(LegendX, LegendY), FVector2D(300.f, 20.f)),
         FString::Printf(TEXT("Zoom: %.1fx  |  Scroll to zoom  |  Drag to pan  |  M to close"),

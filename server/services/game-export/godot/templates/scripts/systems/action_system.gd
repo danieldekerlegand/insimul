@@ -141,8 +141,8 @@ func get_contextual_actions_ranked(context: Dictionary = {}, personality: Dictio
 		var action_type: String = a.get("actionType", "")
 		if STANDARD_ACTION_AFFINITIES.has(action_type):
 			var affinities: Dictionary = STANDARD_ACTION_AFFINITIES[action_type]
-			for trait in affinities:
-				score += personality.get(trait, 0.0) * affinities[trait]
+			for trait_key in affinities:
+				score += personality.get(trait_key, 0.0) * affinities[trait_key]
 		scores.append(score)
 
 	# Softmax with temperature

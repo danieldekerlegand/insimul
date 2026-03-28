@@ -71,6 +71,8 @@ export interface RegisteredBuilding {
   id: string;
   name: string;
   mesh: Mesh;
+  /** Door position in world space — used for proximity detection instead of building center */
+  doorPosition?: Vector3;
 }
 
 export interface ConversationPartnerInfo {
@@ -287,6 +289,21 @@ export class InteractionPromptSystem {
       target = this.findConeTarget(camera.position, camera.getForwardRay().direction);
     }
 
+    // 3. Last resort: if the PLAYER (not camera) is very close to a building door,
+    // always show the building entry prompt. Uses camera.target for ArcRotateCamera
+    // (which tracks the player), since camera.position is the orbit point behind them.
+    if (!target || target.type === 'npc') {
+      const DOOR_CLOSE_RANGE = 5;
+      const playerPos = (camera as any).target ?? camera.position;
+      const nearestDoorDist = this.findNearestBuildingDoorDist(playerPos);
+      if (nearestDoorDist !== null && nearestDoorDist < DOOR_CLOSE_RANGE) {
+        const building = this.findNearestBuildingByDoor(playerPos);
+        if (building) {
+          target = this.buildBuildingTarget(building);
+        }
+      }
+    }
+
     if (target) {
       this.showPrompt(target);
     } else {
@@ -300,6 +317,18 @@ export class InteractionPromptSystem {
     // NPC (walk parent chain)
     const npc = this.findNPCFromMesh(mesh);
     if (npc && distance <= MAX_NPC_DISTANCE) {
+      // Before returning NPC, check if a building door is closer to the PLAYER —
+      // the player likely wants to enter the building, not talk to an NPC near the door.
+      // Use camera.target (player position) for ArcRotateCamera, not camera.position (orbit point).
+      const camera = this.scene.activeCamera;
+      if (camera) {
+        const playerPos = (camera as any).target ?? camera.position;
+        const nearestDoorDist = this.findNearestBuildingDoorDist(playerPos);
+        if (nearestDoorDist !== null && nearestDoorDist < 5) {
+          const building = this.findNearestBuildingByDoor(playerPos);
+          if (building) return this.buildBuildingTarget(building);
+        }
+      }
       return this.buildNPCTarget(npc);
     }
 
@@ -378,10 +407,12 @@ export class InteractionPromptSystem {
       }
     });
 
-    // Buildings
+    // Buildings — check distance to door position (not building center) for accurate proximity
     this.buildings.forEach((building) => {
       if (!building.mesh || building.mesh.isDisposed()) return;
-      const toTarget = building.mesh.position.subtract(cameraPos);
+      // Use door position if available (much more accurate), fall back to building center
+      const targetPos = building.doorPosition ?? building.mesh.position;
+      const toTarget = targetPos.subtract(cameraPos);
       const dist = toTarget.length();
       if (dist > MAX_BUILDING_DISTANCE || dist >= bestDist) return;
       const dot = Vector3.Dot(toTarget.normalize(), fwd);
@@ -484,6 +515,29 @@ export class InteractionPromptSystem {
       promptText: `[Enter]: Talk to ${npc.name}`,
       questIndicator: questIndicator ?? undefined,
     };
+  }
+
+  /** Find distance to the nearest building door from a position. */
+  private findNearestBuildingDoorDist(pos: Vector3): number | null {
+    let best: number | null = null;
+    this.buildings.forEach((b) => {
+      if (!b.doorPosition || !b.mesh || b.mesh.isDisposed()) return;
+      const d = Vector3.Distance(pos, b.doorPosition);
+      if (best === null || d < best) best = d;
+    });
+    return best;
+  }
+
+  /** Find the nearest building by door distance. */
+  private findNearestBuildingByDoor(pos: Vector3): RegisteredBuilding | null {
+    let best: RegisteredBuilding | null = null;
+    let bestDist = Infinity;
+    this.buildings.forEach((b) => {
+      if (!b.doorPosition || !b.mesh || b.mesh.isDisposed()) return;
+      const d = Vector3.Distance(pos, b.doorPosition);
+      if (d < bestDist) { bestDist = d; best = b; }
+    });
+    return best;
   }
 
   private buildBuildingTarget(building: RegisteredBuilding): InteractableTarget {

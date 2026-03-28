@@ -19,6 +19,8 @@ import {
   ActionManager,
   ExecuteCodeAction,
   Animation,
+  HemisphericLight,
+  PointLight,
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 import { InteriorDecorationGenerator } from './InteriorDecorationGenerator';
@@ -257,6 +259,8 @@ export class BuildingInteriorGenerator {
     this.scene = scene;
     this.useDedicatedScene = dedicated;
     this.decorationGenerator = new InteriorDecorationGenerator(scene);
+    // Clear cached textures — they belong to the old scene
+    this.proceduralTextureCache.clear();
   }
 
   /** Set the furniture model loader for glTF-based furniture. */
@@ -719,6 +723,19 @@ export class BuildingInteriorGenerator {
     const colors = this.getConfiguredColors(buildingType, businessType, config);
     const textureStyle = this.getTextureStyle(buildingType, businessType);
 
+    // Ensure interior is lit — add lights at room center in case scene-level lights are too far
+    const roomLight = new HemisphericLight(`${prefix}_hemi`, new Vector3(0, 1, 0), this.scene);
+    roomLight.intensity = 1.0;
+    roomLight.diffuse = new Color3(1.0, 0.95, 0.9);
+    roomLight.groundColor = new Color3(0.4, 0.35, 0.3);
+    roomLight.parent = parent;
+
+    const roomPointLight = new PointLight(`${prefix}_point`, new Vector3(0, height * 0.8, 0), this.scene);
+    roomPointLight.intensity = 1.2;
+    roomPointLight.diffuse = new Color3(1.0, 0.9, 0.75);
+    roomPointLight.range = Math.max(width, depth) * 1.5;
+    roomPointLight.parent = parent;
+
     // Floor
     const floor = MeshBuilder.CreateGround(
       `${prefix}_floor`,
@@ -730,28 +747,34 @@ export class BuildingInteriorGenerator {
     const floorMat = new StandardMaterial(`${prefix}_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
+    floorMat.backFaceCulling = false;
+    floorMat.emissiveColor = new Color3(colors.floor.r * 0.15, colors.floor.g * 0.15, colors.floor.b * 0.15);
     this.applyTextureToMaterial(floorMat, config?.floorTextureId, textureStyle.floor, width, depth);
     floor.material = floorMat;
 
-    // Ceiling
-    const ceiling = MeshBuilder.CreateGround(
+    // Ceiling — use a plane instead of rotated ground so it's visible from below
+    const ceiling = MeshBuilder.CreatePlane(
       `${prefix}_ceiling`,
-      { width, height: depth },
+      { width, height: depth, sideOrientation: Mesh.DOUBLESIDE },
       this.scene
     );
     ceiling.position.y = height;
-    ceiling.rotation.x = Math.PI;
+    ceiling.rotation.x = Math.PI / 2; // Lay flat, facing downward
     ceiling.parent = parent;
     const ceilingMat = new StandardMaterial(`${prefix}_ceiling_mat`, this.scene);
     ceilingMat.diffuseColor = colors.ceiling;
+    ceilingMat.backFaceCulling = false;
+    ceilingMat.emissiveColor = new Color3(colors.ceiling.r * 0.1, colors.ceiling.g * 0.1, colors.ceiling.b * 0.1);
     this.applyTextureToMaterial(ceilingMat, config?.ceilingTextureId, textureStyle.ceiling, width, depth);
     ceiling.material = ceilingMat;
     ceiling.checkCollisions = true;
 
-    // Walls
+    // Walls — backFaceCulling=false ensures planes are visible from both sides
     const wallMat = new StandardMaterial(`${prefix}_wall_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    wallMat.backFaceCulling = false;
+    wallMat.emissiveColor = new Color3(colors.wall.r * 0.15, colors.wall.g * 0.15, colors.wall.b * 0.15);
     this.applyTextureToMaterial(wallMat, config?.wallTextureId, textureStyle.wall, width, height);
 
     // Back wall (north) — with windows
@@ -826,16 +849,41 @@ export class BuildingInteriorGenerator {
     );
     doorFrame.position = new Vector3(0, 1.5, -depth / 2);
     doorFrame.parent = parent;
-    const doorMat = new StandardMaterial(`${prefix}_door_mat`, this.scene);
-    doorMat.diffuseColor = new Color3(0.45, 0.3, 0.15);
-    doorMat.alpha = 0.7;
-    doorFrame.material = doorMat;
+    const doorFrameMat = new StandardMaterial(`${prefix}_exitdoor_mat`, this.scene);
+    doorFrameMat.diffuseColor = new Color3(0.45, 0.3, 0.15);
+    doorFrameMat.alpha = 0.7;
+    doorFrame.material = doorFrameMat;
     doorFrame.isPickable = true;
     doorFrame.metadata = {
       interiorExit: true,
       buildingId,
       interiorId: `interior_${buildingId}`
     };
+
+    // Invisible collision walls — thick boxes that reliably block FreeCamera ellipsoid.
+    // Visual wall planes are too thin for collision detection; these sit behind them.
+    const CWALL = 0.3; // collision wall thickness
+    const collisionWalls = [
+      // Back wall (north, +Z)
+      { w: width + CWALL * 2, h: height, d: CWALL, x: 0, y: height / 2, z: depth / 2 + CWALL / 2 },
+      // Left wall (west, -X)
+      { w: CWALL, h: height, d: depth + CWALL * 2, x: -(width / 2 + CWALL / 2), y: height / 2, z: 0 },
+      // Right wall (east, +X)
+      { w: CWALL, h: height, d: depth + CWALL * 2, x: width / 2 + CWALL / 2, y: height / 2, z: 0 },
+      // Front wall left (south-west, around door)
+      { w: leftPanelWidth, h: height, d: CWALL, x: -(doorWidth / 2 + leftPanelWidth / 2), y: height / 2, z: -(depth / 2 + CWALL / 2) },
+      // Front wall right (south-east, around door)
+      { w: rightPanelWidth, h: height, d: CWALL, x: doorWidth / 2 + rightPanelWidth / 2, y: height / 2, z: -(depth / 2 + CWALL / 2) },
+    ];
+    for (let i = 0; i < collisionWalls.length; i++) {
+      const cw = collisionWalls[i];
+      const box = MeshBuilder.CreateBox(`${prefix}_cwall_${i}`, { width: cw.w, height: cw.h, depth: cw.d }, this.scene);
+      box.position = new Vector3(cw.x, cw.y, cw.z);
+      box.parent = parent;
+      box.isVisible = false;
+      box.isPickable = false;
+      box.checkCollisions = true;
+    }
 
     return parent;
   }
@@ -948,10 +996,12 @@ export class BuildingInteriorGenerator {
     glassMat.emissiveColor = new Color3(0.15, 0.18, 0.25);
     glassMat.alpha = 0.3;
     glassMat.specularColor = new Color3(0.3, 0.3, 0.3);
+    glassMat.backFaceCulling = false;
 
     // Shared frame material (dark wood)
     const frameMat = new StandardMaterial(`${prefix}_${wallName}_frame_mat`, this.scene);
     frameMat.diffuseColor = new Color3(0.35, 0.25, 0.15);
+    frameMat.backFaceCulling = false;
     frameMat.specularColor = new Color3(0.1, 0.1, 0.1);
 
     const ft = WINDOW_FRAME_THICKNESS;
@@ -1316,6 +1366,8 @@ export class BuildingInteriorGenerator {
     const wallMat = new StandardMaterial(`${prefix}_partition_mat`, this.scene);
     wallMat.diffuseColor = colors.wall;
     wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    wallMat.backFaceCulling = false;
+    wallMat.emissiveColor = new Color3(colors.wall.r * 0.15, colors.wall.g * 0.15, colors.wall.b * 0.15);
     this.applyTextureToMaterial(wallMat, config?.wallTextureId, textureStyle.wall, 10, height);
 
     // Door materials based on building style
@@ -1323,10 +1375,12 @@ export class BuildingInteriorGenerator {
     const doorMat = new StandardMaterial(`${prefix}_door_mat`, this.scene);
     doorMat.diffuseColor = doorStyle.color;
     doorMat.specularColor = doorStyle.specular;
+    doorMat.backFaceCulling = false;
 
     const handleMat = new StandardMaterial(`${prefix}_handle_mat`, this.scene);
     handleMat.diffuseColor = new Color3(0.7, 0.65, 0.4);
     handleMat.specularColor = new Color3(0.5, 0.5, 0.5);
+    handleMat.backFaceCulling = false;
 
     // Process each floor independently
     const floors = Array.from(new Set(rooms.map(r => r.floor)));
@@ -1833,10 +1887,12 @@ export class BuildingInteriorGenerator {
     const doorMat = new StandardMaterial(`${prefix}_door_mat`, this.scene);
     doorMat.diffuseColor = doorStyle.color;
     doorMat.specularColor = doorStyle.specular;
+    doorMat.backFaceCulling = false;
 
     const handleMat = new StandardMaterial(`${prefix}_handle_mat`, this.scene);
     handleMat.diffuseColor = new Color3(0.7, 0.65, 0.4);
     handleMat.specularColor = new Color3(0.5, 0.5, 0.5);
+    handleMat.backFaceCulling = false;
 
     const doorCenter = new Vector3(
       position.x,
@@ -1998,6 +2054,8 @@ export class BuildingInteriorGenerator {
     const floorMat = new StandardMaterial(`${prefix}_upper_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
+    floorMat.backFaceCulling = false;
+    floorMat.emissiveColor = new Color3(colors.floor.r * 0.15, colors.floor.g * 0.15, colors.floor.b * 0.15);
     this.applyTextureToMaterial(floorMat, config?.floorTextureId, textureStyle.floor, width, depth);
 
     // Upper floor (with stairwell hole matching stair footprint + landing)
@@ -2517,13 +2575,13 @@ export class BuildingInteriorGenerator {
       }
     }
 
-    // Generate procedural fallback texture (clone to allow per-surface UV scaling)
-    const procTexture = this.createProceduralTexture(surfaceType, material.name);
+    // Generate procedural fallback texture — create a fresh DynamicTexture per surface
+    // (DynamicTexture.clone() doesn't reliably copy canvas content)
+    const procTexture = this.createFreshProceduralTexture(surfaceType, material.name);
     if (procTexture) {
-      const cloned = procTexture.clone();
-      cloned.uScale = surfaceWidth * UV_TILES_PER_METER;
-      cloned.vScale = surfaceHeight * UV_TILES_PER_METER;
-      material.diffuseTexture = cloned;
+      procTexture.uScale = surfaceWidth * UV_TILES_PER_METER;
+      procTexture.vScale = surfaceHeight * UV_TILES_PER_METER;
+      material.diffuseTexture = procTexture;
       material.diffuseColor = new Color3(1, 1, 1);
     }
   }
@@ -2607,6 +2665,33 @@ export class BuildingInteriorGenerator {
 
     texture.update();
     this.proceduralTextureCache.set(surfaceType, texture);
+    return texture;
+  }
+
+  /**
+   * Create a fresh procedural DynamicTexture (no caching, no cloning).
+   * Used by applyTextureToMaterial so each surface gets its own texture instance
+   * with independent UV scaling. DynamicTexture.clone() doesn't copy canvas content
+   * reliably, so we redraw each time.
+   */
+  private createFreshProceduralTexture(surfaceType: SurfaceTexture, materialName: string): DynamicTexture | null {
+    const size = 256;
+    const texture = new DynamicTexture(`proc_${materialName}_${surfaceType}`, { width: size, height: size }, this.scene, false);
+    const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
+
+    switch (surfaceType) {
+      case 'wood_plank': this.drawWoodPlankTexture(ctx, size); break;
+      case 'stone_tile': this.drawStoneTileTexture(ctx, size); break;
+      case 'plaster':    this.drawPlasterTexture(ctx, size); break;
+      case 'wood_panel': this.drawWoodPanelTexture(ctx, size); break;
+      case 'stone_block': this.drawStoneBlockTexture(ctx, size); break;
+      case 'brick':      this.drawBrickTexture(ctx, size); break;
+      case 'dirt':       this.drawDirtTexture(ctx, size); break;
+      case 'wood_beam':  this.drawWoodBeamTexture(ctx, size); break;
+      default: texture.dispose(); return null;
+    }
+
+    texture.update();
     return texture;
   }
 

@@ -1,33 +1,53 @@
 extends Node3D
-## Road generator.
+## Road generator with sidewalks, center line markings, crosswalks, and street lights.
 ## Add to the "world_generator" group.
-##
-## Builds procedural ribbon meshes along waypoints for both street segments
-## and inter-settlement roads. Each road gets a MeshInstance3D with collision.
-##
-## StreetNetwork data (from shared/game-engine/types.ts):
-##   StreetNode:    { id: String, position: {x,y,z}, intersectionOf: Array[String] }
-##   StreetSegment: { id: String, name: String, direction: String, nodeIds: Array[String],
-##                    waypoints: Array[{ x: float, y: float, z: float }], width: float }
-##   StreetNetwork: { nodes: Array[StreetNode], segments: Array[StreetSegment] }
 
 @export var road_color := Color({{ROAD_COLOR_R}}, {{ROAD_COLOR_G}}, {{ROAD_COLOR_B}})
 @export var road_width := {{ROAD_WIDTH}}
 @export var road_elevation := 0.05
 
+## Visual detail constants
+const SIDEWALK_WIDTH := 2.0
+const SIDEWALK_COLOR := Color(0.52, 0.51, 0.49)
+const CENTER_LINE_COLOR := Color(0.58, 0.53, 0.25)
+const CENTER_LINE_WIDTH := 0.2
+const DASH_LENGTH := 2.5
+const GAP_LENGTH := 2.0
+const CROSSWALK_COLOR := Color(0.68, 0.68, 0.66)
+const CROSSWALK_STRIPE_W := 0.35
+const CROSSWALK_STRIPE_GAP := 0.35
+const CROSSWALK_STRIPE_LEN := 2.0
+const LIGHT_SPACING := 25.0
+const POLE_HEIGHT := 4.0
+const POLE_COLOR := Color(0.15, 0.15, 0.15)
+const GLOBE_COLOR := Color(1.0, 0.85, 0.55)
+const LIGHT_RANGE := 18.0
+const LIGHT_INTENSITY := 0.8
+
 var _road_material: StandardMaterial3D
+var _sidewalk_material: StandardMaterial3D
+var _center_line_material: StandardMaterial3D
+var _crosswalk_material: StandardMaterial3D
+var _pole_material: StandardMaterial3D
+var _globe_material: StandardMaterial3D
 
 func _ready() -> void:
 	add_to_group("world_generator")
-	_road_material = StandardMaterial3D.new()
-	_road_material.albedo_color = road_color
+	_road_material = _make_mat(road_color)
 	_road_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_sidewalk_material = _make_mat(SIDEWALK_COLOR)
+	_center_line_material = _make_mat(CENTER_LINE_COLOR)
+	_crosswalk_material = _make_mat(CROSSWALK_COLOR)
+	_pole_material = _make_mat(POLE_COLOR)
+	_globe_material = StandardMaterial3D.new()
+	_globe_material.albedo_color = GLOBE_COLOR
+	_globe_material.emission_enabled = true
+	_globe_material.emission = GLOBE_COLOR * 0.3
 
 func generate_from_data(world_data: Dictionary) -> void:
 	var street_count := 0
 	var road_count := 0
 
-	# Generate named streets from settlement street networks
 	var geo: Dictionary = world_data.get("geography", {})
 	var settlements: Array = geo.get("settlements", [])
 	for settlement in settlements:
@@ -41,20 +61,22 @@ func generate_from_data(world_data: Dictionary) -> void:
 				continue
 			var w: float = seg.get("width", road_width)
 			var points := _parse_waypoints(waypoints)
-			_create_road_mesh("Street_%s_%s" % [seg.get("name", ""), seg.get("id", "")], points, w)
+			var seg_name: String = "Street_%s_%s" % [seg.get("name", ""), seg.get("id", "")]
+			_create_road_mesh(seg_name, points, w)
+			_create_sidewalks(seg_name, points, w)
+			_create_center_line(seg_name, points)
+			_create_street_lights(seg_name, points, w)
 			street_count += 1
-		# Generate intersection discs
+		# Intersection discs + crosswalks
 		var nodes: Array = sn.get("nodes", [])
 		for node in nodes:
 			var intersection_of: Array = node.get("intersectionOf", [])
 			if intersection_of.size() >= 2:
 				var pos: Dictionary = node.get("position", {})
-				_create_intersection_disc(
-					Vector3(pos.get("x", 0.0), pos.get("y", 0.0) + road_elevation, pos.get("z", 0.0)),
-					road_width * 0.75
-				)
+				var center := Vector3(pos.get("x", 0.0), pos.get("y", 0.0) + road_elevation, pos.get("z", 0.0))
+				_create_intersection_disc(center, road_width * 0.75)
 
-	# Generate inter-settlement roads
+	# Inter-settlement roads (simpler — no sidewalks/lights)
 	var entities: Dictionary = world_data.get("entities", {})
 	var roads: Array = entities.get("roads", [])
 	for road in roads:
@@ -66,11 +88,8 @@ func generate_from_data(world_data: Dictionary) -> void:
 		_create_road_mesh("Road_%d" % road_count, points, w)
 		road_count += 1
 
-	print("[Insimul] Roads: %d street segments, %d inter-settlement roads" % [street_count, road_count])
+	print("[Insimul] Roads: %d streets (with sidewalks/lights), %d inter-settlement roads" % [street_count, road_count])
 
-## Render a StreetNetwork within a settlement.
-## street_network: Dictionary with "nodes" and "segments" arrays
-## sample_height: Callable(x: float, z: float) -> float
 func generate_settlement_streets(settlement_id: String, street_network: Dictionary, sample_height: Callable) -> void:
 	var segments: Array = street_network.get("segments", [])
 	var nodes: Array = street_network.get("nodes", [])
@@ -80,10 +99,13 @@ func generate_settlement_streets(settlement_id: String, street_network: Dictiona
 		if waypoints.size() < 2:
 			continue
 		var points := _parse_waypoints(waypoints)
-		# Apply terrain-following height
 		for i in range(points.size()):
 			points[i].y = sample_height.call(points[i].x, points[i].z) + road_elevation
-		_create_road_mesh("Street_%s_%s" % [settlement_id, seg.get("id", "")], points, width)
+		var seg_name: String = "Street_%s_%s" % [settlement_id, seg.get("id", "")]
+		_create_road_mesh(seg_name, points, width)
+		_create_sidewalks(seg_name, points, width)
+		_create_center_line(seg_name, points)
+		_create_street_lights(seg_name, points, width)
 	for node in nodes:
 		var intersection_of: Array = node.get("intersectionOf", [])
 		if intersection_of.size() >= 2:
@@ -92,18 +114,17 @@ func generate_settlement_streets(settlement_id: String, street_network: Dictiona
 			var z: float = pos.get("z", 0.0)
 			var y: float = sample_height.call(x, z) + road_elevation
 			_create_intersection_disc(Vector3(x, y, z), road_width * 0.75)
-	print("[Insimul] RoadGenerator — rendered %d streets for %s" % [segments.size(), settlement_id])
+
+# ─────────────────────────────────────────────
+# Road mesh (existing ribbon)
+# ─────────────────────────────────────────────
 
 func _parse_waypoints(waypoints: Array) -> PackedVector3Array:
 	var points := PackedVector3Array()
 	points.resize(waypoints.size())
 	for i in range(waypoints.size()):
 		var wp: Dictionary = waypoints[i]
-		points[i] = Vector3(
-			wp.get("x", 0.0),
-			wp.get("y", 0.0) + road_elevation,
-			wp.get("z", 0.0)
-		)
+		points[i] = Vector3(wp.get("x", 0.0), wp.get("y", 0.0) + road_elevation, wp.get("z", 0.0))
 	return points
 
 func _create_road_mesh(road_name: String, waypoints: PackedVector3Array, width: float) -> void:
@@ -116,7 +137,6 @@ func _create_road_mesh(road_name: String, waypoints: PackedVector3Array, width: 
 	mesh_inst.material_override = _road_material
 	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mesh_inst)
-	# Add static collision
 	mesh_inst.create_trimesh_collision()
 
 func _create_intersection_disc(center: Vector3, radius: float) -> void:
@@ -131,9 +151,225 @@ func _create_intersection_disc(center: Vector3, radius: float) -> void:
 	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mesh_inst)
 
-## Builds a flat ribbon mesh along a polyline path.
-## For each waypoint, two vertices are placed perpendicular to the path
-## direction at +/- width/2. Triangles connect consecutive pairs.
+# ─────────────────────────────────────────────
+# Sidewalks
+# ─────────────────────────────────────────────
+
+func _create_sidewalks(seg_name: String, waypoints: PackedVector3Array, width: float) -> void:
+	var half_street: float = width / 2.0
+	var offset: float = half_street + SIDEWALK_WIDTH / 2.0
+	# Left sidewalk
+	var left_points := _offset_polyline(waypoints, -offset)
+	var left_mesh := _build_ribbon_mesh(left_points, SIDEWALK_WIDTH)
+	if left_mesh:
+		var mi := MeshInstance3D.new()
+		mi.mesh = left_mesh
+		mi.name = "%s_SidewalkL" % seg_name
+		mi.material_override = _sidewalk_material
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	# Right sidewalk
+	var right_points := _offset_polyline(waypoints, offset)
+	var right_mesh := _build_ribbon_mesh(right_points, SIDEWALK_WIDTH)
+	if right_mesh:
+		var mi := MeshInstance3D.new()
+		mi.mesh = right_mesh
+		mi.name = "%s_SidewalkR" % seg_name
+		mi.material_override = _sidewalk_material
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+
+func _offset_polyline(waypoints: PackedVector3Array, offset: float) -> PackedVector3Array:
+	var result := PackedVector3Array()
+	result.resize(waypoints.size())
+	var n: int = waypoints.size()
+	for i in range(n):
+		var forward: Vector3
+		if i == 0:
+			forward = (waypoints[1] - waypoints[0]).normalized()
+		elif i == n - 1:
+			forward = (waypoints[n - 1] - waypoints[n - 2]).normalized()
+		else:
+			forward = (waypoints[i + 1] - waypoints[i - 1]).normalized()
+		if forward.length_squared() < 0.0001:
+			forward = Vector3.FORWARD
+		var right := Vector3(forward.z, 0.0, -forward.x).normalized()
+		result[i] = waypoints[i] + right * offset
+	return result
+
+# ─────────────────────────────────────────────
+# Center line markings (dashed)
+# ─────────────────────────────────────────────
+
+func _create_center_line(seg_name: String, waypoints: PackedVector3Array) -> void:
+	if waypoints.size() < 2:
+		return
+
+	# Walk the polyline and create dashes
+	var dash_parent := Node3D.new()
+	dash_parent.name = "%s_CenterLine" % seg_name
+	add_child(dash_parent)
+
+	var total_length := 0.0
+	for i in range(1, waypoints.size()):
+		total_length += waypoints[i].distance_to(waypoints[i - 1])
+
+	var walked := 0.0
+	var seg_idx := 0
+	var seg_pos := 0.0
+	var cycle: float = DASH_LENGTH + GAP_LENGTH
+
+	while walked < total_length and seg_idx < waypoints.size() - 1:
+		var cycle_pos: float = fmod(walked, cycle)
+		if cycle_pos < DASH_LENGTH:
+			# We're in a dash region — create a small box
+			var seg_len: float = waypoints[seg_idx + 1].distance_to(waypoints[seg_idx])
+			if seg_len < 0.01:
+				seg_idx += 1
+				continue
+			var t: float = seg_pos / seg_len
+			var pos: Vector3 = waypoints[seg_idx].lerp(waypoints[seg_idx + 1], t)
+			var forward: Vector3 = (waypoints[seg_idx + 1] - waypoints[seg_idx]).normalized()
+			var dash_len: float = minf(DASH_LENGTH - cycle_pos, 1.0)
+
+			var dash := MeshInstance3D.new()
+			var box := BoxMesh.new()
+			box.size = Vector3(CENTER_LINE_WIDTH, 0.01, dash_len)
+			dash.mesh = box
+			dash.position = pos + Vector3.UP * 0.02
+			dash.rotation.y = atan2(forward.x, forward.z)
+			dash.material_override = _center_line_material
+			dash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			dash_parent.add_child(dash)
+
+		# Advance along polyline
+		var step := 0.5
+		walked += step
+		seg_pos += step
+		var seg_len2: float = waypoints[seg_idx + 1].distance_to(waypoints[seg_idx])
+		while seg_pos >= seg_len2 and seg_idx < waypoints.size() - 2:
+			seg_pos -= seg_len2
+			seg_idx += 1
+			seg_len2 = waypoints[seg_idx + 1].distance_to(waypoints[seg_idx])
+
+# ─────────────────────────────────────────────
+# Street lights
+# ─────────────────────────────────────────────
+
+func _create_street_lights(seg_name: String, waypoints: PackedVector3Array, width: float) -> void:
+	if waypoints.size() < 2:
+		return
+
+	var total_length := 0.0
+	for i in range(1, waypoints.size()):
+		total_length += waypoints[i].distance_to(waypoints[i - 1])
+
+	if total_length < LIGHT_SPACING:
+		return
+
+	var half_street: float = width / 2.0
+	var offset: float = half_street + SIDEWALK_WIDTH * 0.5
+	var skip_frac := 0.08
+	var light_idx := 0
+
+	var walked := total_length * skip_frac
+	while walked < total_length * (1.0 - skip_frac):
+		# Find position along polyline
+		var pos := _sample_polyline(waypoints, walked)
+		var forward := _sample_tangent(waypoints, walked)
+		var right := Vector3(forward.z, 0.0, -forward.x).normalized()
+
+		# Alternate sides
+		var side: float = -1.0 if (light_idx % 2) == 0 else 1.0
+		var light_pos := pos + right * (side * offset)
+
+		_create_light_post(light_pos, forward, side)
+		light_idx += 1
+		walked += LIGHT_SPACING
+
+func _create_light_post(pos: Vector3, forward: Vector3, side: float) -> void:
+	var root := Node3D.new()
+	root.name = "StreetLight"
+	root.position = pos
+
+	# Pole
+	var pole := MeshInstance3D.new()
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = 0.075
+	pole_mesh.bottom_radius = 0.075
+	pole_mesh.height = POLE_HEIGHT
+	pole_mesh.radial_segments = 6
+	pole.mesh = pole_mesh
+	pole.position.y = POLE_HEIGHT / 2.0
+	pole.material_override = _pole_material
+	root.add_child(pole)
+
+	# Arm (extends toward street)
+	var arm := MeshInstance3D.new()
+	var arm_mesh := CylinderMesh.new()
+	arm_mesh.top_radius = 0.04
+	arm_mesh.bottom_radius = 0.04
+	arm_mesh.height = 0.6
+	arm_mesh.radial_segments = 4
+	arm.mesh = arm_mesh
+	arm.position = Vector3(-side * 0.3, POLE_HEIGHT, 0)
+	arm.rotation.z = PI / 2.0
+	arm.material_override = _pole_material
+	root.add_child(arm)
+
+	# Globe
+	var globe := MeshInstance3D.new()
+	var globe_mesh := SphereMesh.new()
+	globe_mesh.radius = 0.15
+	globe_mesh.height = 0.3
+	globe_mesh.radial_segments = 8
+	globe_mesh.rings = 4
+	globe.mesh = globe_mesh
+	globe.position = Vector3(-side * 0.5, POLE_HEIGHT, 0)
+	globe.material_override = _globe_material
+	root.add_child(globe)
+
+	# Point light
+	var light := OmniLight3D.new()
+	light.light_color = GLOBE_COLOR
+	light.light_energy = LIGHT_INTENSITY
+	light.omni_range = LIGHT_RANGE
+	light.shadow_enabled = false
+	light.position = Vector3(-side * 0.5, POLE_HEIGHT - 0.3, 0)
+	light.add_to_group("street_light")
+	root.add_child(light)
+
+	add_child(root)
+
+# ─────────────────────────────────────────────
+# Polyline helpers
+# ─────────────────────────────────────────────
+
+func _sample_polyline(waypoints: PackedVector3Array, distance: float) -> Vector3:
+	var walked := 0.0
+	for i in range(waypoints.size() - 1):
+		var seg_len: float = waypoints[i + 1].distance_to(waypoints[i])
+		if walked + seg_len >= distance:
+			var t: float = (distance - walked) / maxf(seg_len, 0.001)
+			return waypoints[i].lerp(waypoints[i + 1], clampf(t, 0.0, 1.0))
+		walked += seg_len
+	return waypoints[waypoints.size() - 1]
+
+func _sample_tangent(waypoints: PackedVector3Array, distance: float) -> Vector3:
+	var walked := 0.0
+	for i in range(waypoints.size() - 1):
+		var seg_len: float = waypoints[i + 1].distance_to(waypoints[i])
+		if walked + seg_len >= distance:
+			return (waypoints[i + 1] - waypoints[i]).normalized()
+		walked += seg_len
+	if waypoints.size() >= 2:
+		return (waypoints[waypoints.size() - 1] - waypoints[waypoints.size() - 2]).normalized()
+	return Vector3.FORWARD
+
+# ─────────────────────────────────────────────
+# Ribbon mesh builder
+# ─────────────────────────────────────────────
+
 static func _build_ribbon_mesh(waypoints: PackedVector3Array, width: float) -> ArrayMesh:
 	var n := waypoints.size()
 	if n < 2:
@@ -150,7 +386,6 @@ static func _build_ribbon_mesh(waypoints: PackedVector3Array, width: float) -> A
 	var cumulative_length := 0.0
 
 	for i in range(n):
-		# Compute tangent direction at this waypoint
 		var forward: Vector3
 		if i == 0:
 			forward = (waypoints[1] - waypoints[0]).normalized()
@@ -158,31 +393,22 @@ static func _build_ribbon_mesh(waypoints: PackedVector3Array, width: float) -> A
 			forward = (waypoints[n - 1] - waypoints[n - 2]).normalized()
 		else:
 			forward = (waypoints[i + 1] - waypoints[i - 1]).normalized()
-
-		# Fallback for zero-length tangent (duplicate points)
 		if forward.length_squared() < 0.0001:
 			forward = Vector3.FORWARD
-
-		# Perpendicular in XZ plane (roads are flat ribbons)
 		var right := Vector3(forward.z, 0.0, -forward.x).normalized()
 		if right.length_squared() < 0.0001:
 			right = Vector3.RIGHT
 
 		vertices[i * 2]     = waypoints[i] - right * half_width
 		vertices[i * 2 + 1] = waypoints[i] + right * half_width
-
 		normals[i * 2]     = Vector3.UP
 		normals[i * 2 + 1] = Vector3.UP
-
-		# Accumulate length for UV tiling
 		if i > 0:
 			cumulative_length += waypoints[i].distance_to(waypoints[i - 1])
-
 		var v_coord := cumulative_length / width
 		uvs[i * 2]     = Vector2(0.0, v_coord)
 		uvs[i * 2 + 1] = Vector2(1.0, v_coord)
 
-	# Build triangle indices: two triangles per segment
 	var segment_count := n - 1
 	var indices := PackedInt32Array()
 	indices.resize(segment_count * 6)
@@ -208,3 +434,8 @@ static func _build_ribbon_mesh(waypoints: PackedVector3Array, width: float) -> A
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+func _make_mat(color: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	return mat

@@ -32,7 +32,7 @@ export interface WorldGenerationConfig {
   worldType?: string;
   settlementName: string;
   settlementDescription?: string;
-  settlementType: 'village' | 'town' | 'city';
+  settlementType: 'hamlet' | 'village' | 'town' | 'city';
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
   currentYear: number;
@@ -476,21 +476,51 @@ export class WorldGenerator {
     fertilityRate?: number;
     deathRate?: number;
     startYear?: number;
+    /** Target number of LIVING residents. Immigrants are generated to fill any deficit. */
+    targetPopulation?: number;
   }): Promise<any> {
     const world = await storage.getWorld(worldId);
     if (!world) throw new Error('World not found');
-    
-    return await this.genealogyGen.generate({
+
+    const currentYear = world.currentYear || 2000;
+
+    const genealogyResult = await this.genealogyGen.generate({
       worldId,
       settlementId: config.settlementId,
       startYear: config.startYear || 1900,
-      currentYear: world.currentYear || 2000,
+      currentYear,
       numFoundingFamilies: config.numFoundingFamilies,
       generationsToGenerate: config.generations,
       marriageRate: config.marriageRate || 0.7,
       fertilityRate: config.fertilityRate || 0.6,
       deathRate: config.deathRate || 0.3
     });
+
+    const result: any = { ...genealogyResult };
+
+    // If a target living population was specified, count living characters
+    // and generate immigrants to fill any deficit.
+    if (config.targetPopulation && config.targetPopulation > 0 && config.settlementId) {
+      const allCharacters = await storage.getCharactersBySettlement(config.settlementId);
+      const livingCount = allCharacters.filter((c: any) => c.isAlive).length;
+      const deficit = config.targetPopulation - livingCount;
+
+      if (deficit > 0) {
+        const immigrantsCreated = await this.genealogyGen.generateImmigrants({
+          worldId,
+          settlementId: config.settlementId,
+          currentYear,
+          count: deficit,
+        });
+        result.totalCharacters += immigrantsCreated;
+        result.livingCharacters = config.targetPopulation;
+        console.log(`[Genealogy] Generated ${immigrantsCreated} immigrants to reach target population of ${config.targetPopulation} (had ${livingCount} living from ${result.totalCharacters - immigrantsCreated} genealogy characters)`);
+      } else {
+        result.livingCharacters = livingCount;
+      }
+    }
+
+    return result;
   }
 
   /**

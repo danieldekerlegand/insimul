@@ -153,7 +153,7 @@ function makeMinimalIR(aiConfig?: Partial<AIConfigIR>): WorldIR {
     aiConfig: {
       apiMode: 'insimul',
       insimulEndpoint: '/api/gemini/chat',
-      geminiModel: 'gemini-2.5-flash',
+      geminiModel: 'gemini-3.1-flash',
       geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
       voiceEnabled: true,
       defaultVoice: 'Kore',
@@ -320,13 +320,13 @@ describe('ai_config.json — local model path rewriting', () => {
       localModelName: 'phi-4-mini-q4',
       voiceEnabled: true,
       defaultVoice: 'Charon',
-      geminiModel: 'gemini-2.5-flash',
+      geminiModel: 'gemini-3.1-flash',
     });
     const files = generateDataFiles(ir);
     const parsed = JSON.parse(files.find(f => f.path === 'public/data/ai_config.json')!.content);
     expect(parsed.voiceEnabled).toBe(true);
     expect(parsed.defaultVoice).toBe('Charon');
-    expect(parsed.geminiModel).toBe('gemini-2.5-flash');
+    expect(parsed.geminiModel).toBe('gemini-3.1-flash');
     expect(parsed.insimulEndpoint).toBe('/api/gemini/chat');
   });
 });

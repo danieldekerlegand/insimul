@@ -38,9 +38,14 @@ describe('Gemini 3.1 Configuration', () => {
       expect(GEMINI_MODELS.FLASH).toBe('gemini-3.1-flash-lite-preview');
     });
 
-    it('uses Gemini 2.5 Flash TTS for SPEECH model (no 3.x TTS yet)', async () => {
+    it('uses Gemini 3.1 Flash TTS for SPEECH model', async () => {
       const { GEMINI_MODELS } = await import('../config/gemini.js');
-      expect(GEMINI_MODELS.SPEECH).toBe('gemini-2.5-flash-preview-tts');
+      expect(GEMINI_MODELS.SPEECH).toBe('gemini-3.1-flash-preview-tts');
+    });
+
+    it('uses Gemini 3.1 Flash Live for LIVE model', async () => {
+      const { GEMINI_MODELS } = await import('../config/gemini.js');
+      expect(GEMINI_MODELS.LIVE).toBe('gemini-3.1-flash-live');
     });
 
     it('all non-TTS model names contain 3.1 version', async () => {

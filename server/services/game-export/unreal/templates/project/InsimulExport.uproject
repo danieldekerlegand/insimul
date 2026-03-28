@@ -1,6 +1,6 @@
 {
   "FileVersion": 3,
-  "EngineAssociation": "5.5",
+  "EngineAssociation": "5.7",
   "Category": "",
   "Description": "",
   "Modules": [
@@ -28,11 +28,11 @@
       "Enabled": true
     },
     {
-      "Name": "InterchangePlugins",
+      "Name": "Interchange",
       "Enabled": true
     },
     {
-      "Name": "GLTFImporter",
+      "Name": "GLTFExporter",
       "Enabled": true
     }
   ]

@@ -6,7 +6,7 @@
 import { createNoise2D, fractalNoise } from '../../shared/procedural/noise';
 
 export type TerrainType = 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
-export type SettlementSize = 'village' | 'town' | 'city';
+export type SettlementSize = 'hamlet' | 'village' | 'town' | 'city';
 
 export interface TerrainConfig {
   seed: string;
@@ -35,6 +35,7 @@ const TERRAIN_PARAMS: Record<TerrainType, TerrainNoiseParams> = {
 
 /** Default resolution by settlement size */
 const RESOLUTION_BY_SIZE: Record<SettlementSize, number> = {
+  hamlet: 64,
   village: 128,
   town: 256,
   city: 512,

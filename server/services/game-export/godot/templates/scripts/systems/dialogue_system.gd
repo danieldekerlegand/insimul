@@ -31,7 +31,7 @@ func _load_dialogue_data() -> void:
 			_ai_config = parsed
 			print("[Insimul] AI config loaded: mode=%s" % _ai_config.get("apiMode", "insimul"))
 	else:
-		_ai_config = {"apiMode": "insimul", "insimulEndpoint": "/api/gemini/chat", "geminiModel": "gemini-2.5-flash", "voiceEnabled": true, "defaultVoice": "Kore"}
+		_ai_config = {"apiMode": "insimul", "insimulEndpoint": "/api/gemini/chat", "geminiModel": "gemini-3.1-flash", "voiceEnabled": true, "defaultVoice": "Kore"}
 		print("[Insimul] ai_config.json not found, using defaults")
 
 	var ctx_file = FileAccess.open("res://data/dialogue_contexts.json", FileAccess.READ)
@@ -54,7 +54,7 @@ func _setup_dialogue_panel() -> void:
 	if _dialogue_panel == null:
 		var PanelScript = load("res://scripts/ui/dialogue_panel.gd")
 		if PanelScript:
-			var panel_node = Node.new()
+			var panel_node = CanvasLayer.new()
 			panel_node.set_script(PanelScript)
 			root.add_child(panel_node)
 			_dialogue_panel = panel_node
@@ -153,7 +153,7 @@ func show_with_romance_actions(base_actions: Array, romance_actions: Array, ener
 			desc = "Romance action (requires %s stage)" % ra.get("requiredStage", "unknown")
 		combined.append({
 			"id": "romance_%s" % ra.get("id", ""),
-			"name": "\u{1F495} %s" % ra.get("name", ""),
+			"name": "\U0001F495 %s" % ra.get("name", ""),
 			"description": desc,
 			"actionType": "social",
 			"category": "romance",

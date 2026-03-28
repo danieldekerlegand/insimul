@@ -429,7 +429,7 @@ namespace Insimul.Systems
             if (!ObjectiveToAction.TryGetValue(objectiveType, out var names)) return result;
 
             var nameSet = new HashSet<string>(names);
-            foreach (var action in allActions)
+            foreach (var action in _actions)
             {
                 if (nameSet.Contains(action.name))
                     result.Add(action);
@@ -442,7 +442,7 @@ namespace Insimul.Systems
         /// </summary>
         public InsimulActionData GetActionByName(string actionName)
         {
-            foreach (var action in allActions)
+            foreach (var action in _actions)
             {
                 if (action.name == actionName)
                     return action;

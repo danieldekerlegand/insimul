@@ -572,6 +572,13 @@ namespace Insimul.World
                     AddBalcony(building, width, depth, totalHeight, floorHeight, style);
             }
 
+            // Chimney
+            bool hasChimney = false;
+            if (BUILDING_TYPES.TryGetValue(role ?? "", out var chimneyDefaults))
+                hasChimney = chimneyDefaults.hasChimney;
+            if (hasChimney)
+                AddChimney(building, width, depth, totalHeight, style);
+
             // Filter out child meshes with no vertices (e.g. empty placeholder nodes)
             // before static batching and LOD setup. Mirrors Babylon.js mesh merge filtering.
             var meshFilters = building.GetComponentsInChildren<MeshFilter>();
@@ -584,6 +591,10 @@ namespace Insimul.World
                     mf.gameObject.SetActive(false);
                 }
             }
+
+            // Generate terrain-adaptive foundation so buildings don't float on slopes
+            float buildingBaseY = position.y + porchElevation;
+            TerrainFoundationRenderer.GenerateFoundation(building, width, depth, buildingBaseY);
 
             // Mark as static for batching and add LOD culling
             building.isStatic = true;
@@ -968,6 +979,42 @@ namespace Insimul.World
             handle.transform.SetParent(building.transform, false);
             handle.GetComponent<Renderer>().sharedMaterial = handleMat;
             handle.isStatic = true;
+        }
+
+        private void AddChimney(GameObject building, float width, float depth, float totalHeight, BuildingStylePreset style)
+        {
+            float chimneyWidth = 0.8f;
+            float chimneyHeight = 3.5f;
+            // Estimate roof height from style (flat=0.5, peaked=3.0)
+            bool isFlat = style.roofStyle == "flat" || style.architectureStyle == "modern" || style.architectureStyle == "futuristic";
+            float roofHeight = isFlat ? 0.5f : 3f;
+            float roofTop = totalHeight / 2f + roofHeight;
+
+            var chimneyMat = GetSharedMaterial($"chimney_{style.name}",
+                style.baseColor * 0.65f); // dark brick
+
+            var chimney = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            chimney.name = "Chimney";
+            chimney.transform.localScale = new Vector3(chimneyWidth, chimneyHeight, chimneyWidth);
+            chimney.transform.localPosition = new Vector3(
+                width * 0.3f,  // offset from center
+                roofTop - roofHeight * 0.3f + chimneyHeight / 2f,
+                -depth * 0.2f);
+            chimney.transform.SetParent(building.transform, false);
+            chimney.GetComponent<Renderer>().sharedMaterial = chimneyMat;
+            Object.Destroy(chimney.GetComponent<Collider>());
+            chimney.isStatic = true;
+
+            // Chimney cap (slightly wider)
+            var cap = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cap.name = "ChimneyCap";
+            cap.transform.localScale = new Vector3(chimneyWidth + 0.15f, 0.15f, chimneyWidth + 0.15f);
+            cap.transform.localPosition = chimney.transform.localPosition +
+                Vector3.up * (chimneyHeight / 2f + 0.075f);
+            cap.transform.SetParent(building.transform, false);
+            cap.GetComponent<Renderer>().sharedMaterial = chimneyMat;
+            Object.Destroy(cap.GetComponent<Collider>());
+            cap.isStatic = true;
         }
     }
 }

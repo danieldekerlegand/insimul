@@ -557,7 +557,7 @@ namespace Insimul.Core
         /// <summary>
         /// Load geography data (heightmap, terrain features) from geography.json.
         /// </summary>
-        public static InsimulGeographyData LoadGeography() => LoadSingle<InsimulGeographyData>(DataRoot + "geography");
+        public static GeographyData LoadGeography() => LoadSingle<GeographyData>(DataRoot + "geography");
 
         // ── Save / Load ──────────────────────────────────────────────────
 
@@ -847,13 +847,6 @@ namespace Insimul.Core
     public class WorldIRMetaAssetId
     {
         public AssetIdEntry[] assetIdToPath;
-    }
-
-    [Serializable]
-    public class AssetIdEntry
-    {
-        public string key;
-        public string value;
     }
 
     [Serializable]

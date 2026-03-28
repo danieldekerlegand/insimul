@@ -30,7 +30,7 @@ FString UWorldScaleManager::GetSettlementTier(int32 Population)
     return TEXT("metropolis");
 }
 
-TArray<FVector> UWorldScaleManager::GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount, const TArray<FString>& StreetNames)
+TArray<FVector> UWorldScaleManager::GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount)
 {
     TArray<FVector> Positions;
     if (LotCount <= 0) return Positions;
@@ -159,7 +159,7 @@ TArray<FVector> UWorldScaleManager::DistributeSettlements(FVector BoundsMin, FVe
     return Positions;
 }
 
-void UWorldScaleManager::GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount, const TArray<FString>& StreetNames, const TArray<FVector>& ExistingStreetPoints)
+void UWorldScaleManager::GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount)
 {
     // TODO: Implement street-aligned placement (main street + side streets).
     // For now, falls back to grid+jitter via GenerateLotPositions.

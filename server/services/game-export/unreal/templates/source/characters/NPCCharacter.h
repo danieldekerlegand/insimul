@@ -97,7 +97,21 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC|Appearance")
     UStaticMesh* CharacterMesh;
 
+    // Procedural body parts
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* HeadMesh;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* TorsoMesh;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperArmL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperArmR;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerArmL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerArmR;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperLegL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* UpperLegR;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerLegL;
+    UPROPERTY(VisibleAnywhere) UStaticMeshComponent* LowerLegR;
+
 private:
+    void ApplyBodyColors();
+    static uint32 HashString(const FString& Str);
     /** Evaluate schedule and update state based on current game hour */
     void EvaluateSchedule(float GameHour);
 

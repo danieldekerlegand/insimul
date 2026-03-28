@@ -79,6 +79,7 @@ function FamilyMemberNode({ data }: { data: FamilyNodeData }) {
   const { char, isSelected } = data;
   const alive = char.isAlive !== false;
   const male = char.gender === 'male';
+  const isImmigrant = !!(char.socialAttributes as any)?.immigrant;
   const accent = !alive ? '#6b7280' : male ? '#3b82f6' : '#ec4899';
   const bg = isSelected ? '#fffbeb' : !alive ? '#f9fafb' : male ? '#eff6ff' : '#fdf2f8';
 
@@ -138,6 +139,18 @@ function FamilyMemberNode({ data }: { data: FamilyNodeData }) {
           {male ? '♂' : '♀'}
           {char.birthYear != null && <span>b.{char.birthYear}</span>}
           {!alive && <span style={{ color: '#9ca3af' }}>†</span>}
+          {isImmigrant && (
+            <span style={{
+              fontSize: 9,
+              background: '#dbeafe',
+              color: '#1d4ed8',
+              padding: '0 4px',
+              borderRadius: 3,
+              fontWeight: 500,
+            }}>
+              Immigrant
+            </span>
+          )}
         </div>
         {char.occupation && (
           <div
@@ -173,25 +186,108 @@ const nodeTypes = { familyMember: FamilyMemberNode } as const;
 
 // ─── Dagre layout ─────────────────────────────────────────────────────────────
 
+/**
+ * Layout nodes using Dagre for horizontal (X) positioning within family groups,
+ * then override vertical (Y) positions based on birthYear so the tree reads
+ * chronologically from top to bottom.  Immigrants (no parent edges) are placed
+ * in a separate column at the right, aligned to the same year scale.
+ */
 function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
   if (nodes.length === 0) return nodes;
 
+  // Identify family members vs immigrants
+  const parentChildEdges = edges.filter(e => (e.data as any)?.kind === 'parent-child');
+  const nodesWithFamily = new Set<string>();
+  for (const e of parentChildEdges) {
+    nodesWithFamily.add(e.source);
+    nodesWithFamily.add(e.target);
+  }
+  // Also include spouses of family members
+  for (const n of nodes) {
+    const char = (n.data as FamilyNodeData).char;
+    if (char.spouseId && nodesWithFamily.has(char.spouseId)) {
+      nodesWithFamily.add(n.id);
+    }
+  }
+
+  const familyNodes = nodes.filter(n => nodesWithFamily.has(n.id));
+  const immigrantNodes = nodes.filter(n => !nodesWithFamily.has(n.id));
+
+  // ── Dagre layout for family nodes (horizontal positioning) ────────────
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'TB', ranksep: 60, nodesep: 24, marginx: 24, marginy: 24 });
+  g.setGraph({ rankdir: 'TB', ranksep: 80, nodesep: 24, marginx: 24, marginy: 24 });
 
-  nodes.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
-
-  // Only parent-child edges drive the layout; spouse edges are rendered afterwards
-  edges
-    .filter(e => (e.data as any)?.kind === 'parent-child')
-    .forEach(e => g.setEdge(e.source, e.target));
+  familyNodes.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  parentChildEdges.forEach(e => {
+    if (nodesWithFamily.has(e.source) && nodesWithFamily.has(e.target)) {
+      g.setEdge(e.source, e.target);
+    }
+  });
 
   Dagre.layout(g);
 
-  return nodes.map(n => {
+  // ── Compute year → Y mapping ──────────────────────────────────────────
+  const allBirthYears: number[] = [];
+  for (const n of nodes) {
+    const by = (n.data as FamilyNodeData).char.birthYear;
+    if (by != null) allBirthYears.push(by);
+  }
+  if (allBirthYears.length === 0) {
+    // No birth years — fall back to pure Dagre positioning
+    return nodes.map(n => {
+      const pos = g.node(n.id);
+      if (pos) return { ...n, position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 } };
+      return n;
+    });
+  }
+
+  const minYear = Math.min(...allBirthYears);
+  const maxYear = Math.max(...allBirthYears);
+  const yearSpan = Math.max(maxYear - minYear, 1);
+  const PIXELS_PER_YEAR = 4; // vertical scale
+  const TOP_MARGIN = 24;
+
+  const yearToY = (year: number) => TOP_MARGIN + ((year - minYear) / yearSpan) * yearSpan * PIXELS_PER_YEAR;
+
+  // ── Apply year-based Y to family nodes, keep Dagre X ──────────────────
+  const positioned = familyNodes.map(n => {
     const pos = g.node(n.id);
-    return { ...n, position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 } };
+    const by = (n.data as FamilyNodeData).char.birthYear;
+    const y = by != null ? yearToY(by) : (pos?.y ?? 0);
+    return { ...n, position: { x: (pos?.x ?? 0) - NODE_W / 2, y: y - NODE_H / 2 } };
   });
+
+  // ── Position immigrants in a separate column to the right ─────────────
+  let maxFamilyX = 0;
+  for (const n of positioned) {
+    maxFamilyX = Math.max(maxFamilyX, n.position.x + NODE_W);
+  }
+  const IMMIGRANT_GAP = 80;
+  const IMMIGRANT_COL_WIDTH = NODE_W + 20;
+
+  // Sort immigrants by birth year
+  const sortedImmigrants = [...immigrantNodes].sort((a, b) => {
+    const aYear = (a.data as FamilyNodeData).char.birthYear ?? 9999;
+    const bYear = (b.data as FamilyNodeData).char.birthYear ?? 9999;
+    return aYear - bYear;
+  });
+
+  // Arrange immigrants in columns, stacked by year
+  const immigrantCols = Math.max(1, Math.ceil(Math.sqrt(sortedImmigrants.length / 3)));
+  sortedImmigrants.forEach((n, i) => {
+    const col = i % immigrantCols;
+    const by = (n.data as FamilyNodeData).char.birthYear;
+    const y = by != null ? yearToY(by) : TOP_MARGIN + i * (NODE_H + 10);
+    positioned.push({
+      ...n,
+      position: {
+        x: maxFamilyX + IMMIGRANT_GAP + col * IMMIGRANT_COL_WIDTH,
+        y: y - NODE_H / 2,
+      },
+    });
+  });
+
+  return positioned;
 }
 
 // ─── Build graph ──────────────────────────────────────────────────────────────
@@ -496,6 +592,10 @@ function FamilyTreeFlowInner({
                   <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <span style={{ display: 'inline-block', width: 20, height: 0, borderTop: '2px dashed #f472b6' }} />
                     Spouse
+                  </span>
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <span style={{ display: 'inline-block', fontSize: 9, background: '#dbeafe', color: '#1d4ed8', padding: '0 4px', borderRadius: 3, fontWeight: 500 }}>Imm</span>
+                    Immigrant
                   </span>
                 </div>
               </div>

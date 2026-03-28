@@ -27,7 +27,14 @@ interface ExtResource {
 
 function generateMainTscn(ir: WorldIR): string {
   const theme = ir.theme.visualTheme;
-  const sp = ir.player.startPosition;
+  const rawSp = ir.player.startPosition;
+  const terrainSize = ir.geography?.terrainSize ?? 512;
+  const half = terrainSize / 2;
+  const sp = {
+    x: Math.max(-half, Math.min(half, rawSp.x)),
+    y: rawSp.y,
+    z: Math.max(-half, Math.min(half, rawSp.z)),
+  };
 
   // Build external resources list dynamically
   const extResources: ExtResource[] = [
@@ -48,6 +55,10 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 15, path: 'res://scripts/ui/dialogue_panel.gd', type: 'Script' },
     { id: 16, path: 'res://scripts/ui/quest_tracker_ui.gd', type: 'Script' },
     { id: 17, path: 'res://scripts/ui/chat_panel.gd', type: 'Script' },
+    { id: 19, path: 'res://scripts/world/day_night_cycle.gd', type: 'Script' },
+    { id: 20, path: 'res://scripts/world/item_spawner.gd', type: 'Script' },
+    { id: 21, path: 'res://scripts/world/weather_system.gd', type: 'Script' },
+    { id: 22, path: 'res://scripts/world/animal_system.gd', type: 'Script' },
   ];
 
   const showMinimap = ir.ui?.showMinimap ?? false;
@@ -125,6 +136,22 @@ function generateMainTscn(ir: WorldIR): string {
   // NPC spawner
   tscn += `\n[node name="NPCSpawner" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("7")\n`;
+
+  // Day/night cycle
+  tscn += `\n[node name="DayNightCycle" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("19")\n`;
+
+  // Item spawner
+  tscn += `\n[node name="ItemSpawner" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("20")\n`;
+
+  // Weather system
+  tscn += `\n[node name="WeatherSystem" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("21")\n`;
+
+  // Animal system
+  tscn += `\n[node name="AnimalSystem" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("22")\n`;
 
   // ─── UI Layer ───────────────────────────────
 

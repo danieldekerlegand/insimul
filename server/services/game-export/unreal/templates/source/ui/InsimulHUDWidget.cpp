@@ -1,4 +1,5 @@
 #include "InsimulHUDWidget.h"
+#include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/ProgressBar.h"
@@ -235,4 +236,33 @@ void UInsimulHUDWidget::AddSurvivalBar(const FString& NeedId, const FString& Dis
 
     SurvivalBars.Add(NeedId, Bar);
     SurvivalLabels.Add(NeedId, Label);
+}
+
+void UInsimulHUDWidget::UpdateInteractionPrompt(const FString& Prompt)
+{
+    if (!InteractionPromptText)
+    {
+        // Lazy-create the prompt text block at bottom-center of screen
+        InteractionPromptText = NewObject<UTextBlock>(this);
+        InteractionPromptText->SetText(FText::GetEmpty());
+        FSlateFontInfo PromptFont = InteractionPromptText->GetFont();
+        PromptFont.Size = 18;
+        InteractionPromptText->SetFont(PromptFont);
+        InteractionPromptText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+        InteractionPromptText->SetJustification(ETextJustify::Center);
+
+        // Add to viewport via canvas panel if available
+        UPanelWidget* Root = Cast<UPanelWidget>(GetRootWidget());
+        if (Root) Root->AddChild(InteractionPromptText);
+    }
+
+    if (Prompt.IsEmpty())
+    {
+        InteractionPromptText->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    else
+    {
+        InteractionPromptText->SetText(FText::FromString(Prompt));
+        InteractionPromptText->SetVisibility(ESlateVisibility::Visible);
+    }
 }

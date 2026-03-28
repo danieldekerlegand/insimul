@@ -261,7 +261,7 @@ export class ProceduralBuildingGenerator {
     };
     Array.from(this.roleModelPrototypes.values()).forEach(hideOne);
     Array.from(this.modelPrototypes.values()).forEach(hideOne);
-    console.log('[BuildingGen] Hidden all prototype templates (moved off-screen)');
+    // console.log('[BuildingGen] Hidden all prototype templates (moved off-screen)');
   }
 
   /**
@@ -288,7 +288,7 @@ export class ProceduralBuildingGenerator {
     const envToDispose = mesh.getChildMeshes(false)
       .filter(c => ProceduralBuildingGenerator.isEnvMesh(c.name));
     if (envToDispose.length > 0) {
-      console.log(`[BuildingGen] Stripping ${envToDispose.length} env meshes from prototype "${role}": ${envToDispose.map(m => m.name).join(', ')}`);
+      // console.log(`[BuildingGen] Stripping ${envToDispose.length} env meshes from prototype "${role}": ${envToDispose.map(m => m.name).join(', ')}`);
       for (const m of envToDispose) { m.dispose(); }
     }
 
@@ -309,7 +309,7 @@ export class ProceduralBuildingGenerator {
       const height = maxV.y - minV.y;
       if (height > 0.001) {
         this.roleOriginalHeights.set(role, height);
-        console.log(`[BuildingGen] Measured role="${role}" originalH=${height.toFixed(2)}`);
+        // console.log(`[BuildingGen] Measured role="${role}" originalH=${height.toFixed(2)}`);
       }
     }
 
@@ -319,7 +319,7 @@ export class ProceduralBuildingGenerator {
     const scaleHint = (mesh.metadata as any)?.scaleHint;
     if (scaleHint != null && scaleHint > 0) {
       this.roleScaleHints.set(role, scaleHint);
-      console.log(`[BuildingGen] role="${role}" scaleHint=${scaleHint}`);
+      // console.log(`[BuildingGen] role="${role}" scaleHint=${scaleHint}`);
     }
 
     this.roleModelPrototypes.set(role, mesh);
@@ -456,7 +456,7 @@ export class ProceduralBuildingGenerator {
    * Generate a building from specification
    */
   public generateBuilding(spec: BuildingSpec): Mesh {
-    console.log(`[BuildingGen] generateBuilding: type="${spec.type}" businessType="${spec.businessType}" floors=${spec.floors}`);
+    //console.log(`[BuildingGen] generateBuilding: type="${spec.type}" businessType="${spec.businessType}" floors=${spec.floors}`);
     const parent = new Mesh(`building_${spec.id}`, this.scene);
     parent.position = spec.position.clone();
     parent.rotation.y = spec.rotation;
@@ -495,19 +495,19 @@ export class ProceduralBuildingGenerator {
       const override = this.roleModelPrototypes.get(role);
       if (override) {
         modelPrototype = override;
-        console.log(`[BuildingGen] Using role override: ${role} (mesh: ${override.name})`);
+        // console.log(`[BuildingGen] Using role override: ${role} (mesh: ${override.name})`);
       }
     }
 
     if (!modelPrototype) {
       modelPrototype = this.getModelPrototype(spec);
       if (modelPrototype) {
-        console.log(`[BuildingGen] Using model prototype: ${modelPrototype.name}`);
+        // console.log(`[BuildingGen] Using model prototype: ${modelPrototype.name}`);
       }
     }
 
     if (!modelPrototype) {
-      console.log(`[BuildingGen] No model for role="${role}" — using procedural generation`);
+      // console.log(`[BuildingGen] No model for role="${role}" — using procedural generation`);
     }
 
     if (modelPrototype) {
@@ -557,7 +557,7 @@ export class ProceduralBuildingGenerator {
           return dist > maxDist;
         });
         if (outliers.length > 0) {
-          console.log(`[BuildingGen] Stripping ${outliers.length} outlier meshes from "${spec.id}" (>${maxDist.toFixed(0)}u from center): ${outliers.slice(0, 3).map(m => m.name).join(', ')}${outliers.length > 3 ? '...' : ''}`);
+          // console.log(`[BuildingGen] Stripping ${outliers.length} outlier meshes from "${spec.id}" (>${maxDist.toFixed(0)}u from center): ${outliers.slice(0, 3).map(m => m.name).join(', ')}${outliers.length > 3 ? '...' : ''}`);
           for (const mesh of outliers) { mesh.dispose(); }
         }
 
@@ -578,7 +578,7 @@ export class ProceduralBuildingGenerator {
         const maxBBDim = Math.max(bbSize.x, bbSize.y, bbSize.z);
 
         if (remaining.length === 0 || totalVerts === 0 || maxBBDim < 2) {
-          console.warn(`[BuildingGen] Building "${spec.id}" model unusable (${remaining.length} meshes, ${totalVerts} verts, maxDim=${maxBBDim.toFixed(1)}) — falling back to procedural`);
+          // console.warn(`[BuildingGen] Building "${spec.id}" model unusable (${remaining.length} meshes, ${totalVerts} verts, maxDim=${maxBBDim.toFixed(1)}) — falling back to procedural`);
           instance.dispose();
           modelUsable = false;
         } else {
@@ -598,7 +598,7 @@ export class ProceduralBuildingGenerator {
         return parent;
       }
       // Model unusable — fall through to procedural generation
-      console.log(`[BuildingGen] Using procedural fallback for "${spec.id}"`);
+      // console.log(`[BuildingGen] Using procedural fallback for "${spec.id}"`);
     }
 
     // Compute porch elevation: the building must be raised so the door
@@ -738,7 +738,7 @@ export class ProceduralBuildingGenerator {
       // scaleHint already produces the model's correct real-world size.
       // Use it directly — no floor-based estimation or manual multipliers needed.
       absScale = scaleHint;
-      console.log(`[BuildingGen] role="${role}" using scaleHint=${scaleHint} absScale=${absScale.toFixed(6)}`);
+      // console.log(`[BuildingGen] role="${role}" using scaleHint=${scaleHint} absScale=${absScale.toFixed(6)}`);
     } else {
       // Fallback: estimate scale from floor count and measured bounding box.
       const floorHeight = 5;
@@ -746,7 +746,7 @@ export class ProceduralBuildingGenerator {
       const targetHeight = effectiveFloors * floorHeight;
       const originalH = (role ? this.roleOriginalHeights.get(role) : undefined) || 1;
       absScale = targetHeight / originalH;
-      console.log(`[BuildingGen] role="${role}" origH=${originalH.toFixed(2)} targetH=${targetHeight.toFixed(1)} absScale=${absScale.toFixed(6)} (no scaleHint)`);
+      // console.log(`[BuildingGen] role="${role}" origH=${originalH.toFixed(2)} targetH=${targetHeight.toFixed(1)} absScale=${absScale.toFixed(6)} (no scaleHint)`);
     }
 
     instance.scaling.set(absScale, absScale, absScale);

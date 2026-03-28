@@ -26,7 +26,7 @@ namespace Insimul.Systems
             LoadDialogueData();
             LoadSocialActions();
 
-            _chatPanel = FindObjectOfType<ChatPanel>();
+            _chatPanel = FindFirstObjectByType<ChatPanel>();
             if (_chatPanel == null)
             {
                 var panelObj = new GameObject("InsimulChatPanel");

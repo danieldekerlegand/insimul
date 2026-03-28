@@ -350,11 +350,11 @@ func _update_tracked_hud() -> void:
 
 	var text := ""
 	for quest_id in _tracked_quest_ids:
-		var quest := QuestSystem.get_quest(quest_id)
+		var quest: Dictionary = QuestSystem.get_quest(quest_id)
 		if quest.is_empty():
 			continue
 		text += "[b]%s[/b]\n" % quest.get("title", "?")
-		var objs := QuestSystem.get_objectives_for_quest(quest_id)
+		var objs: Array = QuestSystem.get_objectives_for_quest(quest_id)
 		for obj in objs:
 			if obj.get("completed", false):
 				continue

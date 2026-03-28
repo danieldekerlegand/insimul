@@ -12,6 +12,8 @@ import { generateDataTableFiles } from './unreal-datatable-generator';
 import { generateLevelFiles } from './unreal-level-generator';
 import { generateWorldIR } from '../ir-generator';
 import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
+import { bundleAIModels, type AIBundleOptions, type AIBundleResult } from '../ai-bundler';
+import { buildExportName } from '../export-naming';
 import { convertAssetsForUnreal } from './asset-converter';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { generateUnrealTelemetryTemplate } from '../unreal-telemetry-template';
@@ -38,6 +40,10 @@ try {
 export interface UnrealExportResult {
   /** The world name (sanitised) */
   projectName: string;
+  /** Original world name (unsanitised) for display/filename use */
+  worldName: string;
+  /** AI provider mode ('local' | 'insimul' | 'gemini' etc.) */
+  aiMode: string;
   /** All generated files with relative paths */
   files: GeneratedFile[];
   /** ZIP buffer if archiver is available, null otherwise */
@@ -84,8 +90,15 @@ async function packageAsZip(
     archive.on('end', () => resolve(Buffer.concat(chunks)));
     archive.on('error', (err: Error) => reject(err));
 
+    // Files that should be executable (Unix permission 0o755)
+    const executableFiles = new Set(['setup.sh', 'Setup.command']);
+
     for (const file of files) {
-      archive.append(file.content, { name: `${projectName}/${file.path}` });
+      const opts: Record<string, unknown> = { name: `${projectName}/${file.path}` };
+      if (executableFiles.has(file.path)) {
+        opts.mode = 0o755;
+      }
+      archive.append(file.content, opts);
     }
 
     for (const asset of binaryAssets) {
@@ -114,6 +127,10 @@ async function packageAsZip(
  */
 export interface UnrealExportOptions {
   telemetry?: ExportTelemetryConfig;
+  /** Bundle local AI models (GGUF, Piper voices, Whisper) for offline inference */
+  aiBundle?: AIBundleOptions;
+  /** Override the project/folder name inside the ZIP (e.g., "LaLouisianeUnrealCloud") */
+  projectName?: string;
 }
 
 export async function exportUnrealProject(worldId: string, options?: UnrealExportOptions): Promise<UnrealExportResult> {
@@ -131,13 +148,13 @@ export async function exportUnrealProject(worldId: string, options?: UnrealExpor
   // 3. Run all generators
   const allFiles = generateUnrealFilesFromIR(ir);
 
-  // 3b. Include telemetry client if enabled
-  if (options?.telemetry?.enabled) {
+  // 3b. Always include telemetry client (with local file fallback)
+  {
     const telemetryCpp = generateUnrealTelemetryTemplate({
-      apiEndpoint: options.telemetry.serverUrl,
-      apiKey: options.telemetry.apiKey,
-      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
-      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+      apiEndpoint: options?.telemetry?.serverUrl ?? '',
+      apiKey: options?.telemetry?.apiKey ?? '',
+      batchSize: options?.telemetry?.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options?.telemetry?.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
     });
     allFiles.push({
       path: 'Source/Insimul/TelemetrySubsystem.h',
@@ -155,6 +172,16 @@ export async function exportUnrealProject(worldId: string, options?: UnrealExpor
   const pluginFiles = bundleUnrealPlugin(ir);
   for (const f of pluginFiles) {
     allFiles.push({ path: f.path, content: f.content });
+  }
+
+  // 3d. Bundle local AI models if requested
+  let aiBundleResult: AIBundleResult | null = null;
+  let aiBundleAssets: BundledAsset[] = [];
+  if (options?.aiBundle) {
+    console.log('[Export] Bundling AI models for Unreal...');
+    aiBundleResult = await bundleAIModels('unreal', options.aiBundle);
+    aiBundleAssets = aiBundleResult.assets;
+    console.log(`[Export] AI bundle: ${aiBundleAssets.length} files, ${Math.round(aiBundleResult.totalSizeBytes / 1024 / 1024)}MB`);
   }
 
   // 4. Bundle assets from the world's selected collection
@@ -188,23 +215,27 @@ export async function exportUnrealProject(worldId: string, options?: UnrealExpor
   // Do NOT bundle template .umap files — they have wrong internal package names.
 
   // 6. Package
-  const worldSafe = sanitiseName(ir.meta.worldName) || 'InsimulWorld';
-  const projectName = `InsimulExport_${worldSafe}`;
+  const projectName = options?.projectName || buildExportName(ir.meta.worldName, 'Unreal', ir.aiConfig?.apiMode);
+
+  // Combine asset bundles — converted game assets + AI model assets
+  const allBinaryAssets = [...convertedBundledAssets, ...aiBundleAssets];
 
   let zipBuffer: Buffer | null = null;
   try {
-    zipBuffer = await packageAsZip(projectName, allFiles, convertedBundledAssets);
+    zipBuffer = await packageAsZip(projectName, allFiles, allBinaryAssets);
   } catch (err) {
     console.error('[UnrealExporter] ZIP packaging failed:', err);
   }
 
   const textSizeBytes = allFiles.reduce((sum, f) => sum + Buffer.byteLength(f.content, 'utf8'), 0);
-  const convertedSizeBytes = convertedBundledAssets.reduce((sum, a) => sum + a.buffer.length, 0);
-  const totalSizeBytes = textSizeBytes + convertedSizeBytes;
+  const binarySizeBytes = allBinaryAssets.reduce((sum, a) => sum + a.buffer.length, 0);
+  const totalSizeBytes = textSizeBytes + binarySizeBytes;
   const elapsed = Date.now() - startTime;
 
   return {
     projectName,
+    worldName: ir.meta.worldName,
+    aiMode: ir.aiConfig?.apiMode || 'cloud',
     files: allFiles,
     zipBuffer,
     stats: {

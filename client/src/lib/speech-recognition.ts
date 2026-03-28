@@ -174,12 +174,27 @@ export class SpeechRecognitionService {
 }
 
 /**
- * Server-side STT fallback: records audio and sends to /api/stt.
+ * Check whether we're running inside the Electron standalone export
+ * with local AI capabilities (Whisper STT via IPC).
+ */
+function getElectronSTT(): ((audio: ArrayBuffer, lang?: string) => Promise<{ text: string }>) | null {
+  const api = (window as any).electronAPI;
+  return api?.aiSTT ?? null;
+}
+
+/**
+ * STT fallback: tries Electron local Whisper first, then server /api/stt.
  * Used when the Web Speech API is unavailable.
+ *
+ * Fallback chain:
+ *   1. Electron aiSTT (Whisper via IPC) — works offline in standalone export
+ *   2. Server /api/stt — works in the Insimul web app
+ *   3. Error — no STT available
  */
 export async function serverSideSTT(
   onTranscript: (transcript: string) => void,
   onError: (error: string) => void,
+  options?: { languageHint?: string },
 ): Promise<{ stop: () => void }> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const mediaRecorder = new MediaRecorder(stream);
@@ -192,6 +207,23 @@ export async function serverSideSTT(
   mediaRecorder.onstop = async () => {
     stream.getTracks().forEach(track => track.stop());
     const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+
+    // Strategy 1: Electron local Whisper STT
+    const electronSTT = getElectronSTT();
+    if (electronSTT) {
+      try {
+        const buffer = await audioBlob.arrayBuffer();
+        const result = await electronSTT(buffer, options?.languageHint);
+        if (result?.text) {
+          onTranscript(result.text);
+          return;
+        }
+      } catch {
+        // Electron STT failed — fall through to server
+      }
+    }
+
+    // Strategy 2: Server-side /api/stt
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
@@ -206,7 +238,7 @@ export async function serverSideSTT(
       if (err instanceof DOMException && err.name === 'AbortError') {
         onError('Speech recognition timed out');
       } else {
-        onError(err instanceof Error ? err.message : 'Server STT failed');
+        onError(err instanceof Error ? err.message : 'Speech-to-text unavailable. Try typing instead.');
       }
     }
   };

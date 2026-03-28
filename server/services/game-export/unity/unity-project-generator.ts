@@ -15,6 +15,14 @@ export interface GeneratedFile {
   content: string;
 }
 
+export interface UnityProjectOptions {
+  /** Unity editor version string, e.g. "6000.0.38f1" or "2022.3.18f1". */
+  unityVersion?: string;
+}
+
+/** Default Unity version — Unity 6 LTS */
+const DEFAULT_UNITY_VERSION = '6000.0.38f1';
+
 function sanitiseName(name: string): string {
   return name.replace(/[^a-zA-Z0-9]/g, '');
 }
@@ -23,11 +31,13 @@ function sanitiseName(name: string): string {
 // Public API
 // ═════════════════════════════════════════════
 
-export function generateProjectFiles(ir: WorldIR): GeneratedFile[] {
+export function generateProjectFiles(ir: WorldIR, options?: UnityProjectOptions): GeneratedFile[] {
   const g = ir.meta.genreConfig;
+  const unityVersion = options?.unityVersion || DEFAULT_UNITY_VERSION;
 
   const projectTokens = {
     WORLD_SAFE_NAME: sanitiseName(ir.meta.worldName),
+    UNITY_VERSION: unityVersion,
   };
 
   const readmeTokens = {
@@ -51,6 +61,7 @@ export function generateProjectFiles(ir: WorldIR): GeneratedFile[] {
   };
 
   return [
+    { path: 'ProjectSettings/ProjectVersion.txt',          content: `m_EditorVersion: ${unityVersion}\n` },
     { path: 'Packages/manifest.json',                      content: loadStaticTemplate('project/manifest.json') },
     { path: 'ProjectSettings/ProjectSettings.asset',       content: loadTemplate('project/ProjectSettings.asset', projectTokens) },
     { path: 'ProjectSettings/InputManager.asset',          content: loadStaticTemplate('project/InputManager.asset') },

@@ -41,7 +41,8 @@ vi.mock('../config/gemini.js', () => ({
   GEMINI_MODELS: {
     PRO: 'gemini-3.1-pro-preview',
     FLASH: 'gemini-3.1-flash-lite-preview',
-    SPEECH: 'gemini-2.5-flash-preview-tts',
+    SPEECH: 'gemini-3.1-flash-preview-tts',
+    LIVE: 'gemini-3.1-flash-live',
   },
   THINKING_LEVELS: {
     MINIMAL: 'MINIMAL',

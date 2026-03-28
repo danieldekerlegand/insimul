@@ -44,8 +44,8 @@ namespace Insimul.UI
 
         private void Start()
         {
-            _player = FindObjectOfType<InsimulPlayerController>();
-            _survival = FindObjectOfType<SurvivalSystem>();
+            _player = FindFirstObjectByType<InsimulPlayerController>();
+            _survival = FindFirstObjectByType<SurvivalSystem>();
             BuildSurvivalBars();
             if (interactionPrompt != null)
                 interactionPrompt.SetActive(false);

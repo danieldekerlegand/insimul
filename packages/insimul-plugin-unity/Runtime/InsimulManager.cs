@@ -17,7 +17,7 @@ namespace Insimul
             {
                 if (_instance == null)
                 {
-                    _instance = FindObjectOfType<InsimulManager>();
+                    _instance = FindFirstObjectByType<InsimulManager>();
                     if (_instance == null)
                     {
                         Debug.LogError("[Insimul] No InsimulManager found in scene. Add one to a GameObject.");

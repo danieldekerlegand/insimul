@@ -70,7 +70,7 @@ enum class EInsimulStreetType : uint8
  * Mirrors StreetNodeIR from ir-types.ts.
  */
 USTRUCT(BlueprintType)
-struct FInsimulStreetNode
+struct FInsimulStreetGraphNode
 {
     GENERATED_BODY()
 
@@ -112,7 +112,7 @@ struct FInsimulStreetNetwork
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulStreetNode> Nodes;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulStreetGraphNode> Nodes;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulStreetEdge> Edges;
 };
 

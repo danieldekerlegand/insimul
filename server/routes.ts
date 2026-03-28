@@ -4172,11 +4172,12 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
     try {
       const generator = new WorldGenerator();
       const result = await generator.generateGenealogy(req.params.worldId, req.body);
-      
+
       res.json({
         success: true,
         families: result.families.length,
         totalCharacters: result.totalCharacters,
+        livingCharacters: result.livingCharacters,
         generations: result.generations
       });
     } catch (error) {
@@ -11775,11 +11776,70 @@ Make the action names thematic and immersive.`;
         const collectionId = (world as any)?.selectedAssetCollectionId;
         if (collectionId) {
           const collection = await storage.getAssetCollection(collectionId);
-          if (collection?.assetIds && Array.isArray(collection.assetIds) && collection.assetIds.length > 0) {
-            // Get IDs that aren't already in the world assets
+          if (collection) {
+            // Collect all asset IDs referenced by the collection:
+            // 1) explicit assetIds array
+            // 2) IDs in model maps (buildingModels, natureModels, etc.)
+            // 3) standalone texture IDs (groundTextureId, roadTextureId, etc.)
+            const referencedIds = new Set<string>();
+
+            if (Array.isArray(collection.assetIds)) {
+              for (const id of collection.assetIds) {
+                if (id) referencedIds.add(id);
+              }
+            }
+
+            // Extract IDs from model map values (Record<string, string>)
+            const modelMaps = [
+              collection.buildingModels, collection.natureModels,
+              collection.characterModels, collection.objectModels,
+              (collection as any).playerModels, (collection as any).questObjectModels,
+              (collection as any).audioAssets,
+            ];
+            for (const map of modelMaps) {
+              if (map && typeof map === 'object') {
+                for (const id of Object.values(map)) {
+                  if (typeof id === 'string' && id) referencedIds.add(id);
+                }
+              }
+            }
+
+            // Standalone texture IDs
+            for (const id of [
+              collection.groundTextureId, collection.roadTextureId,
+              collection.wallTextureId, collection.roofTextureId,
+            ]) {
+              if (id) referencedIds.add(id);
+            }
+
+            // Also extract texture IDs from procedural building presets
+            const procBuildings = (collection as any).proceduralBuildings;
+            if (procBuildings) {
+              const presets = procBuildings.stylePresets || [];
+              for (const preset of presets) {
+                if (preset && typeof preset === 'object') {
+                  for (const [key, val] of Object.entries(preset)) {
+                    if (key.endsWith('TextureId') && typeof val === 'string' && val) {
+                      referencedIds.add(val);
+                    }
+                  }
+                }
+              }
+              const typeOverrides = procBuildings.buildingTypeOverrides || {};
+              for (const override of Object.values(typeOverrides)) {
+                if (override && typeof override === 'object') {
+                  for (const [key, val] of Object.entries(override as Record<string, any>)) {
+                    if (key.endsWith('TextureId') && typeof val === 'string' && val) {
+                      referencedIds.add(val);
+                    }
+                  }
+                }
+              }
+            }
+
             const existingIds = new Set(assets.map((a: any) => a.id));
-            const missingIds = (collection.assetIds as string[]).filter(id => !existingIds.has(id));
-            
+            const missingIds = [...referencedIds].filter(id => !existingIds.has(id));
+
             if (missingIds.length > 0) {
               const collectionAssets = await storage.getVisualAssetsByIds(missingIds);
               assets = [...assets, ...collectionAssets];

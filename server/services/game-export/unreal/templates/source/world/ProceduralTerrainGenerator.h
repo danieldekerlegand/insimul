@@ -24,7 +24,6 @@ public:
                                FLinearColor GroundColor);
 
     /** Build terrain from LevelDescriptor JSON terrain object. */
-    UFUNCTION(BlueprintCallable, Category = "Terrain")
     void GenerateFromJson(const TSharedPtr<FJsonObject>& TerrainJson);
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Terrain")

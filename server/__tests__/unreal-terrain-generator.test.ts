@@ -117,7 +117,7 @@ function makeMinimalIR(overrides: Partial<{ heightmap: number[][]; slopeMap: num
     aiConfig: {
       apiMode: 'insimul',
       insimulEndpoint: 'https://api.insimul.com',
-      geminiModel: 'gemini-pro',
+      geminiModel: 'gemini-3.1-pro',
       geminiApiKeyPlaceholder: '',
       voiceEnabled: false,
       defaultVoice: 'neutral',

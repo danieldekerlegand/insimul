@@ -71,12 +71,13 @@ namespace Insimul.Systems
         public bool inSettlement;
         public bool nearNPC;
         public string targetNPCId;
-        public List<InventorySlot> playerInventory;
+        public List<InventoryItem> playerInventory;
     }
 
     public class RuleEnforcer : MonoBehaviour
     {
         private List<InsimulRule> _rules = new();
+        private List<InsimulRuleData> _ruleData = new();
         private List<SettlementZone> _settlementZones = new();
         private List<RuleViolation> _violations = new();
 
@@ -86,14 +87,29 @@ namespace Insimul.Systems
         /// <summary>Fired when a restriction is applied.</summary>
         public event Action<string, string> OnRestriction;
 
-        public int RuleCount => _rules.Count;
+        public int RuleCount => _ruleData.Count;
 
         public void LoadFromData(InsimulWorldIR worldData)
         {
             if (worldData?.systems?.rules != null)
-                _rules.AddRange(worldData.systems.rules);
+                _ruleData.AddRange(worldData.systems.rules);
             if (worldData?.systems?.baseRules != null)
-                _rules.AddRange(worldData.systems.baseRules);
+                _ruleData.AddRange(worldData.systems.baseRules);
+
+            // Convert data to runtime rule objects
+            foreach (var data in _ruleData)
+            {
+                _rules.Add(new InsimulRule
+                {
+                    id = data.id,
+                    name = data.name,
+                    ruleType = data.ruleType,
+                    category = data.category,
+                    priority = data.priority,
+                    isActive = data.isActive,
+                    prologContent = data.content,
+                });
+            }
             Debug.Log($"[Insimul] RuleEnforcer loaded {_rules.Count} rules");
         }
 
@@ -277,7 +293,7 @@ namespace Insimul.Systems
 
             foreach (var item in context.playerInventory)
             {
-                if (!string.IsNullOrEmpty(condition.itemId) && item.itemId == condition.itemId) return true;
+                if (!string.IsNullOrEmpty(condition.itemId) && item.id == condition.itemId) return true;
                 if (!string.IsNullOrEmpty(condition.itemName) &&
                     string.Equals(item.name, condition.itemName, StringComparison.OrdinalIgnoreCase)) return true;
             }
@@ -289,11 +305,11 @@ namespace Insimul.Systems
             if (context.playerInventory == null || context.playerInventory.Count == 0) return false;
 
             var matchingItem = context.playerInventory.Find(item =>
-                (!string.IsNullOrEmpty(condition.itemId) && item.itemId == condition.itemId) ||
+                (!string.IsNullOrEmpty(condition.itemId) && item.id == condition.itemId) ||
                 (!string.IsNullOrEmpty(condition.itemName) &&
                  string.Equals(item.name, condition.itemName, StringComparison.OrdinalIgnoreCase)));
 
-            int qty = matchingItem?.count ?? 0;
+            int qty = matchingItem?.quantity ?? 0;
             return CompareValue(qty, condition.quantity, string.IsNullOrEmpty(condition.op) ? ">=" : condition.op);
         }
 

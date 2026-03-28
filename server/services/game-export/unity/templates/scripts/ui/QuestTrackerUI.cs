@@ -13,7 +13,7 @@ namespace Insimul.UI
 
         private void Start()
         {
-            _questSystem = FindObjectOfType<QuestSystem>();
+            _questSystem = FindFirstObjectByType<QuestSystem>();
         }
 
         private void Update()

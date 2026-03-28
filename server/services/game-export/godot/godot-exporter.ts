@@ -19,6 +19,7 @@ import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { bundleGodotPlugin } from '../plugin-bundler';
 import type { AIModelPaths } from '../plugin-bundler';
 import { bundleAIModels, type AIBundleOptions, type AIBundleManifest } from '../ai-bundler';
+import { buildExportName } from '../export-naming';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -36,6 +37,8 @@ try {
 
 export interface GodotExportResult {
   projectName: string;
+  worldName: string;
+  aiMode: string;
   files: GeneratedFile[];
   zipBuffer: Buffer | null;
   stats: {
@@ -99,6 +102,8 @@ export interface GodotExportOptions {
   telemetry?: ExportTelemetryConfig;
   /** Include local AI models (GGUF, Piper, Whisper) in the export */
   aiBundle?: AIBundleOptions;
+  /** Override the project/folder name inside the ZIP (e.g., "LaLouisianeGodotCloud") */
+  projectName?: string;
 }
 
 export async function exportGodotProject(worldId: string, options?: GodotExportOptions): Promise<GodotExportResult> {
@@ -116,13 +121,13 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
   // 3. Run all generators
   const allFiles = generateGodotFilesFromIR(ir);
 
-  // 3b. Include telemetry client if enabled
-  if (options?.telemetry?.enabled) {
+  // 3b. Always include telemetry client (with local file fallback)
+  {
     const telemetryGd = generateGodotTelemetryTemplate({
-      apiEndpoint: options.telemetry.serverUrl,
-      apiKey: options.telemetry.apiKey,
-      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
-      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+      apiEndpoint: options?.telemetry?.serverUrl ?? '',
+      apiKey: options?.telemetry?.apiKey ?? '',
+      batchSize: options?.telemetry?.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options?.telemetry?.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
     });
     allFiles.push({
       path: 'scripts/autoload/telemetry_client.gd',
@@ -186,8 +191,7 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
     content: generateAssetManifestJson(assetBundle.manifest),
   });
 
-  const worldSafe = sanitiseName(ir.meta.worldName) || 'InsimulWorld';
-  const projectName = `InsimulExport_${worldSafe}`;
+  const projectName = options?.projectName || buildExportName(ir.meta.worldName, 'Godot', ir.aiConfig?.apiMode);
 
   // Merge all binary assets (game assets + AI models)
   const allBinaryAssets = [...assetBundle.assets, ...aiBundleAssets];
@@ -206,6 +210,8 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
 
   return {
     projectName,
+    worldName: ir.meta.worldName,
+    aiMode: ir.aiConfig?.apiMode || 'cloud',
     files: allFiles,
     zipBuffer,
     stats: {

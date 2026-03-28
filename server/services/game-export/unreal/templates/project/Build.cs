@@ -6,6 +6,11 @@ public class InsimulExport : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+        PublicIncludePaths.AddRange(new string[]
+        {
+            ModuleDirectory
+        });
+
         PublicDependencyModuleNames.AddRange(new string[]
         {
             "Core",
@@ -20,12 +25,14 @@ public class InsimulExport : ModuleRules
             "AIModule",
             "GameplayTasks",
             "Json",
-            "JsonUtilities"
+            "JsonUtilities",
+            "HTTP"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[]
         {
-            "ProceduralMeshComponent"
+            "ProceduralMeshComponent",
+            "AnimGraphRuntime"
         });
     }
 }

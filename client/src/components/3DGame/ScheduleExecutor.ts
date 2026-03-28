@@ -354,18 +354,22 @@ export class ScheduleExecutor {
         continue;
       }
 
-      // Check if idle wait has expired → re-evaluate
+      // Check if idle wait has expired → immediately re-evaluate
       if (state.isIdling && now >= state.idleUntil) {
         state.isIdling = false;
         state.lastEvaluatedHour = -1; // Force re-evaluation
+        this.evaluateNPC(npcId, state);
+        continue;
       }
 
-      // Check if goal expired (game-hour based)
+      // Check if goal expired (game-hour based) → immediately re-evaluate
       if (state.currentGoal && this.isGoalExpired(state, currentHour)) {
         state.currentGoal = null;
         state.pathWaypoints = [];
         state.pathIndex = 0;
-        state.lastEvaluatedHour = -1; // Force re-evaluation
+        state.lastEvaluatedHour = -1;
+        this.evaluateNPC(npcId, state);
+        continue;
       }
     }
   }
@@ -386,6 +390,18 @@ export class ScheduleExecutor {
 
       this.evaluateNPC(npcId, state);
     }
+  }
+
+  /**
+   * Force a single NPC to re-evaluate and pick a new goal immediately.
+   * Used when BabylonGame detects an NPC has no path and needs one.
+   */
+  forceEvaluateNPC(npcId: string): void {
+    const state = this.npcStates.get(npcId);
+    if (!state || state.isInsideBuilding || state.isPaused) return;
+    state.lastEvaluatedHour = -1;
+    state.isIdling = false;
+    this.evaluateNPC(npcId, state);
   }
 
   /**

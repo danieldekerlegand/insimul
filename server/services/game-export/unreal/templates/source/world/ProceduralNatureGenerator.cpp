@@ -1,14 +1,256 @@
 #include "ProceduralNatureGenerator.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "UObject/ConstructorHelpers.h"
 
 AProceduralNatureGenerator::AProceduralNatureGenerator()
 {
     PrimaryActorTick.bCanEverTick = false;
+
+    // Root component
+    USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+    SetRootComponent(Root);
+
+    // Load primitive meshes
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderFinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    static ConstructorHelpers::FObjectFinder<UMaterial> MatFinder(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+
+    UStaticMesh* SM_Cylinder = CylinderFinder.Succeeded() ? CylinderFinder.Object : nullptr;
+    UStaticMesh* SM_Sphere = SphereFinder.Succeeded() ? SphereFinder.Object : nullptr;
+    UMaterial* BaseMat = MatFinder.Succeeded() ? MatFinder.Object : nullptr;
+
+    // Tree trunk ISMC (brown cylinders)
+    TreeTrunkISMC = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("TreeTrunks"));
+    TreeTrunkISMC->SetupAttachment(Root);
+    if (SM_Cylinder) TreeTrunkISMC->SetStaticMesh(SM_Cylinder);
+    TreeTrunkISMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    TreeTrunkISMC->SetCastShadow(true);
+
+    // Tree canopy ISMC (green spheres)
+    TreeCanopyISMC = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("TreeCanopies"));
+    TreeCanopyISMC->SetupAttachment(Root);
+    if (SM_Sphere) TreeCanopyISMC->SetStaticMesh(SM_Sphere);
+    TreeCanopyISMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    TreeCanopyISMC->SetCastShadow(true);
+
+    // Pine canopy ISMC (dark green, elongated)
+    PineCanopyISMC = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("PineCanopies"));
+    PineCanopyISMC->SetupAttachment(Root);
+    if (SM_Sphere) PineCanopyISMC->SetStaticMesh(SM_Sphere);
+    PineCanopyISMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    PineCanopyISMC->SetCastShadow(true);
+
+    // Palm trunk ISMC (thin tall cylinders)
+    PalmTrunkISMC = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("PalmTrunks"));
+    PalmTrunkISMC->SetupAttachment(Root);
+    if (SM_Cylinder) PalmTrunkISMC->SetStaticMesh(SM_Cylinder);
+    PalmTrunkISMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    PalmTrunkISMC->SetCastShadow(true);
+
+    // Rock ISMC (gray spheres)
+    RockISMC = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Rocks"));
+    RockISMC->SetupAttachment(Root);
+    if (SM_Sphere) RockISMC->SetStaticMesh(SM_Sphere);
+    RockISMC->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    RockISMC->SetCastShadow(true);
+
+    // Flower ISMC (small colored spheres)
+    FlowerISMC = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Flowers"));
+    FlowerISMC->SetupAttachment(Root);
+    if (SM_Sphere) FlowerISMC->SetStaticMesh(SM_Sphere);
+    FlowerISMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    FlowerISMC->SetCastShadow(false);
 }
 
-void AProceduralNatureGenerator::GenerateNature(int32 TerrainSize, const FString& Seed)
+void AProceduralNatureGenerator::GenerateNature(int32 TerrainSize, int32 Seed,
+                                                 const TArray<FVector>& BuildingPositions,
+                                                 const TArray<TPair<FVector, FVector>>& RoadSegments,
+                                                 FVector InWorldCenter)
 {
-    // TODO: Scatter foliage using UInstancedStaticMeshComponent
-    // Use seeded random with the world seed for deterministic placement
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate nature for terrain %d (seed: %s)"),
-        TerrainSize, *Seed);
+    // Apply materials
+    UMaterial* BaseMat = LoadObject<UMaterial>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+    if (!BaseMat) return;
+
+    // Tree trunk material — brown
+    UMaterialInstanceDynamic* TrunkMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+    TrunkMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.22f, 0.1f));
+    TreeTrunkISMC->SetMaterial(0, TrunkMat);
+
+    // Tree canopy material — green
+    UMaterialInstanceDynamic* CanopyMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+    CanopyMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.15f, 0.45f, 0.12f));
+    TreeCanopyISMC->SetMaterial(0, CanopyMat);
+
+    // Pine canopy material — dark green
+    UMaterialInstanceDynamic* PineMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+    PineMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.1f, 0.35f, 0.1f));
+    PineCanopyISMC->SetMaterial(0, PineMat);
+
+    // Palm trunk material — light brown
+    UMaterialInstanceDynamic* PalmMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+    PalmMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.5f, 0.35f, 0.2f));
+    PalmTrunkISMC->SetMaterial(0, PalmMat);
+
+    // Rock material — gray
+    UMaterialInstanceDynamic* RockMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+    RockMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.45f, 0.45f, 0.42f));
+    RockISMC->SetMaterial(0, RockMat);
+
+    // Flower material — warm colors
+    UMaterialInstanceDynamic* FlowerMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+    FlowerMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.7f, 0.3f, 0.35f));
+    FlowerISMC->SetMaterial(0, FlowerMat);
+
+    FRandomStream Rng(Seed);
+
+    // Determine scatter bounds centered on world center
+    float ScatterRadius = FMath::Max(10000.f, (float)TerrainSize * 0.4f);
+
+    // ── Scatter trees ──
+    int32 TreeCount = FMath::Clamp((int32)(ScatterRadius * ScatterRadius / 5000000.f), 50, 400);
+    int32 TreesPlaced = 0;
+
+    for (int32 i = 0; i < TreeCount * 3 && TreesPlaced < TreeCount; i++)
+    {
+        FVector Candidate(
+            InWorldCenter.X + Rng.FRandRange(-ScatterRadius, ScatterRadius),
+            InWorldCenter.Y + Rng.FRandRange(-ScatterRadius, ScatterRadius),
+            0.f
+        );
+
+        if (IsNearBuilding(Candidate, BuildingPositions, 800.f)) continue;
+        if (IsNearRoad(Candidate, RoadSegments, 500.f)) continue;
+
+        // Tree height variation
+        float TreeH = Rng.FRandRange(600.f, 1200.f); // 6-12m in cm
+        float TrunkH = TreeH * 0.5f;
+        float TrunkR = Rng.FRandRange(20.f, 40.f);
+        float CanopyR = Rng.FRandRange(200.f, 400.f);
+
+        // Pick tree type: 50% oak, 30% pine, 20% palm
+        float TreeTypeRoll = Rng.FRand();
+
+        FTransform TrunkTransform;
+        TrunkTransform.SetLocation(FVector(Candidate.X, Candidate.Y, TrunkH / 2.f));
+
+        if (TreeTypeRoll < 0.5f)
+        {
+            // Oak: normal trunk + round canopy
+            TrunkTransform.SetScale3D(FVector(TrunkR / 50.f, TrunkR / 50.f, TrunkH / 100.f));
+            TreeTrunkISMC->AddInstance(TrunkTransform);
+
+            FTransform CanopyTransform;
+            CanopyTransform.SetLocation(FVector(Candidate.X, Candidate.Y, TrunkH + CanopyR * 0.7f));
+            CanopyTransform.SetScale3D(FVector(CanopyR / 50.f, CanopyR / 50.f, CanopyR / 50.f * 0.8f));
+            TreeCanopyISMC->AddInstance(CanopyTransform);
+        }
+        else if (TreeTypeRoll < 0.8f)
+        {
+            // Pine: tall narrow canopy (elongated Y)
+            TrunkTransform.SetScale3D(FVector(TrunkR * 0.7f / 50.f, TrunkR * 0.7f / 50.f, TrunkH * 1.2f / 100.f));
+            TreeTrunkISMC->AddInstance(TrunkTransform);
+
+            FTransform PineTransform;
+            PineTransform.SetLocation(FVector(Candidate.X, Candidate.Y, TrunkH * 0.5f + CanopyR));
+            PineTransform.SetScale3D(FVector(CanopyR * 0.5f / 50.f, CanopyR * 0.5f / 50.f, CanopyR * 2.0f / 50.f));
+            PineCanopyISMC->AddInstance(PineTransform);
+        }
+        else
+        {
+            // Palm: thin tall trunk + small top canopy
+            TrunkTransform.SetScale3D(FVector(TrunkR * 0.4f / 50.f, TrunkR * 0.4f / 50.f, TrunkH * 1.5f / 100.f));
+            PalmTrunkISMC->AddInstance(TrunkTransform);
+
+            FTransform PalmCanopyTransform;
+            PalmCanopyTransform.SetLocation(FVector(Candidate.X, Candidate.Y, TrunkH * 1.5f + CanopyR * 0.3f));
+            PalmCanopyTransform.SetScale3D(FVector(CanopyR * 0.8f / 50.f, CanopyR * 0.8f / 50.f, CanopyR * 0.4f / 50.f));
+            TreeCanopyISMC->AddInstance(PalmCanopyTransform);
+        }
+
+        TreesPlaced++;
+    }
+
+    // ── Scatter rocks ──
+    int32 RockCount = FMath::Clamp(TreeCount / 3, 20, 150);
+    int32 RocksPlaced = 0;
+
+    for (int32 i = 0; i < RockCount * 3 && RocksPlaced < RockCount; i++)
+    {
+        FVector Candidate(
+            InWorldCenter.X + Rng.FRandRange(-ScatterRadius, ScatterRadius),
+            InWorldCenter.Y + Rng.FRandRange(-ScatterRadius, ScatterRadius),
+            0.f
+        );
+
+        if (IsNearBuilding(Candidate, BuildingPositions, 400.f)) continue;
+        if (IsNearRoad(Candidate, RoadSegments, 300.f)) continue;
+
+        float RockScale = Rng.FRandRange(0.5f, 2.0f);
+        FTransform RockTransform;
+        RockTransform.SetLocation(FVector(Candidate.X, Candidate.Y, RockScale * 25.f));
+        RockTransform.SetScale3D(FVector(RockScale, RockScale * Rng.FRandRange(0.7f, 1.3f), RockScale * 0.6f));
+        RockTransform.SetRotation(FQuat(FRotator(0.f, Rng.FRandRange(0.f, 360.f), 0.f)));
+        RockISMC->AddInstance(RockTransform);
+
+        RocksPlaced++;
+    }
+
+    // ── Scatter flowers ──
+    int32 FlowerCount = FMath::Clamp(TreeCount / 2, 30, 100);
+    int32 FlowersPlaced = 0;
+
+    for (int32 i = 0; i < FlowerCount * 2 && FlowersPlaced < FlowerCount; i++)
+    {
+        FVector Candidate(
+            InWorldCenter.X + Rng.FRandRange(-ScatterRadius * 0.6f, ScatterRadius * 0.6f),
+            InWorldCenter.Y + Rng.FRandRange(-ScatterRadius * 0.6f, ScatterRadius * 0.6f),
+            0.f
+        );
+
+        if (IsNearRoad(Candidate, RoadSegments, 200.f)) continue;
+
+        float FlowerScale = Rng.FRandRange(0.15f, 0.35f);
+        FTransform FlowerTransform;
+        FlowerTransform.SetLocation(FVector(Candidate.X, Candidate.Y, FlowerScale * 15.f));
+        FlowerTransform.SetScale3D(FVector(FlowerScale, FlowerScale, FlowerScale));
+        FlowerISMC->AddInstance(FlowerTransform);
+        FlowersPlaced++;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[Insimul] Nature: %d trees, %d rocks, %d flowers (radius=%.0f)"),
+        TreesPlaced, RocksPlaced, FlowersPlaced, ScatterRadius);
+}
+
+bool AProceduralNatureGenerator::IsNearBuilding(const FVector& Pos, const TArray<FVector>& Buildings, float MinDist) const
+{
+    float MinDistSq = MinDist * MinDist;
+    for (const FVector& B : Buildings)
+    {
+        if (FVector::DistSquared2D(Pos, B) < MinDistSq) return true;
+    }
+    return false;
+}
+
+bool AProceduralNatureGenerator::IsNearRoad(const FVector& Pos, const TArray<TPair<FVector, FVector>>& Roads, float MinDist) const
+{
+    for (const auto& Seg : Roads)
+    {
+        if (PointToSegmentDist2D(Pos, Seg.Key, Seg.Value) < MinDist) return true;
+    }
+    return false;
+}
+
+float AProceduralNatureGenerator::PointToSegmentDist2D(const FVector& P, const FVector& A, const FVector& B) const
+{
+    FVector2D P2(P.X, P.Y);
+    FVector2D A2(A.X, A.Y);
+    FVector2D B2(B.X, B.Y);
+
+    FVector2D AB = B2 - A2;
+    float ABLenSq = AB.SizeSquared();
+    if (ABLenSq < 1.f) return FVector2D::Distance(P2, A2);
+
+    float T = FMath::Clamp(FVector2D::DotProduct(P2 - A2, AB) / ABLenSq, 0.f, 1.f);
+    FVector2D Proj = A2 + AB * T;
+    return FVector2D::Distance(P2, Proj);
 }

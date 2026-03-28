@@ -454,15 +454,24 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 		_:
 			actual_roof_height = peaked_roof_height
 
-	# Roof — positioned flush on top of building walls
+	# Roof — proper vertex geometry for gable/hip, box for flat
 	var roof := MeshInstance3D.new()
-	var roof_box := BoxMesh.new()
-	roof_box.size = Vector3(width + 1.0, actual_roof_height, depth + 1.0)
-	roof.mesh = roof_box
 	roof.name = "Roof"
-	roof.position = Vector3(0, total_height / 2.0 + actual_roof_height / 2.0, 0)
+	var overhang := 0.6
+	var rw: float = width + overhang * 2.0
+	var rd: float = depth + overhang * 2.0
+	match roof_style_str:
+		"gable", "side_gable":
+			roof.mesh = _create_gable_roof(rw, rd, actual_roof_height, roof_style_str == "side_gable")
+		"hip", "hipped_dormers":
+			roof.mesh = _create_hip_roof(rw, rd, actual_roof_height)
+		_:  # flat
+			var flat_box := BoxMesh.new()
+			flat_box.size = Vector3(rw, 0.5, rd)
+			roof.mesh = flat_box
+	roof.position = Vector3(0, total_height / 2.0, 0)
 
-	# Resolve roof texture: prefer per-preset texture, fall back to global, then solid color
+	# Resolve roof texture and material
 	var resolved_roof_tex: Texture2D = null
 	var roof_tex_id: String = style.get("roofTextureId", "")
 	if roof_tex_id != "" and _preset_textures.has(roof_tex_id):
@@ -474,14 +483,10 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	if resolved_roof_tex != null:
 		var roof_mat := _get_shared_material("roof_%s_%s" % [style.get("name", ""), roof_tex_key], Color.WHITE)
 		roof_mat.albedo_texture = resolved_roof_tex
-		# Custom vertex geometry (gable/hip) has mixed triangle winding, so
-		# disable backface culling to ensure both sides render correctly.
 		roof_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		roof.material_override = roof_mat
 	else:
 		var roof_solid_mat := _get_shared_material("roof", roof_color)
-		# Custom vertex geometry (gable/hip) has mixed triangle winding, so
-		# disable backface culling to ensure both sides render correctly.
 		roof_solid_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		roof.material_override = roof_solid_mat
 	building.add_child(roof)
@@ -495,6 +500,12 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 
 	# Door with frame, panel, and handle
 	_add_door(building, width, depth, floors, total_height)
+
+	# Chimney (if building type specifies one)
+	var type_defaults: Dictionary = BUILDING_TYPE_DEFAULTS.get(role, DEFAULT_BUILDING_DIMENSIONS)
+	var has_chimney: bool = type_defaults.get("has_chimney", false)
+	if has_chimney:
+		_add_chimney(building, width, depth, total_height)
 
 	# LOD: add VisibilityNotifier to cull at distance
 	var notifier := VisibleOnScreenNotifier3D.new()
@@ -519,6 +530,10 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	for child in building.get_children():
 		if child is MeshInstance3D and child.visibility_range_end <= 0.0:
 			child.visibility_range_end = lod_cull_distance
+
+	# Merge child meshes by material to reduce draw calls.
+	# Groups children sharing the same material and merges them into single meshes.
+	_merge_building_meshes(building)
 
 	# Freeze transforms — buildings are static geometry
 	building.set_notify_transform(false)
@@ -714,40 +729,45 @@ func _add_windows(building: MeshInstance3D, width: float, depth: float,
 		else:
 			shutter_mat = _get_shared_material("shutter", shutter_col)
 
-	# Place windows on front face, evenly spaced
+	# Place windows on front AND back faces, evenly spaced
 	var num_windows := maxi(1, int(width / 3.0))
 	var spacing := width / float(num_windows + 1)
+	var back_z := -depth / 2.0
 
-	for floor_i in range(floors):
-		var wy := ground_y + floor_height * floor_i + floor_height * 0.6
-		for wi in range(num_windows):
-			var wx := -width / 2.0 + spacing * (wi + 1)
-			var win := MeshInstance3D.new()
-			var win_box := BoxMesh.new()
-			win_box.size = Vector3(window_width, window_height, window_depth)
-			win.mesh = win_box
-			win.name = "Window_F%d_%d" % [floor_i, wi]
-			win.position = Vector3(wx, wy, front_z + window_depth / 2.0)
-			win.material_override = window_mat
-			building.add_child(win)
+	for face in ["front", "back"]:
+		var face_z: float = front_z + window_depth / 2.0 if face == "front" else back_z - window_depth / 2.0
+		var shutter_z: float = front_z + 0.04 if face == "front" else back_z - 0.04
 
-			# Shutters (left and right of window)
-			if do_shutters and shutter_mat != null:
-				var shutter_w := 0.15
-				var shutter_h := window_height + 0.1
-				for side in [-1, 1]:
-					var shutter := MeshInstance3D.new()
-					var sb := BoxMesh.new()
-					sb.size = Vector3(shutter_w, shutter_h, 0.06)
-					shutter.mesh = sb
-					shutter.name = "Shutter_F%d_%d_%s" % [floor_i, wi, "L" if side == -1 else "R"]
-					shutter.position = Vector3(
-						wx + side * (window_width / 2.0 + shutter_w / 2.0),
-						wy,
-						front_z + 0.04
-					)
-					shutter.material_override = shutter_mat
-					building.add_child(shutter)
+		for floor_i in range(floors):
+			var wy := ground_y + floor_height * floor_i + floor_height * 0.6
+			for wi in range(num_windows):
+				var wx := -width / 2.0 + spacing * (wi + 1)
+				var win := MeshInstance3D.new()
+				var win_box := BoxMesh.new()
+				win_box.size = Vector3(window_width, window_height, window_depth)
+				win.mesh = win_box
+				win.name = "Window_%s_F%d_%d" % [face, floor_i, wi]
+				win.position = Vector3(wx, wy, face_z)
+				win.material_override = window_mat
+				building.add_child(win)
+
+				# Shutters (left and right of window)
+				if do_shutters and shutter_mat != null:
+					var shutter_w := 0.15
+					var shutter_h := window_height + 0.1
+					for side in [-1, 1]:
+						var shutter := MeshInstance3D.new()
+						var sb := BoxMesh.new()
+						sb.size = Vector3(shutter_w, shutter_h, 0.06)
+						shutter.mesh = sb
+						shutter.name = "Shutter_%s_F%d_%d_%s" % [face, floor_i, wi, "L" if side == -1 else "R"]
+						shutter.position = Vector3(
+							wx + side * (window_width / 2.0 + shutter_w / 2.0),
+							wy,
+							shutter_z
+						)
+						shutter.material_override = shutter_mat
+						building.add_child(shutter)
 
 
 ## Add ironwork balconies on every upper floor (creole / New Orleans style).
@@ -925,3 +945,237 @@ static func apply_subtype_override(base_style: Dictionary, role: String) -> Dict
 			result[key] = hint[key]
 
 	return result
+
+## Merge child MeshInstance3D nodes sharing the same material into combined meshes.
+## Skips interactive meshes (Door) and non-BoxMesh children (roofs with ArrayMesh).
+func _merge_building_meshes(building: MeshInstance3D) -> void:
+	# Group children by material resource
+	var groups: Dictionary = {}  # material_rid → Array[MeshInstance3D]
+	for child in building.get_children():
+		if not (child is MeshInstance3D):
+			continue
+		if child.name == "Door" or child.name == "Roof" or child.name == "Chimney":
+			continue  # Skip interactive/special meshes
+		if child.mesh == null or not (child.mesh is BoxMesh):
+			continue  # Only merge box meshes (not ArrayMesh roofs)
+		var mat: Material = child.material_override
+		if mat == null:
+			continue
+		var key: int = mat.get_rid().get_id()
+		if not groups.has(key):
+			groups[key] = []
+		groups[key].append(child)
+
+	# Merge groups with 2+ meshes
+	for key in groups:
+		var meshes: Array = groups[key]
+		if meshes.size() < 2:
+			continue
+
+		# Collect all vertices from child BoxMeshes, transforming to building-local space
+		var all_vertices := PackedVector3Array()
+		var all_normals := PackedVector3Array()
+		var all_uvs := PackedVector2Array()
+		var all_indices := PackedInt32Array()
+		var mat: Material = meshes[0].material_override
+		var vertex_offset := 0
+
+		for mi in meshes:
+			var box: BoxMesh = mi.mesh as BoxMesh
+			if box == null:
+				continue
+			# Generate box arrays
+			var box_arrays := box.get_mesh_arrays()
+			if box_arrays.size() == 0:
+				continue
+			# Get arrays from first surface
+			var temp_mesh := ArrayMesh.new()
+			temp_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, box.surface_get_arrays(0))
+			var arrays := temp_mesh.surface_get_arrays(0)
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var norms: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+			var uv_arr: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+
+			# Transform vertices to building-local space
+			var xform: Transform3D = Transform3D(Basis(), mi.position)
+			xform = xform.scaled_local(mi.scale)
+			for v in verts:
+				all_vertices.append(xform * v)
+			all_normals.append_array(norms)
+			if uv_arr.size() > 0:
+				all_uvs.append_array(uv_arr)
+			else:
+				for _i in range(verts.size()):
+					all_uvs.append(Vector2.ZERO)
+			for i_val in idx:
+				all_indices.append(i_val + vertex_offset)
+			vertex_offset += verts.size()
+
+		if all_vertices.size() == 0:
+			continue
+
+		# Create merged mesh
+		var merged_arrays := []
+		merged_arrays.resize(Mesh.ARRAY_MAX)
+		merged_arrays[Mesh.ARRAY_VERTEX] = all_vertices
+		merged_arrays[Mesh.ARRAY_NORMAL] = all_normals
+		merged_arrays[Mesh.ARRAY_TEX_UV] = all_uvs
+		merged_arrays[Mesh.ARRAY_INDEX] = all_indices
+		var merged_mesh := ArrayMesh.new()
+		merged_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, merged_arrays)
+
+		var merged_inst := MeshInstance3D.new()
+		merged_inst.mesh = merged_mesh
+		merged_inst.material_override = mat
+		merged_inst.name = "Merged_%d" % key
+		building.add_child(merged_inst)
+
+		# Remove original children
+		for mi in meshes:
+			mi.queue_free()
+
+## Create a gable roof mesh with custom vertex geometry.
+## Ridge runs along X (front-to-back) for standard gable, along Z for side_gable.
+func _create_gable_roof(w: float, d: float, h: float, side: bool) -> ArrayMesh:
+	var hw: float = w / 2.0
+	var hd: float = d / 2.0
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+
+	if side:
+		# Ridge runs left-right (Z axis), slopes on front/back
+		# 6 vertices: 4 base corners + 2 ridge points
+		vertices.append(Vector3(-hw, 0, -hd))  # 0: front-left base
+		vertices.append(Vector3(hw, 0, -hd))   # 1: front-right base
+		vertices.append(Vector3(hw, 0, hd))    # 2: back-right base
+		vertices.append(Vector3(-hw, 0, hd))   # 3: back-left base
+		vertices.append(Vector3(-hw, h, 0))    # 4: left ridge
+		vertices.append(Vector3(hw, h, 0))     # 5: right ridge
+	else:
+		# Ridge runs front-back (X axis), slopes on left/right
+		vertices.append(Vector3(-hw, 0, -hd))  # 0: front-left base
+		vertices.append(Vector3(hw, 0, -hd))   # 1: front-right base
+		vertices.append(Vector3(hw, 0, hd))    # 2: back-right base
+		vertices.append(Vector3(-hw, 0, hd))   # 3: back-left base
+		vertices.append(Vector3(0, h, -hd))    # 4: front ridge
+		vertices.append(Vector3(0, h, hd))     # 5: back ridge
+
+	for _i in range(6):
+		normals.append(Vector3.UP)
+		uvs.append(Vector2(0, 0))
+
+	if side:
+		# Front slope: 0, 1, 5, 4
+		indices.append_array(PackedInt32Array([0, 4, 1, 1, 4, 5]))
+		# Back slope: 2, 3, 4, 5
+		indices.append_array(PackedInt32Array([2, 5, 3, 3, 5, 4]))
+		# Left triangle: 0, 3, 4
+		indices.append_array(PackedInt32Array([0, 3, 4]))
+		# Right triangle: 1, 5, 2
+		indices.append_array(PackedInt32Array([1, 5, 2]))
+	else:
+		# Left slope: 0, 3, 5, 4
+		indices.append_array(PackedInt32Array([0, 4, 3, 3, 4, 5]))
+		# Right slope: 1, 5, 2  (and 1, 4, 5)
+		indices.append_array(PackedInt32Array([1, 5, 4, 1, 2, 5]))
+		# Front triangle: 0, 4, 1
+		indices.append_array(PackedInt32Array([0, 4, 1]))
+		# Back triangle: 3, 5, 2
+		indices.append_array(PackedInt32Array([3, 5, 2]))
+
+	# Compute proper face normals
+	_compute_normals(vertices, indices, normals)
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+## Create a hip roof mesh — all four sides slope inward to a central ridge.
+func _create_hip_roof(w: float, d: float, h: float) -> ArrayMesh:
+	var hw: float = w / 2.0
+	var hd: float = d / 2.0
+	var ridge_inset: float = minf(hw, hd) * 0.4  # Ridge is shorter than base
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+
+	# 6 vertices: 4 base corners + 2 ridge endpoints
+	vertices.append(Vector3(-hw, 0, -hd))         # 0: front-left
+	vertices.append(Vector3(hw, 0, -hd))           # 1: front-right
+	vertices.append(Vector3(hw, 0, hd))            # 2: back-right
+	vertices.append(Vector3(-hw, 0, hd))           # 3: back-left
+	vertices.append(Vector3(-hw + ridge_inset, h, 0))  # 4: left ridge
+	vertices.append(Vector3(hw - ridge_inset, h, 0))   # 5: right ridge
+
+	for _i in range(6):
+		normals.append(Vector3.UP)
+		uvs.append(Vector2(0, 0))
+
+	# Front slope: 0, 1, 5, 4
+	indices.append_array(PackedInt32Array([0, 4, 1, 1, 4, 5]))
+	# Back slope: 2, 3, 4, 5
+	indices.append_array(PackedInt32Array([2, 5, 3, 3, 5, 4]))
+	# Left triangle: 0, 3, 4
+	indices.append_array(PackedInt32Array([0, 3, 4]))
+	# Right triangle: 1, 5, 2
+	indices.append_array(PackedInt32Array([1, 5, 2]))
+
+	_compute_normals(vertices, indices, normals)
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+## Compute face normals and accumulate to vertices for smooth shading.
+func _compute_normals(vertices: PackedVector3Array, indices: PackedInt32Array, normals: PackedVector3Array) -> void:
+	for i in range(normals.size()):
+		normals[i] = Vector3.ZERO
+	for i in range(0, indices.size(), 3):
+		var i0: int = indices[i]
+		var i1: int = indices[i + 1]
+		var i2: int = indices[i + 2]
+		var face_normal := (vertices[i1] - vertices[i0]).cross(vertices[i2] - vertices[i0]).normalized()
+		normals[i0] += face_normal
+		normals[i1] += face_normal
+		normals[i2] += face_normal
+	for i in range(normals.size()):
+		if normals[i].length_squared() > 0.001:
+			normals[i] = normals[i].normalized()
+		else:
+			normals[i] = Vector3.UP
+
+## Add a chimney to the side of a building.
+func _add_chimney(building: MeshInstance3D, width: float, depth: float,
+		total_height: float) -> void:
+	var chimney_w := 1.0
+	var chimney_d := 1.0
+	var chimney_h := 5.0
+	var chimney := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(chimney_w, chimney_h, chimney_d)
+	chimney.mesh = box
+	chimney.name = "Chimney"
+	chimney.position = Vector3(
+		width / 2.0 - chimney_w / 2.0,
+		total_height / 2.0 + chimney_h / 2.0 - 1.0,
+		-depth * 0.15
+	)
+	var chimney_mat := _get_shared_material("chimney", Color(0.45, 0.3, 0.2))
+	chimney.material_override = chimney_mat
+	building.add_child(chimney)

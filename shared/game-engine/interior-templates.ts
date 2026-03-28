@@ -874,7 +874,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
   // 14. Clinic / Healer
   {
     id: 'clinic',
-    category: 'commercial_service',
+    category: 'professional',
     buildingType: 'clinic',
     matchBusinessTypes: ['clinic', 'healer', 'apothecary'],
     width: 17, depth: 14, height: 4,
@@ -1612,6 +1612,206 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     ],
     furnitureSets: [
       { roomFunction: 'barn', furniture: BARN_FURNITURE },
+    ],
+  },
+
+  // 49. Barracks
+  {
+    id: 'barracks',
+    category: 'military',
+    buildingType: 'barracks',
+    matchBusinessTypes: ['barracks', 'garrison', 'guardhouse'],
+    width: 20, depth: 16, height: 4.5,
+    floorCount: 2,
+    colors: { floor: STONE_GRAY, wall: STONE_LIGHT, ceiling: { r: 0.4, g: 0.38, b: 0.35 } },
+    rooms: [
+      { name: 'mess_hall', function: 'tavern_main', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'armory', function: 'storage', offsetXFraction: -0.25, offsetZFraction: 0.25, widthFraction: 0.5, depthFraction: 0.5, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: 0.25, offsetZFraction: 0.25, widthFraction: 0.5, depthFraction: 0.5, floor: 0 },
+      { name: 'bunks_1', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'bunks_2', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'tavern_main', furniture: TAVERN_MAIN_FURNITURE },
+      { roomFunction: 'storage', furniture: WAREHOUSE_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+    ],
+  },
+
+  // 50. Bathhouse
+  {
+    id: 'bathhouse',
+    category: 'commercial_service',
+    buildingType: 'bathhouse',
+    matchBusinessTypes: ['bathhouse', 'bath_house', 'spa'],
+    width: 18, depth: 16, height: 4.5,
+    floorCount: 1,
+    colors: { floor: STONE_GRAY, wall: CLINIC_WHITE, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
+    rooms: [
+      { name: 'reception', function: 'waiting_room', offsetXFraction: 0, offsetZFraction: -0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+      { name: 'bathing_area', function: 'bathhouse_main', offsetXFraction: 0, offsetZFraction: 0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'waiting_room', furniture: WAITING_ROOM_FURNITURE },
+      { roomFunction: 'bathhouse_main', furniture: WAITING_ROOM_FURNITURE },
+    ],
+  },
+
+  // 51. Dental / Optometry / Tattoo Office (generic small office)
+  {
+    id: 'small_office',
+    category: 'commercial_service',
+    buildingType: 'dentaloffice',
+    matchBusinessTypes: ['dentaloffice', 'dental_office', 'dentist', 'optometryoffice', 'optometry_office', 'optometrist', 'tattooparlor', 'tattoo_parlor', 'tattoo'],
+    width: 14, depth: 12, height: 4,
+    floorCount: 1,
+    colors: { floor: STONE_GRAY, wall: CLINIC_WHITE, ceiling: { r: 0.65, g: 0.63, b: 0.6 } },
+    rooms: [
+      { name: 'waiting', function: 'waiting_room', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'treatment', function: 'clinic_main', offsetXFraction: 0, offsetZFraction: 0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'waiting_room', furniture: WAITING_ROOM_FURNITURE },
+      { roomFunction: 'clinic_main', furniture: EXAM_ROOM_FURNITURE },
+    ],
+  },
+
+  // 52. Mortuary
+  {
+    id: 'mortuary',
+    category: 'civic',
+    buildingType: 'mortuary',
+    matchBusinessTypes: ['mortuary', 'funeral', 'undertaker'],
+    width: 14, depth: 12, height: 4,
+    floorCount: 1,
+    colors: { floor: STONE_GRAY, wall: { r: 0.45, g: 0.42, b: 0.4 }, ceiling: { r: 0.4, g: 0.38, b: 0.36 } },
+    rooms: [
+      { name: 'chapel', function: 'temple', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'preparation', function: 'clinic_main', offsetXFraction: 0, offsetZFraction: 0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'temple', furniture: TEMPLE_FURNITURE },
+      { roomFunction: 'clinic_main', furniture: EXAM_ROOM_FURNITURE },
+    ],
+  },
+
+  // 53. Windmill / Watermill / Lumbermill (generic mill)
+  {
+    id: 'mill',
+    category: 'industrial',
+    buildingType: 'windmill',
+    matchBusinessTypes: ['windmill', 'watermill', 'lumbermill', 'mill'],
+    width: 14, depth: 12, height: 5,
+    floorCount: 2,
+    colors: { floor: MEDIUM_WOOD, wall: LIGHT_WOOD, ceiling: DARK_CEILING },
+    rooms: [
+      { name: 'grinding_floor', function: 'workshop', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 0 },
+      { name: 'storage_loft', function: 'storage', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'workshop', furniture: WORKSHOP_FURNITURE },
+      { roomFunction: 'storage', furniture: WAREHOUSE_FURNITURE },
+    ],
+  },
+
+  // 54. Mine
+  {
+    id: 'mine',
+    category: 'industrial',
+    buildingType: 'mine',
+    matchBusinessTypes: ['mine', 'quarry'],
+    width: 16, depth: 14, height: 4,
+    floorCount: 1,
+    colors: { floor: { r: 0.3, g: 0.28, b: 0.25 }, wall: { r: 0.35, g: 0.32, b: 0.28 }, ceiling: { r: 0.25, g: 0.23, b: 0.2 } },
+    rooms: [
+      { name: 'shaft_entrance', function: 'workshop', offsetXFraction: 0, offsetZFraction: 0.15, widthFraction: 1, depthFraction: 0.7, floor: 0 },
+      { name: 'office', function: 'office', offsetXFraction: 0, offsetZFraction: -0.35, widthFraction: 1, depthFraction: 0.3, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'workshop', furniture: WORKSHOP_FURNITURE },
+      { roomFunction: 'office', furniture: OFFICE_FURNITURE },
+    ],
+  },
+
+  // 55. Lighthouse
+  {
+    id: 'lighthouse',
+    category: 'maritime',
+    buildingType: 'lighthouse',
+    matchBusinessTypes: ['lighthouse'],
+    width: 10, depth: 10, height: 5,
+    floorCount: 2,
+    colors: { floor: STONE_GRAY, wall: CLINIC_WHITE, ceiling: { r: 0.5, g: 0.48, b: 0.45 } },
+    rooms: [
+      { name: 'keeper_room', function: 'living', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 0 },
+      { name: 'lamp_room', function: 'storage', offsetXFraction: 0, offsetZFraction: 0, widthFraction: 1, depthFraction: 1, floor: 1 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+      { roomFunction: 'storage', furniture: NAVIGATION_FURNITURE },
+    ],
+  },
+
+  // 56. Mobile Home
+  {
+    id: 'mobile_home',
+    category: 'residential',
+    buildingType: 'mobile_home',
+    matchBusinessTypes: ['mobile_home', 'trailer'],
+    width: 10, depth: 16, height: 3,
+    floorCount: 1,
+    colors: { floor: MEDIUM_WOOD, wall: { r: 0.6, g: 0.57, b: 0.52 }, ceiling: { r: 0.55, g: 0.52, b: 0.48 } },
+    rooms: [
+      { name: 'living', function: 'living', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'bedroom', function: 'bedroom', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+    ],
+  },
+
+  // 57. Apartment Complex (lobby + units)
+  {
+    id: 'apartment_complex',
+    category: 'residential',
+    buildingType: 'apartmentcomplex',
+    matchBusinessTypes: ['apartmentcomplex', 'apartment_complex'],
+    width: 22, depth: 18, height: 4.5,
+    floorCount: 3,
+    colors: { floor: STONE_GRAY, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.52, b: 0.48 } },
+    rooms: [
+      { name: 'lobby', function: 'entry_hall', offsetXFraction: 0, offsetZFraction: -0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'common_area', function: 'living', offsetXFraction: 0, offsetZFraction: 0.25, widthFraction: 1, depthFraction: 0.5, floor: 0 },
+      { name: 'unit_1', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'unit_2', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 1 },
+      { name: 'unit_3', function: 'bedroom', offsetXFraction: -0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+      { name: 'unit_4', function: 'bedroom', offsetXFraction: 0.25, offsetZFraction: 0, widthFraction: 0.5, depthFraction: 1, floor: 2 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'entry_hall', furniture: WAITING_ROOM_FURNITURE },
+      { roomFunction: 'living', furniture: LIVING_ROOM_FURNITURE },
+      { roomFunction: 'bedroom', furniture: BEDROOM_FURNITURE },
+    ],
+  },
+
+  // 58. HerbShop
+  {
+    id: 'herbshop',
+    category: 'commercial_retail',
+    buildingType: 'herbshop',
+    matchBusinessTypes: ['herbshop', 'herb_shop', 'HerbShop'],
+    width: 14, depth: 12, height: 4,
+    floorCount: 1,
+    colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: DARK_CEILING },
+    rooms: [
+      { name: 'shop_floor', function: 'shop', offsetXFraction: 0, offsetZFraction: -0.2, widthFraction: 1, depthFraction: 0.6, floor: 0 },
+      { name: 'workshop', function: 'workshop', offsetXFraction: 0, offsetZFraction: 0.3, widthFraction: 1, depthFraction: 0.4, floor: 0 },
+    ],
+    furnitureSets: [
+      { roomFunction: 'shop', furniture: PHARMACY_COUNTER_FURNITURE },
+      { roomFunction: 'workshop', furniture: WORKSHOP_FURNITURE },
     ],
   },
 ];

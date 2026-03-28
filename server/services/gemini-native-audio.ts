@@ -86,8 +86,9 @@ export async function nativeAudioChat(request: NativeAudioChatRequest): Promise<
   });
 
   // First call: get text response (for display and quest parsing)
+  // Use Flash Live for audio-to-audio pipeline
   const textResponse = await client.models.generateContent({
-    model: GEMINI_MODELS.FLASH,
+    model: GEMINI_MODELS.LIVE,
     contents,
     config: {
       temperature,
@@ -116,7 +117,7 @@ export async function nativeAudioChat(request: NativeAudioChatRequest): Promise<
           ? ` with a ${request.emotionalTone} tone`
           : '';
         const audioResponse = await client.models.generateContent({
-          model: GEMINI_MODELS.FLASH,
+          model: GEMINI_MODELS.LIVE,
           contents: `Say the following text naturally${toneDirective}, in character: "${cleanedText}"`,
           config: {
             responseModalities: ['AUDIO'],
@@ -200,9 +201,9 @@ export async function nativeTextToAudioChat(
     parts: [{ text: textMessage }]
   });
 
-  // Get text response
+  // Get text response — use Flash Live for audio pipeline
   const textResponse = await client.models.generateContent({
-    model: GEMINI_MODELS.FLASH,
+    model: GEMINI_MODELS.LIVE,
     contents,
     config: {
       temperature,
@@ -229,7 +230,7 @@ export async function nativeTextToAudioChat(
           ? ` with a ${emotionalTone} tone`
           : '';
         const audioResponse = await client.models.generateContent({
-          model: GEMINI_MODELS.FLASH,
+          model: GEMINI_MODELS.LIVE,
           contents: `Say the following text naturally${toneDirective}, in character: "${cleanedText}"`,
           config: {
             responseModalities: ['AUDIO'],

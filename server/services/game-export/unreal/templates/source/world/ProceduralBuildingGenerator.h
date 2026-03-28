@@ -138,7 +138,7 @@ public:
      *  ScaleHint is a pre-computed factor that converts the model's native units to
      *  real-world meters at its intended size. Pass 0 to use floor-based estimation. */
     UFUNCTION(BlueprintCallable, Category = "Building")
-    void RegisterRoleModel(const FString& Role, UStaticMesh* Mesh, float ScaleHint = 0.0f);
+    void RegisterRoleModel(const FString& BuildingRole, UStaticMesh* Mesh, float ScaleHint = 0.0f);
 
     /** Override wall texture for procedural buildings. */
     UFUNCTION(BlueprintCallable, Category = "Building")

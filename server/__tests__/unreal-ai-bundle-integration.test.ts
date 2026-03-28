@@ -105,7 +105,7 @@ function makeMinimalIR(overrides?: Partial<WorldIR>): WorldIR {
     aiConfig: {
       apiMode: 'insimul',
       insimulEndpoint: '/api/gemini/chat',
-      geminiModel: 'gemini-2.5-flash',
+      geminiModel: 'gemini-3.1-flash',
       geminiApiKeyPlaceholder: 'YOUR_KEY_HERE',
       voiceEnabled: true,
       defaultVoice: 'Kore',
@@ -138,7 +138,7 @@ describe('Unreal export - AI Bundle generation', () => {
     expect(cpp).toBeDefined();
     expect(cpp!.content).toContain('insimul');
     expect(cpp!.content).toContain('/api/gemini/chat');
-    expect(cpp!.content).toContain('gemini-2.5-flash');
+    expect(cpp!.content).toContain('gemini-3.1-flash');
     expect(cpp!.content).toContain('YOUR_KEY_HERE');
     expect(cpp!.content).toContain('true'); // voiceEnabled
     expect(cpp!.content).toContain('Kore');
@@ -158,7 +158,7 @@ describe('Unreal export - AI Bundle generation', () => {
       aiConfig: {
         apiMode: 'gemini',
         insimulEndpoint: '',
-        geminiModel: 'gemini-2.5-pro',
+        geminiModel: 'gemini-3.1-pro',
         geminiApiKeyPlaceholder: 'TEST_API_KEY',
         voiceEnabled: false,
         defaultVoice: 'Aoede',
@@ -167,7 +167,7 @@ describe('Unreal export - AI Bundle generation', () => {
     const files = generateCppFiles(ir);
     const cpp = files.find(f => f.path.endsWith('InsimulAIBundle.cpp'))!;
     expect(cpp.content).toContain('"gemini"');
-    expect(cpp.content).toContain('gemini-2.5-pro');
+    expect(cpp.content).toContain('gemini-3.1-pro');
     expect(cpp.content).toContain('TEST_API_KEY');
     expect(cpp.content).toContain('bVoiceEnabled = false');
     expect(cpp.content).toContain('Aoede');

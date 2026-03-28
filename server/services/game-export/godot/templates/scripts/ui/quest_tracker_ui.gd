@@ -6,7 +6,7 @@ extends Control
 func _process(_delta: float) -> void:
 	if quest_list == null:
 		return
-	var active := QuestSystem.get_active_quests()
+	var active: Array = QuestSystem.get_active_quests()
 	if active.is_empty():
 		quest_list.text = "No active quests"
 		return

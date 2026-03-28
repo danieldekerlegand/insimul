@@ -51,7 +51,7 @@ struct FInsimulAIConfig
     FString InsimulEndpoint = TEXT("/api/gemini/chat");
 
     UPROPERTY(BlueprintReadWrite)
-    FString GeminiModel = TEXT("gemini-2.5-flash");
+    FString GeminiModel = TEXT("gemini-3.1-flash");
 
     UPROPERTY(BlueprintReadWrite)
     FString GeminiApiKey = TEXT("YOUR_GEMINI_API_KEY");

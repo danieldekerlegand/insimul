@@ -73,7 +73,7 @@ func _send_insimul_api(ctx: Dictionary, character_id: String) -> void:
 
 func _send_gemini_direct(ctx: Dictionary, character_id: String) -> void:
 	var api_key = config.get("geminiApiKeyPlaceholder", "")
-	var model = config.get("geminiModel", "gemini-2.5-flash")
+	var model = config.get("geminiModel", "gemini-3.1-flash")
 	var url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % [model, api_key]
 
 	var history = histories.get(character_id, [])

@@ -709,6 +709,12 @@ export class CharacterController {
         //first time we enter render loop, delta time is zero
         this._idleFallTime = 0.001;
         this._grounded = false;
+        // Initialize anti-stuck tracking
+        this._lastGroundY = this._avatar.position.y;
+        this._lastFreePos.copyFrom(this._avatar.position);
+        this._climbBaseY = this._avatar.position.y;
+        this._stuckFrames = 0;
+        this._climbFrames = 0;
         this._updateTargetValue();
         if (this._ekb) this._addkeylistener();
         this._scene.registerBeforeRender(this._renderer);
@@ -766,6 +772,19 @@ export class CharacterController {
     private _avStartPos: Vector3 = Vector3.Zero();
     private _prevPickY: number = 0;
     private _grounded: boolean = false;
+
+    // ── Anti-stuck / anti-climb tracking ──
+    // Tracks the Y position where the player was last confirmed on the ground,
+    // and counts consecutive frames where horizontal movement input produces
+    // near-zero horizontal displacement. When stuck, teleports back.
+    private _lastGroundY: number = 0;
+    private _lastFreePos: Vector3 = Vector3.Zero();
+    private _stuckFrames: number = 0;
+    private _climbBaseY: number = 0;
+    private _climbFrames: number = 0;
+    private static readonly STUCK_FRAME_LIMIT: number = 10;
+    private static readonly CLIMB_FRAME_LIMIT: number = 3;
+    private static readonly MAX_OBJECT_CLIMB: number = 0.25;
     //distance by which AV would move down if in freefall
     private _freeFallDist: number = 0;
 
@@ -1167,6 +1186,45 @@ export class CharacterController {
                     //AV is walking on a flat surface
                     this._endFreeFall();
                 }
+
+                // ── Anti-climb: detect gradual object climbing ──
+                // The built-in step check only catches single-frame rises.
+                // The ellipsoid can slide up the side of an object across many
+                // frames, each rise being tiny enough to pass the step check.
+                // Track cumulative rise above the last confirmed ground Y.
+                const yRise = this._avatar.position.y - this._climbBaseY;
+                if (yRise > 0.01) {
+                    this._climbFrames++;
+                    if (yRise > CharacterController.MAX_OBJECT_CLIMB && this._climbFrames > CharacterController.CLIMB_FRAME_LIMIT) {
+                        // Player is climbing an object — push back to start pos
+                        this._avatar.position.copyFrom(this._avStartPos);
+                        this._climbFrames = 0;
+                    }
+                } else {
+                    // On flat ground or descending — update the base
+                    this._climbBaseY = this._avatar.position.y;
+                    this._climbFrames = 0;
+                }
+
+                // ── Anti-stuck: detect inability to move horizontally ──
+                const horizDisp = Math.sqrt(
+                    (this._avatar.position.x - this._avStartPos.x) ** 2 +
+                    (this._avatar.position.z - this._avStartPos.z) ** 2
+                );
+                if (horizDisp < 0.005) {
+                    this._stuckFrames++;
+                    if (this._stuckFrames >= CharacterController.STUCK_FRAME_LIMIT) {
+                        // Teleport back to the last position where we were moving freely
+                        this._avatar.position.copyFrom(this._lastFreePos);
+                        this._stuckFrames = 0;
+                        this._climbBaseY = this._lastFreePos.y;
+                        this._climbFrames = 0;
+                    }
+                } else {
+                    this._stuckFrames = 0;
+                    this._lastFreePos.copyFrom(this._avatar.position);
+                    this._lastGroundY = this._avatar.position.y;
+                }
             }
         }
         return actdata;
@@ -1393,6 +1451,9 @@ export class CharacterController {
     private _endFreeFall(): void {
         this._movFallTime = 0;
         this._inFreeFall = false;
+        // Update anti-climb base when landing
+        this._climbBaseY = this._avatar.position.y;
+        this._climbFrames = 0;
     }
 
     //for how long has the av been falling while idle (not moving)
@@ -1471,6 +1532,11 @@ export class CharacterController {
         if (this._groundFrameCount > this._groundFrameMax) {
             this._grounded = true;
             this._idleFallTime = 0;
+            // Reset anti-stuck tracking — player is confirmed on the ground
+            this._climbBaseY = this._avatar.position.y;
+            this._climbFrames = 0;
+            this._stuckFrames = 0;
+            this._lastFreePos.copyFrom(this._avatar.position);
         }
     }
     private _unGroundIt() {

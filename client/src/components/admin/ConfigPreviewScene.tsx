@@ -1,4 +1,5 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
+import { Maximize, Minimize, ZoomIn, ZoomOut, Pause, Play } from "lucide-react";
 
 /**
  * Lightweight Babylon.js preview scene for config panels.
@@ -43,11 +44,16 @@ export function ConfigPreviewScene({
   buildProcedural,
 }: ConfigPreviewSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<any>(null);
   const sceneRef = useRef<any>(null);
   const babylonRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
   const buildProceduralRef = useRef(buildProcedural);
+  const isRotatingRef = useRef(autoRotate);
+
+  const [isRotating, setIsRotating] = useState(autoRotate);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Keep ref up to date without triggering re-setup
   buildProceduralRef.current = buildProcedural;
@@ -84,12 +90,10 @@ export function ConfigPreviewScene({
     camera.upperRadiusLimit = 20;
     camera.wheelPrecision = 50;
 
-    if (autoRotate) {
-      camera.useAutoRotationBehavior = true;
-      if (camera.autoRotationBehavior) {
-        camera.autoRotationBehavior.idleRotationSpeed = 0.3;
-      }
-    }
+    // Auto-rotate controlled by ref so toggling doesn't rebuild scene
+    scene.onBeforeRenderObservable.add(() => {
+      if (isRotatingRef.current) camera.alpha += 0.005;
+    });
 
     // Lighting
     const hemiLight = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
@@ -220,9 +224,58 @@ export function ConfigPreviewScene({
     }
   }, [buildProcedural]);
 
+  const toggleRotation = useCallback(() => {
+    const next = !isRotatingRef.current;
+    isRotatingRef.current = next;
+    setIsRotating(next);
+  }, []);
+
+  const zoomIn = useCallback(() => {
+    const cam = cameraRef.current;
+    if (cam) cam.radius = Math.max(cam.lowerRadiusLimit ?? 1, cam.radius * 0.8);
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    const cam = cameraRef.current;
+    if (cam) cam.radius = Math.min(cam.upperRadiusLimit ?? 20, cam.radius * 1.25);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+      requestAnimationFrame(() => engineRef.current?.resize());
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
   return (
-    <div className={`relative rounded-lg border overflow-hidden bg-muted/30 ${className}`} style={{ height }}>
+    <div ref={containerRef} className={`relative rounded-lg border overflow-hidden bg-muted/30 ${className}`} style={{ height: isFullscreen ? '100%' : height }}>
       <canvas ref={canvasRef} className="w-full h-full" style={{ outline: "none" }} />
+      <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+        <button onClick={toggleFullscreen} className="p-1 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors" title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+          {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+        </button>
+        <button onClick={zoomIn} className="p-1 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors" title="Zoom in">
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={zoomOut} className="p-1 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors" title="Zoom out">
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={toggleRotation} className="p-1 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors" title={isRotating ? 'Stop rotation' : 'Resume rotation'}>
+          {isRotating ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+        </button>
+      </div>
     </div>
   );
 }

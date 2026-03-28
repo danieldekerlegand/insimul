@@ -125,6 +125,15 @@ namespace Insimul.World
                 flow.speed = wf.flowSpeed * flowAnimationSpeed;
             }
 
+            // Add wave animation based on water type
+            string waveType = (wf.type ?? "").ToLowerInvariant();
+            if (WaterTypeConfigs.TryGetValue(waveType, out var waveConfig) && waveConfig.waveAmplitude > 0.01f)
+            {
+                var wave = go.AddComponent<WaterWaveAnimator>();
+                wave.amplitude = waveConfig.waveAmplitude;
+                wave.frequency = waveConfig.waveFrequency;
+            }
+
             // Add collider for interaction
             var col = go.AddComponent<MeshCollider>();
             col.sharedMesh = mesh;
@@ -170,6 +179,28 @@ namespace Insimul.World
             if (col != null) col.isTrigger = true;
         }
 
+        // Per-type water visual parameters matching Babylon.js WaterRenderer
+        private struct WaterTypeConfig
+        {
+            public Color color;
+            public float alpha;
+            public float specularPower; // mapped to _Glossiness (0-1)
+            public float waveAmplitude;
+            public float waveFrequency;
+        }
+
+        private static readonly Dictionary<string, WaterTypeConfig> WaterTypeConfigs = new Dictionary<string, WaterTypeConfig>
+        {
+            { "ocean",     new WaterTypeConfig { color = new Color(0.05f,0.2f,0.45f),  alpha = 0.8f,  specularPower = 0.5f,  waveAmplitude = 0.4f,  waveFrequency = 1.0f } },
+            { "lake",      new WaterTypeConfig { color = new Color(0.15f,0.35f,0.55f), alpha = 0.75f, specularPower = 0.8f,  waveAmplitude = 0.08f, waveFrequency = 1.5f } },
+            { "river",     new WaterTypeConfig { color = new Color(0.15f,0.35f,0.55f), alpha = 0.7f,  specularPower = 0.6f,  waveAmplitude = 0.06f, waveFrequency = 2.0f } },
+            { "pond",      new WaterTypeConfig { color = new Color(0.12f,0.3f,0.42f),  alpha = 0.7f,  specularPower = 0.9f,  waveAmplitude = 0.03f, waveFrequency = 2.5f } },
+            { "stream",    new WaterTypeConfig { color = new Color(0.18f,0.4f,0.58f),  alpha = 0.65f, specularPower = 0.6f,  waveAmplitude = 0.04f, waveFrequency = 3.0f } },
+            { "waterfall", new WaterTypeConfig { color = new Color(0.6f,0.75f,0.9f),   alpha = 0.55f, specularPower = 0.4f,  waveAmplitude = 0.15f, waveFrequency = 4.0f } },
+            { "marsh",     new WaterTypeConfig { color = new Color(0.18f,0.28f,0.2f),  alpha = 0.85f, specularPower = 0.95f, waveAmplitude = 0.02f, waveFrequency = 0.8f } },
+            { "canal",     new WaterTypeConfig { color = new Color(0.12f,0.32f,0.5f),  alpha = 0.72f, specularPower = 0.7f,  waveAmplitude = 0.03f, waveFrequency = 1.8f } },
+        };
+
         private Material GetWaterMaterial(InsimulWaterFeatureData wf)
         {
             string key = $"water_{wf.type}_{wf.transparency:F2}";
@@ -185,16 +216,69 @@ namespace Insimul.World
             mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             mat.renderQueue = 3000;
 
+            // Use per-type config if available, otherwise fall back to depth-based lerp
             Color col;
-            if (wf.color != null)
+            float glossiness = 0.5f;
+
+            string typeKey = (wf.type ?? "").ToLowerInvariant();
+            if (WaterTypeConfigs.TryGetValue(typeKey, out var typeConfig))
+            {
+                col = typeConfig.color;
+                col.a = typeConfig.alpha;
+                glossiness = typeConfig.specularPower;
+            }
+            else if (wf.color != null)
+            {
                 col = new Color(wf.color.r, wf.color.g, wf.color.b, 1f - wf.transparency);
+            }
             else
+            {
                 col = Color.Lerp(shallowColor, deepColor, Mathf.Clamp01(wf.depth / 20f));
-            col.a = 1f - wf.transparency;
+                col.a = 1f - wf.transparency;
+            }
 
             mat.color = col;
+            mat.SetFloat("_Glossiness", glossiness);
             _materialCache[key] = mat;
             return mat;
+        }
+    }
+
+    /// <summary>
+    /// Animates water mesh vertices with a sine wave for realistic surface movement.
+    /// </summary>
+    public class WaterWaveAnimator : MonoBehaviour
+    {
+        public float amplitude = 0.1f;
+        public float frequency = 1.5f;
+
+        private MeshFilter _meshFilter;
+        private Vector3[] _baseVertices;
+
+        private void Start()
+        {
+            _meshFilter = GetComponent<MeshFilter>();
+            if (_meshFilter != null && _meshFilter.mesh != null)
+                _baseVertices = _meshFilter.mesh.vertices;
+        }
+
+        private void Update()
+        {
+            if (_baseVertices == null || _meshFilter == null) return;
+
+            var mesh = _meshFilter.mesh;
+            var verts = new Vector3[_baseVertices.Length];
+            float time = Time.time * frequency;
+
+            for (int i = 0; i < verts.Length; i++)
+            {
+                var v = _baseVertices[i];
+                v.y += Mathf.Sin(time + v.x * 0.5f + v.z * 0.3f) * amplitude;
+                verts[i] = v;
+            }
+
+            mesh.vertices = verts;
+            mesh.RecalculateBounds();
         }
     }
 

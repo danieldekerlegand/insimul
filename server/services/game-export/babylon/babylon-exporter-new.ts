@@ -29,6 +29,7 @@ import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { bundleBabylonPlugin } from '../plugin-bundler';
 import { bundleAIModels, type AIBundleResult } from '../ai-bundler';
 import type { BabylonExportOptions } from './types';
+import { buildExportName } from '../export-naming';
 
 // createRequire needed for ESM projects.
 const require = createRequire(import.meta.url);
@@ -207,14 +208,14 @@ export async function exportBabylonProject(
   // 10. Generate asset manifest
   const manifestJson = generateAssetManifestJson(assetBundle.manifest);
   
-  // Include telemetry integration if enabled
+  // Always include telemetry integration (with localStorage fallback)
   const telemetryFiles: GeneratedFile[] = [];
-  if (options.telemetry?.enabled) {
+  {
     const telemetryTs = generateBabylonTelemetryIntegration({
-      apiEndpoint: options.telemetry.serverUrl,
-      apiKey: options.telemetry.apiKey,
-      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
-      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+      apiEndpoint: options.telemetry?.serverUrl ?? '',
+      apiKey: options.telemetry?.apiKey ?? '',
+      batchSize: options.telemetry?.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options.telemetry?.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
     });
     telemetryFiles.push({
       path: 'src/telemetry-integration.ts',
@@ -266,6 +267,14 @@ export async function exportBabylonProject(
     }
   }
   
+  // Compute the project folder name for the ZIP archive
+  const projectName = buildExportName(
+    ir.meta.worldName,
+    'Babylon',
+    options.aiProvider,
+    options.mode,
+  );
+
   // ── Build step (optional): write to disk, npm install, vite build, electron-builder ──
   if (options.buildExecutable) {
     const tmpDir = joinPath(require('os').tmpdir(), `insimul-export-${Date.now()}`);
@@ -336,7 +345,7 @@ export async function exportBabylonProject(
       archive.on('data', (chunk: Buffer) => chunks.push(chunk));
       archive.on('end', () => resolve(Buffer.concat(chunks)));
       archive.on('error', reject);
-      archive.directory(tmpDir, false);
+      archive.directory(tmpDir, projectName);
       archive.finalize();
     });
 
@@ -368,24 +377,20 @@ export async function exportBabylonProject(
       reject(err);
     });
 
-    // Add all files to archive
+    // Add all files to archive under the project folder
     for (const file of allFiles) {
-      if (file.isBinary) {
-        archive.append(file.content, { name: file.path });
-      } else {
-        archive.append(file.content, { name: file.path });
-      }
+      archive.append(file.content, { name: `${projectName}/${file.path}` });
     }
 
     // Add assets - include for both web and electron modes
     for (const asset of assetBundle.assets) {
-      archive.append(asset.buffer, { name: `public/${asset.exportPath}` });
+      archive.append(asset.buffer, { name: `${projectName}/public/${asset.exportPath}` });
     }
 
     // Add AI model assets
     if (aiBundleResult) {
       for (const asset of aiBundleResult.assets) {
-        archive.append(asset.buffer, { name: `public/${asset.exportPath}` });
+        archive.append(asset.buffer, { name: `${projectName}/public/${asset.exportPath}` });
       }
     }
 

@@ -32,6 +32,7 @@ function genDataClasses(): GeneratedFile[] {
     { path: `${base}/InsimulWaterFeatureData.cs`, content: loadStaticTemplate('scripts/data/InsimulWaterFeatureData.cs') },
     { path: `${base}/InsimulLotData.cs`, content: loadStaticTemplate('scripts/data/InsimulLotData.cs') },
     { path: `${base}/InsimulAnimationData.cs`, content: loadStaticTemplate('scripts/data/InsimulAnimationData.cs') },
+    { path: `${base}/InsimulBiomeZoneData.cs`, content: loadStaticTemplate('scripts/data/InsimulBiomeZoneData.cs') },
   ];
 }
 
@@ -69,6 +70,9 @@ function genCharacterClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/NPCController.cs`,           content: loadStaticTemplate('scripts/characters/NPCController.cs') },
     { path: `${base}/NPCManager.cs`,              content: loadStaticTemplate('scripts/characters/NPCManager.cs') },
     { path: `${base}/CharacterAnimationController.cs`, content: loadStaticTemplate('scripts/characters/CharacterAnimationController.cs') },
+    { path: `${base}/NPCAppearanceGenerator.cs`,      content: loadStaticTemplate('scripts/characters/NPCAppearanceGenerator.cs') },
+    { path: `${base}/NPCGreetingSystem.cs`,          content: loadStaticTemplate('scripts/characters/NPCGreetingSystem.cs') },
+    { path: `${base}/NPCTalkingIndicator.cs`,       content: loadStaticTemplate('scripts/characters/NPCTalkingIndicator.cs') },
   ];
 }
 
@@ -97,6 +101,16 @@ function genSystemClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/QuestSystem.cs`,     content: loadStaticTemplate('scripts/systems/QuestSystem.cs') },
     { path: `${base}/InventorySystem.cs`, content: loadStaticTemplate('scripts/systems/InventorySystem.cs') },
     { path: `${base}/DialogueSystem.cs`,  content: loadStaticTemplate('scripts/systems/DialogueSystem.cs') },
+    { path: `${base}/EventBus.cs`,       content: loadStaticTemplate('scripts/systems/EventBus.cs') },
+    { path: `${base}/PrologEngine.cs`,   content: loadStaticTemplate('scripts/systems/PrologEngine.cs') },
+    { path: `${base}/AudioManager.cs`,    content: loadStaticTemplate('scripts/systems/AudioManager.cs') },
+    { path: `${base}/AmbientSoundSystem.cs`, content: loadStaticTemplate('scripts/systems/AmbientSoundSystem.cs') },
+    { path: `${base}/InteractionPromptSystem.cs`, content: loadStaticTemplate('scripts/systems/InteractionPromptSystem.cs') },
+    { path: `${base}/HoverTranslationSystem.cs`, content: loadStaticTemplate('scripts/systems/HoverTranslationSystem.cs') },
+    { path: `${base}/ReputationManager.cs`,      content: loadStaticTemplate('scripts/systems/ReputationManager.cs') },
+    { path: `${base}/ContainerSystem.cs`,       content: loadStaticTemplate('scripts/systems/ContainerSystem.cs') },
+    { path: `${base}/PuzzleSystem.cs`,          content: loadStaticTemplate('scripts/systems/PuzzleSystem.cs') },
+    { path: `${base}/OnboardingManager.cs`,     content: loadStaticTemplate('scripts/systems/OnboardingManager.cs') },
   ];
 
   const genre = ir.meta.genreConfig;
@@ -106,9 +120,20 @@ function genSystemClasses(ir: WorldIR): GeneratedFile[] {
   if (genre.features.resources) {
     files.push({ path: `${base}/ResourceSystem.cs`, content: loadStaticTemplate('scripts/systems/ResourceSystem.cs') });
   }
-  if (ir.survival != null) {
-    files.push({ path: `${base}/SurvivalSystem.cs`, content: loadStaticTemplate('scripts/systems/SurvivalSystem.cs') });
+  // Genre-conditional combat variants
+  const combatStyle = ir.combat?.style || 'base';
+  if (combatStyle === 'fighting' || genre.features.combat) {
+    files.push({ path: `${base}/FightingCombatSystem.cs`, content: loadStaticTemplate('scripts/systems/FightingCombatSystem.cs') });
   }
+  if (combatStyle === 'turnbased' || genre.id === 'rpg') {
+    files.push({ path: `${base}/TurnBasedCombatSystem.cs`, content: loadStaticTemplate('scripts/systems/TurnBasedCombatSystem.cs') });
+  }
+  if (combatStyle === 'ranged' || genre.id === 'shooter') {
+    files.push({ path: `${base}/RangedCombatSystem.cs`, content: loadStaticTemplate('scripts/systems/RangedCombatSystem.cs') });
+  }
+  // Always include SurvivalSystem — it gracefully no-ops when survival data is absent,
+  // and other scripts (HUDManager) reference it unconditionally.
+  files.push({ path: `${base}/SurvivalSystem.cs`, content: loadStaticTemplate('scripts/systems/SurvivalSystem.cs') });
 
   return files;
 }
@@ -158,6 +183,14 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ProceduralNatureGenerator.cs`,  content: loadStaticTemplate('scripts/world/ProceduralNatureGenerator.cs') },
     { path: `${base}/ProceduralDungeonGenerator.cs`, content: loadStaticTemplate('scripts/world/ProceduralDungeonGenerator.cs') },
     { path: `${base}/WaterFeatureGenerator.cs`,      content: loadStaticTemplate('scripts/world/WaterFeatureGenerator.cs') },
+    { path: `${base}/DayNightCycleManager.cs`,      content: loadStaticTemplate('scripts/world/DayNightCycleManager.cs') },
+    { path: `${base}/WeatherSystem.cs`,             content: loadStaticTemplate('scripts/world/WeatherSystem.cs') },
+    { path: `${base}/TerrainFoundationRenderer.cs`, content: loadStaticTemplate('scripts/world/TerrainFoundationRenderer.cs') },
+    { path: `${base}/ItemSpawnManager.cs`,          content: loadStaticTemplate('scripts/world/ItemSpawnManager.cs') },
+    { path: `${base}/BuildingInteriorGenerator.cs`, content: loadStaticTemplate('scripts/world/BuildingInteriorGenerator.cs') },
+    { path: `${base}/AnimalAmbientLifeSystem.cs`, content: loadStaticTemplate('scripts/world/AnimalAmbientLifeSystem.cs') },
+    { path: `${base}/BuildingSignManager.cs`,    content: loadStaticTemplate('scripts/world/BuildingSignManager.cs') },
+    { path: `${base}/OutdoorFurnitureGenerator.cs`, content: loadStaticTemplate('scripts/world/OutdoorFurnitureGenerator.cs') },
   ];
 }
 
@@ -178,6 +211,17 @@ function genUIClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ChatPanel.cs`,       content: loadStaticTemplate('scripts/ui/ChatPanel.cs') },
     { path: `${base}/InventoryUI.cs`,    content: loadStaticTemplate('scripts/ui/InventoryUI.cs') },
     { path: `${base}/QuestJournalUI.cs`, content: loadStaticTemplate('scripts/ui/QuestJournalUI.cs') },
+    { path: `${base}/MinimapUI.cs`,     content: loadStaticTemplate('scripts/ui/MinimapUI.cs') },
+    { path: `${base}/ShopPanelUI.cs`,       content: loadStaticTemplate('scripts/ui/ShopPanelUI.cs') },
+    { path: `${base}/VocabularyPanelUI.cs`, content: loadStaticTemplate('scripts/ui/VocabularyPanelUI.cs') },
+    { path: `${base}/SkillTreeUI.cs`,       content: loadStaticTemplate('scripts/ui/SkillTreeUI.cs') },
+    { path: `${base}/NoticeBoardUI.cs`,     content: loadStaticTemplate('scripts/ui/NoticeBoardUI.cs') },
+    { path: `${base}/QuestIndicatorManager.cs`, content: loadStaticTemplate('scripts/ui/QuestIndicatorManager.cs') },
+    { path: `${base}/RadialActionMenu.cs`,    content: loadStaticTemplate('scripts/ui/RadialActionMenu.cs') },
+    { path: `${base}/QuestWaypointManager.cs`, content: loadStaticTemplate('scripts/ui/QuestWaypointManager.cs') },
+    { path: `${base}/NotificationSystem.cs`,   content: loadStaticTemplate('scripts/ui/NotificationSystem.cs') },
+    { path: `${base}/ConversationHistoryPanel.cs`, content: loadStaticTemplate('scripts/ui/ConversationHistoryPanel.cs') },
+    { path: `${base}/CombatUI.cs`,            content: loadStaticTemplate('scripts/ui/CombatUI.cs') },
   ];
 
   const mapEnabled = ir.ui?.menuConfig?.mapScreen?.enabled !== false;

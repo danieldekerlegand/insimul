@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
-import { Loader2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { Loader2, Maximize, Minimize, ZoomIn, ZoomOut, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -68,6 +68,7 @@ export function BuildingModelPreview({
   hideTabs,
 }: BuildingModelPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<BABYLON.Engine | null>(null);
   const sceneRef = useRef<BABYLON.Scene | null>(null);
   const cameraRef = useRef<BABYLON.ArcRotateCamera | null>(null);
@@ -75,6 +76,7 @@ export function BuildingModelPreview({
 
   const [isLoading, setIsLoading] = useState(true);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [meshSource, setMeshSource] = useState<'model' | 'placeholder'>('placeholder');
   const [viewMode, setViewMode] = useState<'exterior' | 'interior'>(initialViewMode || 'exterior');
 
@@ -207,6 +209,25 @@ export function BuildingModelPreview({
     if (cameraRef.current) cameraRef.current.radius = Math.min(20, cameraRef.current.radius + 0.8);
   };
 
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+      requestAnimationFrame(() => engineRef.current?.resize());
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
   // Always show tabs when a building type is provided so users can see interior status
   const hasInterior = !!buildingType || !!interiorModelPath;
 
@@ -224,7 +245,7 @@ export function BuildingModelPreview({
           </TabsList>
         </Tabs>
       )}
-      <div className="relative bg-black rounded-lg overflow-hidden flex-1">
+      <div ref={containerRef} className="relative bg-black rounded-lg overflow-hidden flex-1">
         <canvas
           ref={canvasRef}
           className="w-full h-full"
@@ -258,15 +279,15 @@ export function BuildingModelPreview({
               </div>
             )}
 
-            <div className="absolute bottom-2 right-2 flex gap-1">
+            <div className="absolute top-2 right-2 flex flex-col gap-1">
               <Button
                 size="icon"
                 variant="secondary"
                 className="h-6 w-6 bg-black/50 hover:bg-black/70"
-                onClick={() => setAutoRotate(!autoRotate)}
-                title={autoRotate ? 'Stop rotation' : 'Auto rotate'}
+                onClick={toggleFullscreen}
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               >
-                <RotateCcw className={`h-3 w-3 ${autoRotate ? 'text-blue-400' : 'text-white'}`} />
+                {isFullscreen ? <Minimize className="h-3 w-3 text-white" /> : <Maximize className="h-3 w-3 text-white" />}
               </Button>
               <Button
                 size="icon"
@@ -285,6 +306,15 @@ export function BuildingModelPreview({
                 title="Zoom out"
               >
                 <ZoomOut className="h-3 w-3 text-white" />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-6 w-6 bg-black/50 hover:bg-black/70"
+                onClick={() => setAutoRotate(!autoRotate)}
+                title={autoRotate ? 'Stop rotation' : 'Resume rotation'}
+              >
+                {autoRotate ? <Pause className="h-3 w-3 text-white" /> : <Play className="h-3 w-3 text-white" />}
               </Button>
             </div>
           </>

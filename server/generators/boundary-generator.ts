@@ -25,13 +25,14 @@ export interface SettlementBoundary {
 export interface BoundaryConfig {
   seed: string;
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
-  settlementType: 'village' | 'town' | 'city';
+  settlementType: 'hamlet' | 'village' | 'town' | 'city';
   population: number;
   center?: Vec2;
 }
 
 /** Base radius by settlement type */
 const BASE_RADIUS: Record<string, number> = {
+  hamlet: 50,
   village: 80,
   town: 150,
   city: 250,

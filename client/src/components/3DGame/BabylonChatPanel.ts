@@ -578,8 +578,16 @@ export class BabylonChatPanel {
       this.languageTracker.startConversation(this.character.id, this.character.firstName || this.character.name || 'NPC');
     }
 
-    // No filler greeting — the player speaks first.
-    // The NPC will respond naturally via the chat pipeline.
+    // If the NPC has a quest to offer or an active quest, they initiate conversation.
+    // Otherwise the player speaks first.
+    if (this.questOfferingContext) {
+      // Small delay so the UI is fully visible before the NPC starts talking
+      setTimeout(() => {
+        this.triggerNPCGreeting(
+          '[The player approaches. Give a brief greeting (1-2 sentences max) and mention what you need help with.]'
+        );
+      }, 500);
+    }
 
     // Set up language tracker callbacks
     if (this.languageTracker) {
@@ -666,6 +674,22 @@ export class BabylonChatPanel {
     this._stateIndicator.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     this._stateIndicator.isVisible = false;
     header.addControl(this._stateIndicator);
+
+    // Copy button — copies full dialogue to clipboard
+    const copyBtn = Button.CreateSimpleButton("copyChat", "Copy");
+    copyBtn.width = "38px";
+    copyBtn.height = "20px";
+    copyBtn.color = "rgba(255, 255, 255, 0.8)";
+    copyBtn.background = "rgba(80, 80, 80, 0.7)";
+    copyBtn.cornerRadius = 4;
+    copyBtn.fontSize = 9;
+    copyBtn.left = "-32px";
+    copyBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    copyBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    copyBtn.onPointerClickObservable.add(() => {
+      this.copyDialogueWithOverlay();
+    });
+    header.addControl(copyBtn);
 
     // Close button
     const closeBtn = Button.CreateSimpleButton("closeChat", "X");
@@ -889,7 +913,11 @@ export class BabylonChatPanel {
 
   /** Copy full dialogue to clipboard and briefly show an overlay notification. */
   private copyDialogueWithOverlay(): void {
-    const text = this.messages.map(m => m.content).join('\n');
+    const npcName = this.character ? `${this.character.firstName} ${this.character.lastName}`.trim() : 'NPC';
+    const text = this.messages
+      .filter(m => m.content)
+      .map(m => `${m.role === 'user' ? 'You' : npcName}: ${m.content}`)
+      .join('\n\n');
     navigator.clipboard.writeText(text).catch(() => {});
 
     // Show overlay inside the scroll viewer area
@@ -1032,7 +1060,7 @@ export class BabylonChatPanel {
 
     // Approximate max width in pixels (95% of 320px panel - padding)
     const maxLineWidth = 270;
-    const charWidth = 7; // approximate px per character at fontSize 12
+    const charWidth = 8; // approximate px per character at fontSize 12
 
     let currentLine = this.createFlowLine(messageIndex);
     let lineWidth = 0;
@@ -1066,12 +1094,12 @@ export class BabylonChatPanel {
           currentLine.addControl(wordBlock);
         }
       } else {
-        // Whitespace — add a small spacer
+        // Whitespace — add a fixed-width spacer (resizeToFit can give 0 width for spaces)
         const spacer = new TextBlock();
-        spacer.text = token.text;
+        spacer.text = " ";
         spacer.fontSize = 12;
         spacer.color = "transparent";
-        spacer.resizeToFit = true;
+        spacer.width = `${Math.max(token.text.length, 1) * 4}px`;
         spacer.height = "16px";
         currentLine.addControl(spacer);
       }
@@ -1101,7 +1129,8 @@ export class BabylonChatPanel {
    */
   private createHoverableWord(text: string, hint: VocabHint): Rectangle {
     const wordContainer = new Rectangle();
-    wordContainer.width = `${text.length * 7 + 2}px`;
+    // Use generous width estimate (8px/char + padding) to ensure full text is clickable
+    wordContainer.width = `${text.length * 8 + 4}px`;
     wordContainer.height = "16px";
     wordContainer.thickness = 0;
     wordContainer.background = "transparent";
@@ -1113,6 +1142,7 @@ export class BabylonChatPanel {
     wordBlock.color = "#90CAF9"; // Light blue to indicate translatable
     wordBlock.underline = true;
     wordBlock.resizeToFit = false;
+    wordBlock.isPointerBlocker = true; // Allow hover on text itself, not just container edges
     wordBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     wordContainer.addControl(wordBlock);
 
@@ -1382,6 +1412,76 @@ export class BabylonChatPanel {
         this.updateMessagesDisplay();
       }
     }, 15000);
+  }
+
+  /**
+   * Trigger an NPC-initiated greeting at conversation start.
+   * Sends a hidden cue through the pipeline so the NPC speaks first.
+   * The cue is NOT displayed in the chat UI — only the NPC's response appears.
+   */
+  private async triggerNPCGreeting(cue: string): Promise<void> {
+    if (!this.character || this.isProcessing) return;
+
+    this.isProcessing = true;
+
+    // Show loading indicator
+    if (this.loadingIndicator) {
+      this.loadingIndicator.isVisible = true;
+    }
+    this.updateConversationStateIndicator('thinking');
+
+    try {
+      // Add a placeholder assistant message for streaming (no user message displayed)
+      const placeholderMsg = {
+        role: 'assistant' as const,
+        content: '',
+        timestamp: new Date()
+      };
+      this.messages.push(placeholderMsg);
+      this.updateMessagesDisplay();
+
+      let responseText: string;
+      this._receivedStreamingAudio = false;
+
+      // Route through gRPC or Gemini — same as sendMessage
+      if (this._grpcAvailable && this.conversationClient) {
+        responseText = await this.sendMessageViaGrpc(cue, placeholderMsg);
+      } else {
+        responseText = await this.sendMessageViaGemini(cue, placeholderMsg);
+      }
+
+      // Hide loading indicator
+      if (this.loadingIndicator) {
+        this.loadingIndicator.isVisible = false;
+      }
+
+      // Process the response (grammar, vocab, quests, TTS fallback)
+      await this.processAssistantResponse(cue, responseText, placeholderMsg);
+
+      // Safety net: if no audio played through any path, trigger TTS directly.
+      // The gRPC path sets _receivedStreamingAudio=true optimistically, which
+      // skips the fallback in processAssistantResponse. If no audio actually
+      // arrived, speak the greeting now.
+      const cleanedForTTS = placeholderMsg.content || responseText;
+      if (cleanedForTTS && !this.streamingAudioPlayer?.getIsPlaying() && this.audioQueue.length === 0) {
+        this.textToSpeech(cleanedForTTS);
+      }
+
+      // Start hint timer
+      this.startHintTimer();
+    } catch (error) {
+      console.error('[ChatPanel] NPC greeting error:', error);
+      if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
+      // Remove the empty placeholder on error
+      if (this.messages.length > 0 && this.messages[this.messages.length - 1].content === '') {
+        this.messages.pop();
+      }
+      this.updateMessagesDisplay();
+    } finally {
+      this.isProcessing = false;
+      if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
+      this.updateConversationStateIndicator('idle');
+    }
   }
 
   private async sendMessage() {
@@ -2111,16 +2211,11 @@ export class BabylonChatPanel {
     // Inject quest offering context — NPC should proactively offer this quest
     if (this.questOfferingContext) {
       const q = this.questOfferingContext;
-      prompt += `\n\nIMPORTANT - QUEST OFFERING: You have a quest to offer the player. Early in the conversation (within your first 1-2 responses), naturally work this quest into the dialogue. Stay in character — present it as a personal request, a rumor you've heard, or a task that fits your role.
-Quest to offer:
-- Title: ${q.questTitle}
-- Description: ${q.questDescription}
-- Type: ${q.questType}
-- Difficulty: ${q.difficulty}
-- Category: ${q.category}
-- Objectives: ${q.objectives}
+      prompt += `\n\nIMPORTANT - QUEST OFFERING: You are INITIATING this conversation. Keep your opening greeting SHORT (1-3 sentences). Briefly mention what you need — do NOT explain everything at once. Let the player ask questions. Stay in character.
+Quest: "${q.questTitle}" — ${q.questDescription}
+Objectives: ${q.objectives}
 
-When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN format to formally assign it. If the player declines, respect their choice and continue normal conversation.`;
+When the player accepts, use the QUEST_ASSIGN format. If declined, continue normal conversation.`;
     }
 
     // Inject active quest context — NPC should reference the ongoing quest
@@ -3264,6 +3359,28 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
     this.questGuidancePrompt = prompt;
     // Invalidate cached system prompt so it rebuilds with guidance
     this._cachedSystemPrompt = null;
+  }
+
+  /**
+   * Trigger an NPC greeting when quest guidance arrives asynchronously.
+   * Only fires if the conversation is fresh (no messages yet) and no quest offering
+   * greeting is already planned.
+   */
+  public triggerQuestGuidanceGreeting(): void {
+    // Skip if quest offering context already triggered a greeting
+    if (this.questOfferingContext) return;
+    // Skip if conversation already has messages (player already spoke)
+    if (this.messages.length > 0) return;
+    // Skip if not visible or no character
+    if (!this.isVisible || !this.character) return;
+
+    setTimeout(() => {
+      // Double-check no messages were added during the delay
+      if (this.messages.length > 0) return;
+      this.triggerNPCGreeting(
+        '[The player approaches. Give a brief greeting (1-2 sentences) and ask about their quest progress.]'
+      );
+    }, 300);
   }
 
   private _onExternalNewWord: ((entry: any) => void) | null = null;

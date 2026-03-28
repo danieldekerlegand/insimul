@@ -58,6 +58,11 @@ struct FQuestObjective
 
     /** Phrases taught to NPC (for teach_phrase deduplication) */
     UPROPERTY(BlueprintReadWrite) TArray<FString> PhrasesTaught;
+
+    UPROPERTY(BlueprintReadWrite) FString FactionId;
+    UPROPERTY(BlueprintReadWrite) int32 ReputationGained = 0;
+    UPROPERTY(BlueprintReadWrite) int32 ReputationRequired = 0;
+    UPROPERTY(BlueprintReadWrite) FString ItemName;
 };
 
 /**
@@ -218,7 +223,6 @@ public:
     void CheckDirectionProximity(const FVector& PlayerPos);
 
     /** Register a building-check callback so spawned items avoid building interiors. */
-    UFUNCTION(BlueprintCallable, Category = "Quests")
     void SetPointInBuildingCheck(const FPointInBuildingCheck& Check);
 
     /** Generate spread-out item positions that avoid building interiors. */

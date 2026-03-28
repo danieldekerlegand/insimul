@@ -25,15 +25,15 @@ UMaterialInstanceDynamic* AProceduralBuildingGenerator::GetSharedMaterial(
     return Mat;
 }
 
-void AProceduralBuildingGenerator::RegisterRoleModel(const FString& Role, UStaticMesh* Mesh, float ScaleHint)
+void AProceduralBuildingGenerator::RegisterRoleModel(const FString& BuildingRole, UStaticMesh* Mesh, float ScaleHint)
 {
-    if (Role.IsEmpty() || !Mesh) return;
-    RoleModelPrototypes.Add(Role, Mesh);
+    if (BuildingRole.IsEmpty() || !Mesh) return;
+    RoleModelPrototypes.Add(BuildingRole, Mesh);
     if (ScaleHint > 0.0f)
     {
-        RoleScaleHints.Add(Role, ScaleHint);
+        RoleScaleHints.Add(BuildingRole, ScaleHint);
     }
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] Registered role model: %s (scaleHint=%.4f)"), *Role, ScaleHint);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Registered role model: %s (scaleHint=%.4f)"), *BuildingRole, ScaleHint);
 }
 
 void AProceduralBuildingGenerator::SetWallTexture(UTexture2D* Texture)
@@ -356,12 +356,9 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
 
     // Procedural fallback — spawn a cube placeholder scaled to building dimensions
     // Performance: mark as static for Unreal's static mesh batching
-    SetMobility(EComponentMobility::Static);
-
-    // LOD: cull at configured distance
     if (auto* RootComp = GetRootComponent())
     {
-        RootComp->SetCullDistance(LODCullDistance);
+        RootComp->SetMobility(EComponentMobility::Static);
     }
 
     // Create porch if style requires it

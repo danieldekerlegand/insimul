@@ -170,12 +170,12 @@ func _generate_heightmap_mesh(slope_data: Variant) -> void:
 	for i in range(vert_count):
 		normals[i] = Vector3.UP
 	for i in range(0, indices.size(), 3):
-		var i0 := indices[i]
-		var i1 := indices[i + 1]
-		var i2 := indices[i + 2]
-		var v0 := vertices[i0]
-		var v1 := vertices[i1]
-		var v2 := vertices[i2]
+		var i0: int = indices[i]
+		var i1: int = indices[i + 1]
+		var i2: int = indices[i + 2]
+		var v0: Vector3 = vertices[i0]
+		var v1: Vector3 = vertices[i1]
+		var v2: Vector3 = vertices[i2]
 		var face_normal := (v1 - v0).cross(v2 - v0).normalized()
 		normals[i0] += face_normal
 		normals[i1] += face_normal

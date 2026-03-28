@@ -73,5 +73,6 @@ export function generateProjectFiles(ir: WorldIR): GeneratedFile[] {
     { path: 'README.md',                       content: loadTemplate('project/README.md', readmeTokens) },
     { path: 'setup.sh',                        content: loadStaticTemplate('project/setup.sh') },
     { path: 'setup.bat',                       content: loadStaticTemplate('project/setup.bat') },
+    { path: 'Setup.command',                   content: loadStaticTemplate('project/Setup.command') },
   ];
 }

@@ -81,7 +81,7 @@ export interface GeographyConfig {
   worldId: string;
   settlementId: string; // Now generates for a specific settlement
   settlementName: string;
-  settlementType: 'village' | 'town' | 'city';
+  settlementType: 'hamlet' | 'village' | 'town' | 'city';
   population: number;
   foundedYear: number;
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
@@ -98,6 +98,7 @@ export type DistrictRole = 'commercial' | 'wealthy_residential' | 'working_resid
 
 /** District role assignments ordered by priority for each settlement size */
 const DISTRICT_ROLES: Record<string, DistrictRole[]> = {
+  hamlet: ['general'],
   village: ['commercial', 'general'],
   town: ['commercial', 'wealthy_residential', 'working_residential', 'religious_civic'],
   city: ['commercial', 'wealthy_residential', 'wealthy_residential', 'working_residential', 'working_residential', 'industrial', 'religious_civic', 'general'],
@@ -920,11 +921,14 @@ export class GeographyGenerator {
     // Generate lot placements with world-space coordinates.
     // Request Infinity so placeLots generates ALL available block slots,
     // ensuring every building can get a unique placement.
-    let lotPlacements: LotPlacement[] = [];
+    let allPlacements: LotPlacement[] = [];
     if (streetNetwork) {
       const seed = `${config.worldId}_${config.settlementId}`;
-      lotPlacements = placeLots(streetNetwork, Infinity, seed, config.settlementType, isWater);
+      allPlacements = placeLots(streetNetwork, Infinity, seed, config.settlementType, isWater);
     }
+    // Separate park placements from buildable placements
+    const parkPlacements = allPlacements.filter(p => p.zone === 'park');
+    const lotPlacements = allPlacements.filter(p => p.zone !== 'park');
 
     // Clear existing lots, residences, and businesses for this settlement
     // so regeneration replaces rather than duplicates.
@@ -1013,6 +1017,37 @@ export class GeographyGenerator {
       });
     }
 
+    // Add park lots — these are dedicated green spaces, not buildable lots
+    for (const placement of parkPlacements) {
+      const streetName = placement.streetName || 'Town Square';
+      lotDocs.push({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        address: `${streetName} Park`,
+        houseNumber: 0,
+        streetName,
+        districtName: 'Town Center',
+        buildingType: 'park',
+        positionX: placement.x,
+        positionZ: placement.z,
+        lotWidth: placement.lotWidth,
+        lotDepth: placement.lotDepth,
+        streetEdgeId: placement.streetId,
+        distanceAlongStreet: 0,
+        side: placement.side,
+        blockId: null,
+        facingAngle: placement.facingAngle,
+        elevation: 0,
+        foundationType: 'flat',
+        formerBuildingIds: [],
+        _buildingIndex: -1,
+        _isResidence: false,
+        _buildingName: `${streetName} Park`,
+        _floors: 0,
+        _built: config.foundedYear,
+      });
+    }
+
     // Bulk-insert lots
     const createdLots = await (storage as any).createLotsInBulk(
       lotDocs.map(({ _buildingIndex, _isResidence, _buildingName, _floors, _built, ...lot }) => lot)
@@ -1022,6 +1057,9 @@ export class GeographyGenerator {
     for (let i = 0; i < createdLots.length; i++) {
       const lot = createdLots[i];
       const meta = lotDocs[i];
+
+      // Skip park lots — they don't have buildings
+      if (meta._buildingIndex === -1) continue;
 
       if (meta._isResidence) {
         const residenceType = this.getResidenceType(config.settlementType || 'town', meta._buildingIndex);
@@ -1079,6 +1117,11 @@ export class GeographyGenerator {
    * Cities skew toward apartments/townhouses; villages toward cottages/mobile homes.
    */
   private static readonly RESIDENCE_WEIGHTS: Record<string, { type: string; weight: number }[]> = {
+    hamlet: [
+      { type: 'house', weight: 30 },
+      { type: 'cottage', weight: 50 },
+      { type: 'mobile_home', weight: 20 },
+    ],
     city: [
       { type: 'house', weight: 25 },
       { type: 'apartment', weight: 30 },
@@ -1291,6 +1334,7 @@ export class GeographyGenerator {
    */
   private getMapSize(type: string): number {
     switch (type) {
+      case 'hamlet': return 300;
       case 'village': return 500;
       case 'town': return 1000;
       case 'city': return 2000;

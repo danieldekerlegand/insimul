@@ -36,6 +36,9 @@ function genDataStructs(): GeneratedFile[] {
     { path: `${base}/LotData.h`,       content: loadStaticTemplate('source/data/LotData.h') },
     { path: `${base}/InfrastructureData.h`, content: loadStaticTemplate('source/data/InfrastructureData.h') },
     { path: `${base}/ResourceData.h`,   content: loadStaticTemplate('source/data/ResourceData.h') },
+    { path: `${base}/AnimationData.h`, content: loadStaticTemplate('source/data/AnimationData.h') },
+    { path: `${base}/BiomeZoneData.h`, content: loadStaticTemplate('source/data/BiomeZoneData.h') },
+    { path: `${base}/FoliageLayerData.h`, content: loadStaticTemplate('source/data/FoliageLayerData.h') },
   ];
 }
 
@@ -81,6 +84,8 @@ function genCoreClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/CreateLevelCommandlet.cpp`,    content: loadStaticTemplate('source/core/CreateLevelCommandlet.cpp') },
     { path: `${base}/InsimulGameMode.h`,            content: loadStaticTemplate('source/core/InsimulGameMode.h') },
     { path: `${base}/InsimulGameMode.cpp`,          content: loadTemplate('source/core/InsimulGameMode.cpp', gameModeTokens) },
+    { path: `${base}/DataLoader.h`,                 content: loadStaticTemplate('source/core/DataLoader.h') },
+    { path: `${base}/DataLoader.cpp`,               content: loadStaticTemplate('source/core/DataLoader.cpp') },
   ];
 }
 
@@ -145,6 +150,18 @@ function genSystemClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/InventorySystem.cpp`, content: loadStaticTemplate('source/systems/InventorySystem.cpp') },
     { path: `${base}/DialogueSystem.h`,  content: loadStaticTemplate('source/systems/DialogueSystem.h') },
     { path: `${base}/DialogueSystem.cpp`, content: loadStaticTemplate('source/systems/DialogueSystem.cpp') },
+    { path: `${base}/DayNightSystem.h`,  content: loadStaticTemplate('source/systems/DayNightSystem.h') },
+    { path: `${base}/DayNightSystem.cpp`, content: loadStaticTemplate('source/systems/DayNightSystem.cpp') },
+    { path: `${base}/WeatherSystem.h`,   content: loadStaticTemplate('source/systems/WeatherSystem.h') },
+    { path: `${base}/WeatherSystem.cpp`,  content: loadStaticTemplate('source/systems/WeatherSystem.cpp') },
+    { path: `${base}/BuildingInteriorSystem.h`,  content: loadStaticTemplate('source/systems/BuildingInteriorSystem.h') },
+    { path: `${base}/BuildingInteriorSystem.cpp`, content: loadStaticTemplate('source/systems/BuildingInteriorSystem.cpp') },
+    { path: `${base}/AudioSystem.h`,  content: loadStaticTemplate('source/systems/AudioSystem.h') },
+    { path: `${base}/AudioSystem.cpp`, content: loadStaticTemplate('source/systems/AudioSystem.cpp') },
+    { path: `${base}/EventBus.h`,      content: loadStaticTemplate('source/systems/EventBus.h') },
+    { path: `${base}/EventBus.cpp`,    content: loadStaticTemplate('source/systems/EventBus.cpp') },
+    { path: `${base}/PrologEngine.h`,  content: loadStaticTemplate('source/systems/PrologEngine.h') },
+    { path: `${base}/PrologEngine.cpp`, content: loadStaticTemplate('source/systems/PrologEngine.cpp') },
   ];
 
   if (genre.features.crafting) {
@@ -215,6 +232,8 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ProceduralDungeonGenerator.cpp`,   content: loadStaticTemplate('source/world/ProceduralDungeonGenerator.cpp') },
     { path: `${base}/ProceduralTerrainGenerator.h`,     content: loadStaticTemplate('source/world/ProceduralTerrainGenerator.h') },
     { path: `${base}/ProceduralTerrainGenerator.cpp`,   content: loadStaticTemplate('source/world/ProceduralTerrainGenerator.cpp') },
+    { path: `${base}/AnimalSystem.h`,                   content: loadStaticTemplate('source/world/AnimalSystem.h') },
+    { path: `${base}/AnimalSystem.cpp`,                 content: loadStaticTemplate('source/world/AnimalSystem.cpp') },
   ];
 }
 
@@ -254,6 +273,10 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/InsimulPauseMenuWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulPauseMenuWidget.cpp') },
     { path: `${base}/InsimulSaveGame.h`,   content: loadStaticTemplate('source/ui/InsimulSaveGame.h') },
     { path: `${base}/InsimulSaveGame.cpp`, content: loadStaticTemplate('source/ui/InsimulSaveGame.cpp') },
+    { path: `${base}/InsimulShopPanel.h`,   content: loadStaticTemplate('source/ui/InsimulShopPanel.h') },
+    { path: `${base}/InsimulShopPanel.cpp`, content: loadStaticTemplate('source/ui/InsimulShopPanel.cpp') },
+    { path: `${base}/InsimulSkillTreePanel.h`,   content: loadStaticTemplate('source/ui/InsimulSkillTreePanel.h') },
+    { path: `${base}/InsimulSkillTreePanel.cpp`, content: loadStaticTemplate('source/ui/InsimulSkillTreePanel.cpp') },
   ];
 
   // World map widget (always included when map screen is enabled or by default)

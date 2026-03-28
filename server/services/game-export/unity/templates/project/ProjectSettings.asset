@@ -2,7 +2,9 @@
 %TAG !u! tag:unity3d.com,2011:
 --- !u!129 &1
 PlayerSettings:
-  productName: InsimulExport_{{WORLD_SAFE_NAME}}
+  m_EditorVersion: {{UNITY_VERSION}}
+  m_EditorVersionWithRevision: {{UNITY_VERSION}}
+  productName: {{WORLD_SAFE_NAME}}
   companyName: Insimul
   defaultScreenWidth: 1920
   defaultScreenHeight: 1080

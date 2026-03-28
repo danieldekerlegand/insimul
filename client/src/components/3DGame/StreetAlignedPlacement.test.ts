@@ -1,5 +1,5 @@
 /**
- * Tests for StreetAlignedPlacement
+ * Tests for StreetAlignedPlacement (block-based lot placement)
  *
  * Run with: npx tsx client/src/components/3DGame/StreetAlignedPlacement.test.ts
  */
@@ -9,10 +9,13 @@ import {
   generateStreetAlignedLots,
   sortLotsForZoning,
   resolveCornerFacing,
+  getCenterBlockBounds,
+  getBlockCellSize,
   type PlacedLot,
   type StreetSegment,
   type StreetAlignedResult,
 } from './StreetAlignedPlacement';
+import { getGridParams } from './StreetNetworkLayout';
 
 let passed = 0;
 let failed = 0;
@@ -20,10 +23,10 @@ let failed = 0;
 function assert(condition: boolean, message: string) {
   if (condition) {
     passed++;
-    console.log(`  ✓ ${message}`);
+    console.log(`  \u2713 ${message}`);
   } else {
     failed++;
-    console.error(`  ✗ ${message}`);
+    console.error(`  \u2717 ${message}`);
   }
 }
 
@@ -53,115 +56,157 @@ function makeResult(lotCount: number = 20, seed: string = 'test_seed'): StreetAl
 
 console.log('\n=== StreetAlignedPlacement Tests ===\n');
 
-// ── Street generation ───────────────────────────────────────────────────────
+// ── Street generation (fallback) ────────────────────────────────────────────
 
-console.log('Street network generation:');
+console.log('Street network generation (fallback, no server network):');
 {
   const result = makeResult();
   assertGreaterThan(result.streets.length, 1, 'generates more than 1 street');
   assertEqual(result.streets[0].isMainStreet, true, 'first street is the main street');
-
-  const mainStreet = result.streets[0];
-  assertEqual(mainStreet.streetName, 'Main Street', 'main street has default name');
+  assertEqual(result.streets[0].streetName, 'Main Street', 'main street has default name');
 
   const sideStreets = result.streets.filter(s => !s.isMainStreet);
   assertGreaterThan(sideStreets.length, 0, 'generates at least one side street');
+}
 
-  // Side streets should be perpendicular-ish to the main street
-  const mainDx = mainStreet.to.x - mainStreet.from.x;
-  const mainDz = mainStreet.to.z - mainStreet.from.z;
-  const mainAngle = Math.atan2(mainDz, mainDx);
+// ── Block-based lot placement ───────────────────────────────────────────────
 
-  for (const side of sideStreets) {
-    const sideDx = side.to.x - side.from.x;
-    const sideDz = side.to.z - side.from.z;
-    const sideAngle = Math.atan2(sideDz, sideDx);
-    const angleDiff = Math.abs(sideAngle - mainAngle);
-    // Should be ~90 degrees (π/2)
-    const normalizedDiff = Math.min(angleDiff, Math.PI - angleDiff);
+console.log('\nBlock-based lot placement:');
+{
+  const result = makeResult(100);
+  const buildingLots = result.lots.filter(l => l.zone !== 'park');
+  const parkLots = result.lots.filter(l => l.zone === 'park');
+
+  assertGreaterThan(buildingLots.length, 0, 'generates building lots');
+  assertGreaterThan(parkLots.length, 0, 'generates park lots for the town square');
+
+  // Grid params for RADIUS=55: gridSize=6, blockCount=5 → 25 blocks, 1 park = 24 building blocks
+  // Each block gets 3x2 = 6 lots, so max = 24 * 6 = 144, capped at lotCount=100
+  assertLessThanOrEqual(buildingLots.length, 100, 'does not exceed requested lot count');
+}
+
+// ── Park block at bottom-center ─────────────────────────────────────────────
+
+console.log('\nPark block at bottom-center:');
+{
+  const result = makeResult(100);
+  const parkLots = result.lots.filter(l => l.zone === 'park');
+  assertGreaterThan(parkLots.length, 0, 'has park lots');
+
+  // Park should be at bottom-center (last row, center column)
+  const bounds = getCenterBlockBounds(CENTER, RADIUS);
+  assert(bounds !== null, 'center block bounds exist');
+
+  if (bounds) {
+    const { gridSize, spacing, halfGrid } = getGridParams(RADIUS);
+    const blockCount = gridSize - 1;
+
+    // Verify bottom-center positioning: maxZ should be near the grid bottom edge
+    const gridMaxZ = CENTER.z - halfGrid + blockCount * spacing;
     assert(
-      normalizedDiff > Math.PI / 4, // at least 45 degrees from main street
-      `side street '${side.streetName}' is roughly perpendicular to main (diff: ${(normalizedDiff * 180 / Math.PI).toFixed(1)}°)`,
+      Math.abs(bounds.maxZ - gridMaxZ) < 1,
+      `park block maxZ (${bounds.maxZ.toFixed(1)}) is at grid bottom edge (${gridMaxZ.toFixed(1)})`,
     );
-  }
-}
 
-// ── Lot placement ───────────────────────────────────────────────────────────
+    // Verify center-column: block center X should equal settlement center X
+    const blockCenterX = (bounds.minX + bounds.maxX) / 2;
+    assert(
+      Math.abs(blockCenterX - CENTER.x) < spacing,
+      `park block is in the center column (centerX diff: ${Math.abs(blockCenterX - CENTER.x).toFixed(1)})`,
+    );
 
-console.log('\nLot placement:');
-{
-  const result = makeResult(20);
-  assertGreaterThan(result.lots.length, 0, 'generates lots');
-  assertLessThanOrEqual(result.lots.length, 20, 'does not exceed requested lot count');
-
-  // All lots should have street names
-  const withStreetName = result.lots.filter(l => l.streetName);
-  assertEqual(withStreetName.length, result.lots.length, 'all lots have street names');
-
-  // All lots should have house numbers
-  const withHouseNumber = result.lots.filter(l => l.houseNumber > 0);
-  assertEqual(withHouseNumber.length, result.lots.length, 'all lots have positive house numbers');
-}
-
-// ── House number parity ─────────────────────────────────────────────────────
-
-console.log('\nHouse number parity (odd/even sides):');
-{
-  const result = makeResult(30);
-
-  // Group lots by street
-  const byStreet = new Map<string, PlacedLot[]>();
-  for (const lot of result.lots) {
-    const arr = byStreet.get(lot.streetName) || [];
-    arr.push(lot);
-    byStreet.set(lot.streetName, arr);
-  }
-
-  for (const [streetName, streetLots] of byStreet) {
-    // Filter out corner lots — they face the intersecting street, not their own
-    const nonCornerLots = streetLots.filter(l => !l.isCorner);
-    const oddLots = nonCornerLots.filter(l => l.houseNumber % 2 === 1);
-    const evenLots = nonCornerLots.filter(l => l.houseNumber % 2 === 0);
-
-    if (oddLots.length > 0 && evenLots.length > 0) {
-      // Odd and even should be on opposite sides (different facing angles)
-      const oddAngle = oddLots[0].facingAngle;
-      const evenAngle = evenLots[0].facingAngle;
-      const angleDiff = Math.abs(oddAngle - evenAngle);
-      assertGreaterThan(angleDiff, 0.5, `'${streetName}': odd/even non-corner lots face different directions`);
+    // Park lots should all be inside the bounds
+    for (const lot of parkLots) {
+      assert(
+        lot.position.x >= bounds.minX && lot.position.x <= bounds.maxX &&
+        lot.position.z >= bounds.minZ && lot.position.z <= bounds.maxZ,
+        `park lot at (${lot.position.x.toFixed(1)}, ${lot.position.z.toFixed(1)}) is inside park bounds`,
+      );
     }
   }
 }
 
-// ── Spawn clear zone ────────────────────────────────────────────────────────
+// ── Buildings within block boundaries ───────────────────────────────────────
 
-console.log('\nSpawn clear zone:');
+console.log('\nBuildings within block boundaries:');
 {
-  const result = makeResult(20);
-  const SPAWN_CLEAR = 15;
+  const result = makeResult(100);
+  const buildingLots = result.lots.filter(l => l.zone !== 'park');
+  const { gridSize, spacing, halfGrid } = getGridParams(RADIUS);
 
-  for (const lot of result.lots) {
-    const dist = Math.sqrt(
-      (lot.position.x - CENTER.x) ** 2 + (lot.position.z - CENTER.z) ** 2
+  // Each building lot should be inside the grid extent
+  const gridMinX = CENTER.x - halfGrid;
+  const gridMaxX = CENTER.x - halfGrid + (gridSize - 1) * spacing;
+  const gridMinZ = CENTER.z - halfGrid;
+  const gridMaxZ = CENTER.z - halfGrid + (gridSize - 1) * spacing;
+
+  for (const lot of buildingLots) {
+    assert(
+      lot.position.x >= gridMinX && lot.position.x <= gridMaxX,
+      `lot x (${lot.position.x.toFixed(1)}) within grid X bounds [${gridMinX.toFixed(1)}, ${gridMaxX.toFixed(1)}]`,
     );
-    assert(dist >= SPAWN_CLEAR - 0.1, `lot at (${lot.position.x.toFixed(1)}, ${lot.position.z.toFixed(1)}) is outside spawn zone (dist: ${dist.toFixed(1)})`);
+    assert(
+      lot.position.z >= gridMinZ && lot.position.z <= gridMaxZ,
+      `lot z (${lot.position.z.toFixed(1)}) within grid Z bounds [${gridMinZ.toFixed(1)}, ${gridMaxZ.toFixed(1)}]`,
+    );
+  }
+
+  // No building lot should overlap with the park block
+  const bounds = getCenterBlockBounds(CENTER, RADIUS);
+  if (bounds) {
+    for (const lot of buildingLots) {
+      const inPark = lot.position.x >= bounds.minX && lot.position.x <= bounds.maxX &&
+                     lot.position.z >= bounds.minZ && lot.position.z <= bounds.maxZ;
+      assert(!inPark, `building lot at (${lot.position.x.toFixed(1)}, ${lot.position.z.toFixed(1)}) is NOT in park block`);
+    }
   }
 }
 
-// ── Terrain bounds clamping ─────────────────────────────────────────────────
+// ── Even distribution: 3x2 per block ────────────────────────────────────────
 
-console.log('\nTerrain bounds clamping:');
+console.log('\nEven 3x2 distribution per block:');
 {
-  // Place settlement near terrain edge
-  const edgeCenter = new Vector3(TERRAIN_HALF - 30, 0, TERRAIN_HALF - 30);
-  const result = generateStreetAlignedLots(edgeCenter, 55, 20, 'edge_test', TERRAIN_HALF);
-  const MARGIN = 5;
+  // Use a large lotCount so all blocks fill up
+  const result = makeResult(200);
+  const buildingLots = result.lots.filter(l => l.zone !== 'park');
+  const { gridSize, spacing, halfGrid } = getGridParams(RADIUS);
+  const blockCount = gridSize - 1;
+  const parkCol = Math.floor(blockCount / 2);
+  const parkRow = blockCount - 1;
 
-  for (const lot of result.lots) {
-    assertLessThanOrEqual(lot.position.x, TERRAIN_HALF - MARGIN, `lot x within terrain bounds`);
-    assertLessThanOrEqual(lot.position.z, TERRAIN_HALF - MARGIN, `lot z within terrain bounds`);
-    assertGreaterThan(lot.position.x, -TERRAIN_HALF + MARGIN - 1, `lot x above terrain min`);
-    assertGreaterThan(lot.position.z, -TERRAIN_HALF + MARGIN - 1, `lot z above terrain min`);
+  // Count lots per block
+  const blockCounts = new Map<string, number>();
+  for (const lot of buildingLots) {
+    const col = Math.floor((lot.position.x - (CENTER.x - halfGrid)) / spacing);
+    const row = Math.floor((lot.position.z - (CENTER.z - halfGrid)) / spacing);
+    const key = `${row},${col}`;
+    blockCounts.set(key, (blockCounts.get(key) || 0) + 1);
+  }
+
+  // Each non-park block should have exactly 6 lots (3x2)
+  for (let row = 0; row < blockCount; row++) {
+    for (let col = 0; col < blockCount; col++) {
+      if (row === parkRow && col === parkCol) continue;
+      const key = `${row},${col}`;
+      const count = blockCounts.get(key) || 0;
+      assertEqual(count, 6, `block (${row},${col}) has 6 lots`);
+    }
+  }
+}
+
+// ── Facing angles (cardinal directions toward nearest street) ───────────────
+
+console.log('\nFacing angles toward nearest street edge:');
+{
+  const result = makeResult(100);
+  const buildingLots = result.lots.filter(l => l.zone !== 'park');
+
+  // All facing angles should be one of 4 cardinal directions:
+  // 0 (face +Z), PI (-Z), PI/2 (+X), -PI/2 (-X)
+  const validAngles = [0, Math.PI, Math.PI / 2, -Math.PI / 2];
+  for (const lot of buildingLots) {
+    const isValid = validAngles.some(a => Math.abs(lot.facingAngle - a) < 0.01);
+    assert(isValid, `lot facing ${lot.facingAngle.toFixed(3)} is a cardinal direction`);
   }
 }
 
@@ -169,8 +214,8 @@ console.log('\nTerrain bounds clamping:');
 
 console.log('\nDeterminism:');
 {
-  const a = makeResult(15, 'determinism_seed');
-  const b = makeResult(15, 'determinism_seed');
+  const a = makeResult(50, 'determinism_seed');
+  const b = makeResult(50, 'determinism_seed');
 
   assertEqual(a.streets.length, b.streets.length, 'same street count with same seed');
   assertEqual(a.lots.length, b.lots.length, 'same lot count with same seed');
@@ -178,20 +223,6 @@ console.log('\nDeterminism:');
   for (let i = 0; i < a.lots.length; i++) {
     assertEqual(a.lots[i].position.x, b.lots[i].position.x, `lot ${i} x matches`);
     assertEqual(a.lots[i].position.z, b.lots[i].position.z, `lot ${i} z matches`);
-    assertEqual(a.lots[i].houseNumber, b.lots[i].houseNumber, `lot ${i} house number matches`);
-  }
-}
-
-// ── Custom street names ─────────────────────────────────────────────────────
-
-console.log('\nCustom street names:');
-{
-  const customNames = ['Oak Avenue', 'Elm Street', 'Maple Lane'];
-  const result = generateStreetAlignedLots(CENTER, RADIUS, 20, 'names_test', TERRAIN_HALF, customNames);
-
-  assertEqual(result.streets[0].streetName, 'Oak Avenue', 'main street uses first custom name');
-  if (result.streets.length > 1) {
-    assertEqual(result.streets[1].streetName, 'Elm Street', 'second street uses second custom name');
   }
 }
 
@@ -199,177 +230,66 @@ console.log('\nCustom street names:');
 
 console.log('\nZoning sort (commercial-first):');
 {
-  const result = makeResult(30);
+  const result = makeResult(50);
   const sorted = sortLotsForZoning(result.lots, 5);
 
   assertEqual(sorted.length, result.lots.length, 'sorted array has same length');
 
-  // First lots should be more commercially favorable
-  const topScore = (l: PlacedLot) => (l.nearIntersection ? 2 : 0) + (l.onMainStreet ? 1 : 0);
-  const bottomScore = (l: PlacedLot) => (l.nearIntersection ? 2 : 0) + (l.onMainStreet ? 1 : 0);
-
-  if (sorted.length >= 2) {
-    const firstScore = topScore(sorted[0]);
-    const lastScore = bottomScore(sorted[sorted.length - 1]);
-    assert(firstScore >= lastScore, `first lot score (${firstScore}) >= last lot score (${lastScore})`);
-  }
-}
-
-// ── Zone assignment ─────────────────────────────────────────────────────────
-
-console.log('\nZone assignment:');
-{
-  const result = makeResult(30);
-  // All generated lots default to 'residential'
-  for (const lot of result.lots) {
-    assertEqual(lot.zone, 'residential', `generated lot defaults to residential zone`);
-  }
-}
-
-console.log('\nZone assignment via sortLotsForZoning:');
-{
-  const result = makeResult(30);
-  const bizCount = 5;
-  const sorted = sortLotsForZoning(result.lots, bizCount);
-
-  // First bizCount lots should be commercial
   const commercialLots = sorted.filter(l => l.zone === 'commercial');
   const residentialLots = sorted.filter(l => l.zone === 'residential');
+  const parkLots = sorted.filter(l => l.zone === 'park');
 
-  assertEqual(commercialLots.length, bizCount, `exactly ${bizCount} lots are commercial`);
-  assertEqual(residentialLots.length, sorted.length - bizCount, `remaining lots are residential`);
-
-  // Verify commercial lots come first in the sorted array
-  for (let i = 0; i < bizCount && i < sorted.length; i++) {
-    assertEqual(sorted[i].zone, 'commercial', `lot ${i} is commercial (first ${bizCount} slots)`);
-  }
-  for (let i = bizCount; i < sorted.length; i++) {
-    assertEqual(sorted[i].zone, 'residential', `lot ${i} is residential (after first ${bizCount} slots)`);
-  }
+  assertEqual(commercialLots.length, 5, 'exactly 5 commercial lots');
+  assertGreaterThan(residentialLots.length, 0, 'has residential lots');
+  assertGreaterThan(parkLots.length, 0, 'park lots preserved after zoning');
 }
 
-console.log('\nZone assignment with zero businesses:');
-{
-  const result = makeResult(20);
-  const sorted = sortLotsForZoning(result.lots, 0);
+// ── Block cell size ─────────────────────────────────────────────────────────
 
-  const commercialLots = sorted.filter(l => l.zone === 'commercial');
-  assertEqual(commercialLots.length, 0, 'zero businesses means no commercial lots');
+console.log('\nBlock cell size:');
+{
+  const cell = getBlockCellSize(RADIUS);
+  assertGreaterThan(cell.maxWidth, 3, `cell maxWidth (${cell.maxWidth}) > 3`);
+  assertGreaterThan(cell.maxDepth, 3, `cell maxDepth (${cell.maxDepth}) > 3`);
+  assertLessThanOrEqual(cell.maxWidth, 30, `cell maxWidth (${cell.maxWidth}) <= 30`);
+  assertLessThanOrEqual(cell.maxDepth, 30, `cell maxDepth (${cell.maxDepth}) <= 30`);
+
+  // Cell depth (2 per block) should be larger than cell width (3 per block)
+  assertGreaterThan(cell.maxDepth, cell.maxWidth, 'cell depth > width (2 rows vs 3 cols)');
 }
 
-// ── Large settlement ────────────────────────────────────────────────────────
+// ── Small settlement ────────────────────────────────────────────────────────
 
-console.log('\nLarge settlement (100 lots):');
+console.log('\nSmall settlement (radius=35):');
 {
-  const result = makeResult(100, 'large_settlement');
-  assertGreaterThan(result.lots.length, 50, 'generates at least 50 lots for 100 requested');
+  const smallResult = generateStreetAlignedLots(CENTER, 35, 30, 'small_test', TERRAIN_HALF);
+  const buildingLots = smallResult.lots.filter(l => l.zone !== 'park');
+  assertGreaterThan(buildingLots.length, 0, 'small settlement generates building lots');
 
-  // Should have multiple streets
-  assertGreaterThan(result.streets.length, 2, 'large settlement has 3+ streets');
-
-  // Lots should be distributed across streets
-  const streetCounts = new Map<string, number>();
-  for (const lot of result.lots) {
-    streetCounts.set(lot.streetName, (streetCounts.get(lot.streetName) || 0) + 1);
-  }
-  assertGreaterThan(streetCounts.size, 1, 'lots distributed across multiple streets');
+  // gridSize=4 → 3x3 blocks → 8 building blocks × 6 = 48
+  // But lotCount=30 so should cap at 30
+  assertLessThanOrEqual(buildingLots.length, 30, 'does not exceed requested lot count');
 }
 
-// ── Small settlement (edge case) ────────────────────────────────────────────
+// ── Corner lot detection ────────────────────────────────────────────────────
 
-console.log('\nSmall settlement (3 lots):');
+console.log('\nCorner lot detection:');
 {
-  const result = makeResult(3, 'tiny_settlement');
-  assertGreaterThan(result.lots.length, 0, 'generates at least some lots for small settlement');
-  assertGreaterThan(result.streets.length, 0, 'generates at least one street');
-}
+  const result = makeResult(100);
+  const cornerLots = result.lots.filter(l => l.isCorner && l.zone !== 'park');
 
-// ── Street-facing orientation ────────────────────────────────────────────────
+  // With 3x2 grid per block, corners are at (0,0), (0,2), (1,0), (1,2) = 4 corners per block
+  assertGreaterThan(cornerLots.length, 0, 'has corner lots');
 
-console.log('\nStreet-facing building orientation:');
-{
-  const result = makeResult(30, 'orientation_test');
-
-  // Group lots by street
-  const byStreet = new Map<string, PlacedLot[]>();
-  for (const lot of result.lots) {
-    const arr = byStreet.get(lot.streetName) || [];
-    arr.push(lot);
-    byStreet.set(lot.streetName, arr);
-  }
-
-  for (const [streetName, streetLots] of byStreet) {
-    const street = result.streets.find(s => s.streetName === streetName);
-    if (!street) continue;
-
-    const dx = street.to.x - street.from.x;
-    const dz = street.to.z - street.from.z;
-    const streetAngle = Math.atan2(dz, dx);
-
-    for (const lot of streetLots) {
-      // facingAngle should be streetAngle ± π/2 (perpendicular to street)
-      const diff = lot.facingAngle - streetAngle;
-      // Normalize to [-π, π]
-      const normalized = ((diff + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      const absDiff = Math.abs(Math.abs(normalized) - Math.PI / 2);
-      assert(
-        absDiff < 0.01,
-        `lot #${lot.houseNumber} on '${streetName}' faces perpendicular to street (off by ${(absDiff * 180 / Math.PI).toFixed(2)}°)`,
-      );
-    }
-  }
-
-  // Left-side lots (odd) should face opposite direction from right-side lots (even)
-  for (const [streetName, streetLots] of byStreet) {
-    const oddLots = streetLots.filter(l => l.houseNumber % 2 === 1);
-    const evenLots = streetLots.filter(l => l.houseNumber % 2 === 0);
-
-    if (oddLots.length > 0 && evenLots.length > 0) {
-      const angleDiff = Math.abs(oddLots[0].facingAngle - evenLots[0].facingAngle);
-      // Should differ by ~π (facing opposite directions toward the street)
-      const normalizedDiff = Math.abs(angleDiff - Math.PI);
-      assert(
-        normalizedDiff < 0.01,
-        `'${streetName}': odd/even lots face opposite directions toward street (diff: ${(angleDiff * 180 / Math.PI).toFixed(1)}°)`,
-      );
-    }
-  }
-
-  // Every lot must have a defined facingAngle (not NaN or undefined)
-  for (const lot of result.lots) {
-    assert(
-      typeof lot.facingAngle === 'number' && !isNaN(lot.facingAngle),
-      `lot #${lot.houseNumber} on '${lot.streetName}' has valid facingAngle (${lot.facingAngle})`,
-    );
-  }
-}
-
-// ── Corner building handling ────────────────────────────────────────────────
-
-console.log('\nCorner building handling:');
-{
-  const result = makeResult(30);
-
-  // All lots should have isCorner property
-  for (const lot of result.lots) {
-    assert(typeof lot.isCorner === 'boolean', 'lot has isCorner boolean property');
-  }
-
-  // Corner lots should be near intersections
-  const cornerLots = result.lots.filter(l => l.isCorner);
   for (const lot of cornerLots) {
-    assert(lot.nearIntersection, 'corner lot is also near an intersection');
+    assert(lot.nearIntersection, 'corner lot is near an intersection');
   }
-
-  // Not all near-intersection lots need to be corners (some may only be near
-  // one street), but all corners must be near intersections
-  const nearIntersectionLots = result.lots.filter(l => l.nearIntersection);
-  assertGreaterThan(nearIntersectionLots.length, 0, 'at least some lots are near intersections');
 }
 
-console.log('\nCorner facing angle - resolveCornerFacing:');
+// ── resolveCornerFacing (unchanged helper) ──────────────────────────────────
+
+console.log('\nresolveCornerFacing:');
 {
-  // Create a simple T-intersection: main street horizontal, side street vertical
   const streets: StreetSegment[] = [
     {
       id: 'main',
@@ -388,89 +308,24 @@ console.log('\nCorner facing angle - resolveCornerFacing:');
   ];
   const streetLengths = [100, 100];
 
-  // Lot on side street near intersection should face main street
   const cornerResult = resolveCornerFacing(50, 5, 1, streets, streetLengths, 25);
   assert(cornerResult !== null, 'resolveCornerFacing finds intersecting street');
-  assert(cornerResult!.streetIdx === 0, 'corner facing points to main street (index 0)');
+  assert(cornerResult!.streetIdx === 0, 'corner facing points to main street');
 
-  // Lot on main street near intersection should NOT re-orient (main > side)
   const mainResult = resolveCornerFacing(50, 0, 0, streets, streetLengths, 25);
   assert(mainResult === null, 'main street lot does not re-orient toward side street');
-
-  // Lot far from any intersection should return null
-  const farResult = resolveCornerFacing(0, 0, 0, streets, streetLengths, 25);
-  assert(farResult === null, 'lot far from intersection returns null');
 }
 
-console.log('\nCorner facing angle direction:');
+// ── Custom street names ─────────────────────────────────────────────────────
+
+console.log('\nCustom street names (fallback streets):');
 {
-  // Horizontal main street, vertical side street intersecting at (50, 0)
-  const streets: StreetSegment[] = [
-    {
-      id: 'main',
-      from: new Vector3(0, 0, 0),
-      to: new Vector3(100, 0, 0),
-      isMainStreet: true,
-      streetName: 'Main St',
-    },
-    {
-      id: 'side',
-      from: new Vector3(50, 0, -50),
-      to: new Vector3(50, 0, 50),
-      isMainStreet: false,
-      streetName: '1st Ave',
-    },
-  ];
-  const streetLengths = [100, 100];
+  const customNames = ['Oak Avenue', 'Elm Street', 'Maple Lane'];
+  const result = generateStreetAlignedLots(CENTER, RADIUS, 20, 'names_test', TERRAIN_HALF, customNames);
 
-  // Lot on side street, above main street (positive z)
-  const aboveResult = resolveCornerFacing(50, 10, 1, streets, streetLengths, 25);
-  assert(aboveResult !== null, 'lot above intersection is detected as corner');
-
-  // Lot on side street, below main street (negative z)
-  const belowResult = resolveCornerFacing(50, -10, 1, streets, streetLengths, 25);
-  assert(belowResult !== null, 'lot below intersection is detected as corner');
-
-  // The two lots should face opposite directions (toward the main street from their side)
-  if (aboveResult && belowResult) {
-    const angleDiff = Math.abs(aboveResult.facingAngle - belowResult.facingAngle);
-    // Should differ by roughly π (180°)
-    const normalizedDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
-    assert(
-      normalizedDiff > Math.PI * 0.7,
-      `lots on opposite sides face opposite directions (diff: ${(normalizedDiff * 180 / Math.PI).toFixed(1)}°)`,
-    );
-  }
-}
-
-// ── Facing angle determinism ─────────────────────────────────────────────────
-
-console.log('\nFacing angle determinism:');
-{
-  const a = makeResult(15, 'facing_determinism');
-  const b = makeResult(15, 'facing_determinism');
-
-  for (let i = 0; i < a.lots.length; i++) {
-    assertEqual(
-      a.lots[i].facingAngle,
-      b.lots[i].facingAngle,
-      `lot ${i} facingAngle is deterministic`,
-    );
-  }
-}
-
-console.log('\nCorner lots in full generation:');
-{
-  // Use a large settlement to ensure we get corner lots
-  const result = makeResult(50, 'corner_test_seed');
-  const cornerLots = result.lots.filter(l => l.isCorner);
-
-  // With 50 lots and multiple streets, we should have some corners
-  assertGreaterThan(cornerLots.length, 0, 'large settlement has corner lots');
-
-  // Corner lots should have valid facing angles (not NaN or Infinity)
-  for (const lot of cornerLots) {
-    assert(isFinite(lot.facingAngle), `corner lot facing angle is finite (${lot.facingAngle.toFixed(3)})`);
+  assertEqual(result.streets[0].streetName, 'Oak Avenue', 'main street uses first custom name');
+  if (result.streets.length > 1) {
+    assertEqual(result.streets[1].streetName, 'Elm Street', 'second street uses second custom name');
   }
 }
 

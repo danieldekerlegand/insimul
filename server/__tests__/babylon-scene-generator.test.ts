@@ -281,7 +281,7 @@ function createTestIR(): WorldIR {
     },
     survival: null,
     resources: null,
-    aiConfig: { provider: 'gemini', model: 'gemini-pro', temperature: 0.7 },
+    aiConfig: { provider: 'gemini', model: 'gemini-3.1-pro', temperature: 0.7 },
   };
 }
 

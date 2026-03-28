@@ -324,7 +324,7 @@ func track_collected_item_by_name(item_name: String, category: String = "", ques
 		obj["current_count"] = obj.get("current_count", 0) + 1
 
 		var required: int = obj.get("required_count", 1)
-		var completed := obj["current_count"] >= required
+		var completed: bool = obj["current_count"] >= required
 		if completed:
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 

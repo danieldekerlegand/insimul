@@ -27,6 +27,12 @@ let modelInfo = { modelName: '', gpuType: 'none' };
 /** @type {Promise<void>} */
 let requestQueue = Promise.resolve();
 
+// ── STT State ────────────────────────────────────────────────────────
+
+let sttAvailable = false;
+let whisperBinary = 'whisper-cpp';
+let whisperModelPath = '';
+
 // ── Voice model mapping ─────────────────────────────────────────────
 
 const VOICE_MODEL_MAP = {
@@ -151,6 +157,74 @@ function synthesizeRaw(piperBinary, text, modelPath, lengthScale) {
   });
 }
 
+// ── Whisper subprocess transcription ─────────────────────────────────
+
+function transcribeAudio(audioBuffer, languageHint) {
+  return new Promise((resolve, reject) => {
+    const tmpDir = require('os').tmpdir();
+    const tmpWav = path.join(tmpDir, `insimul-stt-${Date.now()}.wav`);
+
+    // If the buffer is raw PCM, wrap it in a WAV header (16kHz, 16-bit, mono)
+    let wavBuffer;
+    const header = audioBuffer.slice(0, 4).toString('ascii');
+    if (header === 'RIFF') {
+      wavBuffer = audioBuffer;
+    } else {
+      const wavHeader = buildWavHeader(audioBuffer.length, 16000);
+      wavBuffer = Buffer.concat([wavHeader, audioBuffer]);
+    }
+
+    fs.writeFileSync(tmpWav, wavBuffer);
+
+    const args = [
+      '--model', whisperModelPath,
+      '--file', tmpWav,
+      '--output-txt',
+      '--no-timestamps',
+    ];
+
+    if (languageHint) {
+      args.push('--language', languageHint);
+    }
+
+    const proc = spawn(whisperBinary, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    proc.on('error', (err) => {
+      fs.unlinkSync(tmpWav);
+      reject(new Error(`Whisper process failed to start: ${err.message}`));
+    });
+
+    proc.on('close', (code) => {
+      fs.unlinkSync(tmpWav);
+
+      if (code !== 0) {
+        reject(new Error(`Whisper exited with code ${code}: ${stderr.trim()}`));
+        return;
+      }
+
+      // whisper.cpp outputs text to stdout; also check for .txt file
+      let text = stdout.trim();
+      if (!text) {
+        const txtFile = tmpWav + '.txt';
+        if (fs.existsSync(txtFile)) {
+          text = fs.readFileSync(txtFile, 'utf8').trim();
+          fs.unlinkSync(txtFile);
+        }
+      }
+
+      resolve(text);
+    });
+  });
+}
+
 // ── TTS Cache ───────────────────────────────────────────────────────
 
 const ttsCache = new Map();
@@ -212,6 +286,29 @@ async function initAIService(app, mainWindow) {
     console.log(`[ai-service] Piper TTS available. Voices: ${voicesDir}`);
   } else {
     console.log('[ai-service] Piper TTS not available (no voice models found)');
+  }
+
+  // ── Whisper STT Setup ───────────────────────────────────────────
+  whisperBinary = path.join(appRoot, 'ai', 'bin', 'whisper-cpp');
+  if (!fs.existsSync(whisperBinary)) {
+    whisperBinary = 'whisper-cpp'; // fall back to system binary
+  }
+
+  // Find whisper model: check ai/models/ for ggml-*.bin or whisper-*.bin
+  const sttModelsDir = path.join(appRoot, 'ai', 'models');
+  if (fs.existsSync(sttModelsDir)) {
+    const sttFiles = fs.readdirSync(sttModelsDir).filter(
+      (f) => (f.startsWith('ggml-') || f.startsWith('whisper-')) && f.endsWith('.bin'),
+    );
+    if (sttFiles.length > 0) {
+      whisperModelPath = path.join(sttModelsDir, sttFiles[0]);
+      sttAvailable = true;
+      console.log(`[ai-service] Whisper STT available. Model: ${sttFiles[0]}`);
+    }
+  }
+
+  if (!sttAvailable) {
+    console.log('[ai-service] Whisper STT not available (no model found)');
   }
 
   // ── LLM Setup ────────────────────────────────────────────────────
@@ -294,10 +391,12 @@ function registerIPCHandlers(mainWindow) {
     modelName: modelInfo.modelName,
     gpuType: modelInfo.gpuType,
     ttsAvailable,
+    sttAvailable,
     voicesDir,
     voiceCount: ttsAvailable && voicesDir && fs.existsSync(voicesDir)
       ? fs.readdirSync(voicesDir).filter((f) => f.endsWith('.onnx')).length
       : 0,
+    whisperModel: whisperModelPath ? path.basename(whisperModelPath) : null,
   }));
 
   // --- Single completion ---
@@ -326,13 +425,15 @@ function registerIPCHandlers(mainWindow) {
   });
 
   // --- Streaming completion ---
-  ipcMain.handle('ai:generate-stream', async (event, { prompt, systemPrompt, temperature, maxTokens }) => {
+  ipcMain.handle('ai:generate-stream', async (event, { prompt, systemPrompt, temperature, maxTokens }, streamId) => {
     if (!state || !aiAvailable) {
       return { error: 'AI not available' };
     }
 
     // Resolve the sender window for streaming tokens back
     const sender = event.sender;
+    // Use per-stream channel so concurrent streams don't interfere
+    const channel = streamId ? `ai:stream-token:${streamId}` : 'ai:stream-token';
 
     return enqueue(async () => {
       const session = new state.LlamaChatSession({
@@ -346,19 +447,19 @@ function registerIPCHandlers(mainWindow) {
           maxTokens: maxTokens ?? 2048,
           onTextChunk(chunk) {
             if (!sender.isDestroyed()) {
-              sender.send('ai:stream-token', chunk);
+              sender.send(channel, { token: chunk });
             }
           },
         });
 
         if (!sender.isDestroyed()) {
-          sender.send('ai:stream-end');
+          sender.send(channel, { done: true, fullText });
         }
 
         return { text: fullText, model: modelInfo.modelName };
       } catch (err) {
         if (!sender.isDestroyed()) {
-          sender.send('ai:stream-error', err.message);
+          sender.send(channel, { error: err.message });
         }
         return { error: err.message };
       } finally {
@@ -406,6 +507,22 @@ function registerIPCHandlers(mainWindow) {
     } catch (err) {
       console.error(`[ai-service] TTS synthesis failed: ${err.message}`);
       return null;
+    }
+  });
+
+  // --- Speech-to-text via Whisper ---
+  ipcMain.handle('ai:stt', async (_event, { audio, languageHint }) => {
+    if (!sttAvailable) return { error: 'STT not available' };
+    if (!audio) return { error: 'No audio data provided' };
+
+    try {
+      // audio comes as ArrayBuffer from renderer — convert to Buffer
+      const audioBuffer = Buffer.from(audio);
+      const text = await transcribeAudio(audioBuffer, languageHint);
+      return { text, language: languageHint || null };
+    } catch (err) {
+      console.error(`[ai-service] STT transcription failed: ${err.message}`);
+      return { error: err.message };
     }
   });
 }

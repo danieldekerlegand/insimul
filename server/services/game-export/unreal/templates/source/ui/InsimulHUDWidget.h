@@ -42,6 +42,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|HUD")
     void UpdateCompassHeading(float YawDegrees);
 
+    /** Show/hide interaction prompt text (e.g. "[E] Enter Building") */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|HUD")
+    void UpdateInteractionPrompt(const FString& Prompt);
+
 protected:
     virtual void NativeConstruct() override;
 
@@ -78,6 +82,11 @@ private:
 
     UPROPERTY()
     TMap<FString, UTextBlock*> SurvivalLabels;
+
+    // ── Interaction prompt ──
+
+    UPROPERTY()
+    UTextBlock* InteractionPromptText = nullptr;
 
     // ── Helpers ──
 

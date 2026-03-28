@@ -801,7 +801,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             )}
           </div>
           <div className="flex gap-4 text-xs text-muted-foreground">
-            <span>Pop: <strong className="text-foreground">{selectedSettlement.population?.toLocaleString() ?? '—'}</strong></span>
+            <span>Residents: <strong className="text-foreground">{residents.filter((c: any) => c.isAlive !== false).length || selectedSettlement.population?.toLocaleString() || '—'}</strong></span>
             <span>Terrain: <strong className="text-foreground">{selectedSettlement.terrain ?? '—'}</strong></span>
             <span>Founded: <strong className="text-foreground">{selectedSettlement.foundedYear ?? 'Unknown'}</strong></span>
           </div>
@@ -876,7 +876,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   );
 
   // Right panel section state
-  const [expandedSection, setExpandedSection] = useState<'people' | 'businesses' | 'residences' | 'lots' | null>(null);
+  const [expandedSection, setExpandedSection] = useState<'people' | 'former' | 'businesses' | 'residences' | 'lots' | null>(null);
 
   // ─── Right panel ───────────────────────────────────────────────────────────
 
@@ -889,8 +889,12 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       );
     }
 
+    const livingResidents = residents.filter((c: any) => c.isAlive !== false);
+    const formerResidents = residents.filter((c: any) => c.isAlive === false);
+
     const sections = [
-      { id: 'people' as const, icon: Users, label: 'People', count: residents.length, data: residents },
+      { id: 'people' as const, icon: Users, label: 'Residents', count: livingResidents.length, data: livingResidents },
+      { id: 'former' as const, icon: Users, label: 'Former Residents', count: formerResidents.length, data: formerResidents },
       { id: 'businesses' as const, icon: Briefcase, label: 'Businesses', count: businesses.length, data: businesses },
       { id: 'residences' as const, icon: Home, label: 'Residences', count: residences.length, data: residences },
       { id: 'lots' as const, icon: Home, label: 'Lots', count: lots.length, data: lots },
@@ -952,8 +956,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                   <div className="p-2 space-y-0.5">
                     {section.count === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">No {section.label.toLowerCase()}</p>
-                    ) : section.id === 'people' ? (
-                      residents.map(c => (
+                    ) : (section.id === 'people' || section.id === 'former') ? (
+                      (section.data as Character[]).map(c => (
                         <div
                           key={c.id}
                           className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted group"

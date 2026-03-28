@@ -40,8 +40,6 @@ void UInsimulHttpClient::SendText(
     FJsonSerializer::Serialize(Body, Writer);
     Request->SetContentAsString(BodyString);
 
-    Request->OnProcessRequestComplete().BindUObject(this, &UInsimulHttpClient::ParseSSEResponse);
-
     // Use lambda to handle completion
     Request->OnProcessRequestComplete().BindLambda(
         [this](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bSuccess)

@@ -17,6 +17,10 @@ namespace Insimul.World
         public float roadElevation = 0.05f;
 
         private Material _roadMaterial;
+        private Material _sidewalkMaterial;
+        private Material _centerLineMaterial;
+        private Material _crosswalkMaterial;
+        private Material _lampPostMaterial;
 
         public void GenerateFromData(InsimulWorldIR worldData)
         {
@@ -25,6 +29,8 @@ namespace Insimul.World
 
             _roadMaterial = new Material(Shader.Find("Unlit/Color"));
             _roadMaterial.color = roadColor;
+
+            InitMaterials();
 
             // Generate named streets from settlement street networks
             if (worldData?.geography?.settlements != null)
@@ -37,7 +43,13 @@ namespace Insimul.World
                         if (segment.waypoints == null || segment.waypoints.Length < 2) continue;
                         float w = segment.width > 0 ? segment.width : roadWidth;
                         var points = Vec3ArrayToPositions(segment.waypoints);
-                        CreateRoadMesh($"Street_{segment.name}_{segment.id}", points, w);
+                        string streetName = $"Street_{segment.name}_{segment.id}";
+                        CreateRoadMesh(streetName, points, w);
+                        AddSidewalks(streetName, points, w);
+                        AddCenterLine(streetName, points);
+                        AddCrosswalk(points[0], (points[1] - points[0]).normalized, w);
+                        AddCrosswalk(points[points.Length - 1], (points[points.Length - 1] - points[points.Length - 2]).normalized, w);
+                        AddStreetLights(streetName, points, w);
                         streetCount++;
                     }
                 }
@@ -58,7 +70,9 @@ namespace Insimul.World
                             {
                                 float w = road.width > 0 ? road.width : roadWidth;
                                 var points = Vec3ArrayToPositions(road.waypoints);
-                                CreateRoadMesh($"Road_{roadCount}", points, w);
+                                string roadName = $"Road_{roadCount}";
+                                CreateRoadMesh(roadName, points, w);
+                                AddCenterLine(roadName, points);
                                 roadCount++;
                             }
                         }
@@ -188,6 +202,286 @@ namespace Insimul.World
             mesh.RecalculateBounds();
 
             return mesh;
+        }
+
+        private void InitMaterials()
+        {
+            var standard = Shader.Find("Standard");
+
+            _sidewalkMaterial = new Material(standard);
+            _sidewalkMaterial.color = new Color(0.6f, 0.58f, 0.55f);
+            _sidewalkMaterial.SetFloat("_Glossiness", 0.1f);
+
+            _centerLineMaterial = new Material(standard);
+            _centerLineMaterial.color = new Color(0.6f, 0.55f, 0.25f);
+            _centerLineMaterial.SetFloat("_Glossiness", 0.05f);
+
+            _crosswalkMaterial = new Material(standard);
+            _crosswalkMaterial.color = new Color(0.75f, 0.75f, 0.72f);
+            _crosswalkMaterial.SetFloat("_Glossiness", 0.05f);
+
+            _lampPostMaterial = new Material(standard);
+            _lampPostMaterial.color = new Color(0.2f, 0.2f, 0.22f);
+            _lampPostMaterial.SetFloat("_Glossiness", 0.4f);
+        }
+
+        /// <summary>
+        /// Generates two sidewalk ribbons flanking the road, offset outward from each edge.
+        /// </summary>
+        private void AddSidewalks(string name, Vector3[] waypoints, float roadWidth)
+        {
+            float sidewalkWidth = 1.5f;
+            float offsetFromEdge = 0.3f;
+            float sidewalkElevation = 0.08f;
+            float centerOffset = roadWidth / 2f + offsetFromEdge + sidewalkWidth / 2f;
+
+            for (int side = 0; side < 2; side++)
+            {
+                float sign = side == 0 ? -1f : 1f;
+                var offsetPoints = new Vector3[waypoints.Length];
+
+                for (int i = 0; i < waypoints.Length; i++)
+                {
+                    Vector3 forward;
+                    if (i == 0)
+                        forward = (waypoints[1] - waypoints[0]).normalized;
+                    else if (i == waypoints.Length - 1)
+                        forward = (waypoints[waypoints.Length - 1] - waypoints[waypoints.Length - 2]).normalized;
+                    else
+                        forward = (waypoints[i + 1] - waypoints[i - 1]).normalized;
+
+                    if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+
+                    Vector3 right = new Vector3(forward.z, 0f, -forward.x).normalized;
+                    if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
+
+                    offsetPoints[i] = waypoints[i] + right * sign * centerOffset + Vector3.up * sidewalkElevation;
+                }
+
+                string sideName = side == 0 ? "Left" : "Right";
+                var obj = new GameObject($"{name}_Sidewalk_{sideName}");
+                obj.transform.SetParent(transform);
+                obj.isStatic = true;
+
+                var mesh = BuildRibbonMesh(offsetPoints, sidewalkWidth);
+
+                var mf = obj.AddComponent<MeshFilter>();
+                mf.mesh = mesh;
+
+                var mr = obj.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = _sidewalkMaterial;
+                mr.receiveShadows = true;
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+                var mc = obj.AddComponent<MeshCollider>();
+                mc.sharedMesh = mesh;
+            }
+        }
+
+        /// <summary>
+        /// Adds dashed yellow center line markings along a road path.
+        /// </summary>
+        private void AddCenterLine(string name, Vector3[] waypoints)
+        {
+            float dashLength = 2.0f;
+            float gapLength = 1.5f;
+            float cycleLength = dashLength + gapLength;
+            float lineWidth = 0.15f;
+
+            var parent = new GameObject($"{name}_CenterLine");
+            parent.transform.SetParent(transform);
+            parent.isStatic = true;
+
+            float accumulated = 0f;
+            int dashIndex = 0;
+
+            for (int i = 0; i < waypoints.Length - 1; i++)
+            {
+                Vector3 segStart = waypoints[i];
+                Vector3 segEnd = waypoints[i + 1];
+                Vector3 dir = segEnd - segStart;
+                float segLength = dir.magnitude;
+                if (segLength < 0.001f) continue;
+                dir /= segLength;
+
+                float pos = 0f;
+
+                // If we're mid-cycle from previous segment, figure out where we are
+                float cyclePos = accumulated % cycleLength;
+
+                // Walk along this segment
+                while (pos < segLength)
+                {
+                    float currentCyclePos = (accumulated + pos) % cycleLength;
+
+                    if (currentCyclePos < dashLength)
+                    {
+                        // We're in a dash region — figure out how much dash remains
+                        float dashRemaining = dashLength - currentCyclePos;
+                        float segRemaining = segLength - pos;
+                        float thisDash = Mathf.Min(dashRemaining, segRemaining);
+
+                        Vector3 dashCenter = segStart + dir * (pos + thisDash / 2f);
+                        dashCenter.y = waypoints[0].y + 0.02f;
+
+                        var dash = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        dash.name = $"Dash_{dashIndex++}";
+                        dash.transform.SetParent(parent.transform);
+                        dash.transform.position = dashCenter;
+                        dash.transform.localScale = new Vector3(lineWidth, 0.02f, thisDash);
+                        dash.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+                        dash.isStatic = true;
+
+                        var mr = dash.GetComponent<MeshRenderer>();
+                        mr.sharedMaterial = _centerLineMaterial;
+                        mr.receiveShadows = false;
+                        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+                        // Remove collider to avoid physics issues
+                        var col = dash.GetComponent<Collider>();
+                        if (col != null) Destroy(col);
+
+                        pos += thisDash;
+                    }
+                    else
+                    {
+                        // We're in a gap region
+                        float gapRemaining = cycleLength - currentCyclePos;
+                        pos += Mathf.Min(gapRemaining, segLength - pos);
+                    }
+                }
+
+                accumulated += segLength;
+            }
+        }
+
+        /// <summary>
+        /// Places crosswalk stripes perpendicular to the road direction at the given position.
+        /// </summary>
+        private void AddCrosswalk(Vector3 position, Vector3 roadDirection, float roadWidth)
+        {
+            int stripeCount = 5;
+            float stripeWidth = 0.3f;
+            float stripeGap = 0.3f;
+            float totalWidth = stripeCount * stripeWidth + (stripeCount - 1) * stripeGap;
+
+            var parent = new GameObject($"Crosswalk_{position.x:F0}_{position.z:F0}");
+            parent.transform.SetParent(transform);
+            parent.isStatic = true;
+
+            Vector3 forward = roadDirection.normalized;
+            Vector3 right = new Vector3(forward.z, 0f, -forward.x).normalized;
+            if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
+
+            float startOffset = -totalWidth / 2f + stripeWidth / 2f;
+
+            for (int i = 0; i < stripeCount; i++)
+            {
+                float offset = startOffset + i * (stripeWidth + stripeGap);
+                Vector3 stripePos = position + forward * offset;
+                stripePos.y = position.y + 0.02f;
+
+                var stripe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                stripe.name = $"Stripe_{i}";
+                stripe.transform.SetParent(parent.transform);
+                stripe.transform.position = stripePos;
+                stripe.transform.localScale = new Vector3(roadWidth, 0.02f, stripeWidth);
+                stripe.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
+                stripe.isStatic = true;
+
+                var mr = stripe.GetComponent<MeshRenderer>();
+                mr.sharedMaterial = _crosswalkMaterial;
+                mr.receiveShadows = false;
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+                var col = stripe.GetComponent<Collider>();
+                if (col != null) Destroy(col);
+            }
+        }
+
+        /// <summary>
+        /// Places street lights along both sides of a road at regular intervals.
+        /// Lamp heads are tagged "StreetLight" for DayNightCycleManager discovery.
+        /// </summary>
+        private void AddStreetLights(string name, Vector3[] waypoints, float roadWidth)
+        {
+            float interval = 25f;
+            float sideOffset = roadWidth / 2f + 1.0f;
+            float postHeight = 4.5f;
+            float postRadius = 0.08f;
+            float lampRadius = 0.2f;
+
+            var parent = new GameObject($"{name}_StreetLights");
+            parent.transform.SetParent(transform);
+
+            float accumulated = 0f;
+            float nextPlacement = 0f;
+            int lightIndex = 0;
+            bool placeLeft = true;
+
+            for (int i = 0; i < waypoints.Length - 1; i++)
+            {
+                Vector3 segStart = waypoints[i];
+                Vector3 segEnd = waypoints[i + 1];
+                Vector3 dir = segEnd - segStart;
+                float segLength = dir.magnitude;
+                if (segLength < 0.001f) continue;
+                dir /= segLength;
+
+                Vector3 right = new Vector3(dir.z, 0f, -dir.x).normalized;
+                if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
+
+                while (accumulated + (nextPlacement - accumulated) <= accumulated + segLength)
+                {
+                    float localPos = nextPlacement - accumulated;
+                    if (localPos < 0f) localPos = 0f;
+                    if (localPos > segLength) break;
+
+                    Vector3 roadPoint = segStart + dir * localPos;
+                    float sign = placeLeft ? -1f : 1f;
+                    Vector3 basePos = roadPoint + right * sign * sideOffset;
+                    basePos.y = waypoints[0].y;
+
+                    // Post
+                    var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    post.name = $"LampPost_{lightIndex}";
+                    post.transform.SetParent(parent.transform);
+                    post.transform.position = basePos + Vector3.up * (postHeight / 2f);
+                    post.transform.localScale = new Vector3(postRadius * 2f, postHeight / 2f, postRadius * 2f);
+
+                    var postMr = post.GetComponent<MeshRenderer>();
+                    postMr.sharedMaterial = _lampPostMaterial;
+
+                    // Lamp head
+                    var lamp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    lamp.name = $"LampHead_{lightIndex}";
+                    lamp.tag = "StreetLight";
+                    lamp.transform.SetParent(parent.transform);
+                    lamp.transform.position = basePos + Vector3.up * postHeight;
+                    lamp.transform.localScale = Vector3.one * lampRadius * 2f;
+
+                    var lampMat = new Material(Shader.Find("Standard"));
+                    lampMat.color = new Color(1f, 0.95f, 0.8f);
+                    lampMat.EnableKeyword("_EMISSION");
+                    lampMat.SetColor("_EmissionColor", new Color(1f, 0.9f, 0.7f) * 0.5f);
+                    var lampMr = lamp.GetComponent<MeshRenderer>();
+                    lampMr.sharedMaterial = lampMat;
+
+                    // Point light
+                    var pointLight = lamp.AddComponent<Light>();
+                    pointLight.type = LightType.Point;
+                    pointLight.range = 12f;
+                    pointLight.intensity = 0.8f;
+                    pointLight.color = new Color(1f, 0.9f, 0.7f);
+                    pointLight.enabled = false;
+
+                    lightIndex++;
+                    placeLeft = !placeLeft;
+                    nextPlacement += interval;
+                }
+
+                accumulated += segLength;
+            }
         }
 
         [System.Serializable]

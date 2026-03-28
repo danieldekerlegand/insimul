@@ -14,8 +14,21 @@ import { exportUnityProject } from '../services/game-export/unity/unity-exporter
 import { exportGodotProject } from '../services/game-export/godot/godot-exporter';
 import { exportBabylonProject, exportBabylonProjectAsZip as packageBabylonExport } from '../services/game-export/babylon/babylon-exporter-new';
 import type { ExportTelemetryConfig } from '../services/game-export/telemetry-config';
+import { buildExportName } from '../services/game-export/export-naming';
+import { checkLocalAIAvailability } from '../services/game-export/ai-bundler';
 
 export function registerExportRoutes(app: Express): void {
+
+  /**
+   * GET /api/export/local-ai-status
+   *
+   * Check whether local AI models are available for bundling.
+   * The client calls this to enable/disable the Local AI export option.
+   */
+  app.get('/api/export/local-ai-status', (_req, res) => {
+    const status = checkLocalAIAvailability();
+    res.json(status);
+  });
 
   /**
    * POST /api/worlds/:worldId/export/ir
@@ -156,41 +169,65 @@ export function registerExportRoutes(app: Express): void {
         });
       }
 
-      // ── Resolve telemetry config if provided ──
-      let telemetryConfig: ExportTelemetryConfig | undefined;
-      if (req.body.telemetry?.enabled) {
-        const { serverUrl, apiKeyId } = req.body.telemetry;
-        let resolvedApiKey = '';
-
-        // Look up the actual API key from the ID
-        if (apiKeyId) {
-          try {
-            const { storage } = await import(/* webpackIgnore: true */ '../db/storage.js' as any);
-            const keys = await storage.getApiKeysByWorld(worldId);
-            const found = keys.find((k: any) => k.id === apiKeyId);
-            if (found?.key) {
-              resolvedApiKey = found.key;
-            }
-          } catch (err) {
-            console.warn('[Export] Failed to resolve telemetry API key:', err);
+      // ── Always resolve telemetry config (telemetry is always included) ──
+      // Client may pass overrides: telemetryServerUrl, telemetryApiKeyId
+      let resolvedApiKey = '';
+      if (req.body.telemetryApiKeyId) {
+        // Resolve a specific API key by ID
+        try {
+          const { storage } = await import(/* webpackIgnore: true */ '../db/storage.js' as any);
+          const keys = await storage.getApiKeysByWorld(worldId);
+          const found = keys.find((k: any) => k.id === req.body.telemetryApiKeyId);
+          if (found?.key) {
+            resolvedApiKey = found.key;
           }
+        } catch (err) {
+          console.warn('[Export] Failed to resolve telemetry API key by ID:', err);
         }
-
-        telemetryConfig = {
-          enabled: true,
-          serverUrl: serverUrl || `${req.protocol}://${req.get('host')}`,
-          apiKey: resolvedApiKey,
-          batchSize: 25,
-          flushIntervalMs: 30_000,
-        };
-        console.log(`[Export] Telemetry enabled for export (serverUrl: ${telemetryConfig.serverUrl})`);
       }
+      if (!resolvedApiKey) {
+        // Fallback: pick the first available key for this world
+        try {
+          const { storage } = await import(/* webpackIgnore: true */ '../db/storage.js' as any);
+          const keys = await storage.getApiKeysByWorld(worldId);
+          if (keys.length > 0) {
+            resolvedApiKey = keys[0].key;
+          }
+        } catch (err) {
+          console.warn('[Export] Failed to resolve fallback telemetry API key:', err);
+        }
+      }
+
+      const telemetryConfig: ExportTelemetryConfig = {
+        enabled: true,
+        serverUrl: req.body.telemetryServerUrl || `${req.protocol}://${req.get('host')}`,
+        apiKey: resolvedApiKey,
+        batchSize: 25,
+        flushIntervalMs: 30_000,
+      };
+      console.log(`[Export] Telemetry included in export (serverUrl: ${telemetryConfig.serverUrl}, apiKey: ${resolvedApiKey ? 'resolved' : 'none'})`);
+
+      // ── Validate local AI availability when requested ──
+      const aiProvider = req.body.aiProvider || undefined;
+      if (aiProvider === 'local') {
+        const aiStatus = checkLocalAIAvailability();
+        if (!aiStatus.available) {
+          return res.status(400).json({
+            success: false,
+            error: `Local AI models not found. Missing: ${aiStatus.missing.join('; ')}`,
+            localAIStatus: aiStatus,
+          });
+        }
+      }
+
+      // Build AI bundle options for engines that use the AIBundleOptions interface
+      const aiBundleOpts = aiProvider === 'local' ? { includeLLM: true, includeTTS: true, includeSTT: true } : undefined;
 
       // ── Babylon.js: IR JSON bundle as ZIP ──
       if (engine === 'babylon') {
         const format = req.body.format || req.query.format || 'zip';
         const mode = req.body.mode || req.query.mode || 'web';
-        
+
         if (mode !== 'web' && mode !== 'electron') {
           return res.status(400).json({
             success: false,
@@ -198,7 +235,6 @@ export function registerExportRoutes(app: Express): void {
           });
         }
 
-        const aiProvider = req.body.aiProvider || undefined;
         const buildExecutable = req.body.buildExecutable === true;
         // Auto-detect API URL for cloud saves in standalone mode
         const apiUrl = req.body.apiUrl || (mode === 'electron' ? `${req.protocol}://${req.get('host')}` : undefined);
@@ -207,7 +243,7 @@ export function registerExportRoutes(app: Express): void {
 
         // Get world IR for filename
         const ir = await generateWorldIR(worldId);
-        const filename = `${ir.meta.worldName.replace(/\s+/g, '_')}_Babylon_${mode}.zip`;
+        const filename = `${buildExportName(ir.meta.worldName, 'Babylon', aiProvider, mode)}.zip`;
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', zipBuffer.length.toString());
@@ -218,13 +254,13 @@ export function registerExportRoutes(app: Express): void {
       if (engine === 'unreal') {
         const format = req.body.format || req.query.format || 'zip';
 
-        console.log(`[Export] Generating Unreal project for world ${worldId}...`);
-        const result = await exportUnrealProject(worldId, { telemetry: telemetryConfig });
+        console.log(`[Export] Generating Unreal project for world ${worldId}${aiProvider ? ` (AI: ${aiProvider})` : ''}...`);
+        const result = await exportUnrealProject(worldId, { telemetry: telemetryConfig, aiBundle: aiBundleOpts });
 
         console.log(`[Export] Unreal project generated: ${result.stats.totalFiles} files, ${result.stats.cppFiles} C++, ${result.stats.dataFiles} data, ${Math.round(result.stats.totalSizeBytes / 1024)}KB in ${result.stats.generationTimeMs}ms`);
 
         if (format === 'zip' && result.zipBuffer) {
-          const filename = `${result.projectName}.zip`;
+          const filename = `${buildExportName(result.worldName, 'Unreal', result.aiMode)}.zip`;
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           res.setHeader('Content-Type', 'application/zip');
           res.setHeader('Content-Length', result.zipBuffer.length.toString());
@@ -252,13 +288,14 @@ export function registerExportRoutes(app: Express): void {
       if (engine === 'unity') {
         const format = req.body.format || req.query.format || 'zip';
 
-        console.log(`[Export] Generating Unity project for world ${worldId}...`);
-        const result = await exportUnityProject(worldId, { telemetry: telemetryConfig });
+        const unityVersion = req.body.unityVersion || req.query.unityVersion || undefined;
+        console.log(`[Export] Generating Unity project for world ${worldId}${unityVersion ? ` (Unity ${unityVersion})` : ''}${aiProvider ? ` (AI: ${aiProvider})` : ''}...`);
+        const result = await exportUnityProject(worldId, { telemetry: telemetryConfig, unityVersion, aiProvider: aiProvider as any });
 
         console.log(`[Export] Unity project generated: ${result.stats.totalFiles} files, ${result.stats.csharpFiles} C#, ${result.stats.dataFiles} data, ${Math.round(result.stats.totalSizeBytes / 1024)}KB in ${result.stats.generationTimeMs}ms`);
 
         if (format === 'zip' && result.zipBuffer) {
-          const filename = `${result.projectName}.zip`;
+          const filename = `${buildExportName(result.worldName, 'Unity', result.aiMode)}.zip`;
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           res.setHeader('Content-Type', 'application/zip');
           res.setHeader('Content-Length', result.zipBuffer.length.toString());
@@ -285,13 +322,13 @@ export function registerExportRoutes(app: Express): void {
       if (engine === 'godot') {
         const format = req.body.format || req.query.format || 'zip';
 
-        console.log(`[Export] Generating Godot project for world ${worldId}...`);
-        const result = await exportGodotProject(worldId, { telemetry: telemetryConfig });
+        console.log(`[Export] Generating Godot project for world ${worldId}${aiProvider ? ` (AI: ${aiProvider})` : ''}...`);
+        const result = await exportGodotProject(worldId, { telemetry: telemetryConfig, aiBundle: aiBundleOpts });
 
         console.log(`[Export] Godot project generated: ${result.stats.totalFiles} files, ${result.stats.gdscriptFiles} GDScript, ${result.stats.dataFiles} data, ${Math.round(result.stats.totalSizeBytes / 1024)}KB in ${result.stats.generationTimeMs}ms`);
 
         if (format === 'zip' && result.zipBuffer) {
-          const filename = `${result.projectName}.zip`;
+          const filename = `${buildExportName(result.worldName, 'Godot', result.aiMode)}.zip`;
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           res.setHeader('Content-Type', 'application/zip');
           res.setHeader('Content-Length', result.zipBuffer.length.toString());
@@ -344,17 +381,16 @@ export function registerExportRoutes(app: Express): void {
 
       if (engine === 'babylon') {
         const mode = req.query.mode || 'web';
-        
+
         if (mode !== 'web' && mode !== 'electron') {
           return res.status(400).json({ error: `Invalid mode: ${mode}. Supported: web, electron` });
         }
-        
+
         const zipBuffer = await packageBabylonExport(worldId, { mode });
         if (!zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
-        
-        // Get world IR for filename
+
         const ir = await generateWorldIR(worldId);
-        const filename = `${ir.meta.worldName.replace(/\s+/g, '_')}_Babylon_${mode}.zip`;
+        const filename = `${buildExportName(ir.meta.worldName, 'Babylon', ir.aiConfig?.apiMode, mode as string)}.zip`;
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', zipBuffer.length.toString());
@@ -364,7 +400,8 @@ export function registerExportRoutes(app: Express): void {
       if (engine === 'unreal') {
         const result = await exportUnrealProject(worldId);
         if (!result.zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
-        res.setHeader('Content-Disposition', `attachment; filename="${result.projectName}.zip"`);
+        const filename = `${buildExportName(result.worldName, 'Unreal', result.aiMode)}.zip`;
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', result.zipBuffer.length.toString());
         return res.send(result.zipBuffer);
@@ -373,7 +410,8 @@ export function registerExportRoutes(app: Express): void {
       if (engine === 'unity') {
         const result = await exportUnityProject(worldId);
         if (!result.zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
-        res.setHeader('Content-Disposition', `attachment; filename="${result.projectName}.zip"`);
+        const filename = `${buildExportName(result.worldName, 'Unity', result.aiMode)}.zip`;
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', result.zipBuffer.length.toString());
         return res.send(result.zipBuffer);
@@ -382,7 +420,8 @@ export function registerExportRoutes(app: Express): void {
       if (engine === 'godot') {
         const result = await exportGodotProject(worldId);
         if (!result.zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
-        res.setHeader('Content-Disposition', `attachment; filename="${result.projectName}.zip"`);
+        const filename = `${buildExportName(result.worldName, 'Godot', result.aiMode)}.zip`;
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', result.zipBuffer.length.toString());
         return res.send(result.zipBuffer);

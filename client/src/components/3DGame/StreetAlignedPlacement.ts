@@ -1,20 +1,20 @@
 /**
  * StreetAlignedPlacement
  *
- * Generates an intra-settlement street network and distributes building lots
- * along both sides of each street. Replaces the old grid+jitter approach in
- * WorldScaleManager.generateLotPositions().
+ * Distributes building lots within the blocks of a settlement grid.
  *
- * Street layout:
- *  - A "main street" runs through the settlement center.
- *  - Side streets branch off the main street at regular intervals.
- *  - Buildings face the street they front, with odd house numbers on the left
- *    side and even on the right.
- *  - Commercial buildings cluster near intersections and along the main street.
- *  - Residential buildings fill side streets.
+ * Layout strategy:
+ *  - The grid (from StreetNetworkLayout) creates blocks between intersections.
+ *  - Each block gets a fixed 3×2 grid of building lots, inset from the streets.
+ *  - The bottom-center block is reserved as a park / town square (like Jackson
+ *    Square in the French Quarter).
+ *  - Buildings face the nearest street edge.
+ *  - Commercial buildings cluster in blocks near the settlement center;
+ *    residential buildings fill the outer blocks.
  */
 
 import { Vector3 } from '@babylonjs/core';
+import { getGridParams, GRID_STREET_WIDTH } from './StreetNetworkLayout';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -88,15 +88,15 @@ export interface ExistingStreetNetwork {
 }
 
 /**
- * Generate a street network and place lots along the streets.
+ * Generate a street network and place lots within grid blocks.
  *
  * @param center        Settlement center position (x, y=0, z)
- * @param radius        Settlement radius (controls how far streets extend)
+ * @param radius        Settlement radius (controls grid sizing)
  * @param lotCount      Desired number of lots to place
  * @param seed          Deterministic seed string
  * @param terrainHalf   Half the terrain size (for clamping)
  * @param streetNames   Optional street names from lot data
- * @param existingNetwork Optional server-generated street network to use for lot placement
+ * @param existingNetwork Optional server-generated street network for road rendering
  */
 export function generateStreetAlignedLots(
   center: Vector3,
@@ -109,21 +109,13 @@ export function generateStreetAlignedLots(
 ): StreetAlignedResult {
   const rand = createSeededRandom(seed);
 
-  // ── 1. Generate or adopt street network ─────────────────────────────
+  // ── 1. Generate or adopt street network (for road rendering) ──────────
 
   const streets: StreetSegment[] = [];
-  const LOT_SPACING = 14;
 
   // If we have a server-generated street network, convert its segments
-  // to StreetSegment format so lots are placed along the actual streets.
-  // Server waypoints are in local-space (centered at mapSize/2), so we
-  // re-center them to the settlement's game-world position.
-  //
-  // Multi-waypoint segments (curved ring roads, etc.) are split into
-  // consecutive sub-segments so lots follow the actual road curve rather
-  // than a straight chord from first to last waypoint.
+  // to StreetSegment format for backward compatibility with road rendering.
   if (existingNetwork && existingNetwork.segments.length > 0) {
-    // Compute centroid of all waypoints for re-centering
     let sumX = 0, sumZ = 0, wpCount = 0;
     for (const seg of existingNetwork.segments) {
       if (!seg.waypoints) continue;
@@ -136,7 +128,6 @@ export function generateStreetAlignedLots(
     const dx = wpCount > 0 ? center.x - sumX / wpCount : 0;
     const dz = wpCount > 0 ? center.z - sumZ / wpCount : 0;
 
-    // Track total length per original segment to find the longest (main street)
     const segTotalLengths: { firstIdx: number; totalLen: number }[] = [];
 
     for (let i = 0; i < existingNetwork.segments.length; i++) {
@@ -147,18 +138,17 @@ export function generateStreetAlignedLots(
       const firstIdx = streets.length;
       let totalLen = 0;
 
-      // Create a sub-segment between each consecutive pair of waypoints
       for (let w = 0; w < wps.length - 1; w++) {
         const from = new Vector3(wps[w].x + dx, 0, wps[w].z + dz);
         const to = new Vector3(wps[w + 1].x + dx, 0, wps[w + 1].z + dz);
         const subLen = vec2Len(to.x - from.x, to.z - from.z);
-        if (subLen < 1) continue; // skip degenerate sub-segments
+        if (subLen < 1) continue;
         totalLen += subLen;
         streets.push({
           id: `${seg.id || `existing_${i}`}_${w}`,
           from,
           to,
-          isMainStreet: false, // set below
+          isMainStreet: false,
           streetName: name,
         });
       }
@@ -166,11 +156,9 @@ export function generateStreetAlignedLots(
       segTotalLengths.push({ firstIdx, totalLen });
     }
 
-    // Mark all sub-segments of the longest original segment as main street
     if (segTotalLengths.length > 0) {
       const longest = segTotalLengths.reduce((a, b) => b.totalLen > a.totalLen ? b : a);
       for (let j = longest.firstIdx; j < streets.length; j++) {
-        // Stop when we hit a sub-segment from a different original segment
         if (j > longest.firstIdx && segTotalLengths.some(s => s.firstIdx === j)) break;
         streets[j].isMainStreet = true;
       }
@@ -179,249 +167,171 @@ export function generateStreetAlignedLots(
 
   // Fall back to procedural street generation if no existing network
   if (streets.length === 0) {
-  const MAIN_STREET_NAME = streetNames[0] || 'Main Street';
+    const MAIN_STREET_NAME = streetNames[0] || 'Main Street';
+    const LOT_SPACING = 14;
+    const neededLength = (lotCount / 2) * LOT_SPACING;
+    const mainLen = Math.max(radius * 0.85, neededLength * 0.4 / 2);
 
-  // Scale the street network to fit the requested number of lots.
-  // Each lot takes ~LOT_SPACING along a street (2 lots per segment: left+right).
-  // We need enough total street length to hold all lots.
-  const neededLength = (lotCount / 2) * LOT_SPACING;
-  // Main street carries ~40% of lots, side streets carry the rest
-  const mainLen = Math.max(radius * 0.85, neededLength * 0.4 / 2);
-
-  // Main street: runs through center at a seeded angle
-  const mainAngle = rand() * Math.PI; // 0..π (half-circle, other half is opposite direction)
-  const mainFrom = new Vector3(
-    center.x - Math.cos(mainAngle) * mainLen,
-    0,
-    center.z - Math.sin(mainAngle) * mainLen,
-  );
-  const mainTo = new Vector3(
-    center.x + Math.cos(mainAngle) * mainLen,
-    0,
-    center.z + Math.sin(mainAngle) * mainLen,
-  );
-  streets.push({
-    id: `street_main`,
-    from: mainFrom,
-    to: mainTo,
-    isMainStreet: true,
-    streetName: MAIN_STREET_NAME,
-  });
-
-  // Side streets: branch off the main street perpendicularly
-  const sideAngle = mainAngle + Math.PI / 2;
-  // Space side streets ~20 units apart along the main street
-  const sideSpacing = 20;
-  const mainFullLen = mainLen * 2;
-  const sideCount = Math.max(1, Math.floor(mainFullLen / sideSpacing));
-  // Scale side street length to accommodate remaining lots
-  const sideLotsNeeded = Math.max(0, lotCount - Math.floor(mainFullLen / LOT_SPACING) * 2);
-  const lotsPerSide = sideCount > 0 ? Math.ceil(sideLotsNeeded / sideCount / 2) : 0;
-  const baseSideLen = Math.max(radius * 0.5, lotsPerSide * LOT_SPACING);
-
-  for (let i = 0; i < sideCount; i++) {
-    const t = (i + 1) / (sideCount + 1); // 0..1 along main street
-    const branchX = mainFrom.x + (mainTo.x - mainFrom.x) * t;
-    const branchZ = mainFrom.z + (mainTo.z - mainFrom.z) * t;
-
-    const sideLen = baseSideLen * (0.6 + rand() * 0.8);
-    const sName = streetNames[i + 1] || `${ordinal(i + 1)} Street`;
-
-    // Each side street extends in both directions from the main street
-    const sFrom = new Vector3(
-      branchX - Math.cos(sideAngle) * sideLen,
-      0,
-      branchZ - Math.sin(sideAngle) * sideLen,
+    const mainAngle = rand() * Math.PI;
+    const mainFrom = new Vector3(
+      center.x - Math.cos(mainAngle) * mainLen, 0,
+      center.z - Math.sin(mainAngle) * mainLen,
     );
-    const sTo = new Vector3(
-      branchX + Math.cos(sideAngle) * sideLen,
-      0,
-      branchZ + Math.sin(sideAngle) * sideLen,
+    const mainTo = new Vector3(
+      center.x + Math.cos(mainAngle) * mainLen, 0,
+      center.z + Math.sin(mainAngle) * mainLen,
     );
-
     streets.push({
-      id: `street_side_${i}`,
-      from: sFrom,
-      to: sTo,
-      isMainStreet: false,
-      streetName: sName,
+      id: `street_main`, from: mainFrom, to: mainTo,
+      isMainStreet: true, streetName: MAIN_STREET_NAME,
     });
-  }
-  } // end if (streets.length === 0)
 
-  // ── 2. Collect intersection points (for commercial clustering) ────────
-  // Find points where street endpoints are shared (within a small tolerance).
+    const sideAngle = mainAngle + Math.PI / 2;
+    const sideSpacing = 20;
+    const mainFullLen = mainLen * 2;
+    const sideCount = Math.max(1, Math.floor(mainFullLen / sideSpacing));
+    const sideLotsNeeded = Math.max(0, lotCount - Math.floor(mainFullLen / LOT_SPACING) * 2);
+    const lotsPerSide = sideCount > 0 ? Math.ceil(sideLotsNeeded / sideCount / 2) : 0;
+    const baseSideLen = Math.max(radius * 0.5, lotsPerSide * LOT_SPACING);
 
-  const intersections: Vector3[] = [center.clone()]; // center is always an intersection
-  const SNAP = 2; // tolerance for matching endpoints
-  const endpointBuckets = new Map<string, { pt: Vector3; count: number }>();
-  const bucketKey = (x: number, z: number) => `${Math.round(x / SNAP)}:${Math.round(z / SNAP)}`;
+    for (let i = 0; i < sideCount; i++) {
+      const t = (i + 1) / (sideCount + 1);
+      const branchX = mainFrom.x + (mainTo.x - mainFrom.x) * t;
+      const branchZ = mainFrom.z + (mainTo.z - mainFrom.z) * t;
+      const sideLen = baseSideLen * (0.6 + rand() * 0.8);
+      const sName = streetNames[i + 1] || `${ordinal(i + 1)} Street`;
 
-  for (const s of streets) {
-    for (const pt of [s.from, s.to]) {
-      const key = bucketKey(pt.x, pt.z);
-      const existing = endpointBuckets.get(key);
-      if (existing) {
-        existing.count++;
-      } else {
-        endpointBuckets.set(key, { pt: pt.clone(), count: 1 });
-      }
+      streets.push({
+        id: `street_side_${i}`,
+        from: new Vector3(branchX - Math.cos(sideAngle) * sideLen, 0, branchZ - Math.sin(sideAngle) * sideLen),
+        to: new Vector3(branchX + Math.cos(sideAngle) * sideLen, 0, branchZ + Math.sin(sideAngle) * sideLen),
+        isMainStreet: false, streetName: sName,
+      });
     }
   }
-  endpointBuckets.forEach(({ pt, count }) => {
-    if (count >= 2) {
-      intersections.push(pt);
-    }
-  });
 
-  // ── 3. Place lots along both sides of each street ─────────────────────
+  // ── 2. Block-based lot placement ──────────────────────────────────────
+  // Instead of placing lots along streets (which causes overflow into
+  // adjacent blocks and streets), compute block interiors and place a
+  // fixed grid of lots within each one.
+
+  const { gridSize, spacing, halfGrid } = getGridParams(radius);
+  const blockCount = gridSize - 1; // e.g., 3 for gridSize=4
+
+  // Park block: bottom-center (like Jackson Square in the French Quarter).
+  // "Bottom" = last row (maximum Z), center column.
+  const parkCol = Math.floor(blockCount / 2);
+  const parkRow = blockCount - 1;
+
+  const streetHalfWidth = GRID_STREET_WIDTH / 2;
+  const INSET = streetHalfWidth + 1; // 1 unit margin from street edge
+
+  // Buildings per block: 3 across the wider dimension, 2 across the narrower.
+  // For square blocks, default to 3 cols × 2 rows (wider than deep, so
+  // buildings present a wider facade to the street).
+  const COLS_PER_BLOCK = 3;
+  const ROWS_PER_BLOCK = 2;
 
   const lots: PlacedLot[] = [];
-  const SETBACK = 8; // perpendicular distance from street center to building
-  const TERRAIN_MARGIN = 5;
+  let houseNum = 1;
 
-  // ── Compute center block bounds for park designation ──────────────────
-  // For even grid sizes (4, 6), the block grid is odd (3×3, 5×5),
-  // giving a single center block that becomes the town square / park.
-  // The center block is bounded by the two middle streets in each direction.
-  const centerBlockBounds = computeCenterBlockBounds(center, radius, streets);
+  // NS street names by column index, EW by row index
+  const nsNames = (col: number) => streetNames[col] || `${ordinal(col + 1)} St`;
+  const ewNames = (row: number) => streetNames[blockCount + row] || `${ordinal(row + 1)} Ave`;
 
-  // Distribute lot budget across streets proportional to their length
-  const streetLengths = streets.map(s => vec2Len(s.to.x - s.from.x, s.to.z - s.from.z));
-  const totalLength = streetLengths.reduce((a, b) => a + b, 0);
+  for (let row = 0; row < blockCount; row++) {
+    for (let col = 0; col < blockCount; col++) {
+      const isPark = (row === parkRow && col === parkCol);
 
-  // How many lots each street can hold (both sides)
-  const streetCapacities = streetLengths.map(len => {
-    const slotsPerSide = Math.floor(len / LOT_SPACING);
-    return slotsPerSide * 2; // both sides
-  });
-  const totalCapacity = streetCapacities.reduce((a, b) => a + b, 0);
+      // Block corners (grid-node positions)
+      const blockMinX = center.x - halfGrid + col * spacing;
+      const blockMaxX = center.x - halfGrid + (col + 1) * spacing;
+      const blockMinZ = center.z - halfGrid + row * spacing;
+      const blockMaxZ = center.z - halfGrid + (row + 1) * spacing;
 
-  // Allocate lots proportionally, but respect capacity
-  let remainingLotBudget = lotCount;
-  const streetLotCounts: number[] = [];
-  for (let i = 0; i < streets.length; i++) {
-    const proportion = totalLength > 0 ? streetLengths[i] / totalLength : 1 / streets.length;
-    const wanted = Math.round(lotCount * proportion);
-    const allocated = Math.min(wanted, streetCapacities[i], remainingLotBudget);
-    streetLotCounts.push(allocated);
-    remainingLotBudget -= allocated;
-  }
+      // Interior rectangle (inset from streets)
+      const intMinX = blockMinX + INSET;
+      const intMaxX = blockMaxX - INSET;
+      const intMinZ = blockMinZ + INSET;
+      const intMaxZ = blockMaxZ - INSET;
 
-  // Distribute any remainder to streets with capacity
-  for (let i = 0; i < streets.length && remainingLotBudget > 0; i++) {
-    const extra = Math.min(remainingLotBudget, streetCapacities[i] - streetLotCounts[i]);
-    if (extra > 0) {
-      streetLotCounts[i] += extra;
-      remainingLotBudget -= extra;
-    }
-  }
+      const interiorW = intMaxX - intMinX;
+      const interiorD = intMaxZ - intMinZ;
 
-  // Place lots on each street
-  for (let si = 0; si < streets.length; si++) {
-    const street = streets[si];
-    const count = streetLotCounts[si];
-    if (count === 0) continue;
-
-    const dx = street.to.x - street.from.x;
-    const dz = street.to.z - street.from.z;
-    const len = streetLengths[si];
-    if (len < 1) continue;
-
-    // Unit direction along street
-    const dirX = dx / len;
-    const dirZ = dz / len;
-    // Perpendicular (left side when walking from→to)
-    const perpX = -dirZ;
-    const perpZ = dirX;
-
-    // Facing angle: buildings on left side face right (toward street), and vice versa
-    const streetAngle = Math.atan2(dirZ, dirX);
-
-    const slotsPerSide = Math.ceil(count / 2);
-    let houseOdd = 1; // odd numbers for left side
-    let houseEven = 2; // even numbers for right side
-
-    for (let slot = 0; slot < slotsPerSide; slot++) {
-      const t = (slot + 0.5) / slotsPerSide; // 0..1 along the street
-      const cx = street.from.x + dx * t;
-      const cz = street.from.z + dz * t;
-
-      // Check if near an intersection
-      const nearIntersection = intersections.some(
-        int => vec2Len(cx - int.x, cz - int.z) < LOT_SPACING * 1.5
-      );
-
-      // Corner detection: a lot is a "corner" if it's near an intersection
-      // and there's a different street nearby. Corner buildings should face
-      // the more important street (main street takes priority).
-      let cornerFacingAngle: number | null = null;
-      let isCorner = false;
-      if (nearIntersection) {
-        const cornerInfo = resolveCornerFacing(
-          cx, cz, si, streets, streetLengths, LOT_SPACING * 1.5,
-        );
-        if (cornerInfo) {
-          isCorner = true;
-          cornerFacingAngle = cornerInfo.facingAngle;
+      if (isPark) {
+        // Place a few park-zone lots (trees / benches will go here)
+        const parkSlots = 4;
+        for (let pi = 0; pi < parkSlots; pi++) {
+          const px = intMinX + (pi % 2 + 0.5) * (interiorW / 2);
+          const pz = intMinZ + (Math.floor(pi / 2) + 0.5) * (interiorD / 2);
+          lots.push({
+            position: new Vector3(px, 0, pz),
+            facingAngle: 0,
+            houseNumber: 0,
+            streetName: 'Town Square',
+            nearIntersection: false,
+            onMainStreet: false,
+            isCorner: false,
+            zone: 'park',
+          });
         }
+        continue;
       }
 
-      // ── Left side (odd house numbers) ──
-      if (lots.length < lotCount) {
-        let lx = cx + perpX * SETBACK + (rand() - 0.5) * 2;
-        let lz = cz + perpZ * SETBACK + (rand() - 0.5) * 2;
+      // Place a COLS_PER_BLOCK × ROWS_PER_BLOCK grid of lots
+      const cellW = interiorW / COLS_PER_BLOCK;
+      const cellD = interiorD / ROWS_PER_BLOCK;
 
-        // Clamp to terrain
-        lx = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, lx));
-        lz = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, lz));
+      for (let lr = 0; lr < ROWS_PER_BLOCK; lr++) {
+        for (let lc = 0; lc < COLS_PER_BLOCK; lc++) {
+          if (lots.filter(l => l.zone !== 'park').length >= lotCount) break;
 
-        {
-          // Corner lots face the more important intersecting street;
-          // non-corner lots face their own street normally.
-          const leftFacing = isCorner && cornerFacingAngle !== null
-            ? cornerFacingAngle
-            : streetAngle - Math.PI / 2;
-          // Lots inside the center block become park lots (grass/trees, no buildings)
-          const isInPark = isInsideCenterBlock(lx, lz, centerBlockBounds);
+          const lotX = intMinX + (lc + 0.5) * cellW;
+          const lotZ = intMinZ + (lr + 0.5) * cellD;
+
+          // Determine facing: point toward the nearest block edge (= nearest street)
+          const distToLeft = lotX - blockMinX;
+          const distToRight = blockMaxX - lotX;
+          const distToTop = lotZ - blockMinZ;
+          const distToBottom = blockMaxZ - lotZ;
+          const minEdgeDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+
+          let facingAngle: number;
+          if (minEdgeDist === distToLeft) {
+            facingAngle = -Math.PI / 2; // face left (-X)
+          } else if (minEdgeDist === distToRight) {
+            facingAngle = Math.PI / 2;  // face right (+X)
+          } else if (minEdgeDist === distToTop) {
+            facingAngle = Math.PI;       // face top (-Z)
+          } else {
+            facingAngle = 0;             // face bottom (+Z)
+          }
+
+          // Assign street name from the nearest street
+          const nearestStreetName = (minEdgeDist === distToLeft || minEdgeDist === distToRight)
+            ? nsNames(minEdgeDist === distToLeft ? col : col + 1)
+            : ewNames(minEdgeDist === distToTop ? row : row + 1);
+
+          // Corner lots are at block corners (first/last in both dimensions)
+          const isCorner = (lc === 0 || lc === COLS_PER_BLOCK - 1)
+            && (lr === 0 || lr === ROWS_PER_BLOCK - 1);
+
+          // Near intersection if in the first or last cell
+          const nearIntersection = isCorner;
+
+          // On main street: blocks adjacent to the center column
+          const onMainStreet = col === parkCol || col === parkCol - 1 || col === parkCol + 1;
+
           lots.push({
-            position: new Vector3(lx, 0, lz),
-            facingAngle: leftFacing,
-            houseNumber: houseOdd,
-            streetName: street.streetName,
+            position: new Vector3(lotX, 0, lotZ),
+            facingAngle,
+            houseNumber: houseNum++,
+            streetName: nearestStreetName,
             nearIntersection,
-            onMainStreet: street.isMainStreet,
+            onMainStreet,
             isCorner,
-            zone: isInPark ? 'park' : 'residential',
+            zone: 'residential', // zoning pass happens later via sortLotsForZoning
           });
-          houseOdd += 2;
-        }
-      }
-
-      // ── Right side (even house numbers) ──
-      if (lots.length < lotCount) {
-        let rx = cx - perpX * SETBACK + (rand() - 0.5) * 2;
-        let rz = cz - perpZ * SETBACK + (rand() - 0.5) * 2;
-
-        rx = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, rx));
-        rz = Math.max(-terrainHalf + TERRAIN_MARGIN, Math.min(terrainHalf - TERRAIN_MARGIN, rz));
-
-        {
-          const rightFacing = isCorner && cornerFacingAngle !== null
-            ? cornerFacingAngle
-            : streetAngle + Math.PI / 2;
-          const isInPark = isInsideCenterBlock(rx, rz, centerBlockBounds);
-          lots.push({
-            position: new Vector3(rx, 0, rz),
-            facingAngle: rightFacing,
-            houseNumber: houseEven,
-            streetName: street.streetName,
-            nearIntersection,
-            onMainStreet: street.isMainStreet,
-            isCorner,
-            zone: isInPark ? 'park' : 'residential',
-          });
-          houseEven += 2;
         }
       }
     }
@@ -453,10 +363,7 @@ function distSqToSegment(
 /**
  * For a lot position near an intersection, determine whether a different
  * (more important) street is nearby. If so, return a facing angle oriented
- * toward that street. Main streets always win over side streets. Among
- * equal-priority streets, the closer one wins.
- *
- * Returns null if no intersecting street is found (lot is not a true corner).
+ * toward that street.
  */
 export function resolveCornerFacing(
   lotX: number,
@@ -479,7 +386,6 @@ export function resolveCornerFacing(
     const dSq = distSqToSegment(lotX, lotZ, s.from.x, s.from.z, s.to.x, s.to.z);
     if (dSq > threshSq) continue;
 
-    // Prefer main street, then closer street
     const isMain = s.isMainStreet;
     if (bestIdx === -1 ||
         (isMain && !bestIsMain) ||
@@ -492,18 +398,9 @@ export function resolveCornerFacing(
 
   if (bestIdx === -1) return null;
 
-  // Only re-orient if the other street is more important (main street)
-  // or if the current street is not the main street and the other is closer.
-  // If both are the same priority, the lot already faces its own street correctly
-  // unless the other street is the main street.
   const otherStreet = streets[bestIdx];
-  if (!otherStreet.isMainStreet && current.isMainStreet) {
-    // Current street is main — keep current facing, not a meaningful corner re-orient
-    return null;
-  }
+  if (!otherStreet.isMainStreet && current.isMainStreet) return null;
 
-  // Compute facing angle: perpendicular to the other street, pointing from
-  // the lot toward the street center line.
   const sDx = otherStreet.to.x - otherStreet.from.x;
   const sDz = otherStreet.to.z - otherStreet.from.z;
   const sLen = streetLengths[bestIdx];
@@ -511,41 +408,27 @@ export function resolveCornerFacing(
 
   const sDirX = sDx / sLen;
   const sDirZ = sDz / sLen;
-  // Street center line angle
   const otherAngle = Math.atan2(sDirZ, sDirX);
 
-  // Two perpendicular candidates; pick the one pointing from lot toward street
   const midX = (otherStreet.from.x + otherStreet.to.x) / 2;
   const midZ = (otherStreet.from.z + otherStreet.to.z) / 2;
   const toLotX = lotX - midX;
   const toLotZ = lotZ - midZ;
-  // Perpendicular directions
   const perpA = otherAngle + Math.PI / 2;
-  const perpB = otherAngle - Math.PI / 2;
-  // Dot product to determine which perp points toward the lot
   const dotA = Math.cos(perpA) * toLotX + Math.sin(perpA) * toLotZ;
+  const perpB = otherAngle - Math.PI / 2;
 
-  // The facing angle should point FROM the lot TOWARD the street (opposite direction)
   const facingAngle = dotA > 0 ? perpA + Math.PI : perpB + Math.PI;
-
   return { facingAngle, streetIdx: bestIdx };
 }
 
 /**
  * Sort lots so commercial-friendly positions come first.
- * Commercial lots = near intersections or on the main street.
- * Residential lots = everything else.
- *
- * @param lots      The placed lots
- * @param bizCount  Number of business slots needed
- * @returns lots reordered: businesses-friendly first, then residential
  */
 export function sortLotsForZoning(lots: PlacedLot[], bizCount: number): PlacedLot[] {
-  // Separate park lots — they keep their zone and don't participate in zoning
   const parkLots = lots.filter(l => l.zone === 'park');
   const zonableLots = lots.filter(l => l.zone !== 'park');
 
-  // Score: higher = more commercial
   const scored = zonableLots.map((lot, i) => ({
     lot,
     idx: i,
@@ -553,7 +436,6 @@ export function sortLotsForZoning(lots: PlacedLot[], bizCount: number): PlacedLo
   }));
   scored.sort((a, b) => b.score - a.score);
 
-  // Assign zones: first bizCount lots are commercial, rest are residential
   const zoned = scored.map((s, i) => ({
     ...s.lot,
     zone: (i < bizCount ? 'commercial' : 'residential') as ZoneType,
@@ -564,7 +446,7 @@ export function sortLotsForZoning(lots: PlacedLot[], bizCount: number): PlacedLo
 
 // ── Center block helpers ────────────────────────────────────────────────────
 
-interface CenterBlockBounds {
+export interface CenterBlockBounds {
   minX: number;
   maxX: number;
   minZ: number;
@@ -572,37 +454,25 @@ interface CenterBlockBounds {
 }
 
 /**
- * Compute the bounding rectangle of the center block in the street grid.
- * For even grid sizes (4, 6), the block grid is odd (3×3, 5×5) with a
- * single center block. The center block is the area between the two
- * middle streets in each direction.
+ * Compute the bounding rectangle of the town-square block.
+ * Positioned at the bottom-center of the grid (like Jackson Square
+ * in the French Quarter — center column, last row).
  */
 function computeCenterBlockBounds(
   center: Vector3,
   radius: number,
-  streets: StreetSegment[],
 ): CenterBlockBounds | null {
-  // Reconstruct the grid geometry from the settlement parameters.
-  // The grid is generated with even sizes (4, 6) in StreetNetworkLayout.
-  const gridSize = radius < 50 ? 4 : 6;
-  const spacing = (radius * 1.4) / gridSize;
-  const halfGrid = ((gridSize - 1) * spacing) / 2;
-
-  // The center block for an even G-sized grid has (G-1) blocks per axis.
-  // Center block index = floor((G-1)/2) = floor(blockCount/2).
-  // For G=4: blockCount=3, centerIdx=1 → nodes [1,2] in each axis
-  // For G=6: blockCount=5, centerIdx=2 → nodes [2,3] in each axis
+  const { gridSize, spacing, halfGrid } = getGridParams(radius);
   const blockCount = gridSize - 1;
-  const centerIdx = Math.floor(blockCount / 2);
 
-  // Grid nodes at centerIdx and centerIdx+1 bound the center block
-  const nodeMin = centerIdx;
-  const nodeMax = centerIdx + 1;
+  // Bottom-center: center column, last row (maximum Z)
+  const parkCol = Math.floor(blockCount / 2);
+  const parkRow = blockCount - 1;
 
-  const minX = center.x - halfGrid + nodeMin * spacing;
-  const maxX = center.x - halfGrid + nodeMax * spacing;
-  const minZ = center.z - halfGrid + nodeMin * spacing;
-  const maxZ = center.z - halfGrid + nodeMax * spacing;
+  const minX = center.x - halfGrid + parkCol * spacing;
+  const maxX = center.x - halfGrid + (parkCol + 1) * spacing;
+  const minZ = center.z - halfGrid + parkRow * spacing;
+  const maxZ = center.z - halfGrid + (parkRow + 1) * spacing;
 
   return { minX, maxX, minZ, maxZ };
 }
@@ -614,9 +484,29 @@ function isInsideCenterBlock(x: number, z: number, bounds: CenterBlockBounds | n
 }
 
 /** Get the center block bounds for use by external systems (e.g., TownSquareGenerator). */
-export { type CenterBlockBounds };
 export function getCenterBlockBounds(center: Vector3, radius: number): CenterBlockBounds | null {
-  return computeCenterBlockBounds(center, radius, []);
+  return computeCenterBlockBounds(center, radius);
+}
+
+/**
+ * Get the maximum building footprint that fits within a single block cell.
+ * Accounts for street inset and distributing 3×2 buildings per block.
+ * Used by BabylonGame to clamp building dimensions.
+ */
+export function getBlockCellSize(radius: number): { maxWidth: number; maxDepth: number } {
+  const { spacing } = getGridParams(radius);
+  const streetHalfWidth = GRID_STREET_WIDTH / 2;
+  const INSET = streetHalfWidth + 1;
+  const interior = spacing - 2 * INSET;
+
+  // 3 columns × 2 rows per block; leave 15% margin for visual spacing
+  const cellW = interior / 3;
+  const cellD = interior / 2;
+
+  return {
+    maxWidth: Math.floor(cellW * 0.85),
+    maxDepth: Math.floor(cellD * 0.85),
+  };
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────

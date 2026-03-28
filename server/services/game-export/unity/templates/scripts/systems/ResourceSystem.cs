@@ -211,7 +211,7 @@ namespace Insimul.Systems
 
             if (requiredTool == null) return true;
 
-            var inv = FindObjectOfType<InventorySystem>();
+            var inv = FindFirstObjectByType<InventorySystem>();
             return inv != null && inv.HasItem(requiredTool);
         }
 
@@ -249,7 +249,7 @@ namespace Insimul.Systems
 
         private void CompleteGathering()
         {
-            var inv = FindObjectOfType<InventorySystem>();
+            var inv = FindFirstObjectByType<InventorySystem>();
             if (inv != null)
             {
                 var def = _definitions.Find(d => d.id == _activeNode.resourceType);

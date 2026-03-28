@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import * as GUI from '@babylonjs/gui';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Maximize, Minimize, ZoomIn, ZoomOut, Pause, Play } from 'lucide-react';
 import {
   generateStreetAlignedLots,
   type StreetSegment,
 } from '../3DGame/StreetAlignedPlacement';
+import { getBuildingDefaults, DEFAULT_BUILDING_DIMENSIONS } from '../../../../shared/game-engine/building-defaults';
 import type { MapLayer } from './MapLayersPanel';
 
 export type ViewLevel = 'world' | 'country' | 'settlement';
@@ -80,6 +81,7 @@ const SETTLEMENT_SCALE: Record<string, number> = {
   city: 1.0,
   town: 0.7,
   village: 0.45,
+  hamlet: 0.3,
 };
 
 const WATER_COLORS: Record<string, { color: BABYLON.Color3; alpha: number }> = {
@@ -141,6 +143,57 @@ function isEnvMesh(name: string): boolean {
     lower.includes('environment') || lower.includes('backdrop');
 }
 
+// ─── Camera Animation ─────────────────────────────────────────────────────────
+
+function animateCameraTo(
+  camera: BABYLON.ArcRotateCamera,
+  scene: BABYLON.Scene,
+  target: BABYLON.Vector3,
+  radius: number,
+  beta: number,
+  duration: number = 800,
+) {
+  const fps = 60;
+  const frames = Math.round(fps * (duration / 1000));
+
+  const animTarget = new BABYLON.Animation('camTarget', 'target', fps, BABYLON.Animation.ANIMATIONTYPE_VECTOR3, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+  animTarget.setKeys([{ frame: 0, value: camera.target.clone() }, { frame: frames, value: target }]);
+
+  const animRadius = new BABYLON.Animation('camRadius', 'radius', fps, BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+  animRadius.setKeys([{ frame: 0, value: camera.radius }, { frame: frames, value: radius }]);
+
+  const animBeta = new BABYLON.Animation('camBeta', 'beta', fps, BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+  animBeta.setKeys([{ frame: 0, value: camera.beta }, { frame: frames, value: beta }]);
+
+  const easing = new BABYLON.CubicEase();
+  easing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
+  animTarget.setEasingFunction(easing);
+  animRadius.setEasingFunction(easing);
+  animBeta.setEasingFunction(easing);
+
+  scene.beginDirectAnimation(camera, [animTarget, animRadius, animBeta], 0, frames, false);
+}
+
+// ─── Unified Scene Refs ──────────────────────────────────────────────────────
+
+interface SceneRefs {
+  pickableMap: Map<string, { type: 'settlement' | 'country'; data: any }>;
+  /** World-space position for each settlement marker */
+  settlementPositions: Map<string, BABYLON.Vector3>;
+  /** World-space position for each country center */
+  countryPositions: Map<string, BABYLON.Vector3>;
+  /** TransformNode parent for each settlement's detail geometry */
+  settlementDetailNodes: Map<string, BABYLON.TransformNode>;
+  /** Which settlements have had their detail geometry loaded */
+  settlementLoaded: Set<string>;
+  /** TransformNode parent for each settlement's marker (visible when zoomed out) */
+  settlementMarkerNodes: Map<string, BABYLON.TransformNode>;
+  /** Cached model prototypes */
+  prototypes: Map<string, ModelPrototype> | null;
+  /** World radius for camera zoom-out */
+  worldRadius: number;
+}
+
 export function LocationMapPreview({
   viewLevel,
   countries,
@@ -160,98 +213,76 @@ export function LocationMapPreview({
   visibleLayers,
 }: LocationMapPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<BABYLON.Engine | null>(null);
   const sceneRef = useRef<BABYLON.Scene | null>(null);
+  const cameraRef = useRef<BABYLON.ArcRotateCamera | null>(null);
   const guiRef = useRef<GUI.AdvancedDynamicTexture | null>(null);
+  const sceneRefsRef = useRef<SceneRefs | null>(null);
+  const isRotatingRef = useRef(true);
   const onBuildingClickRef = useRef(onBuildingClick);
   onBuildingClickRef.current = onBuildingClick;
+  const onSettlementClickRef = useRef(onSettlementClick);
+  onSettlementClickRef.current = onSettlementClick;
+  const onCountryClickRef = useRef(onCountryClick);
+  onCountryClickRef.current = onCountryClick;
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState<string | null>(null);
+  const [isRotating, setIsRotating] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // ── Create engine/scene ONCE ──────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const engine = new BABYLON.Engine(canvas, true, {
-      preserveDrawingBuffer: true,
-      stencil: true,
-    });
+    const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
     engineRef.current = engine;
 
     const scene = new BABYLON.Scene(engine);
     sceneRef.current = scene;
     scene.clearColor = new BABYLON.Color4(0.08, 0.1, 0.14, 1);
 
-    // Camera - more top-down for world, more angled for settlement
-    const betaAngle =
-      viewLevel === 'world' ? Math.PI / 4.5 :
-      viewLevel === 'country' ? Math.PI / 4 :
-      Math.PI / 3.5;
-
-    const camera = new BABYLON.ArcRotateCamera(
-      'cam',
-      -Math.PI / 4,
-      betaAngle,
-      20,
-      BABYLON.Vector3.Zero(),
-      scene
-    );
+    const camera = new BABYLON.ArcRotateCamera('cam', -Math.PI / 4, Math.PI / 4.5, 20, BABYLON.Vector3.Zero(), scene);
     camera.attachControl(canvas, true);
-    camera.lowerRadiusLimit = 3;
-    camera.upperRadiusLimit = 80;
-    camera.wheelPrecision = 30;
+    camera.lowerRadiusLimit = 1;
+    camera.upperRadiusLimit = 120;
+    camera.wheelPrecision = 20;
     camera.panningSensibility = 50;
+    cameraRef.current = camera;
 
-    // Lighting
     const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0.3, 1, 0.2), scene);
     hemi.intensity = 0.75;
     const dir = new BABYLON.DirectionalLight('dir', new BABYLON.Vector3(-1, -2, -1), scene);
     dir.intensity = 0.45;
 
-    // GUI for labels
     const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI('UI', true, scene);
     guiRef.current = advancedTexture;
 
-    // Picking support
-    const pickableMap = new Map<string, { type: 'settlement' | 'country'; data: any }>();
-
-    let disposed = false;
-
-    const buildScene = async () => {
-      if (viewLevel === 'world') {
-        buildWorldView(scene, camera, advancedTexture, countries, settlements, pickableMap, waterFeatures);
-      } else if (viewLevel === 'country') {
-        const countrySettlements = selectedCountryId
-          ? settlements.filter(s => s.countryId === selectedCountryId)
-          : settlements;
-        const country = countries.find(c => c.id === selectedCountryId);
-        buildCountryView(scene, camera, advancedTexture, countrySettlements, country, pickableMap, waterFeatures);
-      } else {
-        const onProgress = (loaded: number, total: number) => {
-          if (!disposed) setLoadingProgress(`Loading models ${loaded}/${total}...`);
-        };
-        await buildSettlementView(scene, camera, advancedTexture, lots, businesses, residences, streets, worldId, onProgress, waterFeatures);
-      }
-
-      if (!disposed) {
-        setIsLoading(false);
-        setLoadingProgress(null);
-      }
+    const refs: SceneRefs = {
+      pickableMap: new Map(),
+      settlementPositions: new Map(),
+      countryPositions: new Map(),
+      settlementDetailNodes: new Map(),
+      settlementLoaded: new Set(),
+      settlementMarkerNodes: new Map(),
+      prototypes: null,
+      worldRadius: 20,
     };
+    sceneRefsRef.current = refs;
 
-    buildScene();
-
-    // Click handling
-    scene.onPointerDown = (_evt, pickResult) => {
+    // Double-click to select
+    scene.onPointerObservable.add((pointerInfo) => {
+      if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERDOUBLETAP) return;
+      const pickResult = pointerInfo.pickInfo;
       if (pickResult?.hit && pickResult.pickedMesh) {
         const id = pickResult.pickedMesh.id;
-        const entry = pickableMap.get(id);
-        if (entry?.type === 'settlement' && onSettlementClick) {
-          onSettlementClick(entry.data);
-        } else if (entry?.type === 'country' && onCountryClick) {
-          onCountryClick(entry.data);
+        const entry = refs.pickableMap.get(id);
+        if (entry?.type === 'settlement' && onSettlementClickRef.current) {
+          onSettlementClickRef.current(entry.data);
+        } else if (entry?.type === 'country' && onCountryClickRef.current) {
+          onCountryClickRef.current(entry.data);
         } else {
-          // Check for building/lot click by walking up parent chain
           let mesh: BABYLON.AbstractMesh | null = pickResult.pickedMesh;
           while (mesh) {
             if (mesh.metadata?.lotMeta?.id && onBuildingClickRef.current) {
@@ -262,31 +293,484 @@ export function LocationMapPreview({
           }
         }
       }
-    };
+    });
 
-    // Slow auto-rotate
+    // Auto-rotate
     scene.onBeforeRenderObservable.add(() => {
-      camera.alpha += 0.001;
+      if (isRotatingRef.current) camera.alpha += 0.001;
     });
 
     engine.runRenderLoop(() => scene.render());
-
     const onResize = () => engine.resize();
     window.addEventListener('resize', onResize);
-
-    // Also resize after a frame to handle initial layout
     requestAnimationFrame(() => engine.resize());
 
     return () => {
-      disposed = true;
       window.removeEventListener('resize', onResize);
       scene.dispose();
       engine.dispose();
       engineRef.current = null;
       sceneRef.current = null;
+      cameraRef.current = null;
       guiRef.current = null;
+      sceneRefsRef.current = null;
     };
-  }, [viewLevel, countries, settlements, lots, businesses, residences, streets, waterFeatures, selectedCountryId, worldId]);
+  }, []); // Runs ONCE
+
+  // ── Populate world content when countries/settlements change ───────────────
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const gui = guiRef.current;
+    const refs = sceneRefsRef.current;
+    if (!scene || scene.isDisposed || !camera || !gui || !refs) return;
+
+    // Clear previous world content (but not engine/scene)
+    // Remove all meshes except infrastructure
+    const toRemove = scene.meshes.filter(m => m.name !== 'cam');
+    for (const m of toRemove) m.dispose();
+    // Remove all GUI controls
+    gui.dispose();
+    const newGui = GUI.AdvancedDynamicTexture.CreateFullscreenUI('UI', true, scene);
+    guiRef.current = newGui;
+
+    // Reset refs
+    refs.pickableMap.clear();
+    refs.settlementPositions.clear();
+    refs.countryPositions.clear();
+    refs.settlementDetailNodes.clear();
+    refs.settlementLoaded.clear();
+    refs.settlementMarkerNodes.clear();
+
+    // ── Build unified world scene ─────────────────────────────────────────
+    const countryCount = Math.max(countries.length, 1);
+    const countryRadius = Math.min(countryCount * 6, 40);
+    refs.worldRadius = Math.max(countryRadius + 15, 25);
+
+    // Large world ground
+    const ground = BABYLON.MeshBuilder.CreateGround('ground', {
+      width: refs.worldRadius * 2.5,
+      height: refs.worldRadius * 2.5,
+    }, scene);
+    const groundMat = new BABYLON.StandardMaterial('groundMat', scene);
+    groundMat.diffuseColor = new BABYLON.Color3(0.15, 0.2, 0.12);
+    groundMat.specularColor = BABYLON.Color3.Black();
+    ground.material = groundMat;
+    tagMesh(ground, 'terrain');
+
+    // Place countries
+    countries.forEach((country, ci) => {
+      const angle = (ci / countryCount) * Math.PI * 2;
+      const cx = Math.cos(angle) * countryRadius;
+      const cz = Math.sin(angle) * countryRadius;
+      const countryPos = new BABYLON.Vector3(cx, 0, cz);
+      refs.countryPositions.set(country.id, countryPos);
+
+      const terrain = country.terrain ?? 'plains';
+      const groundCol = getGroundColor(terrain);
+      const terrainCol = getTerrainColor(terrain);
+
+      // Country terrain disc
+      const disc = BABYLON.MeshBuilder.CreateDisc(`country_${country.id}`, { radius: 8, tessellation: 24 }, scene);
+      disc.rotation.x = Math.PI / 2;
+      disc.position = new BABYLON.Vector3(cx, 0.02, cz);
+      const discMat = new BABYLON.StandardMaterial(`cMat_${ci}`, scene);
+      discMat.diffuseColor = groundCol;
+      discMat.specularColor = BABYLON.Color3.Black();
+      discMat.alpha = 0.7;
+      disc.material = discMat;
+      disc.id = `country_pick_${country.id}`;
+      refs.pickableMap.set(disc.id, { type: 'country', data: country });
+      tagMesh(disc, 'districts');
+
+      // Country label
+      const anchor = BABYLON.MeshBuilder.CreateBox(`cAnchor_${ci}`, { size: 0.01 }, scene);
+      anchor.position = new BABYLON.Vector3(cx, 5, cz);
+      anchor.isVisible = false;
+      anchor.isPickable = false;
+      tagMesh(anchor, 'labels');
+      addLabel(newGui, anchor, country.name, 13, '#FFD700', 0);
+
+      // Place settlement markers within this country
+      const countrySettlements = settlements.filter(s => s.countryId === country.id);
+      const sCount = Math.max(countrySettlements.length, 1);
+      const sRadius = 6;
+      countrySettlements.forEach((s, si) => {
+        const sAngle = (si / sCount) * Math.PI * 2 + Math.PI / 4;
+        const sx = cx + Math.cos(sAngle) * sRadius;
+        const sz = cz + Math.sin(sAngle) * sRadius;
+        const settlementPos = new BABYLON.Vector3(sx, 0, sz);
+        refs.settlementPositions.set(s.id, settlementPos);
+
+        // Marker group (visible when zoomed out)
+        const markerNode = new BABYLON.TransformNode(`sMarkerNode_${s.id}`, scene);
+        markerNode.position = settlementPos;
+        refs.settlementMarkerNodes.set(s.id, markerNode);
+
+        const scale = SETTLEMENT_SCALE[s.settlementType] ?? 0.5;
+        const marker = BABYLON.MeshBuilder.CreateCylinder(`s_${s.id}`, {
+          diameterTop: 0.3 * scale,
+          diameterBottom: 1.0 * scale,
+          height: 1.5 * scale,
+          tessellation: 8,
+        }, scene);
+        marker.position = new BABYLON.Vector3(0, 0.75 * scale, 0);
+        marker.parent = markerNode;
+        const mMat = new BABYLON.StandardMaterial(`sMat_${s.id}`, scene);
+        mMat.diffuseColor = terrainCol;
+        mMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        marker.material = mMat;
+        marker.id = `settlement_pick_${s.id}`;
+        refs.pickableMap.set(marker.id, { type: 'settlement', data: s });
+        tagMesh(marker, 'buildings');
+
+        // Settlement label
+        const sLabelAnchor = BABYLON.MeshBuilder.CreateBox(`sLabel_${s.id}`, { size: 0.01 }, scene);
+        sLabelAnchor.position = new BABYLON.Vector3(0, 2.5, 0);
+        sLabelAnchor.parent = markerNode;
+        sLabelAnchor.isVisible = false;
+        sLabelAnchor.isPickable = false;
+        tagMesh(sLabelAnchor, 'labels');
+        addLabel(newGui, sLabelAnchor, s.name, 10, '#CCC', 0);
+
+        // Detail group placeholder (populated lazily)
+        const detailNode = new BABYLON.TransformNode(`sDetailNode_${s.id}`, scene);
+        detailNode.position = settlementPos;
+        detailNode.setEnabled(false); // Hidden until zoomed in
+        refs.settlementDetailNodes.set(s.id, detailNode);
+      });
+    });
+
+    // Orphan settlements (no country)
+    const orphanSettlements = settlements.filter(s => !s.countryId);
+    orphanSettlements.forEach((s, si) => {
+      const angle = (si / Math.max(orphanSettlements.length, 1)) * Math.PI * 2;
+      const sx = Math.cos(angle) * (countryRadius * 0.5);
+      const sz = Math.sin(angle) * (countryRadius * 0.5);
+      const settlementPos = new BABYLON.Vector3(sx, 0, sz);
+      refs.settlementPositions.set(s.id, settlementPos);
+
+      const markerNode = new BABYLON.TransformNode(`sMarkerNode_${s.id}`, scene);
+      markerNode.position = settlementPos;
+      refs.settlementMarkerNodes.set(s.id, markerNode);
+
+      const scale = SETTLEMENT_SCALE[s.settlementType] ?? 0.5;
+      const marker = BABYLON.MeshBuilder.CreateCylinder(`s_${s.id}`, {
+        diameterTop: 0.3 * scale, diameterBottom: 1.0 * scale, height: 1.5 * scale, tessellation: 8,
+      }, scene);
+      marker.position = new BABYLON.Vector3(0, 0.75 * scale, 0);
+      marker.parent = markerNode;
+      const mMat = new BABYLON.StandardMaterial(`sMat_${s.id}`, scene);
+      mMat.diffuseColor = new BABYLON.Color3(0.4, 0.5, 0.3);
+      mMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+      marker.material = mMat;
+      marker.id = `settlement_pick_${s.id}`;
+      refs.pickableMap.set(marker.id, { type: 'settlement', data: s });
+      tagMesh(marker, 'buildings');
+
+      const sLabelAnchor = BABYLON.MeshBuilder.CreateBox(`sLabel_${s.id}`, { size: 0.01 }, scene);
+      sLabelAnchor.position = new BABYLON.Vector3(0, 2.5, 0);
+      sLabelAnchor.parent = markerNode;
+      sLabelAnchor.isVisible = false;
+      sLabelAnchor.isPickable = false;
+      tagMesh(sLabelAnchor, 'labels');
+      addLabel(newGui, sLabelAnchor, s.name, 10, '#CCC', 0);
+
+      const detailNode = new BABYLON.TransformNode(`sDetailNode_${s.id}`, scene);
+      detailNode.position = settlementPos;
+      detailNode.setEnabled(false);
+      refs.settlementDetailNodes.set(s.id, detailNode);
+    });
+
+    // Water features at world scale
+    renderWaterFeatures(scene, newGui, waterFeatures, refs.worldRadius * 2, 'world');
+
+    // Initial camera position
+    camera.target = BABYLON.Vector3.Zero();
+    camera.radius = refs.worldRadius;
+
+    setIsLoading(false);
+    setLoadingProgress(null);
+  }, [countries, settlements, waterFeatures]);
+
+  // ── Navigate camera when viewLevel / selection changes ────────────────────
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const refs = sceneRefsRef.current;
+    if (!scene || scene.isDisposed || !camera || !refs) return;
+
+    if (viewLevel === 'world') {
+      animateCameraTo(camera, scene, BABYLON.Vector3.Zero(), refs.worldRadius, Math.PI / 4.5);
+    } else if (viewLevel === 'country' && selectedCountryId) {
+      const pos = refs.countryPositions.get(selectedCountryId);
+      if (pos) animateCameraTo(camera, scene, pos.clone(), 22, Math.PI / 4.2);
+    } else if (viewLevel === 'settlement') {
+      // Find the selected settlement from the settlements prop
+      const selected = settlements.find(s =>
+        (selectedCountryId && s.countryId === selectedCountryId) || !selectedCountryId
+      );
+      // We check lots to know if we have a specific settlement loaded
+      if (lots.length > 0) {
+        const settlementId = lots[0]?.settlementId;
+        if (settlementId) {
+          const pos = refs.settlementPositions.get(settlementId);
+          if (pos) animateCameraTo(camera, scene, pos.clone(), 6, Math.PI / 3.5);
+        }
+      }
+    }
+  }, [viewLevel, selectedCountryId]);
+
+  // ── Load settlement detail when lots/businesses arrive ─────────────────────
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const gui = guiRef.current;
+    const refs = sceneRefsRef.current;
+    if (!scene || scene.isDisposed || !gui || !refs) return;
+    if (lots.length === 0) return;
+
+    const settlementId = lots[0]?.settlementId;
+    if (!settlementId) return;
+    if (refs.settlementLoaded.has(settlementId)) {
+      // Already loaded — just make sure detail is visible and zoom
+      const detailNode = refs.settlementDetailNodes.get(settlementId);
+      const markerNode = refs.settlementMarkerNodes.get(settlementId);
+      if (detailNode) detailNode.setEnabled(true);
+      if (markerNode) markerNode.setEnabled(false);
+      const pos = refs.settlementPositions.get(settlementId);
+      if (pos && cameraRef.current) {
+        animateCameraTo(cameraRef.current, scene, pos.clone(), 6, Math.PI / 3.5);
+      }
+      return;
+    }
+
+    const detailNode = refs.settlementDetailNodes.get(settlementId);
+    if (!detailNode) return;
+
+    // Mark as loaded
+    refs.settlementLoaded.add(settlementId);
+
+    const buildDetail = async () => {
+      setIsLoading(true);
+      setLoadingProgress('Loading settlement detail...');
+
+      // Load model prototypes once
+      if (!refs.prototypes && worldId) {
+        const onProgress = (loaded: number, total: number) => {
+          setLoadingProgress(`Loading models ${loaded}/${total}...`);
+        };
+        refs.prototypes = await loadModelPrototypes(scene, worldId, onProgress);
+      }
+      if (scene.isDisposed) return;
+
+      const prototypes = refs.prototypes || new Map();
+      const normalizedStreets = normalizeStreets(streets);
+      const hasStoredStreets = normalizedStreets.length > 0;
+
+      if (hasStoredStreets) {
+        renderStreetNetworkAtNode(scene, gui, normalizedStreets, detailNode);
+      }
+
+      const { positions, streets: layoutStreets, scale: layoutScale } = computeSettlementLayout(lots, worldId, hasStoredStreets ? normalizedStreets : undefined);
+
+      if (!hasStoredStreets) {
+        renderStreetsAtNode(scene, gui, layoutStreets, detailNode);
+      }
+
+      // Settlement ground (local to detailNode)
+      const sGround = BABYLON.MeshBuilder.CreateGround('sGround_' + settlementId, { width: 30, height: 30 }, scene);
+      const sGroundMat = new BABYLON.StandardMaterial('sGroundMat_' + settlementId, scene);
+      sGroundMat.diffuseColor = new BABYLON.Color3(0.25, 0.3, 0.2);
+      sGroundMat.specularColor = BABYLON.Color3.Black();
+      sGround.material = sGroundMat;
+      sGround.parent = detailNode;
+      sGround.position = BABYLON.Vector3.Zero();
+      tagMesh(sGround, 'terrain');
+
+      // Build lots/buildings using existing buildSettlementView logic
+      const bizByLot = new Map<string, any>();
+      businesses.forEach(b => { if (b.lotId) bizByLot.set(b.lotId, b); });
+      const resByLot = new Map<string, any>();
+      residences.forEach(r => { if (r.lotId) resByLot.set(r.lotId, r); });
+
+      lots.forEach((lot, li) => {
+        const pos = positions.get(lot.id);
+        if (!pos) return;
+        const lx = pos.x;
+        const lz = pos.z;
+        const facingAngle = pos.angle;
+        const rng = seededRandom(hashStr(lot.id));
+        const bType = lot.buildingType?.toLowerCase() ?? 'vacant';
+        const biz = bizByLot.get(lot.id);
+        const res = resByLot.get(lot.id);
+        const isPark = bType === 'park';
+        const isBusiness = !isPark && (bType === 'business' || !!biz);
+        const isResidence = !isPark && (bType === 'residence' || !!res);
+        const buildingType = isPark ? 'park' : isBusiness ? 'business' : isResidence ? 'residence' : 'vacant';
+
+        const tintColor = isPark
+          ? new BABYLON.Color3(0.25, 0.55, 0.2)
+          : isBusiness
+            ? new BABYLON.Color3(0.55, 0.4, 0.25)
+            : isResidence
+              ? new BABYLON.Color3(0.4, 0.45, 0.6)
+              : new BABYLON.Color3(0.35, 0.35, 0.3);
+
+        const rawW = lot.lotWidth || 12;
+        const rawD = lot.lotDepth || 16;
+        const scaledW = rawW * layoutScale;
+        const scaledD = rawD * layoutScale;
+
+        // Lot ground plane
+        const lotPlane = BABYLON.MeshBuilder.CreateGround(`lotGround_${lot.id}`, { width: scaledW, height: scaledD }, scene);
+        lotPlane.position = new BABYLON.Vector3(lx, 0.005, lz);
+        lotPlane.rotation.y = facingAngle;
+        lotPlane.parent = detailNode;
+        const lotPlaneMat = new BABYLON.StandardMaterial(`lotGroundMat_${li}`, scene);
+        lotPlaneMat.diffuseColor = tintColor;
+        lotPlaneMat.emissiveColor = BABYLON.Color3.Black();
+        lotPlaneMat.specularColor = BABYLON.Color3.Black();
+        lotPlaneMat.alpha = 0.12;
+        lotPlaneMat.backFaceCulling = false;
+        lotPlane.material = lotPlaneMat;
+        const lotMeta = { id: lot.id, address: lot.address, buildingType, streetName: lot.streetName, houseNumber: lot.houseNumber, side: lot.side, lotWidth: lot.lotWidth, lotDepth: lot.lotDepth, bizName: biz?.name, resType: res?.residenceType };
+        lotPlane.metadata = { lotMeta, tintColor, isLotPlane: true };
+        tagMesh(lotPlane, 'buildings');
+
+        if (isPark) {
+          lotPlaneMat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 0.15);
+          lotPlaneMat.alpha = 0.6;
+          const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
+          for (let ti = 0; ti < treeCount; ti++) {
+            const tx = lx + (rng() - 0.5) * scaledW * 0.8;
+            const tz = lz + (rng() - 0.5) * scaledD * 0.8;
+            const treeScale = 0.15 + rng() * 0.15;
+            const trunk = BABYLON.MeshBuilder.CreateCylinder(`park_trunk_${lot.id}_${ti}`, { height: treeScale * 2, diameter: treeScale * 0.3, tessellation: 6 }, scene);
+            trunk.position = new BABYLON.Vector3(tx, treeScale, tz);
+            trunk.parent = detailNode;
+            const trunkMat = new BABYLON.StandardMaterial(`park_trunkMat_${lot.id}_${ti}`, scene);
+            trunkMat.diffuseColor = new BABYLON.Color3(0.4, 0.28, 0.15);
+            trunkMat.specularColor = BABYLON.Color3.Black();
+            trunk.material = trunkMat;
+            tagMesh(trunk, 'buildings');
+            const foliage = BABYLON.MeshBuilder.CreateSphere(`park_foliage_${lot.id}_${ti}`, { diameter: treeScale * 2.5, segments: 6 }, scene);
+            foliage.position = new BABYLON.Vector3(tx, treeScale * 2.2, tz);
+            foliage.parent = detailNode;
+            const foliageMat = new BABYLON.StandardMaterial(`park_foliageMat_${lot.id}_${ti}`, scene);
+            foliageMat.diffuseColor = new BABYLON.Color3(0.15 + rng() * 0.1, 0.45 + rng() * 0.15, 0.1);
+            foliageMat.specularColor = BABYLON.Color3.Black();
+            foliage.material = foliageMat;
+            tagMesh(foliage, 'buildings');
+          }
+          const parkLabelAnchor = new BABYLON.Mesh(`parkLabel_${lot.id}`, scene);
+          parkLabelAnchor.position = new BABYLON.Vector3(lx, 0.5, lz);
+          parkLabelAnchor.parent = detailNode;
+          parkLabelAnchor.isVisible = false;
+          tagMesh(parkLabelAnchor, 'labels');
+          addLabel(gui, parkLabelAnchor, lot.address || 'Park', 10, '#50FA7B', 15);
+        } else {
+          // Building box using real dimensions
+          const typeName = biz?.businessType || (isResidence ? (res?.residenceType || 'house') : '');
+          const dims = typeName ? getBuildingDefaults(typeName) : DEFAULT_BUILDING_DIMENSIONS;
+          const FLOOR_HEIGHT = 4;
+          const width = dims.width * layoutScale;
+          const depth = dims.depth * layoutScale;
+          const clampedW = Math.min(width, scaledW * 0.85);
+          const clampedD = Math.min(depth, scaledD * 0.85);
+          const buildingHeight = buildingType !== 'vacant'
+            ? dims.floors * FLOOR_HEIGHT * layoutScale
+            : 0.05 + rng() * 0.05;
+
+          const prototype = buildingType !== 'vacant' ? (prototypes.get(getModelRole(buildingType, biz?.businessType)) || prototypes.get('default')) : null;
+
+          if (prototype && buildingType !== 'vacant') {
+            const parent = new BABYLON.Mesh(`lot_parent_${lot.id}`, scene);
+            parent.position = new BABYLON.Vector3(lx, 0, lz);
+            parent.rotation.y = facingAngle;
+            parent.parent = detailNode;
+            parent.metadata = { lotMeta, tintColor };
+            tagMesh(parent, 'buildings');
+            placeModelInstance(prototype, parent, buildingHeight, lot.id);
+          } else {
+            const box = BABYLON.MeshBuilder.CreateBox(`lot_${lot.id}`, { width: clampedW, height: buildingHeight, depth: clampedD }, scene);
+            box.position = new BABYLON.Vector3(lx, buildingHeight / 2, lz);
+            box.rotation.y = facingAngle;
+            box.parent = detailNode;
+            const boxMat = new BABYLON.StandardMaterial(`lotMat_${li}`, scene);
+            boxMat.diffuseColor = tintColor;
+            boxMat.specularColor = new BABYLON.Color3(0.08, 0.08, 0.08);
+            box.material = boxMat;
+            box.metadata = { lotMeta, tintColor };
+            tagMesh(box, 'buildings');
+
+            if (buildingType !== 'vacant') {
+              const roofDiam = Math.min(Math.max(clampedW, clampedD) * 1.1, Math.min(scaledW, scaledD));
+              const roof = BABYLON.MeshBuilder.CreateCylinder(`roof_${lot.id}`, { diameterTop: 0, diameterBottom: roofDiam, height: 0.2, tessellation: 4 }, scene);
+              roof.position = new BABYLON.Vector3(lx, buildingHeight + 0.1, lz);
+              roof.rotation.y = facingAngle + Math.PI / 4;
+              roof.parent = detailNode;
+              const roofMat = new BABYLON.StandardMaterial(`roofMat_${li}`, scene);
+              roofMat.diffuseColor = isBusiness ? new BABYLON.Color3(0.6, 0.3, 0.15) : new BABYLON.Color3(0.3, 0.3, 0.5);
+              roofMat.specularColor = BABYLON.Color3.Black();
+              roof.material = roofMat;
+              roof.metadata = { lotMeta, tintColor };
+              tagMesh(roof, 'buildings');
+            }
+          }
+
+          // Label
+          const labelAnchor = new BABYLON.Mesh(`lotLabel_${lot.id}`, scene);
+          labelAnchor.position = new BABYLON.Vector3(lx, buildingHeight + 0.3, lz);
+          labelAnchor.parent = detailNode;
+          labelAnchor.isVisible = false;
+          tagMesh(labelAnchor, 'labels');
+          const label = biz?.name ?? lot.address ?? `Lot ${li + 1}`;
+          addLabel(gui, labelAnchor, label, 9, isBusiness ? '#FFB86C' : isResidence ? '#8BE9FD' : '#aaa', 15);
+        }
+      });
+
+      // Setup hover system for this settlement
+      setupLotHover(scene, gui);
+
+      // Show detail, hide marker
+      detailNode.setEnabled(true);
+      const markerNode = refs.settlementMarkerNodes.get(settlementId);
+      if (markerNode) markerNode.setEnabled(false);
+
+      // Animate camera to settlement
+      const sPos = refs.settlementPositions.get(settlementId);
+      if (sPos && cameraRef.current) {
+        animateCameraTo(cameraRef.current, scene, sPos.clone(), 6, Math.PI / 3.5);
+      }
+
+      setIsLoading(false);
+      setLoadingProgress(null);
+    };
+
+    buildDetail();
+  }, [lots, businesses, residences, streets, worldId]);
+
+  // ── LOD: toggle detail vs markers based on camera distance ─────────────────
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const refs = sceneRefsRef.current;
+    if (!scene || scene.isDisposed || !camera || !refs) return;
+
+    const LOD_THRESHOLD = 4;
+    const observer = scene.onBeforeRenderObservable.add(() => {
+      refs.settlementPositions.forEach((pos, id) => {
+        const dist = BABYLON.Vector3.Distance(camera.target, pos);
+        const showDetail = dist < LOD_THRESHOLD && refs.settlementLoaded.has(id);
+        const detailNode = refs.settlementDetailNodes.get(id);
+        const markerNode = refs.settlementMarkerNodes.get(id);
+        if (detailNode) detailNode.setEnabled(showDetail);
+        if (markerNode) markerNode.setEnabled(!showDetail);
+      });
+    });
+
+    return () => { scene.onBeforeRenderObservable.remove(observer); };
+  }, [settlements]);
 
   // Apply layer visibility without rebuilding the scene
   useEffect(() => {
@@ -294,13 +778,85 @@ export function LocationMapPreview({
     applyLayerVisibility(sceneRef.current, guiRef.current, visibleLayers);
   }, [visibleLayers]);
 
+  const toggleRotation = useCallback(() => {
+    const next = !isRotatingRef.current;
+    isRotatingRef.current = next;
+    setIsRotating(next);
+  }, []);
+
+  const zoomIn = useCallback(() => {
+    const cam = cameraRef.current;
+    if (cam) cam.radius = Math.max(cam.lowerRadiusLimit ?? 3, cam.radius * 0.8);
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    const cam = cameraRef.current;
+    if (cam) cam.radius = Math.min(cam.upperRadiusLimit ?? 80, cam.radius * 1.25);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
+  // Sync fullscreen state when exiting via Escape key
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  // Resize engine when fullscreen changes
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (engine) requestAnimationFrame(() => engine.resize());
+  }, [isFullscreen]);
+
   return (
-    <div className={`relative bg-black rounded-b-lg overflow-hidden ${className}`}>
+    <div ref={containerRef} className={`relative bg-black rounded-b-lg overflow-hidden ${className}`}>
       <canvas
         ref={canvasRef}
         className="w-full h-full"
         style={{ touchAction: 'none' }}
       />
+      {/* Preview controls */}
+      {!isLoading && (
+        <div className="absolute top-2 right-2 flex flex-col gap-1 z-20">
+          <button
+            onClick={toggleFullscreen}
+            className="p-1.5 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={zoomIn}
+            className="p-1.5 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+            title="Zoom in"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button
+            onClick={zoomOut}
+            className="p-1.5 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+            title="Zoom out"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <button
+            onClick={toggleRotation}
+            className="p-1.5 rounded bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+            title={isRotating ? 'Stop rotation' : 'Resume rotation'}
+          >
+            {isRotating ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+        </div>
+      )}
       {isLoading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
           <Loader2 className="w-6 h-6 animate-spin text-white" />
@@ -882,20 +1438,23 @@ async function buildSettlementView(
     const biz = bizByLot.get(lot.id);
     const res = resByLot.get(lot.id);
 
-    const isBusiness = bType === 'business' || !!biz;
-    const isResidence = bType === 'residence' || !!res;
+    const isPark = bType === 'park';
+    const isBusiness = !isPark && (bType === 'business' || !!biz);
+    const isResidence = !isPark && (bType === 'residence' || !!res);
 
     // Determine building type for role mapping
-    const buildingType = isBusiness ? 'business' : isResidence ? 'residence' : 'vacant';
+    const buildingType = isPark ? 'park' : isBusiness ? 'business' : isResidence ? 'residence' : 'vacant';
     const businessType = biz?.businessType || (isResidence ? 'residence_small' : undefined);
     const role = buildingType !== 'vacant' ? getModelRole(buildingType, businessType) : null;
 
     // Tint colors for type identification
-    const tintColor = isBusiness
-      ? new BABYLON.Color3(0.55, 0.4, 0.25)
-      : isResidence
-        ? new BABYLON.Color3(0.4, 0.45, 0.6)
-        : new BABYLON.Color3(0.35, 0.35, 0.3);
+    const tintColor = isPark
+      ? new BABYLON.Color3(0.25, 0.55, 0.2)
+      : isBusiness
+        ? new BABYLON.Color3(0.55, 0.4, 0.25)
+        : isResidence
+          ? new BABYLON.Color3(0.4, 0.45, 0.6)
+          : new BABYLON.Color3(0.35, 0.35, 0.3);
 
     const height = isBusiness
       ? 0.6 + rng() * 0.6
@@ -941,7 +1500,52 @@ async function buildSettlementView(
     lotPlane.metadata = { lotMeta, tintColor, isLotPlane: true };
     tagMesh(lotPlane, 'buildings');
 
-    if (prototype && buildingType !== 'vacant') {
+    if (isPark) {
+      // ─── Park rendering: green ground + decorative trees ────────────
+      // Make park ground plane more visible
+      lotPlaneMat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 0.15);
+      lotPlaneMat.alpha = 0.6;
+
+      // Place small decorative trees within the park
+      const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
+      for (let ti = 0; ti < treeCount; ti++) {
+        const tx = lx + (rng() - 0.5) * scaledW * 0.8;
+        const tz = lz + (rng() - 0.5) * scaledD * 0.8;
+        const treeScale = 0.15 + rng() * 0.15;
+
+        // Trunk
+        const trunk = BABYLON.MeshBuilder.CreateCylinder(`park_trunk_${lot.id}_${ti}`, {
+          height: treeScale * 2,
+          diameter: treeScale * 0.3,
+          tessellation: 6,
+        }, scene);
+        trunk.position = new BABYLON.Vector3(tx, treeScale, tz);
+        const trunkMat = new BABYLON.StandardMaterial(`park_trunkMat_${lot.id}_${ti}`, scene);
+        trunkMat.diffuseColor = new BABYLON.Color3(0.4, 0.28, 0.15);
+        trunkMat.specularColor = BABYLON.Color3.Black();
+        trunk.material = trunkMat;
+        tagMesh(trunk, 'buildings');
+
+        // Foliage
+        const foliage = BABYLON.MeshBuilder.CreateSphere(`park_foliage_${lot.id}_${ti}`, {
+          diameter: treeScale * 2.5,
+          segments: 6,
+        }, scene);
+        foliage.position = new BABYLON.Vector3(tx, treeScale * 2.2, tz);
+        const foliageMat = new BABYLON.StandardMaterial(`park_foliageMat_${lot.id}_${ti}`, scene);
+        foliageMat.diffuseColor = new BABYLON.Color3(0.15 + rng() * 0.1, 0.45 + rng() * 0.15, 0.1);
+        foliageMat.specularColor = BABYLON.Color3.Black();
+        foliage.material = foliageMat;
+        tagMesh(foliage, 'buildings');
+      }
+
+      // Label
+      const labelAnchor = new BABYLON.Mesh(`parkLabel_${lot.id}`, scene);
+      labelAnchor.position = new BABYLON.Vector3(lx, 0.5, lz);
+      labelAnchor.isVisible = false;
+      tagMesh(labelAnchor, 'labels');
+      addLabel(gui, labelAnchor, lot.address || 'Park', 10, '#50FA7B', 15);
+    } else if (prototype && buildingType !== 'vacant') {
       // Create parent mesh at the lot position
       const parent = new BABYLON.Mesh(`lot_parent_${lot.id}`, scene);
       parent.position = new BABYLON.Vector3(lx, 0, lz);
@@ -973,16 +1577,29 @@ async function buildSettlementView(
       const label = biz?.name ?? lot.address ?? `Lot ${li + 1}`;
       addLabel(gui, labelAnchor, label, 9, isBusiness ? '#FFB86C' : isResidence ? '#8BE9FD' : '#aaa', 15);
     } else {
-      // Fallback: primitive box + cone roof
-      const width = 0.4 + rng() * 0.3;
-      const depth = 0.4 + rng() * 0.3;
+      // Fallback: primitive box + cone roof using actual building dimensions
+      const typeName = biz?.businessType || (isResidence ? (res?.residenceType || 'house') : '');
+      const dims = typeName ? getBuildingDefaults(typeName) : DEFAULT_BUILDING_DIMENSIONS;
+
+      // Scale real-world dimensions (in game units) to preview space.
+      // In-game each floor is 4 units tall, so total height = floors * 4.
+      const FLOOR_HEIGHT = 4;
+      const width = dims.width * layoutScale;
+      const depth = dims.depth * layoutScale;
+      // Clamp to lot bounds so buildings don't overflow
+      const clampedW = Math.min(width, scaledW * 0.85);
+      const clampedD = Math.min(depth, scaledD * 0.85);
+      // Height uses the same scale as width/depth for proportional rendering
+      const buildingHeight = buildingType !== 'vacant'
+        ? dims.floors * FLOOR_HEIGHT * layoutScale
+        : 0.05 + rng() * 0.05;
 
       const box = BABYLON.MeshBuilder.CreateBox(`lot_${lot.id}`, {
-        width,
-        height,
-        depth,
+        width: clampedW,
+        height: buildingHeight,
+        depth: clampedD,
       }, scene);
-      box.position = new BABYLON.Vector3(lx, height / 2, lz);
+      box.position = new BABYLON.Vector3(lx, buildingHeight / 2, lz);
       box.rotation.y = facingAngle;
       const boxMat = new BABYLON.StandardMaterial(`lotMat_${li}`, scene);
       boxMat.diffuseColor = tintColor;
@@ -991,15 +1608,22 @@ async function buildSettlementView(
       box.metadata = { ...box.metadata, lotMeta, tintColor };
       tagMesh(box, 'buildings');
 
-      // Roof for non-vacant
+      // Roof for non-vacant — clamped to lot bounds
       if (buildingType !== 'vacant') {
+        // Roof diagonal must fit within the lot rectangle
+        const roofW = clampedW * 1.1;
+        const roofD = clampedD * 1.1;
+        const roofDiam = Math.min(
+          Math.max(roofW, roofD),
+          Math.min(scaledW, scaledD), // never exceed lot bounds
+        );
         const roof = BABYLON.MeshBuilder.CreateCylinder(`roof_${lot.id}`, {
           diameterTop: 0,
-          diameterBottom: Math.max(width, depth) * 1.3,
-          height: 0.25,
+          diameterBottom: roofDiam,
+          height: 0.2,
           tessellation: 4,
         }, scene);
-        roof.position = new BABYLON.Vector3(lx, height + 0.125, lz);
+        roof.position = new BABYLON.Vector3(lx, buildingHeight + 0.1, lz);
         roof.rotation.y = facingAngle + Math.PI / 4;
         const roofMat = new BABYLON.StandardMaterial(`roofMat_${li}`, scene);
         roofMat.diffuseColor = isBusiness
@@ -1050,10 +1674,31 @@ async function buildSettlementView(
 /**
  * Render street network as ground-level lines in the preview.
  */
+/** Render streets parented to a TransformNode (for unified scene) */
+function renderStreetsAtNode(
+  scene: BABYLON.Scene,
+  gui: GUI.AdvancedDynamicTexture,
+  streets: StreetSegment[],
+  parent: BABYLON.TransformNode,
+) {
+  renderStreets(scene, gui, streets, parent);
+}
+
+/** Render street network parented to a TransformNode (for unified scene) */
+function renderStreetNetworkAtNode(
+  scene: BABYLON.Scene,
+  gui: GUI.AdvancedDynamicTexture,
+  streets: StreetSegmentData[],
+  parent: BABYLON.TransformNode,
+) {
+  renderStreetNetwork(scene, gui, streets, parent);
+}
+
 function renderStreets(
   scene: BABYLON.Scene,
   gui: GUI.AdvancedDynamicTexture,
   streets: StreetSegment[],
+  parent?: BABYLON.TransformNode,
 ) {
   streets.forEach((street, si) => {
     const width = street.isMainStreet ? 0.4 : 0.25;
@@ -1078,6 +1723,7 @@ function renderStreets(
     }, scene);
     road.position = new BABYLON.Vector3(midX, 0.005, midZ);
     road.rotation.y = angle;
+    if (parent) road.parent = parent;
     const roadMat = new BABYLON.StandardMaterial(`streetMat_${si}`, scene);
     roadMat.diffuseColor = color;
     roadMat.specularColor = BABYLON.Color3.Black();
@@ -1089,6 +1735,7 @@ function renderStreets(
     if (street.streetName) {
       const labelAnchor = BABYLON.MeshBuilder.CreateBox(`streetLabel_${si}`, { size: 0.01 }, scene);
       labelAnchor.position = new BABYLON.Vector3(midX, 0.3, midZ);
+      if (parent) labelAnchor.parent = parent;
       labelAnchor.isVisible = false;
       labelAnchor.isPickable = false;
       tagMesh(labelAnchor, 'labels');
@@ -1145,7 +1792,8 @@ export function computeStreetScale(streets: StreetSegmentData[]): { scale: numbe
 function renderStreetNetwork(
   scene: BABYLON.Scene,
   gui: GUI.AdvancedDynamicTexture,
-  streets: StreetSegmentData[]
+  streets: StreetSegmentData[],
+  parent?: BABYLON.TransformNode,
 ) {
   const { scale, cx, cz } = computeStreetScale(streets);
 
@@ -1188,6 +1836,7 @@ function renderStreetNetwork(
     }, scene);
     ribbon.material = roadMat;
     ribbon.isPickable = false;
+    if (parent) ribbon.parent = parent;
     tagMesh(ribbon, 'streets');
 
     // Street name label at the midpoint
@@ -1197,6 +1846,7 @@ function renderStreetNetwork(
     labelAnchor.position = new BABYLON.Vector3(midPt.x, 0.5, midPt.z);
     labelAnchor.isVisible = false;
     labelAnchor.isPickable = false;
+    if (parent) labelAnchor.parent = parent;
     tagMesh(labelAnchor, 'labels');
     addLabel(gui, labelAnchor, seg.name, 8, '#E8E8D0', 0);
   });

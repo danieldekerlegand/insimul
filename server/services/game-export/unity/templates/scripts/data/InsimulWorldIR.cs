@@ -836,4 +836,11 @@ namespace Insimul.Data
         public NatureConfig natureConfig;
         public ItemTypeCollectionConfig itemConfig;
     }
+
+    [Serializable]
+    public class AssetIdEntry
+    {
+        public string key;
+        public string value;
+    }
 }

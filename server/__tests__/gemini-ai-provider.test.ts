@@ -31,7 +31,7 @@ vi.mock('../config/gemini.js', () => ({
   })),
   isGeminiConfigured: vi.fn(() => true),
   getGeminiApiKey: vi.fn(() => 'test-key'),
-  GEMINI_MODELS: { PRO: 'gemini-3.1-pro-preview', FLASH: 'gemini-2.5-flash', SPEECH: 'gemini-2.0-flash-exp' },
+  GEMINI_MODELS: { PRO: 'gemini-3.1-pro-preview', FLASH: 'gemini-3.1-flash-lite-preview', SPEECH: 'gemini-3.1-flash-preview-tts', LIVE: 'gemini-3.1-flash-live' },
 }));
 
 vi.mock('../services/tts-cache.js', () => {
@@ -107,7 +107,7 @@ describe('GeminiAIProvider', () => {
 
       expect(res.text).toBe('Hello world');
       expect(res.provider).toBe('gemini');
-      expect(res.model).toBe('gemini-2.5-flash');
+      expect(res.model).toBe('gemini-3.1-flash-lite-preview');
       expect(res.tokensUsed).toBeGreaterThan(0);
       expect(mockGenerateContent).toHaveBeenCalledOnce();
     });

@@ -42,7 +42,7 @@ void URuleEnforcer::LoadFromIR(const FString& JsonString)
 
 TArray<FString> URuleEnforcer::EvaluateRules(const FInsimulGameContext& Context)
 {
-    TArray<FString> Violations;
+    TArray<FString> FoundViolations;
 
     for (const FInsimulRule& Rule : Rules)
     {
@@ -57,12 +57,12 @@ TArray<FString> URuleEnforcer::EvaluateRules(const FInsimulGameContext& Context)
                 FString Msg = Restriction->Message.IsEmpty()
                     ? FString::Printf(TEXT("Action violates rule: %s"), *Rule.Name)
                     : Restriction->Message;
-                Violations.Add(Msg);
+                FoundViolations.Add(Msg);
             }
         }
     }
 
-    return Violations;
+    return FoundViolations;
 }
 
 bool URuleEnforcer::CanPerformAction(const FString& ActionId, const FString& ActionType, const FInsimulGameContext& Context)
@@ -76,8 +76,8 @@ bool URuleEnforcer::CanPerformAction(const FString& ActionId, const FString& Act
     Ctx.ActionId = ActionId;
     Ctx.ActionType = ActionType;
 
-    TArray<FString> Violations = EvaluateRules(Ctx);
-    return Violations.Num() == 0;
+    TArray<FString> EvalViolations = EvaluateRules(Ctx);
+    return EvalViolations.Num() == 0;
 }
 
 void URuleEnforcer::SetPrologKnowledgeBase(const FString& PrologContent)

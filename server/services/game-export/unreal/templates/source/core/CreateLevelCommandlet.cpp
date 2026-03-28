@@ -153,13 +153,18 @@ int32 UCreateLevelCommandlet::Main(const FString& Params)
             const TSharedPtr<FJsonObject> Obj = Val->AsObject();
             if (!Obj.IsValid()) continue;
 
-            double X = Obj->GetNumberField(TEXT("X"));
-            double Y = Obj->GetNumberField(TEXT("Y"));
+            const TSharedPtr<FJsonObject>* PosPtr;
+            if (!Obj->TryGetObjectField(TEXT("Position"), PosPtr)) continue;
+
+            double X = (*PosPtr)->GetNumberField(TEXT("X"));
+            double Y = (*PosPtr)->GetNumberField(TEXT("Y"));
+            double Z = (*PosPtr)->GetNumberField(TEXT("Z"));
             double Width = Obj->GetNumberField(TEXT("Width"));
             double Depth = Obj->GetNumberField(TEXT("Depth"));
-            double Height = Obj->GetNumberField(TEXT("Height"));
+            int32 Floors = Obj->GetIntegerField(TEXT("Floors"));
+            double Height = Floors * 300.0; // 3m per floor
 
-            FVector Pos(X, Y, Height / 2.0);
+            FVector Pos(X, Y, Height / 2.0 + Z);
             FVector Scale(Width / 100.0, Depth / 100.0, Height / 100.0);
             FLinearColor Color(0.8f, 0.7f, 0.6f);
 

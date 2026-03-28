@@ -83,9 +83,11 @@ export function resolveLLMModelPath(): string | null {
   if (process.env.LOCAL_MODEL_NAME) {
     return path.join(getProjectRoot(), 'models', `${process.env.LOCAL_MODEL_NAME}.gguf`);
   }
-  // Default convention
-  const defaultPath = path.join(getProjectRoot(), 'models', 'phi-4-mini-q4.gguf');
-  if (fs.existsSync(defaultPath)) return defaultPath;
+  // Default conventions — try Qwen (public) first, then Phi (gated)
+  for (const name of ['qwen2.5-3b-instruct-q4_k_m', 'phi-4-mini-q4']) {
+    const p = path.join(getProjectRoot(), 'models', `${name}.gguf`);
+    if (fs.existsSync(p)) return p;
+  }
   return null;
 }
 
@@ -101,6 +103,62 @@ export function resolveWhisperModelPath(): string | null {
   const defaultPath = path.join(getProjectRoot(), 'models', 'whisper-base.bin');
   if (fs.existsSync(defaultPath)) return defaultPath;
   return null;
+}
+
+// ─────────────────────────────────────────────
+// Availability check
+// ─────────────────────────────────────────────
+
+export interface LocalAIStatus {
+  available: boolean;
+  llm: { found: boolean; path: string | null; sizeBytes: number };
+  tts: { found: boolean; dir: string | null; voiceCount: number; totalSizeBytes: number };
+  stt: { found: boolean; path: string | null; sizeBytes: number };
+  /** Human-readable list of what's missing */
+  missing: string[];
+}
+
+/**
+ * Check whether local AI models are available for bundling.
+ * Does NOT read file contents — just checks existence and sizes.
+ */
+export function checkLocalAIAvailability(): LocalAIStatus {
+  const missing: string[] = [];
+
+  // LLM
+  const llmPath = resolveLLMModelPath();
+  const llmFound = llmPath !== null && fs.existsSync(llmPath);
+  const llmSize = llmFound ? fs.statSync(llmPath!).size : 0;
+  if (!llmFound) missing.push('LLM model (run: ./scripts/setup-local-ai.sh --llm-only)');
+
+  // TTS
+  const voicesDir = resolvePiperVoicesDir();
+  let ttsFound = false;
+  let voiceCount = 0;
+  let ttsTotalSize = 0;
+  if (voicesDir && fs.existsSync(voicesDir)) {
+    const onnxFiles = fs.readdirSync(voicesDir).filter(f => f.endsWith('.onnx'));
+    voiceCount = onnxFiles.length;
+    ttsFound = voiceCount > 0;
+    for (const f of onnxFiles) {
+      ttsTotalSize += fs.statSync(path.join(voicesDir, f)).size;
+    }
+  }
+  if (!ttsFound) missing.push('Piper TTS voices (run: ./scripts/setup-local-ai.sh --tts-only)');
+
+  // STT
+  const sttPath = resolveWhisperModelPath();
+  const sttFound = sttPath !== null && fs.existsSync(sttPath);
+  const sttSize = sttFound ? fs.statSync(sttPath!).size : 0;
+  if (!sttFound) missing.push('Whisper STT model (run: ./scripts/setup-local-ai.sh --stt-only)');
+
+  return {
+    available: llmFound && ttsFound && sttFound,
+    llm: { found: llmFound, path: llmPath, sizeBytes: llmSize },
+    tts: { found: ttsFound, dir: voicesDir, voiceCount, totalSizeBytes: ttsTotalSize },
+    stt: { found: sttFound, path: sttPath, sizeBytes: sttSize },
+    missing,
+  };
 }
 
 // ─────────────────────────────────────────────

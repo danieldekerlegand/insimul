@@ -6,8 +6,24 @@ extends Node3D
 
 @export var default_water_color := Color({{WATER_COLOR_R}}, {{WATER_COLOR_G}}, {{WATER_COLOR_B}}, {{WATER_ALPHA}})
 
+var _flow_shader: Shader = null
+
 func _ready() -> void:
 	add_to_group("world_generator")
+	# Create flow shader for rivers/streams
+	_flow_shader = Shader.new()
+	_flow_shader.code = """
+shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
+uniform vec4 water_color : source_color = vec4(0.15, 0.45, 0.65, 0.7);
+uniform float flow_speed : hint_range(0.0, 2.0) = 0.3;
+void fragment() {
+	vec2 uv = UV + vec2(0.0, TIME * flow_speed);
+	float wave = sin(uv.y * 12.0) * 0.02 + sin(uv.x * 8.0 + TIME) * 0.01;
+	ALBEDO = water_color.rgb + vec3(wave);
+	ALPHA = water_color.a;
+}
+"""
 
 func generate_from_data(world_data: Dictionary) -> void:
 	var geo: Dictionary = world_data.get("geography", {})
@@ -105,10 +121,11 @@ func _create_flowing_water(feature: Dictionary, bounds: Dictionary, water_level:
 		var dir := (end - start).normalized()
 		mesh_inst.rotation.y = atan2(dir.x, dir.z)
 
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = color
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Use flow shader for animated water
+		var mat := ShaderMaterial.new()
+		mat.shader = _flow_shader
+		mat.set_shader_parameter("water_color", color)
+		mat.set_shader_parameter("flow_speed", 0.3)
 		mesh_inst.material_override = mat
 
 		mesh_inst.name = "Water_%s_seg%d" % [feature.get("id", "unknown"), i]

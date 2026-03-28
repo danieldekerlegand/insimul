@@ -3,7 +3,7 @@
 
 [application]
 
-config/name="InsimulExport_{{WORLD_SAFE_NAME}}"
+config/name="{{WORLD_SAFE_NAME}}"
 config/description="{{WORLD_NAME}} — {{WORLD_TYPE}} world"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
@@ -11,6 +11,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+EventBus="*res://scripts/systems/event_bus.gd"
 GameManager="*res://scripts/core/game_manager.gd"
 DataLoader="*res://scripts/core/data_loader.gd"
 GameClock="*res://scripts/core/game_clock.gd"
@@ -20,6 +21,9 @@ CombatSystem="*res://scripts/systems/combat_system.gd"
 RuleEnforcer="*res://scripts/systems/rule_enforcer.gd"
 InventorySystem="*res://scripts/systems/inventory_system.gd"
 DialogueSystem="*res://scripts/systems/dialogue_system.gd"
+BuildingEntrySystem="*res://scripts/systems/building_entry_system.gd"
+AudioManager="*res://scripts/systems/audio_manager.gd"
+SaveSystem="*res://scripts/systems/save_system.gd"
 
 [display]
 

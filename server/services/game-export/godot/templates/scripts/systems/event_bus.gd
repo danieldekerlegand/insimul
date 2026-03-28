@@ -1,5 +1,4 @@
 extends Node
-class_name EventBus
 ## EventBus — autoloaded singleton.
 ## Centralized typed event system that bridges player actions to quest tracking
 ## and Prolog fact assertion. All game actions (combat, items, dialogue, etc.)
@@ -119,7 +118,6 @@ const EVENT_CONTAINER_OPENED := "container_opened"
 const EVENT_ESCORT_STARTED := "escort_started"
 const EVENT_ESCORT_COMPLETED := "escort_completed"
 # Mercantile events
-const EVENT_ITEM_PURCHASED := "item_purchased"
 const EVENT_FOOD_ORDERED := "food_ordered"
 const EVENT_PRICE_HAGGLED := "price_haggled"
 # Text collection events

@@ -1,7 +1,7 @@
 {
   "version": "1",
-  "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-26T18:09:34.242Z",
+  "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
+  "lastUpdated": "2026-03-28T09:28:42.609Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "4133a056c382ed72e0359bcef7b1dc4ebd27ff090d6a94fa000e395d1e8572a6",
+      "hash": "0db70cd4191088625b26cefccf2a63a3fcc9db0271b525c44d9a092eba2f0b76",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -440,6 +440,288 @@
           "engine": "godot",
           "templatePath": "server/services/game-export/godot/templates/scripts/rule_enforcer.gd",
           "description": "GDScript Prolog KB consumer"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/FightingCombatSystem.ts",
+      "description": "Fighting combo combat: moveset, frame data, special meter, combo scaling.",
+      "hash": "159a42ab1f019bd3ec3f0b8fe6a9c7913efefbb7e36bef785d791fa43957f648",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/FightingCombatSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/systems/fighting_combat_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/TurnBasedCombatSystem.ts",
+      "description": "Turn-based RPG combat: speed-ordered turns, status effects, MP system.",
+      "hash": "714992f754ce54e15da3c55fa8b33f5f5e29cd90276106515bc97431045983b1",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/TurnBasedCombatSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/systems/turn_based_combat_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/RangedCombatSystem.ts",
+      "description": "Ranged weapon combat: hitscan/projectile, spread, magazine, reload.",
+      "hash": "33fd3f0a548a15d885ab74adbf772061519fea6dadf8146cc3fb10dc95e05502",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/RangedCombatSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/systems/ranged_combat_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/DayNightCycle.ts",
+      "description": "8-keyframe day/night cycle: sun direction, lighting, sky color, street lamp toggle.",
+      "hash": "9df7c7d929bd574eb665e907e3413a73b31aad502f1a2a851d68bc0c99caf50f",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/World/DayNightCycleManager.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/world/day_night_cycle.gd"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "DayNightSystem generated in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/WeatherSystem.ts",
+      "description": "5-state weather with Markov transitions, rain particles, fog, clouds.",
+      "hash": "5ae8cf33f4d43ab13024048b9a35049bab6b65f498bb9f0748e9c5e32efc6ffe",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/World/WeatherSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/world/weather_system.gd"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "WeatherSystem generated in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/ProceduralNatureGenerator.ts",
+      "description": "Biome-driven nature placement: 4 tree types, rocks, geological features, grass.",
+      "hash": "ba93eb6be169adba89dd2decb071a1fdf1de42f1bcbfa6bad6c0b7401ecfbecb",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/World/ProceduralNatureGenerator.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/world/nature_generator.gd"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "ProceduralNatureGenerator in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/RoadGenerator.ts",
+      "description": "Road network: ribbon meshes, sidewalks, center lines, crosswalks, street lights.",
+      "hash": "71c4f8fa5b628fc336a889b069cb77db7edb524c9b064529e302f779a6b16a63",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/World/RoadGenerator.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/world/road_generator.gd"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "SpawnRoads in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/BuildingInteriorGenerator.ts",
+      "description": "Interior generation: multi-room layouts, role-specific furniture, entry/exit transitions.",
+      "hash": "a043eaaa1122d4d98ae59fa76ac2a534fdc9d4d030b4dadc0589da73fabd4287",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/World/BuildingInteriorGenerator.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/world/building_generator.gd",
+          "description": "Interior section of building generator"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "BuildingInteriorSystem in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/BabylonChatPanel.ts",
+      "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
+      "hash": "54e4d8db56815ed4e5ad8110a3f6da8b49a3319619f35f6688ce06327a06d5f2",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/UI/ChatPanel.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/ui/dialogue_panel.gd"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "DialogueWidget in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/BabylonMinimap.ts",
+      "description": "Minimap: top-down rendering, building/NPC/quest markers, player indicator.",
+      "hash": "2cf7441c05272a8d92375bb9919012bc1f1b89c87f9bd6b19689e20550d29a0e",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/UI/MinimapUI.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/ui/minimap.gd"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "InsimulMinimap in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/GameMenuSystem.ts",
+      "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
+      "hash": "3c7d191e4de8c17963c75358091cb95493d7856130448e64ea38f14fa1bbc039",
+      "engineMappings": [
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/UI/GameMenuUI.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/ui/game_menu.gd"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "InsimulPauseMenuWidget in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/AssessmentEngine.ts",
+      "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
+      "hash": "b5862443e5e81088dc1ca83de15a78e5c2104bdbc8330bfd38330547d90c5c30",
+      "engineMappings": [
+        {
+          "engine": "babylon",
+          "templatePath": "server/services/game-export/babylon/game-file-copier.ts",
+          "description": "Copied directly to Babylon export"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-cpp-generator.ts",
+          "description": "InsimulAssessmentWidget in C++ generator"
+        }
+      ]
+    },
+    {
+      "path": "shared/assessment/offline-content-bank.ts",
+      "description": "Bundled assessment passages, questions, and rubrics for offline/standalone mode. Content changes affect assessment quality in Babylon exports.",
+      "hash": "d1e4d53f3836680cb277578f7188b459f2e25ca79e86d6f837e93d6fd7966217",
+      "engineMappings": [
+        {
+          "engine": "babylon",
+          "templatePath": "server/services/game-export/babylon/game-file-copier.ts",
+          "description": "Copied to shared/ in Babylon export"
+        }
+      ]
+    },
+    {
+      "path": "shared/assessment/offline-scoring.ts",
+      "description": "Client-side keyword/heuristic assessment scoring for offline mode.",
+      "hash": "dbbde82deb3449546e1c27eff6c20143edc116b2b0950b5cb9a8fe1e0f73554f",
+      "engineMappings": [
+        {
+          "engine": "babylon",
+          "templatePath": "server/services/game-export/babylon/game-file-copier.ts",
+          "description": "Copied to shared/ in Babylon export"
+        }
+      ]
+    },
+    {
+      "path": "client/src/lib/speech-recognition.ts",
+      "description": "3-tier STT fallback chain: Web Speech API → Electron Whisper → server. Changes affect voice input in standalone Babylon exports.",
+      "hash": "4f8bcc329c480ce8362f13e2ea176ae85724073f6f1aeb9f7ec97dd29c384d20",
+      "engineMappings": [
+        {
+          "engine": "babylon",
+          "templatePath": "server/services/game-export/babylon/game-file-copier.ts",
+          "description": "Copied to lib/ in Babylon export"
+        }
+      ]
+    },
+    {
+      "path": "server/services/game-export/ir-generator.ts",
+      "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
+      "hash": "9ce708e2a2e4d9521d1ac03de325c4f2437cba7649cf6031b9597705e80be328",
+      "engineMappings": [
+        {
+          "engine": "babylon",
+          "templatePath": "server/services/game-export/babylon/babylon-data-generator.ts"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/unreal-datatable-generator.ts"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/unity-data-generator.ts"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/godot-data-generator.ts"
         }
       ]
     }

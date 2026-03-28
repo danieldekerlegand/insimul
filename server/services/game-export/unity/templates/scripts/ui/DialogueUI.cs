@@ -67,7 +67,7 @@ namespace Insimul.UI
 
         private void Start()
         {
-            _dialogueSystem = FindObjectOfType<DialogueSystem>();
+            _dialogueSystem = FindFirstObjectByType<DialogueSystem>();
         }
 
         private void Update()
@@ -231,7 +231,7 @@ namespace Insimul.UI
                 var tmp = textObj.AddComponent<TextMeshProUGUI>();
                 tmp.fontSize = 14;
                 tmp.color = Color.white;
-                tmp.enableWordWrapping = true;
+                tmp.textWrappingMode = TextWrappingModes.Normal;
 
                 var textLayout = textObj.AddComponent<LayoutElement>();
                 textLayout.preferredWidth = 280;
@@ -443,7 +443,7 @@ namespace Insimul.UI
             _npcDescriptionText = descObj.AddComponent<TextMeshProUGUI>();
             _npcDescriptionText.fontSize = 12;
             _npcDescriptionText.color = new Color(0.7f, 0.7f, 0.7f);
-            _npcDescriptionText.enableWordWrapping = true;
+            _npcDescriptionText.textWrappingMode = TextWrappingModes.Normal;
             var descLE = descObj.AddComponent<LayoutElement>();
             descLE.preferredHeight = 50;
 

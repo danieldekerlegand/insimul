@@ -368,7 +368,7 @@ void UDialogueWidget::CreateActionButton(const FString& ActionId, const FString&
     UHorizontalBoxSlot* NameSlot = ButtonContent->AddChildToHorizontalBox(NameText);
     NameSlot->SetHorizontalAlignment(HAlign_Left);
     NameSlot->SetVerticalAlignment(VAlign_Center);
-    NameSlot->SetSize(FSlateChildSize(1.0f)); // Fill
+    NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill)); // Fill
 
     // Energy cost badge
     if (EnergyCost > 0.0f)

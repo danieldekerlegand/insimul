@@ -46,7 +46,7 @@ export interface StreetNetworkConfig {
   centerX: number;
   centerZ: number;
   /** Settlement type determines scale */
-  settlementType: 'village' | 'town' | 'city';
+  settlementType: 'hamlet' | 'village' | 'town' | 'city';
   /** Founding year — older settlements get organic layout */
   foundedYear: number;
   /** Seed string for deterministic generation */
@@ -70,18 +70,21 @@ export interface StreetNetworkConfig {
 // ─────────────────────────────────────────────
 
 const GRID_SPACING: Record<string, number> = {
+  hamlet: 55,
   village: 50,
   town: 45,
   city: 40,
 };
 
 const GRID_SIZE: Record<string, number> = {
+  hamlet: 3,
   village: 4,
   town: 6,
   city: 8,
 };
 
 const STREET_WIDTH: Record<string, number> = {
+  hamlet: 8,
   village: 10,
   town: 12,
   city: 14,
@@ -495,12 +498,14 @@ export interface LotPlacement {
   lotWidth: number;
   /** Lot depth perpendicular to the street */
   lotDepth: number;
+  /** Zone classification — 'park' lots are green space, not buildings */
+  zone?: 'commercial' | 'residential' | 'park';
 }
 
 // ─── Lot sizing by settlement type ────────────────────────────────────────────
 
-const TARGET_LOT_WIDTHS: Record<string, number> = { village: 15, town: 12, city: 10 };
-const MIN_LOT_DEPTHS: Record<string, number> = { village: 28, town: 24, city: 20 };
+const TARGET_LOT_WIDTHS: Record<string, number> = { hamlet: 18, village: 15, town: 12, city: 10 };
+const MIN_LOT_DEPTHS: Record<string, number> = { hamlet: 30, village: 28, town: 24, city: 20 };
 
 /**
  * Place lots by subdividing the rectangular blocks formed by the street grid.
@@ -553,14 +558,19 @@ export function placeLots(
     // Buildable interior (inset from street centerlines by half-widths)
     minX: number; maxX: number;
     minZ: number; maxZ: number;
+    // Grid indices for park selection
+    col: number; row: number;
     // Bounding streets (for addressing)
     leftStreet: StreetLine;  rightStreet: StreetLine;
     topStreet: StreetLine;   bottomStreet: StreetLine;
   }
   const blocks: Block[] = [];
 
-  for (let ci = 0; ci < nsLines.length - 1; ci++) {
-    for (let ri = 0; ri < ewLines.length - 1; ri++) {
+  const numBlockCols = nsLines.length - 1;
+  const numBlockRows = ewLines.length - 1;
+
+  for (let ci = 0; ci < numBlockCols; ci++) {
+    for (let ri = 0; ri < numBlockRows; ri++) {
       const left = nsLines[ci];
       const right = nsLines[ci + 1];
       const top = ewLines[ri];
@@ -571,11 +581,17 @@ export function placeLots(
         maxX: right.coord - right.width / 2,
         minZ: top.coord + top.width / 2,
         maxZ: bottom.coord - bottom.width / 2,
+        col: ci, row: ri,
         leftStreet: left, rightStreet: right,
         topStreet: top, bottomStreet: bottom,
       });
     }
   }
+
+  // Identify the center block as a park (town square).
+  // For even block counts, pick the block just below/right of center.
+  const parkCol = Math.floor(numBlockCols / 2);
+  const parkRow = Math.floor(numBlockRows / 2);
 
   // Subdivide each block into lots
   let houseNum = 1;
@@ -587,14 +603,35 @@ export function placeLots(
     if (blockW < 2 || blockD < 2) continue;
 
     // Skip blocks whose center is in water
-    if (isWater) {
-      const blockCenterX = (block.minX + block.maxX) / 2;
-      const blockCenterZ = (block.minZ + block.maxZ) / 2;
-      if (isWater(blockCenterX, blockCenterZ)) continue;
+    const blockCenterX = (block.minX + block.maxX) / 2;
+    const blockCenterZ = (block.minZ + block.maxZ) / 2;
+    if (isWater && isWater(blockCenterX, blockCenterZ)) continue;
+
+    // Center block becomes the town park/square — a single lot spanning the whole block
+    if (block.col === parkCol && block.row === parkRow) {
+      // Determine the nearest street for addressing
+      const nearestStreet = block.topStreet;
+      placements.push({
+        x: blockCenterX,
+        z: blockCenterZ,
+        streetId: nearestStreet.id,
+        streetName: nearestStreet.name,
+        houseNumber: 0,
+        side: 'right',
+        facingAngle: Math.PI,
+        lotWidth: blockW,
+        lotDepth: blockD,
+        zone: 'park',
+      });
+      continue;
     }
 
-    // Two rows of lots: top row faces the top EW street, bottom row faces the bottom
+    // Two rows of lots: top row faces the top EW street, bottom row faces the bottom.
+    // Each row gets exactly half the block depth — never more, to prevent overlap.
     const rowDepth = blockD / 2;
+
+    // Skip blocks that are too shallow for usable lots
+    if (rowDepth < 5) continue;
 
     // Number of lot columns along the X axis (frontage on EW streets)
     const numColsEW = Math.max(1, Math.round(blockW / targetLotWidth));
@@ -605,7 +642,7 @@ export function placeLots(
       if (placements.length >= lotCount) break;
 
       const lotW = colWidthEW;
-      const lotD = Math.max(rowDepth, minLotDepth);
+      const lotD = rowDepth;
       const lotCenterX = block.minX + (col + 0.5) * colWidthEW;
 
       // Top row: faces the top EW street (building door faces -Z)

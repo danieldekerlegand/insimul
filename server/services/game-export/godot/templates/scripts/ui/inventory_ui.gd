@@ -348,9 +348,9 @@ func _update_stats() -> void:
 func _update_equipment_display() -> void:
 	if not _inventory_system:
 		return
-	var weapon := _inventory_system.get_equipped_item("weapon")
-	var armor := _inventory_system.get_equipped_item("armor")
-	var accessory := _inventory_system.get_equipped_item("accessory")
+	var weapon: Dictionary = _inventory_system.get_equipped_item("weapon")
+	var armor: Dictionary = _inventory_system.get_equipped_item("armor")
+	var accessory: Dictionary = _inventory_system.get_equipped_item("accessory")
 	if _weapon_slot_label:
 		_weapon_slot_label.text = "Weapon: %s" % get_display_name(weapon) if not weapon.is_empty() else "Weapon: ---"
 	if _armor_slot_label:

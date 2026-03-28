@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Home, Plus, RotateCcw, Trash2, Palette } from "lucide-react";
 import { BUILDING_CATEGORY_GROUPINGS, getCategoryForType, type BuildingCategory } from "@shared/game-engine/building-categories";
+import { getTemplateForBuildingType } from "@shared/game-engine/interior-templates";
 import { AssetSelect } from "../AssetSelect";
 import { AssetDropdown } from "./AssetDropdown";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
@@ -26,16 +27,31 @@ import type {
 const LIGHTING_PRESETS: LightingPreset[] = ['bright', 'dim', 'warm', 'cool', 'candlelit'];
 
 const FURNITURE_SETS = [
-  'tavern', 'shop', 'residential', 'church', 'school', 'hotel',
-  'blacksmith', 'warehouse', 'clinic', 'farm', 'guild_hall', 'office',
-  'library', 'bakery', 'restaurant', 'bar',
+  'tavern', 'restaurant', 'shop', 'bar', 'bakery', 'brewery',
+  'residence_small', 'residence_medium', 'residence_large', 'cottage', 'townhouse', 'apartment', 'mobile_home', 'apartment_complex',
+  'church', 'school', 'university', 'hotel', 'hospital',
+  'blacksmith', 'warehouse', 'factory', 'carpenter', 'butcher',
+  'clinic', 'farm_barn', 'guild_hall', 'library', 'stables',
+  'bank', 'barbershop', 'tailor', 'pharmacy', 'law_firm',
+  'town_hall', 'police_station', 'fire_station', 'daycare', 'mortuary',
+  'theater', 'inn', 'barracks', 'autorepair', 'bathhouse', 'small_office',
+  'harbor_office', 'harbor', 'fish_market', 'boatyard', 'lighthouse',
+  'mill', 'mine', 'herbshop',
+  'grocery_store', 'jewelry_store', 'book_store', 'pawn_shop',
 ];
 
 const LAYOUT_TEMPLATE_IDS = [
-  'tavern', 'restaurant', 'shop', 'bar', 'bakery',
-  'residence_small', 'residence_medium', 'residence_large',
-  'church', 'school', 'hotel', 'blacksmith', 'warehouse',
-  'clinic', 'farm_barn', 'guild_hall',
+  'tavern', 'restaurant', 'shop', 'bar', 'bakery', 'brewery',
+  'residence_small', 'residence_medium', 'residence_large', 'cottage', 'townhouse', 'apartment', 'mobile_home', 'apartment_complex',
+  'church', 'school', 'university', 'hotel', 'hospital',
+  'blacksmith', 'warehouse', 'factory', 'carpenter', 'butcher',
+  'clinic', 'farm_barn', 'guild_hall', 'library', 'stables',
+  'bank', 'barbershop', 'tailor', 'pharmacy', 'law_firm',
+  'town_hall', 'police_station', 'fire_station', 'daycare', 'mortuary',
+  'theater', 'inn', 'barracks', 'autorepair', 'bathhouse', 'small_office',
+  'harbor_office', 'harbor', 'fish_market', 'boatyard', 'lighthouse',
+  'mill', 'mine', 'herbshop',
+  'grocery_store', 'jewelry_store', 'book_store', 'pawn_shop',
 ];
 
 const MATERIAL_TYPES: MaterialType[] = ['wood', 'stone', 'brick', 'metal', 'glass', 'stucco'];
@@ -49,7 +65,10 @@ export const CATEGORY_LABELS: Record<BuildingCategory, string> = {
   commercial_retail: "Retail",
   commercial_service: "Services",
   civic: "Civic",
+  entertainment: "Entertainment",
+  professional: "Professional",
   industrial: "Industrial",
+  military: "Military",
   maritime: "Maritime",
   residential: "Residential",
 };
@@ -85,7 +104,7 @@ export function humanize(s: string): string {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 import type { ConfigSelection } from "./config-selection";
-import { getBuildingDefaults } from "@shared/game-engine/building-defaults";
+import { getBuildingDefaults, MAX_LOT_WIDTH, MAX_LOT_DEPTH } from "@shared/game-engine/building-defaults";
 import {
   MATERIAL_PRESETS,
   ARCHITECTURE_PRESETS,
@@ -128,7 +147,8 @@ export function getCategorySummary(
     } else {
       procedural++;
     }
-    if (cfg?.interiorConfig) withInterior++;
+    // Count as having interior if explicitly configured OR if a matching template exists
+    if (cfg?.interiorConfig || getTemplateForBuildingType(t, t)) withInterior++;
   }
   return { asset, procedural, unconfigured, withInterior };
 }
@@ -847,22 +867,24 @@ export function BuildingTypeDetailPanel({
           <ConfigSection title="Dimensions">
             <div className="grid grid-cols-3 gap-1">
               {([
-                ['Floors', 'floors'],
-                ['Width', 'width'],
-                ['Depth', 'depth'],
-              ] as const).map(([label, field]) => {
+                ['Floors', 'floors', undefined],
+                ['Width', 'width', MAX_LOT_WIDTH],
+                ['Depth', 'depth', MAX_LOT_DEPTH],
+              ] as const).map(([label, field, maxVal]) => {
                 const typeDefaults = getBuildingDefaults(typeName);
                 const defaultVal = typeDefaults[field as keyof typeof typeDefaults];
                 return (
                   <div key={field}>
-                    <Label className="text-[9px]">{label}</Label>
+                    <Label className="text-[9px]">{label}{maxVal ? ` (max ${maxVal})` : ''}</Label>
                     <Input
                       type="number"
                       className="h-5 text-[10px]"
                       placeholder={String(defaultVal)}
+                      max={maxVal}
                       value={(overrides as any)?.[field] ?? ''}
                       onChange={e => {
-                        const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                        let val = e.target.value ? parseFloat(e.target.value) : undefined;
+                        if (val !== undefined && maxVal && val > maxVal) val = maxVal;
                         setOverride({ [field]: val } as any);
                       }}
                     />
@@ -870,6 +892,9 @@ export function BuildingTypeDetailPanel({
                 );
               })}
             </div>
+            <p className="text-[8px] text-muted-foreground mt-1">
+              Width/depth are clamped to lot size ({MAX_LOT_WIDTH}×{MAX_LOT_DEPTH}) to prevent street overflow.
+            </p>
           </ConfigSection>
         </div>
       )}

@@ -25,7 +25,7 @@ export interface AgriculturalZone {
 }
 
 export interface AgriculturalZoneConfig {
-  settlementType: 'village' | 'town' | 'city';
+  settlementType: 'hamlet' | 'village' | 'town' | 'city';
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
   mapSize: number; // from settlement map size

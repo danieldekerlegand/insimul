@@ -12,26 +12,54 @@ set -e
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# Only run if any tracked system file is staged
+# Only run if any tracked system file is staged.
+# This list must match the paths in shared/game-engine/drift-manifest.json.
 SYSTEM_PATHS=(
+  # ── Shared contracts & types ──
   "shared/game-engine/systems/"
   "shared/game-engine/system-contracts.ts"
   "shared/game-engine/ir-types.ts"
   "shared/game-engine/types.ts"
   "shared/prolog/quest-converter.ts"
+  "shared/assessment/offline-content-bank.ts"
+  "shared/assessment/offline-scoring.ts"
+
+  # ── Core gameplay systems ──
   "client/src/components/3DGame/CombatSystem.ts"
+  "client/src/components/3DGame/FightingCombatSystem.ts"
+  "client/src/components/3DGame/TurnBasedCombatSystem.ts"
+  "client/src/components/3DGame/RangedCombatSystem.ts"
   "client/src/components/3DGame/RuleEnforcer.ts"
   "client/src/components/3DGame/CraftingSystem.ts"
   "client/src/components/3DGame/ResourceSystem.ts"
   "client/src/components/3DGame/BabylonInventory.ts"
   "client/src/components/3DGame/BabylonDialogueActions.ts"
   "client/src/components/3DGame/actions/ActionManager.ts"
-  "client/src/components/3DGame/ProceduralBuildingGenerator.ts"
-  "client/src/components/3DGame/WorldScaleManager.ts"
   "client/src/components/3DGame/GameEventBus.ts"
   "client/src/components/3DGame/GamePrologEngine.ts"
   "client/src/components/3DGame/DataSource.ts"
   "client/src/components/3DGame/QuestObjectManager.ts"
+  "client/src/components/3DGame/AssessmentEngine.ts"
+
+  # ── World generation ──
+  "client/src/components/3DGame/ProceduralBuildingGenerator.ts"
+  "client/src/components/3DGame/ProceduralNatureGenerator.ts"
+  "client/src/components/3DGame/RoadGenerator.ts"
+  "client/src/components/3DGame/BuildingInteriorGenerator.ts"
+  "client/src/components/3DGame/WorldScaleManager.ts"
+  "client/src/components/3DGame/DayNightCycle.ts"
+  "client/src/components/3DGame/WeatherSystem.ts"
+
+  # ── UI systems with export counterparts ──
+  "client/src/components/3DGame/BabylonChatPanel.ts"
+  "client/src/components/3DGame/BabylonMinimap.ts"
+  "client/src/components/3DGame/GameMenuSystem.ts"
+
+  # ── IR generator (affects ALL exports) ──
+  "server/services/game-export/ir-generator.ts"
+
+  # ── Voice/STT fallback chain ──
+  "client/src/lib/speech-recognition.ts"
 )
 
 STAGED=$(git diff --cached --name-only)

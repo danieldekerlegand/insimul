@@ -942,87 +942,130 @@ export class GameMenuSystem {
 
     this.addDivider(stack);
 
-    // Rest duration options
+    // Rest duration picker (+/- stepper)
+    const restCard = this.makeCard(stack);
+
     const restLabel = new TextBlock();
     restLabel.text = "How long would you like to rest?";
     restLabel.color = COLORS.textPrimary;
     restLabel.fontSize = 15;
-    restLabel.height = "30px";
+    restLabel.height = "28px";
     restLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    stack.addControl(restLabel);
+    restCard.addControl(restLabel);
 
-    const restOptions = [
-      { label: "1 Hour", hours: 1, desc: "A short nap" },
-      { label: "2 Hours", hours: 2, desc: "A quick rest" },
-      { label: "4 Hours", hours: 4, desc: "A half-night's sleep" },
-      { label: "8 Hours", hours: 8, desc: "A full night's sleep" },
-      { label: "Until Dawn (5:00)", hours: -1, desc: "Sleep until morning" },
-      { label: "Until Dusk (20:00)", hours: -2, desc: "Wait until evening" },
-    ];
+    let restHours = 1;
+    const MIN_HOURS = 1;
+    const MAX_HOURS = 24;
 
-    restOptions.forEach((opt) => {
-      const card = this.makeCard(stack);
+    const stepperRow = new StackPanel();
+    stepperRow.isVertical = false;
+    stepperRow.height = "44px";
+    restCard.addControl(stepperRow);
 
-      const row = new StackPanel();
-      row.isVertical = false;
-      row.height = "36px";
-      card.addControl(row);
+    const makeStepperBtn = (id: string, label: string, onClick: () => void) => {
+      const btn = Button.CreateSimpleButton(id, label);
+      btn.width = "44px";
+      btn.height = "38px";
+      btn.color = "white";
+      btn.background = COLORS.accent;
+      btn.cornerRadius = 5;
+      btn.fontSize = 20;
+      btn.fontWeight = "bold";
+      btn.onPointerEnterObservable.add(() => { btn.background = "#5A9CF5"; });
+      btn.onPointerOutObservable.add(() => { btn.background = COLORS.accent; });
+      btn.onPointerClickObservable.add(onClick);
+      return btn;
+    };
 
-      const info = new StackPanel();
-      info.width = "200px";
-      info.height = "36px";
-      row.addControl(info);
+    const hoursDisplay = new TextBlock();
+    hoursDisplay.text = `${restHours} hr`;
+    hoursDisplay.color = COLORS.textPrimary;
+    hoursDisplay.fontSize = 20;
+    hoursDisplay.fontWeight = "bold";
+    hoursDisplay.width = "80px";
+    hoursDisplay.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
 
-      const labelTxt = new TextBlock();
-      labelTxt.text = opt.label;
-      labelTxt.color = COLORS.textPrimary;
-      labelTxt.fontSize = 14;
-      labelTxt.fontWeight = "bold";
-      labelTxt.height = "20px";
-      labelTxt.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      info.addControl(labelTxt);
+    const updateDisplay = () => {
+      hoursDisplay.text = restHours === 1 ? "1 hr" : `${restHours} hrs`;
+    };
 
-      const descTxt = new TextBlock();
-      descTxt.text = opt.desc;
-      descTxt.color = COLORS.textMuted;
-      descTxt.fontSize = 11;
-      descTxt.height = "16px";
-      descTxt.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      info.addControl(descTxt);
-
-      const restBtn = Button.CreateSimpleButton(`rest_${opt.hours}`, "Rest");
-      restBtn.width = "70px";
-      restBtn.height = "30px";
-      restBtn.color = "white";
-      restBtn.background = COLORS.accent;
-      restBtn.cornerRadius = 5;
-      restBtn.fontSize = 13;
-      restBtn.onPointerEnterObservable.add(() => { restBtn.background = "#5A9CF5"; });
-      restBtn.onPointerOutObservable.add(() => { restBtn.background = COLORS.accent; });
-      restBtn.onPointerClickObservable.add(() => {
-        let hours = opt.hours;
-        if (hours < 0 && timeData) {
-          const currentFractional = (timeData ? this.callbacks.getTimeData?.() : null);
-          const curHour = currentFractional?.timeString
-            ? parseInt(currentFractional.timeString.split(':')[0], 10)
-            : 8;
-          if (opt.hours === -1) {
-            // Until dawn (5:00)
-            hours = curHour < 5 ? 5 - curHour : (24 - curHour) + 5;
-          } else {
-            // Until dusk (20:00)
-            hours = curHour < 20 ? 20 - curHour : (24 - curHour) + 20;
-          }
-          if (hours <= 0) hours = 1; // safety minimum
-        } else if (hours < 0) {
-          hours = 8; // fallback
-        }
-        this.callbacks.onRest?.(hours);
-        // Refresh the tab to show updated time
-        setTimeout(() => this.refreshActiveTab(), 100);
-      });
-      row.addControl(restBtn);
+    const minusBtn = makeStepperBtn("rest_minus", "−", () => {
+      if (restHours > MIN_HOURS) { restHours--; updateDisplay(); }
     });
+    stepperRow.addControl(minusBtn);
+    stepperRow.addControl(hoursDisplay);
+    const plusBtn = makeStepperBtn("rest_plus", "+", () => {
+      if (restHours < MAX_HOURS) { restHours++; updateDisplay(); }
+    });
+    stepperRow.addControl(plusBtn);
+
+    // Spacer
+    const spacer = new TextBlock();
+    spacer.width = "16px";
+    stepperRow.addControl(spacer);
+
+    const restBtn = Button.CreateSimpleButton("rest_go", "Rest");
+    restBtn.width = "80px";
+    restBtn.height = "38px";
+    restBtn.color = "white";
+    restBtn.background = COLORS.accent;
+    restBtn.cornerRadius = 5;
+    restBtn.fontSize = 15;
+    restBtn.fontWeight = "bold";
+    restBtn.onPointerEnterObservable.add(() => { restBtn.background = "#5A9CF5"; });
+    restBtn.onPointerOutObservable.add(() => { restBtn.background = COLORS.accent; });
+    restBtn.onPointerClickObservable.add(() => {
+      this.callbacks.onRest?.(restHours);
+      setTimeout(() => this.refreshActiveTab(), 100);
+    });
+    stepperRow.addControl(restBtn);
+
+    // Quick rest shortcuts
+    const shortcutRow = new StackPanel();
+    shortcutRow.isVertical = false;
+    shortcutRow.height = "36px";
+    shortcutRow.paddingTop = "6px";
+    restCard.addControl(shortcutRow);
+
+    const makeShortcutBtn = (id: string, label: string, onClick: () => void) => {
+      const btn = Button.CreateSimpleButton(id, label);
+      btn.width = "140px";
+      btn.height = "30px";
+      btn.color = COLORS.textSecondary;
+      btn.background = COLORS.cardBg;
+      btn.cornerRadius = 5;
+      btn.fontSize = 12;
+      btn.onPointerEnterObservable.add(() => { btn.background = "#3A3A4A"; });
+      btn.onPointerOutObservable.add(() => { btn.background = COLORS.cardBg; });
+      btn.onPointerClickObservable.add(onClick);
+      return btn;
+    };
+
+    const calcHoursUntil = (targetHour: number): number => {
+      const currentFractional = this.callbacks.getTimeData?.();
+      const curHour = currentFractional?.timeString
+        ? parseInt(currentFractional.timeString.split(':')[0], 10)
+        : 8;
+      let h = curHour < targetHour ? targetHour - curHour : (24 - curHour) + targetHour;
+      if (h <= 0) h = 1;
+      return h;
+    };
+
+    const dawnBtn = makeShortcutBtn("rest_dawn", "🌅 Until Dawn (5:00)", () => {
+      this.callbacks.onRest?.(calcHoursUntil(5));
+      setTimeout(() => this.refreshActiveTab(), 100);
+    });
+    shortcutRow.addControl(dawnBtn);
+
+    const shortcutSpacer = new TextBlock();
+    shortcutSpacer.width = "8px";
+    shortcutRow.addControl(shortcutSpacer);
+
+    const duskBtn = makeShortcutBtn("rest_dusk", "🌙 Until Dusk (20:00)", () => {
+      this.callbacks.onRest?.(calcHoursUntil(20));
+      setTimeout(() => this.refreshActiveTab(), 100);
+    });
+    shortcutRow.addControl(duskBtn);
 
     // ── Time Speed Controls ──
     if (this.callbacks.onTimeSpeedChange || this.callbacks.onTimePauseToggle) {

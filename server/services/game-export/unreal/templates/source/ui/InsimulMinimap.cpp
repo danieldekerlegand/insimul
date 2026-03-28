@@ -1,6 +1,6 @@
 #include "InsimulMinimap.h"
 #include "Components/CanvasPanelSlot.h"
-#include "Components/ImageSlot.h"
+#include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Components/SceneCaptureComponent2D.h"

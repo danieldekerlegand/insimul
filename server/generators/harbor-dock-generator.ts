@@ -74,7 +74,7 @@ export interface HarborConfig {
   /** Coastline data from the coastline generator */
   coastline: CoastlineData;
   /** Settlement type affects harbor size */
-  settlementType: 'village' | 'town' | 'city';
+  settlementType: 'hamlet' | 'village' | 'town' | 'city';
   /** Year the settlement was founded */
   foundedYear?: number;
 }
@@ -125,8 +125,9 @@ export function findHarborSites(
 /**
  * Get the number of harbor zones based on settlement type.
  */
-export function getHarborCount(settlementType: 'village' | 'town' | 'city'): number {
+export function getHarborCount(settlementType: 'hamlet' | 'village' | 'town' | 'city'): number {
   switch (settlementType) {
+    case 'hamlet': return 1;
     case 'village': return 1;
     case 'town': return 1;
     case 'city': return 2;
@@ -184,12 +185,15 @@ const STRUCTURE_TEMPLATES: StructureTemplate[] = [
  * Determine which structure types to generate based on settlement size.
  */
 export function getStructureLayout(
-  settlementType: 'village' | 'town' | 'city',
+  settlementType: 'hamlet' | 'village' | 'town' | 'city',
   rng: () => number,
 ): HarborStructureType[] {
   const base: HarborStructureType[] = ['dock', 'pier'];
 
   switch (settlementType) {
+    case 'hamlet':
+      // Tiny hamlet: just the basics
+      return base;
     case 'village':
       // Small fishing village: 1 dock, 1 pier, maybe a fish market
       if (rng() > 0.3) base.push('fish_market');

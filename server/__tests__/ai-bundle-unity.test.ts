@@ -123,7 +123,7 @@ function makeMinimalIR(aiConfig?: Partial<AIConfigIR>): WorldIR {
     aiConfig: {
       apiMode: 'insimul',
       insimulEndpoint: '/api/gemini/chat',
-      geminiModel: 'gemini-2.5-flash',
+      geminiModel: 'gemini-3.1-flash',
       geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
       voiceEnabled: true,
       defaultVoice: 'Kore',
@@ -326,7 +326,7 @@ describe('AIConfigIR local mode fields', () => {
     const config: AIConfigIR = {
       apiMode: 'local',
       insimulEndpoint: '/api/gemini/chat',
-      geminiModel: 'gemini-2.5-flash',
+      geminiModel: 'gemini-3.1-flash',
       geminiApiKeyPlaceholder: '',
       voiceEnabled: true,
       defaultVoice: 'Kore',
@@ -341,7 +341,7 @@ describe('AIConfigIR local mode fields', () => {
     const config: AIConfigIR = {
       apiMode: 'insimul',
       insimulEndpoint: '/api/gemini/chat',
-      geminiModel: 'gemini-2.5-flash',
+      geminiModel: 'gemini-3.1-flash',
       geminiApiKeyPlaceholder: '',
       voiceEnabled: true,
       defaultVoice: 'Kore',

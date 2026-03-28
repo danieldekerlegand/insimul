@@ -78,7 +78,6 @@ public:
     };
 
     /** Show dialogue with romance actions merged alongside base actions */
-    UFUNCTION(BlueprintCallable, Category = "Dialogue")
     void ShowWithRomanceActions(const TArray<FString>& BaseActionIds, const TArray<FInsimulRomanceAction>& RomanceActions, float Energy);
 
 private:

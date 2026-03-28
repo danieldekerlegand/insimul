@@ -11,3 +11,6 @@ editor-repo/
 
 .ralphy-worktrees
 .ralphy
+
+# Local AI models (downloaded via scripts/setup-local-ai.sh)
+models/

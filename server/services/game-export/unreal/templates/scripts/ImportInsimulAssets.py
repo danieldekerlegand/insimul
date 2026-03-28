@@ -9,12 +9,12 @@ Asset routing:
   - Content/Textures/ → Texture assets
   - Content/Audio/    → Sound Wave assets
 
-Requires: InterchangeEditor, InterchangePlugins, GLTFImporter plugins (enabled in .uproject)
+Requires: InterchangeEditor, Interchange, GLTFExporter plugins (enabled in .uproject)
 
 Usage:
-  File > Execute Python Script (browse to this file)
-  — or —
-  from the Output Log Python console: exec(open("Scripts/ImportInsimulAssets.py").read())
+  Automated (recommended): Run setup.sh — it calls this script automatically.
+  Manual: File > Execute Python Script (browse to this file)
+  Console: exec(open("Scripts/ImportInsimulAssets.py").read())
 
 After import:
   1. For each building mesh, right-click > Create Blueprint Class, add a StaticMeshComponent.

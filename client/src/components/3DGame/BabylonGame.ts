@@ -113,7 +113,7 @@ import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.t
 import { BabylonNoticeBoardPanel, type NoticeArticle } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
 import { SettlementNoticeBoard } from "@/components/3DGame/SettlementNoticeBoard.ts";
 import { createTownSquare } from "@/components/3DGame/TownSquareGenerator.ts";
-import { getCenterBlockBounds } from "@/components/3DGame/StreetAlignedPlacement.ts";
+import { getCenterBlockBounds, getBlockCellSize } from "@/components/3DGame/StreetAlignedPlacement.ts";
 import { generateSettlementNotices, type NPCAuthorInfo } from "@/components/3DGame/NoticeGenerator.ts";
 import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
 import { generateQuestSuggestions, selectQuestForNPC } from "@/components/3DGame/DynamicQuestBoard.ts";
@@ -187,7 +187,6 @@ import { QuestOfferPanel } from "@/components/3DGame/QuestOfferPanel.ts";
 import type { QuestOfferData } from "@/components/3DGame/QuestOfferPanel.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import { ReputationManager } from "@/components/3DGame/ReputationManager.ts";
-import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
 import { LanguageProgressTracker } from "@/components/3DGame/LanguageProgressTracker.ts";
 import { extractObjectiveMarkers } from "@/components/3DGame/QuestMinimapMarkers.ts";
@@ -477,7 +476,6 @@ export class BabylonGame {
   private skipQuestOfferOnce = false;
   private questWorldObjectLinker: QuestWorldObjectLinker | null = null;
   private questNotificationManager: QuestNotificationManager | null = null;
-  private questLanguageFeedbackPanel: QuestLanguageFeedbackPanel | null = null;
   private questLanguageFeedbackTracker: QuestLanguageFeedbackTracker | null = null;
   private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
@@ -2462,13 +2460,10 @@ export class BabylonGame {
       this.eventBus.emit({ type: 'vocabulary_used', word, correct: true });
       // Forward vocabulary usage to quest language tracker
       if (this.questLanguageFeedbackTracker) {
-        const items = this.questLanguageFeedbackTracker.processVocabularyUsage([
+        this.questLanguageFeedbackTracker.processVocabularyUsage([
           { word, meaning: '', usedCorrectly: true },
         ]);
-        for (const item of items) {
-          this.questLanguageFeedbackPanel?.addFeedbackItem(item);
-        }
-        this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+        this.questNotificationManager?.updateLanguageProgress(this.questLanguageFeedbackTracker.getState());
       }
     });
     this.chatPanel.setOnConversationTurn((keywords: string[]) => {
@@ -2578,11 +2573,8 @@ export class BabylonGame {
       this.gamificationTracker?.onGrammarFeedback(feedback);
       // Forward grammar feedback to quest language tracker
       if (this.questLanguageFeedbackTracker) {
-        const items = this.questLanguageFeedbackTracker.processGrammarFeedback(feedback);
-        for (const item of items) {
-          this.questLanguageFeedbackPanel?.addFeedbackItem(item);
-        }
-        this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+        this.questLanguageFeedbackTracker.processGrammarFeedback(feedback);
+        this.questNotificationManager?.updateLanguageProgress(this.questLanguageFeedbackTracker.getState());
       }
     });
 
@@ -2599,8 +2591,6 @@ export class BabylonGame {
       this.gameMenuSystem?.open("quests");
     });
 
-    // Initialize quest language feedback panel (real-time grammar/vocab overlay)
-    this.questLanguageFeedbackPanel = new QuestLanguageFeedbackPanel(this.guiManager.advancedTexture);
 
     // Initialize zone audio
     this.initializeZoneAudio(scene);
@@ -4519,16 +4509,38 @@ export class BabylonGame {
         }
 
         // Compute re-centering offset: lot positions are in server local-space
-        // (centered at mapSize/2), but the game world places the settlement elsewhere.
-        // Always use the LOT centroid as the reference point, since lot positions and
-        // street waypoints may be in different coordinate spaces (DB map-space vs IR world-space).
+        // (centered around the settlement center), but the game world places the
+        // settlement elsewhere. We must use the SAME centroid as the street network
+        // (offsetNetwork in StreetNetworkLayout.ts) so buildings align with roads.
+        // Using the lot centroid causes a shift because lots aren't symmetrically
+        // distributed (park blocks have no lots).
         const lotsWithPos = lots.filter((l: any) => l.positionX != null && l.positionZ != null);
         let lotOffsetX = 0, lotOffsetZ = 0;
         if (lotsWithPos.length > 0) {
-          let sumX = 0, sumZ = 0;
-          for (const l of lotsWithPos) { sumX += l.positionX; sumZ += l.positionZ; }
-          const centroidX = sumX / lotsWithPos.length;
-          const centroidZ = sumZ / lotsWithPos.length;
+          // Prefer street waypoint centroid (same reference as offsetNetwork)
+          const storedStreetsForOffset: any[] = Array.isArray(settlement.streets) ? settlement.streets : [];
+          let centroidX = 0, centroidZ = 0;
+          let wpCount = 0;
+          for (const s of storedStreetsForOffset) {
+            const wps: { x: number; z: number }[] | null =
+              Array.isArray(s.waypoints) && s.waypoints.length >= 2 ? s.waypoints :
+              s.properties && Array.isArray(s.properties.waypoints) && s.properties.waypoints.length >= 2 ? s.properties.waypoints :
+              null;
+            if (wps) {
+              for (const wp of wps) { centroidX += wp.x; centroidZ += wp.z; wpCount++; }
+            }
+          }
+          if (wpCount > 0) {
+            // Use street waypoint centroid — matches offsetNetwork exactly
+            centroidX /= wpCount;
+            centroidZ /= wpCount;
+          } else {
+            // No stored streets — fall back to lot centroid
+            let sumX = 0, sumZ = 0;
+            for (const l of lotsWithPos) { sumX += l.positionX; sumZ += l.positionZ; }
+            centroidX = sumX / lotsWithPos.length;
+            centroidZ = sumZ / lotsWithPos.length;
+          }
           lotOffsetX = scaledSettlement.position.x - centroidX;
           lotOffsetZ = scaledSettlement.position.z - centroidZ;
         }
@@ -4583,6 +4595,12 @@ export class BabylonGame {
           // Clamp building footprint to lot dimensions so it doesn't overflow into streets
           if (bizLot?.lotWidth) buildingSpec.width = Math.min(buildingSpec.width, bizLot.lotWidth * 0.75);
           if (bizLot?.lotDepth) buildingSpec.depth = Math.min(buildingSpec.depth, bizLot.lotDepth * 0.75);
+          // Fallback: clamp to block cell size when DB lot dimensions are unavailable
+          if (!bizLot?.lotWidth || !bizLot?.lotDepth) {
+            const cellSize = getBlockCellSize(scaledSettlement.radius);
+            buildingSpec.width = Math.min(buildingSpec.width, cellSize.maxWidth);
+            buildingSpec.depth = Math.min(buildingSpec.depth, cellSize.maxDepth);
+          }
 
           buildingSpec = {
             ...buildingSpec,
@@ -4663,7 +4681,10 @@ export class BabylonGame {
             mesh: building,
             metadata: building.metadata,
           });
-          this.interactionPrompt?.registerBuilding({ id: business.id, name: business.name, mesh: building });
+          this.interactionPrompt?.registerBuilding({
+            id: business.id, name: business.name, mesh: building,
+            doorPosition: this.computeBuildingDoorPosition(building.position, buildingSpec.rotation, buildingSpec.depth),
+          });
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -4724,6 +4745,12 @@ export class BabylonGame {
           // Clamp building footprint to lot dimensions so it doesn't overflow into streets
           if (resLot?.lotWidth) buildingSpec.width = Math.min(buildingSpec.width, resLot.lotWidth * 0.75);
           if (resLot?.lotDepth) buildingSpec.depth = Math.min(buildingSpec.depth, resLot.lotDepth * 0.75);
+          // Fallback: clamp to block cell size when DB lot dimensions are unavailable
+          if (!resLot?.lotWidth || !resLot?.lotDepth) {
+            const cellSize = getBlockCellSize(scaledSettlement.radius);
+            buildingSpec.width = Math.min(buildingSpec.width, cellSize.maxWidth);
+            buildingSpec.depth = Math.min(buildingSpec.depth, cellSize.maxDepth);
+          }
 
           buildingSpec = {
             ...buildingSpec,
@@ -4798,7 +4825,10 @@ export class BabylonGame {
             mesh: building,
             metadata: building.metadata,
           });
-          this.interactionPrompt?.registerBuilding({ id: residence.id, name: 'Residence', mesh: building });
+          this.interactionPrompt?.registerBuilding({
+            id: residence.id, name: 'Residence', mesh: building,
+            doorPosition: this.computeBuildingDoorPosition(building.position, buildingSpec.rotation, buildingSpec.depth),
+          });
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -4823,12 +4853,38 @@ export class BabylonGame {
           }
         }
 
+        // Place trees at DB park lots
+        const dbParkLots = lots.filter((l: any) =>
+          l.buildingType === 'park' && l.positionX != null && l.positionZ != null
+        );
+        for (const parkLot of dbParkLots) {
+          const parkPos = this.projectToGround(
+            parkLot.positionX + lotOffsetX,
+            parkLot.positionZ + lotOffsetZ
+          );
+          // Place multiple trees across the park area
+          const pw = parkLot.lotWidth || 30;
+          const pd = parkLot.lotDepth || 30;
+          const treeCount = Math.max(4, Math.floor((pw * pd) / 80));
+          // Simple seeded random from lot id
+          let parkSeed = 0;
+          for (let ci = 0; ci < parkLot.id.length; ci++) parkSeed = ((parkSeed << 5) - parkSeed + parkLot.id.charCodeAt(ci)) | 0;
+          parkSeed = Math.abs(parkSeed);
+          const parkRng = () => { parkSeed = (parkSeed * 16807 + 0) % 2147483647; return parkSeed / 2147483647; };
+          for (let ti = 0; ti < treeCount; ti++) {
+            const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
+            const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
+            const treePos = this.projectToGround(tx, tz);
+            this.placeTreeAtPosition(scene, treePos, settlement.id);
+          }
+        }
+
         // Collect DB lots not yet claimed by a business or residence for auto-fill
         const usedLotIds = new Set<string>();
         for (const b of businesses) { if (b.lotId) usedLotIds.add(b.lotId); }
         for (const r of residences) { if (r.lotId) usedLotIds.add(r.lotId); }
         const unclaimedLots = lots.filter((l: any) =>
-          !usedLotIds.has(l.id) && l.positionX != null && l.positionZ != null
+          !usedLotIds.has(l.id) && l.buildingType !== 'park' && l.positionX != null && l.positionZ != null
         );
         // Also build a simple fallback array for auto-fill phases
         const autoFillPositions = unclaimedLots.map((l: any) => ({
@@ -4919,6 +4975,13 @@ export class BabylonGame {
               proceduralConfig: proceduralBuildingConfig,
             });
 
+            // Clamp auto-fill buildings to block cell size
+            {
+              const cellSize = getBlockCellSize(scaledSettlement.radius);
+              buildingSpec.width = Math.min(buildingSpec.width, cellSize.maxWidth);
+              buildingSpec.depth = Math.min(buildingSpec.depth, cellSize.maxDepth);
+            }
+
             buildingSpec = {
               ...buildingSpec,
               position: this.findStableBuildingPosition(
@@ -4989,7 +5052,10 @@ export class BabylonGame {
               mesh: building,
               metadata: building.metadata,
             });
-            this.interactionPrompt?.registerBuilding({ id: bizId, name: biz.name, mesh: building });
+            this.interactionPrompt?.registerBuilding({
+              id: bizId, name: biz.name, mesh: building,
+              doorPosition: this.computeBuildingDoorPosition(building.position, buildingSpec.rotation, buildingSpec.depth),
+            });
 
             this.buildingInfoDisplay?.registerBuilding(building);
             autoFillIdx++;
@@ -5017,6 +5083,13 @@ export class BabylonGame {
             zone: slotInfo.zone,
             proceduralConfig: proceduralBuildingConfig,
           });
+
+          // Clamp auto-fill residences to block cell size
+          {
+            const cellSize = getBlockCellSize(scaledSettlement.radius);
+            buildingSpec.width = Math.min(buildingSpec.width, cellSize.maxWidth);
+            buildingSpec.depth = Math.min(buildingSpec.depth, cellSize.maxDepth);
+          }
 
           buildingSpec = {
             ...buildingSpec,
@@ -5078,7 +5151,10 @@ export class BabylonGame {
             mesh: building,
             metadata: building.metadata,
           });
-          this.interactionPrompt?.registerBuilding({ id: genericResId, name: 'Residence', mesh: building });
+          this.interactionPrompt?.registerBuilding({
+            id: genericResId, name: 'Residence', mesh: building,
+            doorPosition: this.computeBuildingDoorPosition(building.position, buildingSpec.rotation, buildingSpec.depth),
+          });
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -5422,23 +5498,23 @@ export class BabylonGame {
     // Generate roads between settlements
     if (this.roadGenerator && boundaryData.length >= 2) {
 
-      // Set road appearance based on world type
+      // Set road appearance based on world type (softer colors as texture fallback)
       const wt = (this.config.worldType || '').toLowerCase();
       if (wt.includes('medieval') || wt.includes('fantasy')) {
-        this.roadGenerator.setRoadColor(new Color3(0.35, 0.28, 0.2)); // Dirt path
+        this.roadGenerator.setRoadColor(new Color3(0.42, 0.38, 0.33)); // Soft dirt path
         this.roadGenerator.setRoadWidth(10);
       } else if (wt.includes('cyberpunk') || wt.includes('sci-fi') || wt.includes('modern')) {
-        this.roadGenerator.setRoadColor(new Color3(0.22, 0.22, 0.25)); // Asphalt
+        this.roadGenerator.setRoadColor(new Color3(0.36, 0.36, 0.38)); // Soft asphalt
         this.roadGenerator.setRoadWidth(14);
       } else if (wt.includes('desert') || wt.includes('sand')) {
-        this.roadGenerator.setRoadColor(new Color3(0.45, 0.38, 0.28)); // Sandy path
+        this.roadGenerator.setRoadColor(new Color3(0.50, 0.46, 0.40)); // Soft sandy path
         this.roadGenerator.setRoadWidth(8);
       } else {
-        this.roadGenerator.setRoadColor(new Color3(0.32, 0.28, 0.22)); // Default packed dirt
+        this.roadGenerator.setRoadColor(new Color3(0.40, 0.39, 0.36)); // Soft neutral default
         this.roadGenerator.setRoadWidth(10);
       }
 
-      // Apply road texture from asset collection if available
+      // Apply road texture from asset collection if available, otherwise use default asphalt
       if (this.textureManager && this.selectedRoadTexture) {
         const roadAsset = this.worldAssets.find((a) => a.id === this.selectedRoadTexture);
         if (roadAsset) {
@@ -5446,6 +5522,8 @@ export class BabylonGame {
           this.roadGenerator.setRoadTexture(roadTex);
         }
       }
+      // Fall back to built-in asphalt texture for realistic roads
+      this.roadGenerator.loadDefaultAsphaltTexture();
 
       const settlementNodes = boundaryData.map((s) => ({
         id: s.id,
@@ -7578,6 +7656,18 @@ export class BabylonGame {
     });
   }
 
+  /** Compute the door world position for a building (front face center, offset outward). */
+  private computeBuildingDoorPosition(position: Vector3, rotation: number, depth: number): Vector3 {
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const doorLocalZ = depth / 2 + 0.5;
+    return new Vector3(
+      position.x + sin * doorLocalZ,
+      position.y,
+      position.z + cos * doorLocalZ,
+    );
+  }
+
   /** Check whether a world-space XZ point falls inside any registered building footprint. */
   private isPointInsideAnyBuilding(x: number, z: number): boolean {
     for (const b of this.buildingFootprints) {
@@ -7608,19 +7698,32 @@ export class BabylonGame {
   }
 
   /** Generate a spawn candidate near a center point, validated against buildings. */
-  private findSafeSpawnNear(center: Vector3, spread: number, minOffset: number, maxAttempts = 8): Vector3 {
+  private findSafeSpawnNear(center: Vector3, spread: number, minOffset: number, maxAttempts = 20): Vector3 {
+    // Try random positions, starting close and expanding outward
     for (let i = 0; i < maxAttempts; i++) {
-      const rawX = (Math.random() - 0.5) * spread;
-      const rawZ = (Math.random() - 0.5) * spread;
-      const x = center.x + Math.sign(rawX || 1) * Math.max(Math.abs(rawX), minOffset);
-      const z = center.z + Math.sign(rawZ || 1) * Math.max(Math.abs(rawZ), minOffset);
+      const angle = Math.random() * Math.PI * 2;
+      const dist = minOffset + Math.random() * spread;
+      const x = center.x + Math.cos(angle) * dist;
+      const z = center.z + Math.sin(angle) * dist;
       if (!this.isPointInsideAnyBuilding(x, z)) {
         return new Vector3(x, 12, z);
       }
     }
-    // All attempts landed inside buildings — push further out
+    // All attempts landed inside buildings — push well outside with building check
+    for (let ring = 1; ring <= 4; ring++) {
+      const dist = spread + minOffset * ring;
+      for (let a = 0; a < 8; a++) {
+        const angle = (a / 8) * Math.PI * 2;
+        const x = center.x + Math.cos(angle) * dist;
+        const z = center.z + Math.sin(angle) * dist;
+        if (!this.isPointInsideAnyBuilding(x, z)) {
+          return new Vector3(x, 12, z);
+        }
+      }
+    }
+    // Ultimate fallback — far enough that it can't be inside any building
     const angle = Math.random() * Math.PI * 2;
-    const dist = spread * 0.75 + minOffset;
+    const dist = spread * 2 + 20;
     return new Vector3(center.x + Math.cos(angle) * dist, 12, center.z + Math.sin(angle) * dist);
   }
 
@@ -7866,24 +7969,35 @@ export class BabylonGame {
     this.playerMesh.setEnabled(false);
     const interiorScene = this.interiorSceneManager.getInteriorScene();
 
-    // Create third-person camera BEFORE switching scenes to avoid
-    // "No camera defined" errors in the render loop
+    // Create first-person camera for interior — much better visibility in tight spaces
     let spawnPos = new Vector3(0, 1.6, 0);
-    const interiorArcCam = new ArcRotateCamera('interior_camera', -Math.PI / 2, Math.PI / 3, 8, spawnPos, interiorScene);
-    interiorArcCam.attachControl(this.engine!.getRenderingCanvas(), true);
-    this.interiorCamera = interiorArcCam as any; // Store for later cleanup
-    interiorScene.activeCamera = interiorArcCam;
+    const fpsCam = new FreeCamera('interior_camera', spawnPos, interiorScene);
+    fpsCam.attachControl(this.engine!.getRenderingCanvas(), true);
+    fpsCam.minZ = 0.1;
+    fpsCam.speed = 0.15;          // Comfortable indoor walk speed
+    fpsCam.inertia = 0.8;         // Smooth deceleration when releasing keys
+    fpsCam.angularSensibility = 800; // Lower = more sensitive; 800 = responsive first-person look
+    // WASD movement
+    fpsCam.keysUp = [87];    // W
+    fpsCam.keysDown = [83];  // S
+    fpsCam.keysLeft = [65];  // A
+    fpsCam.keysRight = [68]; // D
+    // Collisions — invisible box walls (0.3m thick) handle the actual blocking.
+    // No gravity — fixed eye height of 1.7m avoids floor clipping issues.
+    fpsCam.checkCollisions = true;
+    fpsCam.applyGravity = false;
+    fpsCam.ellipsoid = new Vector3(0.5, 0.9, 0.5);
+    this.interiorCamera = fpsCam;
+    interiorScene.activeCamera = fpsCam;
 
     // Now safe to switch — interior scene has an active camera
     this.interiorSceneManager.switchToInterior();
 
     // Determine interior type: check asset collection config first, then building data
-    // Only use GLB models if the asset collection explicitly provides interior assets
     const buildingInfo = this.buildingData.get(buildingId);
     const interiorAssetPath = buildingInfo?.metadata?.interiorAssetPath || null;
 
     if (interiorAssetPath) {
-      // Asset collection specifies a specific interior model for this building
       console.log(`[Interior] Loading asset interior: ${interiorAssetPath} for ${businessType || buildingType}`);
       try {
         const { spawnPosition, meshCount } = await this.interiorSceneManager.loadInteriorModel(interiorAssetPath);
@@ -7894,118 +8008,29 @@ export class BabylonGame {
         spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
       }
     } else {
-      // Default: procedural interior generation (respects asset collection config)
       console.log(`[Interior] Using procedural interior for ${businessType || buildingType}`);
       spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
     }
 
-    // Update camera target to final spawn point (third-person orbits around this point)
-    const arcCam = interiorScene.activeCamera as ArcRotateCamera;
-    arcCam.target = spawnPos;
-    arcCam.alpha = -Math.PI / 2; // Behind the player (facing into the room)
-    arcCam.beta = Math.PI / 3;
-    arcCam.radius = 8;
-    arcCam.lowerRadiusLimit = 3;
-    arcCam.upperRadiusLimit = 15;
-    arcCam.lowerBetaLimit = 0.3;
-    arcCam.upperBetaLimit = Math.PI / 2.2;
-    arcCam.minZ = 0.1;
-    arcCam.checkCollisions = false;
-    arcCam.panningSensibility = 0; // Disable panning
-    arcCam.keysUp = [];
-    arcCam.keysDown = [];
-    arcCam.keysLeft = [];
-    arcCam.keysRight = [];
+    // Fixed eye height — 1.7m above floor, no gravity needed
+    const EYE_HEIGHT = 1.7;
+    fpsCam.position = new Vector3(spawnPos.x, spawnPos.y + EYE_HEIGHT, spawnPos.z);
+    fpsCam.setTarget(new Vector3(spawnPos.x, spawnPos.y + EYE_HEIGHT, spawnPos.z + 5));
 
-    // Load the player model into the interior scene with full animations
-    try {
-      let playerModelUrl = PLAYER_MODEL_URL;
-      let playerRootUrl = '';
-      let playerFileName = playerModelUrl;
-      const playerModelId = this.world3DConfig?.playerModels?.default;
-      if (playerModelId && this.worldAssets?.length) {
-        const playerAsset = this.worldAssets.find((a: any) => a.id === playerModelId);
-        if (playerAsset?.filePath) {
-          const cleanPath = playerAsset.filePath.replace(/^\//, '');
-          const lastSlash = cleanPath.lastIndexOf('/');
-          playerRootUrl = lastSlash >= 0 ? '/' + cleanPath.substring(0, lastSlash + 1) : '/';
-          playerFileName = lastSlash >= 0 ? cleanPath.substring(lastSlash + 1) : cleanPath;
-        }
-      }
-      if (!playerRootUrl) {
-        const cleanPath = playerModelUrl.replace(/^\//, '');
-        const lastSlash = cleanPath.lastIndexOf('/');
-        playerRootUrl = '/' + cleanPath.substring(0, lastSlash + 1);
-        playerFileName = cleanPath.substring(lastSlash + 1);
-      }
+    // Debug NPC capsule for height reference (1.8m tall standing on floor)
+    const debugNPC = MeshBuilder.CreateCapsule('interior_debug_npc', {
+      height: 1.8,
+      radius: 0.3,
+    }, interiorScene);
+    debugNPC.position = new Vector3(spawnPos.x + 2, spawnPos.y + 0.9, spawnPos.z + 3);
+    const debugMat = new StandardMaterial('debug_npc_mat', interiorScene);
+    debugMat.diffuseColor = new Color3(0.2, 0.6, 0.9);
+    debugMat.emissiveColor = new Color3(0.1, 0.3, 0.45);
+    debugNPC.material = debugMat;
 
-      const result = await SceneLoader.ImportMeshAsync('', playerRootUrl, playerFileName, interiorScene);
-      const interiorPlayerMesh = (this.selectPlayerMesh(result.meshes) || result.meshes[0]) as Mesh;
-
-      // Apply same scaling as overworld player
-      const playerScale = this.world3DConfig?.modelScaling?.['playerModels.default'];
-      interiorPlayerMesh.scaling = playerScale
-        ? new Vector3(playerScale.x, playerScale.y, playerScale.z)
-        : new Vector3(1, 1, 1);
-
-      interiorPlayerMesh.position = spawnPos.clone();
-      // Don't set initial rotation — CharacterController with faceForward=true handles facing
-      interiorPlayerMesh.checkCollisions = true;
-      interiorPlayerMesh.ellipsoid = new Vector3(0.5, 1, 0.5);
-      interiorPlayerMesh.ellipsoidOffset = new Vector3(0, 1, 0);
-
-      // Set up character controller for interior movement
-      const interiorController = new CharacterController(interiorPlayerMesh, arcCam, interiorScene, undefined, false);
-      interiorController.setMode(0);
-      interiorController.setCameraTarget(new Vector3(0, 1.6, 0));
-      interiorController.setNoFirstPerson(true);
-      interiorController.setStepOffset(0.4);
-      interiorController.setSlopeLimit(15, 75);
-      interiorController.setWalkSpeed(1.5);
-      interiorController.setRunSpeed(3);
-      interiorController.setLeftSpeed(1.5);
-      interiorController.setRightSpeed(1.5);
-      interiorController.setJumpSpeed(4);
-      interiorController.setTurnSpeed(60);
-      interiorController.setTurningOff(false);
-      interiorController.enableKeyBoard(true);
-
-      // Wire animations (GLB animation groups or .babylon skeleton ranges)
-      if (result.animationGroups?.length) {
-        const agByName: Record<string, any> = {};
-        for (const ag of result.animationGroups) { agByName[ag.name] = ag; ag.stop(); }
-        const agMap: Record<string, any> = {};
-        for (const name of ['idle','walk','run','turnLeft','turnRight','walkBack','idleJump','runJump','fall','slideBack','strafeLeft','strafeRight']) {
-          if (agByName[name]) agMap[name] = agByName[name];
-        }
-        interiorController.setAnimationGroups(agMap);
-      } else {
-        interiorController.setIdleAnim('idle', 1, true);
-        interiorController.setWalkAnim('walk', 1, true);
-        interiorController.setRunAnim('run', 1.2, true);
-        interiorController.setTurnLeftAnim('turnLeft', 0.5, true);
-        interiorController.setTurnRightAnim('turnRight', 0.5, true);
-        interiorController.setWalkBackAnim('walkBack', 0.5, true);
-      }
-
-      interiorController.setCameraElasticity(true);
-      interiorController.start();
-
-      arcCam.target = interiorPlayerMesh.position.add(new Vector3(0, 1.6, 0));
-      arcCam.radius = 6;
-      arcCam.lowerRadiusLimit = 2;
-      arcCam.upperRadiusLimit = 10;
-
-      // Store for cleanup
-      (this as any)._interiorPlayerMesh = interiorPlayerMesh;
-      (this as any)._interiorPlayerController = interiorController;
-    } catch (e) {
-      console.warn('[Interior] Failed to load interior player, using capsule fallback:', e);
-      const interiorPlayerMesh = MeshBuilder.CreateCapsule('interior_player', { height: 1.8, radius: 0.3 }, interiorScene);
-      interiorPlayerMesh.position = spawnPos.clone();
-      arcCam.target = interiorPlayerMesh.position;
-      (this as any)._interiorPlayerMesh = interiorPlayerMesh;
-    }
+    // No player model needed in first-person
+    (this as any)._interiorPlayerMesh = null;
+    (this as any)._interiorPlayerController = null;
 
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
@@ -9847,12 +9872,15 @@ export class BabylonGame {
         return;
       }
 
-      // No active path — let ScheduleExecutor know we need a new goal
-      if (!this.scheduleExecutor.isIdling(characterId) && !this.scheduleExecutor.hasPendingAction(characterId)) {
-        this.scheduleExecutor.setIdle(characterId, now);
-        instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
-        instance.schedulePathWaypoints = undefined;
-        if (entry) entry.currentGoal = null;
+      // No active path — force the ScheduleExecutor to pick a new goal immediately
+      if (!this.scheduleExecutor.hasPendingAction(characterId)) {
+        this.scheduleExecutor.forceEvaluateNPC(characterId);
+        // Brief pause to avoid re-evaluating every tick if no goal is available
+        if (!this.scheduleExecutor.hasPendingAction(characterId)) {
+          instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
+          instance.schedulePathWaypoints = undefined;
+          if (entry) entry.currentGoal = null;
+        }
       }
       return;
     }
@@ -11248,7 +11276,10 @@ export class BabylonGame {
     try {
       const guidance = await this.dataSource.getNpcQuestGuidance(worldId, npcId);
       if (guidance?.hasGuidance && guidance.systemPromptAddition) {
-        this.chatPanel.setQuestGuidancePrompt(guidance.systemPromptAddition);
+        this.chatPanel?.setQuestGuidancePrompt(guidance.systemPromptAddition);
+        // If the conversation just started and hasn't had an NPC greeting yet,
+        // trigger one now so the NPC initiates about the active quest
+        this.chatPanel?.triggerQuestGuidanceGreeting();
       }
     } catch (e) {
       // Non-critical — NPC will work without quest guidance
@@ -13329,7 +13360,7 @@ export class BabylonGame {
 
     if (!activeQuest || !activeQuest.objectives?.length) {
       this.questLanguageFeedbackTracker = null;
-      this.questLanguageFeedbackPanel?.hide();
+      this.questNotificationManager?.hideLanguageProgress();
       return;
     }
 
@@ -13350,17 +13381,13 @@ export class BabylonGame {
       vocabMeanings,
     );
 
-    // Wire callbacks
+    // Wire callbacks to update language bars in the Active Quest HUD
     this.questLanguageFeedbackTracker.setOnFeedbackUpdate((state) => {
-      this.questLanguageFeedbackPanel?.updateFromState(state);
-    });
-    this.questLanguageFeedbackTracker.setOnFeedbackItem((item) => {
-      this.questLanguageFeedbackPanel?.addFeedbackItem(item);
+      this.questNotificationManager?.updateLanguageProgress(state);
     });
 
-    // Show panel
-    this.questLanguageFeedbackPanel?.show(activeQuest.title);
-    this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+    // Push initial state to the HUD
+    this.questNotificationManager?.updateLanguageProgress(this.questLanguageFeedbackTracker.getState());
   }
 
   private async handleQuestObjectiveCompleted(questId: string, objectiveId: string, type: string): Promise<void> {
@@ -14468,8 +14495,6 @@ export class BabylonGame {
     this.physicalActionMenu?.dispose();
     this.questNotificationManager?.dispose();
     this.questNotificationManager = null;
-    this.questLanguageFeedbackPanel?.dispose();
-    this.questLanguageFeedbackPanel = null;
     this.questLanguageFeedbackTracker = null;
     this.questTracker?.dispose();
     this.chatPanel?.dispose();

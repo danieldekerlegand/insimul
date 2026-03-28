@@ -17,8 +17,11 @@ export const GEMINI_MODELS = {
   /** Fast model for simple/high-volume tasks */
   FLASH: 'gemini-3.1-flash-lite-preview',
 
-  /** Model for speech/TTS tasks (still on 2.5 — no 3.x TTS yet) */
-  SPEECH: 'gemini-2.5-flash-preview-tts',
+  /** Model for speech/TTS tasks */
+  SPEECH: 'gemini-3.1-flash-preview-tts',
+
+  /** Real-time audio-to-audio model (Flash Live) */
+  LIVE: 'gemini-3.1-flash-live',
 } as const;
 
 /**

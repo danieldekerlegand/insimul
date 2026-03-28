@@ -18,7 +18,17 @@
 import type { AssessmentResult } from './OnboardingLauncher';
 import type { GameEventBus } from './GameEventBus';
 import type { AssessmentModalConfig } from './AssessmentModalUI';
-import type { ContentTemplate, PhaseType } from '../../../shared/assessment/assessment-types';
+import type { ContentTemplate, PhaseType } from '@shared/assessment/assessment-types';
+import {
+  getOfflineContentPool,
+  pickRandom,
+  type OfflinePassageEntry,
+  type OfflineWritingEntry,
+} from '@shared/assessment/offline-content-bank';
+import {
+  scoreReadingListeningOffline,
+  scoreWritingOffline,
+} from '@shared/assessment/offline-scoring';
 
 // Phase definitions matching the new encounter structure
 const ASSESSMENT_PHASES = [
@@ -325,46 +335,104 @@ export class AssessmentEngine {
   }
 
   private async _generateContent(phaseType: PhaseType, template: ContentTemplate): Promise<GeneratedContent> {
-    const res = await fetch('/api/assessments/generate-content', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        phaseType,
-        targetLanguage: this.targetLanguage,
-        cityName: 'the city',
-        contentTemplate: template,
-      }),
-    });
+    // Try server-side LLM content generation first
+    try {
+      const res = await fetch('/api/assessments/generate-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          phaseType,
+          targetLanguage: this.targetLanguage,
+          cityName: 'the city',
+          contentTemplate: template,
+        }),
+      });
 
-    if (!res.ok) {
-      throw new Error(`Content generation failed: ${res.status}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Server unavailable — fall through to offline content
     }
 
-    return await res.json();
+    // Offline fallback: use pre-bundled content bank
+    console.log(`[AssessmentEngine] Using offline content bank for ${phaseType}`);
+    return this._getOfflineContent(phaseType, template);
   }
 
-  private async _generateTTSAudio(passage: string): Promise<string> {
-    const res = await fetch('/api/assessments/tts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        text: passage,
-        targetLanguage: this.targetLanguage,
-      }),
-    });
+  /**
+   * Retrieve pre-bundled content for offline/standalone mode.
+   * Stores the offline entry metadata so _scorePhase can use the rubric.
+   */
+  private _lastOfflineEntry: OfflinePassageEntry | OfflineWritingEntry | null = null;
 
-    if (!res.ok) {
-      throw new Error(`TTS generation failed: ${res.status}`);
+  private _getOfflineContent(phaseType: PhaseType, _template: ContentTemplate): GeneratedContent {
+    const pool = getOfflineContentPool(this.targetLanguage, _template.difficulty);
+
+    if (phaseType === 'writing') {
+      const entry = pickRandom(pool.writing);
+      this._lastOfflineEntry = entry;
+      return { writingPrompts: entry.writingPrompts };
     }
 
-    const data = await res.json();
-    return data.audioDataUrl;
+    // reading or listening — both use passage + questions
+    const entries = phaseType === 'listening' ? pool.listening : pool.reading;
+    const entry = pickRandom(entries);
+    this._lastOfflineEntry = entry;
+
+    return {
+      passage: entry.passage,
+      questions: entry.questions.map(q => ({
+        id: q.id,
+        questionText: q.questionText,
+        maxPoints: q.maxPoints,
+      })),
+    };
+  }
+
+  private async _generateTTSAudio(passage: string): Promise<string | undefined> {
+    // Try server-side TTS first
+    try {
+      const res = await fetch('/api/assessments/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          text: passage,
+          targetLanguage: this.targetLanguage,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data.audioDataUrl;
+      }
+    } catch {
+      // Server unavailable
+    }
+
+    // Try Electron Piper TTS
+    const electronAPI = (window as any).electronAPI;
+    if (electronAPI?.aiTTS) {
+      try {
+        const audioBuffer = await electronAPI.aiTTS(passage, undefined, 0.9, this.targetLanguage);
+        if (audioBuffer) {
+          const blob = new Blob([audioBuffer], { type: 'audio/wav' });
+          return URL.createObjectURL(blob);
+        }
+      } catch {
+        // Electron TTS unavailable
+      }
+    }
+
+    // Return undefined — AssessmentModalUI will fall back to browser SpeechSynthesis
+    console.log('[AssessmentEngine] TTS unavailable — modal will use browser SpeechSynthesis fallback');
+    return undefined;
   }
 
   private _showModalAndWait(
@@ -415,27 +483,67 @@ export class AssessmentEngine {
     content: GeneratedContent,
     answers: Record<string, string>,
   ): Promise<ScoringResult> {
-    const res = await fetch('/api/assessments/score-phase', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        phaseType,
-        targetLanguage: this.targetLanguage,
-        passage: content.passage,
-        questions: content.questions?.map(q => ({ id: q.id, text: q.questionText, maxPoints: q.maxPoints })),
-        writingPrompts: content.writingPrompts,
-        answers,
-      }),
-    });
+    // Try server-side LLM scoring first
+    try {
+      const res = await fetch('/api/assessments/score-phase', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          phaseType,
+          targetLanguage: this.targetLanguage,
+          passage: content.passage,
+          questions: content.questions?.map(q => ({ id: q.id, text: q.questionText, maxPoints: q.maxPoints })),
+          writingPrompts: content.writingPrompts,
+          answers,
+        }),
+      });
 
-    if (!res.ok) {
-      throw new Error(`Scoring failed: ${res.status}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Server unavailable — fall through to offline scoring
     }
 
-    return await res.json();
+    // Offline fallback: use client-side keyword/heuristic scoring
+    console.log(`[AssessmentEngine] Using offline scoring for ${phaseType}`);
+    return this._scoreOffline(phaseType, answers);
+  }
+
+  private _scoreOffline(phaseType: PhaseType, answers: Record<string, string>): ScoringResult {
+    if (phaseType === 'writing' && this._lastOfflineEntry && 'writingPrompts' in this._lastOfflineEntry) {
+      const result = scoreWritingOffline(this._lastOfflineEntry as OfflineWritingEntry, answers);
+      return {
+        totalScore: result.totalScore,
+        maxScore: result.maxScore,
+        dimensionScores: result.dimensionScores,
+        overallRationale: result.overallRationale,
+      };
+    }
+
+    // Reading or listening — use question-level scoring
+    if (this._lastOfflineEntry && 'questions' in this._lastOfflineEntry) {
+      const entry = this._lastOfflineEntry as OfflinePassageEntry;
+      const result = scoreReadingListeningOffline(entry.questions, answers);
+      return {
+        totalScore: result.totalScore,
+        maxScore: result.maxScore,
+        questionScores: result.questionScores,
+        overallRationale: result.overallRationale,
+      };
+    }
+
+    // No rubric available — estimate from answer presence
+    const nonEmpty = Object.values(answers).filter(a => a.length > 0).length;
+    const total = Object.keys(answers).length || 1;
+    return {
+      totalScore: Math.round((nonEmpty / total) * 10 * 0.6),
+      maxScore: 15,
+      overallRationale: 'Offline scoring: estimated from answer presence.',
+    };
   }
 
   // ── Private: initiate conversation phase (walk to NPC) ─────────────────────

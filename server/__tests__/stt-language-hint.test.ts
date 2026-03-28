@@ -15,7 +15,7 @@ vi.mock('../config/gemini.js', () => ({
   getGenAI: () => mockGenAI,
   isGeminiConfigured: () => true,
   getGeminiApiKey: () => 'fake-key',
-  GEMINI_MODELS: { PRO: 'gemini-3.1-pro-preview' },
+  GEMINI_MODELS: { PRO: 'gemini-3.1-pro-preview', FLASH: 'gemini-3.1-flash-lite-preview', SPEECH: 'gemini-3.1-flash-preview-tts', LIVE: 'gemini-3.1-flash-live' },
 }));
 
 import { speechToText } from '../services/tts-stt.js';

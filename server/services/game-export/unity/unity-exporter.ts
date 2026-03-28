@@ -6,7 +6,7 @@
  * as a ZIP buffer ready for download.
  */
 
-import { generateProjectFiles, type GeneratedFile } from './unity-project-generator';
+import { generateProjectFiles, type GeneratedFile, type UnityProjectOptions } from './unity-project-generator';
 import { generateCSharpFiles } from './unity-csharp-generator';
 import { generateDataFiles } from './unity-data-generator';
 import { generateSceneFiles } from './unity-scene-generator';
@@ -19,6 +19,7 @@ import type { ExportTelemetryConfig } from '../telemetry-config';
 import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { bundleUnityPlugin } from '../plugin-bundler';
 import { bundleAIModels, generateAIManifestJson, type AIProvider, type AIBundleResult } from '../ai-bundler';
+import { buildExportName } from '../export-naming';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -36,6 +37,8 @@ try {
 
 export interface UnityExportResult {
   projectName: string;
+  worldName: string;
+  aiMode: string;
   files: GeneratedFile[];
   zipBuffer: Buffer | null;
   stats: {
@@ -88,8 +91,8 @@ async function packageAsZip(
 
     // AI model files go into StreamingAssets so they're accessible at runtime via File.IO
     if (aiBundle) {
-      for (const model of aiBundle.models) {
-        archive.append(model.buffer, { name: `${projectName}/Assets/StreamingAssets/${model.exportPath}` });
+      for (const asset of aiBundle.assets) {
+        archive.append(asset.buffer, { name: `${projectName}/Assets/StreamingAssets/${asset.exportPath}` });
       }
     }
 
@@ -108,6 +111,10 @@ export interface UnityExportOptions {
   telemetry?: ExportTelemetryConfig;
   /** AI provider mode: 'local' bundles model files, 'cloud' uses remote API (default: 'cloud') */
   aiProvider?: AIProvider;
+  /** Override the project/folder name inside the ZIP (e.g., "LaLouisianeUnityCloud") */
+  projectName?: string;
+  /** Unity editor version string, e.g. "6000.0.38f1" or "2022.3.18f1" (default: "6000.0.38f1") */
+  unityVersion?: string;
 }
 
 export async function exportUnityProject(worldId: string, options?: UnityExportOptions): Promise<UnityExportResult> {
@@ -123,15 +130,15 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
   const selectedCollectionId = (world as any)?.selectedAssetCollectionId;
 
   // 3. Run all generators
-  const allFiles = generateUnityFilesFromIR(ir);
+  const allFiles = generateUnityFilesFromIR(ir, { unityVersion: options?.unityVersion });
 
-  // 3b. Include telemetry client if enabled
-  if (options?.telemetry?.enabled) {
+  // 3b. Always include telemetry client (with local file fallback)
+  {
     const telemetryCs = generateUnityTelemetryTemplate({
-      apiEndpoint: options.telemetry.serverUrl,
-      apiKey: options.telemetry.apiKey,
-      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
-      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+      apiEndpoint: options?.telemetry?.serverUrl ?? '',
+      apiKey: options?.telemetry?.apiKey ?? '',
+      batchSize: options?.telemetry?.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options?.telemetry?.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
     });
     allFiles.push({
       path: 'Assets/Scripts/Insimul/TelemetryManager.cs',
@@ -152,12 +159,12 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
   let aiBundle: AIBundleResult | null = null;
   if (aiProvider === 'local') {
     console.log('[Export] Bundling local AI models for Unity...');
-    aiBundle = bundleAIModels({ provider: 'local' });
+    aiBundle = await bundleAIModels('unity');
     allFiles.push({
       path: 'Assets/StreamingAssets/ai/ai-manifest.json',
       content: generateAIManifestJson(aiBundle.manifest),
     });
-    console.log(`[Export] AI bundle: ${aiBundle.models.length} models, ${(aiBundle.totalSizeBytes / 1024 / 1024).toFixed(1)} MB`);
+    console.log(`[Export] AI bundle: ${aiBundle.assets.length} files, ${(aiBundle.totalSizeBytes / 1024 / 1024).toFixed(1)} MB`);
   }
 
   // 4. Bundle assets from the world's selected collection
@@ -176,8 +183,7 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
     content: generateAssetManifestJson(assetBundle.manifest),
   });
 
-  const worldSafe = sanitiseName(ir.meta.worldName) || 'InsimulWorld';
-  const projectName = `InsimulExport_${worldSafe}`;
+  const projectName = options?.projectName || buildExportName(ir.meta.worldName, 'Unity', ir.aiConfig?.apiMode);
 
   let zipBuffer: Buffer | null = null;
   try {
@@ -193,6 +199,8 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
 
   return {
     projectName,
+    worldName: ir.meta.worldName,
+    aiMode: ir.aiConfig?.apiMode || 'cloud',
     files: allFiles,
     zipBuffer,
     stats: {
@@ -209,10 +217,10 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
 /**
  * Generate all Unity project files from an already-built IR.
  */
-export function generateUnityFilesFromIR(ir: WorldIR): GeneratedFile[] {
+export function generateUnityFilesFromIR(ir: WorldIR, projectOptions?: UnityProjectOptions): GeneratedFile[] {
   const registry = new GuidRegistry();
 
-  const projectFiles = generateProjectFiles(ir);
+  const projectFiles = generateProjectFiles(ir, projectOptions);
   const csharpFiles = generateCSharpFiles(ir);
   const dataFiles = generateDataFiles(ir);
   const sceneFiles = generateSceneFiles(ir, registry);

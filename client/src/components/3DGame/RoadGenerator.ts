@@ -53,7 +53,7 @@ export class RoadGenerator {
   private yOffset: number = 0.2; // Offset above ground to prevent z-fighting on slopes
 
   // Road appearance
-  private roadColor: Color3 = new Color3(0.32, 0.28, 0.22); // Packed dirt/gravel default
+  private roadColor: Color3 = new Color3(0.40, 0.39, 0.36); // Soft neutral default
   private roadTexture: Texture | null = null;
 
   /** Flat list of segment lines used for isPointOnRoad queries. */
@@ -78,6 +78,21 @@ export class RoadGenerator {
    */
   public setRoadTexture(texture: Texture): void {
     this.roadTexture = texture;
+  }
+
+  /**
+   * Load a default asphalt texture from polyhaven assets.
+   * Called when no world-specific road texture is configured.
+   */
+  public loadDefaultAsphaltTexture(): void {
+    if (this.roadTexture) return; // Already has a texture
+    const tex = new Texture(
+      '/assets/textures/polyhaven/asphalt_04/asphalt_04_diff_1k.jpg',
+      this.scene
+    );
+    tex.uScale = 1;
+    tex.vScale = 1;
+    this.roadTexture = tex;
   }
 
   /**
@@ -135,10 +150,10 @@ export class RoadGenerator {
   ): void {
     if (!network.segments.length) return;
 
-    const sidewalkColor = new Color3(0.48, 0.46, 0.42); // Concrete sidewalk
-    const intersectionColor = new Color3(0.28, 0.26, 0.23); // Darker pavement
-    const centerLineColor = new Color3(0.7, 0.6, 0.1); // Yellow center stripe
-    const crosswalkColor = new Color3(0.85, 0.85, 0.82); // White crosswalk stripes
+    const sidewalkColor = new Color3(0.52, 0.51, 0.49); // Concrete sidewalk (softened)
+    const intersectionColor = new Color3(0.40, 0.39, 0.37); // Darker pavement (softened)
+    const centerLineColor = new Color3(0.58, 0.53, 0.25); // Yellow center stripe (muted)
+    const crosswalkColor = new Color3(0.68, 0.68, 0.66); // White crosswalk stripes (muted)
     const sidewalkWidth = 2.0;
     const centerLineWidth = 0.2;
     const curbHeight = 0;
@@ -893,15 +908,15 @@ export class RoadGenerator {
     alley: 1.5,
   };
 
-  // Colors by street type (emissive)
+  // Colors by street type — softer, lower-contrast palette (used only when no texture)
   private static readonly STREET_COLORS: Record<string, Color3> = {
-    boulevard: new Color3(0.28, 0.26, 0.22),   // Dark paved
-    avenue: new Color3(0.30, 0.28, 0.24),       // Paved
-    main_road: new Color3(0.28, 0.26, 0.22),   // Dark paved
-    highway: new Color3(0.22, 0.22, 0.25),     // Asphalt
-    residential: new Color3(0.35, 0.30, 0.24), // Packed earth
-    lane: new Color3(0.38, 0.33, 0.26),        // Dirt lane
-    alley: new Color3(0.40, 0.35, 0.28),       // Dirt alley
+    boulevard: new Color3(0.38, 0.37, 0.35),   // Soft dark paved
+    avenue: new Color3(0.40, 0.39, 0.37),       // Soft paved
+    main_road: new Color3(0.38, 0.37, 0.35),   // Soft dark paved
+    highway: new Color3(0.36, 0.36, 0.38),     // Soft asphalt
+    residential: new Color3(0.42, 0.40, 0.37), // Soft packed earth
+    lane: new Color3(0.44, 0.42, 0.39),        // Soft dirt lane
+    alley: new Color3(0.46, 0.44, 0.41),       // Soft dirt alley
   };
 
   /**
@@ -1239,7 +1254,7 @@ export class RoadGenerator {
     network: StreetNetwork,
     sampleHeight: (x: number, z: number) => number
   ): void {
-    const walkwayColor = new Color3(0.52, 0.50, 0.46);
+    const walkwayColor = new Color3(0.55, 0.54, 0.52); // Softened walkway
     const walkwayWidth = 1.2;
     const curbHeight = 0;
 
