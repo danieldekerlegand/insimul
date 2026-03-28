@@ -10,23 +10,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ---- Mocks (paths relative to THIS file → resolve to same module the source uses) ----
 
-const mockGenerateContent = vi.fn();
-const mockSendMessageStream = vi.fn();
-const mockStartChat = vi.fn(() => ({ sendMessageStream: mockSendMessageStream }));
-const mockGetGenerativeModel = vi.fn(() => ({
-  generateContent: mockGenerateContent,
-  startChat: mockStartChat,
-}));
-
 const mockGenAIGenerateContent = vi.fn();
+const mockGenAIGenerateContentStream = vi.fn();
 const mockFilesUpload = vi.fn();
 
 // server/__tests__/../../config = server/config — which is server/../config — WRONG
 // From server/__tests__, ../config/gemini.js → server/config/gemini.js ✓
 vi.mock('../config/gemini.js', () => ({
-  getGenerativeAI: vi.fn(() => ({ getGenerativeModel: mockGetGenerativeModel })),
   getGenAI: vi.fn(() => ({
-    models: { generateContent: mockGenAIGenerateContent },
+    models: {
+      generateContent: mockGenAIGenerateContent,
+      generateContentStream: mockGenAIGenerateContentStream,
+    },
     files: { upload: mockFilesUpload },
   })),
   isGeminiConfigured: vi.fn(() => true),
@@ -99,8 +94,8 @@ describe('GeminiAIProvider', () => {
 
   describe('generate()', () => {
     it('calls Gemini SDK and returns LLMResponse', async () => {
-      mockGenerateContent.mockResolvedValueOnce({
-        response: { text: () => 'Hello world' },
+      mockGenAIGenerateContent.mockResolvedValueOnce({
+        text: 'Hello world',
       });
 
       const res = await provider.generate({ prompt: 'Say hello' });
@@ -109,29 +104,29 @@ describe('GeminiAIProvider', () => {
       expect(res.provider).toBe('gemini');
       expect(res.model).toBe('gemini-3.1-flash-lite-preview');
       expect(res.tokensUsed).toBeGreaterThan(0);
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
+      expect(mockGenAIGenerateContent).toHaveBeenCalledOnce();
     });
 
     it('prepends systemPrompt to prompt', async () => {
-      mockGenerateContent.mockResolvedValueOnce({
-        response: { text: () => 'ok' },
+      mockGenAIGenerateContent.mockResolvedValueOnce({
+        text: 'ok',
       });
 
       await provider.generate({ prompt: 'Do this', systemPrompt: 'You are helpful' });
 
-      const call = mockGenerateContent.mock.calls[0][0];
-      expect(call.contents[0].parts[0].text).toContain('You are helpful');
-      expect(call.contents[0].parts[0].text).toContain('Do this');
+      const call = mockGenAIGenerateContent.mock.calls[0][0];
+      expect(call.contents).toContain('You are helpful');
+      expect(call.contents).toContain('Do this');
     });
 
     it('uses custom temperature and maxTokens', async () => {
-      mockGenerateContent.mockResolvedValueOnce({
-        response: { text: () => 'ok' },
+      mockGenAIGenerateContent.mockResolvedValueOnce({
+        text: 'ok',
       });
 
       await provider.generate({ prompt: 'x', temperature: 0.1, maxTokens: 100 });
 
-      const config = mockGenerateContent.mock.calls[0][0].generationConfig;
+      const config = mockGenAIGenerateContent.mock.calls[0][0].config;
       expect(config.temperature).toBe(0.1);
       expect(config.maxOutputTokens).toBe(100);
     });
@@ -140,8 +135,8 @@ describe('GeminiAIProvider', () => {
   describe('generateBatch()', () => {
     it('processes prompts in chunks of 5', async () => {
       const prompts = Array.from({ length: 7 }, (_, i) => `prompt-${i}`);
-      mockGenerateContent.mockImplementation(() =>
-        Promise.resolve({ response: { text: () => 'result' } }),
+      mockGenAIGenerateContent.mockImplementation(() =>
+        Promise.resolve({ text: 'result' }),
       );
 
       const res = await provider.generateBatch({ prompts });
@@ -152,9 +147,9 @@ describe('GeminiAIProvider', () => {
     });
 
     it('records failed indices without crashing', async () => {
-      mockGenerateContent
+      mockGenAIGenerateContent
         .mockRejectedValueOnce(new Error('fail'))
-        .mockResolvedValueOnce({ response: { text: () => 'ok' } });
+        .mockResolvedValueOnce({ text: 'ok' });
 
       const res = await provider.generateBatch({ prompts: ['bad', 'good'] });
 
@@ -166,11 +161,11 @@ describe('GeminiAIProvider', () => {
   describe('generateStream()', () => {
     it('yields text chunks from the stream', async () => {
       const chunks = ['Hello', ' ', 'world'];
-      mockSendMessageStream.mockResolvedValueOnce({
-        stream: (async function* () {
-          for (const c of chunks) yield { text: () => c };
+      mockGenAIGenerateContentStream.mockReturnValueOnce(
+        (async function* () {
+          for (const c of chunks) yield { text: c };
         })(),
-      });
+      );
 
       const context = { systemPrompt: 'Be nice', characterName: 'NPC' };
       const collected: string[] = [];
@@ -182,12 +177,12 @@ describe('GeminiAIProvider', () => {
       expect(collected).toEqual(chunks);
     });
 
-    it('passes conversation history to chat', async () => {
-      mockSendMessageStream.mockResolvedValueOnce({
-        stream: (async function* () {
-          yield { text: () => 'done' };
+    it('passes conversation history in contents', async () => {
+      mockGenAIGenerateContentStream.mockReturnValueOnce(
+        (async function* () {
+          yield { text: 'done' };
         })(),
-      });
+      );
 
       const context = { systemPrompt: 'sys' };
       const options = {
@@ -201,10 +196,11 @@ describe('GeminiAIProvider', () => {
         // consume
       }
 
-      const historyArg = mockStartChat.mock.calls[0][0].history;
-      expect(historyArg).toHaveLength(2);
-      expect(historyArg[0].role).toBe('user');
-      expect(historyArg[1].role).toBe('model');
+      const call = mockGenAIGenerateContentStream.mock.calls[0][0];
+      // Should have: system user + system model ack + 2 history + current message = 5
+      expect(call.contents).toHaveLength(5);
+      expect(call.contents[2].role).toBe('user');
+      expect(call.contents[3].role).toBe('model');
     });
   });
 

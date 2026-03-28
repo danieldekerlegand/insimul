@@ -1,0 +1,3927 @@
+[
+  {
+    "id": "69c7ef7954de6edea916a613",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Arrival Assessment",
+    "description": "Complete your language assessment upon arriving in the settlement. This establishes your baseline proficiency and introduces you to the town.",
+    "questType": "assessment",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "type": "complete_assessment",
+        "description": "Complete the arrival language assessment",
+        "target": "arrival_assessment",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "assessment_complete",
+      "description": "Complete all arrival assessment phases"
+    },
+    "experienceReward": 50,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "assessment",
+      "arrival",
+      "main-quest",
+      "narrative",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "active",
+    "content": "% Quest: Arrival Assessment\n% Complete your language assessment upon arriving in the settlement. This establishes your baseline proficiency and introduces you to the town.\n% Type: assessment / Difficulty: beginner\n\nquest(arrival_assessment, 'Arrival Assessment', assessment, beginner, active).\nquest_assigned_to(arrival_assessment, 'unassigned').\nquest_language(arrival_assessment, french).\nquest_chain(arrival_assessment, chain_1774710649311_zpry4jovj).\nquest_chain_order(arrival_assessment, 0).\nquest_tag(arrival_assessment, assessment).\nquest_tag(arrival_assessment, arrival).\nquest_tag(arrival_assessment, main_quest).\nquest_tag(arrival_assessment, narrative).\nquest_tag(arrival_assessment, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(arrival_assessment, 0, objective('Complete the arrival language assessment')).\n\nquest_completion(arrival_assessment, criteria('Complete all arrival assessment phases')).\n\n\nquest_reward(arrival_assessment, experience, 50).\n\n% Can Player take this quest?\nquest_available(Player, arrival_assessment) :-\n    quest(arrival_assessment, _, _, _, active).\n\n% Check if quest is complete for Player\nquest_complete(Player, arrival_assessment) :-\n    quest_progress(Player, arrival_assessment, Progress), Progress >= 100."
+  },
+  {
+    "id": "69c7ef7954de6edea916a615",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "The Notice Board",
+    "description": "A weathered notice on the town board catches your eye — someone is missing. Read the notice, then visit the town clerk to learn more about the missing writer.",
+    "questType": "exploration",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": 1,
+    "prerequisiteQuestIds": [
+      ""
+    ],
+    "objectives": [
+      {
+        "type": "read_document",
+        "description": "Read the missing person notice on the town board",
+        "target": "notice_board",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "talk_to_npc",
+        "description": "Talk to the town clerk about the missing writer",
+        "target": "clerk",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "collect_clue",
+        "description": "Learn the writer's name",
+        "target": "writer_name",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "all_objectives_complete",
+      "description": "Read the notice and speak with the clerk"
+    },
+    "experienceReward": 75,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "reading",
+      "conversation",
+      "main-quest",
+      "narrative",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "pending",
+    "content": "% Quest: The Notice Board\n% A weathered notice on the town board catches your eye — someone is missing. Read the notice, then visit the town clerk to learn more about the missing writer.\n% Type: exploration / Difficulty: beginner\n\nquest(the_notice_board, 'The Notice Board', exploration, beginner, pending).\nquest_assigned_to(the_notice_board, 'unassigned').\nquest_language(the_notice_board, french).\nquest_chain(the_notice_board, chain_1774710649311_zpry4jovj).\nquest_chain_order(the_notice_board, 1).\nquest_tag(the_notice_board, reading).\nquest_tag(the_notice_board, conversation).\nquest_tag(the_notice_board, main_quest).\nquest_tag(the_notice_board, narrative).\nquest_tag(the_notice_board, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(the_notice_board, 0, objective('Read the missing person notice on the town board')).\nquest_objective(the_notice_board, 1, talk_to('clerk', 1)).\nquest_objective(the_notice_board, 2, objective('Learn the writer\\'s name')).\n\nquest_completion(the_notice_board, criteria('Read the notice and speak with the clerk')).\n\nquest_prerequisite(the_notice_board, ).\n\nquest_reward(the_notice_board, experience, 75).\n\n% Can Player take this quest?\nquest_available(Player, the_notice_board) :-\n    quest(the_notice_board, _, _, _, active),\n    quest_status(Player, , completed).\n\n% Check if quest is complete for Player\nquest_complete(Player, the_notice_board) :-\n    quest_progress(Player, the_notice_board, Progress), Progress >= 100."
+  },
+  {
+    "id": "69c7ef7954de6edea916a617",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "The Writer's Home",
+    "description": "Visit the missing writer's residence on the edge of town. Search the house for their journal and read the first clue about where they may have gone.",
+    "questType": "exploration",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": 2,
+    "prerequisiteQuestIds": [
+      ""
+    ],
+    "objectives": [
+      {
+        "type": "visit_location",
+        "description": "Visit the writer's residence",
+        "target": "writer_home",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "collect_item",
+        "description": "Collect the writer's journal",
+        "target": "writer_journal",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "read_document",
+        "description": "Read the first journal entry for a clue",
+        "target": "journal_clue_1",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "all_objectives_complete",
+      "description": "Find and read the writer's journal"
+    },
+    "experienceReward": 100,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "exploration",
+      "item-collection",
+      "reading",
+      "main-quest",
+      "narrative",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "pending",
+    "content": "% Quest: The Writer's Home\n% Visit the missing writer's residence on the edge of town. Search the house for their journal and read the first clue about where they may have gone.\n% Type: exploration / Difficulty: beginner\n\nquest(the_writer_s_home, 'The Writer\\'s Home', exploration, beginner, pending).\nquest_assigned_to(the_writer_s_home, 'unassigned').\nquest_language(the_writer_s_home, french).\nquest_chain(the_writer_s_home, chain_1774710649311_zpry4jovj).\nquest_chain_order(the_writer_s_home, 2).\nquest_tag(the_writer_s_home, exploration).\nquest_tag(the_writer_s_home, item_collection).\nquest_tag(the_writer_s_home, reading).\nquest_tag(the_writer_s_home, main_quest).\nquest_tag(the_writer_s_home, narrative).\nquest_tag(the_writer_s_home, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(the_writer_s_home, 0, visit_location('writer_home')).\nquest_objective(the_writer_s_home, 1, collect(writer_journal, 1)).\nquest_objective(the_writer_s_home, 2, objective('Read the first journal entry for a clue')).\n\nquest_completion(the_writer_s_home, criteria('Find and read the writer\\'s journal')).\n\nquest_prerequisite(the_writer_s_home, ).\n\nquest_reward(the_writer_s_home, experience, 100).\n\n% Can Player take this quest?\nquest_available(Player, the_writer_s_home) :-\n    quest(the_writer_s_home, _, _, _, active),\n    quest_status(Player, , completed).\n\n% Check if quest is complete for Player\nquest_complete(Player, the_writer_s_home) :-\n    quest_progress(Player, the_writer_s_home, Progress), Progress >= 100."
+  },
+  {
+    "id": "69c7ef7954de6edea916a619",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Following the Trail",
+    "description": "The journal mentions three people who knew the writer well. Seek them out and hear their testimonies to piece together what happened.",
+    "questType": "conversation",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": 3,
+    "prerequisiteQuestIds": [
+      ""
+    ],
+    "objectives": [
+      {
+        "type": "talk_to_npc",
+        "description": "Talk to the writer's neighbor about their last days",
+        "target": "witness_neighbor",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "talk_to_npc",
+        "description": "Talk to the writer's colleague at the library",
+        "target": "witness_colleague",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "talk_to_npc",
+        "description": "Talk to the writer's friend at the café",
+        "target": "witness_friend",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "collect_clue",
+        "description": "Collect 3 witness testimonies",
+        "target": "testimony",
+        "required": 3,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "all_objectives_complete",
+      "description": "Gather all three witness testimonies"
+    },
+    "experienceReward": 150,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "conversation",
+      "social",
+      "main-quest",
+      "narrative",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "pending",
+    "content": "% Quest: Following the Trail\n% The journal mentions three people who knew the writer well. Seek them out and hear their testimonies to piece together what happened.\n% Type: conversation / Difficulty: intermediate\n\nquest(following_the_trail, 'Following the Trail', conversation, intermediate, pending).\nquest_assigned_to(following_the_trail, 'unassigned').\nquest_language(following_the_trail, french).\nquest_chain(following_the_trail, chain_1774710649311_zpry4jovj).\nquest_chain_order(following_the_trail, 3).\nquest_tag(following_the_trail, conversation).\nquest_tag(following_the_trail, social).\nquest_tag(following_the_trail, main_quest).\nquest_tag(following_the_trail, narrative).\nquest_tag(following_the_trail, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(following_the_trail, 0, talk_to('witness_neighbor', 1)).\nquest_objective(following_the_trail, 1, talk_to('witness_colleague', 1)).\nquest_objective(following_the_trail, 2, talk_to('witness_friend', 1)).\nquest_objective(following_the_trail, 3, objective('Collect 3 witness testimonies')).\n\nquest_completion(following_the_trail, criteria('Gather all three witness testimonies')).\n\nquest_prerequisite(following_the_trail, ).\n\nquest_reward(following_the_trail, experience, 150).\n\n% Can Player take this quest?\nquest_available(Player, following_the_trail) :-\n    quest(following_the_trail, _, _, _, active),\n    quest_status(Player, , completed).\n\n% Check if quest is complete for Player\nquest_complete(Player, following_the_trail) :-\n    quest_progress(Player, following_the_trail, Progress), Progress >= 100."
+  },
+  {
+    "id": "69c7ef7954de6edea916a61b",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "The Hidden Writings",
+    "description": "The witnesses mention books the writer left around town. Find three of the writer's books scattered across the settlement and read them for embedded clues.",
+    "questType": "collection",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": 4,
+    "prerequisiteQuestIds": [
+      ""
+    ],
+    "objectives": [
+      {
+        "type": "collect_item",
+        "description": "Find the writer's book at the library",
+        "target": "writer_book_1",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "collect_item",
+        "description": "Find the writer's book at the school",
+        "target": "writer_book_2",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "collect_item",
+        "description": "Find the writer's book at the park bench",
+        "target": "writer_book_3",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "read_document",
+        "description": "Read all three books for hidden clues",
+        "target": "book_clues",
+        "required": 3,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "all_objectives_complete",
+      "description": "Find and read all three of the writer's books"
+    },
+    "experienceReward": 150,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "item-collection",
+      "reading",
+      "exploration",
+      "main-quest",
+      "narrative",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "pending",
+    "content": "% Quest: The Hidden Writings\n% The witnesses mention books the writer left around town. Find three of the writer's books scattered across the settlement and read them for embedded clues.\n% Type: collection / Difficulty: intermediate\n\nquest(the_hidden_writings, 'The Hidden Writings', collection, intermediate, pending).\nquest_assigned_to(the_hidden_writings, 'unassigned').\nquest_language(the_hidden_writings, french).\nquest_chain(the_hidden_writings, chain_1774710649311_zpry4jovj).\nquest_chain_order(the_hidden_writings, 4).\nquest_tag(the_hidden_writings, item_collection).\nquest_tag(the_hidden_writings, reading).\nquest_tag(the_hidden_writings, exploration).\nquest_tag(the_hidden_writings, main_quest).\nquest_tag(the_hidden_writings, narrative).\nquest_tag(the_hidden_writings, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(the_hidden_writings, 0, collect(writer_book_1, 1)).\nquest_objective(the_hidden_writings, 1, collect(writer_book_2, 1)).\nquest_objective(the_hidden_writings, 2, collect(writer_book_3, 1)).\nquest_objective(the_hidden_writings, 3, objective('Read all three books for hidden clues')).\n\nquest_completion(the_hidden_writings, criteria('Find and read all three of the writer\\'s books')).\n\nquest_prerequisite(the_hidden_writings, ).\n\nquest_reward(the_hidden_writings, experience, 150).\n\n% Can Player take this quest?\nquest_available(Player, the_hidden_writings) :-\n    quest(the_hidden_writings, _, _, _, active),\n    quest_status(Player, , completed).\n\n% Check if quest is complete for Player\nquest_complete(Player, the_hidden_writings) :-\n    quest_progress(Player, the_hidden_writings, Progress), Progress >= 100."
+  },
+  {
+    "id": "69c7ef7954de6edea916a61d",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "The Secret Location",
+    "description": "The clues from the books point to a hidden spot the writer loved. Follow the trail to discover the writer's secret retreat and investigate the scene.",
+    "questType": "exploration",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": 5,
+    "prerequisiteQuestIds": [
+      ""
+    ],
+    "objectives": [
+      {
+        "type": "visit_location",
+        "description": "Follow clues to the writer's secret spot",
+        "target": "secret_location",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "photograph",
+        "description": "Photograph the scene at the secret location",
+        "target": "secret_scene",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "collect_item",
+        "description": "Collect the writer's final manuscript",
+        "target": "final_manuscript",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "read_document",
+        "description": "Read the final manuscript",
+        "target": "manuscript_content",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "all_objectives_complete",
+      "description": "Investigate the secret location thoroughly"
+    },
+    "experienceReward": 175,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "exploration",
+      "photography",
+      "reading",
+      "main-quest",
+      "narrative",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "pending",
+    "content": "% Quest: The Secret Location\n% The clues from the books point to a hidden spot the writer loved. Follow the trail to discover the writer's secret retreat and investigate the scene.\n% Type: exploration / Difficulty: intermediate\n\nquest(the_secret_location, 'The Secret Location', exploration, intermediate, pending).\nquest_assigned_to(the_secret_location, 'unassigned').\nquest_language(the_secret_location, french).\nquest_chain(the_secret_location, chain_1774710649311_zpry4jovj).\nquest_chain_order(the_secret_location, 5).\nquest_tag(the_secret_location, exploration).\nquest_tag(the_secret_location, photography).\nquest_tag(the_secret_location, reading).\nquest_tag(the_secret_location, main_quest).\nquest_tag(the_secret_location, narrative).\nquest_tag(the_secret_location, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(the_secret_location, 0, visit_location('secret_location')).\nquest_objective(the_secret_location, 1, objective('Photograph the scene at the secret location')).\nquest_objective(the_secret_location, 2, collect(final_manuscript, 1)).\nquest_objective(the_secret_location, 3, objective('Read the final manuscript')).\n\nquest_completion(the_secret_location, criteria('Investigate the secret location thoroughly')).\n\nquest_prerequisite(the_secret_location, ).\n\nquest_reward(the_secret_location, experience, 175).\n\n% Can Player take this quest?\nquest_available(Player, the_secret_location) :-\n    quest(the_secret_location, _, _, _, active),\n    quest_status(Player, , completed).\n\n% Check if quest is complete for Player\nquest_complete(Player, the_secret_location) :-\n    quest_progress(Player, the_secret_location, Progress), Progress >= 100."
+  },
+  {
+    "id": "69c7ef7954de6edea916a61f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "The Final Chapter",
+    "description": "You now know the truth. Confront the reality of the writer's disappearance through a conversation challenge — explain what you've discovered to the town, using everything you've learned.",
+    "questType": "conversation",
+    "difficulty": "advanced",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": 6,
+    "prerequisiteQuestIds": [
+      ""
+    ],
+    "objectives": [
+      {
+        "type": "complete_conversation",
+        "description": "Present your findings to the town gathering",
+        "target": "town_gathering",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "use_vocabulary",
+        "description": "Use investigation vocabulary to explain the mystery",
+        "target": "investigation",
+        "required": 8,
+        "current": 0,
+        "completed": false
+      },
+      {
+        "type": "complete_conversation",
+        "description": "Deliver the writer's final message to the community",
+        "target": "final_message",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "conversation_turns",
+      "requiredTurns": 8,
+      "description": "Complete the town gathering conversation challenge"
+    },
+    "experienceReward": 200,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "conversation",
+      "vocabulary",
+      "main-quest",
+      "narrative",
+      "climax",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "pending",
+    "content": "% Quest: The Final Chapter\n% You now know the truth. Confront the reality of the writer's disappearance through a conversation challenge — explain what you've discovered to the town, using everything you've learned.\n% Type: conversation / Difficulty: advanced\n\nquest(the_final_chapter, 'The Final Chapter', conversation, advanced, pending).\nquest_assigned_to(the_final_chapter, 'unassigned').\nquest_language(the_final_chapter, french).\nquest_chain(the_final_chapter, chain_1774710649311_zpry4jovj).\nquest_chain_order(the_final_chapter, 6).\nquest_tag(the_final_chapter, conversation).\nquest_tag(the_final_chapter, vocabulary).\nquest_tag(the_final_chapter, main_quest).\nquest_tag(the_final_chapter, narrative).\nquest_tag(the_final_chapter, climax).\nquest_tag(the_final_chapter, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(the_final_chapter, 0, conversation_turns(5)).\nquest_objective(the_final_chapter, 1, learn_words_count(1)).\nquest_objective(the_final_chapter, 2, conversation_turns(5)).\n\nquest_completion(the_final_chapter, conversation_turns(8)).\n\nquest_prerequisite(the_final_chapter, ).\n\nquest_reward(the_final_chapter, experience, 200).\n\n% Can Player take this quest?\nquest_available(Player, the_final_chapter) :-\n    quest(the_final_chapter, _, _, _, active),\n    quest_status(Player, , completed).\n\n% Check if quest is complete for Player\nquest_complete(Player, the_final_chapter) :-\n    quest_progress(Player, the_final_chapter, Turns), Turns >= 8."
+  },
+  {
+    "id": "69c7ef7954de6edea916a621",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Departure Assessment",
+    "description": "Your time in the settlement draws to a close. Complete your final language assessment to measure how far you've come since your arrival.",
+    "questType": "assessment",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": "chain_1774710649311_zpry4jovj",
+    "questChainOrder": 7,
+    "prerequisiteQuestIds": [
+      ""
+    ],
+    "objectives": [
+      {
+        "type": "complete_assessment",
+        "description": "Complete the departure language assessment",
+        "target": "departure_assessment",
+        "required": 1,
+        "current": 0,
+        "completed": false
+      }
+    ],
+    "completionCriteria": {
+      "type": "assessment_complete",
+      "description": "Complete all departure assessment phases"
+    },
+    "experienceReward": 500,
+    "rewards": {},
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "assessment",
+      "departure",
+      "main-quest",
+      "narrative",
+      "chain_meta:{\"name\":\"The Missing Writer\",\"bonusXP\":500,\"achievement\":\"Mystery Solved\"}"
+    ],
+    "status": "pending",
+    "content": "% Quest: Departure Assessment\n% Your time in the settlement draws to a close. Complete your final language assessment to measure how far you've come since your arrival.\n% Type: assessment / Difficulty: intermediate\n\nquest(departure_assessment, 'Departure Assessment', assessment, intermediate, pending).\nquest_assigned_to(departure_assessment, 'unassigned').\nquest_language(departure_assessment, french).\nquest_chain(departure_assessment, chain_1774710649311_zpry4jovj).\nquest_chain_order(departure_assessment, 7).\nquest_tag(departure_assessment, assessment).\nquest_tag(departure_assessment, departure).\nquest_tag(departure_assessment, main_quest).\nquest_tag(departure_assessment, narrative).\nquest_tag(departure_assessment, chain_meta_name_the_missing_writer_bonusxp_500_achievement_mystery_solved).\n\nquest_objective(departure_assessment, 0, objective('Complete the departure language assessment')).\n\nquest_completion(departure_assessment, criteria('Complete all departure assessment phases')).\n\nquest_prerequisite(departure_assessment, ).\n\nquest_reward(departure_assessment, experience, 500).\n\n% Can Player take this quest?\nquest_available(Player, departure_assessment) :-\n    quest(departure_assessment, _, _, _, active),\n    quest_status(Player, , completed).\n\n% Check if quest is complete for Player\nquest_complete(Player, departure_assessment) :-\n    quest_progress(Player, departure_assessment, Progress), Progress >= 100."
+  },
+  {
+    "id": "69c7eff054de6edea916a90f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Explore the Neighborhood",
+    "description": "Get familiar with the area by visiting a key location.",
+    "questType": "navigation",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "visit_location",
+        "description": "Visit Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        },
+        "locationName": "Sainte-Évangéline"
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 15,
+    "rewards": {
+      "xp": 15,
+      "fluency": 3
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Aurore Broussard",
+    "assignedByCharacterId": "69c7efc654de6edea916a68f",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:visit_location",
+      "category:navigation"
+    ],
+    "status": "available",
+    "content": "% Quest: Explore the Neighborhood\n% Get familiar with the area by visiting a key location.\n% Type: navigation / Difficulty: beginner\n\nquest(explore_the_neighborhood, 'Explore the Neighborhood', navigation, beginner, available).\nquest_assigned_to(explore_the_neighborhood, 'Player').\nquest_assigned_by(explore_the_neighborhood, 'Aurore Broussard').\nquest_language(explore_the_neighborhood, french).\nquest_tag(explore_the_neighborhood, seed).\nquest_tag(explore_the_neighborhood, objective_type_visit_location).\nquest_tag(explore_the_neighborhood, category_navigation).\n\nquest_objective(explore_the_neighborhood, 0, visit_location('Sainte-Évangéline')).\n\n\n\nquest_reward(explore_the_neighborhood, experience, 15).\nquest_reward(explore_the_neighborhood, xp, 15).\nquest_reward(explore_the_neighborhood, fluency, 3).\n\n% Can Player take this quest?\nquest_available(Player, explore_the_neighborhood) :-\n    quest(explore_the_neighborhood, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a911",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Grand Tour",
+    "description": "Visit three different locations to get a feel for the area.",
+    "questType": "exploration",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "visit_location",
+        "description": "Visit Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        },
+        "locationName": "Sainte-Évangéline"
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Océane Mouton",
+    "assignedByCharacterId": "69c7efe354de6edea916a6ef",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:visit_location",
+      "category:exploration",
+      "multi-step"
+    ],
+    "status": "available",
+    "content": "% Quest: Grand Tour\n% Visit three different locations to get a feel for the area.\n% Type: exploration / Difficulty: intermediate\n\nquest(grand_tour, 'Grand Tour', exploration, intermediate, available).\nquest_assigned_to(grand_tour, 'Player').\nquest_assigned_by(grand_tour, 'Océane Mouton').\nquest_language(grand_tour, french).\nquest_tag(grand_tour, seed).\nquest_tag(grand_tour, objective_type_visit_location).\nquest_tag(grand_tour, category_exploration).\nquest_tag(grand_tour, multi_step).\n\nquest_objective(grand_tour, 0, visit_location('Sainte-Évangéline')).\n\n\n\nquest_reward(grand_tour, experience, 30).\nquest_reward(grand_tour, xp, 30).\nquest_reward(grand_tour, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, grand_tour) :-\n    quest(grand_tour, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a913",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Uncharted Territory",
+    "description": "Discover a new location you have not visited before.",
+    "questType": "exploration",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "discover_location",
+        "description": "Discover Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "locationName": "Sainte-Évangéline",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Jean-Baptiste Hébert",
+    "assignedByCharacterId": "69c7efc654de6edea916a694",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:discover_location",
+      "category:exploration"
+    ],
+    "status": "available",
+    "content": "% Quest: Uncharted Territory\n% Discover a new location you have not visited before.\n% Type: exploration / Difficulty: beginner\n\nquest(uncharted_territory, 'Uncharted Territory', exploration, beginner, available).\nquest_assigned_to(uncharted_territory, 'Player').\nquest_assigned_by(uncharted_territory, 'Jean-Baptiste Hébert').\nquest_language(uncharted_territory, french).\nquest_tag(uncharted_territory, seed).\nquest_tag(uncharted_territory, objective_type_discover_location).\nquest_tag(uncharted_territory, category_exploration).\n\nquest_objective(uncharted_territory, 0, discover_location('Sainte-Évangéline')).\n\n\n\nquest_reward(uncharted_territory, experience, 20).\nquest_reward(uncharted_territory, xp, 20).\nquest_reward(uncharted_territory, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, uncharted_territory) :-\n    quest(uncharted_territory, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a915",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Introduce Yourself",
+    "description": "Meet a local resident and introduce yourself.",
+    "questType": "conversation",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "talk_to_npc",
+        "description": "Talk to Léa Fontenot",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Léa Fontenot",
+        "npcId": "69c7efe254de6edea916a6e1",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 10,
+    "rewards": {
+      "xp": 10,
+      "fluency": 2
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Noémie Moreau",
+    "assignedByCharacterId": "69c7efe354de6edea916a70b",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:talk_to_npc",
+      "category:conversation"
+    ],
+    "status": "available",
+    "content": "% Quest: Introduce Yourself\n% Meet a local resident and introduce yourself.\n% Type: conversation / Difficulty: beginner\n\nquest(introduce_yourself, 'Introduce Yourself', conversation, beginner, available).\nquest_assigned_to(introduce_yourself, 'Player').\nquest_assigned_by(introduce_yourself, 'Noémie Moreau').\nquest_language(introduce_yourself, french).\nquest_tag(introduce_yourself, seed).\nquest_tag(introduce_yourself, objective_type_talk_to_npc).\nquest_tag(introduce_yourself, category_conversation).\n\nquest_objective(introduce_yourself, 0, talk_to('69c7efe254de6edea916a6e1', 1)).\n\n\n\nquest_reward(introduce_yourself, experience, 10).\nquest_reward(introduce_yourself, xp, 10).\nquest_reward(introduce_yourself, fluency, 2).\n\n% Can Player take this quest?\nquest_available(Player, introduce_yourself) :-\n    quest(introduce_yourself, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a917",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Meet the Locals",
+    "description": "Introduce yourself to three different people in the area.",
+    "questType": "social",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "talk_to_npc",
+        "description": "Talk to Émile Hébert",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Émile Hébert",
+        "npcId": "69c7efd154de6edea916a6a5",
+        "npcName": "Émile Hébert",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "talk_to_npc",
+        "description": "Talk to Antoine Hébert",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Antoine Hébert",
+        "npcId": "69c7efe254de6edea916a6db",
+        "npcName": "Antoine Hébert",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_2",
+        "type": "talk_to_npc",
+        "description": "Talk to Émeline Fournier",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Émeline Fournier",
+        "npcId": "69c7efe354de6edea916a719",
+        "npcName": "Émeline Fournier",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Julien Richard",
+    "assignedByCharacterId": "69c7efe454de6edea916a721",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:talk_to_npc",
+      "category:social",
+      "multi-npc"
+    ],
+    "status": "available",
+    "content": "% Quest: Meet the Locals\n% Introduce yourself to three different people in the area.\n% Type: social / Difficulty: beginner\n\nquest(meet_the_locals, 'Meet the Locals', social, beginner, available).\nquest_assigned_to(meet_the_locals, 'Player').\nquest_assigned_by(meet_the_locals, 'Julien Richard').\nquest_language(meet_the_locals, french).\nquest_tag(meet_the_locals, seed).\nquest_tag(meet_the_locals, objective_type_talk_to_npc).\nquest_tag(meet_the_locals, category_social).\nquest_tag(meet_the_locals, multi_npc).\n\nquest_objective(meet_the_locals, 0, talk_to('69c7efd154de6edea916a6a5', 1)).\nquest_objective(meet_the_locals, 1, talk_to('69c7efe254de6edea916a6db', 1)).\nquest_objective(meet_the_locals, 2, talk_to('69c7efe354de6edea916a719', 1)).\n\n\n\nquest_reward(meet_the_locals, experience, 20).\nquest_reward(meet_the_locals, xp, 20).\nquest_reward(meet_the_locals, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, meet_the_locals) :-\n    quest(meet_the_locals, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a919",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "A Good Chat",
+    "description": "Have a meaningful conversation with an NPC — keep talking for several turns.",
+    "questType": "conversation",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "complete_conversation",
+        "description": "Have a 3-turn conversation with Élodie Boudreaux",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Élodie Boudreaux",
+        "npcId": "69c7efe254de6edea916a6cd",
+        "npcName": "Élodie Boudreaux",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Adélaïde Doucet",
+    "assignedByCharacterId": "69c7efe354de6edea916a6ff",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:complete_conversation",
+      "category:conversation"
+    ],
+    "status": "available",
+    "content": "% Quest: A Good Chat\n% Have a meaningful conversation with an NPC — keep talking for several turns.\n% Type: conversation / Difficulty: beginner\n\nquest(a_good_chat, 'A Good Chat', conversation, beginner, available).\nquest_assigned_to(a_good_chat, 'Player').\nquest_assigned_by(a_good_chat, 'Adélaïde Doucet').\nquest_language(a_good_chat, french).\nquest_tag(a_good_chat, seed).\nquest_tag(a_good_chat, objective_type_complete_conversation).\nquest_tag(a_good_chat, category_conversation).\n\nquest_objective(a_good_chat, 0, conversation_turns(3)).\n\n\n\nquest_reward(a_good_chat, experience, 20).\nquest_reward(a_good_chat, xp, 20).\nquest_reward(a_good_chat, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, a_good_chat) :-\n    quest(a_good_chat, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a91c",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Deep Conversation",
+    "description": "Have an extended conversation of at least 6 turns with a single NPC.",
+    "questType": "conversation",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "complete_conversation",
+        "description": "Have a 6-turn conversation with Adélaïde Doucet",
+        "requiredCount": 6,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Adélaïde Doucet",
+        "npcId": "69c7efe354de6edea916a6ff",
+        "npcName": "Adélaïde Doucet",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Claude Trahan",
+    "assignedByCharacterId": "69c7efe354de6edea916a705",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:complete_conversation",
+      "category:conversation"
+    ],
+    "status": "available",
+    "content": "% Quest: Deep Conversation\n% Have an extended conversation of at least 6 turns with a single NPC.\n% Type: conversation / Difficulty: intermediate\n\nquest(deep_conversation, 'Deep Conversation', conversation, intermediate, available).\nquest_assigned_to(deep_conversation, 'Player').\nquest_assigned_by(deep_conversation, 'Claude Trahan').\nquest_language(deep_conversation, french).\nquest_tag(deep_conversation, seed).\nquest_tag(deep_conversation, objective_type_complete_conversation).\nquest_tag(deep_conversation, category_conversation).\n\nquest_objective(deep_conversation, 0, conversation_turns(6)).\n\n\n\nquest_reward(deep_conversation, experience, 35).\nquest_reward(deep_conversation, xp, 35).\nquest_reward(deep_conversation, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, deep_conversation) :-\n    quest(deep_conversation, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a91f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "First Impressions",
+    "description": "Introduce yourself to an NPC using the target language.",
+    "questType": "conversation",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "introduce_self",
+        "description": "Introduce yourself to Madeleine Bourgeois in French",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Madeleine Bourgeois",
+        "npcId": "69c7efe354de6edea916a6f9",
+        "npcName": "Madeleine Bourgeois",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 15,
+    "rewards": {
+      "xp": 15,
+      "fluency": 3
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Aurore Broussard",
+    "assignedByCharacterId": "69c7efc654de6edea916a68f",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:introduce_self",
+      "category:conversation"
+    ],
+    "status": "available",
+    "content": "% Quest: First Impressions\n% Introduce yourself to an NPC using the target language.\n% Type: conversation / Difficulty: beginner\n\nquest(first_impressions, 'First Impressions', conversation, beginner, available).\nquest_assigned_to(first_impressions, 'Player').\nquest_assigned_by(first_impressions, 'Aurore Broussard').\nquest_language(first_impressions, french).\nquest_tag(first_impressions, seed).\nquest_tag(first_impressions, objective_type_introduce_self).\nquest_tag(first_impressions, category_conversation).\n\nquest_objective(first_impressions, 0, objective('Introduce yourself to Madeleine Bourgeois in French')).\n\n\n\nquest_reward(first_impressions, experience, 15).\nquest_reward(first_impressions, xp, 15).\nquest_reward(first_impressions, fluency, 3).\n\n% Can Player take this quest?\nquest_available(Player, first_impressions) :-\n    quest(first_impressions, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a921",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Making Friends",
+    "description": "Build a friendship with a local by having several conversations.",
+    "questType": "social",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "build_friendship",
+        "description": "Have 3 conversations with François Savoie to build a friendship",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "target": "François Savoie",
+        "npcId": "69c7efe354de6edea916a6fd",
+        "npcName": "François Savoie",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 25,
+    "rewards": {
+      "xp": 25,
+      "fluency": 5
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Aurélie Trahan",
+    "assignedByCharacterId": "69c7efe354de6edea916a6f1",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:build_friendship",
+      "category:social"
+    ],
+    "status": "available",
+    "content": "% Quest: Making Friends\n% Build a friendship with a local by having several conversations.\n% Type: social / Difficulty: beginner\n\nquest(making_friends, 'Making Friends', social, beginner, available).\nquest_assigned_to(making_friends, 'Player').\nquest_assigned_by(making_friends, 'Aurélie Trahan').\nquest_language(making_friends, french).\nquest_tag(making_friends, seed).\nquest_tag(making_friends, objective_type_build_friendship).\nquest_tag(making_friends, category_social).\n\nquest_objective(making_friends, 0, objective('Have 3 conversations with François Savoie to build a friendship')).\n\n\n\nquest_reward(making_friends, experience, 25).\nquest_reward(making_friends, xp, 25).\nquest_reward(making_friends, fluency, 5).\n\n% Can Player take this quest?\nquest_available(Player, making_friends) :-\n    quest(making_friends, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a923",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "A Thoughtful Gift",
+    "description": "Find a gift and present it to a local to strengthen your bond.",
+    "questType": "social",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "collect_item",
+        "description": "Find a gift item",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "give_gift",
+        "description": "Present the gift to Marcel Bergeron",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Marcel Bergeron",
+        "npcId": "69c7efe354de6edea916a70d",
+        "npcName": "Marcel Bergeron",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Julien Richard",
+    "assignedByCharacterId": "69c7efe454de6edea916a721",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:give_gift",
+      "category:social"
+    ],
+    "status": "available",
+    "content": "% Quest: A Thoughtful Gift\n% Find a gift and present it to a local to strengthen your bond.\n% Type: social / Difficulty: intermediate\n\nquest(a_thoughtful_gift, 'A Thoughtful Gift', social, intermediate, available).\nquest_assigned_to(a_thoughtful_gift, 'Player').\nquest_assigned_by(a_thoughtful_gift, 'Julien Richard').\nquest_language(a_thoughtful_gift, french).\nquest_tag(a_thoughtful_gift, seed).\nquest_tag(a_thoughtful_gift, objective_type_give_gift).\nquest_tag(a_thoughtful_gift, category_social).\n\nquest_objective(a_thoughtful_gift, 0, collect(, 1)).\nquest_objective(a_thoughtful_gift, 1, objective('Present the gift to Marcel Bergeron')).\n\n\n\nquest_reward(a_thoughtful_gift, experience, 30).\nquest_reward(a_thoughtful_gift, xp, 30).\nquest_reward(a_thoughtful_gift, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, a_thoughtful_gift) :-\n    quest(a_thoughtful_gift, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a925",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Earn Their Trust",
+    "description": "Build your standing with the community through positive interactions.",
+    "questType": "social",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "gain_reputation",
+        "description": "Gain reputation with Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "factionId": "Sainte-Évangéline",
+        "reputationGained": 0,
+        "reputationRequired": 10,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Marguerite Tremblay",
+    "assignedByCharacterId": "69c7efe454de6edea916a723",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:gain_reputation",
+      "category:social"
+    ],
+    "status": "available",
+    "content": "% Quest: Earn Their Trust\n% Build your standing with the community through positive interactions.\n% Type: social / Difficulty: intermediate\n\nquest(earn_their_trust, 'Earn Their Trust', social, intermediate, available).\nquest_assigned_to(earn_their_trust, 'Player').\nquest_assigned_by(earn_their_trust, 'Marguerite Tremblay').\nquest_language(earn_their_trust, french).\nquest_tag(earn_their_trust, seed).\nquest_tag(earn_their_trust, objective_type_gain_reputation).\nquest_tag(earn_their_trust, category_social).\n\nquest_objective(earn_their_trust, 0, gain_reputation(, 100)).\n\n\n\nquest_reward(earn_their_trust, experience, 30).\nquest_reward(earn_their_trust, xp, 30).\nquest_reward(earn_their_trust, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, earn_their_trust) :-\n    quest(earn_their_trust, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a927",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Words in Action",
+    "description": "Use target-language words during a conversation.",
+    "questType": "vocabulary",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "use_vocabulary",
+        "description": "Use 3 French words in conversation",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Odette Dugas",
+    "assignedByCharacterId": "69c7efe454de6edea916a729",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:use_vocabulary",
+      "category:vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Words in Action\n% Use target-language words during a conversation.\n% Type: vocabulary / Difficulty: beginner\n\nquest(words_in_action, 'Words in Action', vocabulary, beginner, available).\nquest_assigned_to(words_in_action, 'Player').\nquest_assigned_by(words_in_action, 'Odette Dugas').\nquest_language(words_in_action, french).\nquest_tag(words_in_action, seed).\nquest_tag(words_in_action, objective_type_use_vocabulary).\nquest_tag(words_in_action, category_vocabulary).\n\nquest_objective(words_in_action, 0, learn_words_count(3)).\n\n\n\nquest_reward(words_in_action, experience, 20).\nquest_reward(words_in_action, xp, 20).\nquest_reward(words_in_action, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, words_in_action) :-\n    quest(words_in_action, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a929",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Vocabulary Immersion",
+    "description": "Use many target-language words across multiple conversations.",
+    "questType": "vocabulary",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "use_vocabulary",
+        "description": "Use 10 French words in conversations",
+        "requiredCount": 10,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Julien Richard",
+    "assignedByCharacterId": "69c7efe454de6edea916a721",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:use_vocabulary",
+      "category:vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Vocabulary Immersion\n% Use many target-language words across multiple conversations.\n% Type: vocabulary / Difficulty: intermediate\n\nquest(vocabulary_immersion, 'Vocabulary Immersion', vocabulary, intermediate, available).\nquest_assigned_to(vocabulary_immersion, 'Player').\nquest_assigned_by(vocabulary_immersion, 'Julien Richard').\nquest_language(vocabulary_immersion, french).\nquest_tag(vocabulary_immersion, seed).\nquest_tag(vocabulary_immersion, objective_type_use_vocabulary).\nquest_tag(vocabulary_immersion, category_vocabulary).\n\nquest_objective(vocabulary_immersion, 0, learn_words_count(10)).\n\n\n\nquest_reward(vocabulary_immersion, experience, 35).\nquest_reward(vocabulary_immersion, xp, 35).\nquest_reward(vocabulary_immersion, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, vocabulary_immersion) :-\n    quest(vocabulary_immersion, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a92b",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Word Collector",
+    "description": "Walk around and collect vocabulary words from labeled objects in the world.",
+    "questType": "vocabulary",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "collect_vocabulary",
+        "description": "Collect 3 vocabulary words by approaching labeled objects",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Jacques Mouton",
+    "assignedByCharacterId": "69c7efe354de6edea916a6f7",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:collect_vocabulary",
+      "category:vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Word Collector\n% Walk around and collect vocabulary words from labeled objects in the world.\n% Type: vocabulary / Difficulty: beginner\n\nquest(word_collector, 'Word Collector', vocabulary, beginner, available).\nquest_assigned_to(word_collector, 'Player').\nquest_assigned_by(word_collector, 'Jacques Mouton').\nquest_language(word_collector, french).\nquest_tag(word_collector, seed).\nquest_tag(word_collector, objective_type_collect_vocabulary).\nquest_tag(word_collector, category_vocabulary).\n\nquest_objective(word_collector, 0, objective('Collect 3 vocabulary words by approaching labeled objects')).\n\n\n\nquest_reward(word_collector, experience, 20).\nquest_reward(word_collector, xp, 20).\nquest_reward(word_collector, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, word_collector) :-\n    quest(word_collector, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a92d",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Word Hoarder",
+    "description": "Collect a large number of vocabulary words from the world around you.",
+    "questType": "vocabulary",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "collect_vocabulary",
+        "description": "Collect 8 vocabulary words from the world",
+        "requiredCount": 8,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Geneviève Thibodeaux",
+    "assignedByCharacterId": "69c7efe254de6edea916a6cf",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:collect_vocabulary",
+      "category:vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Word Hoarder\n% Collect a large number of vocabulary words from the world around you.\n% Type: vocabulary / Difficulty: intermediate\n\nquest(word_hoarder, 'Word Hoarder', vocabulary, intermediate, available).\nquest_assigned_to(word_hoarder, 'Player').\nquest_assigned_by(word_hoarder, 'Geneviève Thibodeaux').\nquest_language(word_hoarder, french).\nquest_tag(word_hoarder, seed).\nquest_tag(word_hoarder, objective_type_collect_vocabulary).\nquest_tag(word_hoarder, category_vocabulary).\n\nquest_objective(word_hoarder, 0, objective('Collect 8 vocabulary words from the world')).\n\n\n\nquest_reward(word_hoarder, experience, 35).\nquest_reward(word_hoarder, xp, 35).\nquest_reward(word_hoarder, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, word_hoarder) :-\n    quest(word_hoarder, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff054de6edea916a92f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Name That Thing",
+    "description": "Click on objects in the world and type their name in the target language.",
+    "questType": "visual_vocabulary",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "identify_object",
+        "description": "Correctly identify 3 objects by their French name",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Marcel Bergeron",
+    "assignedByCharacterId": "69c7efe354de6edea916a70d",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:identify_object",
+      "category:visual_vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Name That Thing\n% Click on objects in the world and type their name in the target language.\n% Type: visual_vocabulary / Difficulty: beginner\n\nquest(name_that_thing, 'Name That Thing', visual_vocabulary, beginner, available).\nquest_assigned_to(name_that_thing, 'Player').\nquest_assigned_by(name_that_thing, 'Marcel Bergeron').\nquest_language(name_that_thing, french).\nquest_tag(name_that_thing, seed).\nquest_tag(name_that_thing, objective_type_identify_object).\nquest_tag(name_that_thing, category_visual_vocabulary).\n\nquest_objective(name_that_thing, 0, objective('Correctly identify 3 objects by their French name')).\n\n\n\nquest_reward(name_that_thing, experience, 20).\nquest_reward(name_that_thing, xp, 20).\nquest_reward(name_that_thing, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, name_that_thing) :-\n    quest(name_that_thing, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a931",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Curious Observer",
+    "description": "Examine objects in the world to learn their names in the target language.",
+    "questType": "vocabulary",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "examine_object",
+        "description": "Examine 3 objects to learn their French names",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 15,
+    "rewards": {
+      "xp": 15,
+      "fluency": 3
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Jean-Baptiste Hébert",
+    "assignedByCharacterId": "69c7efc654de6edea916a694",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:examine_object",
+      "category:vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Curious Observer\n% Examine objects in the world to learn their names in the target language.\n% Type: vocabulary / Difficulty: beginner\n\nquest(curious_observer, 'Curious Observer', vocabulary, beginner, available).\nquest_assigned_to(curious_observer, 'Player').\nquest_assigned_by(curious_observer, 'Jean-Baptiste Hébert').\nquest_language(curious_observer, french).\nquest_tag(curious_observer, seed).\nquest_tag(curious_observer, objective_type_examine_object).\nquest_tag(curious_observer, category_vocabulary).\n\nquest_objective(curious_observer, 0, objective('Examine 3 objects to learn their French names')).\n\n\n\nquest_reward(curious_observer, experience, 15).\nquest_reward(curious_observer, xp, 15).\nquest_reward(curious_observer, fluency, 3).\n\n% Can Player take this quest?\nquest_available(Player, curious_observer) :-\n    quest(curious_observer, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a933",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Point and Say",
+    "description": "Click on objects and name them in the target language to practice vocabulary.",
+    "questType": "visual_vocabulary",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "point_and_name",
+        "description": "Point at 5 objects and name them in French",
+        "requiredCount": 5,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Camille Broussard",
+    "assignedByCharacterId": "69c7efe354de6edea916a6eb",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:point_and_name",
+      "category:visual_vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Point and Say\n% Click on objects and name them in the target language to practice vocabulary.\n% Type: visual_vocabulary / Difficulty: beginner\n\nquest(point_and_say, 'Point and Say', visual_vocabulary, beginner, available).\nquest_assigned_to(point_and_say, 'Player').\nquest_assigned_by(point_and_say, 'Camille Broussard').\nquest_language(point_and_say, french).\nquest_tag(point_and_say, seed).\nquest_tag(point_and_say, objective_type_point_and_name).\nquest_tag(point_and_say, category_visual_vocabulary).\n\nquest_objective(point_and_say, 0, objective('Point at 5 objects and name them in French')).\n\n\n\nquest_reward(point_and_say, experience, 20).\nquest_reward(point_and_say, xp, 20).\nquest_reward(point_and_say, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, point_and_say) :-\n    quest(point_and_say, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a935",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Reading Around Town",
+    "description": "Read signs, menus, and other text written in the target language.",
+    "questType": "vocabulary",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "read_sign",
+        "description": "Read 3 signs or texts written in French",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 15,
+    "rewards": {
+      "xp": 15,
+      "fluency": 3
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Noémie Moreau",
+    "assignedByCharacterId": "69c7efe354de6edea916a70b",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:read_sign",
+      "category:vocabulary"
+    ],
+    "status": "available",
+    "content": "% Quest: Reading Around Town\n% Read signs, menus, and other text written in the target language.\n% Type: vocabulary / Difficulty: beginner\n\nquest(reading_around_town, 'Reading Around Town', vocabulary, beginner, available).\nquest_assigned_to(reading_around_town, 'Player').\nquest_assigned_by(reading_around_town, 'Noémie Moreau').\nquest_language(reading_around_town, french).\nquest_tag(reading_around_town, seed).\nquest_tag(reading_around_town, objective_type_read_sign).\nquest_tag(reading_around_town, category_vocabulary).\n\nquest_objective(reading_around_town, 0, objective('Read 3 signs or texts written in French')).\n\n\n\nquest_reward(reading_around_town, experience, 15).\nquest_reward(reading_around_town, xp, 15).\nquest_reward(reading_around_town, fluency, 3).\n\n% Can Player take this quest?\nquest_available(Player, reading_around_town) :-\n    quest(reading_around_town, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a937",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Grammar in Practice",
+    "description": "Use correct grammar patterns during conversations with NPCs.",
+    "questType": "grammar",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "complete_conversation",
+        "description": "Have a conversation with Odette Dugas (3 turns minimum)",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Odette Dugas",
+        "npcId": "69c7efe454de6edea916a729",
+        "npcName": "Odette Dugas",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "use_vocabulary",
+        "description": "Use 5 French words correctly in context",
+        "requiredCount": 5,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Élodie Boudreaux",
+    "assignedByCharacterId": "69c7efe254de6edea916a6cd",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:use_vocabulary",
+      "category:grammar",
+      "grammar"
+    ],
+    "status": "available",
+    "content": "% Quest: Grammar in Practice\n% Use correct grammar patterns during conversations with NPCs.\n% Type: grammar / Difficulty: intermediate\n\nquest(grammar_in_practice, 'Grammar in Practice', grammar, intermediate, available).\nquest_assigned_to(grammar_in_practice, 'Player').\nquest_assigned_by(grammar_in_practice, 'Élodie Boudreaux').\nquest_language(grammar_in_practice, french).\nquest_tag(grammar_in_practice, seed).\nquest_tag(grammar_in_practice, objective_type_use_vocabulary).\nquest_tag(grammar_in_practice, category_grammar).\nquest_tag(grammar_in_practice, grammar).\n\nquest_objective(grammar_in_practice, 0, conversation_turns(3)).\nquest_objective(grammar_in_practice, 1, learn_words_count(5)).\n\n\n\nquest_reward(grammar_in_practice, experience, 30).\nquest_reward(grammar_in_practice, xp, 30).\nquest_reward(grammar_in_practice, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, grammar_in_practice) :-\n    quest(grammar_in_practice, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a939",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Written Word",
+    "description": "Practice writing in the target language by composing responses to prompts.",
+    "questType": "grammar",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "write_response",
+        "description": "Write 2 responses in French",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Mathieu Leblanc",
+    "assignedByCharacterId": "69c7efe254de6edea916a6e9",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:write_response",
+      "category:grammar"
+    ],
+    "status": "available",
+    "content": "% Quest: Written Word\n% Practice writing in the target language by composing responses to prompts.\n% Type: grammar / Difficulty: intermediate\n\nquest(written_word, 'Written Word', grammar, intermediate, available).\nquest_assigned_to(written_word, 'Player').\nquest_assigned_by(written_word, 'Mathieu Leblanc').\nquest_language(written_word, french).\nquest_tag(written_word, seed).\nquest_tag(written_word, objective_type_write_response).\nquest_tag(written_word, category_grammar).\n\nquest_objective(written_word, 0, objective('Write 2 responses in French')).\n\n\n\nquest_reward(written_word, experience, 30).\nquest_reward(written_word, xp, 30).\nquest_reward(written_word, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, written_word) :-\n    quest(written_word, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a93b",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Picture This",
+    "description": "Describe what you see around you using the target language.",
+    "questType": "grammar",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "describe_scene",
+        "description": "Describe 2 scenes in French",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 25,
+    "rewards": {
+      "xp": 25,
+      "fluency": 5
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Aurore Broussard",
+    "assignedByCharacterId": "69c7efc654de6edea916a68f",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:describe_scene",
+      "category:grammar"
+    ],
+    "status": "available",
+    "content": "% Quest: Picture This\n% Describe what you see around you using the target language.\n% Type: grammar / Difficulty: intermediate\n\nquest(picture_this, 'Picture This', grammar, intermediate, available).\nquest_assigned_to(picture_this, 'Player').\nquest_assigned_by(picture_this, 'Aurore Broussard').\nquest_language(picture_this, french).\nquest_tag(picture_this, seed).\nquest_tag(picture_this, objective_type_describe_scene).\nquest_tag(picture_this, category_grammar).\n\nquest_objective(picture_this, 0, objective('Describe 2 scenes in French')).\n\n\n\nquest_reward(picture_this, experience, 25).\nquest_reward(picture_this, xp, 25).\nquest_reward(picture_this, fluency, 5).\n\n% Can Player take this quest?\nquest_available(Player, picture_this) :-\n    quest(picture_this, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a93d",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Story Time",
+    "description": "Listen to an NPC tell a story and answer comprehension questions.",
+    "questType": "listening_comprehension",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "listening_comprehension",
+        "description": "Listen to Céline LeBlanc's story and answer 2 questions correctly",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Céline LeBlanc",
+        "npcId": "69c7efe254de6edea916a6d7",
+        "npcName": "Céline LeBlanc",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Célestin Hébert",
+    "assignedByCharacterId": "69c7efd254de6edea916a6a9",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:listening_comprehension",
+      "category:listening_comprehension"
+    ],
+    "status": "available",
+    "content": "% Quest: Story Time\n% Listen to an NPC tell a story and answer comprehension questions.\n% Type: listening_comprehension / Difficulty: intermediate\n\nquest(story_time, 'Story Time', listening_comprehension, intermediate, available).\nquest_assigned_to(story_time, 'Player').\nquest_assigned_by(story_time, 'Célestin Hébert').\nquest_language(story_time, french).\nquest_tag(story_time, seed).\nquest_tag(story_time, objective_type_listening_comprehension).\nquest_tag(story_time, category_listening_comprehension).\n\nquest_objective(story_time, 0, objective('Listen to Céline LeBlanc\\'s story and answer 2 questions correctly')).\n\n\n\nquest_reward(story_time, experience, 35).\nquest_reward(story_time, xp, 35).\nquest_reward(story_time, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, story_time) :-\n    quest(story_time, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a93f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Parrot Practice",
+    "description": "Listen to an NPC speak and repeat what they say to practice pronunciation.",
+    "questType": "listening_comprehension",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "listen_and_repeat",
+        "description": "Listen to Camille Broussard and repeat 3 phrases",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Camille Broussard",
+        "npcId": "69c7efe354de6edea916a6eb",
+        "npcName": "Camille Broussard",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Amélie Landry",
+    "assignedByCharacterId": "69c7efe254de6edea916a6d5",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:listen_and_repeat",
+      "category:listening_comprehension"
+    ],
+    "status": "available",
+    "content": "% Quest: Parrot Practice\n% Listen to an NPC speak and repeat what they say to practice pronunciation.\n% Type: listening_comprehension / Difficulty: beginner\n\nquest(parrot_practice, 'Parrot Practice', listening_comprehension, beginner, available).\nquest_assigned_to(parrot_practice, 'Player').\nquest_assigned_by(parrot_practice, 'Amélie Landry').\nquest_language(parrot_practice, french).\nquest_tag(parrot_practice, seed).\nquest_tag(parrot_practice, objective_type_listen_and_repeat).\nquest_tag(parrot_practice, category_listening_comprehension).\n\nquest_objective(parrot_practice, 0, objective('Listen to Camille Broussard and repeat 3 phrases')).\n\n\n\nquest_reward(parrot_practice, experience, 20).\nquest_reward(parrot_practice, xp, 20).\nquest_reward(parrot_practice, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, parrot_practice) :-\n    quest(parrot_practice, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a941",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Echo Challenge",
+    "description": "Repeat back longer phrases from NPCs to improve your listening and speaking.",
+    "questType": "listening_comprehension",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "listen_and_repeat",
+        "description": "Listen to Émile Thibodeaux and repeat 6 phrases",
+        "requiredCount": 6,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Émile Thibodeaux",
+        "npcId": "69c7efe254de6edea916a6d3",
+        "npcName": "Émile Thibodeaux",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Claudine Savoie",
+    "assignedByCharacterId": "69c7efe454de6edea916a72c",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:listen_and_repeat",
+      "category:listening_comprehension"
+    ],
+    "status": "available",
+    "content": "% Quest: Echo Challenge\n% Repeat back longer phrases from NPCs to improve your listening and speaking.\n% Type: listening_comprehension / Difficulty: intermediate\n\nquest(echo_challenge, 'Echo Challenge', listening_comprehension, intermediate, available).\nquest_assigned_to(echo_challenge, 'Player').\nquest_assigned_by(echo_challenge, 'Claudine Savoie').\nquest_language(echo_challenge, french).\nquest_tag(echo_challenge, seed).\nquest_tag(echo_challenge, objective_type_listen_and_repeat).\nquest_tag(echo_challenge, category_listening_comprehension).\n\nquest_objective(echo_challenge, 0, objective('Listen to Émile Thibodeaux and repeat 6 phrases')).\n\n\n\nquest_reward(echo_challenge, experience, 30).\nquest_reward(echo_challenge, xp, 30).\nquest_reward(echo_challenge, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, echo_challenge) :-\n    quest(echo_challenge, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a943",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Lost in Translation",
+    "description": "Translate phrases between English and the target language.",
+    "questType": "translation_challenge",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "translation_challenge",
+        "description": "Correctly translate 3 French phrases",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Léon Delacroix",
+    "assignedByCharacterId": "69c7efe354de6edea916a717",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:translation_challenge",
+      "category:translation_challenge"
+    ],
+    "status": "available",
+    "content": "% Quest: Lost in Translation\n% Translate phrases between English and the target language.\n% Type: translation_challenge / Difficulty: intermediate\n\nquest(lost_in_translation, 'Lost in Translation', translation_challenge, intermediate, available).\nquest_assigned_to(lost_in_translation, 'Player').\nquest_assigned_by(lost_in_translation, 'Léon Delacroix').\nquest_language(lost_in_translation, french).\nquest_tag(lost_in_translation, seed).\nquest_tag(lost_in_translation, objective_type_translation_challenge).\nquest_tag(lost_in_translation, category_translation_challenge).\n\nquest_objective(lost_in_translation, 0, objective('Correctly translate 3 French phrases')).\n\n\n\nquest_reward(lost_in_translation, experience, 30).\nquest_reward(lost_in_translation, xp, 30).\nquest_reward(lost_in_translation, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, lost_in_translation) :-\n    quest(lost_in_translation, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a945",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Master Translator",
+    "description": "Translate many phrases accurately to prove your language skills.",
+    "questType": "translation_challenge",
+    "difficulty": "advanced",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "translation_challenge",
+        "description": "Correctly translate 8 French phrases",
+        "requiredCount": 8,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 45,
+    "rewards": {
+      "xp": 45,
+      "fluency": 9
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "René Boudreaux",
+    "assignedByCharacterId": "69c7efe354de6edea916a715",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:translation_challenge",
+      "category:translation_challenge"
+    ],
+    "status": "available",
+    "content": "% Quest: Master Translator\n% Translate many phrases accurately to prove your language skills.\n% Type: translation_challenge / Difficulty: advanced\n\nquest(master_translator, 'Master Translator', translation_challenge, advanced, available).\nquest_assigned_to(master_translator, 'Player').\nquest_assigned_by(master_translator, 'René Boudreaux').\nquest_language(master_translator, french).\nquest_tag(master_translator, seed).\nquest_tag(master_translator, objective_type_translation_challenge).\nquest_tag(master_translator, category_translation_challenge).\n\nquest_objective(master_translator, 0, objective('Correctly translate 8 French phrases')).\n\n\n\nquest_reward(master_translator, experience, 45).\nquest_reward(master_translator, xp, 45).\nquest_reward(master_translator, fluency, 9).\n\n% Can Player take this quest?\nquest_available(Player, master_translator) :-\n    quest(master_translator, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a947",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Say It Right",
+    "description": "Pronounce phrases in the target language and get accuracy feedback.",
+    "questType": "pronunciation",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "pronunciation_check",
+        "description": "Pronounce 3 French phrases with good accuracy",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Victor Chauvin",
+    "assignedByCharacterId": "69c7efe354de6edea916a713",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:pronunciation_check",
+      "category:pronunciation"
+    ],
+    "status": "available",
+    "content": "% Quest: Say It Right\n% Pronounce phrases in the target language and get accuracy feedback.\n% Type: pronunciation / Difficulty: intermediate\n\nquest(say_it_right, 'Say It Right', pronunciation, intermediate, available).\nquest_assigned_to(say_it_right, 'Player').\nquest_assigned_by(say_it_right, 'Victor Chauvin').\nquest_language(say_it_right, french).\nquest_tag(say_it_right, seed).\nquest_tag(say_it_right, objective_type_pronunciation_check).\nquest_tag(say_it_right, category_pronunciation).\n\nquest_objective(say_it_right, 0, objective('Pronounce 3 French phrases with good accuracy')).\n\n\n\nquest_reward(say_it_right, experience, 30).\nquest_reward(say_it_right, xp, 30).\nquest_reward(say_it_right, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, say_it_right) :-\n    quest(say_it_right, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a949",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Fluency Drill",
+    "description": "Pronounce many phrases to build confidence and accuracy.",
+    "questType": "pronunciation",
+    "difficulty": "advanced",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "pronunciation_check",
+        "description": "Pronounce 8 French phrases accurately",
+        "requiredCount": 8,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 40,
+    "rewards": {
+      "xp": 40,
+      "fluency": 8
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "René Boudreaux",
+    "assignedByCharacterId": "69c7efe354de6edea916a715",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:pronunciation_check",
+      "category:pronunciation"
+    ],
+    "status": "available",
+    "content": "% Quest: Fluency Drill\n% Pronounce many phrases to build confidence and accuracy.\n% Type: pronunciation / Difficulty: advanced\n\nquest(fluency_drill, 'Fluency Drill', pronunciation, advanced, available).\nquest_assigned_to(fluency_drill, 'Player').\nquest_assigned_by(fluency_drill, 'René Boudreaux').\nquest_language(fluency_drill, french).\nquest_tag(fluency_drill, seed).\nquest_tag(fluency_drill, objective_type_pronunciation_check).\nquest_tag(fluency_drill, category_pronunciation).\n\nquest_objective(fluency_drill, 0, objective('Pronounce 8 French phrases accurately')).\n\n\n\nquest_reward(fluency_drill, experience, 40).\nquest_reward(fluency_drill, xp, 40).\nquest_reward(fluency_drill, fluency, 8).\n\n% Can Player take this quest?\nquest_available(Player, fluency_drill) :-\n    quest(fluency_drill, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a94b",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Follow the Signs",
+    "description": "Follow directions given in the target language to reach your destination.",
+    "questType": "navigation",
+    "difficulty": "advanced",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "navigate_language",
+        "description": "Follow French directions to reach Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "stepsRequired": 1,
+        "navigationWaypoints": [
+          {
+            "instruction": "Walk toward Sainte-Évangéline",
+            "locationName": "Sainte-Évangéline",
+            "locationPosition": {
+              "x": -0.18949110440346606,
+              "y": 0,
+              "z": -0.07251953422135018
+            }
+          }
+        ],
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        },
+        "locationName": "Sainte-Évangéline"
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 40,
+    "rewards": {
+      "xp": 40,
+      "fluency": 8
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Claudine Savoie",
+    "assignedByCharacterId": "69c7efe454de6edea916a72c",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:navigate_language",
+      "category:navigation"
+    ],
+    "status": "available",
+    "content": "% Quest: Follow the Signs\n% Follow directions given in the target language to reach your destination.\n% Type: navigation / Difficulty: advanced\n\nquest(follow_the_signs, 'Follow the Signs', navigation, advanced, available).\nquest_assigned_to(follow_the_signs, 'Player').\nquest_assigned_by(follow_the_signs, 'Claudine Savoie').\nquest_language(follow_the_signs, french).\nquest_tag(follow_the_signs, seed).\nquest_tag(follow_the_signs, objective_type_navigate_language).\nquest_tag(follow_the_signs, category_navigation).\n\nquest_objective(follow_the_signs, 0, objective('Follow French directions to reach Sainte-Évangéline')).\n\n\n\nquest_reward(follow_the_signs, experience, 40).\nquest_reward(follow_the_signs, xp, 40).\nquest_reward(follow_the_signs, fluency, 8).\n\n% Can Player take this quest?\nquest_available(Player, follow_the_signs) :-\n    quest(follow_the_signs, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a94d",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Direction Master",
+    "description": "An NPC gives you directions in the target language. Follow them step by step.",
+    "questType": "follow_instructions",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "follow_directions",
+        "description": "Follow 1 steps of French directions",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "stepsRequired": 1,
+        "directionSteps": [
+          {
+            "instruction": "Go to Sainte-Évangéline",
+            "englishHint": "Go to Sainte-Évangéline",
+            "locationName": "Sainte-Évangéline",
+            "locationPosition": {
+              "x": -0.18949110440346606,
+              "y": 0,
+              "z": -0.07251953422135018
+            }
+          }
+        ],
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Amélie Hébert",
+    "assignedByCharacterId": "69c7efd254de6edea916a6a7",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:follow_directions",
+      "category:follow_instructions"
+    ],
+    "status": "available",
+    "content": "% Quest: Direction Master\n% An NPC gives you directions in the target language. Follow them step by step.\n% Type: follow_instructions / Difficulty: intermediate\n\nquest(direction_master, 'Direction Master', follow_instructions, intermediate, available).\nquest_assigned_to(direction_master, 'Player').\nquest_assigned_by(direction_master, 'Amélie Hébert').\nquest_language(direction_master, french).\nquest_tag(direction_master, seed).\nquest_tag(direction_master, objective_type_follow_directions).\nquest_tag(direction_master, category_follow_instructions).\n\nquest_objective(direction_master, 0, objective('Follow 1 steps of French directions')).\n\n\n\nquest_reward(direction_master, experience, 30).\nquest_reward(direction_master, xp, 30).\nquest_reward(direction_master, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, direction_master) :-\n    quest(direction_master, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a94f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Which Way?",
+    "description": "Ask NPCs for directions using the target language.",
+    "questType": "navigation",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "ask_for_directions",
+        "description": "Ask Antoine Hébert for directions in French",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Antoine Hébert",
+        "npcId": "69c7efe254de6edea916a6db",
+        "npcName": "Antoine Hébert",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Gabriel Guidry",
+    "assignedByCharacterId": "69c7efe354de6edea916a6ed",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:ask_for_directions",
+      "category:navigation"
+    ],
+    "status": "available",
+    "content": "% Quest: Which Way?\n% Ask NPCs for directions using the target language.\n% Type: navigation / Difficulty: beginner\n\nquest(which_way, 'Which Way?', navigation, beginner, available).\nquest_assigned_to(which_way, 'Player').\nquest_assigned_by(which_way, 'Gabriel Guidry').\nquest_language(which_way, french).\nquest_tag(which_way, seed).\nquest_tag(which_way, objective_type_ask_for_directions).\nquest_tag(which_way, category_navigation).\n\nquest_objective(which_way, 0, objective('Ask Antoine Hébert for directions in French')).\n\n\n\nquest_reward(which_way, experience, 20).\nquest_reward(which_way, xp, 20).\nquest_reward(which_way, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, which_way) :-\n    quest(which_way, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a951",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Cultural Exchange",
+    "description": "Talk to locals to learn about the customs and culture of the area.",
+    "questType": "cultural",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "talk_to_npc",
+        "description": "Talk to Évangéline Charpentier about local customs",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Évangéline Charpentier",
+        "npcId": "69c7efe454de6edea916a731",
+        "npcName": "Évangéline Charpentier",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "talk_to_npc",
+        "description": "Talk to Julien Richard about local customs",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Julien Richard",
+        "npcId": "69c7efe454de6edea916a721",
+        "npcName": "Julien Richard",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Sylvie Sonnier",
+    "assignedByCharacterId": "69c7efe354de6edea916a6f3",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:talk_to_npc",
+      "category:cultural",
+      "cultural"
+    ],
+    "status": "available",
+    "content": "% Quest: Cultural Exchange\n% Talk to locals to learn about the customs and culture of the area.\n% Type: cultural / Difficulty: beginner\n\nquest(cultural_exchange, 'Cultural Exchange', cultural, beginner, available).\nquest_assigned_to(cultural_exchange, 'Player').\nquest_assigned_by(cultural_exchange, 'Sylvie Sonnier').\nquest_language(cultural_exchange, french).\nquest_tag(cultural_exchange, seed).\nquest_tag(cultural_exchange, objective_type_talk_to_npc).\nquest_tag(cultural_exchange, category_cultural).\nquest_tag(cultural_exchange, cultural).\n\nquest_objective(cultural_exchange, 0, talk_to('69c7efe454de6edea916a731', 1)).\nquest_objective(cultural_exchange, 1, talk_to('69c7efe454de6edea916a721', 1)).\n\n\n\nquest_reward(cultural_exchange, experience, 20).\nquest_reward(cultural_exchange, xp, 20).\nquest_reward(cultural_exchange, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, cultural_exchange) :-\n    quest(cultural_exchange, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a953",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Cultural Landmarks",
+    "description": "Visit important cultural locations and examine what you find there.",
+    "questType": "cultural",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "visit_location",
+        "description": "Visit Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        },
+        "locationName": "Sainte-Évangéline"
+      },
+      {
+        "id": "obj_1",
+        "type": "examine_object",
+        "description": "Examine a cultural object at one of the locations",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Véronique Gauthier",
+    "assignedByCharacterId": "69c7efe354de6edea916a71d",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:visit_location",
+      "category:cultural",
+      "cultural"
+    ],
+    "status": "available",
+    "content": "% Quest: Cultural Landmarks\n% Visit important cultural locations and examine what you find there.\n% Type: cultural / Difficulty: intermediate\n\nquest(cultural_landmarks, 'Cultural Landmarks', cultural, intermediate, available).\nquest_assigned_to(cultural_landmarks, 'Player').\nquest_assigned_by(cultural_landmarks, 'Véronique Gauthier').\nquest_language(cultural_landmarks, french).\nquest_tag(cultural_landmarks, seed).\nquest_tag(cultural_landmarks, objective_type_visit_location).\nquest_tag(cultural_landmarks, category_cultural).\nquest_tag(cultural_landmarks, cultural).\n\nquest_objective(cultural_landmarks, 0, visit_location('Sainte-Évangéline')).\nquest_objective(cultural_landmarks, 1, objective('Examine a cultural object at one of the locations')).\n\n\n\nquest_reward(cultural_landmarks, experience, 30).\nquest_reward(cultural_landmarks, xp, 30).\nquest_reward(cultural_landmarks, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, cultural_landmarks) :-\n    quest(cultural_landmarks, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a955",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Scavenger Hunt: Basics",
+    "description": "Find and identify objects around town by their target-language names.",
+    "questType": "scavenger_hunt",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "identify_object",
+        "description": "Identify 3 objects by their French name",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "collect_vocabulary",
+        "description": "Collect 2 new vocabulary words along the way",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 25,
+    "rewards": {
+      "xp": 25,
+      "fluency": 5
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Joséphine Romero",
+    "assignedByCharacterId": "69c7efe354de6edea916a6f5",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:identify_object",
+      "category:scavenger_hunt"
+    ],
+    "status": "available",
+    "content": "% Quest: Scavenger Hunt: Basics\n% Find and identify objects around town by their target-language names.\n% Type: scavenger_hunt / Difficulty: beginner\n\nquest(scavenger_hunt_basics, 'Scavenger Hunt: Basics', scavenger_hunt, beginner, available).\nquest_assigned_to(scavenger_hunt_basics, 'Player').\nquest_assigned_by(scavenger_hunt_basics, 'Joséphine Romero').\nquest_language(scavenger_hunt_basics, french).\nquest_tag(scavenger_hunt_basics, seed).\nquest_tag(scavenger_hunt_basics, objective_type_identify_object).\nquest_tag(scavenger_hunt_basics, category_scavenger_hunt).\n\nquest_objective(scavenger_hunt_basics, 0, objective('Identify 3 objects by their French name')).\nquest_objective(scavenger_hunt_basics, 1, objective('Collect 2 new vocabulary words along the way')).\n\n\n\nquest_reward(scavenger_hunt_basics, experience, 25).\nquest_reward(scavenger_hunt_basics, xp, 25).\nquest_reward(scavenger_hunt_basics, fluency, 5).\n\n% Can Player take this quest?\nquest_available(Player, scavenger_hunt_basics) :-\n    quest(scavenger_hunt_basics, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a957",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Scavenger Hunt: Collector",
+    "description": "Collect specific items from around the world while learning their names.",
+    "questType": "scavenger_hunt",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "collect_item",
+        "description": "Collect 3 items from the world",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "examine_object",
+        "description": "Examine 2 objects to learn their French names",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Noémie Moreau",
+    "assignedByCharacterId": "69c7efe354de6edea916a70b",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:collect_item",
+      "category:scavenger_hunt"
+    ],
+    "status": "available",
+    "content": "% Quest: Scavenger Hunt: Collector\n% Collect specific items from around the world while learning their names.\n% Type: scavenger_hunt / Difficulty: intermediate\n\nquest(scavenger_hunt_collector, 'Scavenger Hunt: Collector', scavenger_hunt, intermediate, available).\nquest_assigned_to(scavenger_hunt_collector, 'Player').\nquest_assigned_by(scavenger_hunt_collector, 'Noémie Moreau').\nquest_language(scavenger_hunt_collector, french).\nquest_tag(scavenger_hunt_collector, seed).\nquest_tag(scavenger_hunt_collector, objective_type_collect_item).\nquest_tag(scavenger_hunt_collector, category_scavenger_hunt).\n\nquest_objective(scavenger_hunt_collector, 0, collect(, 1)).\nquest_objective(scavenger_hunt_collector, 1, objective('Examine 2 objects to learn their French names')).\n\n\n\nquest_reward(scavenger_hunt_collector, experience, 35).\nquest_reward(scavenger_hunt_collector, xp, 35).\nquest_reward(scavenger_hunt_collector, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, scavenger_hunt_collector) :-\n    quest(scavenger_hunt_collector, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a959",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Scavenger Hunt: Expert",
+    "description": "Find, identify, and name many objects in the target language — a comprehensive vocabulary challenge.",
+    "questType": "scavenger_hunt",
+    "difficulty": "advanced",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "identify_object",
+        "description": "Identify 6 objects by their French name",
+        "requiredCount": 6,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "point_and_name",
+        "description": "Point and name 4 additional objects",
+        "requiredCount": 4,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_2",
+        "type": "collect_vocabulary",
+        "description": "Collect 5 vocabulary words",
+        "requiredCount": 5,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 50,
+    "rewards": {
+      "xp": 50,
+      "fluency": 10
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Océane Mouton",
+    "assignedByCharacterId": "69c7efe354de6edea916a6ef",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:identify_object",
+      "category:scavenger_hunt"
+    ],
+    "status": "available",
+    "content": "% Quest: Scavenger Hunt: Expert\n% Find, identify, and name many objects in the target language — a comprehensive vocabulary challenge.\n% Type: scavenger_hunt / Difficulty: advanced\n\nquest(scavenger_hunt_expert, 'Scavenger Hunt: Expert', scavenger_hunt, advanced, available).\nquest_assigned_to(scavenger_hunt_expert, 'Player').\nquest_assigned_by(scavenger_hunt_expert, 'Océane Mouton').\nquest_language(scavenger_hunt_expert, french).\nquest_tag(scavenger_hunt_expert, seed).\nquest_tag(scavenger_hunt_expert, objective_type_identify_object).\nquest_tag(scavenger_hunt_expert, category_scavenger_hunt).\n\nquest_objective(scavenger_hunt_expert, 0, objective('Identify 6 objects by their French name')).\nquest_objective(scavenger_hunt_expert, 1, objective('Point and name 4 additional objects')).\nquest_objective(scavenger_hunt_expert, 2, objective('Collect 5 vocabulary words')).\n\n\n\nquest_reward(scavenger_hunt_expert, experience, 50).\nquest_reward(scavenger_hunt_expert, xp, 50).\nquest_reward(scavenger_hunt_expert, fluency, 10).\n\n% Can Player take this quest?\nquest_available(Player, scavenger_hunt_expert) :-\n    quest(scavenger_hunt_expert, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a95b",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Tell Your Story",
+    "description": "Practice narrative skills by having a long conversation where you tell a story about yourself.",
+    "questType": "storytelling",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "complete_conversation",
+        "description": "Tell Adélaïde Doucet a story about yourself (5 turns)",
+        "requiredCount": 5,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Adélaïde Doucet",
+        "npcId": "69c7efe354de6edea916a6ff",
+        "npcName": "Adélaïde Doucet",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Véronique Gauthier",
+    "assignedByCharacterId": "69c7efe354de6edea916a71d",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:complete_conversation",
+      "category:storytelling",
+      "storytelling",
+      "narrative"
+    ],
+    "status": "available",
+    "content": "% Quest: Tell Your Story\n% Practice narrative skills by having a long conversation where you tell a story about yourself.\n% Type: storytelling / Difficulty: intermediate\n\nquest(tell_your_story, 'Tell Your Story', storytelling, intermediate, available).\nquest_assigned_to(tell_your_story, 'Player').\nquest_assigned_by(tell_your_story, 'Véronique Gauthier').\nquest_language(tell_your_story, french).\nquest_tag(tell_your_story, seed).\nquest_tag(tell_your_story, objective_type_complete_conversation).\nquest_tag(tell_your_story, category_storytelling).\nquest_tag(tell_your_story, storytelling).\nquest_tag(tell_your_story, narrative).\n\nquest_objective(tell_your_story, 0, conversation_turns(5)).\n\n\n\nquest_reward(tell_your_story, experience, 35).\nquest_reward(tell_your_story, xp, 35).\nquest_reward(tell_your_story, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, tell_your_story) :-\n    quest(tell_your_story, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a95d",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Campfire Tales",
+    "description": "Listen to a local tell a story, then retell it in your own words to someone else.",
+    "questType": "storytelling",
+    "difficulty": "advanced",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "listen_and_repeat",
+        "description": "Listen to Jean-Baptiste Broussard tell a story and repeat key phrases",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Jean-Baptiste Broussard",
+        "npcId": "69c7efe254de6edea916a6d1",
+        "npcName": "Jean-Baptiste Broussard",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "complete_conversation",
+        "description": "Retell the story to Louis Fontenot (5 turns)",
+        "requiredCount": 5,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Louis Fontenot",
+        "npcId": "69c7efe254de6edea916a6d9",
+        "npcName": "Louis Fontenot",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 45,
+    "rewards": {
+      "xp": 45,
+      "fluency": 9
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Geneviève Thibodeaux",
+    "assignedByCharacterId": "69c7efe254de6edea916a6cf",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:complete_conversation",
+      "category:storytelling",
+      "storytelling",
+      "listening"
+    ],
+    "status": "available",
+    "content": "% Quest: Campfire Tales\n% Listen to a local tell a story, then retell it in your own words to someone else.\n% Type: storytelling / Difficulty: advanced\n\nquest(campfire_tales, 'Campfire Tales', storytelling, advanced, available).\nquest_assigned_to(campfire_tales, 'Player').\nquest_assigned_by(campfire_tales, 'Geneviève Thibodeaux').\nquest_language(campfire_tales, french).\nquest_tag(campfire_tales, seed).\nquest_tag(campfire_tales, objective_type_complete_conversation).\nquest_tag(campfire_tales, category_storytelling).\nquest_tag(campfire_tales, storytelling).\nquest_tag(campfire_tales, listening).\n\nquest_objective(campfire_tales, 0, objective('Listen to Jean-Baptiste Broussard tell a story and repeat key phrases')).\nquest_objective(campfire_tales, 1, conversation_turns(5)).\n\n\n\nquest_reward(campfire_tales, experience, 45).\nquest_reward(campfire_tales, xp, 45).\nquest_reward(campfire_tales, fluency, 9).\n\n% Can Player take this quest?\nquest_available(Player, campfire_tales) :-\n    quest(campfire_tales, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a95f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Lunch Order",
+    "description": "Order food or drinks at a local establishment using the target language.",
+    "questType": "conversation",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "order_food",
+        "description": "Order food from Manon Guidry in French",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Manon Guidry",
+        "npcId": "69c7efe254de6edea916a6e3",
+        "npcName": "Manon Guidry",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 20,
+    "rewards": {
+      "xp": 20,
+      "fluency": 4
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Océane Mouton",
+    "assignedByCharacterId": "69c7efe354de6edea916a6ef",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:order_food",
+      "category:conversation",
+      "commerce",
+      "daily-life"
+    ],
+    "status": "available",
+    "content": "% Quest: Lunch Order\n% Order food or drinks at a local establishment using the target language.\n% Type: conversation / Difficulty: beginner\n\nquest(lunch_order, 'Lunch Order', conversation, beginner, available).\nquest_assigned_to(lunch_order, 'Player').\nquest_assigned_by(lunch_order, 'Océane Mouton').\nquest_language(lunch_order, french).\nquest_tag(lunch_order, seed).\nquest_tag(lunch_order, objective_type_order_food).\nquest_tag(lunch_order, category_conversation).\nquest_tag(lunch_order, commerce).\nquest_tag(lunch_order, daily_life).\n\nquest_objective(lunch_order, 0, objective('Order food from Manon Guidry in French')).\n\n\n\nquest_reward(lunch_order, experience, 20).\nquest_reward(lunch_order, xp, 20).\nquest_reward(lunch_order, fluency, 4).\n\n% Can Player take this quest?\nquest_available(Player, lunch_order) :-\n    quest(lunch_order, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff154de6edea916a961",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Bargain Hunter",
+    "description": "Negotiate a price with a merchant using the target language.",
+    "questType": "conversation",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "haggle_price",
+        "description": "Negotiate a price with Claudine Savoie in French",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Claudine Savoie",
+        "npcId": "69c7efe454de6edea916a72c",
+        "npcName": "Claudine Savoie",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Amélie Landry",
+    "assignedByCharacterId": "69c7efe254de6edea916a6d5",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:haggle_price",
+      "category:conversation",
+      "commerce"
+    ],
+    "status": "available",
+    "content": "% Quest: Bargain Hunter\n% Negotiate a price with a merchant using the target language.\n% Type: conversation / Difficulty: intermediate\n\nquest(bargain_hunter, 'Bargain Hunter', conversation, intermediate, available).\nquest_assigned_to(bargain_hunter, 'Player').\nquest_assigned_by(bargain_hunter, 'Amélie Landry').\nquest_language(bargain_hunter, french).\nquest_tag(bargain_hunter, seed).\nquest_tag(bargain_hunter, objective_type_haggle_price).\nquest_tag(bargain_hunter, category_conversation).\nquest_tag(bargain_hunter, commerce).\n\nquest_objective(bargain_hunter, 0, objective('Negotiate a price with Claudine Savoie in French')).\n\n\n\nquest_reward(bargain_hunter, experience, 30).\nquest_reward(bargain_hunter, xp, 30).\nquest_reward(bargain_hunter, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, bargain_hunter) :-\n    quest(bargain_hunter, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a963",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Dinner Party",
+    "description": "Order a full meal — appetizer, main course, and drink — using only the target language.",
+    "questType": "conversation",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "order_food",
+        "description": "Order food from Solange Perrin in French",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Solange Perrin",
+        "npcId": "69c7efe354de6edea916a71b",
+        "npcName": "Solange Perrin",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "use_vocabulary",
+        "description": "Use 3 food-related French words",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Victor Chauvin",
+    "assignedByCharacterId": "69c7efe354de6edea916a713",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:order_food",
+      "category:conversation",
+      "commerce",
+      "daily-life"
+    ],
+    "status": "available",
+    "content": "% Quest: Dinner Party\n% Order a full meal — appetizer, main course, and drink — using only the target language.\n% Type: conversation / Difficulty: intermediate\n\nquest(dinner_party, 'Dinner Party', conversation, intermediate, available).\nquest_assigned_to(dinner_party, 'Player').\nquest_assigned_by(dinner_party, 'Victor Chauvin').\nquest_language(dinner_party, french).\nquest_tag(dinner_party, seed).\nquest_tag(dinner_party, objective_type_order_food).\nquest_tag(dinner_party, category_conversation).\nquest_tag(dinner_party, commerce).\nquest_tag(dinner_party, daily_life).\n\nquest_objective(dinner_party, 0, objective('Order food from Solange Perrin in French')).\nquest_objective(dinner_party, 1, learn_words_count(3)).\n\n\n\nquest_reward(dinner_party, experience, 35).\nquest_reward(dinner_party, xp, 35).\nquest_reward(dinner_party, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, dinner_party) :-\n    quest(dinner_party, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a965",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Gather Supplies",
+    "description": "Collect an item from the world.",
+    "questType": "collection",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "collect_item",
+        "description": "Pick up an item from the world",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 15,
+    "rewards": {
+      "xp": 15,
+      "fluency": 3
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Mathieu Leblanc",
+    "assignedByCharacterId": "69c7efe254de6edea916a6e9",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:collect_item",
+      "category:collection"
+    ],
+    "status": "available",
+    "content": "% Quest: Gather Supplies\n% Collect an item from the world.\n% Type: collection / Difficulty: beginner\n\nquest(gather_supplies, 'Gather Supplies', collection, beginner, available).\nquest_assigned_to(gather_supplies, 'Player').\nquest_assigned_by(gather_supplies, 'Mathieu Leblanc').\nquest_language(gather_supplies, french).\nquest_tag(gather_supplies, seed).\nquest_tag(gather_supplies, objective_type_collect_item).\nquest_tag(gather_supplies, category_collection).\n\nquest_objective(gather_supplies, 0, collect(, 1)).\n\n\n\nquest_reward(gather_supplies, experience, 15).\nquest_reward(gather_supplies, xp, 15).\nquest_reward(gather_supplies, fluency, 3).\n\n% Can Player take this quest?\nquest_available(Player, gather_supplies) :-\n    quest(gather_supplies, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a967",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Special Delivery",
+    "description": "Pick up an item and deliver it to an NPC.",
+    "questType": "delivery",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "collect_item",
+        "description": "Pick up the delivery package",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_1",
+        "type": "deliver_item",
+        "description": "Deliver the package to Chloé Hébert",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Chloé Hébert",
+        "npcId": "69c7efe254de6edea916a6df",
+        "npcName": "Chloé Hébert",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Odette Dugas",
+    "assignedByCharacterId": "69c7efe454de6edea916a729",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:deliver_item",
+      "category:delivery"
+    ],
+    "status": "available",
+    "content": "% Quest: Special Delivery\n% Pick up an item and deliver it to an NPC.\n% Type: delivery / Difficulty: intermediate\n\nquest(special_delivery, 'Special Delivery', delivery, intermediate, available).\nquest_assigned_to(special_delivery, 'Player').\nquest_assigned_by(special_delivery, 'Odette Dugas').\nquest_language(special_delivery, french).\nquest_tag(special_delivery, seed).\nquest_tag(special_delivery, objective_type_deliver_item).\nquest_tag(special_delivery, category_delivery).\n\nquest_objective(special_delivery, 0, collect(, 1)).\nquest_objective(special_delivery, 1, deliver(, '69c7efe254de6edea916a6df')).\n\n\n\nquest_reward(special_delivery, experience, 30).\nquest_reward(special_delivery, xp, 30).\nquest_reward(special_delivery, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, special_delivery) :-\n    quest(special_delivery, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a969",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "First Craft",
+    "description": "Craft an item using the crafting system.",
+    "questType": "crafting",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "craft_item",
+        "description": "Craft any item at a crafting station",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 25,
+    "rewards": {
+      "xp": 25,
+      "fluency": 5
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Juliette Richard",
+    "assignedByCharacterId": "69c7efe254de6edea916a6e7",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:craft_item",
+      "category:crafting"
+    ],
+    "status": "available",
+    "content": "% Quest: First Craft\n% Craft an item using the crafting system.\n% Type: crafting / Difficulty: intermediate\n\nquest(first_craft, 'First Craft', crafting, intermediate, available).\nquest_assigned_to(first_craft, 'Player').\nquest_assigned_by(first_craft, 'Juliette Richard').\nquest_language(first_craft, french).\nquest_tag(first_craft, seed).\nquest_tag(first_craft, objective_type_craft_item).\nquest_tag(first_craft, category_crafting).\n\nquest_objective(first_craft, 0, craft_item(, 1)).\n\n\n\nquest_reward(first_craft, experience, 25).\nquest_reward(first_craft, xp, 25).\nquest_reward(first_craft, fluency, 5).\n\n% Can Player take this quest?\nquest_available(Player, first_craft) :-\n    quest(first_craft, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a96b",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Prove Your Mettle",
+    "description": "Defeat an enemy in combat.",
+    "questType": "combat",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "defeat_enemies",
+        "description": "Defeat 1 enemy",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "François Savoie",
+    "assignedByCharacterId": "69c7efe354de6edea916a6fd",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:defeat_enemies",
+      "category:combat"
+    ],
+    "status": "available",
+    "content": "% Quest: Prove Your Mettle\n% Defeat an enemy in combat.\n% Type: combat / Difficulty: intermediate\n\nquest(prove_your_mettle, 'Prove Your Mettle', combat, intermediate, available).\nquest_assigned_to(prove_your_mettle, 'Player').\nquest_assigned_by(prove_your_mettle, 'François Savoie').\nquest_language(prove_your_mettle, french).\nquest_tag(prove_your_mettle, seed).\nquest_tag(prove_your_mettle, objective_type_defeat_enemies).\nquest_tag(prove_your_mettle, category_combat).\n\nquest_objective(prove_your_mettle, 0, defeat('', 1)).\n\n\n\nquest_reward(prove_your_mettle, experience, 30).\nquest_reward(prove_your_mettle, xp, 30).\nquest_reward(prove_your_mettle, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, prove_your_mettle) :-\n    quest(prove_your_mettle, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a96d",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Safe Passage",
+    "description": "Escort an NPC safely to their destination.",
+    "questType": "escort",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "escort_npc",
+        "description": "Escort Joséphine Romero to Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Joséphine Romero",
+        "npcId": "69c7efe354de6edea916a6f5",
+        "npcName": "Joséphine Romero",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 35,
+    "rewards": {
+      "xp": 35,
+      "fluency": 7
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Claudine Savoie",
+    "assignedByCharacterId": "69c7efe454de6edea916a72c",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:escort_npc",
+      "category:escort"
+    ],
+    "status": "available",
+    "content": "% Quest: Safe Passage\n% Escort an NPC safely to their destination.\n% Type: escort / Difficulty: intermediate\n\nquest(safe_passage, 'Safe Passage', escort, intermediate, available).\nquest_assigned_to(safe_passage, 'Player').\nquest_assigned_by(safe_passage, 'Claudine Savoie').\nquest_language(safe_passage, french).\nquest_tag(safe_passage, seed).\nquest_tag(safe_passage, objective_type_escort_npc).\nquest_tag(safe_passage, category_escort).\n\nquest_objective(safe_passage, 0, escort('Joséphine Romero', '')).\n\n\n\nquest_reward(safe_passage, experience, 35).\nquest_reward(safe_passage, xp, 35).\nquest_reward(safe_passage, fluency, 7).\n\n% Can Player take this quest?\nquest_available(Player, safe_passage) :-\n    quest(safe_passage, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a96f",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Newcomer's Welcome",
+    "description": "Get oriented: visit a location, meet someone, and learn a few words along the way.",
+    "questType": "exploration",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "visit_location",
+        "description": "Visit Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        },
+        "locationName": "Sainte-Évangéline"
+      },
+      {
+        "id": "obj_1",
+        "type": "talk_to_npc",
+        "description": "Talk to René Boudreaux",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "René Boudreaux",
+        "npcId": "69c7efe354de6edea916a715",
+        "npcName": "René Boudreaux",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_2",
+        "type": "collect_vocabulary",
+        "description": "Collect 2 vocabulary words",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 30,
+    "rewards": {
+      "xp": 30,
+      "fluency": 6
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Victor Chauvin",
+    "assignedByCharacterId": "69c7efe354de6edea916a713",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:talk_to_npc",
+      "category:exploration",
+      "composite",
+      "onboarding"
+    ],
+    "status": "available",
+    "content": "% Quest: Newcomer's Welcome\n% Get oriented: visit a location, meet someone, and learn a few words along the way.\n% Type: exploration / Difficulty: beginner\n\nquest(newcomer_s_welcome, 'Newcomer\\'s Welcome', exploration, beginner, available).\nquest_assigned_to(newcomer_s_welcome, 'Player').\nquest_assigned_by(newcomer_s_welcome, 'Victor Chauvin').\nquest_language(newcomer_s_welcome, french).\nquest_tag(newcomer_s_welcome, seed).\nquest_tag(newcomer_s_welcome, objective_type_talk_to_npc).\nquest_tag(newcomer_s_welcome, category_exploration).\nquest_tag(newcomer_s_welcome, composite).\nquest_tag(newcomer_s_welcome, onboarding).\n\nquest_objective(newcomer_s_welcome, 0, visit_location('Sainte-Évangéline')).\nquest_objective(newcomer_s_welcome, 1, talk_to('69c7efe354de6edea916a715', 1)).\nquest_objective(newcomer_s_welcome, 2, objective('Collect 2 vocabulary words')).\n\n\n\nquest_reward(newcomer_s_welcome, experience, 30).\nquest_reward(newcomer_s_welcome, xp, 30).\nquest_reward(newcomer_s_welcome, fluency, 6).\n\n% Can Player take this quest?\nquest_available(Player, newcomer_s_welcome) :-\n    quest(newcomer_s_welcome, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a971",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "The Full Experience",
+    "description": "Visit a location, have a conversation, use vocabulary, and identify an object — a well-rounded language challenge.",
+    "questType": "conversation",
+    "difficulty": "intermediate",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "visit_location",
+        "description": "Go to Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        },
+        "locationName": "Sainte-Évangéline"
+      },
+      {
+        "id": "obj_1",
+        "type": "complete_conversation",
+        "description": "Have a 3-turn conversation with Aurore Broussard",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Aurore Broussard",
+        "npcId": "69c7efc654de6edea916a68f",
+        "npcName": "Aurore Broussard",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_2",
+        "type": "use_vocabulary",
+        "description": "Use 3 French words in conversation",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_3",
+        "type": "identify_object",
+        "description": "Identify 1 object by its French name",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 45,
+    "rewards": {
+      "xp": 45,
+      "fluency": 9
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Cécile Aucoin",
+    "assignedByCharacterId": "69c7efe354de6edea916a6fb",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:complete_conversation",
+      "category:conversation",
+      "composite"
+    ],
+    "status": "available",
+    "content": "% Quest: The Full Experience\n% Visit a location, have a conversation, use vocabulary, and identify an object — a well-rounded language challenge.\n% Type: conversation / Difficulty: intermediate\n\nquest(the_full_experience, 'The Full Experience', conversation, intermediate, available).\nquest_assigned_to(the_full_experience, 'Player').\nquest_assigned_by(the_full_experience, 'Cécile Aucoin').\nquest_language(the_full_experience, french).\nquest_tag(the_full_experience, seed).\nquest_tag(the_full_experience, objective_type_complete_conversation).\nquest_tag(the_full_experience, category_conversation).\nquest_tag(the_full_experience, composite).\n\nquest_objective(the_full_experience, 0, visit_location('Sainte-Évangéline')).\nquest_objective(the_full_experience, 1, conversation_turns(3)).\nquest_objective(the_full_experience, 2, learn_words_count(3)).\nquest_objective(the_full_experience, 3, objective('Identify 1 object by its French name')).\n\n\n\nquest_reward(the_full_experience, experience, 45).\nquest_reward(the_full_experience, xp, 45).\nquest_reward(the_full_experience, fluency, 9).\n\n% Can Player take this quest?\nquest_available(Player, the_full_experience) :-\n    quest(the_full_experience, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a973",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Language Explorer",
+    "description": "Explore a new area, read signs, examine objects, and talk to people — all in the target language.",
+    "questType": "exploration",
+    "difficulty": "advanced",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_0",
+        "type": "visit_location",
+        "description": "Visit Sainte-Évangéline",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Sainte-Évangéline",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        },
+        "locationName": "Sainte-Évangéline"
+      },
+      {
+        "id": "obj_1",
+        "type": "read_sign",
+        "description": "Read 2 signs in French",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_2",
+        "type": "examine_object",
+        "description": "Examine 2 objects",
+        "requiredCount": 2,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_3",
+        "type": "complete_conversation",
+        "description": "Have a conversation with Céline LeBlanc (4 turns)",
+        "requiredCount": 4,
+        "currentCount": 0,
+        "completed": false,
+        "target": "Céline LeBlanc",
+        "npcId": "69c7efe254de6edea916a6d7",
+        "npcName": "Céline LeBlanc",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_4",
+        "type": "use_vocabulary",
+        "description": "Use 5 French words",
+        "requiredCount": 5,
+        "currentCount": 0,
+        "completed": false,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 55,
+    "rewards": {
+      "xp": 55,
+      "fluency": 11
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": "Émile Thibodeaux",
+    "assignedByCharacterId": "69c7efe254de6edea916a6d3",
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "seed",
+      "objective-type:use_vocabulary",
+      "category:exploration",
+      "composite",
+      "immersion"
+    ],
+    "status": "available",
+    "content": "% Quest: Language Explorer\n% Explore a new area, read signs, examine objects, and talk to people — all in the target language.\n% Type: exploration / Difficulty: advanced\n\nquest(language_explorer, 'Language Explorer', exploration, advanced, available).\nquest_assigned_to(language_explorer, 'Player').\nquest_assigned_by(language_explorer, 'Émile Thibodeaux').\nquest_language(language_explorer, french).\nquest_tag(language_explorer, seed).\nquest_tag(language_explorer, objective_type_use_vocabulary).\nquest_tag(language_explorer, category_exploration).\nquest_tag(language_explorer, composite).\nquest_tag(language_explorer, immersion).\n\nquest_objective(language_explorer, 0, visit_location('Sainte-Évangéline')).\nquest_objective(language_explorer, 1, objective('Read 2 signs in French')).\nquest_objective(language_explorer, 2, objective('Examine 2 objects')).\nquest_objective(language_explorer, 3, conversation_turns(4)).\nquest_objective(language_explorer, 4, learn_words_count(5)).\n\n\n\nquest_reward(language_explorer, experience, 55).\nquest_reward(language_explorer, xp, 55).\nquest_reward(language_explorer, fluency, 11).\n\n% Can Player take this quest?\nquest_available(Player, language_explorer) :-\n    quest(language_explorer, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7eff254de6edea916a975",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Arrival Assessment",
+    "description": "Baseline French proficiency assessment upon arriving in Sainte-Évangéline.",
+    "questType": "assessment",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_arrival_reading",
+        "type": "arrival_reading",
+        "description": "Read a short passage in French and answer comprehension questions.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "arrival_reading",
+        "completionTrigger": "reading_completed",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_arrival_writing",
+        "type": "arrival_writing",
+        "description": "Complete writing tasks in French.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "arrival_writing",
+        "completionTrigger": "writing_submitted",
+        "minWordCount": 20,
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_arrival_listening",
+        "type": "arrival_listening",
+        "description": "Listen to a passage in French and answer comprehension questions.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "arrival_listening",
+        "completionTrigger": "listening_completed",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_arrival_initiate_conversation",
+        "type": "arrival_initiate_conversation",
+        "description": "Talk to the marked NPC to begin a guided conversation assessment.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "arrival_initiate_conversation",
+        "completionTrigger": "npc_talked",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_arrival_conversation",
+        "type": "arrival_conversation",
+        "description": "Answer the NPC's questions in a guided conversation in French.",
+        "requiredCount": 3,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "arrival_conversation",
+        "completionTrigger": "conversation_assessment_completed",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 50,
+    "rewards": {
+      "xp": 50,
+      "fluency": 5,
+      "cefrAssessment": true
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "assessment",
+      "arrival",
+      "onboarding",
+      "non-skippable",
+      "non-abandonable"
+    ],
+    "status": "active",
+    "content": "% Arrival Encounter — Prolog Knowledge Base\n% Pre-test baseline assessment\n% Total: 53 points across 5 phases\n\n:- dynamic(assessment_quest/4).\n:- dynamic(assessment_phase/5).\n:- dynamic(assessment_task/5).\n:- dynamic(scoring_dimension/5).\n:- dynamic(assessment_tag/2).\n:- dynamic(phase_order/3).\n:- dynamic(assessment_objective/4).\n:- dynamic(phase_score/3).\n:- dynamic(quest_reward/3).\n:- dynamic(assessment_language/2).\n\n% Core assessment quest metadata\nassessment_quest(arrival_encounter, arrival, beginner, 53).\nassessment_language(arrival_encounter, 'French').\nquest_reward(arrival_encounter, experience, 50).\n\n% Tags\nassessment_tag(arrival_encounter, assessment).\nassessment_tag(arrival_encounter, arrival).\nassessment_tag(arrival_encounter, onboarding).\nassessment_tag(arrival_encounter, non_skippable).\nassessment_tag(arrival_encounter, non_abandonable).\n\n% Assessment phases\nassessment_phase(arrival_encounter, arrival_reading, reading, 'Reading Comprehension', 15).\nphase_order(arrival_encounter, arrival_reading, 0).\nassessment_phase(arrival_encounter, arrival_writing, writing, 'Writing Assessment', 15).\nphase_order(arrival_encounter, arrival_writing, 1).\nassessment_phase(arrival_encounter, arrival_listening, listening, 'Listening Comprehension', 13).\nphase_order(arrival_encounter, arrival_listening, 2).\nassessment_phase(arrival_encounter, arrival_initiate_conversation, initiate_conversation, 'Initiate Conversation', 0).\nphase_order(arrival_encounter, arrival_initiate_conversation, 3).\nassessment_phase(arrival_encounter, arrival_conversation, conversation, 'Conversation', 10).\nphase_order(arrival_encounter, arrival_conversation, 4).\n\n% Tasks and scoring dimensions\nassessment_task(arrival_encounter, arrival_reading, arrival_reading_comprehension, reading_comprehension, 15).\nscoring_dimension(arrival_encounter, arrival_reading, comprehension, 'Comprehension', 5).\nscoring_dimension(arrival_encounter, arrival_reading, vocabulary_recognition, 'Vocabulary Recognition', 5).\nscoring_dimension(arrival_encounter, arrival_reading, inference, 'Inference', 5).\nassessment_task(arrival_encounter, arrival_writing, arrival_writing_response, writing_prompt, 15).\nscoring_dimension(arrival_encounter, arrival_writing, task_completion, 'Task Completion', 5).\nscoring_dimension(arrival_encounter, arrival_writing, vocabulary, 'Vocabulary', 5).\nscoring_dimension(arrival_encounter, arrival_writing, grammar, 'Grammar', 5).\nassessment_task(arrival_encounter, arrival_listening, arrival_listening_comprehension, listening_comprehension, 13).\nscoring_dimension(arrival_encounter, arrival_listening, comprehension, 'Comprehension', 5).\nscoring_dimension(arrival_encounter, arrival_listening, detail_extraction, 'Detail Extraction', 4).\nscoring_dimension(arrival_encounter, arrival_listening, inference, 'Inference', 4).\nassessment_task(arrival_encounter, arrival_initiate_conversation, arrival_initiate_conversation_task, conversation_quest, 0).\nassessment_task(arrival_encounter, arrival_conversation, arrival_conversation_quest, conversation_quest, 10).\nscoring_dimension(arrival_encounter, arrival_conversation, accuracy, 'Accuracy', 2).\nscoring_dimension(arrival_encounter, arrival_conversation, fluency, 'Fluency', 2).\nscoring_dimension(arrival_encounter, arrival_conversation, vocabulary, 'Vocabulary', 2).\nscoring_dimension(arrival_encounter, arrival_conversation, comprehension, 'Comprehension', 2).\nscoring_dimension(arrival_encounter, arrival_conversation, pragmatics, 'Pragmatics', 2).\n\n% Quest objectives — one per assessment phase\nassessment_objective(arrival_encounter, 0, arrival_reading, complete_phase(arrival_reading)).\nassessment_objective(arrival_encounter, 1, arrival_writing, complete_phase(arrival_writing)).\nassessment_objective(arrival_encounter, 2, arrival_listening, complete_phase(arrival_listening)).\nassessment_objective(arrival_encounter, 3, arrival_initiate_conversation, complete_phase(arrival_initiate_conversation)).\nassessment_objective(arrival_encounter, 4, arrival_conversation, complete_phase(arrival_conversation)).\n\n% Phase completion: a phase is complete when its score has been recorded\nphase_complete(arrival_encounter, PhaseId) :-\n    assessment_phase(arrival_encounter, PhaseId, _, _, _),\n    phase_score(arrival_encounter, PhaseId, _).\n\n% Assessment completion: all phases must be complete\nassessment_complete(arrival_encounter) :-\n    \\+ (assessment_phase(arrival_encounter, PhaseId, _, _, _), \\+ phase_complete(arrival_encounter, PhaseId)).\n\n% Total score: sum of all phase scores\nassessment_total_score(arrival_encounter, Total) :-\n    findall(S, phase_score(arrival_encounter, _, S), Scores),\n    sum_list(Scores, Total).\n\n% Phase passed: score > 0\nphase_passed(arrival_encounter, PhaseId) :-\n    phase_score(arrival_encounter, PhaseId, Score),\n    Score > 0."
+  },
+  {
+    "id": "69c7eff254de6edea916a977",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Departure Assessment",
+    "description": "Post-gameplay French proficiency assessment before departing Sainte-Évangéline.",
+    "questType": "assessment",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "obj_departure_reading",
+        "type": "complete_conversation",
+        "description": "Read a short passage in French and answer comprehension questions.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "departure_reading",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_departure_writing",
+        "type": "complete_conversation",
+        "description": "Complete writing tasks in French.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "departure_writing",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_departure_listening",
+        "type": "complete_conversation",
+        "description": "Listen to a passage in French and answer comprehension questions.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "departure_listening",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      },
+      {
+        "id": "obj_departure_conversation",
+        "type": "complete_conversation",
+        "description": "Walk to the marked NPC and have a farewell conversation in French.",
+        "requiredCount": 1,
+        "currentCount": 0,
+        "completed": false,
+        "assessmentPhaseId": "departure_conversation",
+        "locationPosition": {
+          "x": -0.18949110440346606,
+          "y": 0,
+          "z": -0.07251953422135018
+        }
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 50,
+    "rewards": {
+      "xp": 50,
+      "fluency": 5,
+      "cefrAssessment": true
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": "Sainte-Évangéline",
+    "locationPosition": {
+      "x": -0.18949110440346606,
+      "y": 0,
+      "z": -0.07251953422135018
+    },
+    "tags": [
+      "assessment",
+      "departure",
+      "non-skippable",
+      "non-abandonable"
+    ],
+    "status": "available",
+    "content": "% Quest: Departure Assessment\n% Post-gameplay French proficiency assessment before departing Sainte-Évangéline.\n% Type: assessment / Difficulty: beginner\n\nquest(departure_assessment, 'Departure Assessment', assessment, beginner, available).\nquest_assigned_to(departure_assessment, 'unassigned').\nquest_language(departure_assessment, french).\nquest_tag(departure_assessment, assessment).\nquest_tag(departure_assessment, departure).\nquest_tag(departure_assessment, non_skippable).\nquest_tag(departure_assessment, non_abandonable).\n\nquest_objective(departure_assessment, 0, conversation_turns(1)).\nquest_objective(departure_assessment, 1, conversation_turns(1)).\nquest_objective(departure_assessment, 2, conversation_turns(1)).\nquest_objective(departure_assessment, 3, conversation_turns(1)).\n\n\n\nquest_reward(departure_assessment, experience, 50).\nquest_reward(departure_assessment, xp, 50).\nquest_reward(departure_assessment, fluency, 5).\n\n% Can Player take this quest?\nquest_available(Player, departure_assessment) :-\n    quest(departure_assessment, _, _, _, active).\n"
+  },
+  {
+    "id": "69c7f1a954de6edea916ac06",
+    "worldId": "69c7ef7854de6edea916a60d",
+    "title": "Chapter 1: Assignment Abroad",
+    "description": "The ferry docks in an unfamiliar harbor. Your editor back home wired ahead — the celebrated writer {WRITER} vanished three weeks ago, and the local press has gone quiet. You clutch the thin dossier in your coat pocket. It is not much to go on, but it is a start.",
+    "questType": "main_quest",
+    "difficulty": "beginner",
+    "targetLanguage": "French",
+    "gameType": "language-learning",
+    "questChainId": null,
+    "questChainOrder": null,
+    "prerequisiteQuestIds": null,
+    "objectives": [
+      {
+        "id": "ch1_greetings",
+        "type": "vocabulary",
+        "description": "Learn basic greetings to introduce yourself to the locals.",
+        "completed": false,
+        "current": 0,
+        "required": 2,
+        "chainTemplateId": "first-words"
+      },
+      {
+        "id": "ch1_ask_around",
+        "type": "conversation",
+        "description": "Talk to townspeople to learn about the missing writer.",
+        "completed": false,
+        "current": 0,
+        "required": 3
+      },
+      {
+        "id": "ch1_collect_texts",
+        "type": "collect_text",
+        "description": "Collect signs and notices around town to start building your reading skills.",
+        "completed": false,
+        "current": 0,
+        "required": 2
+      }
+    ],
+    "completionCriteria": {},
+    "experienceReward": 300,
+    "rewards": {
+      "gold": 50,
+      "xp": 300
+    },
+    "itemRewards": null,
+    "skillRewards": null,
+    "unlocks": null,
+    "failureConditions": null,
+    "assignedBy": null,
+    "assignedByCharacterId": null,
+    "locationId": null,
+    "locationName": null,
+    "locationPosition": null,
+    "tags": [
+      "main_quest",
+      "chapter:1",
+      "chapterId:ch1_assignment_abroad"
+    ],
+    "status": "active",
+    "content": null
+  }
+]

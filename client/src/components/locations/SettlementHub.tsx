@@ -52,6 +52,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   // World name for map display
   const [worldName, setWorldName] = useState<string>('World');
+  const [worldData, setWorldData] = useState<any>(null);
 
   // Location tree
   const [countries, setCountries] = useState<any[]>([]);
@@ -323,13 +324,14 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     fetchAllCharacters();
     fetchTruths();
     fetchWaterFeatures();
-    // Fetch world name for map display
+    // Fetch world data for map display (name, geographic dimensions)
     (async () => {
       try {
         const res = await fetch(`/api/worlds/${worldId}`);
         if (res.ok) {
           const world = await res.json();
           if (world?.name) setWorldName(world.name);
+          setWorldData(world);
         }
       } catch { /* ignore */ }
     })();
@@ -876,6 +878,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           selectedCountryId={selectedCountry?.id}
           worldId={worldId}
           worldName={worldName}
+          worldData={worldData}
           selectedLotId={selectedBuilding?.lot?.id || null}
           onSettlementClick={selectSettlement}
           onCountryClick={selectCountry}

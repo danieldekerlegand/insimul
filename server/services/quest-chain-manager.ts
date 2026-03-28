@@ -287,7 +287,7 @@ export class QuestChainManager {
     const quests: InsertQuest[] = template.quests.map(q => ({
       ...q,
       worldId,
-      assignedTo: assignedTo || '',
+      assignedTo: assignedTo || 'unassigned',
       assignedToCharacterId: assignedToCharacterId || null,
       tags: [...(q.tags || []), chainMeta],
     }));

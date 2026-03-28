@@ -306,6 +306,11 @@ const WorldSchema = new Schema({
   historyEndYear: { type: Number, default: null },
   currentGameYear: { type: Number, default: null },
 
+  // Geographic dimensions
+  mapWidth: { type: Number, default: null },
+  mapDepth: { type: Number, default: null },
+  mapCenter: { type: Schema.Types.Mixed, default: null },
+
   sourceFormats: { type: Schema.Types.Mixed, default: null },
   config: { type: Schema.Types.Mixed, default: null },
   worldData: { type: Schema.Types.Mixed, default: null },
@@ -333,6 +338,11 @@ const CountrySchema = new Schema({
   currentYear: { type: Number, default: null },
   currentMonth: { type: Number, default: 1 },
   currentDay: { type: Number, default: 1 },
+  // Geographic position and territory
+  position: { type: Schema.Types.Mixed, default: null },
+  territoryPolygon: { type: Schema.Types.Mixed, default: null },
+  territoryRadius: { type: Number, default: null },
+
   alliances: { type: Schema.Types.Mixed, default: null },
   enemies: { type: Schema.Types.Mixed, default: null },
   isActive: { type: Boolean, default: true },
@@ -351,6 +361,9 @@ const StateSchema = new Schema({
   terrain: { type: String, default: null },
   governorId: { type: String, default: null },
   localGovernmentType: { type: String, default: null },
+  // Geographic position and boundary
+  position: { type: Schema.Types.Mixed, default: null },
+  boundaryPolygon: { type: Schema.Types.Mixed, default: null },
   previousCountryIds: { type: Schema.Types.Mixed, default: null },
   annexationHistory: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
@@ -392,6 +405,10 @@ const SettlementSchema = new Schema({
   previousCountryIds: { type: Schema.Types.Mixed, default: null },
   previousStateIds: { type: Schema.Types.Mixed, default: null },
   annexationHistory: { type: Schema.Types.Mixed, default: null },
+  // World-space position
+  worldPositionX: { type: Number, default: null },
+  worldPositionZ: { type: Number, default: null },
+  radius: { type: Number, default: null },
   boundaryPolygon: { type: Schema.Types.Mixed, default: null },
   elevation: { type: Number, default: 0 },
   slopeProfile: { type: String, default: null },

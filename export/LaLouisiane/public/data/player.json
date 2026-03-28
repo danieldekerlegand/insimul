@@ -1,0 +1,14 @@
+{
+  "startPosition": {
+    "x": -344.47201646090537,
+    "y": 0,
+    "z": -328.59472736625514
+  },
+  "modelAssetKey": null,
+  "initialEnergy": 100,
+  "initialGold": 0,
+  "initialHealth": 100,
+  "speed": 1,
+  "jumpHeight": 1,
+  "gravity": 1
+}

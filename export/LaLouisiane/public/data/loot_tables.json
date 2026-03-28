@@ -1,0 +1,3502 @@
+[
+  {
+    "enemyType": "default",
+    "entries": [
+      {
+        "itemId": "69c7efec54de6edea916a82c",
+        "itemName": "Egg Whole White",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a82e",
+        "itemName": "Icecream2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a830",
+        "itemName": "Drill",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a832",
+        "itemName": "Cupcake Cherry2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a834",
+        "itemName": "Sushi Nigiri1",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a836",
+        "itemName": "Wooden Torch",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a838",
+        "itemName": "Hotdog",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a83a",
+        "itemName": "Bonfire",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a83c",
+        "itemName": "Bear Trap Closed",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a83e",
+        "itemName": "Pipe Wrench",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a840",
+        "itemName": "Ukulele",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a842",
+        "itemName": "Dirty Football",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a844",
+        "itemName": "Modular Wooden Pier",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a847",
+        "itemName": "Hand Plane No4",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a84a",
+        "itemName": "Wooden Axe",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a84c",
+        "itemName": "Backpack",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a84e",
+        "itemName": "Pan",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a850",
+        "itemName": "Wooden Torch",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a852",
+        "itemName": "Crystal5",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a854",
+        "itemName": "Cauldron",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a856",
+        "itemName": "Hanging Picture Frame",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a858",
+        "itemName": "Brass Pot",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a85a",
+        "itemName": "Picke Dirty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a85c",
+        "itemName": "Heart Broken",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a85e",
+        "itemName": "Tire Pump",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efec54de6edea916a860",
+        "itemName": "Heart Broken",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efec54de6edea916a862",
+        "itemName": "Match",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efed54de6edea916a864",
+        "itemName": "Lantern Marker",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a866",
+        "itemName": "Pan",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efed54de6edea916a868",
+        "itemName": "Heart Half",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a86a",
+        "itemName": "Gold Ingots",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a870",
+        "itemName": "Brass Goblets",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a874",
+        "itemName": "Waffle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a878",
+        "itemName": "Candle Stick",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efed54de6edea916a87a",
+        "itemName": "Ice Cream Cone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a87c",
+        "itemName": "Torch",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efed54de6edea916a880",
+        "itemName": "Popsicle Multiple",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a884",
+        "itemName": "Handsaw Wood",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efed54de6edea916a886",
+        "itemName": "Hand Plane No4",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efed54de6edea916a88c",
+        "itemName": "Double Cheeseburger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efed54de6edea916a890",
+        "itemName": "Cookie",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efee54de6edea916a89a",
+        "itemName": "Lemon",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8a0",
+        "itemName": "Match",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8a2",
+        "itemName": "Lubricant Spray",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8ac",
+        "itemName": "Avocado",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8ae",
+        "itemName": "Knife",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8b2",
+        "itemName": "Bear Trap Open",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8be",
+        "itemName": "Food Lychee",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8c0",
+        "itemName": "Small Oil Can",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8c2",
+        "itemName": "Tomato Slice",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efee54de6edea916a8ce",
+        "itemName": "Banana",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8dc",
+        "itemName": "Crystal",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8e2",
+        "itemName": "Prop Mine",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8e4",
+        "itemName": "Bolt Cutters",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8e6",
+        "itemName": "Vintage Pocket Watch",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8ea",
+        "itemName": "Pizza Burned",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8f0",
+        "itemName": "Yellow Onion",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8f2",
+        "itemName": "Candle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8f8",
+        "itemName": "Cooking Pot",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8fa",
+        "itemName": "Star",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a8fc",
+        "itemName": "Croissant",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c7efef54de6edea916a900",
+        "itemName": "Cupcake",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c671",
+        "itemName": "Lantern",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c674",
+        "itemName": "Brass Candleholders",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c675",
+        "itemName": "Book Encyclopedia Set",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c67c",
+        "itemName": "Antique Estoc",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c680",
+        "itemName": "Boombox",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c683",
+        "itemName": "Vintage Oil Lamp",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c686",
+        "itemName": "Tea Set",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c68c",
+        "itemName": "Wooden Lantern",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c68d",
+        "itemName": "Wooden Handle Saber",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c691",
+        "itemName": "Antique Katana",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c696",
+        "itemName": "Avocado Collectible",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c697",
+        "itemName": "Brass Lamp",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c698",
+        "itemName": "Chest",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c699",
+        "itemName": "Collectible Gem",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c69b",
+        "itemName": "Quest Marker",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c69c",
+        "itemName": "Treasure Chest",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c69d",
+        "itemName": "Water Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c69e",
+        "itemName": "Ornate Medieval Dagger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c69f",
+        "itemName": "Ornate Medieval Mace",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a0",
+        "itemName": "Kite Shield",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a1",
+        "itemName": "Machete",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a2",
+        "itemName": "Service Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a3",
+        "itemName": "Wooden Hammer",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a6",
+        "itemName": "Rusted Spade",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a7",
+        "itemName": "Baseball Bat",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a8",
+        "itemName": "Brass Blowtorch",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6a9",
+        "itemName": "Flathead Screwdriver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6ad",
+        "itemName": "Wooden Bowl",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6ae",
+        "itemName": "Croissant",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6af",
+        "itemName": "Carved Wooden Plate",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6b0",
+        "itemName": "Food Apple",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6b3",
+        "itemName": "Pot Enamel",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6b7",
+        "itemName": "Garden Hose Wall Mounted",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6b9",
+        "itemName": "Postcard Set",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6bb",
+        "itemName": "Vintage Lighter",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6bf",
+        "itemName": "Modular Electric Cables",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c2",
+        "itemName": "Key Gold",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c3",
+        "itemName": "Potion",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c4",
+        "itemName": "Gun Revolver Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c5",
+        "itemName": "Gun Rifle Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c6",
+        "itemName": "Grenade Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c7",
+        "itemName": "Health Pack Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c8",
+        "itemName": "Keycard Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6c9",
+        "itemName": "Syringe Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6ca",
+        "itemName": "Energy Core Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6cb",
+        "itemName": "Data Pad Scifi",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6cc",
+        "itemName": "Necklace Rpg",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6cd",
+        "itemName": "Armor Leather",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6ce",
+        "itemName": "Crown",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6cf",
+        "itemName": "Crystal",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d0",
+        "itemName": "Ring Rpg",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d1",
+        "itemName": "Helmet Rpg",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d3",
+        "itemName": "Bow Rpg",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d4",
+        "itemName": "Arrow Quiver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d5",
+        "itemName": "Armor Metal",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d6",
+        "itemName": "Glove Boots",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d7",
+        "itemName": "Scroll Rpg",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6d9",
+        "itemName": "Battery Survival",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6da",
+        "itemName": "Matchbox",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6df",
+        "itemName": "Antique Ceramic Vase",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6e2",
+        "itemName": "Brass Pot",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6e4",
+        "itemName": "Ceramic Vase",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6e8",
+        "itemName": "Crowbar",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6eb",
+        "itemName": "Chandelier",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6ed",
+        "itemName": "Camera",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6ef",
+        "itemName": "Chandelier",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6f3",
+        "itemName": "Megaphone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c6fe",
+        "itemName": "American Football",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c700",
+        "itemName": "Baseball",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c706",
+        "itemName": "Cannon",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c707",
+        "itemName": "Cassette Player",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c709",
+        "itemName": "Ceramic Vase",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c713",
+        "itemName": "Cleaner Tin",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c716",
+        "itemName": "Cross Pein Hammer",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c71a",
+        "itemName": "Drain Cleaner",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c71e",
+        "itemName": "Electric Stove",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c724",
+        "itemName": "Football",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c725",
+        "itemName": "Gamepad",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c727",
+        "itemName": "Gaming Console",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c728",
+        "itemName": "Garden Sprinkler",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c729",
+        "itemName": "Garden Gloves",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c72c",
+        "itemName": "Hamburger Buns",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c738",
+        "itemName": "Katana Stand",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c739",
+        "itemName": "Korean Public Payphone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c73a",
+        "itemName": "Korean Fire Extinguisher",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c73c",
+        "itemName": "Lightbulb",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c740",
+        "itemName": "Lightbulb Led",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c742",
+        "itemName": "Magnifying Glass",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c745",
+        "itemName": "Measuring Tape",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c746",
+        "itemName": "Metal Detector",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c756",
+        "itemName": "Ornate War Hammer",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c762",
+        "itemName": "Anvil",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c763",
+        "itemName": "Anvil Log",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c770",
+        "itemName": "Book Group Medium",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c771",
+        "itemName": "Book Group Medium",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c772",
+        "itemName": "Book Group Medium",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c773",
+        "itemName": "Book Group Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c774",
+        "itemName": "Book Group Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c775",
+        "itemName": "Book Group Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c776",
+        "itemName": "Book Stand",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c777",
+        "itemName": "Book",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c778",
+        "itemName": "Book",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c779",
+        "itemName": "Book Simplified Single",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c77a",
+        "itemName": "Book Stack",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c77b",
+        "itemName": "Book Stack",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c77c",
+        "itemName": "Bookcase",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c77d",
+        "itemName": "Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c787",
+        "itemName": "Carrot",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c789",
+        "itemName": "Chain Coil",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c78b",
+        "itemName": "Chalice",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c78c",
+        "itemName": "Chandelier",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c78e",
+        "itemName": "Coin",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c78f",
+        "itemName": "Coin Pile",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c790",
+        "itemName": "Coin Pile",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c793",
+        "itemName": "Dummy",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c797",
+        "itemName": "Key Metal",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c799",
+        "itemName": "Mug",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c79b",
+        "itemName": "Peg Rack",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c79d",
+        "itemName": "Pot",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c79e",
+        "itemName": "Pot 1 Lid",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c79f",
+        "itemName": "Potion",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7a0",
+        "itemName": "Potion",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7a2",
+        "itemName": "Rope",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7a3",
+        "itemName": "Rope",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7a4",
+        "itemName": "Rope",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7a5",
+        "itemName": "Scroll",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7a6",
+        "itemName": "Scroll",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7aa",
+        "itemName": "Shield Wooden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7ab",
+        "itemName": "Small Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7ac",
+        "itemName": "Small Bottles",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7b0",
+        "itemName": "Sword Bronze",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7b9",
+        "itemName": "Weapon Stand",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7ba",
+        "itemName": "Whetstone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7bd",
+        "itemName": "Gun Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7be",
+        "itemName": "Gun Smg Ammo",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7bf",
+        "itemName": "Gun Sniper",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7c0",
+        "itemName": "Gun Sniper Ammo",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7c1",
+        "itemName": "Prop Ammo",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7c2",
+        "itemName": "Prop Ammo Closed",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7c3",
+        "itemName": "Prop Ammo Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7d0",
+        "itemName": "Prop Mug",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7d1",
+        "itemName": "Prop Satellite Dish",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7d6",
+        "itemName": "Armor Black",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7d7",
+        "itemName": "Armor Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7dd",
+        "itemName": "Bone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7de",
+        "itemName": "Book1 Closed",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7df",
+        "itemName": "Book1 Open",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e0",
+        "itemName": "Book2 Closed",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e1",
+        "itemName": "Book2 Open",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e2",
+        "itemName": "Book3 Closed",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e3",
+        "itemName": "Book3 Open",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e4",
+        "itemName": "Book4 Closed",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e5",
+        "itemName": "Book4 Open",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e6",
+        "itemName": "Bow Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7e7",
+        "itemName": "Chalice",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7eb",
+        "itemName": "Chicken Leg",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7ec",
+        "itemName": "Coin",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7ed",
+        "itemName": "Coin Skull",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7ee",
+        "itemName": "Coin Star",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7ef",
+        "itemName": "Crown",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7f7",
+        "itemName": "Dagger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7f8",
+        "itemName": "Dagger Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7f9",
+        "itemName": "Dart",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7fa",
+        "itemName": "Dart Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7fb",
+        "itemName": "Fish Bone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7fc",
+        "itemName": "Hammer Double",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7fd",
+        "itemName": "Hammer Double Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c7fe",
+        "itemName": "Heart",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c801",
+        "itemName": "Key1",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c802",
+        "itemName": "Key2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c803",
+        "itemName": "Key3",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c804",
+        "itemName": "Key4",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c805",
+        "itemName": "Mineral",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c806",
+        "itemName": "Necklace2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c807",
+        "itemName": "Necklace3",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c808",
+        "itemName": "Padlock",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c809",
+        "itemName": "Parchment",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c80a",
+        "itemName": "Potion10 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c80b",
+        "itemName": "Potion10 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c80c",
+        "itemName": "Potion11 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c80d",
+        "itemName": "Potion11 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c80e",
+        "itemName": "Potion1 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c80f",
+        "itemName": "Potion1 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c810",
+        "itemName": "Potion2 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c811",
+        "itemName": "Potion2 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c812",
+        "itemName": "Potion3 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c813",
+        "itemName": "Potion3 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c814",
+        "itemName": "Potion4 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c815",
+        "itemName": "Potion4 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c816",
+        "itemName": "Potion5 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c817",
+        "itemName": "Potion5 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c818",
+        "itemName": "Potion6 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c819",
+        "itemName": "Potion6 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c81a",
+        "itemName": "Potion7 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c81b",
+        "itemName": "Potion7 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c81c",
+        "itemName": "Potion8 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c81d",
+        "itemName": "Potion8 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c81e",
+        "itemName": "Potion9 Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c81f",
+        "itemName": "Potion9 Filled",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c821",
+        "itemName": "Ring2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c822",
+        "itemName": "Ring3",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c823",
+        "itemName": "Ring4",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c824",
+        "itemName": "Ring5",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c825",
+        "itemName": "Ring6",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c826",
+        "itemName": "Ring7",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c827",
+        "itemName": "Skull",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c828",
+        "itemName": "Skull2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c829",
+        "itemName": "Snowflake1",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c82a",
+        "itemName": "Snowflake2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c82b",
+        "itemName": "Snowflake3",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c82d",
+        "itemName": "Sword",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c82e",
+        "itemName": "Sword Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c82f",
+        "itemName": "Sword Big",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c830",
+        "itemName": "Sword Big Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c831",
+        "itemName": "Arrow",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c835",
+        "itemName": "Bow Evil",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c836",
+        "itemName": "Bow Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c837",
+        "itemName": "Bow Wooden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c838",
+        "itemName": "Bow Wooden2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c839",
+        "itemName": "Claymore",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c83a",
+        "itemName": "Dagger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c83b",
+        "itemName": "Dagger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c83c",
+        "itemName": "Hammer Double",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c83d",
+        "itemName": "Hammer Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c83e",
+        "itemName": "Scythe",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c83f",
+        "itemName": "Shield Celtic Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c840",
+        "itemName": "Shield Heater",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c841",
+        "itemName": "Shield Heater",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c842",
+        "itemName": "Shield Round",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c843",
+        "itemName": "Shield Round",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c844",
+        "itemName": "Sword",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c845",
+        "itemName": "Sword",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c846",
+        "itemName": "Sword Big",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c847",
+        "itemName": "Sword Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c848",
+        "itemName": "Assault Rifle2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c849",
+        "itemName": "Assault Rifle2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c84a",
+        "itemName": "Assault Rifle2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c84b",
+        "itemName": "Assault Rifle2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c84c",
+        "itemName": "Assault Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c84d",
+        "itemName": "Assault Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c84e",
+        "itemName": "Assault Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c84f",
+        "itemName": "Assault Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c850",
+        "itemName": "Assault Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c851",
+        "itemName": "Bullpup",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c852",
+        "itemName": "Bullpup",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c853",
+        "itemName": "Bullpup",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c854",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c855",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c856",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c857",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c858",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c859",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c85a",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c85b",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c85c",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c85d",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c85e",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c85f",
+        "itemName": "Shotgun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c860",
+        "itemName": "Shotgun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c861",
+        "itemName": "Shotgun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c862",
+        "itemName": "Shotgun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c863",
+        "itemName": "Shotgun Sawed Off",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c864",
+        "itemName": "Shotgun Short Stock",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c865",
+        "itemName": "Sniper Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c866",
+        "itemName": "Sniper Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c867",
+        "itemName": "Sniper Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c868",
+        "itemName": "Sniper Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c869",
+        "itemName": "Sniper Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c86a",
+        "itemName": "Sniper Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c86b",
+        "itemName": "Submachine Gun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c86c",
+        "itemName": "Submachine Gun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c86d",
+        "itemName": "Submachine Gun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c86e",
+        "itemName": "Submachine Gun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c86f",
+        "itemName": "Submachine Gun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c870",
+        "itemName": "Apple",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c871",
+        "itemName": "Apple Green",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c873",
+        "itemName": "Avocado Empty",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c874",
+        "itemName": "Bacon Burned",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c875",
+        "itemName": "Bacon Cooked",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c876",
+        "itemName": "Bacon Uncooked",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c878",
+        "itemName": "Bottle1",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c879",
+        "itemName": "Bottle2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c87a",
+        "itemName": "Bread",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c87b",
+        "itemName": "Bread Slice",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c87c",
+        "itemName": "Broccoli",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c87d",
+        "itemName": "Burger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c87e",
+        "itemName": "Burger Large",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c87f",
+        "itemName": "Burger Patty Burned",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c880",
+        "itemName": "Burger Patty Cooked",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c881",
+        "itemName": "Burger Patty Raw",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c882",
+        "itemName": "Burger Bread",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c883",
+        "itemName": "Carrot",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c884",
+        "itemName": "Cheese Singles",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c885",
+        "itemName": "Cheeseburger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c886",
+        "itemName": "Chicken Leg",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c887",
+        "itemName": "Chocolate Bar",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c888",
+        "itemName": "Chopsticks",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c889",
+        "itemName": "Coconut",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c88a",
+        "itemName": "Coconut Half",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c88c",
+        "itemName": "Cooking Pot2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c88d",
+        "itemName": "Cooking Pot2 Soup",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c88e",
+        "itemName": "Cooking Pot Soup",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c88f",
+        "itemName": "Corndog",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c892",
+        "itemName": "Donut1",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c893",
+        "itemName": "Donut2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c894",
+        "itemName": "Donut3",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c895",
+        "itemName": "Donut4",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c897",
+        "itemName": "Egg Burned",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c898",
+        "itemName": "Egg Fried",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c899",
+        "itemName": "Egg Whole",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c89b",
+        "itemName": "Eggplant",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c89c",
+        "itemName": "Fish",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c89d",
+        "itemName": "Fish Bone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c89e",
+        "itemName": "Fork",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c89f",
+        "itemName": "Fries",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a0",
+        "itemName": "Frying Pan",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a2",
+        "itemName": "Hotdog Bun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a3",
+        "itemName": "Ice Cream",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a4",
+        "itemName": "Ice Cream",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a5",
+        "itemName": "Ice Cream",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a6",
+        "itemName": "Ice Cream",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a8",
+        "itemName": "Ice Cream Cone2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8a9",
+        "itemName": "Jar Large",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8aa",
+        "itemName": "Ketchup Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ab",
+        "itemName": "Ketchup Mustard",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ad",
+        "itemName": "Lettuce",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ae",
+        "itemName": "Lettuce Whole",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8af",
+        "itemName": "Mayo Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b0",
+        "itemName": "Mushroom",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b1",
+        "itemName": "Mushroom Sliced",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b2",
+        "itemName": "Mustard Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b3",
+        "itemName": "Orange",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b6",
+        "itemName": "Peanut Butter",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b7",
+        "itemName": "Peanut Butter",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b8",
+        "itemName": "Pepper Green",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8b9",
+        "itemName": "Pepper Red",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ba",
+        "itemName": "Pizza",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8bc",
+        "itemName": "Pizza Slice",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8bd",
+        "itemName": "Plate",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8be",
+        "itemName": "Plate2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8bf",
+        "itemName": "Plate Square",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c0",
+        "itemName": "Popsicle Chocolate",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c2",
+        "itemName": "Popsicle Strawberry",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c3",
+        "itemName": "Pumpkin",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c4",
+        "itemName": "Sashimi Salmon",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c5",
+        "itemName": "Sashimi Salmon2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c6",
+        "itemName": "Sausage Cooked",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c7",
+        "itemName": "Sausage Raw",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c8",
+        "itemName": "Soda",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8c9",
+        "itemName": "Soy Sauce",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ca",
+        "itemName": "Spoon",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8cb",
+        "itemName": "Steak",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8cc",
+        "itemName": "Steak Burned",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ce",
+        "itemName": "Sushi Nigiri2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8cf",
+        "itemName": "Sushi Nigiri Octopus",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8d0",
+        "itemName": "Sushi Roll1",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8d1",
+        "itemName": "Sushi Roll2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8d2",
+        "itemName": "Tentacle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8d3",
+        "itemName": "Tomato",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8d5",
+        "itemName": "Turnip",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8da",
+        "itemName": "Bandages",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8db",
+        "itemName": "Battery Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8df",
+        "itemName": "Bonfire Fire",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8e4",
+        "itemName": "Compass Closed",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8e5",
+        "itemName": "Compass Open",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8e6",
+        "itemName": "First Aid Kit",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8e7",
+        "itemName": "First Aid Kit Hard",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8e8",
+        "itemName": "Flare Gun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ec",
+        "itemName": "Match Burnt",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ed",
+        "itemName": "Match Fire",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ef",
+        "itemName": "Pan Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f0",
+        "itemName": "Phone",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f1",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f2",
+        "itemName": "Pistol",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f3",
+        "itemName": "Pot",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f4",
+        "itemName": "Pot Small",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f6",
+        "itemName": "Radio",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f7",
+        "itemName": "Raft",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f8",
+        "itemName": "Raft Paddle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8f9",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8fa",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8fb",
+        "itemName": "Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8fc",
+        "itemName": "Shotgun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8fd",
+        "itemName": "Shotgun",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8fe",
+        "itemName": "Shotgun Sawed Off",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c8ff",
+        "itemName": "Shotgun Short Stock",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c900",
+        "itemName": "Shovel",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c901",
+        "itemName": "Tent",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c904",
+        "itemName": "Water Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c905",
+        "itemName": "Water Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c906",
+        "itemName": "Water Bottle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c99b",
+        "itemName": "Book",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c99c",
+        "itemName": "Dagger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c99d",
+        "itemName": "Gems",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c99e",
+        "itemName": "Ice Staff",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c99f",
+        "itemName": "Rollofpaper",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9a0",
+        "itemName": "Scroll",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9a1",
+        "itemName": "Shield",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9a2",
+        "itemName": "Staff",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9a3",
+        "itemName": "Sword",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9a4",
+        "itemName": "Wooden Staff",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9a5",
+        "itemName": "Burger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9ab",
+        "itemName": "Donut",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9ac",
+        "itemName": "Donut2",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9ae",
+        "itemName": "Icecream",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9b0",
+        "itemName": "Icecream3",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9b1",
+        "itemName": "Milkshake",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9b2",
+        "itemName": "Pizza",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9b3",
+        "itemName": "Soda",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9b4",
+        "itemName": "Soda Can",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9bc",
+        "itemName": "Plunger",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9bd",
+        "itemName": "Power Box",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9c1",
+        "itemName": "Russian Food Cans",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9ca",
+        "itemName": "Spinning Wheel",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9cd",
+        "itemName": "Spray Paint Bottles",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9d9",
+        "itemName": "Trowel",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9dc",
+        "itemName": "Vintage Stapler",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9de",
+        "itemName": "Vintage Hand Drill",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9df",
+        "itemName": "Vintage Video Camera",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9e2",
+        "itemName": "Watering Can Metal",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9ed",
+        "itemName": "Prop Access Point",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9f0",
+        "itemName": "Prop Clamp",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9f3",
+        "itemName": "Gun Revolver",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9f4",
+        "itemName": "Gun Rifle",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9f7",
+        "itemName": "Prop Grenade",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9f8",
+        "itemName": "Prop Healthpack",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9f9",
+        "itemName": "Prop Healthpack Tube",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9fa",
+        "itemName": "Prop Keycard",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9fb",
+        "itemName": "Prop Syringe",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 3
+      },
+      {
+        "itemId": "69c0f047d5077fafd836c9ff",
+        "itemName": "Battery Big",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836ca00",
+        "itemName": "Crown",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836ca03",
+        "itemName": "Necklace",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836ca04",
+        "itemName": "Arrow Golden",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836ca05",
+        "itemName": "Armor Metal",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836ca06",
+        "itemName": "Ring",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c0f047d5077fafd836ca07",
+        "itemName": "Glove",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "itemId": "69c105b7dc14d93d31d72c2c",
+        "itemName": "Sledgehammer",
+        "dropChance": 0.3,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      }
+    ],
+    "goldMin": 1,
+    "goldMax": 20
+  }
+]

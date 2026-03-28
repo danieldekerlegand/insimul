@@ -769,7 +769,7 @@ export class NameGenerator {
     numStatesPerCountry?: number;
     governmentType?: string;
     settlements: Array<{
-      type: 'city' | 'town' | 'village';
+      type: 'city' | 'town' | 'village' | 'hamlet';
       numFamilies: number;
       childrenPerFamily: number; // approximate
     }>;

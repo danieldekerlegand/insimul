@@ -1,0 +1,48 @@
+{
+  "visualTheme": {
+    "groundColor": {
+      "r": 0.9,
+      "g": 0.6,
+      "b": 0.4
+    },
+    "skyColor": {
+      "r": 0.4,
+      "g": 0.6,
+      "b": 0.9
+    },
+    "roadColor": {
+      "r": 0.35,
+      "g": 0.28,
+      "b": 0.2
+    },
+    "roadRadius": 1.2,
+    "settlementBaseColor": {
+      "r": 0.8,
+      "g": 0.55,
+      "b": 0.35
+    },
+    "settlementRoofColor": {
+      "r": 0.4,
+      "g": 0.2,
+      "b": 0.15
+    }
+  },
+  "skyboxAssetKey": null,
+  "ambientLighting": {
+    "color": [
+      1,
+      1,
+      1
+    ],
+    "intensity": 0.6
+  },
+  "directionalLight": {
+    "direction": [
+      -1,
+      -2,
+      -1
+    ],
+    "intensity": 0.8
+  },
+  "fog": null
+}

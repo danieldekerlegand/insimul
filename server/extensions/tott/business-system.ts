@@ -11,13 +11,14 @@ import { prologBusinessOwner, prologCanFoundBusiness, prologAssertFact } from '.
 
 export interface BusinessFoundingOptions {
   worldId: string;
+  settlementId?: string;
   founderId: string;
   name: string;
   businessType: BusinessType;
   address: string;
   currentYear: number;
   currentTimestep: number;
-  
+
   // Optional initial setup
   initialVacancies?: {
     day?: OccupationVocation[];
@@ -46,7 +47,7 @@ export interface OwnershipTransferOptions {
  * Found a new business
  */
 export async function foundBusiness(options: BusinessFoundingOptions): Promise<Business> {
-  const { worldId, founderId, name, businessType, address, currentYear, currentTimestep, initialVacancies } = options;
+  const { worldId, settlementId, founderId, name, businessType, address, currentYear, currentTimestep, initialVacancies } = options;
 
   // Get founder
   const founder = await storage.getCharacter(founderId);
@@ -66,9 +67,19 @@ export async function foundBusiness(options: BusinessFoundingOptions): Promise<B
     console.log(`Prolog: ${founder.firstName} already owns a business, proceeding with additional founding`);
   }
 
+  // Resolve settlementId: use provided value, or find any settlement in this world
+  let resolvedSettlementId = settlementId;
+  if (!resolvedSettlementId) {
+    const settlements = await storage.getSettlementsByWorld(worldId);
+    if (settlements.length > 0) {
+      resolvedSettlementId = settlements[0].id;
+    }
+  }
+
   // Create business
   const business = await storage.createBusiness({
     worldId,
+    ...(resolvedSettlementId && { settlementId: resolvedSettlementId }),
     name,
     businessType,
     address,

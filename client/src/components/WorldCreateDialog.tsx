@@ -11,7 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Globe, Plus, Sparkles, FileText, TreePine, Users, Map, Building, Anchor, Cpu, Wand2, Clock, ChevronDown } from "lucide-react";
+import { Globe, Plus, Sparkles, FileText, Map, Cpu, ChevronDown, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertWorldSchema, type InsertWorld } from "@shared/schema";
@@ -77,292 +77,162 @@ export const LANGUAGES = [
 
 // --- Per-Country Configuration ---
 
+type SettlementType = 'hamlet' | 'village' | 'town' | 'city';
+
+const POPULATION_BY_TYPE: Record<SettlementType, number> = {
+  hamlet: 50,
+  village: 100,
+  town: 1000,
+  city: 5000,
+};
+
+const BASE_FAMILIES: Record<SettlementType, number> = {
+  hamlet: 3,
+  village: 5,
+  town: 15,
+  city: 50,
+};
+
+const YEARS_PER_GENERATION = 25;
+
+function computeGenealogy(type: SettlementType, foundedYear: number): { foundingFamilies: number; generations: number } {
+  const currentYear = new Date().getFullYear();
+  const yearsOld = Math.max(0, currentYear - foundedYear);
+  const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GENERATION)));
+  const baseFamilies = BASE_FAMILIES[type];
+  const generationScale = Math.max(0.5, 2.0 - (generations - 1) * 0.3);
+  const foundingFamilies = Math.max(2, Math.min(60, Math.round(baseFamilies * generationScale)));
+  return { foundingFamilies, generations };
+}
+
 interface CountryConfig {
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
-  generateStates: boolean;
-  numStatesPerCountry: number;
-  numCitiesPerState: number;
-  numTownsPerState: number;
-  numVillagesPerState: number;
-  numFoundingFamilies: number;
-  generations: number;
-  marriageRate: number;
-  fertilityRate: number;
-  deathRate: number;
+  numHamlets: number;
+  numVillages: number;
+  numTowns: number;
+  numCities: number;
 }
 
 const DEFAULT_COUNTRY_CONFIG: CountryConfig = {
   terrain: 'plains',
   foundedYear: 1850,
-  generateStates: true,
-  numStatesPerCountry: 1,
-  numCitiesPerState: 0,
-  numTownsPerState: 1,
-  numVillagesPerState: 0,
-  numFoundingFamilies: 10,
-  generations: 4,
-  marriageRate: 0.7,
-  fertilityRate: 0.6,
-  deathRate: 0.3,
-};
-
-const COUNTRY_PRESETS: Record<string, { label: string; icon: React.ReactNode; config: CountryConfig }> = {
-  medieval: {
-    label: 'Medieval',
-    icon: <TreePine className="w-4 h-4 mr-1" />,
-    config: {
-      terrain: 'plains',
-      foundedYear: 1200,
-      generateStates: true,
-      numStatesPerCountry: 1,
-      numCitiesPerState: 0,
-      numTownsPerState: 0,
-      numVillagesPerState: 1,
-      numFoundingFamilies: 8,
-      generations: 5,
-      marriageRate: 0.8,
-      fertilityRate: 0.7,
-      deathRate: 0.4,
-    },
-  },
-  colonial: {
-    label: 'Colonial',
-    icon: <Anchor className="w-4 h-4 mr-1" />,
-    config: {
-      terrain: 'coast',
-      foundedYear: 1650,
-      generateStates: true,
-      numStatesPerCountry: 1,
-      numCitiesPerState: 0,
-      numTownsPerState: 1,
-      numVillagesPerState: 0,
-      numFoundingFamilies: 12,
-      generations: 4,
-      marriageRate: 0.75,
-      fertilityRate: 0.65,
-      deathRate: 0.35,
-    },
-  },
-  modern: {
-    label: 'Modern',
-    icon: <Building className="w-4 h-4 mr-1" />,
-    config: {
-      terrain: 'plains',
-      foundedYear: 1950,
-      generateStates: true,
-      numStatesPerCountry: 2,
-      numCitiesPerState: 1,
-      numTownsPerState: 1,
-      numVillagesPerState: 1,
-      numFoundingFamilies: 20,
-      generations: 3,
-      marriageRate: 0.6,
-      fertilityRate: 0.5,
-      deathRate: 0.2,
-    },
-  },
-  fantasy: {
-    label: 'Fantasy',
-    icon: <Wand2 className="w-4 h-4 mr-1" />,
-    config: {
-      terrain: 'forest',
-      foundedYear: 1000,
-      generateStates: true,
-      numStatesPerCountry: 1,
-      numCitiesPerState: 0,
-      numTownsPerState: 1,
-      numVillagesPerState: 1,
-      numFoundingFamilies: 15,
-      generations: 6,
-      marriageRate: 0.7,
-      fertilityRate: 0.6,
-      deathRate: 0.3,
-    },
-  },
+  numHamlets: 0,
+  numVillages: 0,
+  numTowns: 1,
+  numCities: 0,
 };
 
 // --- Country Config Panel ---
 
 function CountryConfigPanel({
   config,
-  index,
   onChange,
+  onRemove,
+  canRemove,
 }: {
   config: CountryConfig;
-  index: number;
   onChange: (updated: CountryConfig) => void;
+  onRemove: () => void;
+  canRemove: boolean;
 }) {
   const update = (partial: Partial<CountryConfig>) => onChange({ ...config, ...partial });
 
+  // Show a summary of computed population
+  const totalSettlements = config.numHamlets + config.numVillages + config.numTowns + config.numCities;
+  const estimatedPop =
+    config.numHamlets * POPULATION_BY_TYPE.hamlet +
+    config.numVillages * POPULATION_BY_TYPE.village +
+    config.numTowns * POPULATION_BY_TYPE.town +
+    config.numCities * POPULATION_BY_TYPE.city;
+
   return (
     <div className="space-y-4">
-      {/* Presets */}
-      <div className="flex gap-2 flex-wrap">
-        {Object.entries(COUNTRY_PRESETS).map(([key, preset]) => (
-          <Button
-            key={key}
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onChange({ ...preset.config })}
-          >
-            {preset.icon}
-            {preset.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* Terrain + Founded Year */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-xs">Terrain</Label>
-          <Select value={config.terrain} onValueChange={(v: any) => update({ terrain: v })}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="coast">Coast</SelectItem>
-              <SelectItem value="desert">Desert</SelectItem>
-              <SelectItem value="forest">Forest</SelectItem>
-              <SelectItem value="hills">Hills</SelectItem>
-              <SelectItem value="mountains">Mountains</SelectItem>
-              <SelectItem value="plains">Plains</SelectItem>
-              <SelectItem value="river">River</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs">Founded Year</Label>
-          <Input
-            type="number"
-            value={config.foundedYear}
-            onChange={(e) => update({ foundedYear: parseInt(e.target.value) || 1850 })}
-          />
-        </div>
-      </div>
-
-      {/* States + Settlement Counts */}
-      <div className="space-y-3">
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id={`gen-states-${index}`}
-            checked={config.generateStates}
-            onCheckedChange={(checked) => update({ generateStates: checked as boolean })}
-          />
-          <Label htmlFor={`gen-states-${index}`} className="cursor-pointer text-sm">
-            Generate states / provinces
-          </Label>
-        </div>
-
-        {config.generateStates && (
-          <div className="space-y-3 pl-4 border-l-2 border-muted">
-            <div className="space-y-2">
-              <Label className="text-xs">States per country: {config.numStatesPerCountry}</Label>
-              <Slider
-                value={[config.numStatesPerCountry]}
-                onValueChange={([v]) => update({ numStatesPerCountry: v })}
-                min={1}
-                max={5}
-                step={1}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs">Cities: {config.numCitiesPerState}</Label>
-                <Slider
-                  value={[config.numCitiesPerState]}
-                  onValueChange={([v]) => update({ numCitiesPerState: v })}
-                  min={0}
-                  max={3}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Towns: {config.numTownsPerState}</Label>
-                <Slider
-                  value={[config.numTownsPerState]}
-                  onValueChange={([v]) => update({ numTownsPerState: v })}
-                  min={0}
-                  max={5}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Villages: {config.numVillagesPerState}</Label>
-                <Slider
-                  value={[config.numVillagesPerState]}
-                  onValueChange={([v]) => update({ numVillagesPerState: v })}
-                  min={0}
-                  max={10}
-                  step={1}
-                />
-              </div>
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="grid grid-cols-2 gap-4 flex-1">
+          <div className="space-y-2">
+            <Label className="text-xs">Terrain</Label>
+            <Select value={config.terrain} onValueChange={(v: any) => update({ terrain: v })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="coast">Coast</SelectItem>
+                <SelectItem value="desert">Desert</SelectItem>
+                <SelectItem value="forest">Forest</SelectItem>
+                <SelectItem value="hills">Hills</SelectItem>
+                <SelectItem value="mountains">Mountains</SelectItem>
+                <SelectItem value="plains">Plains</SelectItem>
+                <SelectItem value="river">River</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Founded Year</Label>
+            <Input
+              type="number"
+              value={config.foundedYear}
+              onChange={(e) => update({ foundedYear: parseInt(e.target.value) || 1850 })}
+            />
+          </div>
+        </div>
+        {canRemove && (
+          <Button type="button" variant="ghost" size="icon" className="ml-2 mt-5 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
         )}
       </div>
 
-      {/* Population Settings */}
-      <div className="space-y-3 pt-2 border-t">
-        <Label className="text-xs font-medium flex items-center gap-1">
-          <Users className="w-3 h-3" />
-          Population
-        </Label>
-        <div className="grid grid-cols-2 gap-4">
+      {/* Settlement Counts */}
+      <div className="space-y-3">
+        <Label className="text-xs font-medium">Settlements</Label>
+        <div className="grid grid-cols-4 gap-3">
           <div className="space-y-2">
-            <Label className="text-xs">Founding Families: {config.numFoundingFamilies}</Label>
+            <Label className="text-xs">Hamlets: {config.numHamlets}</Label>
             <Slider
-              value={[config.numFoundingFamilies]}
-              onValueChange={([v]) => update({ numFoundingFamilies: v })}
-              min={2}
-              max={30}
-              step={1}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs">Generations: {config.generations}</Label>
-            <Slider
-              value={[config.generations]}
-              onValueChange={([v]) => update({ generations: v })}
-              min={1}
+              value={[config.numHamlets]}
+              onValueChange={([v]) => update({ numHamlets: v })}
+              min={0}
               max={10}
               step={1}
             />
           </div>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label className="text-xs">Marriage: {(config.marriageRate * 100).toFixed(0)}%</Label>
+            <Label className="text-xs">Villages: {config.numVillages}</Label>
             <Slider
-              value={[config.marriageRate * 100]}
-              onValueChange={([v]) => update({ marriageRate: v / 100 })}
-              min={20}
-              max={100}
-              step={5}
+              value={[config.numVillages]}
+              onValueChange={([v]) => update({ numVillages: v })}
+              min={0}
+              max={10}
+              step={1}
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs">Fertility: {(config.fertilityRate * 100).toFixed(0)}%</Label>
+            <Label className="text-xs">Towns: {config.numTowns}</Label>
             <Slider
-              value={[config.fertilityRate * 100]}
-              onValueChange={([v]) => update({ fertilityRate: v / 100 })}
-              min={20}
-              max={100}
-              step={5}
+              value={[config.numTowns]}
+              onValueChange={([v]) => update({ numTowns: v })}
+              min={0}
+              max={5}
+              step={1}
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs">Death: {(config.deathRate * 100).toFixed(0)}%</Label>
+            <Label className="text-xs">Cities: {config.numCities}</Label>
             <Slider
-              value={[config.deathRate * 100]}
-              onValueChange={([v]) => update({ deathRate: v / 100 })}
-              min={10}
-              max={80}
-              step={5}
+              value={[config.numCities]}
+              onValueChange={([v]) => update({ numCities: v })}
+              min={0}
+              max={3}
+              step={1}
             />
           </div>
         </div>
+        {totalSettlements > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {totalSettlements} settlement{totalSettlements !== 1 ? 's' : ''} — ~{estimatedPop.toLocaleString()} estimated population
+          </p>
+        )}
       </div>
     </div>
   );
@@ -390,20 +260,10 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
   const [customPrompt, setCustomPrompt] = useState('');
   const [customLabel, setCustomLabel] = useState('');
 
-  // Time configuration
-  const [timestepUnit, setTimestepUnit] = useState('year');
-  const [gameplayTimestepUnit, setGameplayTimestepUnit] = useState('day');
-  const [historyStartYear, setHistoryStartYear] = useState('');
-  const [historyEndYear, setHistoryEndYear] = useState('');
-  const [timeConfigOpen, setTimeConfigOpen] = useState(false);
-
   // Generation options (world-level)
-  const [generateGeography, setGenerateGeography] = useState(true);
-  const [generateGenealogy, setGenerateGenealogy] = useState(true);
-  const [generateWorldMap, setGenerateWorldMap] = useState(true);
+  const [worldScale, setWorldScale] = useState<'compact' | 'standard' | 'expansive'>('standard');
 
   // Per-country configs
-  const [numCountries, setNumCountries] = useState(1);
   const [countryConfigs, setCountryConfigs] = useState<CountryConfig[]>([{ ...DEFAULT_COUNTRY_CONFIG }]);
 
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -419,15 +279,12 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     },
   });
 
-  // Sync countryConfigs array length with numCountries
-  const handleNumCountriesChange = (count: number) => {
-    setNumCountries(count);
-    setCountryConfigs((prev) => {
-      if (count > prev.length) {
-        return [...prev, ...Array(count - prev.length).fill(null).map(() => ({ ...DEFAULT_COUNTRY_CONFIG }))];
-      }
-      return prev.slice(0, count);
-    });
+  const addCountry = () => {
+    setCountryConfigs((prev) => [...prev, { ...DEFAULT_COUNTRY_CONFIG }]);
+  };
+
+  const removeCountry = (index: number) => {
+    setCountryConfigs((prev) => prev.filter((_, i) => i !== index));
   };
 
   const updateCountryConfig = (index: number, updated: CountryConfig) => {
@@ -476,12 +333,42 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
 
     // Add procedural generation config
     if (generateContent) {
+      // Convert simplified country configs to server-compatible format
+      // Compute genealogy per settlement type using the same logic as SettlementDialog
+      const serverCountries = countryConfigs.map((cc) => {
+        // Use the largest settlement type's genealogy as the country-level default
+        const settlementTypes: SettlementType[] = [];
+        if (cc.numCities > 0) settlementTypes.push('city');
+        if (cc.numTowns > 0) settlementTypes.push('town');
+        if (cc.numVillages > 0) settlementTypes.push('village');
+        if (cc.numHamlets > 0) settlementTypes.push('hamlet');
+        const primaryType = settlementTypes[0] || 'town';
+        const { foundingFamilies, generations } = computeGenealogy(primaryType, cc.foundedYear);
+
+        return {
+          terrain: cc.terrain,
+          foundedYear: cc.foundedYear,
+          generateStates: true,
+          numStatesPerCountry: 1,
+          numHamletsPerState: cc.numHamlets,
+          numVillagesPerState: cc.numVillages,
+          numTownsPerState: cc.numTowns,
+          numCitiesPerState: cc.numCities,
+          numFoundingFamilies: foundingFamilies,
+          generations,
+          marriageRate: 0.7,
+          fertilityRate: 0.6,
+          deathRate: 0.3,
+        };
+      });
+
       data.generationConfig = {
-        generateGeography,
-        generateGenealogy,
-        generateWorldMap,
+        generateGeography: true,
+        generateGenealogy: true,
+        generateWorldMap: true,
+        worldScale,
         gameType: selectedGameType,
-        countries: countryConfigs,
+        countries: serverCountries,
         // World languages to create as WorldLanguage records
         worldLanguages: worldLanguages.length > 0 ? worldLanguages : undefined,
         // For language-learning worlds, specify which language is the learning target
@@ -494,13 +381,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
       data.enabledModules = enabledModules;
     }
 
-    // Time configuration
-    data.timestepUnit = timestepUnit;
-    data.gameplayTimestepUnit = gameplayTimestepUnit;
-    if (historyStartYear) data.historyStartYear = parseInt(historyStartYear, 10);
-    if (historyEndYear) data.historyEndYear = parseInt(historyEndYear, 10);
-
-    onCreateWorld(data, generateContent, worldType, prompt, selectedGameType, label, generateWorldMap);
+    onCreateWorld(data, generateContent, worldType, prompt, selectedGameType, label, true);
     setOpen(false);
     form.reset();
     // Reset all state
@@ -513,16 +394,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     setLearningTargetLanguage(undefined);
     setCustomPrompt('');
     setCustomLabel('');
-    setGenerateGeography(true);
-    setGenerateGenealogy(true);
-    setGenerateWorldMap(true);
-    setNumCountries(1);
+    setWorldScale('standard');
     setCountryConfigs([{ ...DEFAULT_COUNTRY_CONFIG }]);
-    setTimestepUnit('year');
-    setGameplayTimestepUnit('day');
-    setHistoryStartYear('');
-    setHistoryEndYear('');
-    setTimeConfigOpen(false);
   };
 
   return (
@@ -847,44 +720,21 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
             </Card>
           )}
 
-          {/* Procedural: Country Count + Country Configs + Generation Options */}
+          {/* Procedural: Countries + World Scale */}
           {creationMode === 'procedural' && (
             <div className="space-y-4">
-              {/* Country Count */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Globe className="w-4 h-4" />
-                    Political Geography
-                  </CardTitle>
-                  <CardDescription>How many countries to generate</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Label>Countries: {numCountries}</Label>
-                    <Slider
-                      value={[numCountries]}
-                      onValueChange={([v]) => handleNumCountriesChange(v)}
-                      min={1}
-                      max={5}
-                      step={1}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Per-Country Configuration Accordion */}
+              {/* Per-Country Configuration */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Map className="w-4 h-4" />
-                    Country Configuration
+                    Countries
                   </CardTitle>
                   <CardDescription>
-                    Configure terrain, settlements, and population for each country
+                    Configure terrain and settlements for each country
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <Accordion
                     type="multiple"
                     defaultValue={['country-0']}
@@ -895,143 +745,62 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                           Country {i + 1}
                           <span className="text-xs text-muted-foreground ml-2 font-normal">
                             {config.terrain} &middot; {config.foundedYear} &middot;{' '}
-                            {(config.generateStates ? config.numStatesPerCountry : 0)} state(s) &middot;{' '}
-                            {config.numCitiesPerState}C/{config.numTownsPerState}T/{config.numVillagesPerState}V per state
+                            {config.numCities}C/{config.numTowns}T/{config.numVillages}V/{config.numHamlets}H
                           </span>
                         </AccordionTrigger>
                         <AccordionContent>
                           <CountryConfigPanel
                             config={config}
-                            index={i}
                             onChange={(updated) => updateCountryConfig(i, updated)}
+                            onRemove={() => removeCountry(i)}
+                            canRemove={countryConfigs.length > 1}
                           />
                         </AccordionContent>
                       </AccordionItem>
                     ))}
                   </Accordion>
+                  {countryConfigs.length < 5 && (
+                    <Button type="button" variant="outline" size="sm" onClick={addCountry} className="w-full">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Country
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Generation Options */}
+              {/* World Scale */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Generation Options</CardTitle>
+                  <CardTitle className="text-sm">World Scale</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="gen-geography"
-                      checked={generateGeography}
-                      onCheckedChange={(checked) => setGenerateGeography(checked as boolean)}
-                    />
-                    <Label htmlFor="gen-geography" className="cursor-pointer text-sm">
-                      Generate geography (districts, lots, buildings)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="gen-genealogy"
-                      checked={generateGenealogy}
-                      onCheckedChange={(checked) => setGenerateGenealogy(checked as boolean)}
-                    />
-                    <Label htmlFor="gen-genealogy" className="cursor-pointer text-sm">
-                      Generate genealogy (families, characters, relationships)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="gen-worldmap"
-                      checked={generateWorldMap}
-                      onCheckedChange={(checked) => setGenerateWorldMap(checked as boolean)}
-                    />
-                    <Label htmlFor="gen-worldmap" className="cursor-pointer text-sm flex items-center gap-1">
-                      <Map className="w-3 h-3" />
-                      Generate world map (AI-generated overview map)
-                    </Label>
+                <CardContent>
+                  <div className="space-y-1.5">
+                    <div className="flex gap-2">
+                      {(['compact', 'standard', 'expansive'] as const).map(scale => (
+                        <button
+                          key={scale}
+                          type="button"
+                          onClick={() => setWorldScale(scale)}
+                          className={`flex-1 px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                            worldScale === scale
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-muted/50 border-border hover:bg-muted'
+                          }`}
+                        >
+                          {scale.charAt(0).toUpperCase() + scale.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {worldScale === 'compact' ? 'Small game world — settlements close together' :
+                       worldScale === 'expansive' ? 'Large game world — vast distances between settlements' :
+                       'Balanced distances between settlements'}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
             </div>
           )}
-
-          {/* Time Configuration (collapsible) */}
-          <Collapsible open={timeConfigOpen} onOpenChange={setTimeConfigOpen}>
-            <Card>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-between px-6 py-3 text-left hover:bg-white/5 transition-colors rounded-t-lg"
-                >
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Time Configuration</span>
-                    <span className="text-xs text-muted-foreground">(optional)</span>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${timeConfigOpen ? 'rotate-180' : ''}`} />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-4 pt-0">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="create-timestep-unit" className="text-xs">History Timestep</Label>
-                      <Select value={timestepUnit} onValueChange={setTimestepUnit}>
-                        <SelectTrigger id="create-timestep-unit">
-                          <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="year">Year</SelectItem>
-                          <SelectItem value="day">Day</SelectItem>
-                          <SelectItem value="hour">Hour</SelectItem>
-                          <SelectItem value="minute">Minute</SelectItem>
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="create-gameplay-timestep" className="text-xs">Gameplay Timestep</Label>
-                      <Select value={gameplayTimestepUnit} onValueChange={setGameplayTimestepUnit}>
-                        <SelectTrigger id="create-gameplay-timestep">
-                          <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="year">Year</SelectItem>
-                          <SelectItem value="day">Day</SelectItem>
-                          <SelectItem value="hour">Hour</SelectItem>
-                          <SelectItem value="minute">Minute</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="create-history-start" className="text-xs">History Start Year</Label>
-                      <Input
-                        id="create-history-start"
-                        type="number"
-                        placeholder="e.g., 1839"
-                        value={historyStartYear}
-                        onChange={(e) => setHistoryStartYear(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="create-history-end" className="text-xs">History End Year</Label>
-                      <Input
-                        id="create-history-end"
-                        type="number"
-                        placeholder="e.g., 1979"
-                        value={historyEndYear}
-                        onChange={(e) => setHistoryEndYear(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Historical simulation runs from start to end year at the history timestep. Gameplay begins after the end year at the gameplay timestep.
-                  </p>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
 
           <DialogFooter className="gap-2">
             <Button

@@ -1,0 +1,1266 @@
+[
+  {
+    "id": "bld_69c7efe554de6edea916a770",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a741",
+    "position": {
+      "x": 106.83333333333333,
+      "y": 0,
+      "z": 110.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "Farm",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe454de6edea916a729",
+      "69c7efe354de6edea916a707"
+    ],
+    "interior": null,
+    "businessId": "69c7efe554de6edea916a770",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efe554de6edea916a771",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a742",
+    "position": {
+      "x": 106.83333333333333,
+      "y": 0,
+      "z": 134.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "Shop",
+      "floors": 2,
+      "width": 10,
+      "depth": 8,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe354de6edea916a70f",
+      "69c7efe354de6edea916a705"
+    ],
+    "interior": null,
+    "businessId": "69c7efe554de6edea916a771",
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_2",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a743",
+    "position": {
+      "x": 122.5,
+      "y": 0,
+      "z": 110.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6cf",
+      "69c7efe254de6edea916a6d3",
+      "69c7efe354de6edea916a6f5",
+      "69c7efe354de6edea916a717",
+      "69c7efe454de6edea916a731"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_3",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a744",
+    "position": {
+      "x": 122.5,
+      "y": 0,
+      "z": 134.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6d1",
+      "69c7efe354de6edea916a6eb",
+      "69c7efe354de6edea916a6f9"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_4",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a745",
+    "position": {
+      "x": 138.16666666666666,
+      "y": 0,
+      "z": 110.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_5",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a746",
+    "position": {
+      "x": 138.16666666666666,
+      "y": 0,
+      "z": 134.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6d5",
+      "69c7efe254de6edea916a6dd",
+      "69c7efe354de6edea916a6fb",
+      "69c7efe354de6edea916a719"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_6",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a747",
+    "position": {
+      "x": 106.83333333333333,
+      "y": 0,
+      "z": 165.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6d7",
+      "69c7efe354de6edea916a6fd",
+      "69c7efe454de6edea916a72c",
+      "69c7efe354de6edea916a71b"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_7",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a748",
+    "position": {
+      "x": 106.83333333333333,
+      "y": 0,
+      "z": 189.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6d9",
+      "69c7efe254de6edea916a6e1",
+      "69c7efe354de6edea916a6ff",
+      "69c7efe354de6edea916a703"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_8",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a749",
+    "position": {
+      "x": 122.5,
+      "y": 0,
+      "z": 165.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_9",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a74a",
+    "position": {
+      "x": 122.5,
+      "y": 0,
+      "z": 189.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6db",
+      "69c7efe254de6edea916a6df",
+      "69c7efe354de6edea916a701",
+      "69c7efe354de6edea916a71d"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_10",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a74b",
+    "position": {
+      "x": 138.16666666666666,
+      "y": 0,
+      "z": 165.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6e3",
+      "69c7efe354de6edea916a6ed",
+      "69c7efe354de6edea916a707",
+      "69c7efe354de6edea916a71f"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_11",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a74c",
+    "position": {
+      "x": 138.16666666666666,
+      "y": 0,
+      "z": 189.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6e5",
+      "69c7efe354de6edea916a709",
+      "69c7efe454de6edea916a723"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_12",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a74d",
+    "position": {
+      "x": 161.83333333333334,
+      "y": 0,
+      "z": 110.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_13",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a74e",
+    "position": {
+      "x": 161.83333333333334,
+      "y": 0,
+      "z": 134.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6e7",
+      "69c7efe454de6edea916a721",
+      "69c7efe354de6edea916a70b",
+      "69c7efe454de6edea916a727"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_14",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a74f",
+    "position": {
+      "x": 177.5,
+      "y": 0,
+      "z": 110.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe254de6edea916a6e9",
+      "69c7efe354de6edea916a70d",
+      "69c7efe454de6edea916a725"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_15",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a750",
+    "position": {
+      "x": 177.5,
+      "y": 0,
+      "z": 134.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe354de6edea916a6ef",
+      "69c7efe354de6edea916a6f7",
+      "69c7efe354de6edea916a70f",
+      "69c7efe454de6edea916a729"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_16",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a751",
+    "position": {
+      "x": 193.16666666666666,
+      "y": 0,
+      "z": 110.75
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_17",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a752",
+    "position": {
+      "x": 193.16666666666666,
+      "y": 0,
+      "z": 134.25
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [
+      "69c7efe354de6edea916a6f1",
+      "69c7efe354de6edea916a705",
+      "69c7efe354de6edea916a711",
+      "69c7efe454de6edea916a72f"
+    ],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_18",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": "69c7efe454de6edea916a753",
+    "position": {
+      "x": 177.5,
+      "y": 0,
+      "z": 177.5
+    },
+    "rotation": 3.141592653589793,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_19",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": null,
+    "position": {
+      "x": -308.20349794238683,
+      "y": 0,
+      "z": -314.25870198902606
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_20",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": null,
+    "position": {
+      "x": -388.2546982167353,
+      "y": 0,
+      "z": -294.4724537037037
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_21",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": null,
+    "position": {
+      "x": -368.3593964334705,
+      "y": 0,
+      "z": -292.27056755829904
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_22",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": null,
+    "position": {
+      "x": -348.61635802469135,
+      "y": 0,
+      "z": -294.27032750342937
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_23",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": null,
+    "position": {
+      "x": -328.38360768175585,
+      "y": 0,
+      "z": -293.4593878600823
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  },
+  {
+    "id": "bld_69c7efb954de6edea916a67b_24",
+    "settlementId": "69c7efb954de6edea916a67b",
+    "lotId": null,
+    "position": {
+      "x": -309.83398491083676,
+      "y": 0,
+      "z": -291.41799554183814
+    },
+    "rotation": 0,
+    "spec": {
+      "buildingRole": "residence_small",
+      "floors": 2,
+      "width": 10,
+      "depth": 10,
+      "hasChimney": false,
+      "hasBalcony": false
+    },
+    "style": {
+      "name": "rustic_wood",
+      "baseColor": {
+        "r": 0.8,
+        "g": 0.55,
+        "b": 0.35
+      },
+      "roofColor": {
+        "r": 0.4,
+        "g": 0.2,
+        "b": 0.15
+      },
+      "windowColor": {
+        "r": 0.85,
+        "g": 0.8,
+        "b": 0.55
+      },
+      "doorColor": {
+        "r": 0.4,
+        "g": 0.25,
+        "b": 0.12
+      },
+      "materialType": "wood",
+      "architectureStyle": "rustic"
+    },
+    "occupantIds": [],
+    "interior": null,
+    "businessId": null,
+    "modelAssetKey": null
+  }
+]

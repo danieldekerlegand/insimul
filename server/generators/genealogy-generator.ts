@@ -804,11 +804,46 @@ export class GenealogyGenerator {
       targetLanguage: config.targetLanguage,
     });
 
+    // Pre-assign genders so we can batch by gender
+    const genders: Array<'male' | 'female'> = [];
+    for (let i = 0; i < config.count; i++) {
+      genders.push(Math.random() > 0.5 ? 'male' : 'female');
+    }
+    const maleCount = genders.filter(g => g === 'male').length;
+    const femaleCount = config.count - maleCount;
+
+    // Batch-generate all names in at most 2 LLM calls (one per gender)
+    const nameContext = {
+      worldName: this.worldContext?.name,
+      worldDescription: this.worldContext?.description,
+      countryName: this.countryContext?.name,
+      countryDescription: this.countryContext?.description,
+      settlementName: this.settlementContext?.name,
+      settlementType: this.settlementContext?.settlementType,
+      worldId: this.worldContext?.id,
+      worldType: this.worldContext?.worldType,
+      generation: 0,
+      isFounder: false,
+      targetLanguage: this.targetLanguage,
+    };
+
+    const [maleNames, femaleNames] = await Promise.all([
+      maleCount > 0
+        ? nameGenerator.generateCharacterNamesBatch({ ...nameContext, gender: 'male' }, maleCount)
+        : [],
+      femaleCount > 0
+        ? nameGenerator.generateCharacterNamesBatch({ ...nameContext, gender: 'female' }, femaleCount)
+        : [],
+    ]);
+    console.log(`   👥 Batch generated ${maleNames.length} male + ${femaleNames.length} female immigrant names`);
+
+    let maleIdx = 0, femaleIdx = 0;
     let created = 0;
     for (let i = 0; i < config.count; i++) {
-      const gender: 'male' | 'female' = Math.random() > 0.5 ? 'male' : 'female';
-      const firstName = await this.getUniqueName(gender, 0, false);
-      const lastName = await this.getUniqueSurname();
+      const gender = genders[i];
+      const nameData = gender === 'male' ? maleNames[maleIdx++] : femaleNames[femaleIdx++];
+      const firstName = nameData?.firstName || (gender === 'male' ? `Man${i}` : `Woman${i}`);
+      const lastName = nameData?.lastName || `Immigrant${i}`;
       const age = 18 + Math.floor(Math.random() * 45); // 18-62
       const birthYear = config.currentYear - age;
       const personality = this.generatePersonality();

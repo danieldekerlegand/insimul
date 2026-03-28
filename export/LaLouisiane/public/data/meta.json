@@ -1,0 +1,969 @@
+{
+  "insimulVersion": "1.0.0",
+  "worldId": "69c7ef7854de6edea916a60d",
+  "worldName": "La Louisiane",
+  "worldDescription": "An alternate reality where Louisiana was never sold to the United States and is now an independent Francophone nation.",
+  "worldType": "creole-colonial",
+  "genreConfig": {
+    "id": "language-learning",
+    "name": "Language Learning",
+    "description": "Educational game focused on vocabulary and grammar",
+    "cameraMode": "third_person",
+    "movementPlane": "free",
+    "controlScheme": "wasd_mouse",
+    "combatStyle": "none",
+    "movementStyle": "free",
+    "uiLayout": "minimal",
+    "defaultWorldType": "historical",
+    "features": {
+      "inventory": false,
+      "crafting": false,
+      "dialogue": true,
+      "combat": false,
+      "building": false,
+      "resources": false,
+      "permadeath": false,
+      "quests": true,
+      "experience": true,
+      "skills": true
+    },
+    "questTypes": [
+      "language-learning"
+    ],
+    "difficultyLevels": [
+      "beginner",
+      "intermediate",
+      "advanced"
+    ],
+    "defaultPlayerSpeed": 1,
+    "defaultJumpHeight": 1,
+    "gravityMultiplier": 1,
+    "showMinimap": true,
+    "showHealthBar": false,
+    "showStaminaBar": false,
+    "showAmmoCounter": false,
+    "showCompass": true
+  },
+  "exportTimestamp": "2026-03-28T15:25:53.064Z",
+  "exportVersion": 1,
+  "seed": "69c7ef7854de6edea916a60d",
+  "selectedAssetCollectionId": "69bf3b5a126b00edd61b0c28",
+  "world3DConfig": {
+    "groundTextureId": "69be8e9a75d49b7dfd385d12",
+    "roadTextureId": "69be8e4375d49b7dfd385c06",
+    "buildingModels": {},
+    "proceduralBuildings": {
+      "stylePresets": [
+        {
+          "id": "cat_commercial_food",
+          "name": "commercial food style",
+          "baseColors": [
+            {
+              "r": 0.75,
+              "g": 0.68,
+              "b": 0.55
+            },
+            {
+              "r": 0.8,
+              "g": 0.72,
+              "b": 0.6
+            }
+          ],
+          "roofColor": {
+            "r": 0.35,
+            "g": 0.25,
+            "b": 0.18
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.28,
+            "b": 0.18
+          },
+          "materialType": "wood",
+          "architectureStyle": "medieval",
+          "roofStyle": "gable",
+          "roofTextureId": "69be8e3175d49b7dfd385bd4"
+        },
+        {
+          "id": "cat_commercial_retail",
+          "name": "commercial retail style",
+          "baseColors": [
+            {
+              "r": 0.7,
+              "g": 0.65,
+              "b": 0.5
+            },
+            {
+              "r": 0.78,
+              "g": 0.72,
+              "b": 0.58
+            }
+          ],
+          "roofColor": {
+            "r": 0.3,
+            "g": 0.22,
+            "b": 0.15
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.35,
+            "g": 0.25,
+            "b": 0.15
+          },
+          "materialType": "wood",
+          "architectureStyle": "medieval",
+          "roofStyle": "gable",
+          "wallTextureId": "69be8ee175d49b7dfd385ddc",
+          "roofTextureId": "69be8e3175d49b7dfd385bd4"
+        },
+        {
+          "id": "cat_commercial_service",
+          "name": "commercial service style",
+          "baseColors": [
+            {
+              "r": 0.72,
+              "g": 0.68,
+              "b": 0.58
+            },
+            {
+              "r": 0.65,
+              "g": 0.6,
+              "b": 0.5
+            }
+          ],
+          "roofColor": {
+            "r": 0.32,
+            "g": 0.25,
+            "b": 0.18
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.38,
+            "g": 0.28,
+            "b": 0.18
+          },
+          "materialType": "stone",
+          "architectureStyle": "medieval",
+          "roofStyle": "gable",
+          "wallTextureId": "69be8e2775d49b7dfd385bb6",
+          "roofTextureId": "69be8e3175d49b7dfd385bd4"
+        },
+        {
+          "id": "cat_civic",
+          "name": "civic style",
+          "baseColors": [
+            {
+              "r": 0.8,
+              "g": 0.78,
+              "b": 0.7
+            },
+            {
+              "r": 0.75,
+              "g": 0.72,
+              "b": 0.65
+            }
+          ],
+          "roofColor": {
+            "r": 0.3,
+            "g": 0.25,
+            "b": 0.2
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.82
+          },
+          "doorColor": {
+            "r": 0.35,
+            "g": 0.25,
+            "b": 0.18
+          },
+          "materialType": "stone",
+          "architectureStyle": "medieval",
+          "roofStyle": "hipped_dormers",
+          "wallTextureId": "69be8edf75d49b7dfd385dd8",
+          "roofTextureId": "69be8e2b75d49b7dfd385bc4"
+        },
+        {
+          "id": "cat_industrial",
+          "name": "industrial style",
+          "baseColors": [
+            {
+              "r": 0.6,
+              "g": 0.55,
+              "b": 0.45
+            },
+            {
+              "r": 0.55,
+              "g": 0.5,
+              "b": 0.4
+            }
+          ],
+          "roofColor": {
+            "r": 0.35,
+            "g": 0.3,
+            "b": 0.22
+          },
+          "windowColor": {
+            "r": 0.55,
+            "g": 0.58,
+            "b": 0.6
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.3,
+            "b": 0.2
+          },
+          "materialType": "wood",
+          "architectureStyle": "rustic",
+          "roofStyle": "gable",
+          "wallTextureId": "69be8e2075d49b7dfd385ba0",
+          "roofTextureId": "69be8e2175d49b7dfd385ba6"
+        },
+        {
+          "id": "cat_maritime",
+          "name": "maritime style",
+          "baseColors": [
+            {
+              "r": 0.65,
+              "g": 0.7,
+              "b": 0.72
+            },
+            {
+              "r": 0.7,
+              "g": 0.72,
+              "b": 0.68
+            }
+          ],
+          "roofColor": {
+            "r": 0.35,
+            "g": 0.3,
+            "b": 0.25
+          },
+          "windowColor": {
+            "r": 0.65,
+            "g": 0.7,
+            "b": 0.75
+          },
+          "doorColor": {
+            "r": 0.35,
+            "g": 0.3,
+            "b": 0.22
+          },
+          "materialType": "wood",
+          "architectureStyle": "rustic",
+          "roofStyle": "gable",
+          "wallTextureId": "69be8efe75d49b7dfd385e3c"
+        },
+        {
+          "id": "cat_residential",
+          "name": "residential style",
+          "baseColors": [
+            {
+              "r": 0.75,
+              "g": 0.68,
+              "b": 0.55
+            },
+            {
+              "r": 0.7,
+              "g": 0.62,
+              "b": 0.5
+            },
+            {
+              "r": 0.8,
+              "g": 0.72,
+              "b": 0.58
+            }
+          ],
+          "roofColor": {
+            "r": 0.35,
+            "g": 0.25,
+            "b": 0.18
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.28,
+            "b": 0.18
+          },
+          "materialType": "wood",
+          "architectureStyle": "medieval",
+          "roofStyle": "gable",
+          "hasPorch": true,
+          "porchDepth": 2,
+          "porchSteps": 2,
+          "roofTextureId": "69be8e3175d49b7dfd385bd4"
+        },
+        {
+          "id": "cat_entertainment_1774580648111",
+          "name": "Entertainment Style",
+          "baseColors": [
+            {
+              "r": 0.8,
+              "g": 0.75,
+              "b": 0.65
+            }
+          ],
+          "roofColor": {
+            "r": 0.3,
+            "g": 0.25,
+            "b": 0.2
+          },
+          "windowColor": {
+            "r": 0.8,
+            "g": 0.85,
+            "b": 0.9
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.3,
+            "b": 0.2
+          },
+          "materialType": "wood",
+          "architectureStyle": "colonial"
+        },
+        {
+          "id": "cat_professional_1774580656465",
+          "name": "Professional Style",
+          "baseColors": [
+            {
+              "r": 0.8,
+              "g": 0.75,
+              "b": 0.65
+            }
+          ],
+          "roofColor": {
+            "r": 0.3,
+            "g": 0.25,
+            "b": 0.2
+          },
+          "windowColor": {
+            "r": 0.8,
+            "g": 0.85,
+            "b": 0.9
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.3,
+            "b": 0.2
+          },
+          "materialType": "wood",
+          "architectureStyle": "colonial"
+        },
+        {
+          "id": "cat_military_1774580662149",
+          "name": "Military Style",
+          "baseColors": [
+            {
+              "r": 0.8,
+              "g": 0.75,
+              "b": 0.65
+            }
+          ],
+          "roofColor": {
+            "r": 0.3,
+            "g": 0.25,
+            "b": 0.2
+          },
+          "windowColor": {
+            "r": 0.8,
+            "g": 0.85,
+            "b": 0.9
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.3,
+            "b": 0.2
+          },
+          "materialType": "wood",
+          "architectureStyle": "colonial"
+        },
+        {
+          "id": "__type_Restaurant",
+          "name": "Restaurant (override)",
+          "baseColors": [
+            {
+              "r": 0.75,
+              "g": 0.68,
+              "b": 0.55
+            },
+            {
+              "r": 0.8,
+              "g": 0.72,
+              "b": 0.6
+            }
+          ],
+          "roofColor": {
+            "r": 0.8549019607843137,
+            "g": 0.37254901960784315,
+            "b": 0.027450980392156862
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.28,
+            "b": 0.18
+          },
+          "materialType": "wood",
+          "architectureStyle": "creole",
+          "roofStyle": "gable",
+          "roofTextureId": "69be8e3175d49b7dfd385bd4"
+        },
+        {
+          "id": "__type_house",
+          "name": "house (override)",
+          "baseColors": [
+            {
+              "r": 0.75,
+              "g": 0.68,
+              "b": 0.55
+            },
+            {
+              "r": 0.7,
+              "g": 0.62,
+              "b": 0.5
+            },
+            {
+              "r": 0.8,
+              "g": 0.72,
+              "b": 0.58
+            }
+          ],
+          "roofColor": {
+            "r": 0.35,
+            "g": 0.25,
+            "b": 0.18
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.28,
+            "b": 0.18
+          },
+          "materialType": "wood",
+          "architectureStyle": "creole",
+          "roofStyle": "hip",
+          "hasPorch": true,
+          "porchDepth": 1,
+          "porchSteps": 2,
+          "roofTextureId": "69be8e6675d49b7dfd385c74",
+          "hasIronworkBalcony": true
+        },
+        {
+          "id": "__type_apartment",
+          "name": "apartment (override)",
+          "baseColors": [
+            {
+              "r": 0.75,
+              "g": 0.68,
+              "b": 0.55
+            },
+            {
+              "r": 0.7,
+              "g": 0.62,
+              "b": 0.5
+            },
+            {
+              "r": 0.8,
+              "g": 0.72,
+              "b": 0.58
+            }
+          ],
+          "roofColor": {
+            "r": 0.35,
+            "g": 0.25,
+            "b": 0.18
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.28,
+            "b": 0.18
+          },
+          "materialType": "wood",
+          "architectureStyle": "medieval",
+          "roofStyle": "gable",
+          "hasPorch": true,
+          "porchDepth": 1,
+          "porchSteps": 2,
+          "roofTextureId": "69be8e3175d49b7dfd385bd4",
+          "hasIronworkBalcony": true,
+          "floors": 3
+        },
+        {
+          "id": "__type_mansion",
+          "name": "mansion (override)",
+          "baseColors": [
+            {
+              "r": 0.75,
+              "g": 0.68,
+              "b": 0.55
+            },
+            {
+              "r": 0.7,
+              "g": 0.62,
+              "b": 0.5
+            },
+            {
+              "r": 0.8,
+              "g": 0.72,
+              "b": 0.58
+            }
+          ],
+          "roofColor": {
+            "r": 0.35,
+            "g": 0.25,
+            "b": 0.18
+          },
+          "windowColor": {
+            "r": 0.7,
+            "g": 0.75,
+            "b": 0.8
+          },
+          "doorColor": {
+            "r": 0.4,
+            "g": 0.28,
+            "b": 0.18
+          },
+          "materialType": "wood",
+          "architectureStyle": "medieval",
+          "roofStyle": "gable",
+          "hasPorch": true,
+          "porchDepth": 2,
+          "porchSteps": 2,
+          "roofTextureId": "69be8e3175d49b7dfd385bd4",
+          "depth": 12
+        }
+      ],
+      "buildingTypeOverrides": {
+        "Restaurant": {
+          "stylePresetId": "__type_Restaurant"
+        },
+        "Bar": {
+          "stylePresetId": "cat_commercial_food"
+        },
+        "Bakery": {
+          "stylePresetId": "cat_commercial_food"
+        },
+        "Brewery": {
+          "stylePresetId": "cat_commercial_food"
+        },
+        "Shop": {
+          "stylePresetId": "cat_commercial_retail"
+        },
+        "GroceryStore": {
+          "stylePresetId": "cat_commercial_retail"
+        },
+        "JewelryStore": {
+          "stylePresetId": "cat_commercial_retail"
+        },
+        "BookStore": {
+          "stylePresetId": "cat_commercial_retail"
+        },
+        "PawnShop": {
+          "stylePresetId": "cat_commercial_retail"
+        },
+        "HerbShop": {
+          "stylePresetId": "cat_commercial_retail"
+        },
+        "Bank": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "Hotel": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "Barbershop": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "Tailor": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "Bathhouse": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "DentalOffice": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "OptometryOffice": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "Pharmacy": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "LawFirm": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "InsuranceOffice": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "RealEstateOffice": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "TattoParlor": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "Church": {
+          "stylePresetId": "cat_civic"
+        },
+        "TownHall": {
+          "stylePresetId": "cat_civic"
+        },
+        "School": {
+          "stylePresetId": "cat_civic"
+        },
+        "University": {
+          "stylePresetId": "cat_civic"
+        },
+        "Hospital": {
+          "stylePresetId": "cat_civic"
+        },
+        "PoliceStation": {
+          "stylePresetId": "cat_civic"
+        },
+        "FireStation": {
+          "stylePresetId": "cat_civic"
+        },
+        "Daycare": {
+          "stylePresetId": "cat_civic"
+        },
+        "Mortuary": {
+          "stylePresetId": "cat_civic"
+        },
+        "Factory": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Farm": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Warehouse": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Blacksmith": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Carpenter": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Butcher": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Harbor": {
+          "stylePresetId": "cat_maritime"
+        },
+        "Boatyard": {
+          "stylePresetId": "cat_maritime"
+        },
+        "FishMarket": {
+          "stylePresetId": "cat_maritime"
+        },
+        "CustomsHouse": {
+          "stylePresetId": "cat_maritime"
+        },
+        "Lighthouse": {
+          "stylePresetId": "cat_maritime"
+        },
+        "house": {
+          "stylePresetId": "__type_house"
+        },
+        "apartment": {
+          "floors": 3,
+          "stylePresetId": "__type_apartment"
+        },
+        "mansion": {
+          "depth": 12,
+          "stylePresetId": "__type_mansion"
+        },
+        "cottage": {
+          "stylePresetId": "cat_residential"
+        },
+        "townhouse": {
+          "stylePresetId": "cat_residential"
+        },
+        "mobile_home": {
+          "stylePresetId": "cat_residential"
+        },
+        "Theater": {
+          "stylePresetId": "cat_entertainment_1774580648111"
+        },
+        "Tavern": {
+          "stylePresetId": "cat_entertainment_1774580648111"
+        },
+        "Inn": {
+          "stylePresetId": "cat_entertainment_1774580648111"
+        },
+        "Library": {
+          "stylePresetId": "cat_professional_1774580656465"
+        },
+        "Clinic": {
+          "stylePresetId": "cat_professional_1774580656465"
+        },
+        "Stables": {
+          "stylePresetId": "cat_professional_1774580656465"
+        },
+        "Barracks": {
+          "stylePresetId": "cat_military_1774580662149"
+        },
+        "AutoRepair": {
+          "stylePresetId": "cat_commercial_service"
+        },
+        "ApartmentComplex": {
+          "stylePresetId": "cat_residential"
+        },
+        "Windmill": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Watermill": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Lumbermill": {
+          "stylePresetId": "cat_industrial"
+        },
+        "Mine": {
+          "stylePresetId": "cat_industrial"
+        }
+      },
+      "defaultResidentialStyleId": "cat_residential",
+      "defaultCommercialStyleId": "cat_commercial_food"
+    },
+    "proceduralInteriorTypes": [
+      "Restaurant",
+      "Bar",
+      "Bakery",
+      "Brewery",
+      "Shop",
+      "GroceryStore",
+      "JewelryStore",
+      "BookStore",
+      "PawnShop",
+      "HerbShop",
+      "Bank",
+      "Hotel",
+      "Barbershop",
+      "Tailor",
+      "Bathhouse",
+      "DentalOffice",
+      "OptometryOffice",
+      "Pharmacy",
+      "LawFirm",
+      "InsuranceOffice",
+      "RealEstateOffice",
+      "TattoParlor",
+      "Church",
+      "TownHall",
+      "School",
+      "University",
+      "Hospital",
+      "PoliceStation",
+      "FireStation",
+      "Daycare",
+      "Mortuary",
+      "Factory",
+      "Farm",
+      "Warehouse",
+      "Blacksmith",
+      "Carpenter",
+      "Butcher",
+      "Harbor",
+      "Boatyard",
+      "FishMarket",
+      "CustomsHouse",
+      "Lighthouse",
+      "house",
+      "apartment",
+      "mansion",
+      "cottage",
+      "townhouse",
+      "mobile_home",
+      "Theater",
+      "Tavern",
+      "Inn",
+      "Library",
+      "Clinic",
+      "Stables",
+      "Barracks",
+      "AutoRepair",
+      "ApartmentComplex",
+      "Windmill",
+      "Watermill",
+      "Lumbermill",
+      "Mine"
+    ],
+    "characterModels": {},
+    "playerModels": {
+      "default": "69bd13a076278c58c1f82fc7"
+    },
+    "natureModels": {
+      "oak": "698d7d200c2f960a36df4df9",
+      "pine": "698d7d200c2f960a36df4df7",
+      "birch": "698d7d200c2f960a36df4df7",
+      "willow": "698d7d200c2f960a36df4df9",
+      "palm": "698d7d200c2f960a36df4df9",
+      "maple": "698d7d200c2f960a36df4df7",
+      "cypress": "69be8597e37a17629b63f272",
+      "dead_tree": "698d7d200c2f960a36df4dfb",
+      "grass_patch": "69be8712e37a17629b63f3ca",
+      "bush": "698ed950e700d29b67b1c037",
+      "shrub": "69be8712e37a17629b63f3cc",
+      "flower_bed": "69be8547e37a17629b63f242",
+      "fern": "698ed950e700d29b67b1c039",
+      "ivy": "698d7d420c2f960a36df4f31",
+      "tall_grass": "69be8712e37a17629b63f3ca",
+      "moss": "698d7d420c2f960a36df4f31",
+      "fountain": "695ee057ee9c421161f3479d",
+      "pond": "69be86ede37a17629b63f3a0",
+      "stream": "698ed950e700d29b67b1c03b",
+      "well": "698d7d200c2f960a36df4e05",
+      "puddle": "69be86ede37a17629b63f3a0",
+      "boulder": "698d7d200c2f960a36df4dff",
+      "rock": "69be86e9e37a17629b63f39a",
+      "pebbles": "69be8658e37a17629b63f31c",
+      "cliff_face": "698d7d200c2f960a36df4dff",
+      "stone_pile": "698ed950e700d29b67b1c03b"
+    },
+    "objectModels": {
+      "chair": "698d7d210c2f960a36df4e17",
+      "table": "698d7d210c2f960a36df4e15",
+      "barrel": "698d7d200c2f960a36df4e01",
+      "crate": "698d7d200c2f960a36df4e03",
+      "lantern": "698d7d200c2f960a36df4e07",
+      "sign": "695ee054ee9c421161f34796",
+      "cart": "698d7d370c2f960a36df4ec3",
+      "fence": "695ee054ee9c421161f34796",
+      "bench": "69be84eee37a17629b63f1e0",
+      "ladder": "698d7d200c2f960a36df4e03",
+      "bucket": "698d7d200c2f960a36df4e05",
+      "basket": "69be6c4600a56302472afc2d",
+      "pot": "69be6c4300a56302472afc2b",
+      "candle": "69be6c3100a56302472afc17",
+      "bookshelf": "698d7d410c2f960a36df4f27",
+      "bed": "698d7d200c2f960a36df4e11",
+      "chest": "698d7d210c2f960a36df4e1b",
+      "wardrobe": "698d7d210c2f960a36df4e13",
+      "anvil": "69be6c1000a56302472afc05",
+      "workbench": "69be84f4e37a17629b63f1e6",
+      "stool": "698d7d430c2f960a36df4f46",
+      "rug": "69be84e7e37a17629b63f1d6",
+      "painting": "69be8684e37a17629b63f34c",
+      "mirror": "69be8684e37a17629b63f34c",
+      "fireplace": "698d7d3a0c2f960a36df4efb",
+      "broom": "69be6c1000a56302472afc05",
+      "shovel": "69be6c1b00a56302472afc0b",
+      "axe": "698d7d2d0c2f960a36df4e6c",
+      "hammer": "69be6c1000a56302472afc05",
+      "saw": "69be6c1700a56302472afc09",
+      "sword": "698d7d210c2f960a36df4e1d",
+      "shield": "69be6c0700a56302472afbff",
+      "bow": "69be6c1f00a56302472afc0d",
+      "staff": "69be6c1f00a56302472afc0d"
+    },
+    "questObjectModels": {
+      "collectible": "69be6c5a00a56302472afc3f",
+      "marker": "698d7d200c2f960a36df4e07",
+      "container": "698d7d210c2f960a36df4e1b",
+      "key": "69be85bee37a17629b63f2a0",
+      "scroll": "698d7d200c2f960a36df4e0f",
+      "chest": "698d7d210c2f960a36df4e1b",
+      "artifact": "698d7d200c2f960a36df4e0b",
+      "gem": "69be8500e37a17629b63f1f4",
+      "potion": "69be6c2e00a56302472afc13",
+      "map": "698d7d200c2f960a36df4e0f",
+      "letter": "698d7d200c2f960a36df4e0f",
+      "relic": "69be84cee37a17629b63f1aa"
+    }
+  },
+  "assetIdToPath": {
+    "695ee054ee9c421161f34796": "assets/models/props/polyhaven/wooden_crate_02/wooden_crate_02.gltf",
+    "695ee057ee9c421161f3479d": "assets/models/nature/polyhaven/potted_plant_02/potted_plant_02.gltf",
+    "698d7d200c2f960a36df4df7": "assets/models/nature/polyhaven/tree_small_02/tree_small_02.gltf",
+    "698d7d200c2f960a36df4df9": "assets/models/nature/polyhaven/jacaranda_tree/jacaranda_tree.gltf",
+    "698d7d200c2f960a36df4dfb": "assets/models/nature/polyhaven/dead_tree_trunk/dead_tree_trunk.gltf",
+    "698d7d200c2f960a36df4dff": "assets/models/nature/polyhaven/boulder_01/boulder_01.gltf",
+    "698d7d200c2f960a36df4e01": "assets/models/props/polyhaven/wine_barrel_01/wine_barrel_01.gltf",
+    "698d7d200c2f960a36df4e03": "assets/models/props/polyhaven/wooden_crate_01/wooden_crate_01.gltf",
+    "698d7d200c2f960a36df4e05": "assets/models/props/polyhaven/wooden_bucket_01/wooden_bucket_01.gltf",
+    "698d7d200c2f960a36df4e07": "assets/models/furniture/polyhaven/Lantern_01/Lantern_01.gltf",
+    "698d7d200c2f960a36df4e0b": "assets/models/furniture/polyhaven/brass_goblets/brass_goblets.gltf",
+    "698d7d200c2f960a36df4e0f": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/book_encyclopedia_set_01.gltf",
+    "698d7d200c2f960a36df4e11": "assets/models/furniture/polyhaven/GothicBed_01/GothicBed_01.gltf",
+    "698d7d210c2f960a36df4e13": "assets/models/furniture/polyhaven/GothicCabinet_01/GothicCabinet_01.gltf",
+    "698d7d210c2f960a36df4e15": "assets/models/furniture/polyhaven/WoodenTable_01/WoodenTable_01.gltf",
+    "698d7d210c2f960a36df4e17": "assets/models/furniture/polyhaven/GreenChair_01/GreenChair_01.gltf",
+    "698d7d210c2f960a36df4e1b": "assets/models/props/polyhaven/treasure_chest/treasure_chest.gltf",
+    "698d7d210c2f960a36df4e1d": "assets/models/props/polyhaven/antique_estoc/antique_estoc.gltf",
+    "698d7d2d0c2f960a36df4e6c": "assets/models/props/polyhaven/wooden_axe/wooden_axe.gltf",
+    "698d7d370c2f960a36df4ec3": "assets/models/props/polyhaven/wooden_barrels_01/wooden_barrels_01.gltf",
+    "698d7d3a0c2f960a36df4efb": "assets/models/props/polyhaven/stone_fire_pit/stone_fire_pit.gltf",
+    "698d7d410c2f960a36df4f27": "assets/models/furniture/polyhaven/wooden_bookshelf_worn/wooden_bookshelf_worn.gltf",
+    "698d7d420c2f960a36df4f31": "assets/textures/environment/moss_01.jpg",
+    "698d7d430c2f960a36df4f46": "assets/models/furniture/polyhaven/wooden_stool_01/wooden_stool_01.gltf",
+    "698ed950e700d29b67b1c037": "assets/models/nature/polyhaven/shrub_02/shrub_02.gltf",
+    "698ed950e700d29b67b1c039": "assets/models/nature/polyhaven/fern_02/fern_02.gltf",
+    "698ed950e700d29b67b1c03b": "assets/models/nature/polyhaven/rock_moss_set_01/rock_moss_set_01.gltf",
+    "69bd13a076278c58c1f82fc7": "assets/models/characters/legacy/Vincent-frontFacing.glb",
+    "69be6c0700a56302472afbff": "assets/models/props/polyhaven/kite_shield/kite_shield.gltf",
+    "69be6c1000a56302472afc05": "assets/models/props/polyhaven/wooden_hammer_01/wooden_hammer_01.gltf",
+    "69be6c1700a56302472afc09": "assets/models/props/polyhaven/handsaw_wood/handsaw_wood.gltf",
+    "69be6c1b00a56302472afc0b": "assets/models/props/polyhaven/rusted_spade_01/rusted_spade_01.gltf",
+    "69be6c1f00a56302472afc0d": "assets/models/props/polyhaven/baseball_bat/baseball_bat.gltf",
+    "69be6c2e00a56302472afc13": "assets/models/props/polyhaven/wine_bottles_01/wine_bottles_01.gltf",
+    "69be6c3100a56302472afc17": "assets/models/props/polyhaven/wooden_candlestick/wooden_candlestick.gltf",
+    "69be6c4300a56302472afc2b": "assets/models/props/polyhaven/brass_pot_01/brass_pot_01.gltf",
+    "69be6c4600a56302472afc2d": "assets/models/props/polyhaven/wicker_basket_01/wicker_basket_01.gltf",
+    "69be6c5a00a56302472afc3f": "assets/models/props/polyhaven/brass_vase_01/brass_vase_01.gltf",
+    "69be84cee37a17629b63f1aa": "assets/models/props/polyhaven/brass_diya_lantern/brass_diya_lantern.gltf",
+    "69be84e7e37a17629b63f1d6": "assets/models/props/polyhaven/Ottoman_01/Ottoman_01.gltf",
+    "69be84eee37a17629b63f1e0": "assets/models/props/polyhaven/WoodenChair_01/WoodenChair_01.gltf",
+    "69be84f4e37a17629b63f1e6": "assets/models/props/polyhaven/WoodenTable_03/WoodenTable_03.gltf",
+    "69be8500e37a17629b63f1f4": "assets/models/props/polyhaven/brass_vase_02/brass_vase_02.gltf",
+    "69be8547e37a17629b63f242": "assets/models/props/polyhaven/crystalline_iceplant/crystalline_iceplant.gltf",
+    "69be8597e37a17629b63f272": "assets/models/props/polyhaven/fir_tree_01/fir_tree_01.gltf",
+    "69be85bee37a17629b63f2a0": "assets/models/props/polyhaven/gate_latch_01/gate_latch_01.gltf",
+    "69be8658e37a17629b63f31c": "assets/models/props/polyhaven/moon_rock_01/moon_rock_01.gltf",
+    "69be8684e37a17629b63f34c": "assets/models/props/polyhaven/ornate_mirror_01/ornate_mirror_01.gltf",
+    "69be86e9e37a17629b63f39a": "assets/models/props/polyhaven/rock_07/rock_07.gltf",
+    "69be86ede37a17629b63f3a0": "assets/models/props/polyhaven/rock_moss_set_02/rock_moss_set_02.gltf",
+    "69be8712e37a17629b63f3ca": "assets/models/props/polyhaven/shrub_03/shrub_03.gltf",
+    "69be8712e37a17629b63f3cc": "assets/models/props/polyhaven/shrub_01/shrub_01.gltf",
+    "69be8e0375d49b7dfd385b46": "assets/textures/polyhaven/beige_wall_001/beige_wall_001_diff_1k.jpg",
+    "69be8e2075d49b7dfd385ba0": "assets/textures/polyhaven/brown_planks_03/brown_planks_03_diff_1k.jpg",
+    "69be8e2175d49b7dfd385ba6": "assets/textures/polyhaven/brown_planks_05/brown_planks_05_diff_1k.jpg",
+    "69be8e2775d49b7dfd385bb6": "assets/textures/polyhaven/castle_brick_01/castle_brick_01_diff_1k.jpg",
+    "69be8e2b75d49b7dfd385bc4": "assets/textures/polyhaven/castle_wall_slates/castle_wall_slates_diff_1k.jpg",
+    "69be8e3175d49b7dfd385bd4": "assets/textures/polyhaven/clay_roof_tiles/clay_roof_tiles_diff_1k.jpg",
+    "69be8e4375d49b7dfd385c06": "assets/textures/polyhaven/cobblestone_floor_01/cobblestone_floor_01_diff_1k.jpg",
+    "69be8e6675d49b7dfd385c74": "assets/textures/polyhaven/corrugated_iron/corrugated_iron_diff_1k.jpg",
+    "69be8e9a75d49b7dfd385d12": "assets/textures/polyhaven/forrest_ground_01/forrest_ground_01_diff_1k.jpg",
+    "69be8edf75d49b7dfd385dd8": "assets/textures/polyhaven/medieval_blocks_02/medieval_blocks_02_diff_1k.jpg",
+    "69be8ee175d49b7dfd385ddc": "assets/textures/polyhaven/medieval_wall_01/medieval_wall_01_diff_1k.jpg",
+    "69be8efe75d49b7dfd385e3c": "assets/textures/polyhaven/old_planks_02/old_planks_02_diff_1k.jpg"
+  }
+}

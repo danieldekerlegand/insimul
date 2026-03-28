@@ -1,0 +1,40 @@
+{
+  "tasks": [
+    {
+      "title": "Audit main quest content against actual game world data",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "The main quest chain 'The Missing Writer' references locations, items, and NPCs that may not exist in generated worlds. Perform a comprehensive audit. (1) Read shared/quest/main-quest-chapters.ts and catalog every location, item, NPC, and building referenced by main quest objectives. (2) Cross-reference against the actual exported game data in exports/LaLouisiane/public/data/ — check buildings.json for 'abandoned cabin', check characters.json for quest-referenced NPCs, check items.json for quest-referenced items. (3) In ExplorationDiscoverySystem.ts, the 6 default hidden locations (hidden clearing, abandoned cabin, old well, cave entrance, ancient tree, secret garden) are spawned as translucent pillars but have no actual building/structure geometry. Catalog which locations need actual 3D content. (4) Create a report listing every main quest dependency that is missing from the world generator output. (5) Ensure the world generator (server/services/world-generator.ts or equivalent) actually creates the structures/NPCs/items that the main quest references. (6) Add a 'main_quest_locations' field to the WorldIR that the IR generator populates with special locations needed by the main quest."
+    },
+    {
+      "title": "Build narrative generation system for world-specific main quest details",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "The main quest chapters in shared/quest/main-quest-chapters.ts use a generic {WRITER} placeholder for the missing writer's name, but the actual narrative details (mysteries, clues, secrets, revelations) are not procedurally generated per world. Build a narrative generation system. (1) Create shared/narrative/narrative-generator.ts that takes world data (settlement names, NPC names, building types, geography) and generates a world-specific narrative outline. (2) The generator should produce: a writer character (name, backstory, reason for disappearance), 12+ clue descriptions tied to specific locations/NPCs/items in the world, chapter-specific mystery details, red herrings, and the final revelation. (3) Use the AI provider (Gemini/local LLM) to generate narrative text during world generation, with a fallback to template-based generation if AI is unavailable. (4) Store the generated narrative in a new 'narrative' field on the world document (MongoDB). (5) The narrative should reference actual settlement names, NPC names, and building locations from the generated world — not generic placeholders. (6) Export the narrative data as part of the WorldIR so it's available in standalone exports."
+    },
+    {
+      "title": "Add Narrative editor page to the Insimul web application",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "World creators need a way to view and edit the generated narrative before exporting. (1) Add a 'Narrative' tab to the world editor (alongside Society, Assets, Data, etc.). (2) The page displays the generated narrative outline: chapter summaries, key characters, mystery arc, clue list, and revelation. (3) Each element is editable — creators can override the AI-generated text with custom narrative. (4) Add a 'Regenerate Narrative' button that re-runs the narrative generator with the current world data. (5) Show connections between narrative elements and world entities (e.g., 'Clue #3 is found at Pierre's Bakery, which is building ID xyz'). (6) Add validation: warn if the narrative references entities that don't exist in the world. (7) Create API endpoints: GET /api/worlds/:worldId/narrative, PUT /api/worlds/:worldId/narrative. (8) Typecheck passes."
+    },
+    {
+      "title": "Implement chapter cutscene/interstitial rendering system",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "The narrative beat types (chapter_intro, chapter_outro) are defined in shared/quest/main-quest-chapters.ts but have no rendering system. Build one. (1) Create shared/game-engine/rendering/NarrativeCutscenePanel.ts — a Babylon.js GUI panel that displays narrative text with cinematic presentation (dark background, centered text, atmospheric fade-in/out, optional character portrait). (2) Support multiple pages of text with 'Continue' button navigation. (3) Show chapter title and number prominently. (4) Support optional background image (settlement silhouette, terrain, or mood image). (5) Wire the panel to trigger automatically when: the game first loads (game intro), a chapter is completed (chapter_outro), a new chapter begins (chapter_intro), the game is completed (ending). (6) Add a NarrativeBeatDispatcher in the quest completion flow that checks if a completed quest triggers a narrative beat and shows the cutscene panel. (7) Store delivered narrative beats in the MainQuestState.narrativeBeatsDelivered array. (8) Cutscenes should be skippable but not auto-skipped. (9) Add a 'Review Cutscenes' option in the Game Menu journal tab to replay previously seen cutscenes."
+    },
+    {
+      "title": "Wire journal entries and case notes to quest events",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "The GameMenuSystem renders a Journal tab with an Investigation Board, Chapter Progress, and Case Notes sections (all fully implemented UI), and the ClueStore is fully implemented with 4 clue categories. However, case notes are never auto-generated from quest events, and clues are only created manually. Wire them up. (1) In QuestCompletionEngine, when a main quest objective is completed, auto-generate a CaseNote with the appropriate category (clue, npc_interview, text_found, location_visited, chapter_event). Use the quest objective description as the note text. (2) When a text document with a clueText field is collected, auto-create a clue via ClueStore.addTextClue(). (3) When a conversation contains investigation keywords (ClueStore already has 41 keywords like 'writer', 'missing', 'manuscript'), auto-create a conversation clue via ClueStore.addConversationClue(). (4) When a hidden location from ExplorationDiscoverySystem is investigated and has writerSecretSpot=true, create a physical evidence clue. (5) When a photo is taken of a clue-relevant subject, create a photo evidence clue. (6) Update the GameMenuSystem Investigation Board to show real-time stats from ClueStore and MainQuestState. (7) Test that completing main quest objectives produces visible journal entries and clues."
+    },
+    {
+      "title": "Ensure main quest is playable from start to finish in exported game",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Integration pass to make the full main quest arc work end-to-end in an exported game. (1) Verify that the world generator creates all required main quest content: the writer NPC (or evidence of their existence), the abandoned cabin (as an actual building with interior), hidden locations with investigation points, text documents containing clues, NPCs who know about the missing writer. (2) Verify that chapter CEFR gating works: chapters unlock when the player reaches the required CEFR level. (3) Verify that chapter objectives can all be completed through actual gameplay actions (not just data). (4) Verify that completing all 6 chapters triggers the game completion flow (PlaythroughCompletionPanel). (5) Test the full arc in an exported LaLouisiane game: arrival assessment → chapter 1 objectives → chapter 1 completion → cutscene → chapter 2 unlock → ... → chapter 6 → ending cutscene → completion panel. (6) Fix any broken links in the chain. (7) Document the complete main quest walkthrough."
+    }
+  ]
+}

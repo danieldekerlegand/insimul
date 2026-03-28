@@ -25,6 +25,8 @@ import { spawnMainQuestNPCs } from '../services/main-quest-npc-spawner.js';
 import { assignDefaultOccupations } from './occupation-assignment.js';
 // Population scaling
 import { countBuildings, calculatePopulationTarget } from './population-scaling.js';
+// Territory generation
+import { generateWorldGeography, resolveScaleConfig, getSettlementBaseRadius, type WorldScale, type ScaleConfig } from './territory-generator.js';
 
 export interface WorldGenerationConfig {
   worldName: string;
@@ -151,7 +153,56 @@ export class WorldGenerator {
     
     const settlement = await storage.createSettlement(settlementData);
     console.log(`✅ Created settlement: ${settlement.id}`);
-    
+
+    // Generate world geography — territory boundaries, settlement world positions
+    console.log('\n🗺️  Generating world territory layout...');
+    const worldScale = (config as any).worldScale as WorldScale | ScaleConfig | undefined;
+    const geoLayout = generateWorldGeography({
+      worldId: world.id,
+      seed: `${world.id}-territory`,
+      scale: worldScale || 'standard',
+      countries: [{
+        id: country.id,
+        terrain: config.terrain,
+        settlements: [{
+          id: settlement.id,
+          type: config.settlementType,
+          terrain: config.terrain,
+          population: this.estimatePopulation(config.settlementType),
+        }],
+      }],
+    });
+
+    // Persist world map dimensions
+    await storage.updateWorld(world.id, {
+      mapWidth: geoLayout.mapWidth,
+      mapDepth: geoLayout.mapDepth,
+      mapCenter: geoLayout.mapCenter,
+    } as any);
+
+    // Persist country territory
+    const countryGeo = geoLayout.countries.get(country.id);
+    if (countryGeo) {
+      await storage.updateCountry(country.id, {
+        position: countryGeo.position,
+        territoryPolygon: countryGeo.territoryPolygon,
+        territoryRadius: countryGeo.territoryRadius,
+      } as any);
+    }
+
+    // Persist settlement world position and radius
+    const settlementGeo = geoLayout.settlements.get(settlement.id);
+    if (settlementGeo) {
+      await storage.updateSettlement(settlement.id, {
+        worldPositionX: settlementGeo.worldPositionX,
+        worldPositionZ: settlementGeo.worldPositionZ,
+        radius: settlementGeo.radius,
+      } as any);
+    }
+    console.log(`   ✓ World map: ${geoLayout.mapWidth}×${geoLayout.mapDepth} units`);
+    console.log(`   ✓ Country territory: radius ${countryGeo?.territoryRadius ?? '?'}`);
+    console.log(`   ✓ Settlement at (${settlementGeo?.worldPositionX?.toFixed(0) ?? '?'}, ${settlementGeo?.worldPositionZ?.toFixed(0) ?? '?'}) radius ${settlementGeo?.radius ?? '?'}`);
+
     let population = 0;
     let families = 0;
     let generationsCreated = 0;
@@ -710,6 +761,7 @@ export class WorldGenerator {
         try {
           const business = await foundBusiness({
             worldId: config.worldId,
+            settlementId: config.settlementId,
             founderId: founder.id,
             name: this.generateBusinessName(businessType, founder),
             businessType: businessType,
@@ -1077,10 +1129,14 @@ export class WorldGenerator {
       const newResidences: any[] = [];
       for (let i = 0; i < housesNeeded; i++) {
         // Create a lot for each overflow residence
+        const houseNum = residences.length + i + 1;
+        const streetName = residentialLot?.streetName || 'Main Street';
         const lot = await storage.createLot({
           worldId: config.worldId,
           settlementId: config.settlementId,
-          address: `${baseAddress} #${residences.length + i + 1}`,
+          address: `${houseNum} ${streetName}`,
+          streetName,
+          houseNumber: houseNum,
           zoning: 'residential',
         });
         newResidences.push({

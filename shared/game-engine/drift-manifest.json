@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-28T12:53:28.440Z",
+  "lastUpdated": "2026-03-28T17:26:15.790Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -217,7 +217,7 @@
     {
       "path": "shared/game-engine/rendering/WorldScaleManager.ts",
       "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
-      "hash": "6f9db2e4028c527342cb9c583d07bae67e9675a01e001025ead08f16a45c1e86",
+      "hash": "1be7ac983e6ff1732a8e9f804d8e9df16e63d47e34be050a915c9df034bb5601",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -392,7 +392,7 @@
     {
       "path": "shared/game-engine/rendering/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "a5b3e86003090bb8bad1bf608390ec3fe4f6f25e8c5639eb0af1152739606694",
+      "hash": "52907b7c0ebe2f70aefc6dd8e933ad666052de820491913fd036f32db5bf2d16",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -612,7 +612,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonMinimap.ts",
       "description": "Minimap: top-down rendering, building/NPC/quest markers, player indicator.",
-      "hash": "2cf7441c05272a8d92375bb9919012bc1f1b89c87f9bd6b19689e20550d29a0e",
+      "hash": "c0f1cc2d094c1cf35ffe677f018bba29e9b8de911bd2edb0aa62fb397f6c4b76",
       "engineMappings": [
         {
           "engine": "unity",

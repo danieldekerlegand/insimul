@@ -1,0 +1,40 @@
+{
+  "tasks": [
+    {
+      "title": "Audit all 45 objective types for end-to-end completion wiring",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "The QuestCompletionEngine supports 45 objective types (shared/quest-objective-types.ts) and the GameEventBus has 80+ event types. However, not all objective types are verified to work end-to-end (event emission → completion tracking → quest state update → reward). Perform a comprehensive audit. (1) For each of the 45 ACHIEVABLE_OBJECTIVE_TYPES, trace the full path: which GameEventBus event triggers it, which QuestCompletionEngine handler processes it, and what gameplay action emits that event. (2) Identify any objective types that have no event emitter (the action exists in the completion engine but nothing in the game actually fires the event). (3) Identify any objective types where the completion handler exists but the field matching is wrong (e.g., npcId doesn't match, itemName case mismatch). (4) Create a test matrix: 45 rows × 4 columns (objective type, triggering event, emitting system, verified working). (5) Write automated tests in shared/game-engine/rendering/__tests__/quest-action-wiring.test.ts that verify each objective type has both an event emitter and a completion handler. (6) Fix any broken wiring found during the audit."
+    },
+    {
+      "title": "Enhance conversation-based quest completion with LLM interpretation",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Currently, conversation-based quest completion relies on keyword matching (ClueStore's 41 keywords) and turn counting. This misses nuanced quest objectives like 'learn the writer's name' or 'ask about local customs'. Enhance with LLM interpretation. (1) Add a 'conversation_goal' field to quest objectives that describes what the player needs to accomplish in conversation (e.g., 'Learn the name of the missing writer from this NPC'). (2) After each NPC conversation ends, if the active quest has a conversation_goal objective, send the conversation transcript + goal to the AI provider for evaluation. (3) The AI returns a structured response: { goalMet: boolean, confidence: number, extractedInfo: string }. (4) If goalMet and confidence > 0.7, complete the objective and store extractedInfo as a clue. (5) For offline/exported games without AI, fall back to keyword matching with an expanded keyword set generated per-quest during world generation. (6) Add the conversation_goal evaluation to the QuestCompletionEngine's conversation tracking flow. (7) Test with example conversations: player asks NPC about the missing writer, NPC reveals the name → objective should complete."
+    },
+    {
+      "title": "Wire eavesdrop events to quest completion and clue discovery",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "The conversation_overheard event exists and GamePrologEngine already asserts facts from it, but eavesdropping doesn't trigger quest objective completion or create clues. Wire it up. (1) Add an 'eavesdrop' objective type to ACHIEVABLE_OBJECTIVE_TYPES that completes when the player overhears a conversation about a specific topic. (2) In QuestCompletionEngine, add a handler for conversation_overheard events that checks if the topic matches any active quest's eavesdrop objective. (3) When an eavesdrop objective is completed, auto-create a witness_testimony clue via ClueStore.addConversationClue() with the overheard content. (4) NPCs should sometimes have conversations about the main quest mystery (the missing writer) that the player can overhear for clues. Add main-quest-relevant ambient conversation topics to the NPC conversation system. (5) The eavesdrop UI (BabylonChatPanel or a dedicated panel) should show a transcript of what was overheard, with vocabulary words highlighted. (6) Award XP for successful eavesdropping (already partially implemented via LanguageGamificationTracker)."
+    },
+    {
+      "title": "Connect quest completion rewards to vocabulary, knowledge, and skill tree",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Quest completions emit events (quest_completed, xp_gained, skill_rewards_applied) but the connection to the vocabulary list, knowledge system, and skill tree is loose. Tighten it. (1) When a quest is completed, any target vocabulary words used during the quest should be marked as 'practiced' in the VocabularyCollectionSystem, increasing their mastery level. (2) When a text collection quest is completed (collect_text, read_text), the vocabulary from that text should be added to the player's vocabulary list automatically. (3) When a conversation quest is completed, extract any new vocabulary the NPC used and add it to the player's vocabulary with 'encountered' status. (4) Knowledge entries (KnowledgeCollectionSystem) should be created for main quest discoveries: learning an NPC's name, discovering a location, finding a clue. (5) Skill tree unlocks should be driven by milestone quest completions: completing Chapter 1 unlocks the 'Conversation' skill branch, Chapter 2 unlocks 'Reading', etc. (6) Add a quest completion summary panel that shows: XP earned, new vocabulary learned, knowledge gained, skills unlocked."
+    },
+    {
+      "title": "Add physical action hotspots that trigger quest-relevant events",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "The FishingSystem, MiningSystem, HerbalismSystem, and RecipeCraftingSystem emit physical_action_completed events, but there are limited places in the world where these actions can actually be performed. Ensure the world has actionable hotspots. (1) During world generation, place action hotspots at appropriate locations: fishing spots near water features, herb gathering spots in forests/gardens, cooking stations in restaurants/homes. (2) Each hotspot should have a visible indicator (subtle particle effect or ground marker) that tells the player an action is available. (3) When the player interacts with a hotspot, show the radial action menu with available actions. (4) Completing a physical action at a hotspot should: award XP, potentially complete a quest objective, add any produced items to inventory, and teach the vocabulary for the items produced (in the target language). (5) Generate quest content that uses these hotspots: 'Catch a fish at the river' (vocabulary: poisson, rivière), 'Gather herbs from the garden' (vocabulary: herbe, jardin), 'Cook a meal at the restaurant' (vocabulary: cuisine, repas). (6) Ensure the ItemSpawnSystem and ExteriorItemManager create visible props at hotspot locations."
+    },
+    {
+      "title": "Implement watch/observe action for NPC activity observation",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "The observe_activity and photograph_activity objective types exist but the observation mechanic needs stronger gameplay integration. (1) When the player stands near an NPC who is performing a scheduled activity (working, eating, socializing) for 5+ seconds, emit an activity_observed event with the NPC's current activity type and location. (2) Show a subtle UI indicator ('Observing...') with a progress ring that fills over 5 seconds. (3) After observation completes, show the activity name in the target language with translation (e.g., 'Il travaille — He is working'). (4) Add this vocabulary to the player's collection. (5) Create observe_activity quests: 'Watch a farmer at work', 'Observe the baker making bread', 'See the blacksmith at the forge'. (6) Wire activity_observed events to QuestCompletionEngine for observe_activity objectives. (7) Combine with photography: 'Photograph the farmer at work' requires both observing and taking a photo of the activity."
+    }
+  ]
+}

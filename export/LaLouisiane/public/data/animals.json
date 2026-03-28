@@ -1,0 +1,452 @@
+[
+  {
+    "id": "animal_69c7efb954de6edea916a67b_cat_0",
+    "species": "cat",
+    "position": {
+      "x": -338.86137713791294,
+      "y": 0,
+      "z": -328.26476050070755
+    },
+    "rotation": 3.741468781682659,
+    "homePosition": {
+      "x": -338.86137713791294,
+      "y": 0,
+      "z": -328.26476050070755
+    },
+    "wanderRadius": 11.199202631742482,
+    "speed": 1.4081750685871055,
+    "color": {
+      "r": 0.9,
+      "g": 0.5,
+      "b": 0.1
+    },
+    "scale": 0.9159922839506173,
+    "vocabularyWord": "cat",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_cat_1",
+    "species": "cat",
+    "position": {
+      "x": -345.3191397309676,
+      "y": 0,
+      "z": -322.6553735496205
+    },
+    "rotation": 1.754244436908066,
+    "homePosition": {
+      "x": -345.3191397309676,
+      "y": 0,
+      "z": -322.6553735496205
+    },
+    "wanderRadius": 11.317229213273677,
+    "speed": 0.9693991769547325,
+    "color": {
+      "r": 0.2,
+      "g": 0.2,
+      "b": 0.2
+    },
+    "scale": 0.967991255144033,
+    "vocabularyWord": "cat",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_cat_2",
+    "species": "cat",
+    "position": {
+      "x": -376.4735948389441,
+      "y": 0,
+      "z": -333.2813879498586
+    },
+    "rotation": 0.6768537670157022,
+    "homePosition": {
+      "x": -376.4735948389441,
+      "y": 0,
+      "z": -333.2813879498586
+    },
+    "wanderRadius": 7.137022200472284,
+    "speed": 1.035858024691358,
+    "color": {
+      "r": 0.2,
+      "g": 0.2,
+      "b": 0.2
+    },
+    "scale": 0.9237174211248286,
+    "vocabularyWord": "cat",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_cat_3",
+    "species": "cat",
+    "position": {
+      "x": -345.25398149455407,
+      "y": 0,
+      "z": -326.7433899403726
+    },
+    "rotation": 5.376826130345309,
+    "homePosition": {
+      "x": -345.25398149455407,
+      "y": 0,
+      "z": -326.7433899403726
+    },
+    "wanderRadius": 6.396556984837186,
+    "speed": 1.213304526748971,
+    "color": {
+      "r": 0.2,
+      "g": 0.2,
+      "b": 0.2
+    },
+    "scale": 1.0028489368998628,
+    "vocabularyWord": "cat",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_cat_4",
+    "species": "cat",
+    "position": {
+      "x": -326.37156031718837,
+      "y": 0,
+      "z": -336.139632455483
+    },
+    "rotation": 4.431951199956218,
+    "homePosition": {
+      "x": -326.37156031718837,
+      "y": 0,
+      "z": -336.139632455483
+    },
+    "wanderRadius": 10.735822380686056,
+    "speed": 1.3580349794238684,
+    "color": {
+      "r": 0.2,
+      "g": 0.2,
+      "b": 0.2
+    },
+    "scale": 1.0936574074074075,
+    "vocabularyWord": "cat",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_cat_5",
+    "species": "cat",
+    "position": {
+      "x": -348.84210027222565,
+      "y": 0,
+      "z": -334.60418396417276
+    },
+    "rotation": 2.942468901120749,
+    "homePosition": {
+      "x": -348.84210027222565,
+      "y": 0,
+      "z": -334.60418396417276
+    },
+    "wanderRadius": 12.370646128511062,
+    "speed": 1.4152345679012346,
+    "color": {
+      "r": 0.2,
+      "g": 0.2,
+      "b": 0.2
+    },
+    "scale": 0.9658959190672154,
+    "vocabularyWord": "cat",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_dog_0",
+    "species": "dog",
+    "position": {
+      "x": -366.10683624911684,
+      "y": 0,
+      "z": -337.1593452010702
+    },
+    "rotation": 2.9833817889877148,
+    "homePosition": {
+      "x": -366.10683624911684,
+      "y": 0,
+      "z": -337.1593452010702
+    },
+    "wanderRadius": 11.677495274567072,
+    "speed": 2.0094067215363514,
+    "color": {
+      "r": 0.9,
+      "g": 0.85,
+      "b": 0.7
+    },
+    "scale": 0.7321947873799726,
+    "vocabularyWord": "dog",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_dog_1",
+    "species": "dog",
+    "position": {
+      "x": -343.7627964978777,
+      "y": 0,
+      "z": -327.01714143412005
+    },
+    "rotation": 0.8119282453914979,
+    "homePosition": {
+      "x": -343.7627964978777,
+      "y": 0,
+      "z": -327.01714143412005
+    },
+    "wanderRadius": 12.691008575689784,
+    "speed": 1.5183395061728395,
+    "color": {
+      "r": 0.55,
+      "g": 0.35,
+      "b": 0.15
+    },
+    "scale": 0.9410828189300412,
+    "vocabularyWord": "dog",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_dog_2",
+    "species": "dog",
+    "position": {
+      "x": -353.08864214725253,
+      "y": 0,
+      "z": -342.8143413878757
+    },
+    "rotation": 0.8302164948066855,
+    "homePosition": {
+      "x": -353.08864214725253,
+      "y": 0,
+      "z": -342.8143413878757
+    },
+    "wanderRadius": 9.498361206914408,
+    "speed": 1.4830138888888889,
+    "color": {
+      "r": 0.6,
+      "g": 0.3,
+      "b": 0.1
+    },
+    "scale": 1.1633725994513033,
+    "vocabularyWord": "dog",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_dog_3",
+    "species": "dog",
+    "position": {
+      "x": -344.5233804654045,
+      "y": 0,
+      "z": -328.6817973890283
+    },
+    "rotation": 2.320722289191164,
+    "homePosition": {
+      "x": -344.5233804654045,
+      "y": 0,
+      "z": -328.6817973890283
+    },
+    "wanderRadius": 9.186922668613803,
+    "speed": 1.7522359396433471,
+    "color": {
+      "r": 0.6,
+      "g": 0.3,
+      "b": 0.1
+    },
+    "scale": 1.0321147976680385,
+    "vocabularyWord": "dog",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_dog_4",
+    "species": "dog",
+    "position": {
+      "x": -330.0694200594768,
+      "y": 0,
+      "z": -335.81293077484463
+    },
+    "rotation": 2.936947411974779,
+    "homePosition": {
+      "x": -330.0694200594768,
+      "y": 0,
+      "z": -335.81293077484463
+    },
+    "wanderRadius": 5.908939418655232,
+    "speed": 2.2199554183813444,
+    "color": {
+      "r": 0.9,
+      "g": 0.85,
+      "b": 0.7
+    },
+    "scale": 0.874880658436214,
+    "vocabularyWord": "dog",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_bird_0",
+    "species": "bird",
+    "position": {
+      "x": -368.17949733811247,
+      "y": 0,
+      "z": -325.5839457132893
+    },
+    "rotation": 0.09968307965479958,
+    "homePosition": {
+      "x": -368.17949733811247,
+      "y": 0,
+      "z": -325.5839457132893
+    },
+    "wanderRadius": 16.87285172756649,
+    "speed": 2.550420781893004,
+    "color": {
+      "r": 0.3,
+      "g": 0.3,
+      "b": 0.3
+    },
+    "scale": 1.080417095336077,
+    "vocabularyWord": "bird",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_bird_1",
+    "species": "bird",
+    "position": {
+      "x": -372.7782264892521,
+      "y": 0,
+      "z": -336.9769209360585
+    },
+    "rotation": 2.8652488553573576,
+    "homePosition": {
+      "x": -372.7782264892521,
+      "y": 0,
+      "z": -336.9769209360585
+    },
+    "wanderRadius": 8.704924652000994,
+    "speed": 2.745144375857339,
+    "color": {
+      "r": 0.9,
+      "g": 0.8,
+      "b": 0.1
+    },
+    "scale": 0.8970138031550069,
+    "vocabularyWord": "bird",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_bird_2",
+    "species": "bird",
+    "position": {
+      "x": -321.3653633093569,
+      "y": 0,
+      "z": -315.180971555067
+    },
+    "rotation": 4.000224616928176,
+    "homePosition": {
+      "x": -321.3653633093569,
+      "y": 0,
+      "z": -315.180971555067
+    },
+    "wanderRadius": 10.280686987322895,
+    "speed": 2.8540973936899867,
+    "color": {
+      "r": 0.9,
+      "g": 0.8,
+      "b": 0.1
+    },
+    "scale": 0.7943630401234568,
+    "vocabularyWord": "bird",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_bird_3",
+    "species": "bird",
+    "position": {
+      "x": -318.14000850640315,
+      "y": 0,
+      "z": -325.87085517047717
+    },
+    "rotation": 0.22726988006679247,
+    "homePosition": {
+      "x": -318.14000850640315,
+      "y": 0,
+      "z": -325.87085517047717
+    },
+    "wanderRadius": 16.010317704449413,
+    "speed": 2.427836934156378,
+    "color": {
+      "r": 0.3,
+      "g": 0.3,
+      "b": 0.3
+    },
+    "scale": 1.0152856652949247,
+    "vocabularyWord": "bird",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_bird_4",
+    "species": "bird",
+    "position": {
+      "x": -337.8779598688493,
+      "y": 0,
+      "z": -322.5110907830659
+    },
+    "rotation": 4.093362711887997,
+    "homePosition": {
+      "x": -337.8779598688493,
+      "y": 0,
+      "z": -322.5110907830659
+    },
+    "wanderRadius": 19.7496333581904,
+    "speed": 2.6166580932784638,
+    "color": {
+      "r": 0.8,
+      "g": 0.2,
+      "b": 0.2
+    },
+    "scale": 1.0496493484224967,
+    "vocabularyWord": "bird",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_bird_5",
+    "species": "bird",
+    "position": {
+      "x": -372.12441351538706,
+      "y": 0,
+      "z": -342.11583189324665
+    },
+    "rotation": 3.478161084653391,
+    "homePosition": {
+      "x": -372.12441351538706,
+      "y": 0,
+      "z": -342.11583189324665
+    },
+    "wanderRadius": 13.137000838926175,
+    "speed": 2.698923010973937,
+    "color": {
+      "r": 0.3,
+      "g": 0.3,
+      "b": 0.3
+    },
+    "scale": 1.1519727366255146,
+    "vocabularyWord": "bird",
+    "vocabularyCategory": "animals"
+  },
+  {
+    "id": "animal_69c7efb954de6edea916a67b_bird_6",
+    "species": "bird",
+    "position": {
+      "x": -336.46401520531833,
+      "y": 0,
+      "z": -308.55701960792703
+    },
+    "rotation": 0.6893781204443652,
+    "homePosition": {
+      "x": -336.46401520531833,
+      "y": 0,
+      "z": -308.55701960792703
+    },
+    "wanderRadius": 8.876558849117574,
+    "speed": 2.8057530864197537,
+    "color": {
+      "r": 0.9,
+      "g": 0.8,
+      "b": 0.1
+    },
+    "scale": 0.9038165723593965,
+    "vocabularyWord": "bird",
+    "vocabularyCategory": "animals"
+  }
+]

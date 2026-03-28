@@ -16,7 +16,7 @@ class GeminiContentProvider implements IContentGenerationProvider {
   readonly name = 'gemini';
 
   async generate(request: ContentGenerationRequest): Promise<ContentGenerationResponse> {
-    const { getGenerativeAI, GEMINI_MODELS } = await import('../../config/gemini.js');
+    const { getGenAI, GEMINI_MODELS } = await import('../../config/gemini.js');
 
     const modelMap: Record<string, string> = {
       fast: GEMINI_MODELS.FLASH,
@@ -25,22 +25,22 @@ class GeminiContentProvider implements IContentGenerationProvider {
     };
     const modelName = modelMap[request.model ?? 'fast'] ?? GEMINI_MODELS.FLASH;
 
-    const genAI = getGenerativeAI();
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      generationConfig: {
-        temperature: request.temperature ?? 0.7,
-        maxOutputTokens: request.maxTokens ?? 2048,
-        ...(request.responseMimeType && { responseMimeType: request.responseMimeType }),
-      },
-    });
+    const ai = getGenAI();
 
     const prompt = request.systemPrompt
       ? `${request.systemPrompt}\n\n${request.prompt}`
       : request.prompt;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const result = await ai.models.generateContent({
+      model: modelName,
+      contents: prompt,
+      config: {
+        temperature: request.temperature ?? 0.7,
+        maxOutputTokens: request.maxTokens ?? 2048,
+        ...(request.responseMimeType && { responseMimeType: request.responseMimeType }),
+      },
+    });
+    const text = result.text ?? '';
 
     return { text, model: modelName, provider: this.name };
   }

@@ -1091,6 +1091,7 @@ export class GeographyGenerator {
       const createdResidences = await (storage as any).createResidencesInBulk(residenceDocs);
       let resIdx = 0;
       for (let i = 0; i < createdLots.length; i++) {
+        if (lotDocs[i]._buildingIndex === -1) continue; // Skip park lots
         if (lotDocs[i]._isResidence) {
           await storage.updateLot(createdLots[i].id, { buildingId: createdResidences[resIdx].id });
           resIdx++;
@@ -1102,6 +1103,7 @@ export class GeographyGenerator {
       const createdBusinesses = await (storage as any).createBusinessesInBulk(businessDocs);
       let bizIdx = 0;
       for (let i = 0; i < createdLots.length; i++) {
+        if (lotDocs[i]._buildingIndex === -1) continue; // Skip park lots
         if (!lotDocs[i]._isResidence) {
           await storage.updateLot(createdLots[i].id, { buildingId: createdBusinesses[bizIdx].id });
           bizIdx++;

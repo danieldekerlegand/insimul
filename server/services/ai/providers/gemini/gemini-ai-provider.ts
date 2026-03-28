@@ -7,7 +7,6 @@
  */
 
 import {
-  getGenerativeAI,
   getGenAI,
   isGeminiConfigured,
   GEMINI_MODELS,
@@ -49,22 +48,22 @@ export class GeminiAIProvider implements IAIProvider {
   /* ---- Text generation (single) ---- */
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
-    const genAI = getGenerativeAI();
-    const model = genAI.getGenerativeModel({ model: this.model });
+    const ai = getGenAI();
 
     const prompt = request.systemPrompt
       ? `${request.systemPrompt}\n\n${request.prompt}`
       : request.prompt;
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
+    const result = await ai.models.generateContent({
+      model: this.model,
+      contents: prompt,
+      config: {
         temperature: request.temperature ?? this.defaultTemperature,
         maxOutputTokens: request.maxTokens || this.maxTokens,
       },
     });
 
-    const text = result.response.text();
+    const text = result.text ?? '';
     const tokensUsed = Math.ceil(text.length / 4); // rough estimate
 
     return { text, tokensUsed, model: this.model, provider: this.name };
@@ -115,29 +114,33 @@ export class GeminiAIProvider implements IAIProvider {
     context: ConversationContext,
     options?: StreamCompletionOptions,
   ): AsyncIterable<string> {
-    const genAI = getGenerativeAI();
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_MODELS.PRO,
-      systemInstruction: context.systemPrompt,
-    });
+    const ai = getGenAI();
 
     const history = (options?.conversationHistory || []).map((msg) => ({
       role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
       parts: [{ text: msg.content }],
     }));
 
-    const chat = model.startChat({
-      history,
-      generationConfig: {
+    // Build contents: system prompt exchange + history + current message
+    const contents: any[] = [];
+    if (context.systemPrompt) {
+      contents.push({ role: 'user', parts: [{ text: context.systemPrompt }] });
+      contents.push({ role: 'model', parts: [{ text: 'Understood.' }] });
+    }
+    contents.push(...history);
+    contents.push({ role: 'user', parts: [{ text: prompt }] });
+
+    const stream = ai.models.generateContentStream({
+      model: GEMINI_MODELS.PRO,
+      contents,
+      config: {
         temperature: options?.temperature ?? 0.8,
         maxOutputTokens: options?.maxTokens ?? 1024,
       },
     });
 
-    const result = await chat.sendMessageStream(prompt);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
+    for await (const chunk of stream) {
+      const text = chunk.text;
       if (text) {
         yield text;
       }

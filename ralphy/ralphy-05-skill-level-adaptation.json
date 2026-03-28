@@ -1,0 +1,34 @@
+{
+  "tasks": [
+    {
+      "title": "Make NPC language behavior algorithmically respond to CEFR level",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Currently, CEFR adaptation works by embedding speech complexity rules in the NPC system prompt and hoping the LLM follows them. Make it algorithmic. (1) In the dialogue context generation (server or export), set each NPC's nativeLanguage and englishProficiency based on the player's CEFR level. At A1: 60% of NPCs speak both English and target language (bilingual mode), 40% speak only target language but use very simple words. At A2: 30% bilingual, 70% target-only with simple vocab. At B1: 10% bilingual, 90% target-only with natural vocab. At B2: 100% target-only, natural speed. (2) Add a 'languageMode' field to NPC dialogue contexts: 'bilingual' (mixes languages), 'simplified' (target language only, simple), 'natural' (target language, normal). (3) The system prompt for bilingual NPCs should explicitly instruct: 'Mix [English] and [French] in your responses. Say important words in both languages.' (4) The system prompt for simplified NPCs should explicitly instruct: 'Use only very simple [French]. If the player seems confused, offer a translation in brackets.' (5) Update buildLanguageAwareSystemPrompt() to use these algorithmic rules rather than just embedding proficiency parameters. (6) Test with A1, A2, B1, B2 profiles and verify NPCs actually behave differently."
+    },
+    {
+      "title": "Scale hint frequency and vocabulary tooltip behavior by CEFR level",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "The HoverTranslationSystem shows translations on word hover, and hint timers exist in BabylonChatPanel, but neither scales by player proficiency. (1) In HoverTranslationSystem, at A1/A2: automatically show translations for all unknown words (words not in the player's mastered vocabulary) without requiring hover — display them as inline subtitles below the target language text. At B1: show translations on hover only. At B2: show translations only on click (not hover). (2) In BabylonChatPanel, at A1: add a 'Translate' button to each NPC message bubble that shows the full English translation. At A2: show the translate button but make it less prominent. At B1+: no translate button (player should try to understand). (3) Add vocabulary hint cards that pop up in the chat when the NPC uses a word the player hasn't seen before: show the word, its translation, and part of speech. At A1: show for every new word. At A2: show for every 3rd new word. At B1+: show only for advanced vocabulary. (4) Configure hint frequency in the getSpeechComplexity() output and read it in the chat panel. (5) Track which words the player has 'mastered' (seen 5+ times and used correctly at least once) to avoid showing hints for known words."
+    },
+    {
+      "title": "Adapt quest difficulty and text complexity to CEFR level",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Quest descriptions, text documents, and comprehension questions should match the player's CEFR level. (1) When generating quests (server-side), tag each quest with a target CEFR level. During gameplay, the quest offer system should prioritize quests at or slightly above the player's current level. (2) Quest objective descriptions (the text shown in the quest tracker) should be written at the appropriate CEFR level: A1 quests use basic vocabulary and simple sentences, B2 quests use complex structures. (3) Text documents should filter by CEFR: at A1, only show A1-level documents in the world. As the player advances, spawn higher-level documents. (4) Comprehension quiz questions should scale: A1 gets simple true/false or 'What color is X?', B2 gets inferential 'Why did the character do X?' questions. (5) The main quest chapter CEFR gates already exist (A1→A2→B1→B2) — ensure side quests also respect this progression. (6) Add a 'recommendedCefrLevel' field to quest data and filter the quest offer panel by it."
+    },
+    {
+      "title": "Implement progressive difficulty increase as player improves",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "The player's proficiency should increase over time based on their gameplay actions, and the game should respond. (1) Track proficiency progression metrics in LanguageProgressTracker: words learned (vocabulary count), words mastered (used correctly 5+ times), grammar patterns recognized, conversations completed, texts read. (2) Define automatic CEFR upgrade thresholds: A1→A2 after 50 words learned + 3 conversations, A2→B1 after 150 words + 10 conversations + 5 texts read, B1→B2 after 300 words + 25 conversations + 15 texts. (3) When the player crosses a threshold, trigger a periodic assessment (already supported via periodic-encounter.ts) to confirm the upgrade. (4) On confirmed upgrade, show a celebration notification: 'Your French has improved! You are now at A2 level.' (5) Immediately adjust NPC behavior, hint frequency, text difficulty, and quest recommendations to the new level. (6) Store proficiency milestones in the save state. (7) The Game Menu should show current CEFR level prominently with a progress bar toward the next level."
+    },
+    {
+      "title": "Add CEFR-aware quest generation during world creation",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Currently, quests are generated with difficulty labels (beginner/intermediate/advanced) but the mapping to CEFR and the actual vocabulary content isn't controlled. Improve quest generation. (1) During world generation, generate quest pools stratified by CEFR level: 30+ A1 quests (simple vocabulary, basic actions), 25+ A2 quests (expanded vocabulary, multi-step), 15+ B1 quests (complex conversations, reading comprehension), 10+ B2 quests (nuanced dialogue, cultural context). (2) Each quest should specify its target vocabulary: the specific words the player will learn by completing it. (3) Quest vocabulary should be drawn from frequency-ranked word lists for the target language (shared/language/french-vocabulary-corpus.ts already exists). (4) A1 quests use the 200 most common words, A2 uses 201-500, B1 uses 501-1500, B2 uses 1500+. (5) Quest descriptions and NPC dialogue prompts should use vocabulary at or below the quest's CEFR level. (6) Tag generated quests with their vocabulary words so the learning tracker can credit them on completion."
+    }
+  ]
+}

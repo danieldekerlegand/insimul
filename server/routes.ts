@@ -162,6 +162,7 @@ import {
   getBusinessStatistics 
 } from "./extensions/tott/business-system.js";
 import { WorldGenerator } from "./generators/world-generator.js";
+import { generateWorldGeography, resolveScaleConfig, getSettlementBaseRadius, type WorldScale } from "./generators/territory-generator.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerPlaythroughRoutes } from "./routes/playthrough-routes.js";
 import { registerExportRoutes } from "./routes/export-routes.js";
@@ -2260,14 +2261,15 @@ app.get("/api/rules", async (req, res) => {
   // Business Management endpoints (TotT Business System)
   app.post("/api/businesses/found", async (req, res) => {
     try {
-      const { worldId, founderId, name, businessType, address, currentYear, currentTimestep, initialVacancies } = req.body;
-      
+      const { worldId, settlementId, founderId, name, businessType, address, currentYear, currentTimestep, initialVacancies } = req.body;
+
       if (!worldId || !founderId || !name || !businessType || !address || currentYear === undefined || currentTimestep === undefined) {
         return res.status(400).json({ error: "Missing required fields: worldId, founderId, name, businessType, address, currentYear, currentTimestep" });
       }
-      
+
       const business = await foundBusiness({
         worldId,
+        settlementId,
         founderId,
         name,
         businessType,
@@ -4229,6 +4231,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         foundedYear: number;
         generateStates: boolean;
         numStatesPerCountry: number;
+        numHamletsPerState: number;
         numCitiesPerState: number;
         numTownsPerState: number;
         numVillagesPerState: number;
@@ -4238,12 +4241,27 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         fertilityRate: number;
         deathRate: number;
       }> = config.countries && Array.isArray(config.countries) && config.countries.length > 0
-        ? config.countries
+        ? config.countries.map((c: any) => ({
+            terrain: c.terrain || 'plains',
+            foundedYear: c.foundedYear || 1850,
+            generateStates: c.generateStates !== false,
+            numStatesPerCountry: c.numStatesPerCountry || 1,
+            numHamletsPerState: c.numHamletsPerState ?? 0,
+            numCitiesPerState: c.numCitiesPerState ?? 0,
+            numTownsPerState: c.numTownsPerState ?? 1,
+            numVillagesPerState: c.numVillagesPerState ?? 0,
+            numFoundingFamilies: c.numFoundingFamilies || 10,
+            generations: c.generations || 4,
+            marriageRate: c.marriageRate || 0.7,
+            fertilityRate: c.fertilityRate || 0.6,
+            deathRate: c.deathRate || 0.3,
+          }))
         : Array(config.numCountries || 1).fill(null).map(() => ({
             terrain: config.terrain || 'plains',
             foundedYear: config.foundedYear || 1850,
             generateStates: config.generateStates !== false,
             numStatesPerCountry: config.numStatesPerCountry || 1,
+            numHamletsPerState: config.numHamletsPerState ?? 0,
             numCitiesPerState: config.numCitiesPerState ?? 0,
             numTownsPerState: config.numTownsPerState ?? 1,
             numVillagesPerState: config.numVillagesPerState ?? 0,
@@ -4265,22 +4283,37 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         const world = await storage.getWorld(config.worldId);
 
         // Build settlement plan across ALL countries
-        const settlementPlan: Array<{ type: 'city' | 'town' | 'village'; numFamilies: number; childrenPerFamily: number }> = [];
+        const settlementPlan: Array<{ type: 'city' | 'town' | 'village' | 'hamlet'; numFamilies: number; childrenPerFamily: number }> = [];
         // Track which settlements belong to which country (for later assignment)
         const countrySettlementRanges: Array<{ start: number; end: number; statesCount: number }> = [];
+
+        // Per-settlement-type genealogy computation
+        const BASE_FAMILIES_SS: Record<string, number> = { hamlet: 3, village: 5, town: 15, city: 50 };
+        const YEARS_PER_GEN_SS = 25;
+        const computeGenealogySS = (type: string, foundedYear: number) => {
+          const currentYear = new Date().getFullYear();
+          const yearsOld = Math.max(0, currentYear - foundedYear);
+          const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GEN_SS)));
+          const baseFamilies = BASE_FAMILIES_SS[type] || 10;
+          const generationScale = Math.max(0.5, 2.0 - (generations - 1) * 0.3);
+          return Math.max(2, Math.min(60, Math.round(baseFamilies * generationScale)));
+        };
 
         for (const cc of countryConfigs) {
           const statesCount = cc.generateStates ? (cc.numStatesPerCountry || 1) : 1;
           const startIdx = settlementPlan.length;
           for (let j = 0; j < statesCount; j++) {
             for (let k = 0; k < (cc.numCitiesPerState || 0); k++) {
-              settlementPlan.push({ type: 'city', numFamilies: cc.numFoundingFamilies || 10, childrenPerFamily: 2 });
+              settlementPlan.push({ type: 'city', numFamilies: computeGenealogySS('city', cc.foundedYear), childrenPerFamily: 2 });
             }
             for (let k = 0; k < (cc.numTownsPerState || 0); k++) {
-              settlementPlan.push({ type: 'town', numFamilies: cc.numFoundingFamilies || 10, childrenPerFamily: 2 });
+              settlementPlan.push({ type: 'town', numFamilies: computeGenealogySS('town', cc.foundedYear), childrenPerFamily: 2 });
             }
             for (let k = 0; k < (cc.numVillagesPerState || 0); k++) {
-              settlementPlan.push({ type: 'village', numFamilies: cc.numFoundingFamilies || 10, childrenPerFamily: 2 });
+              settlementPlan.push({ type: 'village', numFamilies: computeGenealogySS('village', cc.foundedYear), childrenPerFamily: 2 });
+            }
+            for (let k = 0; k < (cc.numHamletsPerState || 0); k++) {
+              settlementPlan.push({ type: 'hamlet', numFamilies: computeGenealogySS('hamlet', cc.foundedYear), childrenPerFamily: 2 });
             }
           }
           countrySettlementRanges.push({ start: startIdx, end: settlementPlan.length, statesCount });
@@ -4377,91 +4410,112 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 });
                 numSettlements++;
 
-                // Create families using pre-generated names
-                const familiesForSettlement = allNames.families.filter((f: any) => f.settlementIndex === settlementIdx);
+                // Use the full genealogy generator for realistic multi-generation families
+                // (same logic as non-single-shot path and Create Settlement dialog)
+                const POPULATION_BY_TYPE_SS: Record<string, number> = { hamlet: 50, village: 100, town: 1000, city: 5000 };
+                const { foundingFamilies: typeFamilies, generations: typeGenerations } = (() => {
+                  const currentYr = new Date().getFullYear();
+                  const yearsOld = Math.max(0, currentYr - cc.foundedYear);
+                  const gens = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GEN_SS)));
+                  const base = BASE_FAMILIES_SS[plan.type] || 10;
+                  const scale = Math.max(0.5, 2.0 - (gens - 1) * 0.3);
+                  const families = Math.max(2, Math.min(60, Math.round(base * scale)));
+                  return { foundingFamilies: families, generations: gens };
+                })();
 
-                // Pool of occupations for random assignment
-                const adultOccupations = [
-                  'Farmer', 'Blacksmith', 'Carpenter', 'Baker', 'Weaver',
-                  'Merchant', 'Fisher', 'Hunter', 'Healer', 'Scholar',
-                  'Guard', 'Innkeeper', 'Mason', 'Tailor', 'Brewer',
-                  'Herbalist', 'Scribe', 'Shepherd', 'Tanner', 'Potter',
-                ];
-                const youthOccupations = ['Student', 'Apprentice', 'Farmhand', 'Errand Runner'];
-                let occIdx = 0;
-
-                // Current year: the "present day" of the world.
-                // Characters are alive NOW, not at founding time.
-                const currentYear = new Date().getFullYear();
-
-                for (const familyData of familiesForSettlement) {
-                  // Generate realistic ages: parents 30-55, children 5-25
-                  const fatherAge = 35 + Math.floor(Math.random() * 20); // 35-54
-                  const motherAge = 33 + Math.floor(Math.random() * 18); // 33-50
-                  const fatherBirthYear = currentYear - fatherAge;
-                  const motherBirthYear = currentYear - motherAge;
-                  const childBirthYear = currentYear - (5 + Math.floor(Math.random() * 20)); // 5-24
-
-                  const father = await storage.createCharacter({
-                    worldId: config.worldId,
-                    firstName: familyData.fatherFirstName,
-                    lastName: familyData.surname,
-                    gender: 'male',
-                    birthYear: fatherBirthYear,
-                    age: currentYear - fatherBirthYear,
-                    occupation: adultOccupations[occIdx++ % adultOccupations.length],
-                    isAlive: true,
-                    currentLocation: settlement.id,
-                    socialAttributes: { generation: 0, founderFamily: true }
+                if (config.generateGenealogy) {
+                  const generator = new WorldGenerator();
+                  const genealogyResult = await generator.generateGenealogy(config.worldId, {
+                    settlementId: settlement.id,
+                    numFoundingFamilies: typeFamilies,
+                    generations: typeGenerations,
+                    marriageRate: cc.marriageRate || 0.7,
+                    fertilityRate: cc.fertilityRate || 0.6,
+                    deathRate: cc.deathRate || 0.3,
+                    startYear: cc.foundedYear || 1900,
+                    targetPopulation: POPULATION_BY_TYPE_SS[plan.type] || 50,
                   });
-
-                  const mother = await storage.createCharacter({
-                    worldId: config.worldId,
-                    firstName: familyData.motherFirstName,
-                    lastName: familyData.surname,
-                    maidenName: familyData.motherMaidenName,
-                    gender: 'female',
-                    birthYear: motherBirthYear,
-                    age: currentYear - motherBirthYear,
-                    occupation: adultOccupations[occIdx++ % adultOccupations.length],
-                    isAlive: true,
-                    spouseId: father.id,
-                    currentLocation: settlement.id,
-                    socialAttributes: { generation: 0, founderFamily: true }
-                  });
-
-                  await storage.updateCharacter(father.id, { spouseId: mother.id });
-
-                  const childIds = [];
-                  for (const childData of familyData.children || []) {
-                    const childAge = currentYear - childBirthYear;
-                    const child = await storage.createCharacter({
-                      worldId: config.worldId,
-                      firstName: childData.firstName,
-                      lastName: familyData.surname,
-                      gender: childData.gender,
-                      birthYear: childBirthYear,
-                      age: childAge,
-                      occupation: childAge >= 18
-                        ? adultOccupations[occIdx++ % adultOccupations.length]
-                        : youthOccupations[Math.floor(Math.random() * youthOccupations.length)],
-                      isAlive: true,
-                      parentIds: [father.id, mother.id],
-                      currentLocation: settlement.id,
-                      socialAttributes: { generation: 1 }
-                    });
-                    childIds.push(child.id);
-                    totalPopulation++;
-                  }
-
-                  await storage.updateCharacter(father.id, { childIds });
-                  await storage.updateCharacter(mother.id, { childIds });
-                  totalPopulation += 2;
+                  totalPopulation += genealogyResult.totalCharacters;
                 }
 
                 settlementIdx++;
               }
             }
+          }
+
+          // Generate world territory layout — positions countries, settlements, and state boundaries
+          {
+            console.log('🗺️  Generating world territory layout...');
+            const allCountries = await storage.getCountriesByWorld(config.worldId);
+            const allSettlements = await storage.getSettlementsByWorld(config.worldId);
+            const allStates = await storage.getStatesByWorld(config.worldId);
+
+            // Build the territory generation input
+            const territoryCountries = allCountries.map(country => {
+              const countrySettlements = allSettlements.filter(s => s.countryId === country.id);
+              const countryStates = allStates.filter(s => (s as any).countryId === country.id);
+              return {
+                id: country.id,
+                terrain: countryConfigs[0]?.terrain || 'plains',
+                settlements: countrySettlements.map(s => ({
+                  id: s.id,
+                  type: (s.settlementType || 'town') as 'hamlet' | 'village' | 'town' | 'city',
+                  terrain: (s.terrain || countryConfigs[0]?.terrain || 'plains'),
+                  population: s.population || 50,
+                  stateId: s.stateId || undefined,
+                })),
+                states: countryStates.map(st => ({
+                  id: st.id,
+                  settlementIds: countrySettlements
+                    .filter(s => s.stateId === st.id)
+                    .map(s => s.id),
+                })),
+              };
+            });
+
+            const worldScale = (config.worldScale || 'standard') as WorldScale;
+            const geoLayout = generateWorldGeography({
+              worldId: config.worldId,
+              seed: `${config.worldId}-territory`,
+              scale: worldScale,
+              countries: territoryCountries,
+            });
+
+            // Persist world map dimensions
+            await storage.updateWorld(config.worldId, {
+              mapWidth: geoLayout.mapWidth,
+              mapDepth: geoLayout.mapDepth,
+              mapCenter: geoLayout.mapCenter,
+            } as any);
+
+            // Persist country territories
+            for (const [countryId, geo] of geoLayout.countries) {
+              await storage.updateCountry(countryId, {
+                position: geo.position,
+                territoryPolygon: geo.territoryPolygon,
+                territoryRadius: geo.territoryRadius,
+              } as any);
+            }
+
+            // Persist settlement world positions
+            for (const [settlementId, geo] of geoLayout.settlements) {
+              await storage.updateSettlement(settlementId, {
+                worldPositionX: geo.worldPositionX,
+                worldPositionZ: geo.worldPositionZ,
+                radius: geo.radius,
+              } as any);
+            }
+
+            // Persist state boundaries
+            for (const [stateId, geo] of geoLayout.states) {
+              await storage.updateState(stateId, {
+                position: geo.position,
+                boundaryPolygon: geo.boundaryPolygon,
+              } as any);
+            }
+
+            console.log(`   ✓ World map: ${geoLayout.mapWidth}×${geoLayout.mapDepth} units`);
+            console.log(`   ✓ ${geoLayout.countries.size} country territories, ${geoLayout.settlements.size} settlement positions, ${geoLayout.roads.length} roads`);
           }
 
           // Generate geography for all settlements
@@ -4593,10 +4647,27 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           const numCities = cc.numCitiesPerState || 0;
           const numTowns = cc.numTownsPerState || 0;
           const numVillages = cc.numVillagesPerState || 0;
+          const numHamlets = cc.numHamletsPerState || 0;
+
+          // Compute per-settlement-type genealogy from founding year
+          const BASE_FAMILIES: Record<string, number> = { hamlet: 3, village: 5, town: 15, city: 50 };
+          const YEARS_PER_GEN = 25;
+          const computeSettlementGenealogy = (type: string, foundedYear: number) => {
+            const currentYear = new Date().getFullYear();
+            const yearsOld = Math.max(0, currentYear - foundedYear);
+            const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GEN)));
+            const baseFamilies = BASE_FAMILIES[type] || 10;
+            const generationScale = Math.max(0.5, 2.0 - (generations - 1) * 0.3);
+            const foundingFamilies = Math.max(2, Math.min(60, Math.round(baseFamilies * generationScale)));
+            return { foundingFamilies, generations };
+          };
 
           // Helper to create settlements with batch name generation
-          const createSettlements = async (type: 'city' | 'town' | 'village', count: number) => {
+          const createSettlements = async (type: 'city' | 'town' | 'village' | 'hamlet', count: number) => {
             if (count === 0) return;
+
+            // Compute genealogy for this settlement type
+            const { foundingFamilies: typeFamilies, generations: typeGenerations } = computeSettlementGenealogy(type, cc.foundedYear);
 
             let settlementNames: string[];
             if (nameGenerator.isEnabled()) {
@@ -4639,8 +4710,8 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 population: 0,
                 foundedYear: cc.foundedYear,
                 generationConfig: {
-                  numFoundingFamilies: cc.numFoundingFamilies || 10,
-                  generations: cc.generations || 4,
+                  numFoundingFamilies: typeFamilies,
+                  generations: typeGenerations,
                   marriageRate: cc.marriageRate || 0.7,
                   fertilityRate: cc.fertilityRate || 0.6,
                   deathRate: cc.deathRate || 0.3
@@ -4652,8 +4723,8 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 const generator = new WorldGenerator();
                 const genealogyResult = await generator.generateGenealogy(config.worldId, {
                   settlementId: settlement.id,
-                  numFoundingFamilies: cc.numFoundingFamilies || 10,
-                  generations: cc.generations || 4,
+                  numFoundingFamilies: typeFamilies,
+                  generations: typeGenerations,
                   marriageRate: cc.marriageRate || 0.7,
                   fertilityRate: cc.fertilityRate || 0.6,
                   deathRate: cc.deathRate || 0.3,
@@ -4683,6 +4754,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           await createSettlements('city', numCities);
           await createSettlements('town', numTowns);
           await createSettlements('village', numVillages);
+          await createSettlements('hamlet', numHamlets);
         }
       }
 
@@ -5051,6 +5123,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           economicSystem: 'feudal',
           // Per-country configs (new format) — falls back to flat defaults in hierarchical endpoint
           countries: req.body.countries,
+          worldScale: req.body.worldScale || 'standard',
         })
       });
       

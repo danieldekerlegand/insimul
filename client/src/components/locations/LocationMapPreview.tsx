@@ -32,6 +32,8 @@ interface LocationMapPreviewProps {
   selectedCountryId?: string | null;
   worldId?: string;
   worldName?: string;
+  /** World record with mapWidth/mapDepth for geographic coordinate rendering */
+  worldData?: { mapWidth?: number; mapDepth?: number; mapCenter?: { x: number; z: number } } | null;
   onSettlementClick?: (settlement: any) => void;
   onCountryClick?: (country: any) => void;
   onBuildingClick?: (lotId: string) => void;
@@ -208,6 +210,7 @@ export function LocationMapPreview({
   selectedCountryId,
   worldId,
   worldName = 'World',
+  worldData,
   onSettlementClick,
   onCountryClick,
   onBuildingClick,
@@ -346,14 +349,36 @@ export function LocationMapPreview({
     refs.settlementMarkerNodes.clear();
 
     // ── Build unified world scene ─────────────────────────────────────────
+
+    // Compute preview scale: map real world-space coordinates into a
+    // manageable preview size (~50 units across for camera framing).
+    const PREVIEW_TARGET_SIZE = 50;
+    const hasRealCoords = !!(worldData?.mapWidth && worldData.mapWidth > 0);
+    const realMapSize = hasRealCoords ? Math.max(worldData!.mapWidth!, worldData!.mapDepth ?? worldData!.mapWidth!) : 1;
+    const previewScale = hasRealCoords ? PREVIEW_TARGET_SIZE / realMapSize : 1;
+    const mapCenterX = (worldData?.mapCenter?.x ?? 0) * previewScale;
+    const mapCenterZ = (worldData?.mapCenter?.z ?? 0) * previewScale;
+
+    // Helper to convert world coords to preview coords
+    const toPreview = (x: number, z: number): BABYLON.Vector3 =>
+      new BABYLON.Vector3((x * previewScale) - mapCenterX, 0, (z * previewScale) - mapCenterZ);
+    const toPreviewPoly = (polygon: Array<{ x: number; z: number }>): BABYLON.Vector3[] =>
+      polygon.map(p => new BABYLON.Vector3((p.x * previewScale) - mapCenterX, 0.03, (p.z * previewScale) - mapCenterZ));
+
     const countryCount = Math.max(countries.length, 1);
-    const countryRadius = Math.min(countryCount * 6, 40);
-    refs.worldRadius = Math.max(countryRadius + 15, 25);
+    // Fallback layout for worlds without real coordinates
+    const fallbackCountryRadius = Math.min(countryCount * 6, 40);
+    const fallbackSettlementRadius = 6;
+
+    refs.worldRadius = hasRealCoords
+      ? (PREVIEW_TARGET_SIZE / 2) * 1.2
+      : Math.max(fallbackCountryRadius + 15, 25);
 
     // Large world ground — parchment/cartographic base
+    const groundSize = hasRealCoords ? PREVIEW_TARGET_SIZE * 1.3 : refs.worldRadius * 2.5;
     const ground = BABYLON.MeshBuilder.CreateGround('ground', {
-      width: refs.worldRadius * 2.5,
-      height: refs.worldRadius * 2.5,
+      width: groundSize,
+      height: groundSize,
     }, scene);
     const groundMat = new BABYLON.StandardMaterial('groundMat', scene);
     groundMat.diffuseColor = new BABYLON.Color3(0.78, 0.75, 0.65); // Parchment
@@ -378,31 +403,54 @@ export function LocationMapPreview({
 
     // Place countries
     countries.forEach((country, ci) => {
-      const angle = (ci / countryCount) * Math.PI * 2;
-      const cx = Math.cos(angle) * countryRadius;
-      const cz = Math.sin(angle) * countryRadius;
-      const countryPos = new BABYLON.Vector3(cx, 0, cz);
+      // Use real coordinates if available, otherwise fall back to circular layout
+      let countryPos: BABYLON.Vector3;
+      if (hasRealCoords && country.position) {
+        countryPos = toPreview(country.position.x, country.position.z);
+      } else {
+        const angle = (ci / countryCount) * Math.PI * 2;
+        countryPos = new BABYLON.Vector3(
+          Math.cos(angle) * fallbackCountryRadius,
+          0,
+          Math.sin(angle) * fallbackCountryRadius,
+        );
+      }
       refs.countryPositions.set(country.id, countryPos);
 
       const terrain = country.terrain ?? 'plains';
       const terrainCol = getTerrainColor(terrain);
 
-      // Compute country border radius to encompass all its settlements.
-      // Settlements are placed at radius 6 from country center; each settlement's
-      // detail content extends ~15 units from its own center.
-      const countryBorderRadius = Math.max(12, 6 + 18);
+      // Draw country border from real territory polygon or fallback circle
+      if (hasRealCoords && country.territoryPolygon && country.territoryPolygon.length >= 3) {
+        const polyPoints = toPreviewPoly(country.territoryPolygon);
+        // Close the polygon
+        polyPoints.push(polyPoints[0].clone());
+        const borderLine = BABYLON.MeshBuilder.CreateLines(
+          `countryBorder_${country.id}`,
+          { points: polyPoints },
+          scene,
+        );
+        borderLine.color = terrainCol.scale(0.6);
+        borderLine.isPickable = false;
+        tagMesh(borderLine, 'districts');
+      } else {
+        const countryBorderRadius = hasRealCoords
+          ? (country.territoryRadius ?? 800) * previewScale
+          : Math.max(12, fallbackSettlementRadius + 18);
+        const countryBorder = drawBorderCircle(
+          scene, `countryBorder_${country.id}`, countryPos, countryBorderRadius,
+          terrainCol.scale(0.6), 48, false,
+        );
+        tagMesh(countryBorder, 'districts');
+      }
 
-      // Country border line (replaces filled disc)
-      const countryBorder = drawBorderCircle(
-        scene, `countryBorder_${country.id}`, countryPos, countryBorderRadius,
-        terrainCol.scale(0.6), 48, false,
-      );
-      tagMesh(countryBorder, 'districts');
-
-      // Invisible pick disc for click detection (lines aren't pickable)
-      const pickDisc = BABYLON.MeshBuilder.CreateDisc(`country_${country.id}`, { radius: countryBorderRadius, tessellation: 24 }, scene);
+      // Invisible pick disc for click detection
+      const pickRadius = hasRealCoords
+        ? (country.territoryRadius ?? 800) * previewScale
+        : Math.max(12, fallbackSettlementRadius + 18);
+      const pickDisc = BABYLON.MeshBuilder.CreateDisc(`country_${country.id}`, { radius: pickRadius, tessellation: 24 }, scene);
       pickDisc.rotation.x = Math.PI / 2;
-      pickDisc.position = new BABYLON.Vector3(cx, 0.01, cz);
+      pickDisc.position = new BABYLON.Vector3(countryPos.x, 0.01, countryPos.z);
       pickDisc.visibility = 0;
       pickDisc.id = `country_pick_${country.id}`;
       refs.pickableMap.set(pickDisc.id, { type: 'country', data: country });
@@ -410,7 +458,7 @@ export function LocationMapPreview({
 
       // Country label — uppercase, serif, cartographic style
       const anchor = BABYLON.MeshBuilder.CreateBox(`cAnchor_${ci}`, { size: 0.01 }, scene);
-      anchor.position = new BABYLON.Vector3(cx, 1.5, cz);
+      anchor.position = new BABYLON.Vector3(countryPos.x, 1.5, countryPos.z);
       anchor.isVisible = false;
       anchor.isPickable = false;
       tagMesh(anchor, 'labels');
@@ -422,13 +470,20 @@ export function LocationMapPreview({
 
       // Place settlement markers within this country
       const countrySettlements = settlements.filter(s => s.countryId === country.id);
-      const sCount = Math.max(countrySettlements.length, 1);
-      const sRadius = 6;
       countrySettlements.forEach((s, si) => {
-        const sAngle = (si / sCount) * Math.PI * 2 + Math.PI / 4;
-        const sx = cx + Math.cos(sAngle) * sRadius;
-        const sz = cz + Math.sin(sAngle) * sRadius;
-        const settlementPos = new BABYLON.Vector3(sx, 0, sz);
+        // Use real world position if available, otherwise fall back to circular layout
+        let settlementPos: BABYLON.Vector3;
+        if (hasRealCoords && s.worldPositionX != null && s.worldPositionZ != null) {
+          settlementPos = toPreview(s.worldPositionX, s.worldPositionZ);
+        } else {
+          const sCount = Math.max(countrySettlements.length, 1);
+          const sAngle = (si / sCount) * Math.PI * 2 + Math.PI / 4;
+          settlementPos = new BABYLON.Vector3(
+            countryPos.x + Math.cos(sAngle) * fallbackSettlementRadius,
+            0,
+            countryPos.z + Math.sin(sAngle) * fallbackSettlementRadius,
+          );
+        }
         refs.settlementPositions.set(s.id, settlementPos);
 
         // Marker group (visible when zoomed out)
@@ -436,10 +491,13 @@ export function LocationMapPreview({
         markerNode.position = settlementPos;
         refs.settlementMarkerNodes.set(s.id, markerNode);
 
-        // Flat circle dot (map-style marker) instead of 3D cone
-        const scale = SETTLEMENT_SCALE[s.settlementType] ?? 0.5;
+        // Flat circle dot (map-style marker)
+        const sRadius = hasRealCoords && s.radius
+          ? s.radius * previewScale
+          : (SETTLEMENT_SCALE[s.settlementType] ?? 0.5) * 0.5;
+        const markerSize = Math.max(0.3, sRadius * 0.15);
         const marker = BABYLON.MeshBuilder.CreateDisc(`s_${s.id}`, {
-          radius: 0.5 * scale,
+          radius: markerSize,
           tessellation: 16,
         }, scene);
         marker.rotation.x = Math.PI / 2;
@@ -453,9 +511,12 @@ export function LocationMapPreview({
         refs.pickableMap.set(marker.id, { type: 'settlement', data: s });
         tagMesh(marker, 'buildings');
 
-        // Settlement boundary ring (dashed)
+        // Settlement boundary ring (dashed) — use real radius if available
+        const borderRadius = hasRealCoords && s.radius
+          ? s.radius * previewScale
+          : (SETTLEMENT_SCALE[s.settlementType] ?? 0.5) * 1.5;
         const sBorder = drawBorderCircle(
-          scene, `sBorder_${s.id}`, BABYLON.Vector3.Zero(), 1.5 * scale,
+          scene, `sBorder_${s.id}`, BABYLON.Vector3.Zero(), borderRadius,
           new BABYLON.Color3(0.45, 0.4, 0.35), 32, true, markerNode,
         );
         tagMesh(sBorder, 'districts');
@@ -546,7 +607,14 @@ export function LocationMapPreview({
       animateCameraTo(camera, scene, BABYLON.Vector3.Zero(), refs.worldRadius * 0.9, Math.PI / 8);
     } else if (viewLevel === 'country' && selectedCountryId) {
       const pos = refs.countryPositions.get(selectedCountryId);
-      if (pos) animateCameraTo(camera, scene, pos.clone(), 18, Math.PI / 5);
+      // Frame the country by its territory radius in preview space
+      const country = countries.find(c => c.id === selectedCountryId);
+      const hasReal = !!(worldData?.mapWidth && worldData.mapWidth > 0);
+      const pScale = hasReal ? (50 / Math.max(worldData!.mapWidth!, worldData!.mapDepth ?? worldData!.mapWidth!)) : 1;
+      const countryViewRadius = hasReal && country?.territoryRadius
+        ? country.territoryRadius * pScale * 1.3
+        : 18;
+      if (pos) animateCameraTo(camera, scene, pos.clone(), countryViewRadius, Math.PI / 5);
     } else if (viewLevel === 'settlement') {
       // Find the selected settlement from the settlements prop
       const selected = settlements.find(s =>
