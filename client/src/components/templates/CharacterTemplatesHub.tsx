@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { CharacterTemplate } from '@shared/schema';
 import { PredicateBuilder, type StartingTruth } from './PredicateBuilder';
+import { ActionFeasibilityTester } from './ActionFeasibilityTester';
 
 interface CharacterTemplatesHubProps {
   worldId: string;
@@ -390,6 +391,14 @@ export function CharacterTemplatesHub({ worldId }: CharacterTemplatesHubProps) {
                     {selectedTemplate.updatedAt && (
                       <span>Updated: {new Date(selectedTemplate.updatedAt).toLocaleDateString()}</span>
                     )}
+                  </div>
+
+                  {/* Feasibility Tester */}
+                  <div className="border-t pt-4">
+                    <ActionFeasibilityTester
+                      templates={templates}
+                      selectedTemplateId={selectedTemplate.id}
+                    />
                   </div>
                 </div>
               )}

@@ -346,3 +346,30 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - No browser testing tools available — manual verification needed
   - US-020 will add ActionFeasibilityTester using local tau-prolog
 ---
+
+## 2026-03-29 - US-020
+- Created `ActionFeasibilityTester` component with full action feasibility testing
+- Template selector dropdown populated from all available templates (base + world)
+- Creates local TauPrologEngine session: loads HELPER_PREDICATES_PROLOG, declares dynamic predicates for all GAMEPLAY_PREDICATES, asserts template truths as facts
+- Builds can_perform rules from ACTION_PREREQUISITES with parent inheritance resolution
+- Tests all 133+ actions grouped by 9 categories (combat, resource, commerce, social, language, exploration, items, survival, movement)
+- Green checkmark = can_perform succeeds, red X = fails, gray dash = animation-only
+- Click failed action to see which prerequisite(s) failed in detail panel
+- "What's Missing?" helper: for failed actions, shows which gameplay predicates would need to be added
+- Inline PredicateBuilder for modifying template truths and clicking Re-test without saving to DB
+- Summary bar shows total pass/fail/animation-only counts
+- Categories auto-expand when they have failures
+- Integrated into CharacterTemplatesHub detail view (below Starting Truths when not editing)
+- Files changed:
+  - `client/src/components/templates/ActionFeasibilityTester.tsx` — new component (340 lines)
+  - `client/src/components/templates/CharacterTemplatesHub.tsx` — import + render ActionFeasibilityTester in detail view
+  - `tasks/prd.json` — marked US-020 passes: true
+- **Learnings for future iterations:**
+  - TauPrologEngine can be instantiated directly in client components — no API call needed for local testing
+  - getResolvedPrerequisites() must recursively resolve parent prerequisites via ACTION_MATRIX parentAction links
+  - For can_perform testing, replace Actor→player and Target→test_target in goal strings, and assert test environment facts (near, alive, location_accessible, npc_will_trade) to simulate a valid game world
+  - Actions not in ACTION_PREREQUISITES but with status 'animation-only' in ACTION_MATRIX are treated as animation-only (gray dash)
+  - engine.query() returns {success, bindings} — check bindings.length > 0 for actual results (success can be true with empty bindings on some engines)
+  - No browser testing tools available — manual verification needed
+  - US-021 will integrate MVT context into LLM conversation prompts
+---
