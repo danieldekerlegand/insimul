@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { NarrativeTab } from '@/components/NarrativeTab';
+import { CharacterTemplatesHub } from '@/components/templates/CharacterTemplatesHub';
 import { InsimulRuleCompiler } from '@/lib/unified-syntax';
 
 interface Character {
@@ -221,6 +222,12 @@ export default function Home() {
       {activeTab === 'analytics' && selectedWorld && (
         <div className="px-6 py-4">
           <PlaythroughAnalytics worldId={selectedWorld} />
+        </div>
+      )}
+
+      {activeTab === 'templates' && selectedWorld && (
+        <div className="px-6 py-4">
+          <CharacterTemplatesHub worldId={selectedWorld} />
         </div>
       )}
 

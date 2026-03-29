@@ -41,6 +41,7 @@ import {
   Settings,
   Trash2,
   FlaskConical,
+  LayoutTemplate,
 } from "lucide-react";
 
 interface ModernNavbarProps {
@@ -71,6 +72,7 @@ const tabMeta: Record<string, { label: string; icon: any }> = {
   "3d-game": { label: "Explore World", icon: Gamepad2 },
   analytics: { label: "Analytics", icon: BarChart3 },
   research: { label: "Research", icon: FlaskConical },
+  templates: { label: "Templates", icon: LayoutTemplate },
 };
 
 export type ExportEngineType = 'babylon' | 'unreal' | 'unity' | 'godot';

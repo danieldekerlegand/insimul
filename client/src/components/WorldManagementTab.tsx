@@ -12,7 +12,7 @@ import {
   Scroll, Zap, Target, FileText, Sparkles,
   BookOpen, Brain,
   Play, Gamepad2, BarChart3,
-  Upload, Download, ChevronRight, Package,
+  Upload, Download, ChevronRight, Package, LayoutTemplate,
 } from 'lucide-react';
 import { WorldSettingsDialog } from './WorldSettingsDialog';
 import { WORLD_TYPES, GAME_TYPES } from './WorldCreateDialog';
@@ -316,6 +316,7 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
     { id: 'texts', label: 'Texts', icon: FileText, description: 'Reading content: books, journals, letters, recipes', color: 'from-sky-500/20 to-blue-500/20', iconColor: 'text-sky-500', totalCount: gameTexts.length, emptyHint: 'No texts generated yet — use Seed or Generate' },
     { id: 'grammars', label: 'Grammars', icon: FileText, description: 'Tracery grammars for narrative', color: 'from-emerald-500/20 to-green-500/20', iconColor: 'text-emerald-500', quickLinks: grammarsLinks, totalCount: grammars.length, emptyHint: 'No grammars defined yet' },
     { id: 'languages', label: 'Languages', icon: Sparkles, description: 'Constructed languages', color: 'from-pink-500/20 to-fuchsia-500/20', iconColor: 'text-pink-500', quickLinks: languagesLinks, totalCount: languages.length, emptyHint: 'No languages created yet' },
+    { id: 'templates', label: 'Templates', icon: LayoutTemplate, description: 'Character templates with starting truths', color: 'from-lime-500/20 to-green-500/20', iconColor: 'text-lime-500', emptyHint: 'No character templates yet' },
     { id: 'narrative', label: 'Narrative', icon: BookOpen, description: 'Main quest narrative and mystery arc', color: 'from-teal-500/20 to-cyan-500/20', iconColor: 'text-teal-500', emptyHint: 'Generate a narrative for the Missing Writer quest' },
     { id: 'world-intelligence', label: 'World Intelligence', icon: Brain, description: 'History, knowledge base, simulations, truths & telemetry', color: 'from-indigo-500/20 to-blue-500/20', iconColor: 'text-indigo-500', quickLinks: truthLinks, totalCount: truths.length, emptyHint: 'No truths established yet' },
   ];

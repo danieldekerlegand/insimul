@@ -261,3 +261,66 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - NPC movement detection relies on action IDs matching known movement actions — extend NPC_MOVEMENT_ACTIONS Set if new movement actions are added
   - US-016 will add character_templates table and CRUD
 ---
+
+## 2026-03-29 - US-016
+- Added `character_templates` table to `shared/schema.ts` with fields: id, worldId (nullable for base templates), name, description, startingTruths (jsonb array of {predicate, args}), isDefault, isBase
+- Added `characterCreationMode` field to `worlds` table: 'fixed' | 'archetype_select' | 'custom_create' (default 'fixed')
+- Added Mongoose schema `CharacterTemplateSchema` and `CharacterTemplateModel` in `server/db/mongo-storage.ts`
+- Added `CharacterTemplateDoc` interface, `docToCharacterTemplate` converter
+- Added CRUD methods to `IStorage` interface and `MongoStorage`: getCharacterTemplate, getCharacterTemplates (returns base + world-specific), createCharacterTemplate, updateCharacterTemplate, deleteCharacterTemplate
+- Added cascade delete: world deletion now also deletes associated character templates
+- Added 5 API routes in `server/routes.ts`: GET/POST `/api/worlds/:worldId/character-templates`, GET/PUT/DELETE `/api/character-templates/:id`
+- Files changed:
+  - `shared/schema.ts` — character_templates table, characterCreationMode on worlds, insert schema, types
+  - `server/db/storage.ts` — IStorage interface: 5 new character template methods
+  - `server/db/mongo-storage.ts` — CharacterTemplateDoc, schema, model, converter, CRUD methods, cascade delete
+  - `server/routes.ts` — 5 API routes with auth/permission checks
+- **Learnings for future iterations:**
+  - New collection pattern: Drizzle table in schema.ts → insert schema (omit id/timestamps) → types ($inferSelect + z.infer) → Mongoose schema + model + Doc interface + converter in mongo-storage.ts → IStorage methods → MongoStorage implementation → routes
+  - getCharacterTemplates queries `{ $or: [{ worldId: null }, { worldId }] }` to include base templates alongside world-specific ones
+  - Remember to add cascade delete in `deleteWorld()` when adding world-scoped collections
+  - Auth pattern: extract token, verify with AuthService, check canEditWorld for write operations; read operations are unauthenticated
+  - Pre-existing typecheck errors in mongo-storage.ts (all Doc interfaces have `incorrectly extends interface 'Document'`) — these are known and unrelated
+  - US-017 will seed 3 default character templates (Explorer, Scholar, Trader)
+---
+
+## 2026-03-29 - US-017
+- Created migration `server/migrations/043-seed-character-templates.ts` seeding 3 base character templates
+- Explorer (13 truths): balanced stats, backpack/compass/map, exploration 2 + survival 1, English B1 + French A1, 100 gold, 100/100 health & energy
+- Scholar (15 truths): language-focused, notebook/quill/dictionary, reading 3 + writing 2 + linguistics 1, English B2 + French A2, has_trait(bookworm), 50 gold, 80/80 health, 120/120 energy
+- Trader (12 truths): commerce-focused, merchant_ledger/sample_goods, bargaining 3 + appraisal 2, English B1 + French A1, 200 gold, 90/90 health & energy
+- All templates include MVT predicates (health, energy, speaks_language, gold, at_location, occupation, age)
+- Explorer is isDefault: true
+- Migration is idempotent — checks by name before creating
+- Files changed:
+  - `server/migrations/043-seed-character-templates.ts` — new migration
+  - `tasks/prd.json` — marked US-017 passes: true
+- **Learnings for future iterations:**
+  - getCharacterTemplates('__none__') returns base templates (worldId: null) via the $or query — use dummy worldId to fetch base-only
+  - Migration pattern for seed data: define constants, check existing by name, skip if present
+  - US-018 will add CharacterTemplateEditor UI component
+---
+
+## 2026-03-29 - US-018
+- Created `CharacterTemplatesHub` component with full CRUD: list, create, edit, duplicate, delete, isDefault toggle
+- Left sidebar lists world templates + base templates with truth count badges and default star indicator
+- Right panel shows detail view with starting truths rendered as Prolog facts, or edit form with name/description fields
+- Base templates are read-only but can be duplicated to the world
+- Delete requires confirmation via AlertDialog
+- Added "Templates" tab to ModernNavbar tabMeta and WorldManagementTab contentItems
+- Registered in home.tsx with conditional rendering for activeTab === 'templates'
+- Files changed:
+  - `client/src/components/templates/CharacterTemplatesHub.tsx` — new file (full CRUD component)
+  - `client/src/components/ModernNavbar.tsx` — added LayoutTemplate icon import + templates tab to tabMeta
+  - `client/src/components/WorldManagementTab.tsx` — added LayoutTemplate icon import + templates card to contentItems
+  - `client/src/pages/home.tsx` — import CharacterTemplatesHub, conditional render for templates tab
+  - `tasks/prd.json` — marked US-018 passes: true
+- **Learnings for future iterations:**
+  - Hub pattern: left sidebar list + right detail panel, following ItemsHub/QuestsHub layout
+  - Direct fetch() for CRUD operations (not react-query mutations) — consistent with existing dialogs
+  - useWorldPermissions(worldId) provides canEdit for permission gating
+  - tabMeta in ModernNavbar is for breadcrumb display; contentItems in WorldManagementTab is for the card grid on the home page
+  - Base templates have isBase=true and are read-only in the UI; duplicate creates a world-scoped copy
+  - No browser testing tools available — manual verification needed
+  - US-019 will add predicate builder within this template editor
+---
