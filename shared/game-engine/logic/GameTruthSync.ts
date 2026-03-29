@@ -17,6 +17,25 @@ import { GAMEPLAY_PREDICATES } from '@shared/prolog/gameplay-predicates';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+/** Character data shape expected for NPC truth initialization. */
+export interface NpcCharacterData {
+  id: string;
+  occupation?: string;
+  currentLocation?: string;
+  age?: number;
+  birthYear?: number;
+  skills?: Record<string, number>;
+  personality?: {
+    openness?: number;
+    conscientiousness?: number;
+    extroversion?: number;
+    agreeableness?: number;
+    neuroticism?: number;
+  };
+  role?: string;
+  availableQuests?: string[];
+}
+
 /** A single Prolog fact serialized for JSON storage. */
 export interface SerializedFact {
   predicate: string;
@@ -571,6 +590,105 @@ export class GameTruthSync {
           this.knownVocabulary.get(lang)!.add(String(fact.args[2]));
         }
         break;
+    }
+  }
+
+  // ── NPC Truth Initialization ─────────────────────────────────────────────
+
+  private static readonly MERCHANT_OCCUPATIONS = new Set([
+    'merchant', 'shopkeeper', 'trader', 'vendor', 'blacksmith',
+    'innkeeper', 'baker', 'butcher', 'tailor', 'pharmacist',
+    'barkeeper', 'bartender', 'grocer',
+  ]);
+
+  private static readonly MERCHANT_ROLES = new Set([
+    'merchant', 'blacksmith', 'innkeeper',
+  ]);
+
+  /**
+   * Initialize Prolog truths for all NPC characters from DB data.
+   * Call during game initialization after world data loads.
+   *
+   * For each NPC, asserts:
+   * - person(NpcId)
+   * - occupation(NpcId, Occ)
+   * - at_location(NpcId, Loc)
+   * - age(NpcId, Age)
+   * - has_skill(NpcId, Skill, Level) per skill
+   * - personality(NpcId, Trait, Value) per Big Five trait
+   * - npc_occupation(NpcId, Occ)
+   * - npc_will_trade(NpcId) for merchant-type NPCs
+   * - npc_quest_available(NpcId, QuestId) per available quest
+   * - health(NpcId, 100, 100) and energy(NpcId, 100, 100) defaults
+   */
+  async initializeNpcTruths(characters: NpcCharacterData[]): Promise<void> {
+    const facts: string[] = [];
+
+    for (const npc of characters) {
+      const npcId = sanitize(npc.id);
+
+      // Core identity
+      facts.push(`person(${npcId})`);
+
+      // Occupation
+      const occ = sanitize(npc.occupation || 'unemployed');
+      facts.push(`occupation(${npcId}, ${occ})`);
+      facts.push(`npc_occupation(${npcId}, ${occ})`);
+
+      // Location
+      if (npc.currentLocation) {
+        facts.push(`at_location(${npcId}, ${sanitize(npc.currentLocation)})`);
+      }
+
+      // Age — compute from birthYear if available, else default to 30
+      const age = npc.age ?? (npc.birthYear ? (new Date().getFullYear() - npc.birthYear) : 30);
+      facts.push(`age(${npcId}, ${age})`);
+
+      // Skills
+      if (npc.skills && typeof npc.skills === 'object') {
+        for (const [skill, level] of Object.entries(npc.skills)) {
+          if (typeof level === 'number') {
+            facts.push(`has_skill(${npcId}, ${sanitize(skill)}, ${level})`);
+          }
+        }
+      }
+
+      // Personality (Big Five)
+      if (npc.personality && typeof npc.personality === 'object') {
+        const traits = ['openness', 'conscientiousness', 'extroversion', 'agreeableness', 'neuroticism'] as const;
+        for (const trait of traits) {
+          const value = (npc.personality as Record<string, number>)[trait];
+          if (typeof value === 'number') {
+            facts.push(`personality(${npcId}, ${trait}, ${value})`);
+          }
+        }
+      }
+
+      // Merchant detection
+      const occLower = (npc.occupation || '').toLowerCase();
+      const roleLower = (npc.role || '').toLowerCase();
+      if (
+        GameTruthSync.MERCHANT_OCCUPATIONS.has(occLower) ||
+        GameTruthSync.MERCHANT_ROLES.has(roleLower)
+      ) {
+        facts.push(`npc_will_trade(${npcId})`);
+      }
+
+      // Available quests
+      if (npc.availableQuests && Array.isArray(npc.availableQuests)) {
+        for (const questId of npc.availableQuests) {
+          facts.push(`npc_quest_available(${npcId}, ${sanitize(String(questId))})`);
+        }
+      }
+
+      // Health and energy defaults
+      facts.push(`health(${npcId}, 100, 100)`);
+      facts.push(`energy(${npcId}, 100, 100)`);
+    }
+
+    // Batch assert all NPC facts
+    if (facts.length > 0) {
+      await this.engine.assertFacts(facts);
     }
   }
 
