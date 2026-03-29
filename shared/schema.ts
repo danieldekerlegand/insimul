@@ -308,9 +308,25 @@ export const worlds = pgTable("worlds", {
   // Generation settings (includes worldScale: 'compact' | 'standard' | 'expansive' or explicit overrides)
   generationConfig: jsonb("generation_config").$type<Record<string, any>>().default({}),
 
+  // Character creation mode
+  characterCreationMode: text("character_creation_mode").default("fixed"), // 'fixed' | 'archetype_select' | 'custom_create'
+
   // Version tracking for playthroughs
   version: integer("version").default(1), // Increment when world structure changes
 
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Character Templates — store starting truths for character creation
+export const characterTemplates = pgTable("character_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id"), // nullable for base templates
+  name: text("name").notNull(),
+  description: text("description"),
+  startingTruths: jsonb("starting_truths").$type<Array<{ predicate: string; args: any[] }>>().default([]),
+  isDefault: boolean("is_default").default(false),
+  isBase: boolean("is_base").default(false), // true for global base templates, false for world-specific
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1082,6 +1098,12 @@ export const insertWorldSchema = createInsertSchema(worlds).omit({
   updatedAt: true
 });
 
+export const insertCharacterTemplateSchema = createInsertSchema(characterTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 export const insertCountrySchema = createInsertSchema(countries).omit({
   id: true,
   createdAt: true,
@@ -1728,6 +1750,9 @@ export type InsertCharacter = z.infer<typeof insertCharacterSchema>;
 
 export type World = typeof worlds.$inferSelect;
 export type InsertWorld = z.infer<typeof insertWorldSchema>;
+
+export type CharacterTemplate = typeof characterTemplates.$inferSelect;
+export type InsertCharacterTemplate = z.infer<typeof insertCharacterTemplateSchema>;
 
 export type Country = typeof countries.$inferSelect;
 export type InsertCountry = z.infer<typeof insertCountrySchema>;

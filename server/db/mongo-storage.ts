@@ -60,7 +60,9 @@ import {
   type GameText,
   type InsertGameText,
   type Text,
-  type InsertText
+  type InsertText,
+  type CharacterTemplate,
+  type InsertCharacterTemplate
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -208,6 +210,10 @@ interface AssessmentSessionDoc extends Omit<AssessmentSession, 'id'>, Document {
   _id: string;
 }
 
+interface CharacterTemplateDoc extends Omit<CharacterTemplate, 'id'>, Document {
+  _id: string;
+}
+
 // Mongoose Schemas
 const RuleSchema = new Schema({
   worldId: { type: String, required: false, default: null }, // Optional - null for base rules
@@ -317,9 +323,23 @@ const WorldSchema = new Schema({
   historicalEvents: { type: Schema.Types.Mixed, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
 
+  // Character creation mode
+  characterCreationMode: { type: String, default: 'fixed' },
+
   // Version tracking for playthroughs
   version: { type: Number, default: 1 },
 
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const CharacterTemplateSchema = new Schema({
+  worldId: { type: String, default: null },
+  name: { type: String, required: true },
+  description: { type: String, default: null },
+  startingTruths: { type: Schema.Types.Mixed, default: [] },
+  isDefault: { type: Boolean, default: false },
+  isBase: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -1281,6 +1301,7 @@ const AssessmentModel = mongoose.model('Assessment', UnifiedAssessmentSchema, 'a
 const TelemetryModel = mongoose.model('Telemetry', TelemetrySchema, 'telemetry');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
 const GeographicFeatureModel = mongoose.model('GeographicFeature', GeographicFeatureSchema);
+const CharacterTemplateModel = mongoose.model<CharacterTemplateDoc>('CharacterTemplate', CharacterTemplateSchema);
 
 function docToAssessmentSession(doc: any): AssessmentSession {
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -1326,6 +1347,14 @@ function docToCharacter(doc: CharacterDoc | any): Character {
 }
 
 function docToWorld(doc: WorldDoc | any): World {
+  if (doc.toObject) {
+    return { ...doc.toObject(), id: doc._id.toString() };
+  } else {
+    return { ...doc, id: doc._id.toString() };
+  }
+}
+
+function docToCharacterTemplate(doc: CharacterTemplateDoc | any): CharacterTemplate {
   if (doc.toObject) {
     return { ...doc.toObject(), id: doc._id.toString() };
   } else {
@@ -1739,7 +1768,13 @@ export class MongoStorage implements IStorage {
       console.log(`   ✓ Deleted ${langMessages.deletedCount} language chat messages`);
     }
 
-    // 22. Finally, delete the world itself
+    // 22. Delete character templates
+    const charTemplates = await CharacterTemplateModel.deleteMany({ worldId: id });
+    if (charTemplates.deletedCount && charTemplates.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${charTemplates.deletedCount} character templates`);
+    }
+
+    // 23. Finally, delete the world itself
     const result = await WorldModel.findByIdAndDelete(id);
     
     if (result) {
@@ -2429,6 +2464,49 @@ export class MongoStorage implements IStorage {
   async deleteCharacter(id: string): Promise<boolean> {
     await this.connect();
     const result = await CharacterModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // Character Template operations
+  async getCharacterTemplate(id: string): Promise<CharacterTemplate | undefined> {
+    await this.connect();
+    const doc = await CharacterTemplateModel.findById(id);
+    return doc ? docToCharacterTemplate(doc) : undefined;
+  }
+
+  async getCharacterTemplates(worldId: string): Promise<CharacterTemplate[]> {
+    await this.connect();
+    // Return base templates (worldId: null) plus world-specific templates
+    const docs = await CharacterTemplateModel.find({
+      $or: [{ worldId: null }, { worldId }]
+    });
+    return docs.map(docToCharacterTemplate);
+  }
+
+  async createCharacterTemplate(template: InsertCharacterTemplate): Promise<CharacterTemplate> {
+    await this.connect();
+    const doc = await CharacterTemplateModel.create({
+      ...template,
+      startingTruths: template.startingTruths ?? [],
+      isDefault: template.isDefault ?? false,
+      isBase: template.isBase ?? false,
+    });
+    return docToCharacterTemplate(doc);
+  }
+
+  async updateCharacterTemplate(id: string, template: Partial<InsertCharacterTemplate>): Promise<CharacterTemplate | undefined> {
+    await this.connect();
+    const doc = await CharacterTemplateModel.findByIdAndUpdate(
+      id,
+      { ...template, updatedAt: new Date() },
+      { new: true }
+    );
+    return doc ? docToCharacterTemplate(doc) : undefined;
+  }
+
+  async deleteCharacterTemplate(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await CharacterTemplateModel.findByIdAndDelete(id);
     return !!result;
   }
 

@@ -44,7 +44,9 @@ import {
   type TerrainFeature,
   type InsertTerrainFeature,
   type GameText,
-  type InsertGameText
+  type InsertGameText,
+  type CharacterTemplate,
+  type InsertCharacterTemplate
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -168,6 +170,13 @@ export interface IStorage {
   updateCharacter(id: string, character: Partial<InsertCharacter>): Promise<Character | undefined>;
   bulkUpdateCharacters(updates: Array<{ id: string; data: Partial<InsertCharacter> }>): Promise<number>;
   deleteCharacter(id: string): Promise<boolean>;
+
+  // Character Templates
+  getCharacterTemplate(id: string): Promise<CharacterTemplate | undefined>;
+  getCharacterTemplates(worldId: string): Promise<CharacterTemplate[]>;
+  createCharacterTemplate(template: InsertCharacterTemplate): Promise<CharacterTemplate>;
+  updateCharacterTemplate(id: string, template: Partial<InsertCharacterTemplate>): Promise<CharacterTemplate | undefined>;
+  deleteCharacterTemplate(id: string): Promise<boolean>;
 
   // Simulations
   getSimulation(id: string): Promise<Simulation | undefined>;

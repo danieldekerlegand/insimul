@@ -47,6 +47,7 @@ import {
   insertContainerSchema,
   insertVisualAssetSchema,
   insertTextSchema,
+  insertCharacterTemplateSchema,
   type InsertRule,
   type Rule
 } from "@shared/schema";
@@ -1484,6 +1485,122 @@ app.get("/api/rules", async (req, res) => {
     }
   });
   
+  // ============ Character Templates ============
+
+  // List character templates for a world (includes base templates)
+  app.get("/api/worlds/:worldId/character-templates", async (req, res) => {
+    try {
+      const templates = await storage.getCharacterTemplates(req.params.worldId);
+      res.json(templates);
+    } catch (error) {
+      console.error("Failed to fetch character templates:", error);
+      res.status(500).json({ error: "Failed to fetch character templates" });
+    }
+  });
+
+  // Create a character template for a world
+  app.post("/api/worlds/:worldId/character-templates", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+
+      if (!(await canEditWorld(payload?.userId, worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const templateData = { ...req.body, worldId };
+      const validatedData = insertCharacterTemplateSchema.parse(templateData);
+      const template = await storage.createCharacterTemplate(validatedData);
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid template data", details: error.errors });
+      }
+      console.error("Failed to create character template:", error);
+      res.status(500).json({ error: "Failed to create character template" });
+    }
+  });
+
+  // Get a single character template
+  app.get("/api/character-templates/:id", async (req, res) => {
+    try {
+      const template = await storage.getCharacterTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Character template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error("Failed to fetch character template:", error);
+      res.status(500).json({ error: "Failed to fetch character template" });
+    }
+  });
+
+  // Update a character template
+  app.put("/api/character-templates/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const existing = await storage.getCharacterTemplate(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Character template not found" });
+      }
+
+      if (existing.worldId) {
+        const token = req.headers.authorization?.split(' ')[1];
+        const payload = token ? AuthService.verifyToken(token) : null;
+
+        if (!(await canEditWorld(payload?.userId, existing.worldId))) {
+          return res.status(403).json({ error: "You don't have permission to edit this world" });
+        }
+      }
+
+      const validatedData = insertCharacterTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateCharacterTemplate(id, validatedData);
+      if (!template) {
+        return res.status(404).json({ error: "Character template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid template data", details: error.errors });
+      }
+      console.error("Failed to update character template:", error);
+      res.status(500).json({ error: "Failed to update character template" });
+    }
+  });
+
+  // Delete a character template
+  app.delete("/api/character-templates/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const existing = await storage.getCharacterTemplate(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Character template not found" });
+      }
+
+      if (existing.worldId) {
+        const token = req.headers.authorization?.split(' ')[1];
+        const payload = token ? AuthService.verifyToken(token) : null;
+
+        if (!(await canEditWorld(payload?.userId, existing.worldId))) {
+          return res.status(403).json({ error: "You don't have permission to edit this world" });
+        }
+      }
+
+      const deleted = await storage.deleteCharacterTemplate(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Character template not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete character template:", error);
+      res.status(500).json({ error: "Failed to delete character template" });
+    }
+  });
+
   // Character impulse endpoint (integrated extension)
   app.post("/api/characters/:id/impulse", async (req, res) => {
     try {
