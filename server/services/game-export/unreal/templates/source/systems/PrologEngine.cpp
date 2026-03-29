@@ -241,6 +241,58 @@ void UPrologEngine::LoadItemReasoningRules()
     UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine loaded item IS-A reasoning rules"));
 }
 
+void UPrologEngine::LoadHelperPredicates()
+{
+    if (!bInitialized) return;
+
+    // Gameplay helper predicates — mirrors HELPER_PREDICATES_PROLOG from
+    // shared/prolog/helper-predicates.ts (CEFR comparison, weapon/tool
+    // type classification, skill tier names, skill level comparison).
+    const FString HelperRules = TEXT(
+        "% CEFR level ranks\n"
+        "cefr_level_rank(a1, 1).\n"
+        "cefr_level_rank(a2, 2).\n"
+        "cefr_level_rank(b1, 3).\n"
+        "cefr_level_rank(b2, 4).\n"
+        "cefr_level_rank(c1, 5).\n"
+        "cefr_level_rank(c2, 6).\n"
+        "cefr_gte(Actual, Required) :- cefr_level_rank(Actual, AR), cefr_level_rank(Required, RR), AR >= RR.\n"
+        "\n"
+        "% Weapon type classification\n"
+        "is_weapon_type(ItemId, sword) :- item_type(ItemId, sword).\n"
+        "is_weapon_type(ItemId, axe) :- item_type(ItemId, axe).\n"
+        "is_weapon_type(ItemId, bow) :- item_type(ItemId, bow).\n"
+        "is_weapon_type(ItemId, staff) :- item_type(ItemId, staff).\n"
+        "is_weapon_type(ItemId, pistol) :- item_type(ItemId, pistol).\n"
+        "\n"
+        "% Tool type classification\n"
+        "is_tool_type(ItemId, fishing_rod) :- item_type(ItemId, fishing_rod).\n"
+        "is_tool_type(ItemId, pickaxe) :- item_type(ItemId, pickaxe).\n"
+        "is_tool_type(ItemId, axe) :- item_type(ItemId, axe).\n"
+        "is_tool_type(ItemId, hoe) :- item_type(ItemId, hoe).\n"
+        "\n"
+        "% Skill tier names\n"
+        "skill_tier_name(1, novice).\n"
+        "skill_tier_name(2, novice).\n"
+        "skill_tier_name(3, apprentice).\n"
+        "skill_tier_name(4, apprentice).\n"
+        "skill_tier_name(5, journeyman).\n"
+        "skill_tier_name(6, journeyman).\n"
+        "skill_tier_name(7, expert).\n"
+        "skill_tier_name(8, expert).\n"
+        "skill_tier_name(9, expert).\n"
+        "skill_tier_name(10, master).\n"
+        "\n"
+        "% Skill level comparison\n"
+        "skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= MinLevel.\n"
+    );
+
+    KnowledgeBase += TEXT("\n") + HelperRules;
+    ParseKnowledgeBase();
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine loaded gameplay helper predicates"));
+}
+
 void UPrologEngine::UpdateGameState(const FInsimulGameState& State)
 {
     if (!bInitialized) return;

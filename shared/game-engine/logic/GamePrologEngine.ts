@@ -16,6 +16,7 @@ import type { WeatherCondition } from '@shared/npc-awareness-context';
 import { getTimePeriod } from '@shared/npc-awareness-context';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
+import { HELPER_PREDICATES_PROLOG } from '@shared/prolog/helper-predicates';
 import type { GameEventBus, GameEvent, ItemTaxonomy } from './GameEventBus';
 
 export interface GameState {
@@ -441,6 +442,13 @@ export class GamePrologEngine {
       if (quest.content) {
         try { await this.engine.consult(quest.content); } catch { /* skip invalid */ }
       }
+    }
+
+    // Load gameplay helper predicates (CEFR comparison, weapon/tool types, skill checks)
+    try {
+      await this.engine.consult(HELPER_PREDICATES_PROLOG);
+    } catch (e) {
+      console.warn('[GamePrologEngine] Failed to load helper predicates:', e);
     }
 
     // Load NPC reasoning rules

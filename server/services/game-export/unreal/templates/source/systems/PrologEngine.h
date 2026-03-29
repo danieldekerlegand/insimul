@@ -161,6 +161,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     void LoadItemReasoningRules();
 
+    /** Load gameplay helper predicates (CEFR comparison, weapon/tool types, skill checks) */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void LoadHelperPredicates();
+
     /** Update dynamic game state facts (call on state change) */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     void UpdateGameState(const FInsimulGameState& State);
