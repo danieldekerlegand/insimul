@@ -373,3 +373,31 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - No browser testing tools available — manual verification needed
   - US-021 will integrate MVT context into LLM conversation prompts
 ---
+
+## 2026-03-29 - US-021
+- Created `shared/prolog/mvt-context.ts` with `generateMVTContext()` function
+- Formats serialized Prolog gameplay facts as a concise natural-language context block (~200 tokens)
+- Covers: health/energy, gold, occupation, age, location, languages (with CEFR), equipped items, inventory (capped at 8), skills (capped at 6), vocabulary topics
+- Integrated into `server/services/conversation/context-manager.ts`:
+  - Added `prologFacts` to `gameState` parameter of `buildContext()`
+  - Added `mvtContext` to `PromptParts` interface
+  - Injected as `PLAYER GAME STATE:` block after player relationship, before language learning directives
+- Updated `server/services/conversation/http-bridge.ts`:
+  - Accepts `prologFacts` in request body
+  - Passes to `buildContext()` via gameState
+  - Rebuilds context when prologFacts are provided (not just on first message)
+- Updated `client/src/components/3DGame/ConversationClient.ts`:
+  - Added `setPrologFactsProvider()` for external systems (e.g., GameTruthSync) to supply current facts
+  - Includes facts in conversation stream request body
+- Files changed:
+  - `shared/prolog/mvt-context.ts` — new file (generateMVTContext function)
+  - `server/services/conversation/context-manager.ts` — import, PromptParts.mvtContext, gameState.prologFacts, injection into prompt
+  - `server/services/conversation/http-bridge.ts` — prologFacts passthrough, context rebuild on facts
+  - `client/src/components/3DGame/ConversationClient.ts` — setPrologFactsProvider, include in fetch body
+- **Learnings for future iterations:**
+  - Context manager builds system prompt in `buildSystemPrompt()` at line 514 of context-manager.ts — all NPC prompt sections are assembled there
+  - HTTP bridge caches conversation context per session — must explicitly rebuild when game state changes (prologFacts triggers rebuild)
+  - ConversationClient uses a provider callback pattern (like schedule provider in GameTruthSync) to avoid tight coupling
+  - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
+  - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
+---
