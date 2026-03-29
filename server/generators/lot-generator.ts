@@ -23,6 +23,9 @@ export interface LotPosition {
  */
 function getLotWidth(settlementType: string): number {
   switch (settlementType) {
+    case 'dwelling':
+    case 'roadhouse':
+    case 'homestead': return 20;
     case 'village': return 15;
     case 'town': return 12;
     case 'city': return 10;
@@ -35,6 +38,9 @@ function getLotWidth(settlementType: string): number {
  */
 function getLotDepth(settlementType: string): number {
   switch (settlementType) {
+    case 'dwelling':
+    case 'roadhouse':
+    case 'homestead': return 30;
     case 'village': return 28;
     case 'town': return 24;
     case 'city': return 20;

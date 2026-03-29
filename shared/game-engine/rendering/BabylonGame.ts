@@ -16,7 +16,6 @@ import {
   DynamicTexture,
   Effect,
   Engine,
-  FreeCamera,
   HemisphericLight,
   Mesh,
   MeshBuilder,
@@ -111,6 +110,8 @@ import { BabylonSkillTreePanel } from "@shared/game-engine/rendering/BabylonSkil
 import { EnvironmentalAudioManager } from "@shared/game-engine/rendering/EnvironmentalAudioManager";
 import { CulturalEventManager } from "@shared/game-engine/logic/CulturalEventManager";
 import { BabylonNoticeBoardPanel, type NoticeArticle } from "@shared/game-engine/rendering/BabylonNoticeBoardPanel";
+import { assessmentModalOpen } from "@shared/game-engine/rendering/AssessmentModalUI";
+import { compositionModalOpen } from "@shared/game-engine/rendering/CompositionWritingUI";
 import { SettlementNoticeBoard } from "@shared/game-engine/rendering/SettlementNoticeBoard";
 import { createTownSquare } from "@shared/game-engine/rendering/TownSquareGenerator";
 import { getCenterBlockBounds, getBlockCellSize } from "@shared/game-engine/rendering/StreetAlignedPlacement";
@@ -707,7 +708,9 @@ export class BabylonGame {
   private furnitureModelLoader: FurnitureModelLoader | null = null;
   private activeInterior: InteriorLayout | null = null;
   private activeBuildingId: string | null = null;
-  private interiorCamera: FreeCamera | null = null;
+  private interiorCamera: ArcRotateCamera | null = null;
+  private interiorPlayerMesh: Mesh | null = null;
+  private interiorPlayerController: CharacterController | null = null;
   private savedOverworldPosition: Vector3 | null = null;
   private savedOverworldRotationY: number = 0;
   private savedOverworldCameraAlpha: number = 0;
@@ -1631,7 +1634,7 @@ export class BabylonGame {
         this.guiManager?.showToast({ title, description: content, duration: 5000 });
       },
       setMovementLocked: (locked) => {
-        const ctrl = (this as any)._interiorPlayerController ?? this.playerController;
+        const ctrl = this.interiorPlayerController ?? this.playerController;
         ctrl?.enableKeyBoard(!locked);
       },
       playPlayerAnimation: (_name) => { /* animation integration deferred */ },
@@ -1650,7 +1653,7 @@ export class BabylonGame {
     this.playerActionSystem = new PlayerActionSystem({
       showToast: (opts) => this.guiManager?.showToast(opts),
       setMovementLocked: (locked) => {
-        const ctrl = (this as any)._interiorPlayerController ?? this.playerController;
+        const ctrl = this.interiorPlayerController ?? this.playerController;
         ctrl?.enableKeyBoard(!locked);
       },
       playPlayerAnimation: (_name) => { /* animation integration deferred */ },
@@ -1954,6 +1957,133 @@ export class BabylonGame {
     trunk.isPickable = false;
     trunk.checkCollisions = true;
     this.worldPropMeshes.push(trunk);
+  }
+
+  /**
+   * Place cemetery gravestones in a park lot for deceased residents.
+   * Arranges gravestones in a grid with name and birth/death year inscriptions.
+   */
+  /** Fixed cemetery footprint — fits within a single lot (~10x12m). */
+  private static readonly CEMETERY_WIDTH = 10;
+  private static readonly CEMETERY_DEPTH = 12;
+
+  private placeCemeteryGravestones(
+    scene: Scene,
+    lotCenter: Vector3,
+    deceasedCharacters: any[],
+    settlementId: string
+  ): void {
+    // Layout constants — fixed single-lot-sized cemetery
+    const GRAVE_SPACING_X = 2.5;
+    const GRAVE_SPACING_Z = 3.0;
+    const STONE_HEIGHT = 1.2;
+    const STONE_WIDTH = 0.8;
+    const STONE_DEPTH = 0.15;
+    const CEM_W = BabylonGame.CEMETERY_WIDTH;
+    const CEM_D = BabylonGame.CEMETERY_DEPTH;
+
+    // Compute grid capacity
+    const cols = Math.max(1, Math.floor(CEM_W / GRAVE_SPACING_X));
+    const rows = Math.max(1, Math.floor(CEM_D / GRAVE_SPACING_Z));
+
+    // Shared materials
+    const stoneMat = new StandardMaterial(`cemetery_stone_mat_${settlementId}`, scene);
+    stoneMat.diffuseColor = new Color3(0.6, 0.6, 0.58);
+    stoneMat.specularColor = new Color3(0.1, 0.1, 0.1);
+
+    const baseMat = new StandardMaterial(`cemetery_base_mat_${settlementId}`, scene);
+    baseMat.diffuseColor = new Color3(0.45, 0.45, 0.43);
+    baseMat.specularColor = Color3.Black();
+
+    // Place gravestones in a grid, centered on lotCenter
+    const maxGraves = Math.min(deceasedCharacters.length, cols * rows);
+    const startX = lotCenter.x - (Math.min(cols, maxGraves) - 1) * GRAVE_SPACING_X / 2;
+    const startZ = lotCenter.z - (Math.ceil(maxGraves / cols) - 1) * GRAVE_SPACING_Z / 2;
+
+    for (let i = 0; i < maxGraves; i++) {
+      const character = deceasedCharacters[i];
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const gx = startX + col * GRAVE_SPACING_X;
+      const gz = startZ + row * GRAVE_SPACING_Z;
+      const groundPos = this.projectToGround(gx, gz);
+
+      const graveId = `grave_${settlementId}_${i}`;
+
+      // Headstone
+      const headstone = MeshBuilder.CreateBox(`${graveId}_stone`, {
+        width: STONE_WIDTH,
+        height: STONE_HEIGHT,
+        depth: STONE_DEPTH,
+      }, scene);
+      headstone.position = new Vector3(groundPos.x, groundPos.y + STONE_HEIGHT / 2, groundPos.z);
+      headstone.material = stoneMat;
+      headstone.isPickable = false;
+      headstone.checkCollisions = true;
+
+      // Small base slab
+      const base = MeshBuilder.CreateBox(`${graveId}_base`, {
+        width: STONE_WIDTH + 0.2,
+        height: 0.15,
+        depth: STONE_DEPTH + 0.15,
+      }, scene);
+      base.position = new Vector3(groundPos.x, groundPos.y + 0.075, groundPos.z);
+      base.material = baseMat;
+      base.isPickable = false;
+
+      // Text inscription using DynamicTexture
+      const name = `${character.firstName || ''} ${character.lastName || ''}`.trim();
+      const birthYear = character.birthYear ?? '?';
+      const deathYear = character.departureYear ?? '?';
+
+      const texW = 256;
+      const texH = 256;
+      const tex = new DynamicTexture(`${graveId}_tex`, { width: texW, height: texH }, scene, false);
+      const ctx = tex.getContext() as any as CanvasRenderingContext2D;
+      // Stone-colored background matching headstone
+      ctx.fillStyle = '#97968f';
+      ctx.fillRect(0, 0, texW, texH);
+      ctx.fillStyle = '#1a1a18';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Old-style serif font for gravestone look
+      const fontSize = Math.min(30, Math.floor(texW / (name.length * 0.6)));
+      ctx.font = `bold ${fontSize}px "Georgia", "Times New Roman", "Palatino Linotype", serif`;
+      ctx.fillText(name, texW / 2, texH * 0.38, texW - 20);
+      // Decorative dash between years
+      const yearFontSize = Math.floor(fontSize * 0.7);
+      ctx.font = `${yearFontSize}px "Georgia", "Times New Roman", serif`;
+      ctx.fillText(`${birthYear} \u2014 ${deathYear}`, texW / 2, texH * 0.62, texW - 20);
+      // Small cross or decorative element
+      ctx.font = `${Math.floor(fontSize * 0.5)}px serif`;
+      ctx.fillText('\u271D', texW / 2, texH * 0.15);
+      tex.update();
+      tex.hasAlpha = false;
+
+      const textMat = new StandardMaterial(`${graveId}_text_mat`, scene);
+      textMat.diffuseTexture = tex;
+      textMat.emissiveTexture = tex;
+      textMat.disableLighting = true;
+      textMat.backFaceCulling = false;
+      textMat.specularColor = Color3.Black();
+
+      // Text plane fixed to the front face of the headstone (facing +Z)
+      const textPlane = MeshBuilder.CreatePlane(`${graveId}_text`, {
+        width: STONE_WIDTH - 0.05,
+        height: STONE_HEIGHT - 0.1,
+        sideOrientation: Mesh.DOUBLESIDE,
+      }, scene);
+      textPlane.position = new Vector3(
+        groundPos.x,
+        groundPos.y + STONE_HEIGHT / 2,
+        groundPos.z
+      );
+      textPlane.material = textMat;
+      textPlane.isPickable = false;
+
+      this.worldPropMeshes.push(headstone, base, textPlane);
+    }
   }
 
   private async initializeSystems(): Promise<void> {
@@ -4639,9 +4769,30 @@ export class BabylonGame {
           }));
 
           // Place trees at park lot positions (center block = town square park)
+          // Reserve one park lot for cemetery if there are deceased characters
+          const genAllChars = this.characters || this.worldData?.characters || [];
+          const genDeceasedChars = genAllChars.filter((c: any) =>
+            (c.isAlive === false || c.status === 'deceased') &&
+            (c.currentLocation === settlement.id || c.currentLocation === settlement.name)
+          );
+          let genCemeteryCenter: Vector3 | null = null;
+          let genCemeteryUsed = false;
+          const genCemW = BabylonGame.CEMETERY_WIDTH;
+          const genCemD = BabylonGame.CEMETERY_DEPTH;
           for (const parkLot of parkLots) {
-            const treePos = this.projectToGround(parkLot.position.x, parkLot.position.z);
-            this.placeTreeAtPosition(scene, treePos, settlement.id);
+            const parkPos = this.projectToGround(parkLot.position.x, parkLot.position.z);
+            if (!genCemeteryUsed && genDeceasedChars.length > 0) {
+              genCemeteryUsed = true;
+              genCemeteryCenter = parkPos.clone();
+              this.placeCemeteryGravestones(scene, parkPos, genDeceasedChars, settlement.id);
+              // Don't place a tree on top of the cemetery lot
+              continue;
+            }
+            // Skip trees that would overlap the cemetery
+            if (genCemeteryCenter && Math.abs(parkPos.x - genCemeteryCenter.x) < genCemW / 2 + 1 && Math.abs(parkPos.z - genCemeteryCenter.z) < genCemD / 2 + 1) {
+              continue;
+            }
+            this.placeTreeAtPosition(scene, parkPos, settlement.id);
           }
         }
 
@@ -4826,7 +4977,7 @@ export class BabylonGame {
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
 
-          // Create bilingual building sign (language-learning worlds)
+          // Create building sign — always show business name; bilingual if language data exists
           if (this.buildingSignManager) {
             const tracker = this.chatPanel?.getLanguageTracker();
             if (tracker) {
@@ -4834,18 +4985,24 @@ export class BabylonGame {
             }
             const lang = (this.worldData as any)?.targetLanguage || '';
             const signEntry = lang ? getBusinessSign(lang, business.id, business.businessType || '', business.name) : null;
-            const targetName = signEntry?.targetText || business.name;
-            if (targetName) {
-              this.buildingSignManager.createBuildingSign(building, {
-                buildingId: business.id,
-                nativeName: business.businessType || 'Business',
-                targetName,
-                targetDetail: signEntry?.detailText,
-                buildingType: 'business',
-                businessType: business.businessType,
-              });
-            }
+            const displayName = signEntry?.targetText || business.name || business.businessType || 'Business';
+            this.buildingSignManager.createBuildingSign(building, {
+              buildingId: business.id,
+              nativeName: business.businessType || 'Business',
+              targetName: displayName,
+              targetDetail: signEntry?.detailText,
+              buildingType: 'business',
+              businessType: business.businessType,
+            });
           }
+
+          // Door-mounted business name plaque
+          this.createDoorLabel(
+            scene, business.id,
+            business.name || business.businessType || 'Business',
+            building.position, buildingSpec.rotation,
+            buildingSpec.depth, buildingSpec.width
+          );
 
         }
 
@@ -4970,7 +5127,7 @@ export class BabylonGame {
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
 
-          // Create bilingual residence sign (language-learning worlds)
+          // Create residence sign — always show address; bilingual if language data exists
           if (this.buildingSignManager) {
             const tracker = this.chatPanel?.getLanguageTracker();
             if (tracker) {
@@ -4979,31 +5136,64 @@ export class BabylonGame {
             const lang = (this.worldData as any)?.targetLanguage || '';
             const resType = (residence as any).residenceType || residenceType;
             const signEntry = lang ? getResidenceSign(lang, residence.id, resType) : null;
-            if (signEntry) {
-              this.buildingSignManager.createBuildingSign(building, {
-                buildingId: residence.id,
-                nativeName: signEntry.nativeText,
-                targetName: signEntry.targetText,
-                buildingType: 'residence',
-              });
-            }
+            // Build address from lot data: "42 Main St" or fallback to type label
+            const houseNum = resLot?.houseNumber;
+            const streetName = resLot?.streetName;
+            const addressLabel = houseNum && streetName
+              ? `${houseNum} ${streetName}`
+              : streetName
+                ? streetName
+                : resType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+            this.buildingSignManager.createBuildingSign(building, {
+              buildingId: residence.id,
+              nativeName: addressLabel,
+              targetName: signEntry?.targetText || addressLabel,
+              buildingType: 'residence',
+            });
+          }
+
+          // Door-mounted address number
+          const doorNumber = resLot?.houseNumber ? String(resLot.houseNumber) : null;
+          if (doorNumber) {
+            this.createDoorLabel(
+              scene, residence.id, doorNumber,
+              building.position, buildingSpec.rotation,
+              buildingSpec.depth, buildingSpec.width
+            );
           }
         }
 
-        // Place trees at DB park lots
+        // Place trees at DB park lots — reserve one lot for cemetery if there are deceased characters
         const dbParkLots = lots.filter((l: any) =>
           l.buildingType === 'park' && l.positionX != null && l.positionZ != null
         );
+        const allChars = this.characters || this.worldData?.characters || [];
+        const deceasedChars = allChars.filter((c: any) =>
+          (c.isAlive === false || c.status === 'deceased') &&
+          (c.currentLocation === settlement.id || c.currentLocation === settlement.name)
+        );
+        let cemeteryCenter: Vector3 | null = null;
+        let cemeteryLotUsed = false;
         for (const parkLot of dbParkLots) {
           const parkPos = this.projectToGround(
             parkLot.positionX + lotOffsetX,
             parkLot.positionZ + lotOffsetZ
           );
-          // Place multiple trees across the park area
           const pw = parkLot.lotWidth || 30;
           const pd = parkLot.lotDepth || 30;
+
+          // Place cemetery gravestones on exactly one park lot
+          if (!cemeteryLotUsed && deceasedChars.length > 0) {
+            cemeteryLotUsed = true;
+            cemeteryCenter = parkPos.clone();
+            this.placeCemeteryGravestones(scene, parkPos, deceasedChars, settlement.id);
+            // Still place trees on this lot, but skip the cemetery footprint area
+          }
+
+          // Place trees across the park lot, skipping the cemetery area
+          const cemW = BabylonGame.CEMETERY_WIDTH;
+          const cemD = BabylonGame.CEMETERY_DEPTH;
           const treeCount = Math.max(4, Math.floor((pw * pd) / 80));
-          // Simple seeded random from lot id
           let parkSeed = 0;
           for (let ci = 0; ci < parkLot.id.length; ci++) parkSeed = ((parkSeed << 5) - parkSeed + parkLot.id.charCodeAt(ci)) | 0;
           parkSeed = Math.abs(parkSeed);
@@ -5011,6 +5201,10 @@ export class BabylonGame {
           for (let ti = 0; ti < treeCount; ti++) {
             const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
             const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
+            // Skip tree if it would overlap the cemetery
+            if (cemeteryCenter && Math.abs(tx - cemeteryCenter.x) < cemW / 2 + 1 && Math.abs(tz - cemeteryCenter.z) < cemD / 2 + 1) {
+              continue;
+            }
             const treePos = this.projectToGround(tx, tz);
             this.placeTreeAtPosition(scene, treePos, settlement.id);
           }
@@ -5195,6 +5389,25 @@ export class BabylonGame {
             });
 
             this.buildingInfoDisplay?.registerBuilding(building);
+
+            // Create business name sign
+            if (this.buildingSignManager) {
+              this.buildingSignManager.createBuildingSign(building, {
+                buildingId: bizId,
+                nativeName: biz.businessType,
+                targetName: biz.name,
+                buildingType: 'business',
+                businessType: biz.businessType,
+              });
+            }
+
+            // Door-mounted business name plaque
+            this.createDoorLabel(
+              scene, bizId, biz.name,
+              building.position, buildingSpec.rotation,
+              buildingSpec.depth, buildingSpec.width
+            );
+
             autoFillIdx++;
           }
 
@@ -5295,6 +5508,17 @@ export class BabylonGame {
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
+
+          // Create residence sign with type label
+          if (this.buildingSignManager) {
+            const typeLabel = residenceType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+            this.buildingSignManager.createBuildingSign(building, {
+              buildingId: genericResId,
+              nativeName: typeLabel,
+              targetName: typeLabel,
+              buildingType: 'residence',
+            });
+          }
 
           autoFillIdx++;
         }
@@ -7242,7 +7466,11 @@ export class BabylonGame {
       return;
     }
 
-    const characters = (this.characters || this.worldData.characters || []).slice(0, MAX_NPCS);
+    const allCharacters = this.characters || this.worldData.characters || [];
+    // Filter out deceased and departed characters — they should not walk around
+    const characters = allCharacters
+      .filter((c: any) => c.isAlive !== false && c.status !== 'deceased' && c.status !== 'inactive')
+      .slice(0, MAX_NPCS);
 
     if (characters.length === 0) {
       return;
@@ -7871,6 +8099,82 @@ export class BabylonGame {
     );
   }
 
+  /**
+   * Create a small text label next to the front door of a building.
+   * For residences: shows the address number (e.g. "123").
+   * For businesses: shows the business name (e.g. "Tavern").
+   */
+  private createDoorLabel(
+    scene: Scene,
+    buildingId: string,
+    label: string,
+    buildingPos: Vector3,
+    rotation: number,
+    depth: number,
+    width: number
+  ): void {
+    if (!label) return;
+
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+
+    // Door is at front face center; offset slightly right of center
+    const doorLocalZ = depth / 2 + 0.15;
+    const rightOffset = Math.min(width * 0.3, 1.5);
+
+    // Right direction relative to building facing: perpendicular to forward
+    const labelX = buildingPos.x + sin * doorLocalZ + cos * rightOffset;
+    const labelZ = buildingPos.z + cos * doorLocalZ - sin * rightOffset;
+    const labelY = buildingPos.y + 1.8; // slightly above eye level beside door
+
+    // Dynamic texture for the label
+    const texW = 256;
+    const texH = 64;
+    const tex = new DynamicTexture(`door_label_tex_${buildingId}`, { width: texW, height: texH }, scene, false);
+    const ctx = tex.getContext() as any as CanvasRenderingContext2D;
+    ctx.clearRect(0, 0, texW, texH);
+
+    // Background plaque
+    ctx.fillStyle = 'rgba(40, 30, 20, 0.85)';
+    ctx.fillRect(4, 4, texW - 8, texH - 8);
+    ctx.strokeStyle = '#a08060';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(4, 4, texW - 8, texH - 8);
+
+    // Label text
+    ctx.fillStyle = '#f0e8d8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const fontSize = Math.min(32, Math.floor(texW / (label.length * 0.7)));
+    ctx.font = `bold ${fontSize}px "Georgia", serif`;
+    ctx.fillText(label, texW / 2, texH / 2, texW - 16);
+    tex.update();
+    tex.hasAlpha = true;
+
+    // Plane sized proportionally to text length
+    const planeW = Math.min(2.0, Math.max(0.6, label.length * 0.15));
+    const planeH = planeW * (texH / texW);
+    const plane = MeshBuilder.CreatePlane(
+      `door_label_${buildingId}`,
+      { width: planeW, height: planeH, sideOrientation: Mesh.DOUBLESIDE },
+      scene
+    );
+    plane.position = new Vector3(labelX, labelY, labelZ);
+    // Orient the label to face the same direction as the building front
+    plane.rotation.y = rotation;
+    plane.isPickable = false;
+
+    const mat = new StandardMaterial(`door_label_mat_${buildingId}`, scene);
+    mat.diffuseTexture = tex;
+    mat.emissiveTexture = tex;
+    mat.disableLighting = true;
+    mat.backFaceCulling = false;
+    mat.useAlphaFromDiffuseTexture = true;
+    plane.material = mat;
+
+    this.worldPropMeshes.push(plane);
+  }
+
   /** Check whether a world-space XZ point falls inside any registered building footprint. */
   private isPointInsideAnyBuilding(x: number, z: number): boolean {
     for (const b of this.buildingFootprints) {
@@ -8172,26 +8476,56 @@ export class BabylonGame {
     this.playerMesh.setEnabled(false);
     const interiorScene = this.interiorSceneManager.getInteriorScene();
 
-    // Create first-person camera for interior — much better visibility in tight spaces
-    let spawnPos = new Vector3(0, 1.6, 0);
-    const fpsCam = new FreeCamera('interior_camera', spawnPos, interiorScene);
-    fpsCam.attachControl(this.engine!.getRenderingCanvas(), true);
-    fpsCam.minZ = 0.1;
-    fpsCam.speed = 0.15;          // Comfortable indoor walk speed
-    fpsCam.inertia = 0.8;         // Smooth deceleration when releasing keys
-    fpsCam.angularSensibility = 800; // Lower = more sensitive; 800 = responsive first-person look
-    // WASD movement
-    fpsCam.keysUp = [87];    // W
-    fpsCam.keysDown = [83];  // S
-    fpsCam.keysLeft = [65];  // A
-    fpsCam.keysRight = [68]; // D
-    // Collisions — invisible box walls (0.3m thick) handle the actual blocking.
-    // No gravity — fixed eye height of 1.7m avoids floor clipping issues.
-    fpsCam.checkCollisions = true;
-    fpsCam.applyGravity = false;
-    fpsCam.ellipsoid = new Vector3(0.5, 0.9, 0.5);
-    this.interiorCamera = fpsCam;
-    interiorScene.activeCamera = fpsCam;
+    // Create 3rd-person camera + player mesh for interior — same controls as overworld
+    let spawnPos = new Vector3(0, 0, 0);
+
+    // Create a capsule avatar for the interior (same mesh type as fallback player)
+    const interiorAvatar = MeshBuilder.CreateCapsule('interior_player', { height: 2, radius: 0.4 }, interiorScene);
+    interiorAvatar.position = new Vector3(spawnPos.x, spawnPos.y + 1, spawnPos.z);
+    interiorAvatar.checkCollisions = true;
+    interiorAvatar.ellipsoid = new Vector3(0.5, 1, 0.5);
+    interiorAvatar.ellipsoidOffset = new Vector3(0, 1, 0);
+    interiorAvatar.isVisible = true;
+    // Give the interior player a subtle material so it's visible
+    const avatarMat = new StandardMaterial('interior_player_mat', interiorScene);
+    avatarMat.diffuseColor = new Color3(0.4, 0.5, 0.7);
+    avatarMat.emissiveColor = new Color3(0.1, 0.15, 0.2);
+    interiorAvatar.material = avatarMat;
+    this.interiorPlayerMesh = interiorAvatar;
+
+    // Create ArcRotateCamera — same setup as overworld 3rd-person
+    const intCam = new ArcRotateCamera(
+      'interior_camera',
+      -Math.PI / 2,   // alpha — behind player
+      Math.PI / 3,    // beta — above player
+      8,              // radius — slightly closer than overworld (10) for tighter spaces
+      interiorAvatar.position.add(new Vector3(0, 1.6, 0)),
+      interiorScene
+    );
+    intCam.attachControl(this.engine!.getRenderingCanvas(), true);
+    intCam.minZ = 0.1;
+    intCam.lowerRadiusLimit = 3;   // Allow closer zoom for tight interiors
+    intCam.upperRadiusLimit = 12;
+    intCam.wheelDeltaPercentage = 0.01;
+    this.interiorCamera = intCam;
+    interiorScene.activeCamera = intCam;
+
+    // Create CharacterController — identical config to overworld player
+    const intController = new CharacterController(interiorAvatar, intCam, interiorScene, undefined, true);
+    intController.setCameraTarget(new Vector3(0, 1.6, 0));
+    intController.setNoFirstPerson(true);
+    intController.setStepOffset(0.75);
+    intController.setSlopeLimit(15, 75);
+    intController.setWalkSpeed(2.5);
+    intController.setRunSpeed(5);
+    intController.setLeftSpeed(2);
+    intController.setRightSpeed(2);
+    intController.setJumpSpeed(6);
+    intController.setTurnSpeed(60);
+    intController.setCameraElasticity(true);
+    intController.makeObstructionInvisible(true);
+    intController.start();
+    this.interiorPlayerController = intController;
 
     // Now safe to switch — interior scene has an active camera
     this.interiorSceneManager.switchToInterior();
@@ -8215,10 +8549,10 @@ export class BabylonGame {
       spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
     }
 
-    // Fixed eye height — 1.7m above floor, no gravity needed
-    const EYE_HEIGHT = 1.7;
-    fpsCam.position = new Vector3(spawnPos.x, spawnPos.y + EYE_HEIGHT, spawnPos.z);
-    fpsCam.setTarget(new Vector3(spawnPos.x, spawnPos.y + EYE_HEIGHT, spawnPos.z + 5));
+    // Position the interior player avatar at the spawn point (feet on floor)
+    interiorAvatar.position = new Vector3(spawnPos.x, spawnPos.y + 1, spawnPos.z);
+    intCam.target = interiorAvatar.position.add(new Vector3(0, 1.6, 0));
+    intController.resetPhysicsState();
 
     // Debug NPC capsule for height reference (1.8m tall standing on floor)
     const debugNPC = MeshBuilder.CreateCapsule('interior_debug_npc', {
@@ -8230,10 +8564,6 @@ export class BabylonGame {
     debugMat.diffuseColor = new Color3(0.2, 0.6, 0.9);
     debugMat.emissiveColor = new Color3(0.1, 0.3, 0.45);
     debugNPC.material = debugMat;
-
-    // No player model needed in first-person
-    (this as any)._interiorPlayerMesh = null;
-    (this as any)._interiorPlayerController = null;
 
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
@@ -8409,15 +8739,13 @@ export class BabylonGame {
     // Clean up interior scene resources
     if (this.interiorSceneManager) {
       // Dispose the interior player controller and mesh
-      const interiorPlayerCtrl = (this as any)._interiorPlayerController;
-      if (interiorPlayerCtrl) {
-        interiorPlayerCtrl.stop();
-        (this as any)._interiorPlayerController = null;
+      if (this.interiorPlayerController) {
+        this.interiorPlayerController.stop();
+        this.interiorPlayerController = null;
       }
-      const interiorPlayer = (this as any)._interiorPlayerMesh;
-      if (interiorPlayer) {
-        interiorPlayer.dispose();
-        (this as any)._interiorPlayerMesh = null;
+      if (this.interiorPlayerMesh) {
+        this.interiorPlayerMesh.dispose();
+        this.interiorPlayerMesh = null;
       }
 
       // Dispose the interior camera
@@ -10795,6 +11123,12 @@ export class BabylonGame {
 
     // If the unified menu is open, block all other game input
     if (this.gameMenuSystem?.isOpen) {
+      return;
+    }
+
+    // Block game input when any text-input modal/panel is open
+    if (assessmentModalOpen || compositionModalOpen ||
+        this.chatPanel?.getIsVisible() || this.noticeBoardPanel?.getIsVisible()) {
       return;
     }
 
@@ -14627,6 +14961,10 @@ export class BabylonGame {
     this.interiorGenerator?.dispose();
     this.interiorSceneManager?.dispose();
     this.interiorSceneManager = null;
+    this.interiorPlayerController?.stop();
+    this.interiorPlayerController = null;
+    this.interiorPlayerMesh?.dispose();
+    this.interiorPlayerMesh = null;
     this.interiorCamera?.dispose();
     this.interiorCamera = null;
     this.furnitureModelLoader?.dispose();

@@ -13,8 +13,6 @@ import {
   type InsertState,
   type Settlement,
   type InsertSettlement,
-  type SettlementHistoryEvent,
-  type InsertSettlementHistoryEvent,
   type Lot,
   type InsertLot,
   type Business,
@@ -99,11 +97,11 @@ export interface IStorage {
   updateSettlement(id: string, settlement: Partial<InsertSettlement>): Promise<Settlement | undefined>;
   deleteSettlement(id: string): Promise<boolean>;
 
-  // Settlement History Events
-  getSettlementHistoryEvent(id: string): Promise<SettlementHistoryEvent | undefined>;
-  getSettlementHistoryBySettlement(settlementId: string): Promise<SettlementHistoryEvent[]>;
-  getSettlementHistoryByWorld(worldId: string): Promise<SettlementHistoryEvent[]>;
-  createSettlementHistoryEvent(event: InsertSettlementHistoryEvent): Promise<SettlementHistoryEvent>;
+  // Settlement History Events (stored as truths with entryType='settlement_history')
+  getSettlementHistoryEvent(id: string): Promise<any | undefined>;
+  getSettlementHistoryBySettlement(settlementId: string): Promise<any[]>;
+  getSettlementHistoryByWorld(worldId: string): Promise<any[]>;
+  createSettlementHistoryEvent(event: any): Promise<any>;
   deleteSettlementHistoryEvent(id: string): Promise<boolean>;
 
   // Lots
@@ -168,6 +166,7 @@ export interface IStorage {
   getCharactersBySettlement(settlementId: string): Promise<Character[]>;
   createCharacter(character: InsertCharacter & { age?: number; occupation?: string }): Promise<Character>;
   updateCharacter(id: string, character: Partial<InsertCharacter>): Promise<Character | undefined>;
+  bulkUpdateCharacters(updates: Array<{ id: string; data: Partial<InsertCharacter> }>): Promise<number>;
   deleteCharacter(id: string): Promise<boolean>;
 
   // Simulations
@@ -310,13 +309,6 @@ export interface IStorage {
   updateAchievement(id: string, achievement: Partial<import("@shared/schema").InsertAchievement>): Promise<import("@shared/schema").Achievement | undefined>;
   deleteAchievement(id: string): Promise<boolean>;
 
-  // Texts
-  getText(id: string): Promise<import("@shared/schema").Text | undefined>;
-  getTextsByWorld(worldId: string): Promise<import("@shared/schema").Text[]>;
-  createText(text: import("@shared/schema").InsertText): Promise<import("@shared/schema").Text>;
-  updateText(id: string, text: Partial<import("@shared/schema").InsertText>): Promise<import("@shared/schema").Text | undefined>;
-  deleteText(id: string): Promise<boolean>;
-
   // Playthroughs
   getPlaythrough(id: string): Promise<import("@shared/schema").Playthrough | undefined>;
   getPlaythroughsByUser(userId: string): Promise<import("@shared/schema").Playthrough[]>;
@@ -435,9 +427,16 @@ export interface IStorage {
 // Export MongoStorage as the default storage implementation
 // Use lazy initialization to ensure env vars are loaded first
 let _storage: MongoStorage | null = null;
+let _storageOverride: IStorage | null = null;
 
 export const storage = new Proxy({} as MongoStorage, {
   get(target, prop) {
+    // If an override is active (e.g., during playthrough simulation),
+    // route through it for intercepted methods, fall through to base for others
+    if (_storageOverride) {
+      const overrideVal = (_storageOverride as any)[prop];
+      if (overrideVal !== undefined) return overrideVal;
+    }
     if (!_storage) {
       console.log("Initializing MongoStorage with MONGO_URL:", process.env.MONGO_URL || "undefined (using default)");
       _storage = new MongoStorage();
@@ -445,3 +444,20 @@ export const storage = new Proxy({} as MongoStorage, {
     return (_storage as any)[prop];
   }
 });
+
+/**
+ * Temporarily override the global storage with a playthrough-aware proxy.
+ * All modules that import `storage` will automatically route writes through the override.
+ * Call `clearStorageOverride()` when done to restore normal storage.
+ *
+ * This is used during playthrough simulation to ensure TotT effect handlers
+ * (which call storage.updateCharacter() etc. directly) write to the overlay
+ * instead of modifying base world state.
+ */
+export function setStorageOverride(override: IStorage): void {
+  _storageOverride = override;
+}
+
+export function clearStorageOverride(): void {
+  _storageOverride = null;
+}

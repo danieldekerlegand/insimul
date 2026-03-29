@@ -177,7 +177,8 @@ export class BabylonNoticeBoardPanel {
       if (a.difficulty === 'advanced') return this.playerFluency >= 55;
       return true;
     });
-    return [...assessmentArticles, ...regularArticles];
+    // Reverse so newest articles appear first (most recent at top)
+    return [...assessmentArticles, ...regularArticles.reverse()];
   }
 
   private refreshContent(): void {

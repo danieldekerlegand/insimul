@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,9 +8,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Sparkles, Globe2 } from 'lucide-react';
+import { Plus, Sparkles, Globe2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  SettlementLayoutPreview,
+  selectPattern,
+  computeGenealogy,
+  POPULATION_BY_TYPE,
+} from '@/components/SettlementLayoutPreview';
 
 interface CountryDialogProps {
   open: boolean;
@@ -92,9 +98,9 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
       
       if (res.ok) {
         const result = await res.json();
-        toast({ 
-          title: 'Society Generated!', 
-          description: `Created country with ${result.numSettlements} settlements and ${result.totalPopulation} characters` 
+        toast({
+          title: 'Society Generated!',
+          description: `Created country with ${result.numSettlements} settlements and ${result.totalPopulation} characters`
         });
         setForm({ name: '', description: '', governmentType: '', economicSystem: '', foundedYear: new Date().getFullYear() });
         setAiPrompt('');
@@ -283,30 +289,43 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
                 </div>
               </div>
 
-              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 rounded-lg border border-purple-200 dark:border-purple-800">
-                <div className="flex items-start gap-2">
-                  <Sparkles className="w-5 h-5 text-purple-500 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-purple-700 dark:text-purple-300 mb-1">
-                      Procedural Society Generation
-                    </p>
-                    <p className="text-purple-600 dark:text-purple-400">
-                      This will create a complete country with settlements, characters, families, and genealogies spanning {generations} generations.
-                    </p>
+              {/* Generation Preview — shows what a typical settlement will look like */}
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-medium">Generation Preview (per settlement)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-lg font-semibold">{numSettlements}</p>
+                    <p className="text-xs text-muted-foreground">Settlements</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold">{numFoundingFamilies}</p>
+                    <p className="text-xs text-muted-foreground">Founding Families</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold">{generations}</p>
+                    <p className="text-xs text-muted-foreground">Generations</p>
                   </div>
                 </div>
+                <SettlementLayoutPreview
+                  pattern={selectPattern('plains', 'town', form.foundedYear)}
+                  settlementType="town"
+                  terrain="plains"
+                />
               </div>
             </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button 
-                onClick={handleProceduralGenerate} 
+              <Button
+                onClick={handleProceduralGenerate}
                 disabled={isGenerating || !form.name}
               >
                 {isGenerating ? (
                   <>
-                    <Sparkles className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Generating...
                   </>
                 ) : (

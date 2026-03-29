@@ -152,6 +152,7 @@ export class SettlementNoticeBoard {
       this.scene
     );
     noticeSurface.position = new Vector3(0, 2.2, 0.07);
+    noticeSurface.rotation.y = Math.PI;
     noticeSurface.parent = root;
 
     const surfaceMat = new StandardMaterial(`noticeboard_surface_mat_${settlementId}`, this.scene);

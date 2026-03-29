@@ -581,9 +581,12 @@ export const actions = pgTable("actions", {
   // Authoring format (for display/editing only, not execution)
   sourceFormat: text("source_format").notNull().default("prolog"),
 
+  // Action hierarchy
+  parentAction: text("parent_action"), // parent action name for hierarchy (e.g., sword_attack → attack_enemy)
+
   // Denormalized columns (derived from Prolog content, kept for DB queries)
   actionType: text("action_type").notNull(), // social, physical, mental, economic, etc.
-  category: text("category"), // conversation, combat, trade, etc.
+  category: text("category"), // unified: movement, combat, social, commerce, resource, items, exploration, language, survival
   duration: integer("duration").default(1), // time steps to complete
   difficulty: real("difficulty").default(0.5), // 0.0 to 1.0
   energyCost: integer("energy_cost").default(1),
@@ -1121,6 +1124,7 @@ export const insertActionSchema = createInsertSchema(actions).pick({
   content: true,
   isBase: true,
   sourceFormat: true,
+  parentAction: true,
   actionType: true,
   category: true,
   duration: true,

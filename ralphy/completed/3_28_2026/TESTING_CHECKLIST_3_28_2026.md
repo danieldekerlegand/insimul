@@ -7,12 +7,12 @@ Use this checklist to manually verify all features implemented across the 8 Ralp
 ## 0. Action Unification and Expansion
 
 ### Action Matrix & Prolog Fixes
-- [ ] `shared/game-engine/action-matrix.ts` exists and maps all 88 base actions to event, objective type, and interaction mode
-- [ ] All 88 base actions categorized into PHYSICAL, CONVERSATIONAL, OBSERVATIONAL, AUTOMATIC, or INVENTORY
-- [ ] Each action marked as EXISTS_IN_GAME, PARTIAL, or MISSING
-- [ ] Prolog metadata extractor correctly parses all 88 base actions (no format errors)
-- [ ] Required predicates generated: `action/4`, `can_perform/2`, `action_effect/2`, `action_duration/2`, `action_difficulty/2`
-- [ ] Batch convert endpoint (`POST /api/worlds/:worldId/prolog/convert-all`) works for actions
+- [X] `shared/game-engine/action-matrix.ts` exists and maps all 88 base actions to event, objective type, and interaction mode
+- [X] All 88 base actions categorized into PHYSICAL, CONVERSATIONAL, OBSERVATIONAL, AUTOMATIC, or INVENTORY
+- [X] Each action marked as EXISTS_IN_GAME, PARTIAL, or MISSING
+- [X] Prolog metadata extractor correctly parses all 88 base actions (no format errors)
+- [X] Required predicates generated: `action/4`, `can_perform/2`, `action_effect/2`, `action_duration/2`, `action_difficulty/2`
+- [X] Batch convert endpoint (`POST /api/worlds/:worldId/prolog/convert-all`) works for actions
 
 ### Merchant System
 - [ ] Business owner characters appear in NPC list in exported games

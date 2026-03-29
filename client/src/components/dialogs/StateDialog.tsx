@@ -48,7 +48,7 @@ export function StateDialog({ open, onOpenChange, worldId, countryId, countryNam
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create State / Province</DialogTitle>
           <DialogDescription>Add a new region within {countryName || 'the selected country'}</DialogDescription>

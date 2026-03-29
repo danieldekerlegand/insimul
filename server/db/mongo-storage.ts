@@ -418,21 +418,8 @@ const SettlementSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const SettlementHistoryEventSchema = new Schema({
-  worldId: { type: String, required: true },
-  settlementId: { type: String, required: true },
-  eventType: { type: String, required: true },
-  category: { type: String, required: true },
-  year: { type: Number, default: null },
-  timestep: { type: Number, default: null },
-  description: { type: String, required: true },
-  previousValue: { type: Schema.Types.Mixed, default: null },
-  newValue: { type: Schema.Types.Mixed, default: null },
-  significance: { type: String, default: 'minor' },
-  relatedCharacterIds: { type: Schema.Types.Mixed, default: [] },
-  tags: { type: Schema.Types.Mixed, default: [] },
-  createdAt: { type: Date, default: Date.now },
-});
+// SettlementHistoryEventSchema removed — settlement history events are now stored as truths
+// with entryType='settlement_history' and settlementId in relatedLocationIds
 
 const SimulationSchema = new Schema({
   worldId: { type: String, required: true },
@@ -463,6 +450,7 @@ const ActionSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, default: null },
   content: { type: String, default: null }, // Prolog content — single source of truth
+  parentAction: { type: String, default: null }, // parent action name for hierarchy
   actionType: { type: String, default: 'social' },
   category: { type: String, default: null },
   sourceFormat: { type: String, default: 'prolog' },
@@ -732,6 +720,8 @@ const PlayerProgressSchema = new Schema({
   saveData: { type: Schema.Types.Mixed, default: {} },
   lastPlayedAt: { type: Date, default: Date.now },
   sessionsCount: { type: Number, default: 0 },
+  // Embedded sessions (merged from PlayerSession collection)
+  sessions: { type: [Schema.Types.Mixed], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -770,19 +760,7 @@ const AssetCollectionSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const PlayerSessionSchema = new Schema({
-  userId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  progressId: { type: String, required: true },
-  startedAt: { type: Date, default: Date.now },
-  endedAt: { type: Date, default: null },
-  duration: { type: Number, default: 0 },
-  experienceGained: { type: Number, default: 0 },
-  questsCompletedInSession: { type: Number, default: 0 },
-  achievementsEarnedInSession: { type: Number, default: 0 },
-  sessionData: { type: Schema.Types.Mixed, default: {} },
-  createdAt: { type: Date, default: Date.now }
-});
+// PlayerSessionSchema removed — sessions are now embedded in PlayerProgressSchema.sessions[]
 
 const AchievementSchema = new Schema({
   worldId: { type: String, default: null },
@@ -1055,25 +1033,19 @@ const LotSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const ResidenceSchema = new Schema({
+const BuildingSchema = new Schema({
   worldId: { type: String, required: true },
   settlementId: { type: String, required: true },
   lotId: { type: String, required: true },
+  address: { type: String, required: true },
+  buildingCategory: { type: String, required: true }, // 'residence' or 'public'
+  // Residence-specific
   ownerIds: { type: [String], default: [] },
   residentIds: { type: [String], default: [] },
-  address: { type: String, required: true },
-  residenceType: { type: String, default: 'house' },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-
-const PublicBuildingSchema = new Schema({
-  worldId: { type: String, required: true },
-  settlementId: { type: String, required: true },
-  lotId: { type: String, required: true },
-  name: { type: String, required: true },
-  publicBuildingType: { type: String, required: true },
-  address: { type: String, required: true },
+  residenceType: { type: String, default: null },
+  // PublicBuilding-specific
+  name: { type: String, default: null },
+  publicBuildingType: { type: String, default: null },
   foundedYear: { type: Number, default: null },
   isOperational: { type: Boolean, default: true },
   capacity: { type: Number, default: null },
@@ -1082,6 +1054,8 @@ const PublicBuildingSchema = new Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
+BuildingSchema.index({ settlementId: 1 });
+BuildingSchema.index({ settlementId: 1, buildingCategory: 1 });
 
 const BusinessMongoSchema = new Schema({
   worldId: { type: String, required: true },
@@ -1132,12 +1106,14 @@ const LanguageChatMessageSchema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-const LanguageProgressSchema = new Schema({
+// Unified language learning progress (merges LanguageProgress, VocabularyEntry, GrammarPattern, ConversationRecord, ReadingProgress)
+const LanguageLearningSchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
   playthroughId: { type: String, default: null },
-  targetLanguage: { type: String, required: true },
-  overallFluency: { type: Number, default: 0 }, // 0-100
+  targetLanguage: { type: String, default: null },
+  // Aggregate stats (formerly LanguageProgress)
+  overallFluency: { type: Number, default: 0 },
   totalConversations: { type: Number, default: 0 },
   totalWordsLearned: { type: Number, default: 0 },
   streakDays: { type: Number, default: 0 },
@@ -1146,127 +1122,72 @@ const LanguageProgressSchema = new Schema({
   achievements: { type: [String], default: [] },
   dailyChallenges: { type: Schema.Types.Mixed, default: [] },
   lastSessionAt: { type: Date, default: null },
+  // Embedded vocabulary (formerly VocabularyEntry collection)
+  vocabulary: { type: [Schema.Types.Mixed], default: [] },
+  // Embedded grammar patterns (formerly GrammarPattern collection)
+  grammarPatterns: { type: [Schema.Types.Mixed], default: [] },
+  // Embedded conversation records (formerly ConversationRecord collection)
+  conversations: { type: [Schema.Types.Mixed], default: [] },
+  // Embedded reading progress (formerly ReadingProgress collection)
+  reading: { type: Schema.Types.Mixed, default: { articlesRead: [], quizAnswers: [], totalCorrect: 0, totalAttempted: 0, xpFromReading: 0 } },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-LanguageProgressSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
+LanguageLearningSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 }, { unique: true });
 
-const VocabularyEntrySchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, default: null },
-  word: { type: String, required: true },
-  meaning: { type: String, required: true },
-  category: { type: String, default: null },
-  timesEncountered: { type: Number, default: 0 },
-  timesUsedCorrectly: { type: Number, default: 0 },
-  masteryLevel: { type: String, default: 'new' }, // new, learning, familiar, mastered
-  lastEncountered: { type: Date, default: null },
-  context: { type: String, default: null },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-VocabularyEntrySchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
-
-const GrammarPatternSchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, default: null },
-  pattern: { type: String, required: true },
-  correctUsages: { type: Number, default: 0 },
-  incorrectUsages: { type: Number, default: 0 },
-  examples: { type: [String], default: [] },
-  masteryLevel: { type: String, default: 'new' },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-GrammarPatternSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
-
-const ConversationRecordSchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, default: null },
-  characterId: { type: String, required: true },
-  turns: { type: Number, default: 0 },
-  wordsUsed: { type: [String], default: [] },
-  targetLanguagePercentage: { type: Number, default: 0 },
-  fluencyGained: { type: Number, default: 0 },
-  grammarErrors: { type: Schema.Types.Mixed, default: [] },
-  duration: { type: Number, default: 0 }, // seconds
-  createdAt: { type: Date, default: Date.now }
-});
-ConversationRecordSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
-
-const ReadingProgressSchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, default: null },
-  articlesRead: { type: [String], default: [] },
-  quizAnswers: { type: [{
-    articleId: { type: String, required: true },
-    selectedIndex: { type: Number, required: true },
-    correctIndex: { type: Number, required: true },
-    correct: { type: Boolean, required: true },
-    answeredAt: { type: Number, required: true },
-  }], default: [] },
-  totalCorrect: { type: Number, default: 0 },
-  totalAttempted: { type: Number, default: 0 },
-  xpFromReading: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-ReadingProgressSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 }, { unique: true });
-
-const LanguageAssessmentSchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  assessmentType: { type: String, required: true }, // vocabulary, grammar, pronunciation, listening, pragmatic, cultural
-  targetLanguage: { type: String, required: true },
-  score: { type: Number, required: true },
-  maxScore: { type: Number, required: true },
-  details: { type: Schema.Types.Mixed, default: {} },
-  testWindow: { type: String, default: null }, // pre, post, delayed
-  studyId: { type: String, default: null },
-  createdAt: { type: Date, default: Date.now }
-});
-LanguageAssessmentSchema.index({ playerId: 1, worldId: 1 });
-
-const EvaluationResponseSchema = new Schema({
-  participantId: { type: String, required: true },
-  studyId: { type: String, required: true },
-  instrumentType: { type: String, required: true }, // actfl_opi, sus, ssq, ipq, engagement, grammar_judgment, gap_fill, vocabulary_productive, vocabulary_receptive, listening_comprehension, discourse_completion, cultural_knowledge
+// Unified assessment schema (merges LanguageAssessment, AssessmentSession, EvaluationResponse)
+// Discriminated by `docType`: 'result' | 'session' | 'evaluation'
+const UnifiedAssessmentSchema = new Schema({
+  docType: { type: String, required: true }, // 'result', 'session', 'evaluation'
+  // Shared fields
+  playerId: { type: String, default: null },
+  worldId: { type: String, default: null },
   targetLanguage: { type: String, default: null },
-  responses: { type: Schema.Types.Mixed, default: [] },
   score: { type: Number, default: null },
   maxScore: { type: Number, default: null },
+  createdAt: { type: Date, default: Date.now },
+  // LanguageAssessment (docType='result') fields
+  assessmentType: { type: String, default: null },
+  details: { type: Schema.Types.Mixed, default: null },
+  testWindow: { type: String, default: null },
+  studyId: { type: String, default: null },
+  // AssessmentSession (docType='session') fields
+  playthroughId: { type: String, default: null },
+  assessmentDefinitionId: { type: String, default: null },
+  status: { type: String, default: null },
+  phaseResults: { type: [Schema.Types.Mixed], default: [] },
+  totalScore: { type: Number, default: null },
+  totalMaxPoints: { type: Number, default: null },
+  cefrLevel: { type: String, default: null },
+  dimensionScores: { type: Schema.Types.Mixed, default: null },
+  automatedMetrics: { type: Schema.Types.Mixed, default: null },
+  recordings: { type: [Schema.Types.Mixed], default: [] },
+  startedAt: { type: Date, default: null },
+  completedAt: { type: Date, default: null },
+  // EvaluationResponse (docType='evaluation') fields
+  participantId: { type: String, default: null },
+  instrumentType: { type: String, default: null },
+  responses: { type: Schema.Types.Mixed, default: null },
   sessionId: { type: String, default: null },
-  createdAt: { type: Date, default: Date.now }
 });
-EvaluationResponseSchema.index({ studyId: 1, participantId: 1 });
-EvaluationResponseSchema.index({ studyId: 1, targetLanguage: 1 });
+UnifiedAssessmentSchema.index({ playerId: 1, worldId: 1 });
+UnifiedAssessmentSchema.index({ docType: 1 });
+UnifiedAssessmentSchema.index({ playerId: 1, worldId: 1, playthroughId: 1, assessmentType: 1 });
+UnifiedAssessmentSchema.index({ studyId: 1, participantId: 1 });
 
-const TechnicalTelemetrySchema = new Schema({
-  sessionId: { type: String, required: true },
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  metricType: { type: String, required: true }, // speech_wer, dialogue_latency_ms, dialogue_quality, render_fps, error, vr_session_type, vr_comfort_settings, vr_ssq_indicators
-  value: { type: Number, default: null },
-  metadata: { type: Schema.Types.Mixed, default: {} },
-  createdAt: { type: Date, default: Date.now }
-});
-TechnicalTelemetrySchema.index({ sessionId: 1 });
-TechnicalTelemetrySchema.index({ playerId: 1, worldId: 1 });
-
-const EngagementEventSchema = new Schema({
+const TelemetrySchema = new Schema({
+  category: { type: String, required: true }, // 'technical' or 'engagement'
   sessionId: { type: String, required: true },
   playerId: { type: String, required: true },
   worldId: { type: String, default: null },
-  eventType: { type: String, required: true }, // session_start, session_end, session_pause, session_resume, quest_started, quest_completed, quest_abandoned, area_explored, npc_conversation_started, npc_conversation_ended, menu_opened, menu_closed, idle_detected, frustration_signal
+  eventType: { type: String, required: true }, // unified from metricType/eventType
+  value: { type: Number, default: null }, // null for engagement events
   metadata: { type: Schema.Types.Mixed, default: {} },
   createdAt: { type: Date, default: Date.now }
 });
-EngagementEventSchema.index({ sessionId: 1 });
-EngagementEventSchema.index({ playerId: 1 });
+TelemetrySchema.index({ sessionId: 1 });
+TelemetrySchema.index({ playerId: 1, worldId: 1 });
+TelemetrySchema.index({ category: 1 });
 
 const ApiKeySchema = new Schema({
   key: { type: String, required: true, unique: true },
@@ -1279,66 +1200,40 @@ const ApiKeySchema = new Schema({
 });
 ApiKeySchema.index({ key: 1 });
 
-const TerrainFeatureSchema = new Schema({
-  worldId: { type: String, required: true },
-  name: { type: String, required: true },
-  featureType: { type: String, required: true },
-  position: { type: Schema.Types.Mixed, required: true },
-  radius: { type: Number, required: true },
-  elevation: { type: Number, required: true },
-  description: { type: String, default: null },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-TerrainFeatureSchema.index({ worldId: 1 });
-
-const WaterFeatureSchema = new Schema({
+const GeographicFeatureSchema = new Schema({
   worldId: { type: String, required: true },
   settlementId: { type: String, default: null },
-  type: { type: String, required: true }, // river, lake, ocean, pond, stream, waterfall, marsh, canal
-  subType: { type: String, default: 'fresh' },
+  featureCategory: { type: String, required: true }, // 'terrain' or 'water'
+  featureType: { type: String, required: true },
+  subType: { type: String, default: null },
   name: { type: String, required: true },
   position: { type: Schema.Types.Mixed, default: { x: 0, y: 0, z: 0 } },
-  waterLevel: { type: Number, default: 0 },
-  bounds: { type: Schema.Types.Mixed, default: { minX: 0, maxX: 0, minZ: 0, maxZ: 0, centerX: 0, centerZ: 0 } },
-  depth: { type: Number, default: 2 },
-  width: { type: Number, default: 10 },
+  description: { type: String, default: null },
+  // Terrain-specific
+  radius: { type: Number, default: null },
+  elevation: { type: Number, default: null },
+  // Water-specific
+  waterLevel: { type: Number, default: null },
+  bounds: { type: Schema.Types.Mixed, default: null },
+  depth: { type: Number, default: null },
+  width: { type: Number, default: null },
   flowDirection: { type: Schema.Types.Mixed, default: null },
-  flowSpeed: { type: Number, default: 0 },
+  flowSpeed: { type: Number, default: null },
   shorelinePoints: { type: Schema.Types.Mixed, default: [] },
   biome: { type: String, default: null },
-  isNavigable: { type: Boolean, default: true },
-  isDrinkable: { type: Boolean, default: true },
+  isNavigable: { type: Boolean, default: null },
+  isDrinkable: { type: Boolean, default: null },
   modelAssetKey: { type: String, default: null },
   color: { type: Schema.Types.Mixed, default: null },
-  transparency: { type: Number, default: 0.3 },
+  transparency: { type: Number, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-WaterFeatureSchema.index({ worldId: 1 });
-WaterFeatureSchema.index({ settlementId: 1 });
+GeographicFeatureSchema.index({ worldId: 1 });
+GeographicFeatureSchema.index({ settlementId: 1 });
+GeographicFeatureSchema.index({ worldId: 1, featureCategory: 1 });
 
-const AssessmentSessionSchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, default: null },
-  assessmentDefinitionId: { type: String, required: true },
-  assessmentType: { type: String, required: true }, // arrival, departure, periodic
-  targetLanguage: { type: String, required: true },
-  status: { type: String, required: true, default: 'idle' }, // idle, initializing, phase_active, phase_transitioning, scoring, complete
-  phaseResults: { type: [Schema.Types.Mixed], default: [] },
-  totalScore: { type: Number, default: null },
-  totalMaxPoints: { type: Number, required: true },
-  cefrLevel: { type: String, default: null }, // A1, A2, B1, B2
-  dimensionScores: { type: Schema.Types.Mixed, default: null },
-  automatedMetrics: { type: Schema.Types.Mixed, default: null },
-  recordings: { type: [Schema.Types.Mixed], default: [] },
-  startedAt: { type: Date, default: null },
-  completedAt: { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now }
-});
-AssessmentSessionSchema.index({ playerId: 1, worldId: 1, playthroughId: 1, assessmentType: 1 });
-AssessmentSessionSchema.index({ worldId: 1, status: 1 });
+// AssessmentSessionSchema removed — merged into UnifiedAssessmentSchema above
 
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
@@ -1348,7 +1243,7 @@ const WorldModel = mongoose.model<WorldDoc>('World', WorldSchema);
 const CountryModel = mongoose.model<CountryDoc>('Country', CountrySchema);
 const StateModel = mongoose.model<StateDoc>('State', StateSchema);
 const SettlementModel = mongoose.model<SettlementDoc>('Settlement', SettlementSchema);
-const SettlementHistoryEventModel = mongoose.model<SettlementHistoryEventDoc>('SettlementHistoryEvent', SettlementHistoryEventSchema);
+// SettlementHistoryEventModel removed — use TruthModel with entryType='settlement_history'
 const SimulationModel = mongoose.model<SimulationDoc>('Simulation', SimulationSchema);
 const ActionModel = mongoose.model<ActionDoc>('Action', ActionSchema);
 TruthSchema.index({ worldId: 1, playthroughId: 1 });
@@ -1362,9 +1257,9 @@ const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection
 const GenerationJobModel = mongoose.model<GenerationJobDoc>('GenerationJob', GenerationJobSchema);
 const UserModel = mongoose.model<UserDoc>('User', UserSchema);
 const PlayerProgressModel = mongoose.model<PlayerProgressDoc>('PlayerProgress', PlayerProgressSchema);
-const PlayerSessionModel = mongoose.model<PlayerSessionDoc>('PlayerSession', PlayerSessionSchema);
+// PlayerSessionModel removed — sessions embedded in PlayerProgressModel
 const AchievementModel = mongoose.model<AchievementDoc>('Achievement', AchievementSchema);
-const TextModel = mongoose.model<TextDoc>('Text', TextSchema);
+// TextModel removed — use GameTextModel instead
 const PlaythroughModel = mongoose.model<PlaythroughDoc>('Playthrough', PlaythroughSchema);
 const PlaythroughDeltaModel = mongoose.model<PlaythroughDeltaDoc>('PlaythroughDelta', PlaythroughDeltaSchema);
 const PlayTraceModel = mongoose.model<PlayTraceDoc>('PlayTrace', PlayTraceSchema);
@@ -1373,8 +1268,7 @@ const ReputationModel = mongoose.model<ReputationDoc>('Reputation', ReputationSc
 const PlaythroughRelationshipModel = mongoose.model<PlaythroughRelationshipDoc>('PlaythroughRelationship', PlaythroughRelationshipSchema);
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
 const LotModel = mongoose.model('Lot', LotSchema);
-const ResidenceModel = mongoose.model('Residence', ResidenceSchema);
-const PublicBuildingModel = mongoose.model('PublicBuilding', PublicBuildingSchema);
+const BuildingModel = mongoose.model('Building', BuildingSchema);
 const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
 const OccupationModel = mongoose.model('Occupation', OccupationSchema);
 const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', VersionAlertSchema);
@@ -1382,19 +1276,11 @@ const LanguageChatMessageModel = mongoose.model<LanguageChatMessageDoc>('Languag
 // Generic collection names (renamed from language-specific names).
 // Run server/db/migrations/rename-collections-for-feature-modules.ts to rename
 // existing collections, or start fresh — Mongoose will create the new names automatically.
-const LanguageProgressModel = mongoose.model('LanguageProgress', LanguageProgressSchema, 'proficiencyprogress');
-const VocabularyEntryModel = mongoose.model('VocabularyEntry', VocabularyEntrySchema, 'knowledgeentries');
-const GrammarPatternModel = mongoose.model('GrammarPattern', GrammarPatternSchema, 'grammarpatterns');
-const ConversationRecordModel = mongoose.model('ConversationRecord', ConversationRecordSchema, 'conversationrecords');
-const ReadingProgressModel = mongoose.model('ReadingProgress', ReadingProgressSchema, 'readingprogress');
-const LanguageAssessmentModel = mongoose.model('LanguageAssessment', LanguageAssessmentSchema, 'assessments');
-const AssessmentSessionModel = mongoose.model('AssessmentSession', AssessmentSessionSchema, 'assessmentsessions');
-const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationResponseSchema, 'evaluationresponses');
-const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
-const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
+const LanguageLearningModel = mongoose.model('LanguageLearning', LanguageLearningSchema, 'languageprogress');
+const AssessmentModel = mongoose.model('Assessment', UnifiedAssessmentSchema, 'assessments');
+const TelemetryModel = mongoose.model('Telemetry', TelemetrySchema, 'telemetry');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
-const TerrainFeatureModel = mongoose.model('TerrainFeature', TerrainFeatureSchema);
-const WaterFeatureModel = mongoose.model('WaterFeature', WaterFeatureSchema);
+const GeographicFeatureModel = mongoose.model('GeographicFeature', GeographicFeatureSchema);
 
 function docToAssessmentSession(doc: any): AssessmentSession {
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -1463,10 +1349,6 @@ function docToSettlement(doc: SettlementDoc): Settlement {
   const obj = { ...doc.toObject(), id: doc._id.toString() };
   obj.name = sanitizeName(obj.name) ?? obj.name;
   return obj;
-}
-
-function docToSettlementHistoryEvent(doc: SettlementHistoryEventDoc): SettlementHistoryEvent {
-  return { ...doc.toObject(), id: doc._id.toString() };
 }
 
 function docToSimulation(doc: SimulationDoc): Simulation {
@@ -1785,6 +1667,15 @@ export class MongoStorage implements IStorage {
       console.log(`   ✓ Deleted ${containerResult.deletedCount} containers`);
     }
 
+    // 11c. Delete remaining infrastructure (catch any missed by settlement cascade)
+    await LotModel.deleteMany({ worldId: id });
+    await BusinessMongoModel.deleteMany({ worldId: id });
+    await BuildingModel.deleteMany({ worldId: id });
+    await OccupationModel.deleteMany({ worldId: id });
+    await GeographicFeatureModel.deleteMany({ worldId: id });
+    // Settlement history events are now truths — already deleted with truths above
+    await GameTextModel.deleteMany({ worldId: id });
+
     // 12. Delete visual assets
     const visualAssets = await VisualAssetModel.deleteMany({ worldId: id });
     if (visualAssets.deletedCount && visualAssets.deletedCount > 0) {
@@ -1810,10 +1701,7 @@ export class MongoStorage implements IStorage {
     }
 
     // 16. Delete player sessions
-    const playerSessions = await PlayerSessionModel.deleteMany({ worldId: id });
-    if (playerSessions.deletedCount && playerSessions.deletedCount > 0) {
-      console.log(`   ✓ Deleted ${playerSessions.deletedCount} player sessions`);
-    }
+    // Player sessions are now embedded in PlayerProgress — deleted with PlayerProgress above
 
     // 17. Delete achievements
     const achievements = await AchievementModel.deleteMany({ worldId: id });
@@ -2034,63 +1922,98 @@ export class MongoStorage implements IStorage {
 
   async deleteSettlement(id: string): Promise<boolean> {
     await this.connect();
-    
+
     console.log(`      🗑️  Deleting settlement ${id} with cascade...`);
-    
+
     // Cascade delete: Delete all characters in this settlement
-    const characters = await CharacterModel.find({ currentLocation: id });
-    console.log(`         Found ${characters.length} characters to delete`);
-    
-    for (const character of characters) {
-      await CharacterModel.findByIdAndDelete(character._id);
+    const characters = await CharacterModel.deleteMany({ currentLocation: id });
+    if (characters.deletedCount) {
+      console.log(`         Deleted ${characters.deletedCount} characters`);
     }
-    
+
     // Delete characters who might have this settlement in other location fields
     const residenceChars = await CharacterModel.deleteMany({ currentResidenceId: id });
     if (residenceChars.deletedCount && residenceChars.deletedCount > 0) {
       console.log(`         Deleted ${residenceChars.deletedCount} characters by residence`);
     }
-    
-    // Note: Lots, Businesses, and Residences are stub implementations
-    // When they get proper schemas, add cascade delete here:
-    // - await LotModel.deleteMany({ settlementId: id });
-    // - await BusinessModel.deleteMany({ settlementId: id });
-    // - await ResidenceModel.deleteMany({ settlementId: id });
-    
+
+    // Cascade delete settlement infrastructure
+    // Delete occupations via business IDs before deleting businesses
+    const businessDocs = await BusinessMongoModel.find({ settlementId: id }, { _id: 1 });
+    const businessIds = businessDocs.map(b => b._id.toString());
+    const occupations = businessIds.length > 0
+      ? await OccupationModel.deleteMany({ businessId: { $in: businessIds } })
+      : { deletedCount: 0 };
+
+    const lots = await LotModel.deleteMany({ settlementId: id });
+    const businesses = await BusinessMongoModel.deleteMany({ settlementId: id });
+    const buildings = await BuildingModel.deleteMany({ settlementId: id });
+    const containers = await ContainerModel.deleteMany({ settlementId: id });
+    const historyEvents = await TruthModel.deleteMany({ entryType: 'settlement_history', relatedLocationIds: id });
+    const waterFeatures = await GeographicFeatureModel.deleteMany({ settlementId: id });
+
+    const infraDeleted = (lots.deletedCount || 0) + (businesses.deletedCount || 0) +
+      (buildings.deletedCount || 0) +
+      (occupations.deletedCount || 0) + (containers.deletedCount || 0) +
+      (historyEvents.deletedCount || 0) + (waterFeatures.deletedCount || 0);
+    if (infraDeleted > 0) {
+      console.log(`         Deleted ${infraDeleted} infrastructure entities (${lots.deletedCount || 0} lots, ${businesses.deletedCount || 0} businesses, ${buildings.deletedCount || 0} buildings)`);
+    }
+
     // Finally delete the settlement itself
     const result = await SettlementModel.findByIdAndDelete(id);
-    console.log(`         ✅ Settlement ${id} deleted (${characters.length} characters removed)`);
+    console.log(`         ✅ Settlement ${id} deleted`);
     return !!result;
   }
 
-  // Settlement History Event operations
-  async getSettlementHistoryEvent(id: string): Promise<SettlementHistoryEvent | undefined> {
+  // Settlement History Event operations (stored as truths with entryType 'settlement_history')
+  async getSettlementHistoryEvent(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await SettlementHistoryEventModel.findById(id);
-    return doc ? docToSettlementHistoryEvent(doc) : undefined;
+    const doc = await TruthModel.findById(id);
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
-  async getSettlementHistoryBySettlement(settlementId: string): Promise<SettlementHistoryEvent[]> {
+  async getSettlementHistoryBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await SettlementHistoryEventModel.find({ settlementId }).sort({ year: 1, timestep: 1 });
-    return docs.map(docToSettlementHistoryEvent);
+    const docs = await TruthModel.find({ entryType: 'settlement_history', relatedLocationIds: settlementId }).sort({ timeYear: 1, timestep: 1 });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
-  async getSettlementHistoryByWorld(worldId: string): Promise<SettlementHistoryEvent[]> {
+  async getSettlementHistoryByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await SettlementHistoryEventModel.find({ worldId }).sort({ year: 1, timestep: 1 });
-    return docs.map(docToSettlementHistoryEvent);
+    const docs = await TruthModel.find({ worldId, entryType: 'settlement_history' }).sort({ timeYear: 1, timestep: 1 });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
-  async createSettlementHistoryEvent(event: InsertSettlementHistoryEvent): Promise<SettlementHistoryEvent> {
+  async createSettlementHistoryEvent(event: any): Promise<any> {
     await this.connect();
-    const doc = await SettlementHistoryEventModel.create(event);
-    return docToSettlementHistoryEvent(doc);
+    const truth = {
+      worldId: event.worldId,
+      title: `${event.eventType}: ${event.description?.substring(0, 60) || 'Settlement event'}`,
+      content: event.description,
+      entryType: 'settlement_history',
+      timestep: event.timestep ?? 0,
+      timeYear: event.year,
+      historicalSignificance: event.significance || 'minor',
+      relatedCharacterIds: event.relatedCharacterIds || [],
+      relatedLocationIds: [event.settlementId],
+      tags: [...(event.tags || []), event.category].filter(Boolean),
+      source: 'settlement_history',
+      sourceData: {
+        eventType: event.eventType,
+        category: event.category,
+        previousValue: event.previousValue,
+        newValue: event.newValue,
+        settlementId: event.settlementId,
+      },
+    };
+    const doc = await TruthModel.create(truth);
+    return { ...doc.toObject(), id: doc._id.toString() };
   }
 
   async deleteSettlementHistoryEvent(id: string): Promise<boolean> {
     await this.connect();
-    const result = await SettlementHistoryEventModel.findByIdAndDelete(id);
+    const result = await TruthModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -2174,77 +2097,76 @@ export class MongoStorage implements IStorage {
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
-  // Residence operations
+  // Building operations (unified residences + public buildings)
   async getResidence(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await ResidenceModel.findById(id);
+    const doc = await BuildingModel.findById(id);
     return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async getResidencesBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await ResidenceModel.find({ settlementId });
+    const docs = await BuildingModel.find({ settlementId, buildingCategory: 'residence' });
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   async createResidence(residence: any): Promise<any> {
     await this.connect();
-    const doc = await new ResidenceModel(residence).save();
+    const doc = await new BuildingModel({ ...residence, buildingCategory: 'residence' }).save();
     return { ...doc.toObject(), id: doc._id.toString() };
   }
 
   async updateResidence(id: string, residence: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await ResidenceModel.findByIdAndUpdate(id, { ...residence, updatedAt: new Date() }, { new: true });
+    const doc = await BuildingModel.findByIdAndUpdate(id, { ...residence, updatedAt: new Date() }, { new: true });
     return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async deleteResidence(id: string): Promise<boolean> {
     await this.connect();
-    const result = await ResidenceModel.findByIdAndDelete(id);
+    const result = await BuildingModel.findByIdAndDelete(id);
     return !!result;
   }
 
   async createResidencesInBulk(residences: any[]): Promise<any[]> {
     await this.connect();
-    const docs = await ResidenceModel.insertMany(residences);
+    const docs = await BuildingModel.insertMany(residences.map(r => ({ ...r, buildingCategory: 'residence' })));
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
-  // Public Building operations
   async getPublicBuilding(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await PublicBuildingModel.findById(id);
+    const doc = await BuildingModel.findById(id);
     return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async getPublicBuildingsBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await PublicBuildingModel.find({ settlementId });
+    const docs = await BuildingModel.find({ settlementId, buildingCategory: 'public' });
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   async getPublicBuildingsByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await PublicBuildingModel.find({ worldId });
+    const docs = await BuildingModel.find({ worldId, buildingCategory: 'public' });
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   async createPublicBuilding(building: any): Promise<any> {
     await this.connect();
-    const doc = await new PublicBuildingModel(building).save();
+    const doc = await new BuildingModel({ ...building, buildingCategory: 'public' }).save();
     return { ...doc.toObject(), id: doc._id.toString() };
   }
 
   async updatePublicBuilding(id: string, building: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await PublicBuildingModel.findByIdAndUpdate(id, { ...building, updatedAt: new Date() }, { new: true });
+    const doc = await BuildingModel.findByIdAndUpdate(id, { ...building, updatedAt: new Date() }, { new: true });
     return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async deletePublicBuilding(id: string): Promise<boolean> {
     await this.connect();
-    const result = await PublicBuildingModel.findByIdAndDelete(id);
+    const result = await BuildingModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -2489,6 +2411,19 @@ export class MongoStorage implements IStorage {
       { new: true }
     );
     return doc ? docToCharacter(doc) : undefined;
+  }
+
+  async bulkUpdateCharacters(updates: Array<{ id: string; data: Partial<InsertCharacter> }>): Promise<number> {
+    await this.connect();
+    if (updates.length === 0) return 0;
+    const ops = updates.map(u => ({
+      updateOne: {
+        filter: { _id: u.id },
+        update: { $set: { ...u.data, updatedAt: new Date() } },
+      }
+    }));
+    const result = await CharacterModel.bulkWrite(ops, { ordered: false });
+    return result.modifiedCount;
   }
 
   async deleteCharacter(id: string): Promise<boolean> {
@@ -3114,39 +3049,64 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
-  // ===== Player Sessions =====
+  // ===== Player Sessions (embedded in PlayerProgress.sessions[]) =====
   async getPlayerSession(id: string): Promise<PlayerSession | undefined> {
     await this.connect();
-    const doc = await PlayerSessionModel.findById(id);
-    return doc ? docToPlayerSession(doc) : undefined;
+    const progress = await PlayerProgressModel.findOne({ 'sessions._id': id });
+    if (!progress) return undefined;
+    const session = ((progress as any).sessions as any[])?.find((s: any) => s._id?.toString() === id);
+    return session ? { ...session, id } as PlayerSession : undefined;
   }
 
   async getPlayerSessionsByUser(userId: string): Promise<PlayerSession[]> {
     await this.connect();
-    const docs = await PlayerSessionModel.find({ userId }).sort({ startedAt: -1 });
-    return docs.map(docToPlayerSession);
+    const docs = await PlayerProgressModel.find({ userId });
+    const sessions: PlayerSession[] = [];
+    for (const doc of docs) {
+      for (const s of ((doc as any).sessions as any[]) || []) {
+        sessions.push({ ...s, id: s._id?.toString() || s.id } as PlayerSession);
+      }
+    }
+    sessions.sort((a: any, b: any) => (b.startedAt?.getTime?.() || 0) - (a.startedAt?.getTime?.() || 0));
+    return sessions;
   }
 
   async createPlayerSession(session: InsertPlayerSession): Promise<PlayerSession> {
     await this.connect();
-    const doc = await PlayerSessionModel.create(session);
-    return docToPlayerSession(doc);
+    const sessionData = { ...session, _id: new mongoose.Types.ObjectId(), startedAt: new Date(), createdAt: new Date() };
+    await PlayerProgressModel.findByIdAndUpdate(
+      (session as any).progressId,
+      { $push: { sessions: sessionData }, $inc: { sessionsCount: 1 } }
+    );
+    return { ...sessionData, id: sessionData._id.toString() } as any as PlayerSession;
   }
 
   async updatePlayerSession(id: string, session: Partial<InsertPlayerSession>): Promise<PlayerSession | undefined> {
     await this.connect();
-    const doc = await PlayerSessionModel.findByIdAndUpdate(id, session, { new: true });
-    return doc ? docToPlayerSession(doc) : undefined;
+    const updates: any = {};
+    for (const [key, val] of Object.entries(session)) {
+      updates[`sessions.$[elem].${key}`] = val;
+    }
+    const doc = await PlayerProgressModel.findOneAndUpdate(
+      { 'sessions._id': id },
+      { $set: updates },
+      { arrayFilters: [{ 'elem._id': id }], new: true }
+    );
+    if (!doc) return undefined;
+    const s = ((doc as any).sessions as any[])?.find((s: any) => s._id?.toString() === id);
+    return s ? { ...s, id } as PlayerSession : undefined;
   }
 
   async endPlayerSession(id: string, duration: number): Promise<PlayerSession | undefined> {
     await this.connect();
-    const doc = await PlayerSessionModel.findByIdAndUpdate(
-      id,
-      { endedAt: new Date(), duration },
-      { new: true }
+    const doc = await PlayerProgressModel.findOneAndUpdate(
+      { 'sessions._id': id },
+      { $set: { 'sessions.$[elem].endedAt': new Date(), 'sessions.$[elem].duration': duration } },
+      { arrayFilters: [{ 'elem._id': id }], new: true }
     );
-    return doc ? docToPlayerSession(doc) : undefined;
+    if (!doc) return undefined;
+    const s = ((doc as any).sessions as any[])?.find((s: any) => s._id?.toString() === id);
+    return s ? { ...s, id } as PlayerSession : undefined;
   }
 
   // ===== Achievements =====
@@ -3183,37 +3143,6 @@ export class MongoStorage implements IStorage {
   async deleteAchievement(id: string): Promise<boolean> {
     await this.connect();
     const result = await AchievementModel.findByIdAndDelete(id);
-    return !!result;
-  }
-
-  // ===== Texts =====
-  async getText(id: string): Promise<Text | undefined> {
-    await this.connect();
-    const doc = await TextModel.findById(id);
-    return doc ? docToText(doc) : undefined;
-  }
-
-  async getTextsByWorld(worldId: string): Promise<Text[]> {
-    await this.connect();
-    const docs = await TextModel.find({ worldId });
-    return docs.map(docToText);
-  }
-
-  async createText(text: InsertText): Promise<Text> {
-    await this.connect();
-    const doc = await TextModel.create(text);
-    return docToText(doc);
-  }
-
-  async updateText(id: string, text: Partial<InsertText>): Promise<Text | undefined> {
-    await this.connect();
-    const doc = await TextModel.findByIdAndUpdate(id, { ...text, updatedAt: new Date() }, { new: true });
-    return doc ? docToText(doc) : undefined;
-  }
-
-  async deleteText(id: string): Promise<boolean> {
-    await this.connect();
-    const result = await TextModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -3452,19 +3381,30 @@ export class MongoStorage implements IStorage {
     return result.deletedCount;
   }
 
-  // ============= LANGUAGE PROGRESS =============
+  // ============= LANGUAGE LEARNING (unified progress, vocabulary, grammar, conversations, reading) =============
+
+  private async getOrCreateLearningDoc(playerId: string, worldId: string, playthroughId?: string): Promise<any> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const doc = await LanguageLearningModel.findOneAndUpdate(
+      query,
+      { $setOnInsert: { playerId, worldId, playthroughId: playthroughId || null, createdAt: new Date() } },
+      { upsert: true, new: true }
+    );
+    return doc;
+  }
 
   async getLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
     const query: any = { playerId, worldId };
     if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await LanguageProgressModel.findOne(query);
+    const doc = await LanguageLearningModel.findOne(query);
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : null;
   }
 
   async upsertLanguageProgress(playerId: string, worldId: string, data: any, playthroughId?: string): Promise<any> {
     const query: any = { playerId, worldId };
     if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await LanguageProgressModel.findOneAndUpdate(
+    const doc = await LanguageLearningModel.findOneAndUpdate(
       query,
       { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
       { upsert: true, new: true }
@@ -3472,133 +3412,130 @@ export class MongoStorage implements IStorage {
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
-  // ============= VOCABULARY =============
-
   async getVocabularyEntries(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
-    const query: any = { playerId, worldId };
-    if (playthroughId) query.playthroughId = playthroughId;
-    const docs = await VocabularyEntryModel.find(query);
-    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    return ((doc as any).vocabulary || []) as any[];
   }
 
   async upsertVocabularyEntry(playerId: string, worldId: string, word: string, data: any, playthroughId?: string): Promise<any> {
-    const query: any = { playerId, worldId, word };
-    if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await VocabularyEntryModel.findOneAndUpdate(
-      query,
-      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
-      { upsert: true, new: true }
-    );
-    return { id: doc._id.toString(), ...doc.toObject() };
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    const vocab = ((doc as any).vocabulary || []) as any[];
+    const idx = vocab.findIndex((v: any) => v.word === word);
+    if (idx >= 0) {
+      Object.assign(vocab[idx], data, { updatedAt: new Date() });
+    } else {
+      vocab.push({ word, ...data, createdAt: new Date(), updatedAt: new Date() });
+    }
+    doc.vocabulary = vocab;
+    doc.updatedAt = new Date();
+    await doc.save();
+    return idx >= 0 ? vocab[idx] : vocab[vocab.length - 1];
   }
 
-  // ============= GRAMMAR PATTERNS =============
-
   async getGrammarPatterns(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
-    const query: any = { playerId, worldId };
-    if (playthroughId) query.playthroughId = playthroughId;
-    const docs = await GrammarPatternModel.find(query);
-    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    return ((doc as any).grammarPatterns || []) as any[];
   }
 
   async upsertGrammarPattern(playerId: string, worldId: string, pattern: string, data: any, playthroughId?: string): Promise<any> {
-    const query: any = { playerId, worldId, pattern };
-    if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await GrammarPatternModel.findOneAndUpdate(
-      query,
-      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
-      { upsert: true, new: true }
-    );
-    return { id: doc._id.toString(), ...doc.toObject() };
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    const patterns = ((doc as any).grammarPatterns || []) as any[];
+    const idx = patterns.findIndex((p: any) => p.pattern === pattern);
+    if (idx >= 0) {
+      Object.assign(patterns[idx], data, { updatedAt: new Date() });
+    } else {
+      patterns.push({ pattern, ...data, createdAt: new Date(), updatedAt: new Date() });
+    }
+    doc.grammarPatterns = patterns;
+    doc.updatedAt = new Date();
+    await doc.save();
+    return idx >= 0 ? patterns[idx] : patterns[patterns.length - 1];
   }
 
-  // ============= CONVERSATION RECORDS =============
-
   async getConversationRecords(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
-    const query: any = { playerId, worldId };
-    if (playthroughId) query.playthroughId = playthroughId;
-    const docs = await ConversationRecordModel.find(query).sort({ createdAt: -1 });
-    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    const convos = ((doc as any).conversations || []) as any[];
+    return convos.sort((a: any, b: any) => (b.createdAt?.getTime?.() || 0) - (a.createdAt?.getTime?.() || 0));
   }
 
   async createConversationRecord(data: any): Promise<any> {
-    const doc = await ConversationRecordModel.create(data);
-    return { id: doc._id.toString(), ...doc.toObject() };
+    const { playerId, worldId, playthroughId, ...recordData } = data;
+    const record = { ...recordData, createdAt: new Date() };
+    await LanguageLearningModel.findOneAndUpdate(
+      { playerId, worldId, ...(playthroughId ? { playthroughId } : {}) },
+      { $push: { conversations: record }, $set: { updatedAt: new Date() } },
+      { upsert: true, new: true }
+    );
+    return record;
   }
 
-  // ============= READING PROGRESS =============
-
   async getReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
-    const query: any = { playerId, worldId };
-    if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await ReadingProgressModel.findOne(query);
-    return doc ? { id: doc._id.toString(), ...doc.toObject() } : null;
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    return (doc as any).reading || null;
   }
 
   async upsertReadingProgress(playerId: string, worldId: string, data: any, playthroughId?: string): Promise<any> {
     const query: any = { playerId, worldId };
     if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await ReadingProgressModel.findOneAndUpdate(
+    const doc = await LanguageLearningModel.findOneAndUpdate(
       query,
-      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
+      { $set: { reading: data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
       { upsert: true, new: true }
     );
-    return { id: doc._id.toString(), ...doc.toObject() };
+    return (doc as any).reading;
   }
 
-  // ============= LANGUAGE ASSESSMENTS =============
+  // ============= ASSESSMENTS (unified: result, session, evaluation) =============
 
   async getLanguageAssessments(playerId: string, worldId: string): Promise<any[]> {
-    const docs = await LanguageAssessmentModel.find({ playerId, worldId }).sort({ createdAt: -1 });
+    const docs = await AssessmentModel.find({ docType: 'result', playerId, worldId }).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async createLanguageAssessment(data: any): Promise<any> {
-    const doc = await LanguageAssessmentModel.create(data);
+    const doc = await AssessmentModel.create({ ...data, docType: 'result' });
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
   async getAssessmentsByStudy(studyId: string): Promise<any[]> {
-    const docs = await LanguageAssessmentModel.find({ studyId }).sort({ createdAt: -1 });
+    const docs = await AssessmentModel.find({ docType: 'result', studyId }).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async getLanguageAssessmentsByWorld(worldId: string, filters?: { assessmentType?: string; dateFrom?: string; dateTo?: string }): Promise<any[]> {
-    const query: any = { worldId };
+    const query: any = { docType: 'result', worldId };
     if (filters?.assessmentType) query.assessmentType = filters.assessmentType;
     if (filters?.dateFrom || filters?.dateTo) {
       query.createdAt = {};
       if (filters.dateFrom) query.createdAt.$gte = new Date(filters.dateFrom);
       if (filters.dateTo) query.createdAt.$lte = new Date(filters.dateTo);
     }
-    const docs = await LanguageAssessmentModel.find(query).sort({ createdAt: -1 });
+    const docs = await AssessmentModel.find(query).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
-  // ============= EVALUATION RESPONSES =============
-
   async createEvaluationResponse(data: any): Promise<any> {
-    const doc = await EvaluationResponseModel.create(data);
+    const doc = await AssessmentModel.create({ ...data, docType: 'evaluation' });
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
   async getEvaluationResponses(studyId: string, participantId?: string, targetLanguage?: string): Promise<any[]> {
-    const query: any = { studyId };
+    const query: any = { docType: 'evaluation', studyId };
     if (participantId) query.participantId = participantId;
     if (targetLanguage) query.targetLanguage = targetLanguage;
-    const docs = await EvaluationResponseModel.find(query).sort({ createdAt: -1 });
+    const docs = await AssessmentModel.find(query).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async getEvaluationResponsesByParticipant(participantId: string): Promise<any[]> {
-    const docs = await EvaluationResponseModel.find({ participantId }).sort({ createdAt: -1 });
+    const docs = await AssessmentModel.find({ docType: 'evaluation', participantId }).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async getEvaluationSummary(studyId: string, targetLanguage?: string): Promise<any> {
     const query: any = { studyId };
     if (targetLanguage) query.targetLanguage = targetLanguage;
-    const docs = await EvaluationResponseModel.find(query);
+    const docs = await AssessmentModel.find(query);
     const byInstrument: Record<string, { count: number; avgScore: number; scores: number[] }> = {};
     for (const doc of docs) {
       const type = doc.instrumentType;
@@ -3613,33 +3550,35 @@ export class MongoStorage implements IStorage {
     return { studyId, totalResponses: docs.length, byInstrument };
   }
 
-  // ============= TECHNICAL TELEMETRY =============
+  // ============= TELEMETRY (unified technical + engagement) =============
 
   async createTelemetryBatch(events: any[]): Promise<number> {
     if (events.length === 0) return 0;
-    const result = await TechnicalTelemetryModel.insertMany(events, { ordered: false });
+    const tagged = events.map(e => ({ ...e, category: e.category || 'technical' }));
+    const result = await TelemetryModel.insertMany(tagged, { ordered: false });
     return result.length;
   }
 
   async getTelemetrySummary(sessionId: string): Promise<any> {
-    const docs = await TechnicalTelemetryModel.find({ sessionId });
+    const docs = await TelemetryModel.find({ sessionId, category: 'technical' });
     const byType: Record<string, { count: number; values: number[] }> = {};
     for (const doc of docs) {
-      if (!byType[doc.metricType]) byType[doc.metricType] = { count: 0, values: [] };
-      byType[doc.metricType].count++;
-      if (doc.value != null) byType[doc.metricType].values.push(doc.value);
+      const et = (doc as any).eventType;
+      if (!byType[et]) byType[et] = { count: 0, values: [] };
+      byType[et].count++;
+      if ((doc as any).value != null) byType[et].values.push((doc as any).value);
     }
     return { sessionId, totalMetrics: docs.length, byType };
   }
 
   async getAggregateTelemetry(studyId: string): Promise<any> {
-    // Get all sessions for this study via engagement events
-    const sessions = await EngagementEventModel.find({ eventType: 'session_start' }).distinct('sessionId');
-    const docs = await TechnicalTelemetryModel.find({ sessionId: { $in: sessions } });
+    const sessions = await TelemetryModel.find({ category: 'engagement', eventType: 'session_start' }).distinct('sessionId');
+    const docs = await TelemetryModel.find({ sessionId: { $in: sessions }, category: 'technical' });
     const byType: Record<string, number[]> = {};
     for (const doc of docs) {
-      if (!byType[doc.metricType]) byType[doc.metricType] = [];
-      if (doc.value != null) byType[doc.metricType].push(doc.value);
+      const et = (doc as any).eventType;
+      if (!byType[et]) byType[et] = [];
+      if ((doc as any).value != null) byType[et].push((doc as any).value);
     }
     const summary: Record<string, any> = {};
     for (const [type, values] of Object.entries(byType)) {
@@ -3655,22 +3594,21 @@ export class MongoStorage implements IStorage {
     return summary;
   }
 
-  // ============= ENGAGEMENT EVENTS =============
-
   async createEngagementEvent(data: any): Promise<any> {
-    const doc = await EngagementEventModel.create(data);
+    const doc = await TelemetryModel.create({ ...data, category: 'engagement' });
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
   async createEngagementBatch(events: any[]): Promise<number> {
     if (events.length === 0) return 0;
-    const result = await EngagementEventModel.insertMany(events, { ordered: false });
+    const tagged = events.map(e => ({ ...e, category: 'engagement' }));
+    const result = await TelemetryModel.insertMany(tagged, { ordered: false });
     return result.length;
   }
 
   async getEngagementSessions(playerId: string, studyId?: string): Promise<any[]> {
-    const query: any = { playerId, eventType: { $in: ['session_start', 'session_end'] } };
-    const docs = await EngagementEventModel.find(query).sort({ createdAt: 1 });
+    const query: any = { playerId, category: 'engagement', eventType: { $in: ['session_start', 'session_end'] } };
+    const docs = await TelemetryModel.find(query).sort({ createdAt: 1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
@@ -3702,31 +3640,31 @@ export class MongoStorage implements IStorage {
 
   async createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession> {
     await this.connect();
-    const doc = await AssessmentSessionModel.create(data);
+    const doc = await AssessmentModel.create({ ...data, docType: 'session' });
     return docToAssessmentSession(doc);
   }
 
   async getAssessmentSession(id: string): Promise<AssessmentSession | undefined> {
     await this.connect();
-    const doc = await AssessmentSessionModel.findById(id);
+    const doc = await AssessmentModel.findById(id);
     return doc ? docToAssessmentSession(doc) : undefined;
   }
 
   async updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined> {
     await this.connect();
-    const existing = await AssessmentSessionModel.findById(sessionId);
+    const existing = await AssessmentModel.findById(sessionId);
     if (!existing) return undefined;
 
     const idx = existing.phaseResults.findIndex((r: any) => r.phaseId === phaseResult.phaseId);
     let update;
     if (idx >= 0) {
-      update = await AssessmentSessionModel.findByIdAndUpdate(
+      update = await AssessmentModel.findByIdAndUpdate(
         sessionId,
         { $set: { [`phaseResults.${idx}`]: phaseResult } },
         { new: true }
       );
     } else {
-      update = await AssessmentSessionModel.findByIdAndUpdate(
+      update = await AssessmentModel.findByIdAndUpdate(
         sessionId,
         { $push: { phaseResults: phaseResult } },
         { new: true }
@@ -3737,7 +3675,7 @@ export class MongoStorage implements IStorage {
 
   async addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined> {
     await this.connect();
-    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+    const doc = await AssessmentModel.findByIdAndUpdate(
       sessionId,
       { $push: { recordings: recording } },
       { new: true }
@@ -3747,7 +3685,7 @@ export class MongoStorage implements IStorage {
 
   async completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined> {
     await this.connect();
-    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+    const doc = await AssessmentModel.findByIdAndUpdate(
       sessionId,
       {
         $set: {
@@ -3769,13 +3707,13 @@ export class MongoStorage implements IStorage {
     if (worldId) query.worldId = worldId;
     if (assessmentType) query.assessmentType = assessmentType;
     if (playthroughId) query.playthroughId = playthroughId;
-    const docs = await AssessmentSessionModel.find(query).sort({ createdAt: -1 });
+    const docs = await AssessmentModel.find(query).sort({ createdAt: -1 });
     return docs.map(d => docToAssessmentSession(d));
   }
 
   async getWorldAssessmentSessions(worldId: string): Promise<AssessmentSession[]> {
     await this.connect();
-    const docs = await AssessmentSessionModel.find({ worldId }).sort({ createdAt: -1 });
+    const docs = await AssessmentModel.find({ worldId }).sort({ createdAt: -1 });
     return docs.map(d => docToAssessmentSession(d));
   }
 
@@ -3789,8 +3727,8 @@ export class MongoStorage implements IStorage {
     scoreDistribution: { bucket: string; count: number }[];
   }> {
     await this.connect();
-    const docs = await AssessmentSessionModel.find({ worldId, status: 'complete' });
-    const totalSessions = await AssessmentSessionModel.countDocuments({ worldId });
+    const docs = await AssessmentModel.find({ worldId, status: 'complete' });
+    const totalSessions = await AssessmentModel.countDocuments({ worldId });
 
     const byType: Record<string, { count: number; scores: number[]; percentages: number[] }> = {};
     const cefrDistribution: Record<string, number> = { A1: 0, A2: 0, B1: 0, B2: 0 };
@@ -3852,79 +3790,75 @@ export class MongoStorage implements IStorage {
 
   // ============= TERRAIN FEATURES =============
 
+  // ============= GEOGRAPHIC FEATURES (unified terrain + water) =============
+
   async getTerrainFeature(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await TerrainFeatureModel.findById(id);
+    const doc = await GeographicFeatureModel.findById(id);
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
   }
 
   async getTerrainFeaturesByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await TerrainFeatureModel.find({ worldId });
+    const docs = await GeographicFeatureModel.find({ worldId, featureCategory: 'terrain' });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async createTerrainFeature(feature: any): Promise<any> {
     await this.connect();
-    const doc = await TerrainFeatureModel.create(feature);
+    const doc = await GeographicFeatureModel.create({ ...feature, featureCategory: 'terrain' });
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
   async updateTerrainFeature(id: string, feature: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await TerrainFeatureModel.findByIdAndUpdate(
-      id,
-      { $set: { ...feature, updatedAt: new Date() } },
-      { new: true }
+    const doc = await GeographicFeatureModel.findByIdAndUpdate(
+      id, { $set: { ...feature, updatedAt: new Date() } }, { new: true }
     );
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
   }
 
   async deleteTerrainFeature(id: string): Promise<boolean> {
     await this.connect();
-    const result = await TerrainFeatureModel.findByIdAndDelete(id);
+    const result = await GeographicFeatureModel.findByIdAndDelete(id);
     return !!result;
   }
 
-  // ============= WATER FEATURES =============
-
   async getWaterFeature(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await WaterFeatureModel.findById(id);
+    const doc = await GeographicFeatureModel.findById(id);
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
   }
 
   async getWaterFeaturesByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await WaterFeatureModel.find({ worldId });
+    const docs = await GeographicFeatureModel.find({ worldId, featureCategory: 'water' });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async getWaterFeaturesBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await WaterFeatureModel.find({ settlementId });
+    const docs = await GeographicFeatureModel.find({ settlementId, featureCategory: 'water' });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async createWaterFeature(feature: any): Promise<any> {
     await this.connect();
-    const doc = await WaterFeatureModel.create(feature);
+    const doc = await GeographicFeatureModel.create({ ...feature, featureCategory: 'water' });
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
   async updateWaterFeature(id: string, feature: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await WaterFeatureModel.findByIdAndUpdate(
-      id,
-      { $set: { ...feature, updatedAt: new Date() } },
-      { new: true }
+    const doc = await GeographicFeatureModel.findByIdAndUpdate(
+      id, { $set: { ...feature, updatedAt: new Date() } }, { new: true }
     );
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
   }
 
   async deleteWaterFeature(id: string): Promise<boolean> {
     await this.connect();
-    const result = await WaterFeatureModel.findByIdAndDelete(id);
+    const result = await GeographicFeatureModel.findByIdAndDelete(id);
     return !!result;
   }
 

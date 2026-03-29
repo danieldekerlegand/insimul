@@ -82,7 +82,7 @@ export interface GeographyConfig {
   worldId: string;
   settlementId: string; // Now generates for a specific settlement
   settlementName: string;
-  settlementType: 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
   population: number;
   foundedYear: number;
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
@@ -99,6 +99,9 @@ export type DistrictRole = 'commercial' | 'wealthy_residential' | 'working_resid
 
 /** District role assignments ordered by priority for each settlement size */
 const DISTRICT_ROLES: Record<string, DistrictRole[]> = {
+  dwelling: ['general'],
+  roadhouse: ['commercial'],
+  homestead: ['general'],
   hamlet: ['general'],
   village: ['commercial', 'general'],
   town: ['commercial', 'wealthy_residential', 'working_residential', 'religious_civic'],
@@ -1220,10 +1223,14 @@ export class GeographyGenerator {
    */
   private getDistrictCount(type: string): number {
     switch (type) {
+      case 'dwelling': return 1;
+      case 'roadhouse': return 1;
+      case 'homestead': return 1;
+      case 'hamlet': return 1;
       case 'village': return 2;
       case 'town': return 4;
       case 'city': return 8;
-      default: return 4;
+      default: return 2;
     }
   }
 
@@ -1353,6 +1360,9 @@ export class GeographyGenerator {
    */
   private getMapSize(type: string): number {
     switch (type) {
+      case 'dwelling': return 100;
+      case 'roadhouse': return 100;
+      case 'homestead': return 150;
       case 'hamlet': return 300;
       case 'village': return 500;
       case 'town': return 1000;
@@ -1366,10 +1376,14 @@ export class GeographyGenerator {
    */
   private getBuildingsPerStreet(type: string): number {
     switch (type) {
+      case 'dwelling': return 1;
+      case 'roadhouse': return 1;
+      case 'homestead': return 1;
+      case 'hamlet': return 3;
       case 'village': return 5;
       case 'town': return 10;
       case 'city': return 15;
-      default: return 10;
+      default: return 5;
     }
   }
 

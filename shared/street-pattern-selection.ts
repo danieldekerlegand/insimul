@@ -52,6 +52,9 @@ export function selectStreetPattern(input: PatternSelectionInput): LayoutPattern
 
 /** Grid dimensions by settlement type (matches street-network-generator.ts GRID_SIZE) */
 export const GRID_SIZE: Record<string, number> = {
+  dwelling: 1,
+  roadhouse: 1,
+  homestead: 2,
   hamlet: 3,
   village: 4,
   town: 6,

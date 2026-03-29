@@ -171,6 +171,218 @@ function applyTruthDeltas(baseTruths: Truth[], deltas: PlaythroughDelta[]): Trut
   return result;
 }
 
+// ── Generic Entity Overlay ──────────────────────────────────────────────
+// Extends the copy-on-write pattern to any entity type (characters, businesses, residences, etc.)
+
+/**
+ * Read entities with playthrough deltas applied.
+ * Works for any entity type that has an `id` field.
+ */
+export async function getEntitiesWithOverlay<T extends { id: string }>(
+  baseEntities: T[],
+  playthroughId: string,
+  entityType: string,
+): Promise<T[]> {
+  const deltas = await storage.getDeltasByEntityType(playthroughId, entityType);
+  return applyEntityDeltas(baseEntities, deltas);
+}
+
+/**
+ * Read a single entity with playthrough deltas applied.
+ */
+export async function getEntityWithOverlay<T extends { id: string }>(
+  baseEntity: T | undefined,
+  playthroughId: string,
+  entityType: string,
+  entityId: string,
+): Promise<T | undefined> {
+  const deltas = await storage.getDeltasByEntityType(playthroughId, entityType);
+
+  const deleteDelta = deltas.find(d => d.entityId === entityId && d.operation === 'delete');
+  if (deleteDelta) return undefined;
+
+  const createDelta = deltas.find(d => d.entityId === entityId && d.operation === 'create');
+  if (createDelta) {
+    return { ...createDelta.fullData, id: createDelta.entityId } as unknown as T;
+  }
+
+  if (!baseEntity) return undefined;
+
+  const updateDeltas = deltas
+    .filter(d => d.entityId === entityId && d.operation === 'update')
+    .sort((a, b) => a.timestep - b.timestep);
+
+  if (updateDeltas.length === 0) return baseEntity;
+
+  let merged = { ...baseEntity } as any;
+  for (const delta of updateDeltas) {
+    if (delta.deltaData) {
+      merged = { ...merged, ...delta.deltaData };
+    }
+  }
+  return merged as T;
+}
+
+/**
+ * Update an entity through the overlay (creates an update delta).
+ */
+export async function updateEntityInPlaythrough(
+  playthroughId: string,
+  entityType: string,
+  entityId: string,
+  updates: Record<string, any>,
+  timestep: number,
+  description?: string,
+): Promise<void> {
+  await storage.createPlaythroughDelta({
+    playthroughId,
+    entityType,
+    entityId,
+    operation: 'update',
+    deltaData: updates,
+    timestep,
+    description: description || `Updated ${entityType}: ${entityId}`,
+  });
+}
+
+/**
+ * Create a new entity through the overlay.
+ */
+export async function createEntityInPlaythrough(
+  playthroughId: string,
+  entityType: string,
+  entityData: Record<string, any>,
+  timestep: number,
+  description?: string,
+): Promise<{ id: string }> {
+  const entityId = entityData.id || generateId();
+  const fullData = { ...entityData, id: entityId };
+
+  await storage.createPlaythroughDelta({
+    playthroughId,
+    entityType,
+    entityId,
+    operation: 'create',
+    fullData,
+    timestep,
+    description: description || `Created ${entityType}: ${entityId}`,
+  });
+
+  return { id: entityId };
+}
+
+/**
+ * Generic delta applicator — works for any entity type with an `id` field.
+ */
+function applyEntityDeltas<T extends { id: string }>(baseEntities: T[], deltas: PlaythroughDelta[]): T[] {
+  const deleteIds = new Set<string>();
+  const creates: T[] = [];
+  const updatesByEntity = new Map<string, PlaythroughDelta[]>();
+
+  for (const delta of deltas) {
+    switch (delta.operation) {
+      case 'delete':
+        deleteIds.add(delta.entityId);
+        break;
+      case 'create':
+        creates.push({ ...delta.fullData, id: delta.entityId } as unknown as T);
+        break;
+      case 'update': {
+        const existing = updatesByEntity.get(delta.entityId) || [];
+        existing.push(delta);
+        updatesByEntity.set(delta.entityId, existing);
+        break;
+      }
+    }
+  }
+
+  const result: T[] = [];
+  for (const entity of baseEntities) {
+    if (deleteIds.has(entity.id)) continue;
+
+    const updates = updatesByEntity.get(entity.id);
+    if (updates) {
+      let merged = { ...entity } as any;
+      for (const delta of updates.sort((a, b) => a.timestep - b.timestep)) {
+        if (delta.deltaData) {
+          merged = { ...merged, ...delta.deltaData };
+        }
+      }
+      result.push(merged as T);
+    } else {
+      result.push(entity);
+    }
+  }
+
+  result.push(...creates);
+  return result;
+}
+
+/**
+ * Creates a storage proxy that intercepts write operations and routes them
+ * through the playthrough overlay. This is used during simulation and gameplay
+ * so that TotT effect handlers (which call storage.updateCharacter() directly)
+ * don't modify the base world state.
+ *
+ * Usage:
+ *   const isolatedStorage = createPlaythroughStorageProxy(storage, playthroughId, timestep);
+ *   // Pass isolatedStorage to any system that needs to write during a playthrough
+ */
+export function createPlaythroughStorageProxy(
+  baseStorage: typeof storage,
+  playthroughId: string,
+  getCurrentTimestep: () => number,
+): typeof storage {
+  return new Proxy(baseStorage, {
+    get(target, prop, receiver) {
+      // Intercept character writes
+      if (prop === 'updateCharacter') {
+        return async (characterId: string, updates: Record<string, any>) => {
+          await updateEntityInPlaythrough(
+            playthroughId, 'character', characterId, updates,
+            getCurrentTimestep(), `Updated character: ${characterId}`
+          );
+        };
+      }
+
+      // Intercept business writes
+      if (prop === 'updateBusiness') {
+        return async (businessId: string, updates: Record<string, any>) => {
+          await updateEntityInPlaythrough(
+            playthroughId, 'business', businessId, updates,
+            getCurrentTimestep(), `Updated business: ${businessId}`
+          );
+        };
+      }
+
+      // Intercept residence writes
+      if (prop === 'updateResidence') {
+        return async (residenceId: string, updates: Record<string, any>) => {
+          await updateEntityInPlaythrough(
+            playthroughId, 'residence', residenceId, updates,
+            getCurrentTimestep(), `Updated residence: ${residenceId}`
+          );
+        };
+      }
+
+      // Intercept new character creation (births during simulation)
+      if (prop === 'createCharacter') {
+        return async (data: Record<string, any>) => {
+          const result = await createEntityInPlaythrough(
+            playthroughId, 'character', data,
+            getCurrentTimestep(), `Created character: ${data.firstName} ${data.lastName}`
+          );
+          // Return a minimal character-like object so callers can use the ID
+          return { ...data, id: result.id };
+        };
+      }
+
+      // All other methods pass through to base storage (reads are fine)
+      return Reflect.get(target, prop, receiver);
+    }
+  });
+}
+
 function generateId(): string {
   return `pt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }

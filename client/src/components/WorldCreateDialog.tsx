@@ -77,9 +77,12 @@ export const LANGUAGES = [
 
 // --- Per-Country Configuration ---
 
-type SettlementType = 'hamlet' | 'village' | 'town' | 'city';
+type SettlementType = 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
 
 const POPULATION_BY_TYPE: Record<SettlementType, number> = {
+  dwelling: 3,
+  roadhouse: 3,
+  homestead: 10,
   hamlet: 50,
   village: 100,
   town: 1000,
@@ -87,6 +90,9 @@ const POPULATION_BY_TYPE: Record<SettlementType, number> = {
 };
 
 const BASE_FAMILIES: Record<SettlementType, number> = {
+  dwelling: 1,
+  roadhouse: 1,
+  homestead: 2,
   hamlet: 3,
   village: 5,
   town: 15,

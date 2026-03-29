@@ -35,7 +35,7 @@ export interface WorldGeographyConfig {
     terrain: string;
     settlements: Array<{
       id: string;
-      type: 'hamlet' | 'village' | 'town' | 'city';
+      type: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
       terrain: string;
       population: number;
       /** Optional: states this settlement belongs to */
@@ -92,6 +92,9 @@ const SCALE_PRESETS: Record<WorldScale, ScaleConfig> = {
 
 /** Base radius by settlement type (matches boundary-generator.ts) */
 const BASE_RADIUS: Record<string, number> = {
+  dwelling: 15,
+  roadhouse: 15,
+  homestead: 25,
   hamlet: 50,
   village: 80,
   town: 150,

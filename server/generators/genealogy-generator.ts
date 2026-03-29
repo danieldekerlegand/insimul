@@ -6,6 +6,7 @@
 import { storage } from '../db/storage';
 import { nameGenerator } from './name-generator.js';
 import type { InsertCharacter } from '../../shared/schema';
+import { initializeCharacterAppearance } from '../extensions/tott/appearance-system.js';
 
 interface GenerationConfig {
   worldId: string;
@@ -272,6 +273,9 @@ export class GenealogyGenerator {
       }
     });
 
+    // Generate appearance for father (no parents — founder)
+    try { await initializeCharacterAppearance(father.id, 'male', undefined, undefined, fatherAge); } catch {}
+
     // Create mother
     const motherPersonality = this.generatePersonality();
     const motherAge = config.currentYear - (config.startYear - 23);
@@ -294,6 +298,9 @@ export class GenealogyGenerator {
       }
     });
     
+    // Generate appearance for mother (no parents — founder)
+    try { await initializeCharacterAppearance(mother.id, 'female', undefined, undefined, motherAge); } catch {}
+
     await storage.updateCharacter(father.id, { spouseId: mother.id });
     
     // Create initial children
@@ -327,22 +334,29 @@ export class GenealogyGenerator {
     const previousGen = family.generations.get(generation - 1) || [];
     const newGeneration: string[] = [];
     
+    // Track which couples we've already processed (avoid duplicates when
+    // both spouses appear in previousGen)
+    const processedCouples = new Set<string>();
+
     for (const parentId of previousGen) {
       const parent = await storage.getCharacter(parentId);
       if (!parent || !parent.spouseId) continue;
-      
-      // Check if this parent already has children from previous generation
-      if (parent.childIds && parent.childIds.length > 0) continue;
-      
+
+      // Avoid processing the same couple twice (both partners may be in the gen list)
+      const coupleKey = [parent.id, parent.spouseId].sort().join('_');
+      if (processedCouples.has(coupleKey)) continue;
+      processedCouples.add(coupleKey);
+
       const spouse = await storage.getCharacter(parent.spouseId);
       if (!spouse) continue;
       
-      // Determine if couple has children based on age and fertility
-      const parentAge = config.currentYear - (parent.birthYear || 0);
-      if (parentAge < 20 || parentAge > 45) continue;
-      
-      if (Math.random() > config.fertilityRate) continue;
-      
+      // Determine if couple has children based on age at time of childbirth
+      // (NOT age at currentYear — founders born 150+ years ago would always fail)
+      const childBirthYear = config.startYear + (generation * 25);
+      const parentAgeAtBirth = childBirthYear - (parent.birthYear || 0);
+      if (parentAgeAtBirth < 20 || parentAgeAtBirth > 50) continue;
+
+      // rollChildren handles fertility probability internally
       const numChildren = this.rollChildren(config.fertilityRate);
       const birthYear = config.startYear + (generation * 25) + Math.floor(Math.random() * 10);
       
@@ -355,11 +369,14 @@ export class GenealogyGenerator {
         numChildren
       );
       
-      const childIds = children.map(c => c.id);
-      newGeneration.push(...childIds);
-      
-      await storage.updateCharacter(parent.id, { childIds });
-      await storage.updateCharacter(spouse.id, { childIds });
+      const newChildIds = children.map(c => c.id);
+      newGeneration.push(...newChildIds);
+
+      // Append to existing childIds (parents may have children from multiple generations)
+      const existingParentChildren = (parent.childIds as string[]) || [];
+      const existingSpouseChildren = (spouse.childIds as string[]) || [];
+      await storage.updateCharacter(parent.id, { childIds: [...existingParentChildren, ...newChildIds] });
+      await storage.updateCharacter(spouse.id, { childIds: [...existingSpouseChildren, ...newChildIds] });
     }
     
     if (newGeneration.length > 0) {
@@ -522,9 +539,20 @@ export class GenealogyGenerator {
         }
       });
       
+      // Generate appearance with inheritance from parents
+      try {
+        await initializeCharacterAppearance(
+          child.id,
+          info.gender as 'male' | 'female',
+          mother.id,
+          father.id,
+          childAge
+        );
+      } catch {}
+
       children.push(child);
     }
-    
+
     return children;
   }
 
@@ -630,14 +658,25 @@ export class GenealogyGenerator {
   /**
    * Roll number of children based on fertility rate
    */
+  /**
+   * Roll number of children for a couple.
+   * Distribution (when fertile): 1-2 children most common, 3-5 less common.
+   * Historical average ~4-6 children per couple, but we account for infant mortality
+   * and not all couples having children.
+   */
   private rollChildren(fertilityRate: number): number {
+    // fertilityRate chance of having no children at all
+    if (Math.random() > fertilityRate) return 0;
+
+    // Distribution of children for fertile couples:
+    // ~15% have 1, ~25% have 2, ~25% have 3, ~20% have 4, ~10% have 5, ~5% have 6
     const roll = Math.random();
-    if (roll < (1 - fertilityRate)) return 0;
-    if (roll < 0.3) return 1;
-    if (roll < 0.6) return 2;
-    if (roll < 0.85) return 3;
-    if (roll < 0.95) return 4;
-    return 5;
+    if (roll < 0.15) return 1;
+    if (roll < 0.40) return 2;
+    if (roll < 0.65) return 3;
+    if (roll < 0.85) return 4;
+    if (roll < 0.95) return 5;
+    return 6;
   }
 
   /**
@@ -804,15 +843,47 @@ export class GenealogyGenerator {
       targetLanguage: config.targetLanguage,
     });
 
-    // Pre-assign genders so we can batch by gender
-    const genders: Array<'male' | 'female'> = [];
-    for (let i = 0; i < config.count; i++) {
-      genders.push(Math.random() > 0.5 ? 'male' : 'female');
-    }
-    const maleCount = genders.filter(g => g === 'male').length;
-    const femaleCount = config.count - maleCount;
+    // Plan family units: 60% couples with children, 30% couples only, 10% singles
+    interface ImmigrantSlot { gender: 'male' | 'female'; role: 'spouse' | 'child' | 'single'; familyIdx: number; age: number }
+    const slots: ImmigrantSlot[] = [];
+    let remaining = config.count;
+    let familyIdx = 0;
 
-    // Batch-generate all names in at most 2 LLM calls (one per gender)
+    while (remaining > 0) {
+      const roll = Math.random();
+      if (roll < 0.6 && remaining >= 3) {
+        // Couple with 1-3 children
+        const husbandAge = 25 + Math.floor(Math.random() * 20); // 25-44
+        const wifeAge = 23 + Math.floor(Math.random() * 18);    // 23-40
+        slots.push({ gender: 'male', role: 'spouse', familyIdx, age: husbandAge });
+        slots.push({ gender: 'female', role: 'spouse', familyIdx, age: wifeAge });
+        remaining -= 2;
+        const numChildren = Math.min(remaining, 1 + Math.floor(Math.random() * 3));
+        for (let c = 0; c < numChildren; c++) {
+          const childAge = 1 + Math.floor(Math.random() * Math.min(16, Math.min(husbandAge, wifeAge) - 20));
+          slots.push({ gender: Math.random() > 0.5 ? 'male' : 'female', role: 'child', familyIdx, age: Math.max(1, childAge) });
+          remaining--;
+        }
+        familyIdx++;
+      } else if (roll < 0.9 && remaining >= 2) {
+        // Couple only
+        slots.push({ gender: 'male', role: 'spouse', familyIdx, age: 25 + Math.floor(Math.random() * 25) });
+        slots.push({ gender: 'female', role: 'spouse', familyIdx, age: 23 + Math.floor(Math.random() * 23) });
+        remaining -= 2;
+        familyIdx++;
+      } else {
+        // Single immigrant
+        const gender = Math.random() > 0.5 ? 'male' as const : 'female' as const;
+        slots.push({ gender, role: 'single', familyIdx, age: 18 + Math.floor(Math.random() * 45) });
+        remaining--;
+        familyIdx++;
+      }
+    }
+
+    // Batch-generate all names in 2 LLM calls (one per gender)
+    const maleCount = slots.filter(s => s.gender === 'male').length;
+    const femaleCount = slots.filter(s => s.gender === 'female').length;
+
     const nameContext = {
       worldName: this.worldContext?.name,
       worldDescription: this.worldContext?.description,
@@ -837,36 +908,74 @@ export class GenealogyGenerator {
     ]);
     console.log(`   👥 Batch generated ${maleNames.length} male + ${femaleNames.length} female immigrant names`);
 
+    // Create all characters and track them by family for linking
     let maleIdx = 0, femaleIdx = 0;
-    let created = 0;
-    for (let i = 0; i < config.count; i++) {
-      const gender = genders[i];
-      const nameData = gender === 'male' ? maleNames[maleIdx++] : femaleNames[femaleIdx++];
-      const firstName = nameData?.firstName || (gender === 'male' ? `Man${i}` : `Woman${i}`);
-      const lastName = nameData?.lastName || `Immigrant${i}`;
-      const age = 18 + Math.floor(Math.random() * 45); // 18-62
-      const birthYear = config.currentYear - age;
+    const createdByFamily = new Map<number, { spouses: any[]; children: any[] }>();
+
+    for (const slot of slots) {
+      const nameData = slot.gender === 'male' ? maleNames[maleIdx++] : femaleNames[femaleIdx++];
+      // Children take surname from their family's first spouse
+      const familyEntry = createdByFamily.get(slot.familyIdx);
+      const familySurname = familyEntry?.spouses[0]?.lastName;
+
+      const firstName = nameData?.firstName || this.getFallbackName(slot.gender);
+      const lastName = slot.role === 'child' && familySurname
+        ? familySurname
+        : (nameData?.lastName || `Immigrant${slot.familyIdx}`);
+      const birthYear = config.currentYear - slot.age;
       const personality = this.generatePersonality();
 
-      await storage.createCharacter({
+      const immigrant = await storage.createCharacter({
         worldId: config.worldId,
         firstName,
         lastName,
-        gender,
+        gender: slot.gender,
         birthYear,
-        age,
+        age: slot.age,
         isAlive: true,
         currentLocation: config.settlementId,
         personality,
-        skills: this.generateSkills(personality, age),
+        skills: this.generateSkills(personality, slot.age),
         socialAttributes: {
           immigrant: true,
+          generation: slot.role === 'child' ? 1 : 0,
         },
       });
-      created++;
+
+      try { await initializeCharacterAppearance(immigrant.id, slot.gender, undefined, undefined, slot.age); } catch {}
+
+      if (!createdByFamily.has(slot.familyIdx)) {
+        createdByFamily.set(slot.familyIdx, { spouses: [], children: [] });
+      }
+      const entry = createdByFamily.get(slot.familyIdx)!;
+      if (slot.role === 'spouse') {
+        entry.spouses.push(immigrant);
+      } else if (slot.role === 'child') {
+        entry.children.push(immigrant);
+      }
     }
 
-    return created;
+    // Link family members with spouseId, parentIds, childIds
+    for (const [, family] of Array.from(createdByFamily.entries())) {
+      if (family.spouses.length === 2) {
+        const [s1, s2] = family.spouses;
+        const childIds = family.children.map((c: any) => c.id);
+        await storage.updateCharacter(s1.id, { spouseId: s2.id, childIds });
+        await storage.updateCharacter(s2.id, { spouseId: s1.id, childIds });
+
+        // Link children to parents
+        const fatherId = s1.gender === 'male' ? s1.id : s2.id;
+        const motherId = s1.gender === 'female' ? s1.id : s2.id;
+        for (const child of family.children) {
+          await storage.updateCharacter(child.id, {
+            parentIds: [fatherId, motherId],
+            immediateFamilyIds: [fatherId, motherId, ...childIds.filter((id: string) => id !== child.id)],
+          });
+        }
+      }
+    }
+
+    return slots.length;
   }
 
   /**

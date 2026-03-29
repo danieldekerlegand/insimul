@@ -49,7 +49,7 @@ export interface StreetNetworkConfig {
   centerX: number;
   centerZ: number;
   /** Settlement type determines scale */
-  settlementType: 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
   /** Founding year — older settlements get organic layout */
   foundedYear: number;
   /** Seed string for deterministic generation */
@@ -77,6 +77,9 @@ export interface StreetNetworkConfig {
 // ─────────────────────────────────────────────
 
 const GRID_SPACING: Record<string, number> = {
+  dwelling: 60,
+  roadhouse: 60,
+  homestead: 60,
   hamlet: 55,
   village: 50,
   town: 45,
@@ -84,6 +87,9 @@ const GRID_SPACING: Record<string, number> = {
 };
 
 const GRID_SIZE: Record<string, number> = {
+  dwelling: 1,
+  roadhouse: 1,
+  homestead: 2,
   hamlet: 3,
   village: 4,
   town: 6,
@@ -91,6 +97,9 @@ const GRID_SIZE: Record<string, number> = {
 };
 
 const STREET_WIDTH: Record<string, number> = {
+  dwelling: 6,
+  roadhouse: 6,
+  homestead: 6,
   hamlet: 8,
   village: 10,
   town: 12,
@@ -283,12 +292,8 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
     // Non-grid patterns: use StreetGenerator and convert via adapter
     const gen = new StreetGenerator();
 
-    const radius = {
-      hamlet: (GRID_SIZE.hamlet * GRID_SPACING.hamlet) / 2,
-      village: (GRID_SIZE.village * GRID_SPACING.village) / 2,
-      town: (GRID_SIZE.town * GRID_SPACING.town) / 2,
-      city: (GRID_SIZE.city * GRID_SPACING.city) / 2,
-    }[config.settlementType] ?? 100;
+    const sType = config.settlementType;
+    const radius = ((GRID_SIZE[sType] || 1) * (GRID_SPACING[sType] || 60)) / 2;
 
     const genConfig = {
       center: { x: config.centerX, z: config.centerZ },
@@ -301,7 +306,7 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
       worldId: '',
       settlementId: '',
       settlementName: '',
-      settlementType: config.settlementType as 'hamlet' | 'village' | 'town' | 'city',
+      settlementType: config.settlementType as 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city',
       population: config.population ?? 500,
       foundedYear: config.foundedYear,
       terrain: config.terrain as 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert',

@@ -17,6 +17,7 @@ interface ActionData {
   description?: string;
   actionType: string;
   category?: string;
+  parentAction?: string | null;
   energyCost?: number | null;
   difficulty?: number | null;
   duration?: number | null;
@@ -24,6 +25,8 @@ interface ActionData {
   requiresTarget?: boolean | null;
   range?: number | null;
   cooldown?: number | null;
+  verbPast?: string | null;
+  verbPresent?: string | null;
   prerequisites?: any[];
   effects?: any[];
   sideEffects?: any[];
@@ -59,6 +62,27 @@ export function convertActionToProlog(action: ActionData): ConversionResult {
   lines.push(`action_duration(${actionId}, ${duration}).`);
   predicates.push('action/4', 'action_difficulty/2', 'action_duration/2');
 
+  // Category
+  if (action.category) {
+    lines.push(`action_category(${actionId}, ${sanitizeAtom(action.category)}).`);
+    predicates.push('action_category/2');
+  }
+
+  // Hierarchy
+  if (action.parentAction) {
+    lines.push(`action_parent(${actionId}, ${sanitizeAtom(action.parentAction)}).`);
+    predicates.push('action_parent/2');
+  }
+
+  // Verb forms (for language learning)
+  if (action.verbPast) {
+    lines.push(`action_verb(${actionId}, past, '${escapeString(action.verbPast)}').`);
+    predicates.push('action_verb/3');
+  }
+  if (action.verbPresent) {
+    lines.push(`action_verb(${actionId}, present, '${escapeString(action.verbPresent)}').`);
+  }
+
   // Target info
   if (action.targetType) {
     lines.push(`action_target_type(${actionId}, ${sanitizeAtom(action.targetType)}).`);
@@ -76,8 +100,6 @@ export function convertActionToProlog(action: ActionData): ConversionResult {
     lines.push(`action_cooldown(${actionId}, ${action.cooldown}).`);
     predicates.push('action_cooldown/2');
   }
-
-  lines.push('');
 
   // Prerequisites → Prolog goals
   const prereqs = action.prerequisites || [];
@@ -106,8 +128,6 @@ export function convertActionToProlog(action: ActionData): ConversionResult {
     predicates.push('action_trigger/2');
   }
 
-  lines.push('');
-
   // Effects → Prolog terms
   const effects = action.effects || [];
   for (const effect of effects) {
@@ -132,8 +152,6 @@ export function convertActionToProlog(action: ActionData): ConversionResult {
     predicates.push('action_side_effect/2');
   }
 
-  lines.push('');
-
   // Generate can_perform rule
   const canPerformConditions = [
     `action(${actionId}, _, _, EnergyCost)`,
@@ -155,8 +173,13 @@ export function convertActionToProlog(action: ActionData): ConversionResult {
     predicates.push('can_perform/2');
   }
 
+  // Collapse consecutive blank lines and trim trailing blanks
+  const prologContent = lines.join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\n\n$/,'\n');
+
   return {
-    prologContent: lines.join('\n'),
+    prologContent,
     predicates: Array.from(new Set(predicates)),
     errors,
   };
@@ -178,6 +201,7 @@ export function convertActionsToProlog(actions: ActionData[]): ConversionResult 
   // Shared dynamic declarations
   const dynamicPreds = [
     'action/4', 'action_difficulty/2', 'action_duration/2',
+    'action_category/2', 'action_parent/2', 'action_verb/3',
     'action_target_type/2', 'action_requires_target/1',
     'action_range/2', 'action_cooldown/2',
     'action_prerequisite/2', 'action_trigger/2',

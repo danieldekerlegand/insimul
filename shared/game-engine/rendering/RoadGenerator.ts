@@ -719,10 +719,13 @@ export class RoadGenerator {
       const signX = node.x + cornerOffset.x;
       const signZ = node.z + cornerOffset.z;
       const y = sampleHeight(signX, signZ) + this.yOffset;
+      // Get the street direction so the sign can be oriented parallel to the street
+      const segDir = this.segmentDirectionAtNode(seg as any, node);
       const signMesh = this.createStreetSign(
         `sign_${settlementId}_${node.id}`,
         seg.name,
-        new Vector3(signX, y + 2.5, signZ)
+        new Vector3(signX, y + 2.5, signZ),
+        segDir
       );
       if (signMesh) this.roadMeshes.push(signMesh);
     }
@@ -802,7 +805,12 @@ export class RoadGenerator {
   /**
    * Create a simple street name sign (pole + text plane).
    */
-  private createStreetSign(id: string, name: string, position: Vector3): Mesh | null {
+  private createStreetSign(
+    id: string,
+    name: string,
+    position: Vector3,
+    streetDir?: { x: number; z: number }
+  ): Mesh | null {
     try {
       // Pole
       const pole = MeshBuilder.CreateCylinder(
@@ -820,16 +828,19 @@ export class RoadGenerator {
       poleMat.emissiveColor = new Color3(0.3, 0.3, 0.3);
       pole.material = poleMat;
 
-      // Sign plane with dynamic texture
+      // Sign plane — double-sided, oriented parallel to the street
       const sign = MeshBuilder.CreatePlane(
         `${id}_face`,
-        { width: 2.0, height: 0.5 },
+        { width: 2.0, height: 0.5, sideOrientation: Mesh.DOUBLESIDE },
         this.scene
       );
-      sign.position = position.clone();
       sign.isPickable = false;
       sign.checkCollisions = false;
-      sign.billboardMode = Mesh.BILLBOARDMODE_Y;
+
+      // Orient the sign parallel to the street direction (readable from both sides)
+      if (streetDir) {
+        sign.rotation.y = Math.atan2(streetDir.x, streetDir.z);
+      }
 
       const tex = new DynamicTexture(`${id}_tex`, { width: 256, height: 64 }, this.scene, false);
       const ctx = tex.getContext() as CanvasRenderingContext2D;
@@ -853,7 +864,6 @@ export class RoadGenerator {
       sign.position = new Vector3(0, 1.25, 0);
 
       pole.alwaysSelectAsActiveMesh = true;
-      pole.freezeWorldMatrix();
 
       return pole;
     } catch (err) {

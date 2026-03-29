@@ -49,16 +49,21 @@ export function countBuildings(buildings: Array<{ properties?: { buildingType?: 
  */
 export function calculatePopulationTarget(
   counts: BuildingCounts,
-  currentPopulation: number
+  currentPopulation: number,
+  typeTarget?: number
 ): PopulationTarget {
-  const target = Math.round(
+  const buildingTarget = Math.round(
     counts.residences * RESIDENTS_PER_RESIDENCE +
     counts.businesses * WORKERS_PER_BUSINESS
   );
   const minimum = counts.residences * MIN_RESIDENTS_PER_RESIDENCE +
     counts.businesses * MIN_OWNER_PER_BUSINESS;
 
-  const effectiveTarget = Math.max(target, minimum);
+  let effectiveTarget = Math.max(buildingTarget, minimum);
+  // Cap by settlement type target (e.g. hamlet = 50) so we don't overshoot
+  if (typeTarget !== undefined && typeTarget > 0) {
+    effectiveTarget = Math.min(effectiveTarget, typeTarget);
+  }
   const deficit = Math.max(0, effectiveTarget - currentPopulation);
 
   return { target: effectiveTarget, minimum, deficit };

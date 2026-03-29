@@ -20,11 +20,14 @@ import { SeededRNG } from './historical-simulation';
 // ---------------------------------------------------------------------------
 
 /** Settlement size tiers based on population thresholds. */
-export type SettlementTier = 'hamlet' | 'village' | 'town' | 'city' | 'metropolis';
+export type SettlementTier = 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city' | 'metropolis';
 
 /** Population thresholds for each tier (minimum population to qualify). */
 export const TIER_THRESHOLDS: Record<SettlementTier, number> = {
-  hamlet: 0,
+  dwelling: 0,
+  roadhouse: 0,
+  homestead: 0,
+  hamlet: 15,
   village: 50,
   town: 200,
   city: 1000,
@@ -32,7 +35,7 @@ export const TIER_THRESHOLDS: Record<SettlementTier, number> = {
 };
 
 /** Ordered list of tiers from smallest to largest. */
-const TIER_ORDER: SettlementTier[] = ['hamlet', 'village', 'town', 'city', 'metropolis'];
+const TIER_ORDER: SettlementTier[] = ['dwelling', 'roadhouse', 'homestead', 'hamlet', 'village', 'town', 'city', 'metropolis'];
 
 /** Infrastructure capacities by tier. */
 export const TIER_INFRASTRUCTURE: Record<SettlementTier, {
@@ -41,6 +44,9 @@ export const TIER_INFRASTRUCTURE: Record<SettlementTier, {
   maxLandmarks: number;
   infrastructureLevel: number;
 }> = {
+  dwelling: { maxDistricts: 1, maxStreetsPerDistrict: 1, maxLandmarks: 0, infrastructureLevel: 0 },
+  roadhouse: { maxDistricts: 1, maxStreetsPerDistrict: 1, maxLandmarks: 0, infrastructureLevel: 0 },
+  homestead: { maxDistricts: 1, maxStreetsPerDistrict: 1, maxLandmarks: 0, infrastructureLevel: 0 },
   hamlet: { maxDistricts: 1, maxStreetsPerDistrict: 2, maxLandmarks: 1, infrastructureLevel: 1 },
   village: { maxDistricts: 2, maxStreetsPerDistrict: 4, maxLandmarks: 2, infrastructureLevel: 2 },
   town: { maxDistricts: 4, maxStreetsPerDistrict: 6, maxLandmarks: 4, infrastructureLevel: 3 },

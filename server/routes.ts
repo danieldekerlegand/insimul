@@ -4188,17 +4188,71 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
     }
   });
   
+  // Unified settlement generation — runs the full TotT pipeline for a single settlement
+  app.post("/api/generate/settlement/:settlementId", async (req, res) => {
+    try {
+      const settlementId = req.params.settlementId;
+      const settlement = await storage.getSettlement(settlementId);
+      if (!settlement) return res.status(404).json({ error: 'Settlement not found' });
+
+      const currentYear = new Date().getFullYear();
+      const generator = new WorldGenerator();
+
+      const result = await generator.generateSettlement({
+        worldId: settlement.worldId,
+        countryId: settlement.countryId ?? undefined,
+        settlementId,
+        foundedYear: req.body.foundedYear || settlement.foundedYear || 1850,
+        currentYear,
+        terrain: settlement.terrain || 'plains',
+        settlementType: settlement.settlementType || 'town',
+        worldType: req.body.worldType,
+        numFoundingFamilies: req.body.numFoundingFamilies || 10,
+        generations: req.body.generations || 4,
+        marriageRate: req.body.marriageRate,
+        fertilityRate: req.body.fertilityRate,
+        deathRate: req.body.deathRate,
+        targetPopulation: req.body.targetPopulation,
+        generateGenealogy: req.body.generateGenealogy !== false,
+        generateGeography: req.body.generateGeography !== false,
+        generateTruths: req.body.generateTruths !== false,
+      });
+
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Settlement generation error:", error);
+      res.status(500).json({ error: "Failed to generate settlement", details: (error as Error).message });
+    }
+  });
+
+  // Legacy geography-only endpoint (kept for backward compatibility)
   app.post("/api/generate/geography/:worldId", async (req, res) => {
     try {
+      const settlementId = req.params.worldId; // param is actually settlementId
       const generator = new WorldGenerator();
-      const result = await generator.generateGeography(req.params.worldId, req.body);
-      
+      const geoResult = await generator.generateGeography(settlementId, req.body);
+
+      // Run the full pipeline for post-processing
+      const settlement = await storage.getSettlement(settlementId);
+      let postProcess = { businesses: 0, employed: 0, occupations: 0, housed: 0 };
+      if (settlement) {
+        const currentYear = new Date().getFullYear();
+        postProcess = await generator.postProcessSettlement({
+          worldId: settlement.worldId,
+          settlementId,
+          currentYear,
+          terrain: settlement.terrain || 'plains',
+          worldType: req.body.worldType,
+        });
+      }
+
       res.json({
         success: true,
-        districts: result.districts.length,
-        streets: result.streets.length,
-        buildings: result.buildings.length,
-        landmarks: result.landmarks.length
+        districts: geoResult.districts.length,
+        streets: geoResult.streets.length,
+        buildings: geoResult.buildings.length,
+        landmarks: geoResult.landmarks.length,
+        ...postProcess,
       });
     } catch (error) {
       console.error("Geography generation error:", error);
@@ -4206,6 +4260,25 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
     }
   });
   
+  // Generate character truths — delegates to WorldGenerator.generateCharacterTruths()
+  app.post("/api/generate/truths/:worldId", async (req, res) => {
+    try {
+      const worldId = req.params.worldId;
+      const world = await storage.getWorld(worldId);
+      const generator = new WorldGenerator();
+      const numTruths = await generator.generateCharacterTruths({
+        worldId,
+        worldName: world?.name || 'Unknown',
+        worldDescription: world?.description || '',
+        worldType: req.body.worldType,
+      });
+      res.json({ success: true, numTruths });
+    } catch (error) {
+      console.error("Truth generation error:", error);
+      res.status(500).json({ error: "Failed to generate truths", details: (error as Error).message });
+    }
+  });
+
   app.get("/api/generate/presets", async (req, res) => {
     try {
       const presets = WorldGenerator.getPresets();
@@ -4288,7 +4361,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         const countrySettlementRanges: Array<{ start: number; end: number; statesCount: number }> = [];
 
         // Per-settlement-type genealogy computation
-        const BASE_FAMILIES_SS: Record<string, number> = { hamlet: 3, village: 5, town: 15, city: 50 };
+        const BASE_FAMILIES_SS: Record<string, number> = { dwelling: 1, roadhouse: 1, homestead: 2, hamlet: 3, village: 5, town: 15, city: 50 };
         const YEARS_PER_GEN_SS = 25;
         const computeGenealogySS = (type: string, foundedYear: number) => {
           const currentYear = new Date().getFullYear();
@@ -4410,9 +4483,9 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 });
                 numSettlements++;
 
-                // Use the full genealogy generator for realistic multi-generation families
-                // (same logic as non-single-shot path and Create Settlement dialog)
-                const POPULATION_BY_TYPE_SS: Record<string, number> = { hamlet: 50, village: 100, town: 1000, city: 5000 };
+                // Store settlement info for the unified pipeline (run after territory layout)
+                // Genealogy params are computed from settlement type and founding year
+                const POPULATION_BY_TYPE_SS: Record<string, number> = { dwelling: 3, roadhouse: 3, homestead: 10, hamlet: 50, village: 100, town: 1000, city: 5000 };
                 const { foundingFamilies: typeFamilies, generations: typeGenerations } = (() => {
                   const currentYr = new Date().getFullYear();
                   const yearsOld = Math.max(0, currentYr - cc.foundedYear);
@@ -4423,20 +4496,21 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   return { foundingFamilies: families, generations: gens };
                 })();
 
-                if (config.generateGenealogy) {
-                  const generator = new WorldGenerator();
-                  const genealogyResult = await generator.generateGenealogy(config.worldId, {
-                    settlementId: settlement.id,
-                    numFoundingFamilies: typeFamilies,
-                    generations: typeGenerations,
-                    marriageRate: cc.marriageRate || 0.7,
-                    fertilityRate: cc.fertilityRate || 0.6,
-                    deathRate: cc.deathRate || 0.3,
-                    startYear: cc.foundedYear || 1900,
-                    targetPopulation: POPULATION_BY_TYPE_SS[plan.type] || 50,
-                  });
-                  totalPopulation += genealogyResult.totalCharacters;
-                }
+                // We'll run the full pipeline after territory layout is complete
+                (config as any)._pendingSettlements = (config as any)._pendingSettlements || [];
+                (config as any)._pendingSettlements.push({
+                  settlementId: settlement.id,
+                  countryId: country.id,
+                  type: plan.type,
+                  terrain: cc.terrain || 'plains',
+                  foundedYear: cc.foundedYear,
+                  numFoundingFamilies: typeFamilies,
+                  generations: typeGenerations,
+                  marriageRate: cc.marriageRate || 0.7,
+                  fertilityRate: cc.fertilityRate || 0.6,
+                  deathRate: cc.deathRate || 0.3,
+                  targetPopulation: POPULATION_BY_TYPE_SS[plan.type] || 50,
+                });
 
                 settlementIdx++;
               }
@@ -4459,7 +4533,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 terrain: countryConfigs[0]?.terrain || 'plains',
                 settlements: countrySettlements.map(s => ({
                   id: s.id,
-                  type: (s.settlementType || 'town') as 'hamlet' | 'village' | 'town' | 'city',
+                  type: (s.settlementType || 'town') as 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city',
                   terrain: (s.terrain || countryConfigs[0]?.terrain || 'plains'),
                   population: s.population || 50,
                   stateId: s.stateId || undefined,
@@ -4518,30 +4592,34 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             console.log(`   ✓ ${geoLayout.countries.size} country territories, ${geoLayout.settlements.size} settlement positions, ${geoLayout.roads.length} roads`);
           }
 
-          // Generate geography for all settlements
-          if (config.generateGeography) {
-            const allSettlements = await storage.getSettlementsByWorld(config.worldId);
-            const generator = new WorldGenerator();
-            for (const settlement of allSettlements) {
-              const cc = countryConfigs[0]; // Use first country's foundedYear as fallback
-              await generator.generateGeography(settlement.id, {
-                foundedYear: settlement.foundedYear || cc.foundedYear
-              });
-            }
-            console.log(`🗺️  Generated geography for ${allSettlements.length} settlements`);
-
-            // Post-process: assign business owners, employment, occupations, and housing
+          // Run the full unified pipeline for each settlement
+          {
             const currentYear = new Date().getFullYear();
-            for (const settlement of allSettlements) {
-              const cc = countryConfigs[0];
-              const result = await generator.postProcessSettlement({
+            const generator = new WorldGenerator();
+            const pendingSettlements = (config as any)._pendingSettlements || [];
+
+            for (const ps of pendingSettlements) {
+              console.log(`\n🏘️  Running full pipeline for settlement ${ps.settlementId}...`);
+              const result = await generator.generateSettlement({
                 worldId: config.worldId,
-                settlementId: settlement.id,
+                countryId: ps.countryId,
+                settlementId: ps.settlementId,
+                foundedYear: ps.foundedYear,
                 currentYear,
-                terrain: cc.terrain || 'plains',
+                terrain: ps.terrain,
+                settlementType: ps.type,
                 worldType: config.worldType,
+                numFoundingFamilies: ps.numFoundingFamilies,
+                generations: ps.generations,
+                marriageRate: ps.marriageRate,
+                fertilityRate: ps.fertilityRate,
+                deathRate: ps.deathRate,
+                targetPopulation: ps.targetPopulation,
+                generateGenealogy: config.generateGenealogy,
+                generateGeography: config.generateGeography,
               });
-              console.log(`   ✓ Post-processed ${settlement.name}: ${result.businesses} businesses, ${result.employed} employed, ${result.housed} housed`);
+              totalPopulation += result.population;
+              console.log(`   ✓ ${ps.type}: ${result.population} people, ${result.businesses} businesses, ${result.housed} housed, ${result.truths} truths`);
             }
           }
 
@@ -4650,7 +4728,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           const numHamlets = cc.numHamletsPerState || 0;
 
           // Compute per-settlement-type genealogy from founding year
-          const BASE_FAMILIES: Record<string, number> = { hamlet: 3, village: 5, town: 15, city: 50 };
+          const BASE_FAMILIES: Record<string, number> = { dwelling: 1, roadhouse: 1, homestead: 2, hamlet: 3, village: 5, town: 15, city: 50 };
           const YEARS_PER_GEN = 25;
           const computeSettlementGenealogy = (type: string, foundedYear: number) => {
             const currentYear = new Date().getFullYear();
@@ -5806,7 +5884,87 @@ Return ONLY valid JSON array.`;
     }
   });
 
-  // Insimul Engine API
+  // World-scoped Prolog-first simulation (matches SimulationsView client)
+  app.post("/api/worlds/:worldId/simulations/run", async (req, res) => {
+    try {
+      const worldId = req.params.worldId;
+      const config = req.body || {};
+      const {
+        mode = 'historical',
+        startYear,
+        endYear,
+        samplingRate,
+        seed,
+        enabledEventTypes,
+        rateOverrides,
+      } = config;
+
+      // Create a simulation record for tracking
+      const simulation = await storage.createSimulation({
+        worldId,
+        name: `${mode} simulation`,
+        description: `Prolog-first ${mode} simulation`,
+        status: 'running',
+        config: { mode, startYear, endYear, samplingRate, seed, enabledEventTypes },
+      } as any);
+
+      const { InsimulSimulationEngine } = await import("./engines/unified-engine.js");
+      const engine = new InsimulSimulationEngine(storage);
+
+      // Use Prolog-first simulation with playthrough isolation
+      // Simulation writes go through the overlay — base world state is preserved
+      const result = await engine.simulateWithProlog(worldId, simulation.id, {
+        simulationMode: mode === 'gameplay' ? 'hi-fi' : 'lo-fi',
+        steps: endYear && startYear ? (endYear - startYear) : 10,
+        startYear: startYear || new Date().getFullYear() - 10,
+        endYear: endYear || new Date().getFullYear(),
+        playthroughId: simulation.id, // use simulation ID as isolation scope
+        rateOverrides,
+      });
+
+      // Update simulation status
+      await storage.updateSimulation(simulation.id, {
+        status: 'completed',
+        results: {
+          ...result.totalLifeEvents,
+          totalEvents: Object.values(result.totalLifeEvents).reduce((a, b) => a + b, 0),
+        },
+      } as any);
+
+      // Return events for the UI
+      const events = [];
+      if (result.totalLifeEvents.deaths > 0) events.push({ type: 'death', count: result.totalLifeEvents.deaths });
+      if (result.totalLifeEvents.marriages > 0) events.push({ type: 'marriage', count: result.totalLifeEvents.marriages });
+      if (result.totalLifeEvents.births > 0) events.push({ type: 'birth', count: result.totalLifeEvents.births });
+      if (result.totalLifeEvents.conceptions > 0) events.push({ type: 'conception', count: result.totalLifeEvents.conceptions });
+      if (result.totalLifeEvents.divorces > 0) events.push({ type: 'divorce', count: result.totalLifeEvents.divorces });
+
+      res.json({
+        success: true,
+        simulationId: simulation.id,
+        events,
+        totalLifeEvents: result.totalLifeEvents,
+      });
+    } catch (error) {
+      console.error("Prolog simulation error:", error);
+      res.status(500).json({ error: "Failed to run simulation", details: (error as Error).message });
+    }
+  });
+
+  // Accept simulation results (client calls this to acknowledge completion)
+  app.post("/api/worlds/:worldId/simulations/accept", async (req, res) => {
+    try {
+      const { simulationId } = req.body;
+      if (simulationId) {
+        await storage.updateSimulation(simulationId, { status: 'accepted' } as any);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to accept simulation" });
+    }
+  });
+
+  // Insimul Engine API (legacy — per-simulation-ID run)
   app.post("/api/simulations/:id/run", async (req, res) => {
     try {
       const simulation = await storage.getSimulation(req.params.id);
@@ -10880,7 +11038,7 @@ Make the action names thematic and immersive.`;
 
       const [characters, texts] = await Promise.all([
         storage.getCharactersByWorld(worldId),
-        storage.getTextsByWorld(worldId),
+        storage.getGameTextsByWorld(worldId),
       ]);
 
       const { generateReadingQuests } = await import('./services/reading-quest-generator.js');
@@ -14520,7 +14678,7 @@ Make the action names thematic and immersive.`;
       const savedTexts = [];
       for (let i = 0; i < results.length; i++) {
         const insertData = generatedTextToInsertText(results[i], paramsList[i]);
-        const saved = await storage.createText(insertData);
+        const saved = await storage.createGameText(insertData);
         savedTexts.push(saved);
       }
 

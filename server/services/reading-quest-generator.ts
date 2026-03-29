@@ -13,7 +13,7 @@
  * Completing a quest about a main-quest text also reveals its embedded clue.
  */
 
-import type { Character, Text, World, InsertQuest } from '../../shared/schema.js';
+import type { Character, GameText, World, InsertQuest } from '../../shared/schema.js';
 import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
 export interface ReadingQuestOptions {
   world: World;
   characters: Character[];
-  texts: Text[];
+  texts: GameText[];
   assignedTo?: string;
   maxQuests?: number;
 }
@@ -214,7 +214,7 @@ export function generateReadingQuests(options: ReadingQuestOptions): InsertQuest
  */
 export function getReadingQuestClue(
   quest: { tags?: string[] | null; relatedTruthIds?: string[] | null; objectives?: any[] },
-  texts: Text[],
+  texts: GameText[],
 ): { title: string; clueText: string; authorName?: string } | null {
   if (!quest.tags?.includes('main-quest-clue')) return null;
 

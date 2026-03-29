@@ -2,7 +2,8 @@
  * Settlement History Routes (US-066)
  *
  * Provides endpoints for tracking and querying settlement changes
- * over simulation time.
+ * over simulation time. History events are stored as truths with
+ * entryType 'settlement_history'.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -19,21 +20,21 @@ export function createSettlementHistoryRoutes(storage: any): Router {
       let events = await storage.getSettlementHistoryBySettlement(settlementId);
 
       if (eventType) {
-        events = events.filter((e: any) => e.eventType === eventType);
+        events = events.filter((e: any) => e.sourceData?.eventType === eventType);
       }
       if (category) {
-        events = events.filter((e: any) => e.category === category);
+        events = events.filter((e: any) => e.sourceData?.category === category);
       }
       if (significance) {
-        events = events.filter((e: any) => e.significance === significance);
+        events = events.filter((e: any) => e.historicalSignificance === significance);
       }
       if (minYear) {
         const min = parseInt(minYear as string, 10);
-        events = events.filter((e: any) => e.year != null && e.year >= min);
+        events = events.filter((e: any) => e.timeYear != null && e.timeYear >= min);
       }
       if (maxYear) {
         const max = parseInt(maxYear as string, 10);
-        events = events.filter((e: any) => e.year != null && e.year <= max);
+        events = events.filter((e: any) => e.timeYear != null && e.timeYear <= max);
       }
 
       res.json(events);
@@ -51,13 +52,13 @@ export function createSettlementHistoryRoutes(storage: any): Router {
       let events = await storage.getSettlementHistoryByWorld(worldId);
 
       if (settlementId) {
-        events = events.filter((e: any) => e.settlementId === settlementId);
+        events = events.filter((e: any) => (e.relatedLocationIds || []).includes(settlementId));
       }
       if (eventType) {
-        events = events.filter((e: any) => e.eventType === eventType);
+        events = events.filter((e: any) => e.sourceData?.eventType === eventType);
       }
       if (category) {
-        events = events.filter((e: any) => e.category === category);
+        events = events.filter((e: any) => e.sourceData?.category === category);
       }
 
       res.json(events);
@@ -79,12 +80,15 @@ export function createSettlementHistoryRoutes(storage: any): Router {
       let maxYear: number | null = null;
 
       for (const event of events) {
-        byCategory[event.category] = (byCategory[event.category] || 0) + 1;
-        byEventType[event.eventType] = (byEventType[event.eventType] || 0) + 1;
-        bySignificance[event.significance || 'minor'] = (bySignificance[event.significance || 'minor'] || 0) + 1;
-        if (event.year != null) {
-          if (minYear === null || event.year < minYear) minYear = event.year;
-          if (maxYear === null || event.year > maxYear) maxYear = event.year;
+        const cat = event.sourceData?.category || 'unknown';
+        const et = event.sourceData?.eventType || 'unknown';
+        const sig = event.historicalSignificance || 'minor';
+        byCategory[cat] = (byCategory[cat] || 0) + 1;
+        byEventType[et] = (byEventType[et] || 0) + 1;
+        bySignificance[sig] = (bySignificance[sig] || 0) + 1;
+        if (event.timeYear != null) {
+          if (minYear === null || event.timeYear < minYear) minYear = event.timeYear;
+          if (maxYear === null || event.timeYear > maxYear) maxYear = event.timeYear;
         }
       }
 
@@ -101,7 +105,7 @@ export function createSettlementHistoryRoutes(storage: any): Router {
     }
   });
 
-  // POST /api/settlements/:settlementId/history — record a history event
+  // POST /api/settlements/:settlementId/history — record a history event (as a truth)
   router.post('/settlements/:settlementId/history', async (req: Request, res: Response) => {
     try {
       const { settlementId } = req.params;

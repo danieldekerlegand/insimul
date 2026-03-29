@@ -3168,6 +3168,10 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     return this.languageTracker;
   }
 
+  public getIsVisible(): boolean {
+    return this.isVisible;
+  }
+
   /**
    * Set a persistent language tracker to be reused across conversations.
    * When set, initializeChat() will use this tracker instead of creating a new one,

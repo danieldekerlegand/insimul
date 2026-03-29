@@ -1014,6 +1014,406 @@ export class InsimulSimulationEngine {
    * @param simulationId  Unique identifier for this simulation run
    * @param config        Simulation configuration
    */
+
+  /**
+   * Prolog-first simulation loop.
+   *
+   * Instead of making decisions in TypeScript, this loop:
+   * 1. Syncs world state → Prolog KB (facts about characters, relationships, etc.)
+   * 2. Asserts per-timestep dynamic facts (death probabilities, birth chances, etc.)
+   * 3. Queries Prolog for `collect_simulation_events(Events)` — Prolog decides what happens
+   * 4. Dispatches each event to the appropriate TotT effect handler
+   * 5. Asserts new facts back to Prolog (dead/1, married_to/2, etc.)
+   *
+   * All writes go through `createTruthEntry()` which routes through the
+   * playthrough overlay when `playthroughId` is set, preserving base world state.
+   */
+  async simulateWithProlog(
+    worldId: string,
+    simulationId: string,
+    config: SimulationConfig & {
+      startYear?: number;
+      endYear?: number;
+      playthroughId?: string;
+    }
+  ): Promise<HiFiSimulationResult> {
+    const steps = config.steps ?? 1;
+    const startYear = (config as any).startYear ?? new Date().getFullYear();
+    const endYear = (config as any).endYear ?? startYear + steps;
+    const yearsToSimulate = endYear - startYear;
+
+    const totalLifeEvents = { marriages: 0, conceptions: 0, births: 0, divorces: 0, deaths: 0 };
+    const stepResults: SimulationStepResult[] = [];
+
+    try {
+      // Initialize with playthrough isolation if specified
+      if (!this.context || this.context.worldId !== worldId) {
+        await this.loadRules(worldId);
+        await this.loadGrammars(worldId);
+        await this.initializeContext(worldId, simulationId, config.playthroughId);
+      }
+      if (!this.context) throw new Error('Failed to initialize simulation context');
+
+      // Ensure world is synced to Prolog
+      await this.syncWorldToProlog(worldId);
+
+      // Activate storage proxy for playthrough isolation.
+      // This intercepts storage.updateCharacter(), updateBusiness(), etc. globally
+      // so that TotT effect handlers write to deltas instead of base world state.
+      if (config.playthroughId) {
+        const { createPlaythroughStorageProxy } = await import('../services/playthrough-overlay.js');
+        const { setStorageOverride } = await import('../db/storage.js');
+        let currentTimestep = 0;
+        const proxy = createPlaythroughStorageProxy(
+          this.storage as any,
+          config.playthroughId,
+          () => currentTimestep,
+        );
+        setStorageOverride(proxy as any);
+        // Store a reference so we can update timestep and clean up
+        (this as any)._simTimestepRef = (ts: number) => { currentTimestep = ts; };
+      }
+
+      // Lazy-import TotT effect handlers
+      const [
+        { die },
+        { developAttraction, marry, conceive, giveBirth, divorce },
+        { processDeathGrief },
+        { createGravestone, createWeddingRing },
+        { shouldAttendCollege, enrollInCollege, selectMajor },
+        { initializeCharacterAppearance },
+      ] = await Promise.all([
+        import('../extensions/tott/lifecycle-system.js'),
+        import('../extensions/tott/lifecycle-system.js'),
+        import('../extensions/tott/grieving-system.js'),
+        import('../extensions/tott/artifact-system.js'),
+        import('../extensions/tott/education-system.js'),
+        import('../extensions/tott/appearance-system.js'),
+      ]);
+
+      const { prologAutoSync } = await import('./prolog/prolog-auto-sync.js');
+      const engine = prologAutoSync.getEngine(worldId);
+
+      // Helper: assert a fact for this timestep
+      const assertFact = async (fact: string) => {
+        try { await engine.addRules([`${fact}.`]); } catch {}
+      };
+
+      // Helper: retract (best-effort, tau-prolog may not support retract fully)
+      const retractFact = async (fact: string) => {
+        try { await engine.queryOnce(`retract(${fact})`); } catch {}
+      };
+
+      for (let year = 0; year < yearsToSimulate; year++) {
+        const currentYear = startYear + year;
+        const timestep = year * 730; // 2 timesteps/day × 365 days
+
+        // Keep the storage proxy's timestep in sync
+        if ((this as any)._simTimestepRef) (this as any)._simTimestepRef(timestep);
+
+        // Update temporal facts
+        await retractFact('current_year(_)');
+        await assertFact(`current_year(${currentYear})`);
+        await retractFact('current_timestep(_)');
+        await assertFact(`current_timestep(${timestep})`);
+
+        // Re-sync character ages and states to Prolog
+        const characters = this.context.characters;
+        for (const char of characters) {
+          if (!char.isAlive) continue;
+          const age = currentYear - (char.birthYear || 0);
+          const id = char.id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+
+          // Assert death probability based on age curve
+          if (age >= 68) {
+            // TotT death probability: starts at ~2% at 68, rises steeply
+            const p = Math.min(0.4, 0.02 * Math.pow(1.1, age - 68));
+            await assertFact(`death_probability(${id}, ${p.toFixed(4)})`);
+          }
+
+          // Assert birth chance for fertile women
+          if (char.gender?.toLowerCase() === 'female' && age >= 18 && age <= 45 && char.spouseId) {
+            const childCount = characters.filter(c =>
+              (c as any).parentIds?.includes(char.id) || (c as any).motherId === char.id
+            ).length;
+            const chance = 0.20 * Math.pow(0.7, childCount);
+            await assertFact(`birth_chance(${id}, ${chance.toFixed(4)})`);
+          }
+        }
+
+        // Assert random_chance/1 as a probabilistic built-in
+        // Since tau-prolog can't do true randomness in rules,
+        // we pre-roll and assert which chance thresholds pass
+        // For each probability threshold used in rules, assert if it passes
+        for (const threshold of [0.01, 0.02, 0.05, 0.15, 0.3]) {
+          if (Math.random() < threshold) {
+            await assertFact(`random_chance(${threshold})`);
+          } else {
+            await retractFact(`random_chance(${threshold})`);
+          }
+        }
+
+        // ── Query Prolog for events ─────────────────────────────────────
+        // Query each event type separately (more reliable than mega-collect)
+        const events: Array<{ type: string; args: any[] }> = [];
+
+        // Deaths
+        try {
+          const deathResult = await engine.query('should_die(X, Cause)');
+          if (deathResult.success) {
+            for (const b of deathResult.bindings) {
+              events.push({ type: 'death', args: [b.X as string, b.Cause as string] });
+            }
+          }
+        } catch {}
+
+        // Marriages
+        try {
+          const marriageResult = await engine.query('should_marry(X, Y)');
+          if (marriageResult.success) {
+            for (const b of marriageResult.bindings) {
+              events.push({ type: 'marriage', args: [b.X as string, b.Y as string] });
+            }
+          }
+        } catch {}
+
+        // Conceptions
+        try {
+          const conceptionResult = await engine.query('should_conceive(Mother, Father)');
+          if (conceptionResult.success) {
+            for (const b of conceptionResult.bindings) {
+              events.push({ type: 'conception', args: [b.Mother as string, b.Father as string] });
+            }
+          }
+        } catch {}
+
+        // Divorces
+        try {
+          const divorceResult = await engine.query('should_divorce(X, Y)');
+          if (divorceResult.success) {
+            for (const b of divorceResult.bindings) {
+              events.push({ type: 'divorce', args: [b.X as string, b.Y as string] });
+            }
+          }
+        } catch {}
+
+        // Education
+        try {
+          const enrollResult = await engine.query('should_enroll(X)');
+          if (enrollResult.success) {
+            for (const b of enrollResult.bindings) {
+              events.push({ type: 'enroll', args: [b.X as string] });
+            }
+          }
+        } catch {}
+
+        // ── Dispatch events to TotT effect handlers ─────────────────────
+        for (const event of events) {
+          // Resolve character ID from Prolog atom back to real ID
+          const resolveId = (atom: string) => {
+            // Prolog atoms are lowercased/sanitized; find the matching character
+            const match = characters.find(c =>
+              c.id.toLowerCase().replace(/[^a-z0-9_]/g, '_') === atom
+            );
+            return match?.id || atom;
+          };
+
+          try {
+            switch (event.type) {
+              case 'death': {
+                const charId = resolveId(event.args[0]);
+                const cause = event.args[1] || 'old_age';
+                await die(charId, cause, '', timestep);
+                totalLifeEvents.deaths++;
+
+                // Side effects
+                try { await processDeathGrief(charId, worldId, timestep); } catch {}
+                try { await createGravestone(charId, worldId, 'cemetery', timestep); } catch {}
+
+                // Create truth (through isolation layer)
+                const deceased = await this.storage.getCharacter(charId);
+                if (deceased) {
+                  await this.createTruthEntry({
+                    worldId, characterId: charId,
+                    title: `Death of ${deceased.firstName} ${deceased.lastName}`,
+                    content: `${deceased.firstName} ${deceased.lastName} passed away in ${currentYear}.`,
+                    entryType: 'death',
+                    timestep,
+                    timeYear: currentYear,
+                    tags: ['history', 'death'],
+                    importance: 7,
+                    isPublic: true,
+                    source: 'prolog_simulation',
+                  });
+                }
+
+                // Update Prolog KB
+                await assertFact(`dead(${event.args[0]})`);
+                break;
+              }
+
+              case 'marriage': {
+                const id1 = resolveId(event.args[0]);
+                const id2 = resolveId(event.args[1]);
+                try {
+                  await developAttraction(id1, id2, timestep);
+                  await marry(id1, id2, '', [], timestep);
+                  totalLifeEvents.marriages++;
+
+                  try {
+                    await createWeddingRing(id1, id2, worldId, timestep);
+                    await createWeddingRing(id2, id1, worldId, timestep);
+                  } catch {}
+
+                  const c1 = await this.storage.getCharacter(id1);
+                  const c2 = await this.storage.getCharacter(id2);
+                  if (c1 && c2) {
+                    await this.createTruthEntry({
+                      worldId, characterId: id1,
+                      title: `Marriage of ${c1.firstName} and ${c2.firstName}`,
+                      content: `${c1.firstName} ${c1.lastName} and ${c2.firstName} ${c2.lastName} were married in ${currentYear}.`,
+                      entryType: 'marriage',
+                      timestep,
+                      timeYear: currentYear,
+                      tags: ['history', 'marriage'],
+                      importance: 6,
+                      isPublic: true,
+                      source: 'prolog_simulation',
+                    });
+                  }
+
+                  await assertFact(`married_to(${event.args[0]}, ${event.args[1]})`);
+                  await assertFact(`married_to(${event.args[1]}, ${event.args[0]})`);
+                } catch {}
+                break;
+              }
+
+              case 'conception': {
+                const motherId = resolveId(event.args[0]);
+                const fatherId = resolveId(event.args[1]);
+                try {
+                  await conceive(motherId, fatherId, timestep);
+                  const birth = await giveBirth(motherId, '', timestep + 270);
+                  totalLifeEvents.births++;
+
+                  if (birth.childId) {
+                    const child = await this.storage.getCharacter(birth.childId);
+                    if (child) {
+                      try {
+                        await initializeCharacterAppearance(
+                          child.id,
+                          child.gender?.toLowerCase() === 'female' ? 'female' : 'male',
+                          motherId, fatherId, 0
+                        );
+                      } catch {}
+
+                      await this.createTruthEntry({
+                        worldId, characterId: birth.childId,
+                        title: `Birth of ${child.firstName} ${child.lastName}`,
+                        content: `${child.firstName} ${child.lastName} was born in ${currentYear}.`,
+                        entryType: 'birth',
+                        timestep,
+                        timeYear: currentYear,
+                        tags: ['history', 'birth'],
+                        importance: 5,
+                        isPublic: true,
+                        source: 'prolog_simulation',
+                      });
+                    }
+                  }
+                  totalLifeEvents.conceptions++;
+                } catch {}
+                break;
+              }
+
+              case 'divorce': {
+                const id1 = resolveId(event.args[0]);
+                const id2 = resolveId(event.args[1]);
+                try {
+                  await divorce(id1, id2, '', timestep);
+                  totalLifeEvents.divorces++;
+
+                  await retractFact(`married_to(${event.args[0]}, ${event.args[1]})`);
+                  await retractFact(`married_to(${event.args[1]}, ${event.args[0]})`);
+
+                  const c1 = await this.storage.getCharacter(id1);
+                  const c2 = await this.storage.getCharacter(id2);
+                  if (c1 && c2) {
+                    await this.createTruthEntry({
+                      worldId, characterId: id1,
+                      title: `Divorce of ${c1.firstName} and ${c2.firstName}`,
+                      content: `${c1.firstName} ${c1.lastName} and ${c2.firstName} ${c2.lastName} divorced in ${currentYear}.`,
+                      entryType: 'divorce',
+                      timestep,
+                      timeYear: currentYear,
+                      tags: ['history', 'divorce'],
+                      importance: 5,
+                      isPublic: true,
+                      source: 'prolog_simulation',
+                    });
+                  }
+                } catch {}
+                break;
+              }
+
+              case 'enroll': {
+                const studentId = resolveId(event.args[0]);
+                const student = await this.storage.getCharacter(studentId);
+                if (student) {
+                  try {
+                    const major = selectMajor(student.personality as any, student.gender || 'male');
+                    await enrollInCollege(studentId, major, 'University', timestep, worldId);
+                  } catch {}
+                }
+                break;
+              }
+            }
+          } catch (e) {
+            console.warn(`[Prolog sim] Failed to execute ${event.type}:`, e);
+          }
+        }
+
+        // Clean up per-timestep facts for next iteration
+        for (const char of characters) {
+          const id = char.id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          await retractFact(`death_probability(${id}, _)`);
+          await retractFact(`birth_chance(${id}, _)`);
+        }
+
+        if (events.length > 0) {
+          console.log(`   Year ${currentYear}: ${events.length} Prolog-decided events (${totalLifeEvents.deaths}d ${totalLifeEvents.marriages}m ${totalLifeEvents.births}b)`);
+        }
+
+        // Refresh characters from storage for next year
+        this.context.characters = await this.storage.getCharactersByWorld(worldId);
+      }
+    } catch (error) {
+      console.error('[Prolog simulation] Error:', error);
+    } finally {
+      // Always clear the storage override when simulation ends
+      if (config.playthroughId) {
+        try {
+          const { clearStorageOverride } = await import('../db/storage.js');
+          clearStorageOverride();
+          (this as any)._simTimestepRef = null;
+        } catch {}
+      }
+    }
+
+    return {
+      stepResults,
+      totalObservations: 0,
+      totalSocializations: 0,
+      totalLifeEvents,
+      totalGriefInitiated: 0,
+      totalConstructionUpdates: 0,
+      totalKnowledgePropagations: 0,
+      totalRandomTownEvents: 0,
+      rates: this.context ? this.resolveRates(this.context.world, config.rateOverrides) : {} as any,
+      success: true,
+    };
+  }
+
   async simulateHiFi(
     worldId: string,
     simulationId: string,

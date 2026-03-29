@@ -24,6 +24,8 @@ import {
     MeshBuilder,
     Color3
 } from "@babylonjs/core";
+import { assessmentModalOpen } from "@shared/game-engine/rendering/AssessmentModalUI";
+import { compositionModalOpen } from "@shared/game-engine/rendering/CompositionWritingUI";
 
 
 export class CharacterController {
@@ -1751,6 +1753,8 @@ export class CharacterController {
     private _onKeyDown(e: KeyboardEvent) {
         if (!e.key) return;
         if (e.repeat) return;
+        // Block movement when a text-input modal is open
+        if (assessmentModalOpen || compositionModalOpen) return;
         switch (e.key.toLowerCase()) {
             case this._actionMap.idleJump.key:
                 this._act._jump = true;

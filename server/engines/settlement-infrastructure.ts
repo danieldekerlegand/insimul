@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 /** Settlement tiers (mirrors settlement-growth.ts). */
-export type SettlementTier = 'hamlet' | 'village' | 'town' | 'city' | 'metropolis';
+export type SettlementTier = 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city' | 'metropolis';
 
 /** Infrastructure categories. */
 export type InfrastructureCategory =

@@ -1,0 +1,419 @@
+{
+  "project": "Insimul",
+  "branchName": "ralph/game-state-truth-system",
+  "description": "Game State Truth System — Make Prolog the ultimate arbiter of truth for all gameplay state. Define canonical predicates, add action prerequisites/effects, real-time truth sync, character templates, and creator tools.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Fix converter whitespace and clean Prolog output",
+      "description": "As a developer, I want clean Prolog output from the action converter with consistent formatting — no extra blank lines.",
+      "acceptanceCriteria": [
+        "In shared/prolog/action-converter.ts, remove extra blank lines before '% Can Actor perform this action?' comment (single blank line only)",
+        "Remove trailing blank lines after prerequisite/effect blocks when they are empty",
+        "No double-blank-lines anywhere in generated output",
+        "Run migration to update all 133 base actions in DB with cleaned output",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Define canonical gameplay state predicates schema",
+      "description": "As a developer, I need a definitive predicate schema for all gameplay-relevant state so that every system speaks the same Prolog vocabulary.",
+      "acceptanceCriteria": [
+        "New file shared/prolog/gameplay-predicates.ts exports a GAMEPLAY_PREDICATES array",
+        "Each entry has: name (string), arity (number), description (string), args (array of {name, type} objects), syncDirection ('runtime_to_prolog' | 'prolog_to_runtime' | 'bidirectional'), category ('player_state' | 'npc_state' | 'world_state' | 'location')",
+        "Player state predicates defined: has_item/3, has_equipped/3, has_skill/3, has_trait/2, has_status/3, has_ability/2, health/3, energy/3, at_location/2, at_location_type/2, near/3, speaks_language/3, knows_vocabulary/3, gold/2, level/2, xp/3, age/2, occupation/2",
+        "NPC-specific predicates defined: npc_occupation/2, npc_schedule/4, npc_dialogue_state/2, npc_disposition/3, npc_will_trade/1, npc_quest_available/2",
+        "World state predicates defined: time_of_day/1, day_number/1, weather/1, location_accessible/1, location_discovered/1, quest_active/2, quest_completed/2, quest_failed/2",
+        "Location predicates defined: named_location/2, location_coords/3, location_of_building/2, location_of_business/2",
+        "Export getPredicatesByCategory(), getPredicateByName(), getMinimumViableTemplate() helper functions",
+        "getMinimumViableTemplate() returns the list of predicates required for any valid character: health, energy, speaks_language, gold, at_location, occupation, age",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Define helper predicates for Prolog KB",
+      "description": "As a developer, I need helper predicates (cefr_gte, is_weapon_type, etc.) in the base Prolog KB so that action prerequisites can reference them.",
+      "acceptanceCriteria": [
+        "New file shared/prolog/helper-predicates.ts exports HELPER_PREDICATES_PROLOG string containing base Prolog helper rules",
+        "cefr_gte/2 predicate: compares CEFR levels (a1 < a2 < b1 < b2 < c1 < c2) — e.g. cefr_gte(b1, a2) succeeds",
+        "cefr_level_rank/2 maps atoms to integers: cefr_level_rank(a1, 1), cefr_level_rank(a2, 2), etc.",
+        "is_weapon_type/2: is_weapon_type(ItemId, Type) checks item_type(ItemId, Type) for weapon categories (sword, axe, bow, staff, pistol)",
+        "is_tool_type/2: checks item_type for tool categories (fishing_rod, pickaxe, axe, hoe)",
+        "skill_tier_name/2: maps integer skill levels to display names (1=novice, 3=apprentice, 5=journeyman, 7=expert, 10=master)",
+        "skill_gte/3: skill_gte(Actor, Skill, MinLevel) succeeds if has_skill(Actor, Skill, Level), Level >= MinLevel",
+        "GamePrologEngine loads these helpers at initialization",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Define action prerequisites for combat actions",
+      "description": "As a game designer, I want combat actions to require appropriate weapons and proximity so players can only fight when equipped.",
+      "acceptanceCriteria": [
+        "New file shared/prolog/action-prerequisites.ts exports ACTION_PREREQUISITES: Record<string, PrerequisiteDefinition>",
+        "PrerequisiteDefinition type has: actionId (string), prerequisites (array of Prolog goal strings), inheritsFromParent (boolean)",
+        "attack_enemy: energy check + near(Actor, Target, 3) + alive(Target)",
+        "sword_attack, sword_combo, sword_dash: inherit from attack_enemy + has_equipped(Actor, weapon, W) + is_weapon_type(W, sword)",
+        "punch, punch_heavy, melee_hook: inherit from attack_enemy (no weapon required — unarmed)",
+        "shield_bash, shield_dash: inherit from attack_enemy + has_equipped(Actor, shield, _)",
+        "pistol_shoot: inherit from attack_enemy + has_equipped(Actor, weapon, W) + is_weapon_type(W, pistol)",
+        "throw_projectile: inherit from attack_enemy + has_item(Actor, projectile, _)",
+        "defend, shield_block: has_equipped(Actor, shield, _)",
+        "sword_block: has_equipped(Actor, weapon, W) + is_weapon_type(W, sword)",
+        "cast_spell, spell_channel: energy check + has_ability(Actor, magic)",
+        "Animation-only actions (react, die, hit_head, hit_reaction, knockback, sword_idle, pistol_aim, pistol_reload, zombie_*): inheritsFromParent = true, no additional prerequisites",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Define action prerequisites for resource and commerce actions",
+      "description": "As a game designer, I want resource gathering and commerce actions to require tools, location types, and merchant proximity.",
+      "acceptanceCriteria": [
+        "In shared/prolog/action-prerequisites.ts, add prerequisites for resource category:",
+        "gather: energy check + at_location_type(Actor, LocType) where LocType is appropriate",
+        "chop_tree: inherit gather + has_item(Actor, axe, _) + at_location_type(Actor, forest)",
+        "mine_rock: inherit gather + has_item(Actor, pickaxe, _) + at_location_type(Actor, mine)",
+        "fish: inherit gather + has_item(Actor, fishing_rod, _) + at_location_type(Actor, water)",
+        "gather_herb: inherit gather + at_location_type(Actor, forest)",
+        "farm_plant, farm_water, farm_harvest: inherit farm + at_location_type(Actor, farm)",
+        "cook: energy check + at_location_type(Actor, kitchen)",
+        "craft_item, fix_repair: energy check + at_location_type(Actor, workshop)",
+        "Commerce prerequisites:",
+        "trade, buy_item, sell_item: near(Actor, Target, 5) + npc_will_trade(Target)",
+        "buy_item additionally: gold(Actor, G), G > 0",
+        "work: at_location(Actor, Workplace) + occupation(Actor, _)",
+        "paint, sweep, push_object: energy check only (inherit from work)",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Define action prerequisites for social, language, and remaining actions",
+      "description": "As a game designer, I want social and language actions to require NPC proximity and CEFR levels respectively.",
+      "acceptanceCriteria": [
+        "In shared/prolog/action-prerequisites.ts, add prerequisites for social category:",
+        "talk_to_npc and all children (greet, compliment_npc, insult_npc, threaten, flirt, persuade, bribe, gossip, confess, apologize, comfort, argue, joke, share_story, ask_about): near(Actor, Target, 5)",
+        "give_gift: near(Actor, Target, 5) + has_item(Actor, _, _) (must have something to give)",
+        "steal: near(Actor, Target, 3) + skill_gte(Actor, stealth, 1)",
+        "eavesdrop: near(Actor, Target, 15) (larger range)",
+        "request_quest: near(Actor, Target, 5) + npc_quest_available(Target, _)",
+        "Language prerequisites:",
+        "ask_for_directions, introduce_self: near(Actor, Target, 5) + speaks_language(Actor, _, _)",
+        "order_food: near(Actor, Target, 5) + npc_will_trade(Target) + speaks_language(Actor, Lang, Level) + cefr_gte(Level, a1)",
+        "haggle_price: near(Actor, Target, 5) + npc_will_trade(Target) + speaks_language(Actor, Lang, Level) + cefr_gte(Level, a2)",
+        "describe_scene: speaks_language(Actor, _, Level) + cefr_gte(Level, a2)",
+        "listen_and_repeat, answer_question, write_response: speaks_language(Actor, _, _)",
+        "teach_vocabulary: near(Actor, Target, 5) + speaks_language(Actor, Lang, Level) + cefr_gte(Level, b1)",
+        "read_book, read_sign: speaks_language(Actor, _, _)",
+        "Exploration: travel_to_location requires location_accessible(Loc), enter_building requires near + location_accessible",
+        "Items: equip_item, use_item, consume, drop_item, collect_item require has_item check",
+        "Survival: rest and sleep require energy check only; sit has no prerequisites",
+        "Movement/idle/expression: no prerequisites (animation-only)",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Define action effects for resource and commerce actions",
+      "description": "As a game designer, I want resource and commerce actions to define their Prolog effects (item creation, gold transfer, XP, energy cost).",
+      "acceptanceCriteria": [
+        "New file shared/prolog/action-effects.ts exports ACTION_EFFECTS: Record<string, EffectDefinition>",
+        "EffectDefinition type has: actionId (string), effects (array of Prolog effect term strings)",
+        "Resource effects: fish -> has_item(Actor, fish, 1), modify energy -15, skill XP fishing +1",
+        "chop_tree -> has_item(Actor, wood, 1), modify energy -15, skill XP woodcutting +1",
+        "mine_rock -> has_item(Actor, ore, 1), modify energy -20, skill XP mining +1",
+        "gather_herb -> has_item(Actor, herbs, 1), modify energy -10, skill XP herbalism +1",
+        "cook -> has_item(Actor, prepared_food, 1), modify energy -10, skill XP cooking +1",
+        "craft_item -> has_item(Actor, crafted_item, 1), modify energy -15, skill XP crafting +1",
+        "farm_plant/water/harvest -> appropriate item/energy/skill effects",
+        "Commerce effects: buy_item -> transfer_item + gold transfer, sell_item -> reverse",
+        "work -> modify gold(Actor, +wages), modify energy -20",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Define action effects for combat, social, and language actions",
+      "description": "As a game designer, I want combat, social, and language actions to define their Prolog effects.",
+      "acceptanceCriteria": [
+        "In shared/prolog/action-effects.ts, add effects for combat category:",
+        "attack_enemy and children (sword_attack, punch, etc.): modify health(Target, -damage), modify energy(Actor, -cost), modify xp(Actor, +combat_xp)",
+        "defend and children: modify energy(Actor, -cost) only",
+        "Social effects:",
+        "talk_to_npc: assert(met(Actor, Target))",
+        "greet: modify(npc_disposition, Target, Actor, +5), assert(met(Actor, Target))",
+        "compliment_npc: modify(npc_disposition, Target, Actor, +10)",
+        "insult_npc: modify(npc_disposition, Target, Actor, -15)",
+        "give_gift: modify(npc_disposition, Target, Actor, +20), retract(has_item(Actor, Gift, _))",
+        "Language effects:",
+        "examine_object, point_and_name, read_sign: assert(knows_vocabulary(Actor, Lang, Category)), modify xp +5",
+        "listen_and_repeat: modify xp +10",
+        "write_response, answer_question: modify xp +15",
+        "All movement/idle/expression actions: no effects (animation-only)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Update action converter to accept prerequisites and effects",
+      "description": "As a developer, I need the action converter to read from the prerequisite and effect definitions and generate proper Prolog can_perform rules and action_effect predicates.",
+      "acceptanceCriteria": [
+        "Update convertActionToProlog() in shared/prolog/action-converter.ts to accept optional prerequisites: string[] and effects: string[] parameters",
+        "When prerequisites are provided, use them in can_perform rule body instead of just energy check",
+        "When effects are provided, emit action_effect(ActionId, Effect). for each effect",
+        "Parent action inheritance: if action has inheritsFromParent and a parentAction, include parent prerequisites in can_perform",
+        "Generated Prolog passes content validator with 0 errors",
+        "action_effect/2 warning in validator is resolved (effects are now present)",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Migration: regenerate all 133 actions with prerequisites and effects",
+      "description": "As a developer, I need to re-run the action converter with the new prerequisite and effect definitions to update all base actions in MongoDB.",
+      "acceptanceCriteria": [
+        "New migration server/migrations/040-action-prerequisites-effects.ts",
+        "Reads ACTION_PREREQUISITES and ACTION_EFFECTS for each action",
+        "Calls convertActionToProlog() with prerequisites and effects for each action",
+        "Updates content field on all 133 base actions in DB",
+        "All actions pass content validator with 0 errors",
+        "action_effect/2 warning eliminated for all player-triggerable actions",
+        "Migration is idempotent (can be re-run safely)",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "GameTruthSync class — equipment and inventory sync",
+      "description": "As a developer, I need equipment and inventory changes to automatically assert/retract Prolog facts in real-time.",
+      "acceptanceCriteria": [
+        "New class GameTruthSync in shared/game-engine/logic/GameTruthSync.ts",
+        "Constructor takes GameEventBus and tau-prolog session references",
+        "Subscribes to item_equipped event: asserts has_equipped(player, Slot, ItemId), retracts previous equipped item in that slot",
+        "Subscribes to item_unequipped event: retracts has_equipped(player, Slot, ItemId)",
+        "Subscribes to item_collected event: asserts has_item(player, ItemName, Qty) or updates quantity",
+        "Subscribes to item_dropped event: retracts or decrements has_item(player, ItemName, Qty)",
+        "Subscribes to item_purchased event: asserts has_item for buyer, gold transfer",
+        "Subscribes to item_crafted event: asserts has_item(player, ItemName, Qty)",
+        "All assert/retract operations use local embedded tau-prolog (no API calls)",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "GameTruthSync — location, health, energy, and time sync",
+      "description": "As a developer, I need player position, health, energy, and world time to sync to Prolog in real-time.",
+      "acceptanceCriteria": [
+        "GameTruthSync subscribes to location_visited/settlement_entered: retracts old at_location, asserts new at_location(player, LocationId)",
+        "Derives at_location_type from terrain/building data and asserts at_location_type(player, Type)",
+        "Subscribes to health change events: retracts old health/3, asserts health(player, NewCurrent, Max)",
+        "Tracks energy via action costs: retracts old energy/3, asserts energy(player, NewCurrent, Max)",
+        "Subscribes to hour_changed event: retracts old time_of_day/1, asserts time_of_day(NewHour)",
+        "Subscribes to day_changed event: retracts old day_number/1, asserts day_number(NewDay)",
+        "Subscribes to vocabulary_used event: asserts knows_vocabulary(player, Lang, Category) when new vocab learned",
+        "Subscribes to assessment_completed event: updates speaks_language(player, Lang, NewLevel)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "GameTruthSync — save/load serialization",
+      "description": "As a developer, I need the Prolog fact base to be serialized with game saves and restored on load.",
+      "acceptanceCriteria": [
+        "GameTruthSync has serialize() method that exports all asserted gameplay facts as a JSON-compatible array of {predicate, args} objects",
+        "GameTruthSync has restore(facts) method that asserts all facts into a fresh tau-prolog session",
+        "Serialize filters to only gameplay predicates (from GAMEPLAY_PREDICATES schema), not internal Prolog system predicates",
+        "Save integration: game save includes serialized fact base alongside existing JSON state",
+        "Load integration: on game load, restore facts before game loop starts",
+        "Cloud save includes serialized facts as backup",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "NPC truth initialization from DB",
+      "description": "As a developer, I need NPCs to have their truths initialized from character DB fields at game start.",
+      "acceptanceCriteria": [
+        "GameTruthSync has initializeNpcTruths(characters) method",
+        "For each NPC character, asserts: person(NpcId), occupation(NpcId, Occ), at_location(NpcId, Loc), age(NpcId, Age)",
+        "Asserts has_skill(NpcId, Skill, Level) from character skills field",
+        "Asserts personality traits: personality(NpcId, Trait, Value) from Big Five",
+        "Asserts npc_occupation(NpcId, Occ) from occupation field",
+        "Asserts npc_will_trade(NpcId) for merchant-type NPCs",
+        "Asserts npc_quest_available(NpcId, QuestId) from available quests",
+        "Asserts health/3 and energy/3 with defaults for NPCs",
+        "Called during game initialization after world data loads",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "NPC dynamic truth updates",
+      "description": "As a developer, I need NPCs to dynamically gain/lose truths during gameplay as they move, trade, and change state.",
+      "acceptanceCriteria": [
+        "GameTruthSync subscribes to npc_volition_action events: updates NPC at_location when NPCs move",
+        "Schedule system integration: when hour changes, updates NPC at_location and npc_schedule based on character schedules",
+        "Merchant stock: when NPC runs out of items, retracts npc_will_trade(NpcId) until restocked",
+        "NPC relationship changes: npc_relationship_changed event updates npc_disposition(NpcId, TowardId, Value)",
+        "NPC quest state: when quest given, retracts npc_quest_available for that quest",
+        "All NPC truth changes use same assert/retract pattern as player truths",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Character template schema and migration",
+      "description": "As a developer, I need a database table for character templates that store starting truths.",
+      "acceptanceCriteria": [
+        "Add character_templates table to shared/schema.ts with fields: id (UUID), worldId (FK nullable for base templates), name (text), description (text), startingTruths (jsonb array of {predicate: string, args: any[]}), isDefault (boolean), characterCreationMode referenced from worlds table",
+        "Add characterCreationMode field to worlds table: 'fixed' | 'archetype_select' | 'custom_create' (default 'fixed')",
+        "Add Mongoose schema for character_templates in server/db/mongo-storage.ts",
+        "Add CRUD methods: createCharacterTemplate, getCharacterTemplates, getCharacterTemplate, updateCharacterTemplate, deleteCharacterTemplate",
+        "Add API routes: GET/POST /api/worlds/:worldId/character-templates, GET/PUT/DELETE /api/character-templates/:id",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Seed default character templates",
+      "description": "As a developer, I need default character templates seeded for language-learning worlds.",
+      "acceptanceCriteria": [
+        "New migration seeds 3 base character templates (worldId: null, isBase: true):",
+        "Explorer template: balanced stats, basic equipment (backpack, compass, map), skills (exploration 2, survival 1), speaks_language(english, b1) + speaks_language(french, a1), gold 100, health 100/100, energy 100/100",
+        "Scholar template: language-focused, notebook + quill + dictionary, skills (reading 3, writing 2, linguistics 1), speaks_language(english, b2) + speaks_language(french, a2), has_trait(bookworm), gold 50, health 80/80, energy 120/120",
+        "Trader template: commerce-focused, merchant_ledger + sample_goods, skills (bargaining 3, appraisal 2), speaks_language(english, b1) + speaks_language(french, a1), gold 200, health 90/90, energy 90/90",
+        "All templates include MVT predicates (health, energy, speaks_language, gold, at_location, occupation, age)",
+        "Migration is idempotent",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Character template editor UI — list and CRUD",
+      "description": "As a world creator, I want to see, create, edit, and delete character templates in the editor.",
+      "acceptanceCriteria": [
+        "New CharacterTemplateEditor component in client/src/components/ (or tab in existing world/character editor)",
+        "Lists all templates for the current world plus base templates",
+        "Create button opens form with name, description fields",
+        "Edit opens existing template",
+        "Duplicate creates a copy with '(Copy)' suffix",
+        "Delete with confirmation dialog",
+        "isDefault toggle (only one per world)",
+        "Reuses existing UI patterns (Card, Button, Dialog from shadcn)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Character template editor UI — predicate builder",
+      "description": "As a world creator, I want a form-based predicate builder so I can add starting truths without writing Prolog.",
+      "acceptanceCriteria": [
+        "Within template editor, 'Starting Truths' section with list of current predicates",
+        "Add Predicate button opens form: dropdown for predicate name (populated from GAMEPLAY_PREDICATES), typed inputs for each argument based on predicate arity and arg types",
+        "Predicate dropdown grouped by category (player_state, npc_state, world_state)",
+        "Preview panel shows the Prolog facts that would be asserted (formatted like: has_item(player, notebook, 1).)",
+        "Remove button on each predicate row",
+        "Validation: warns if MVT predicates are missing (health, energy, speaks_language, gold, at_location, occupation, age) with yellow banner",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Action feasibility tester",
+      "description": "As a world creator, I want to test which actions a character template can perform so I can verify my game design.",
+      "acceptanceCriteria": [
+        "New ActionFeasibilityTester component (panel within template editor or standalone)",
+        "Select a character template from dropdown",
+        "Displays all 133 actions grouped by category with pass/fail icons",
+        "Green checkmark = can_perform succeeds, red X = fails, gray dash = animation-only (no prerequisites)",
+        "Click a failed action to see which prerequisite(s) failed in a detail panel",
+        "'What's Missing?' helper: for failed actions, shows which predicates would need to be added to the template",
+        "Can modify template truths inline and click 'Re-test' without saving to DB",
+        "Uses local tau-prolog session initialized with template truths + helper predicates + action definitions",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Integrate MVT context into LLM conversation prompts",
+      "description": "As a developer, I need the Minimum Viable Template context to be included in NPC conversation prompts so the LLM knows the player's current game state.",
+      "acceptanceCriteria": [
+        "Audit existing conversation prompt pipeline to identify where character/game state is currently injected",
+        "Add a generateMVTContext() function that queries the current Prolog fact base for MVT predicates and formats them as a natural-language context block",
+        "Context block includes: player health/energy, equipped items, inventory summary, gold, CEFR level, known vocabulary categories, current location, occupation",
+        "Context block is injected into NPC conversation system prompt alongside existing character context",
+        "Format is concise (under 200 tokens) to avoid bloating prompts",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

@@ -36,6 +36,9 @@ const DYNAMIC_DECLARATIONS = [
   'life_stage/2', 'death_probability/2',
   'dating/3', 'married_to/2', 'divorced_from/3',
   'attracted_to/2',
+  // Simulation per-timestep state (asserted by the simulation loop)
+  'birth_chance/2',       // birth_chance(MotherId, Probability) — fertility adjusted by child count
+  'random_chance/1',      // random_chance(P) — succeeds with probability P (implemented as JS bridge)
   // General state
   'current_timestep/1', 'current_year/1',
 ];
@@ -186,6 +189,66 @@ const LIFECYCLE_RULES = [
   'spouse_heir(Deceased, Spouse) :- married_to(Deceased, Spouse), alive(Spouse)',
 ];
 
+// ── Simulation Event Rules ───────────────────────────────────────────────
+// These are the "should happen this timestep" predicates that drive
+// the Prolog-first simulation loop. Each collects a list of events
+// that the TotT effect handlers should execute.
+
+const SIMULATION_EVENT_RULES = [
+  // ── Death events ──────────────────────────────────────────────────
+  // A person should die if they are elderly and pass a probability check.
+  // death_probability/2 is asserted per-character by the simulation loop
+  // based on age curves (matching TotT's calculateDeathProbability).
+  'should_die(X, old_age) :- person(X), alive(X), age(X, A), A >= 68, death_probability(X, P), random_chance(P)',
+
+  // Collect all deaths for this timestep
+  'pending_deaths(Deaths) :- findall(death(X, Cause), should_die(X, Cause), Deaths)',
+
+  // ── Marriage events ───────────────────────────────────────────────
+  // Two people should marry if they are both eligible, compatible,
+  // and pass a random chance check (lo-fi: ~15% per eligible pair per year)
+  'should_marry(X, Y) :- eligible_for_marriage(X), eligible_for_marriage(Y), X @< Y, gender(X, GX), gender(Y, GY), GX \\= GY, compatible(X, Y), random_chance(0.15)',
+
+  // Collect all marriages
+  'pending_marriages(Marriages) :- findall(marry(X, Y), should_marry(X, Y), Marriages)',
+
+  // ── Birth events ──────────────────────────────────────────────────
+  // A woman should conceive if married, of childbearing age, not pregnant,
+  // and passes a fertility check. birth_chance/2 is asserted per-character.
+  'should_conceive(Mother, Father) :- person(Mother), alive(Mother), gender(Mother, female), age(Mother, A), A >= 18, A =< 45, married_to(Mother, Father), alive(Father), \\+ pregnant(Mother, _, _), birth_chance(Mother, P), random_chance(P)',
+
+  // Collect all conceptions
+  'pending_conceptions(Conceptions) :- findall(conceive(M, F), should_conceive(M, F), Conceptions)',
+
+  // Birth from existing pregnancy (due date reached)
+  'should_give_birth(Mother) :- pregnant(Mother, _, DueDate), current_timestep(Now), Now >= DueDate',
+  'pending_births(Births) :- findall(birth(M), should_give_birth(M), Births)',
+
+  // ── Divorce events ────────────────────────────────────────────────
+  'should_divorce(X, Y) :- married_to(X, Y), X @< Y, alive(X), alive(Y), bad_relationship(X, Y), random_chance(0.01)',
+  'pending_divorces(Divorces) :- findall(divorce(X, Y), should_divorce(X, Y), Divorces)',
+
+  // ── Education events ──────────────────────────────────────────────
+  'should_enroll(X) :- person(X), alive(X), age(X, A), A >= 18, A =< 22, \\+ student(X), \\+ employed(X), personality(X, conscientiousness, C), C > 0.3, personality(X, openness, O), O > 0.3, random_chance(0.3)',
+  'pending_enrollments(Enrollments) :- findall(enroll(X), should_enroll(X), Enrollments)',
+
+  // ── Business events ───────────────────────────────────────────────
+  'should_found_business(X) :- person(X), alive(X), adult(X), \\+ employed(X), age(X, A), A >= 25, A =< 60, random_chance(0.05)',
+  'should_close_business(B) :- business(B), \\+ business_out_of_business(B), random_chance(0.02)',
+  'pending_business_foundings(Foundings) :- findall(found(X), should_found_business(X), Foundings)',
+  'pending_business_closings(Closings) :- findall(close(B), should_close_business(B), Closings)',
+
+  // ── Hiring events ─────────────────────────────────────────────────
+  'should_hire(Business, Person, Position) :- has_vacancy(Business, Position), can_be_hired(Person), qualified_for(Person, Position)',
+  'pending_hires(Hires) :- findall(hire(B, P, Pos), should_hire(B, P, Pos), Hires)',
+
+  // ── Master event collector ────────────────────────────────────────
+  // Query this to get ALL events that should fire this timestep.
+  // Returns a list of event terms. The simulation loop iterates this
+  // and dispatches each to the appropriate TotT effect handler.
+  'collect_simulation_events(Events) :- pending_deaths(D), pending_marriages(M), pending_conceptions(C), pending_births(B), pending_divorces(Div), pending_enrollments(E), pending_business_foundings(BF), pending_business_closings(BC), append(D, M, DM), append(DM, C, DMC), append(DMC, B, DMCB), append(DMCB, Div, DMCBDiv), append(DMCBDiv, E, DMCBDivE), append(DMCBDivE, BF, All1), append(All1, BC, Events)',
+];
+
 // ── Exported Functions ────────────────────────────────────────────────────
 
 /**
@@ -222,6 +285,11 @@ export function getTotTPredicates(): string {
   // Section: Lifecycle
   lines.push('% === Lifecycle ===');
   for (const rule of LIFECYCLE_RULES) { lines.push(`${rule}.`); }
+  lines.push('');
+
+  // Section: Simulation Events
+  lines.push('% === Simulation Event Rules ===');
+  for (const rule of SIMULATION_EVENT_RULES) { lines.push(`${rule}.`); }
   lines.push('');
 
   // Helper queries

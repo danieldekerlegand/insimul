@@ -45,7 +45,7 @@ export function LotDialog({ open, onOpenChange, onSubmit, settlementId }: LotDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create Lot</DialogTitle>

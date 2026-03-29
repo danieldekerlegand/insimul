@@ -4,12 +4,14 @@
  */
 import type { BusinessType } from '../schema';
 
-export type SettlementTier = 'village' | 'town' | 'city';
+export type SettlementTier = 'dwelling' | 'roadhouse' | 'homestead' | 'village' | 'town' | 'city';
 
 export type GeographyTag = 'coast' | 'river' | 'mountains' | 'forest';
 
 /** Determine settlement tier from population. */
 export function getSettlementTier(population: number): SettlementTier {
+  if (population <= 5) return 'dwelling';
+  if (population <= 15) return 'homestead';
   if (population < 200) return 'village';
   if (population <= 2000) return 'town';
   return 'city';

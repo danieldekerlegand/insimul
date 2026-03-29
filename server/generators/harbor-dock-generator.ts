@@ -74,7 +74,7 @@ export interface HarborConfig {
   /** Coastline data from the coastline generator */
   coastline: CoastlineData;
   /** Settlement type affects harbor size */
-  settlementType: 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
   /** Year the settlement was founded */
   foundedYear?: number;
 }
@@ -125,12 +125,16 @@ export function findHarborSites(
 /**
  * Get the number of harbor zones based on settlement type.
  */
-export function getHarborCount(settlementType: 'hamlet' | 'village' | 'town' | 'city'): number {
+export function getHarborCount(settlementType: string): number {
   switch (settlementType) {
+    case 'dwelling':
+    case 'roadhouse':
+    case 'homestead': return 0;
     case 'hamlet': return 1;
     case 'village': return 1;
     case 'town': return 1;
     case 'city': return 2;
+    default: return 1;
   }
 }
 
@@ -185,12 +189,17 @@ const STRUCTURE_TEMPLATES: StructureTemplate[] = [
  * Determine which structure types to generate based on settlement size.
  */
 export function getStructureLayout(
-  settlementType: 'hamlet' | 'village' | 'town' | 'city',
+  settlementType: string,
   rng: () => number,
 ): HarborStructureType[] {
   const base: HarborStructureType[] = ['dock', 'pier'];
 
   switch (settlementType) {
+    case 'dwelling':
+    case 'roadhouse':
+    case 'homestead':
+      // Too small for a harbor
+      return [];
     case 'hamlet':
       // Tiny hamlet: just the basics
       return base;
@@ -209,6 +218,8 @@ export function getStructureLayout(
       base.push('dock', 'dock', 'pier', 'warehouse', 'warehouse',
         'fish_market', 'harbormaster_office', 'lighthouse',
         'boatyard', 'customs_house');
+      return base;
+    default:
       return base;
   }
 }

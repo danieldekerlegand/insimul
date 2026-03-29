@@ -138,6 +138,11 @@ export function createTownSquare(scene: Scene, options: TownSquareOptions): Town
   const featureMeshes = createCentralFeature(scene, id, theme, groundY);
   for (const m of featureMeshes) {
     m.parent = root;
+    // Move flagpole next to the notice board instead of dead center
+    if (theme.centralFeature === 'flagpole') {
+      m.position.x += halfW * 0.15;
+      m.position.z += halfD * 0.7;
+    }
     meshes.push(m);
   }
 

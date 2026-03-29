@@ -12,10 +12,18 @@ import { fillVacancy } from '../extensions/tott/hiring-system.js';
 import { generateDefaultRoutine, setRoutine, updateAllWhereabouts } from '../extensions/tott/routine-system.js';
 import { triggerAutomaticEvents } from '../extensions/tott/event-system.js';
 // Phase 5-10: TotT Social Simulation Integration
-import { updateRelationship } from '../extensions/tott/social-dynamics-system.js';
+import { updateRelationship, calculateCompatibility, calculateChargeIncrement, calculateSparkIncrement, calculateTrust, calculateAgeDifferenceEffect, calculateJobLevelDifferenceEffect } from '../extensions/tott/social-dynamics-system.js';
 import { initializeFamilyKnowledge, initializeCoworkerKnowledge } from '../extensions/tott/knowledge-system.js';
-import { addMoney } from '../extensions/tott/economics-system.js';
+import { addMoney, classifyWealth } from '../extensions/tott/economics-system.js';
+import type { RelationshipDetails } from '../extensions/tott/social-dynamics-system.js';
 import { adjustCommunityMorale, scheduleFestival } from '../extensions/tott/town-events-system.js';
+// Lifecycle, artifacts, grieving, education, drama — TotT systems for history simulation
+import { calculateDeathProbability, die, developAttraction, marry, conceive, giveBirth, divorce } from '../extensions/tott/lifecycle-system.js';
+import { createGravestone, createWeddingRing } from '../extensions/tott/artifact-system.js';
+import { processDeathGrief } from '../extensions/tott/grieving-system.js';
+import { shouldAttendCollege, enrollInCollege, selectMajor } from '../extensions/tott/education-system.js';
+import { excavateDrama, generateStorySummary } from '../extensions/tott/drama-recognition-system.js';
+import { initializeCharacterAppearance } from '../extensions/tott/appearance-system.js';
 // GenAI Visual Asset Generation Integration
 import { visualAssetGenerator } from '../services/visual-asset-generator.js';
 // Item placement
@@ -29,6 +37,67 @@ import { assignDefaultOccupations } from './occupation-assignment.js';
 import { countBuildings, calculatePopulationTarget } from './population-scaling.js';
 // Territory generation
 import { generateWorldGeography, resolveScaleConfig, getSettlementBaseRadius, type WorldScale, type ScaleConfig } from './territory-generator.js';
+// AI content generation (for truths)
+import { isGeminiConfigured } from '../config/gemini.js';
+import { getContentProvider } from '../services/providers/index.js';
+
+/**
+ * Result of generating a single settlement through the full pipeline.
+ */
+export interface SettlementGenerationResult {
+  settlementId: string;
+  population: number;
+  families: number;
+  generations: number;
+  districts: number;
+  buildings: number;
+  businesses: number;
+  employed: number;
+  occupations: number;
+  housed: number;
+  routines: number;
+  events: number;
+  itemsPlaced: number;
+  textsSeeded: number;
+  truths: number;
+}
+
+/**
+ * Config for the unified per-settlement generation pipeline.
+ */
+export interface SettlementPipelineConfig {
+  worldId: string;
+  countryId?: string;
+  settlementId: string;
+  foundedYear: number;
+  currentYear: number;
+  terrain: string;
+  settlementType: string;
+  worldType?: string;
+  // Genealogy params
+  numFoundingFamilies: number;
+  generations: number;
+  marriageRate?: number;
+  fertilityRate?: number;
+  deathRate?: number;
+  targetPopulation?: number;
+  // Phase toggles (all default to true)
+  generateGenealogy?: boolean;
+  generateGeography?: boolean;
+  generateBusinesses?: boolean;
+  assignEmployment?: boolean;
+  assignHousing?: boolean;
+  generateRoutines?: boolean;
+  generateTruths?: boolean;
+  initializeSocialDynamics?: boolean;
+  initializeKnowledge?: boolean;
+  initializeWealth?: boolean;
+  initializeCommunityMorale?: boolean;
+  simulateHistory?: boolean;
+  historyFidelity?: 'low' | 'medium' | 'high';
+  // Progress callback (optional, for UI updates)
+  onProgress?: (phase: string, message: string) => void;
+}
 
 export interface WorldGenerationConfig {
   worldName: string;
@@ -36,7 +105,7 @@ export interface WorldGenerationConfig {
   worldType?: string;
   settlementName: string;
   settlementDescription?: string;
-  settlementType: 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
   currentYear: number;
@@ -206,265 +275,40 @@ export class WorldGenerator {
     console.log(`   ✓ Country territory: radius ${countryGeo?.territoryRadius ?? '?'}`);
     console.log(`   ✓ Settlement at (${settlementGeo?.worldPositionX?.toFixed(0) ?? '?'}, ${settlementGeo?.worldPositionZ?.toFixed(0) ?? '?'}) radius ${settlementGeo?.radius ?? '?'}`);
 
-    let population = 0;
-    let families = 0;
-    let generationsCreated = 0;
-    let districts = 0;
-    let buildings = 0;
+    // ── Delegate to the unified per-settlement pipeline ───────────────
+    const POPULATION_BY_TYPE: Record<string, number> = { dwelling: 3, roadhouse: 3, homestead: 10, hamlet: 50, village: 100, town: 1000, city: 5000 };
 
-    // Fetch target language early — needed by both genealogy (names) and geography (streets)
-    const worldForLang = await storage.getWorld(world.id);
-    const worldLanguages = await storage.getWorldLanguagesByWorld(world.id);
-    const learningTarget = worldLanguages?.find((l: any) => l.isLearningTarget);
-    const targetLanguage = learningTarget?.name || worldForLang?.targetLanguage || undefined;
-
-    // Generate genealogy for the settlement
-    if (config.generateGenealogy) {
-      console.log('\n📖 Generating genealogy...');
-      const genealogyResult = await this.genealogyGen.generate({
-        worldId: world.id,
-        settlementId: settlement.id,
-        startYear: config.foundedYear,
-        currentYear: config.currentYear,
-        numFoundingFamilies: config.numFoundingFamilies,
-        generationsToGenerate: config.generations,
-        marriageRate: config.marriageRate,
-        fertilityRate: config.fertilityRate,
-        deathRate: config.deathRate,
-        targetLanguage,
-      });
-      
-      population = genealogyResult.totalCharacters;
-      families = genealogyResult.families.length;
-      generationsCreated = genealogyResult.generations;
-      
-      // Store family trees in settlement
-      const familyTrees = genealogyResult.families.map(f => ({
-        surname: f.surname,
-        founderId: f.founders.father.id,
-        generations: Object.fromEntries(f.generations)
-      }));
-      
-      await storage.updateSettlement(settlement.id, {
-        familyTrees,
-        currentGeneration: generationsCreated
-      });
-    }
-    
-    // Generate geography for the settlement
-    if (config.generateGeography) {
-      console.log('\n🗺️  Generating geography...');
-
-      const geographyResult = await this.geographyGen.generate({
-        worldId: world.id,
-        settlementId: settlement.id,
-        settlementName: settlement.name,
-        settlementType: config.settlementType,
-        population: population || this.estimatePopulation(config.settlementType),
-        foundedYear: config.foundedYear,
-        terrain: config.terrain,
-        countryId: country.id,
-        targetLanguage,
-        worldType: config.worldType || world.worldType || undefined,
-      });
-      
-      districts = geographyResult.districts.length;
-      buildings = geographyResult.buildings.length;
-
-      // Population scaling: ensure population is proportional to building count
-      if (config.generateGenealogy) {
-        const buildingCounts = countBuildings(geographyResult.buildings);
-        const { target, deficit } = calculatePopulationTarget(buildingCounts, population);
-
-        if (deficit > 0) {
-          console.log(`\n👥 Population scaling: ${population} people for ${buildingCounts.residences} residences + ${buildingCounts.businesses} businesses (target: ${target})`);
-          console.log(`   Generating ${deficit} immigrants to fill gap...`);
-          const immigrantsCreated = await this.genealogyGen.generateImmigrants({
-            worldId: world.id,
-            settlementId: settlement.id,
-            currentYear: config.currentYear,
-            count: deficit,
-            targetLanguage,
-          });
-          population += immigrantsCreated;
-          console.log(`   ✅ Population scaled: ${population} people`);
-        }
-
-        const ratio = buildingCounts.residences > 0
-          ? (population / buildingCounts.residences).toFixed(1)
-          : 'N/A';
-        const bRatio = buildingCounts.businesses > 0
-          ? (population / buildingCounts.businesses).toFixed(1)
-          : 'N/A';
-        console.log(`📊 Settlement generated: ${population} people, ${buildingCounts.residences} residences, ${buildingCounts.businesses} businesses (ratio: ${ratio} people/residence, ${bRatio} people/business)`);
-      }
-    }
-
-    // Update settlement population
-    await storage.updateSettlement(settlement.id, {
-      population
+    const result = await this.generateSettlement({
+      worldId: world.id,
+      countryId: country.id,
+      settlementId: settlement.id,
+      foundedYear: config.foundedYear,
+      currentYear: config.currentYear,
+      terrain: config.terrain,
+      settlementType: config.settlementType,
+      worldType: config.worldType,
+      numFoundingFamilies: config.numFoundingFamilies,
+      generations: config.generations,
+      marriageRate: config.marriageRate,
+      fertilityRate: config.fertilityRate,
+      deathRate: config.deathRate,
+      targetPopulation: POPULATION_BY_TYPE[config.settlementType] || 50,
+      generateGenealogy: config.generateGenealogy,
+      generateGeography: config.generateGeography,
+      generateBusinesses: config.generateBusinesses,
+      assignEmployment: config.assignEmployment,
+      assignHousing: config.assignHousing,
+      generateRoutines: config.generateRoutines,
+      generateTruths: true,
+      initializeSocialDynamics: config.initializeSocialDynamics,
+      initializeKnowledge: config.initializeKnowledge,
+      initializeWealth: config.initializeWealth,
+      initializeCommunityMorale: config.initializeCommunityMorale,
+      simulateHistory: config.simulateHistory,
+      historyFidelity: config.historyFidelity,
     });
-    
-    let businessCount = 0;
-    let employedCount = 0;
-    let routineCount = 0;
-    let eventCount = 0;
-    let itemsPlaced = 0;
-    let textsSeeded = 0;
-    
-    // TotT Integration: Business Generation
-    if (config.generateBusinesses && population > 0) {
-      console.log('\n🏢 Founding initial businesses...');
-      const businesses = await this.generateInitialBusinesses({
-        worldId: world.id,
-        settlementId: settlement.id,
-        population: population,
-        currentYear: config.currentYear,
-        terrain: config.terrain
-      });
-      businessCount = businesses.length;
-      
-      // TotT Integration: Employment Assignment
-      if (config.assignEmployment && businesses.length > 0) {
-        console.log('\n👔 Assigning employment...');
-        employedCount = await this.assignInitialEmployment({
-          worldId: world.id,
-          businesses: businesses,
-          currentYear: config.currentYear
-        });
-      }
-    }
 
-    // Assign default occupations to all remaining characters (students, retired, laborers, etc.)
-    if (population > 0) {
-      console.log('\n🏷️ Assigning default occupations...');
-      await assignDefaultOccupations({
-        worldId: world.id,
-        currentYear: config.currentYear,
-        terrain: config.terrain
-      });
-    }
-
-    // TotT Integration: Housing Assignment — runs for all worlds with population
-    if (config.assignHousing !== false && population > 0) {
-      console.log('\n🏠 Assigning housing...');
-      await this.assignHousing({
-        worldId: world.id,
-        settlementId: settlement.id,
-        currentYear: config.currentYear
-      });
-    }
-
-    // Item Placement: populate businesses, residences, and exterior locations with contextual items
-    if (businessCount > 0 || (config.generateGeography && population > 0)) {
-      console.log('\n📦 Placing items in world locations...');
-      const itemResult = await placeItemsInWorld(world.id, config.worldType || world.worldType || undefined);
-      itemsPlaced = itemResult.totalPlaced;
-      console.log(`   Placed ${itemResult.totalPlaced} items (${itemResult.businessItems} in businesses, ${itemResult.residenceItems} in residences, ${itemResult.exteriorItems} in exterior locations)`);
-    }
-
-    // Main Quest NPC Spawning: create the writer's associates for language-learning worlds
-    if (population > 0) {
-      console.log('\n📝 Spawning main quest NPCs...');
-      const worldForLang = await storage.getWorld(world.id);
-      const targetLang = worldForLang?.targetLanguage || undefined;
-      const mqResult = await spawnMainQuestNPCs(world.id, targetLang);
-      if (mqResult.created > 0) {
-        console.log(`   Created ${mqResult.created} main quest NPCs`);
-        for (const npc of mqResult.npcs) {
-          console.log(`   - ${npc.role}: ${npc.name} (${npc.characterId})`);
-        }
-      }
-    }
-
-    // Text Document Seeding: generate reading texts (books, journals, letters, recipes, notices)
-    if (population > 0) {
-      console.log('\n📚 Seeding text documents...');
-      const worldForLang2 = await storage.getWorld(world.id);
-      const targetLang2 = worldForLang2?.targetLanguage || 'French';
-      const seedResult = await seedTextsForWorld(storage, {
-        worldId: world.id,
-        targetLanguage: targetLang2,
-      });
-      textsSeeded = seedResult.created;
-      if (textsSeeded > 0) {
-        console.log(`   Seeded ${textsSeeded} text documents`);
-      } else if (seedResult.skipped) {
-        console.log(`   Texts already exist for this world`);
-      }
-    }
-
-    // TotT Integration: Routine Generation
-    if (config.generateRoutines && population > 0) {
-      console.log('\n⏰ Generating daily routines...');
-      routineCount = await this.generateInitialRoutines({
-        worldId: world.id,
-        currentYear: config.currentYear
-      });
-      
-      // Set initial whereabouts (everyone at home at noon)
-      console.log('\n📍 Setting initial whereabouts...');
-      await updateAllWhereabouts(world.id, 0, 'day', 12);
-    }
-    
-    // Phase 5-10: TotT Social Simulation Integration (following game.py patterns)
-    
-    // Phase 5: Initialize Social Dynamics (relationships for families & coworkers)
-    if (config.initializeSocialDynamics && population > 0) {
-      console.log('\n💫 Initializing social dynamics (Phase 5)...');
-      await this.initializeSocialDynamics({
-        worldId: world.id,
-        currentYear: config.currentYear
-      });
-    }
-    
-    // Phase 6: Initialize Knowledge & Mental Models (like TotT's implant_knowledge)
-    if (config.initializeKnowledge && population > 0) {
-      console.log('\n🧠 Implanting knowledge (Phase 6)...');
-      await this.implantKnowledge({
-        worldId: world.id,
-        currentTimestep: 0
-      });
-    }
-    
-    // Phase 9: Initialize Wealth (starting money)
-    if (config.initializeWealth && population > 0) {
-      console.log('\n💰 Initializing wealth (Phase 9)...');
-      await this.initializeWealth({
-        worldId: world.id,
-        currentYear: config.currentYear
-      });
-    }
-    
-    // Phase 10: Initialize Community Morale & Schedule Festival
-    if (config.initializeCommunityMorale && population > 0) {
-      console.log('\n🎪 Initializing community (Phase 10)...');
-      await adjustCommunityMorale(world.id, 50); // Start at base morale
-      
-      if (config.scheduleFestival) {
-        // Schedule a founding festival
-        await scheduleFestival(
-          world.id,
-          'founders_day',
-          'town_square',
-          7 // Week from now
-        );
-      }
-    }
-    
-    // TotT Integration: Historical Simulation
-    if (config.simulateHistory && population > 0) {
-      const fidelity = config.historyFidelity || 'low';
-      console.log(`\n⏳ Simulating historical events (${fidelity} fidelity)...`);
-      eventCount = await this.simulateHistory({
-        worldId: world.id,
-        startYear: config.foundedYear,
-        endYear: config.currentYear,
-        fidelity: fidelity
-      });
-    }
-
-    // GenAI Visual Asset Generation
+    // GenAI Visual Asset Generation (world-level, stays here)
     let portraitCount = 0;
     let buildingAssetCount = 0;
     let mapCount = 0;
@@ -472,57 +316,459 @@ export class WorldGenerator {
     if (config.generateVisualAssets) {
       const provider = config.visualGenerationProvider || 'flux';
 
-      // Generate character portraits
-      if (config.generateCharacterPortraits && population > 0) {
+      if (config.generateCharacterPortraits && result.population > 0) {
         console.log('\n🎨 Generating character portraits...');
-        portraitCount = await this.generateCharacterPortraitsForWorld({
-          worldId: world.id,
-          provider
-        });
+        portraitCount = await this.generateCharacterPortraitsForWorld({ worldId: world.id, provider });
       }
-
-      // Generate building exteriors
-      if (config.generateBuildingExteriors && businessCount > 0) {
+      if (config.generateBuildingExteriors && result.businesses > 0) {
         console.log('\n🏢 Generating building exteriors...');
-        buildingAssetCount = await this.generateBuildingExteriorsForWorld({
-          worldId: world.id,
-          provider
-        });
+        buildingAssetCount = await this.generateBuildingExteriorsForWorld({ worldId: world.id, provider });
       }
-
-      // Generate settlement maps
       if (config.generateSettlementMaps) {
         console.log('\n🗺️  Generating settlement maps...');
-        mapCount = await this.generateSettlementMapsForSettlement({
-          settlementId: settlement.id,
-          provider
-        });
+        mapCount = await this.generateSettlementMapsForSettlement({ settlementId: settlement.id, provider });
       }
     }
 
     console.log('\n✅ World generation complete!');
-    console.log(`   Population: ${population}`);
-    console.log(`   Families: ${families}`);
-    console.log(`   Generations: ${generationsCreated}`);
-    console.log(`   Districts: ${districts}`);
-    console.log(`   Buildings: ${buildings}`);
-    console.log(`   Businesses: ${businessCount}`);
-    console.log(`   Employed: ${employedCount}`);
-    console.log(`   Routines: ${routineCount}`);
-    console.log(`   Items Placed: ${itemsPlaced}`);
-    console.log(`   Texts Seeded: ${textsSeeded}`);
-    console.log(`   Historical Events: ${eventCount}`);
-    if (config.generateVisualAssets) {
-      console.log(`   Visual Assets Generated:`);
-      console.log(`     - Character Portraits: ${portraitCount}`);
-      console.log(`     - Building Exteriors: ${buildingAssetCount}`);
-      console.log(`     - Settlement Maps: ${mapCount}`);
-    }
 
     return {
       worldId: world.id,
       countryId: country.id,
       settlementId: settlement.id,
+      population: result.population,
+      families: result.families,
+      generations: result.generations,
+      districts: result.districts,
+      buildings: result.buildings,
+      businesses: result.businesses,
+      employed: result.employed,
+      routines: result.routines,
+      events: result.events,
+      itemsPlaced: result.itemsPlaced,
+      textsSeeded: result.textsSeeded,
+      visualAssets: {
+        portraits: portraitCount,
+        buildings: buildingAssetCount,
+        maps: mapCount
+      }
+    };
+  }
+
+  /**
+   * Unified per-settlement generation pipeline.
+   * This is the single source of truth for all settlement generation —
+   * generateWorld(), generateCountry(), and individual settlement creation all call this.
+   */
+  async generateSettlement(config: SettlementPipelineConfig): Promise<SettlementGenerationResult> {
+    const progress = config.onProgress || ((phase: string, msg: string) => console.log(`   [${phase}] ${msg}`));
+    const settlement = await storage.getSettlement(config.settlementId);
+    if (!settlement) throw new Error(`Settlement ${config.settlementId} not found`);
+
+    const world = await storage.getWorld(config.worldId);
+    const worldLanguages = await storage.getWorldLanguagesByWorld(config.worldId);
+    const learningTarget = worldLanguages?.find((l: any) => l.isLearningTarget);
+    const targetLanguage = learningTarget?.name || world?.targetLanguage || undefined;
+
+    let population = 0;
+    let families = 0;
+    let generationsCreated = 0;
+    let districts = 0;
+    let buildings = 0;
+    let businessCount = 0;
+    let employedCount = 0;
+    let occupationCount = 0;
+    let housed = 0;
+    let routineCount = 0;
+    let eventCount = 0;
+    let itemsPlaced = 0;
+    let textsSeeded = 0;
+    let truthCount = 0;
+
+    // ── Phase 1: Genealogy ─────────────────────────────────────────────
+    if (config.generateGenealogy !== false) {
+      progress('genealogy', 'Generating families & characters...');
+      const genealogyResult = await this.genealogyGen.generate({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        startYear: config.foundedYear,
+        currentYear: config.currentYear,
+        numFoundingFamilies: config.numFoundingFamilies,
+        generationsToGenerate: config.generations,
+        marriageRate: config.marriageRate || 0.7,
+        fertilityRate: config.fertilityRate || 0.6,
+        deathRate: config.deathRate || 0.3,
+        targetLanguage,
+      });
+      population = genealogyResult.totalCharacters;
+      families = genealogyResult.families.length;
+      generationsCreated = genealogyResult.generations;
+
+      // Store family trees on settlement
+      const familyTrees = genealogyResult.families.map((f: any) => ({
+        surname: f.surname,
+        founderId: f.founders.father.id,
+        generations: Object.fromEntries(f.generations)
+      }));
+      await storage.updateSettlement(config.settlementId, { familyTrees, currentGeneration: generationsCreated });
+    }
+
+    // ── Phase 2: Geography ─────────────────────────────────────────────
+    if (config.generateGeography !== false) {
+      progress('geography', 'Generating streets & buildings...');
+      const livingChars = (await storage.getCharactersBySettlement(config.settlementId)).filter((c: any) => c.isAlive);
+      const geographyResult = await this.geographyGen.generate({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        settlementName: settlement.name,
+        settlementType: config.settlementType as any,
+        population: livingChars.length || config.targetPopulation || this.estimatePopulation(config.settlementType),
+        foundedYear: config.foundedYear,
+        terrain: config.terrain as any,
+        countryId: config.countryId ?? settlement.countryId ?? undefined,
+        stateId: settlement.stateId ?? undefined,
+        targetLanguage,
+        worldType: config.worldType || world?.worldType || undefined,
+      });
+      districts = geographyResult.districts.length;
+      buildings = geographyResult.buildings.length;
+
+      // Population scaling: generate immigrants if building count implies a deficit
+      if (config.generateGenealogy !== false) {
+        const buildingCounts = countBuildings(geographyResult.buildings);
+        const { target, deficit } = calculatePopulationTarget(buildingCounts, livingChars.length, config.targetPopulation);
+        if (deficit > 0) {
+          progress('population', `Generating ${deficit} immigrants to fill gap...`);
+          const immigrantsCreated = await this.genealogyGen.generateImmigrants({
+            worldId: config.worldId,
+            settlementId: config.settlementId,
+            currentYear: config.currentYear,
+            count: deficit,
+            targetLanguage,
+          });
+          population += immigrantsCreated;
+        }
+      }
+    }
+
+    // Recount living population for subsequent phases
+    const allChars = await storage.getCharactersBySettlement(config.settlementId);
+    const livingCharacters = allChars.filter((c: any) => c.isAlive);
+    population = livingCharacters.length + allChars.filter((c: any) => !c.isAlive).length;
+    const livingCount = livingCharacters.length;
+
+    await storage.updateSettlement(config.settlementId, { population: livingCount });
+
+    // ── Phase 3: Business generation ───────────────────────────────────
+    let resultBusinesses: Business[] = [];
+    if (config.generateBusinesses !== false && livingCount > 0) {
+      progress('businesses', 'Founding initial businesses...');
+      resultBusinesses = await this.generateInitialBusinesses({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        population: livingCount,
+        currentYear: config.currentYear,
+        terrain: config.terrain,
+      });
+      businessCount = resultBusinesses.length;
+    }
+
+    // ── Phase 4: Employment assignment ─────────────────────────────────
+    if (config.assignEmployment !== false && resultBusinesses.length > 0) {
+      progress('employment', 'Assigning employment...');
+      employedCount = await this.assignInitialEmployment({
+        worldId: config.worldId,
+        businesses: resultBusinesses,
+        currentYear: config.currentYear,
+      });
+    }
+
+    // ── Phase 4.5: Default occupations ─────────────────────────────────
+    if (livingCount > 0) {
+      progress('occupations', 'Assigning default occupations...');
+      occupationCount = await assignDefaultOccupations({
+        worldId: config.worldId,
+        currentYear: config.currentYear,
+        terrain: config.terrain,
+      });
+    }
+
+    // ── Phase 4.6: Housing assignment ──────────────────────────────────
+    if (config.assignHousing !== false && livingCount > 0) {
+      progress('housing', 'Assigning housing...');
+      await this.assignHousing({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        currentYear: config.currentYear,
+      });
+      const residences = await storage.getResidencesBySettlement(config.settlementId);
+      housed = residences.reduce((sum, r: any) => sum + ((r.residentIds as string[])?.length || 0), 0);
+    }
+
+    // ── Phase 4.7: Item placement ──────────────────────────────────────
+    if (businessCount > 0 || livingCount > 0) {
+      progress('items', 'Placing items in world locations...');
+      try {
+        const itemResult = await placeItemsInWorld(config.worldId, config.worldType || world?.worldType || undefined);
+        itemsPlaced = itemResult.totalPlaced;
+      } catch (e) {
+        console.warn('Item placement failed:', e);
+      }
+    }
+
+    // ── Phase 4.8: Main quest NPCs ─────────────────────────────────────
+    if (livingCount > 0) {
+      try {
+        const mqResult = await spawnMainQuestNPCs(config.worldId, targetLanguage);
+        if (mqResult.created > 0) {
+          progress('npcs', `Spawned ${mqResult.created} main quest NPCs`);
+        }
+      } catch (e) {
+        console.warn('Main quest NPC spawning failed:', e);
+      }
+    }
+
+    // ── Phase 4.9: Text document seeding ───────────────────────────────
+    if (livingCount > 0) {
+      try {
+        const seedResult = await seedTextsForWorld(storage, {
+          worldId: config.worldId,
+          targetLanguage: targetLanguage || 'French',
+        });
+        textsSeeded = seedResult.created;
+      } catch (e) {
+        console.warn('Text seeding failed:', e);
+      }
+    }
+
+    // ── Phase 5: Daily routines ────────────────────────────────────────
+    if (config.generateRoutines !== false && livingCount > 0) {
+      progress('routines', 'Generating daily routines...');
+      routineCount = await this.generateInitialRoutines({
+        worldId: config.worldId,
+        currentYear: config.currentYear,
+      });
+      await updateAllWhereabouts(config.worldId, 0, 'day', 12);
+    }
+
+    // ── Phase 6: Social dynamics ───────────────────────────────────────
+    if (config.initializeSocialDynamics !== false && livingCount > 0) {
+      progress('social', 'Initializing social dynamics...');
+      await this.initializeSocialDynamics({
+        worldId: config.worldId,
+        currentYear: config.currentYear,
+      });
+    }
+
+    // ── Phase 7: Knowledge ─────────────────────────────────────────────
+    if (config.initializeKnowledge !== false && livingCount > 0) {
+      progress('knowledge', 'Implanting knowledge...');
+      await this.implantKnowledge({
+        worldId: config.worldId,
+        currentTimestep: 0,
+      });
+    }
+
+    // ── Phase 8: Wealth ────────────────────────────────────────────────
+    if (config.initializeWealth !== false && livingCount > 0) {
+      progress('wealth', 'Initializing wealth...');
+      await this.initializeWealth({
+        worldId: config.worldId,
+        currentYear: config.currentYear,
+      });
+    }
+
+    // ── Phase 9: Community morale ──────────────────────────────────────
+    if (config.initializeCommunityMorale !== false && livingCount > 0) {
+      progress('community', 'Initializing community...');
+      await adjustCommunityMorale(config.worldId, 50);
+      try {
+        await scheduleFestival(config.worldId, 'founders_day', 'town_square', 7);
+      } catch (e) {
+        console.warn('Festival scheduling failed:', e);
+      }
+    }
+
+    // ── Phase 10: History simulation (defaults to ON — core TotT feature) ──
+    if (config.simulateHistory !== false && livingCount > 0) {
+      progress('history', 'Simulating historical events...');
+      eventCount = await this.simulateHistory({
+        worldId: config.worldId,
+        startYear: config.foundedYear,
+        endYear: config.currentYear,
+        fidelity: config.historyFidelity || 'low',
+      });
+    }
+
+    // ── Phase 10.5: Drama recognition → truths + quests ────────────────
+    if (livingCount > 0) {
+      progress('drama', 'Analyzing emergent dramas...');
+      try {
+        const drama = await excavateDrama(config.worldId);
+        if (drama.totalDramaCount > 0) {
+          const summary = generateStorySummary(drama);
+          console.log(`   ✓ Found ${drama.totalDramaCount} dramatic situations`);
+
+          // Store drama summary on settlement
+          try {
+            await storage.updateSettlement(config.settlementId, {
+              dramaSummary: summary,
+              dramaAnalysis: {
+                unrequitedLove: drama.unrequitedLove.length,
+                loveTriangles: drama.loveTriangles.length,
+                extramaritalAffairs: drama.extramaritalAffairs.length,
+                rivalries: drama.rivalries.length,
+                siblingRivalries: drama.siblingRivalries.length,
+                businessRivalries: drama.businessRivalries.length,
+                totalDramaCount: drama.totalDramaCount,
+              },
+            } as any);
+          } catch {}
+
+          // Create truths from dramatic situations so they appear in World History views
+          const currentYear = config.currentYear;
+
+          for (const ul of drama.unrequitedLove.slice(0, 5)) {
+            await this.createHistoricalTruth({
+              worldId: config.worldId, characterId: ul.lover,
+              title: `Unrequited love for ${ul.nonreciprocatorName}`,
+              content: `${ul.loverName} harbors deep feelings for ${ul.nonreciprocatorName}, but the affection is not returned.`,
+              entryType: 'relationship', year: currentYear, importance: 6, tags: ['drama', 'unrequited_love'],
+            });
+          }
+
+          for (const lt of drama.loveTriangles.slice(0, 3)) {
+            await this.createHistoricalTruth({
+              worldId: config.worldId,
+              title: `Love triangle: ${lt.names[0]}, ${lt.names[1]}, ${lt.names[2]}`,
+              content: `A complicated romantic entanglement exists between ${lt.names[0]}, ${lt.names[1]}, and ${lt.names[2]}. ${lt.pattern}`,
+              entryType: 'relationship', year: currentYear, importance: 8, tags: ['drama', 'love_triangle'],
+            });
+          }
+
+          for (const ea of drama.extramaritalAffairs.slice(0, 3)) {
+            await this.createHistoricalTruth({
+              worldId: config.worldId, characterId: ea.marriedPerson,
+              title: `Secret affair of ${ea.marriedPersonName}`,
+              content: `${ea.marriedPersonName} has developed feelings for ${ea.loveInterestName} while married to ${ea.spouseName}.`,
+              entryType: 'secret', year: currentYear, importance: 8, tags: ['drama', 'affair', 'secret'],
+            });
+          }
+
+          for (const r of drama.rivalries.slice(0, 5)) {
+            await this.createHistoricalTruth({
+              worldId: config.worldId, characterId: r.person1,
+              title: `Rivalry between ${r.person1Name} and ${r.person2Name}`,
+              content: `${r.person1Name} and ${r.person2Name} share a mutual antagonism. ${r.description}`,
+              entryType: 'relationship', year: currentYear, importance: 5, tags: ['drama', 'rivalry'],
+            });
+          }
+
+          for (const br of drama.businessRivalries.slice(0, 3)) {
+            await this.createHistoricalTruth({
+              worldId: config.worldId, characterId: br.person1,
+              title: `Business rivalry: ${br.person1Name} vs ${br.person2Name}`,
+              content: `${br.person1Name} and ${br.person2Name} are fierce business competitors. ${br.description}`,
+              entryType: 'relationship', year: currentYear, importance: 6, tags: ['drama', 'business_rivalry'],
+            });
+          }
+
+          // Create quests from the most interesting dramas
+          const questsCreated: string[] = [];
+
+          // Unrequited love → matchmaking or rival quest
+          for (const ul of drama.unrequitedLove.slice(0, 2)) {
+            try {
+              await storage.createQuest({
+                worldId: config.worldId,
+                title: `The Heart of ${ul.loverName}`,
+                description: `${ul.loverName} is secretly in love with ${ul.nonreciprocatorName}. Perhaps someone could help — or make things worse.`,
+                questType: 'social',
+                difficulty: 'medium',
+                objectives: [
+                  { description: `Speak with ${ul.loverName} about their feelings`, completed: false },
+                  { description: `Learn what ${ul.nonreciprocatorName} thinks`, completed: false },
+                  { description: 'Decide whether to play matchmaker or counsel acceptance', completed: false },
+                ],
+                rewards: { experience: 50, reputation: 10 },
+                relatedCharacterIds: [ul.lover, ul.nonreciprocator],
+                tags: ['drama', 'social', 'procedural'],
+                source: 'drama_recognition',
+              } as any);
+              questsCreated.push(`Unrequited love: ${ul.loverName}`);
+            } catch {}
+          }
+
+          // Rivalries → mediation quest
+          for (const r of drama.rivalries.slice(0, 2)) {
+            try {
+              await storage.createQuest({
+                worldId: config.worldId,
+                title: `Bad Blood: ${r.person1Name} & ${r.person2Name}`,
+                description: `The feud between ${r.person1Name} and ${r.person2Name} is causing tension in the settlement. Someone needs to mediate — or pick a side.`,
+                questType: 'social',
+                difficulty: 'hard',
+                objectives: [
+                  { description: `Talk to ${r.person1Name} about the conflict`, completed: false },
+                  { description: `Talk to ${r.person2Name} about the conflict`, completed: false },
+                  { description: 'Attempt to broker peace or take a side', completed: false },
+                ],
+                rewards: { experience: 75, reputation: 15 },
+                relatedCharacterIds: [r.person1, r.person2],
+                tags: ['drama', 'social', 'procedural'],
+                source: 'drama_recognition',
+              } as any);
+              questsCreated.push(`Rivalry: ${r.person1Name} vs ${r.person2Name}`);
+            } catch {}
+          }
+
+          // Business rivalry → economic quest
+          for (const br of drama.businessRivalries.slice(0, 1)) {
+            try {
+              await storage.createQuest({
+                worldId: config.worldId,
+                title: `Market War: ${br.person1Name} vs ${br.person2Name}`,
+                description: `Two competing business owners are locked in a bitter economic battle. The outcome could reshape the settlement's economy.`,
+                questType: 'economic',
+                difficulty: 'hard',
+                objectives: [
+                  { description: `Visit ${br.person1Name}'s establishment`, completed: false },
+                  { description: `Visit ${br.person2Name}'s establishment`, completed: false },
+                  { description: 'Choose who to support — or find a way both can thrive', completed: false },
+                ],
+                rewards: { experience: 100, reputation: 20, money: 50 },
+                relatedCharacterIds: [br.person1, br.person2],
+                tags: ['drama', 'economic', 'procedural'],
+                source: 'drama_recognition',
+              } as any);
+              questsCreated.push(`Business rivalry: ${br.person1Name} vs ${br.person2Name}`);
+            } catch {}
+          }
+
+          if (questsCreated.length > 0) {
+            console.log(`   ✓ Created ${questsCreated.length} drama-driven quests`);
+          }
+        }
+      } catch (e) {
+        console.warn('Drama recognition failed:', (e as Error).message);
+      }
+    }
+
+    // ── Phase 11: Character truths (AI-generated backstories) ──────────
+    if (config.generateTruths !== false && livingCount > 0) {
+      progress('truths', 'Generating character backstories...');
+      truthCount = await this.generateCharacterTruths({
+        worldId: config.worldId,
+        worldName: world?.name || 'Unknown',
+        worldDescription: world?.description || '',
+        worldType: config.worldType,
+      });
+    }
+
+    progress('complete', `Settlement generation complete: ${livingCount} living, ${businessCount} businesses, ${housed} housed`);
+
+    return {
+      settlementId: config.settlementId,
       population,
       families,
       generations: generationsCreated,
@@ -530,16 +776,130 @@ export class WorldGenerator {
       buildings,
       businesses: businessCount,
       employed: employedCount,
+      occupations: occupationCount,
+      housed,
       routines: routineCount,
       events: eventCount,
       itemsPlaced,
       textsSeeded,
-      visualAssets: {
-        portraits: portraitCount,
-        buildings: buildingAssetCount,
-        maps: mapCount
-      }
+      truths: truthCount,
     };
+  }
+
+  /**
+   * Generate character truths (backstories, traits, secrets) using AI.
+   * Gracefully returns 0 if Gemini is not configured.
+   */
+  async generateCharacterTruths(config: {
+    worldId: string;
+    worldName: string;
+    worldDescription?: string;
+    worldType?: string;
+  }): Promise<number> {
+    if (!isGeminiConfigured()) return 0;
+
+    const characters = await storage.getCharactersByWorld(config.worldId);
+    const living = characters.filter(c => c.isAlive);
+    if (living.length === 0) return 0;
+
+    const currentYear = new Date().getFullYear();
+    const charactersToProcess = living.slice(0, 50);
+    const worldContext = `A ${config.worldType || 'medieval-fantasy'} world named "${config.worldName}". ${config.worldDescription || ''}`;
+
+    const truthsPrompt = `Generate interesting character truths (backstories, personality traits, secrets, relationships) for ${charactersToProcess.length} characters in ${worldContext}.
+
+For each character, create 2-3 truths that include:
+- A defining personality trait or quirk
+- A secret or hidden aspect of their past
+- A relationship truth or social connection
+
+Return as a JSON array with this structure:
+[
+  {
+    "characterIndex": 0,
+    "truths": [
+      {
+        "title": "Brief truth title",
+        "content": "1-2 sentence description",
+        "entryType": "trait|secret|relationship|backstory",
+        "importance": 1-10
+      }
+    ]
+  }
+]
+
+Character list:
+${charactersToProcess.map((c, i) => `${i}. ${c.firstName} ${c.lastName} (${c.gender}, age ${c.birthYear ? (currentYear - c.birthYear) : 'unknown'})`).join('\n')}
+
+Make truths fitting for the world's theme and each character's context.`;
+
+    try {
+      const contentResult = await getContentProvider().generate({
+        prompt: truthsPrompt,
+        temperature: 0.95,
+        responseMimeType: 'application/json',
+        model: 'pro',
+      });
+
+      // Sanitize: strip markdown fences, trailing commas, and truncated JSON
+      let jsonText = contentResult.text.trim();
+      jsonText = jsonText.replace(/^```json?\s*/i, '').replace(/\s*```\s*$/, '');
+      // Fix common LLM JSON issues: trailing commas before } or ]
+      jsonText = jsonText.replace(/,\s*([}\]])/g, '$1');
+      // If JSON is truncated (unterminated string), try to close it
+      if (!jsonText.endsWith(']')) {
+        // Find the last complete object and close the array
+        const lastCompleteObject = jsonText.lastIndexOf('}');
+        if (lastCompleteObject > 0) {
+          jsonText = jsonText.substring(0, lastCompleteObject + 1) + ']}]';
+        }
+      }
+
+      let generatedTruths: any[];
+      try {
+        generatedTruths = JSON.parse(jsonText);
+      } catch (parseErr) {
+        console.warn('Truth generation JSON parse failed, attempting recovery...');
+        // Last resort: try to extract valid JSON array prefix
+        const arrayMatch = jsonText.match(/^\[[\s\S]*?\}\s*\]/);
+        if (arrayMatch) {
+          generatedTruths = JSON.parse(arrayMatch[0]);
+        } else {
+          throw parseErr;
+        }
+      }
+
+      let numTruths = 0;
+      if (Array.isArray(generatedTruths)) {
+        for (const charTruths of generatedTruths) {
+          const character = charactersToProcess[charTruths.characterIndex];
+          if (character && Array.isArray(charTruths.truths)) {
+            for (const truth of charTruths.truths) {
+              if (truth.title && truth.content) {
+                await storage.createTruth({
+                  worldId: config.worldId,
+                  characterId: character.id,
+                  title: truth.title,
+                  content: truth.content,
+                  entryType: truth.entryType || 'backstory',
+                  importance: truth.importance || 5,
+                  isPublic: false,
+                  source: 'ai_generated',
+                  tags: ['generated', 'ai'],
+                });
+                numTruths++;
+              }
+            }
+          }
+        }
+      }
+
+      console.log(`   ✓ Generated ${numTruths} character truths`);
+      return numTruths;
+    } catch (error) {
+      console.warn('Character truth generation failed:', (error as Error).message);
+      return 0;
+    }
   }
 
   /**
@@ -831,6 +1191,7 @@ export class WorldGenerator {
             foundedYear: config.currentYear,
             vacancies: this.getVacanciesForBusinessType(businessType as BusinessType),
           });
+          await storage.updateCharacter(owner.id, { occupation: `Owner (${businessType})` });
           resultBusinesses.push({ ...business, ownerId: owner.id, founderId: owner.id, name } as Business);
           console.log(`   ✓ Assigned owner to ${name} at ${business.address}`);
         } catch (error) {
@@ -1355,6 +1716,45 @@ export class WorldGenerator {
   /**
    * Simulate historical events over time
    */
+  /**
+   * Lo-fi historical simulation following Talk of the Town's two-phase approach.
+   * Simulates years of history probabilistically: deaths, marriages, births,
+   * divorces, education, business cycles. Each year, a subset of life events
+   * are evaluated. Artifacts (gravestones, wedding rings) are created as
+   * side-effects of life events. Grieving is triggered on deaths.
+   */
+  /**
+   * Create a historical Truth record for a world event during simulation.
+   * These truths are timestep-0 (base world state) and form the world history
+   * visible in the World History timeline/graph views.
+   */
+  private async createHistoricalTruth(config: {
+    worldId: string;
+    characterId?: string;
+    title: string;
+    content: string;
+    entryType: string;
+    year: number;
+    importance?: number;
+    tags?: string[];
+  }): Promise<void> {
+    try {
+      await storage.createTruth({
+        worldId: config.worldId,
+        characterId: config.characterId,
+        title: config.title,
+        content: config.content,
+        entryType: config.entryType,
+        importance: config.importance || 5,
+        isPublic: true,
+        source: 'procedural_history',
+        tags: ['history', 'timestep_0', ...(config.tags || [])],
+        timeYear: config.year,
+        historicalSignificance: config.characterId ? 'personal' : 'settlement',
+      });
+    } catch {}
+  }
+
   private async simulateHistory(config: {
     worldId: string;
     startYear: number;
@@ -1362,48 +1762,208 @@ export class WorldGenerator {
     fidelity: 'low' | 'medium' | 'high';
   }): Promise<number> {
     const yearsToSimulate = config.endYear - config.startYear;
-    const timestepsPerYear = config.fidelity === 'low' ? 4 : // quarterly
-                             config.fidelity === 'medium' ? 12 : // monthly
-                             730; // daily
-    
-    let currentYear = config.startYear;
+    if (yearsToSimulate <= 0) return 0;
+
+    // Lo-fi: simulate probabilistically per year (like TotT's chance_of_a_timestep_being_simulated)
+    const simChance = config.fidelity === 'low' ? 0.15 : config.fidelity === 'medium' ? 0.4 : 1.0;
+
     let timestep = 0;
     let totalEvents = 0;
-    
+    let deaths = 0, marriages = 0, births = 0, divorces = 0, educated = 0;
+
     for (let year = 0; year < yearsToSimulate; year++) {
-      currentYear = config.startYear + year;
-      
-      // Trigger automatic lifecycle events (deaths, retirements, graduations)
-      try {
-        const events = await triggerAutomaticEvents(
-          config.worldId,
-          currentYear,
-          timestep
-        );
-        
-        totalEvents += events.length;
-        
-        if (events.length > 0) {
-          console.log(`   Year ${currentYear}: ${events.length} events`);
+      const currentYear = config.startYear + year;
+      timestep = year * 730; // 2 timesteps/day × 365 days
+
+      // Refresh characters once per year
+      const characters = await storage.getCharactersByWorld(config.worldId);
+      const living = characters.filter(c => c.isAlive);
+      if (living.length === 0) break;
+
+      // ── Deaths (always checked, like TotT) ────────────────────────────
+      for (const char of living) {
+        const age = this.getAge(char, currentYear);
+        if (age < 68) continue;
+        const deathProb = calculateDeathProbability(age);
+        if (Math.random() < deathProb) {
+          try {
+            await die(char.id, 'old_age', char.currentLocation || '', timestep);
+            deaths++;
+            totalEvents++;
+
+            // Historical truth
+            await this.createHistoricalTruth({
+              worldId: config.worldId, characterId: char.id,
+              title: `Death of ${char.firstName} ${char.lastName}`,
+              content: `${char.firstName} ${char.lastName} passed away at the age of ${age} in ${currentYear}.`,
+              entryType: 'death', year: currentYear, importance: 7, tags: ['death'],
+            });
+
+            // Grieving — notify family and friends
+            try { await processDeathGrief(char.id, config.worldId, timestep); } catch {}
+
+            // Gravestone artifact
+            try { await createGravestone(char.id, config.worldId, 'cemetery', timestep); } catch {}
+          } catch {}
         }
-      } catch (error) {
-        console.error(`   ✗ Failed to trigger events for ${currentYear}:`, error);
       }
-      
-      // Potentially found new businesses (5% chance per year)
+
+      // Skip remaining events probabilistically (lo-fi optimization)
+      if (Math.random() > simChance) {
+        // Still handle business cycles even on skipped years
+        if (Math.random() < 0.05) {
+          await this.attemptBusinessFounding(config.worldId, currentYear, timestep);
+          totalEvents++;
+        }
+        continue;
+      }
+
+      // ── Marriages (unmarried adults with compatible partners) ─────────
+      const unmarried = living.filter(c =>
+        !c.spouseId && this.getAge(c, currentYear) >= 18 && this.getAge(c, currentYear) <= 55 && c.isAlive
+      );
+      // Pair up random unmarried adults (simplified courtship for lo-fi)
+      const shuffled = unmarried.sort(() => Math.random() - 0.5);
+      const paired = new Set<string>();
+      for (let i = 0; i < shuffled.length - 1; i += 2) {
+        const a = shuffled[i], b = shuffled[i + 1];
+        if (paired.has(a.id) || paired.has(b.id)) continue;
+        if (a.gender === b.gender) continue; // simple pairing
+        // 15% chance per eligible pair per simulated year
+        if (Math.random() > 0.15) continue;
+        try {
+          await developAttraction(a.id, b.id, timestep);
+          await marry(a.id, b.id, a.currentLocation || '', [], timestep);
+          marriages++;
+          totalEvents++;
+          paired.add(a.id);
+          paired.add(b.id);
+
+          // Historical truth (one per couple, linked to both)
+          await this.createHistoricalTruth({
+            worldId: config.worldId, characterId: a.id,
+            title: `Marriage of ${a.firstName} ${a.lastName} and ${b.firstName} ${b.lastName}`,
+            content: `${a.firstName} ${a.lastName} and ${b.firstName} ${b.lastName} were married in ${currentYear}.`,
+            entryType: 'marriage', year: currentYear, importance: 6, tags: ['marriage', 'relationship'],
+          });
+
+          // Wedding ring artifacts
+          try {
+            await createWeddingRing(a.id, b.id, config.worldId, timestep);
+            await createWeddingRing(b.id, a.id, config.worldId, timestep);
+          } catch {}
+        } catch {}
+      }
+
+      // ── Births (married women of childbearing age) ───────────────────
+      // Re-check living since some may have died this year
+      const mothers = living.filter(c =>
+        c.isAlive && c.gender?.toLowerCase() === 'female' &&
+        c.spouseId && this.getAge(c, currentYear) >= 18 && this.getAge(c, currentYear) <= 45
+      );
+      for (const mother of mothers) {
+        // 20% chance per year, reduced by number of existing children
+        const childCount = characters.filter(c =>
+          (c as any).parentIds?.includes(mother.id) || (c as any).motherId === mother.id
+        ).length;
+        const birthChance = 0.20 * Math.pow(0.7, childCount);
+        if (Math.random() < birthChance && mother.spouseId) {
+          try {
+            await conceive(mother.id, mother.spouseId, timestep);
+            const birth = await giveBirth(mother.id, mother.currentLocation || '', timestep + 270);
+            births++;
+            totalEvents++;
+
+            // Historical truth for birth
+            if (birth.childId) {
+              const newborn = await storage.getCharacter(birth.childId);
+              if (newborn) {
+                await this.createHistoricalTruth({
+                  worldId: config.worldId, characterId: birth.childId,
+                  title: `Birth of ${newborn.firstName} ${newborn.lastName}`,
+                  content: `${newborn.firstName} ${newborn.lastName} was born to ${mother.firstName} ${mother.lastName} in ${currentYear}.`,
+                  entryType: 'birth', year: currentYear, importance: 5, tags: ['birth'],
+                });
+              }
+            }
+
+            // Initialize appearance for newborn (inherits from parents)
+            if (birth.childId) {
+              const child = await storage.getCharacter(birth.childId);
+              if (child) {
+                try {
+                  await initializeCharacterAppearance(
+                    child.id,
+                    (child.gender?.toLowerCase() === 'female' ? 'female' : 'male'),
+                    mother.id,
+                    mother.spouseId,
+                    0
+                  );
+                } catch {}
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // ── Divorces (unhappy marriages) ─────────────────────────────────
+      const married = living.filter(c => c.spouseId && c.isAlive);
+      for (const char of married) {
+        // 1% chance per year
+        if (Math.random() < 0.01) {
+          try {
+            const exSpouse = await storage.getCharacter(char.spouseId!);
+            await divorce(char.id, char.spouseId!, char.currentLocation || '', timestep);
+            divorces++;
+            totalEvents++;
+
+            // Historical truth
+            if (exSpouse) {
+              await this.createHistoricalTruth({
+                worldId: config.worldId, characterId: char.id,
+                title: `Divorce of ${char.firstName} ${char.lastName} and ${exSpouse.firstName} ${exSpouse.lastName}`,
+                content: `${char.firstName} ${char.lastName} and ${exSpouse.firstName} ${exSpouse.lastName} divorced in ${currentYear}.`,
+                entryType: 'divorce', year: currentYear, importance: 5, tags: ['divorce', 'relationship'],
+              });
+            }
+          } catch {}
+        }
+      }
+
+      // ── Education (college-age adults) ───────────────────────────────
+      const collegeAge = living.filter(c =>
+        c.isAlive && this.getAge(c, currentYear) >= 18 && this.getAge(c, currentYear) <= 22
+      );
+      for (const student of collegeAge) {
+        try {
+          const result = await shouldAttendCollege(student, student.personality as any, config.worldId);
+          if (result.shouldAttend) {
+            const major = selectMajor(student.personality as any, student.gender || 'male');
+            await enrollInCollege(student.id, major, 'University', timestep, config.worldId);
+            educated++;
+            totalEvents++;
+          }
+        } catch {}
+      }
+
+      // ── Business cycles ──────────────────────────────────────────────
       if (Math.random() < 0.05) {
         await this.attemptBusinessFounding(config.worldId, currentYear, timestep);
+        totalEvents++;
       }
-      
-      // Potentially close businesses (2% chance per year)
       if (Math.random() < 0.02) {
         await this.attemptBusinessClosure(config.worldId, currentYear, timestep);
+        totalEvents++;
       }
-      
-      timestep += timestepsPerYear;
+
+      // Trigger any additional automatic events from the event system
+      try {
+        const events = await triggerAutomaticEvents(config.worldId, currentYear, timestep);
+        totalEvents += events.length;
+      } catch {}
     }
-    
-    console.log(`   ✓ Simulated ${yearsToSimulate} years, ${totalEvents} total events`);
+
+    console.log(`   ✓ Simulated ${yearsToSimulate} years (${config.fidelity} fidelity): ${deaths} deaths, ${marriages} marriages, ${births} births, ${divorces} divorces, ${educated} educated, ${totalEvents} total events`);
     return totalEvents;
   }
 
@@ -1517,87 +2077,234 @@ export class WorldGenerator {
     currentYear: number;
   }): Promise<void> {
     const characters = await storage.getCharactersByWorld(config.worldId);
+
+    // Build character lookup map for O(1) access
+    const charMap = new Map<string, typeof characters[0]>();
+    for (const c of characters) charMap.set(c.id, c);
+
+    // Pre-filter eligible characters (age > 3)
+    const eligible = characters.filter(c => this.getAge(c, config.currentYear) > 3);
+
+    // Accumulate all relationship mutations in-memory: charId -> { relationshipDetails }
+    const socialUpdates = new Map<string, Record<string, RelationshipDetails>>();
+
+    const getOrCreateSocialData = (charId: string): Record<string, RelationshipDetails> => {
+      const existing = socialUpdates.get(charId);
+      if (existing) return existing;
+      const char = charMap.get(charId)!;
+      const data: Record<string, RelationshipDetails> = { ...((char.socialAttributes as any)?.relationshipDetails || {}) };
+      socialUpdates.set(charId, data);
+      return data;
+    };
+
     let relationshipsCreated = 0;
-    
-    for (const char1 of characters) {
-      // Skip if too young (following TotT: age > 3 for social interactions)
-      const age1 = this.getAge(char1, config.currentYear);
-      if (age1 <= 3) continue;
-      
-      for (const char2 of characters) {
-        if (char1.id >= char2.id) continue; // Avoid duplicates
-        
-        const age2 = this.getAge(char2, config.currentYear);
-        if (age2 <= 3) continue;
-        
-        // Initialize relationship if they're family or coworkers
+
+    for (let i = 0; i < eligible.length; i++) {
+      const char1 = eligible[i];
+      for (let j = i + 1; j < eligible.length; j++) {
+        const char2 = eligible[j];
+
         const customData1 = (char1 as any).customData as Record<string, any> | undefined;
         const customData2 = (char2 as any).customData as Record<string, any> | undefined;
-        
+
         const isFamilyRelated = (
           char1.fatherId === char2.fatherId ||
           char1.motherId === char2.motherId ||
           char1.spouseId === char2.id ||
           char2.spouseId === char1.id
         );
-        
+
         const areCoworkers = (
           customData1?.currentOccupation?.company === customData2?.currentOccupation?.company &&
           customData1?.currentOccupation?.company !== undefined
         );
-        
-        if (isFamilyRelated || areCoworkers) {
-          try {
-            const relationshipType = isFamilyRelated ? 'family' : 'coworker';
-            // Use initializeRelationshipWithCompatibility since initializeRelationship doesn't exist
-            await updateRelationship(char1.id, char2.id, 5, 1900); // Bootstrap with positive charge
-            relationshipsCreated++;
-          } catch (error) {
-            // Silent fail - relationship may already exist
-          }
-        }
+
+        if (!isFamilyRelated && !areCoworkers) continue;
+
+        // Compute relationship in-memory (pure functions, no DB)
+        const compatibility = calculateCompatibility(char1, char2);
+        const chargeIncrement = calculateChargeIncrement(char1, char2, compatibility);
+        const sparkIncrement = calculateSparkIncrement(char1, char2, config.currentYear);
+        const interactionQuality = 5;
+
+        const chargeChange = chargeIncrement * interactionQuality;
+        const initialCharge = chargeIncrement + chargeChange;
+        const sparkChange = sparkIncrement * interactionQuality;
+        const initialSpark = (sparkIncrement * (1 - 0.05)) + sparkChange;
+
+        const char1Age = config.currentYear - (char1.birthYear || 0);
+        const char2Age = config.currentYear - (char2.birthYear || 0);
+
+        const relationship: RelationshipDetails = {
+          compatibility,
+          charge: initialCharge,
+          chargeIncrement,
+          spark: initialSpark,
+          sparkIncrement: sparkIncrement * (1 - 0.05),
+          trust: calculateTrust(initialCharge),
+          ageDifferenceEffect: calculateAgeDifferenceEffect(char1Age, char2Age),
+          jobLevelDifferenceEffect: calculateJobLevelDifferenceEffect(char1, char2),
+          firstMetDate: new Date(),
+          lastInteractionDate: new Date(),
+          totalInteractions: 1,
+          conversationCount: 0,
+          areFriends: initialCharge >= 10,
+          areEnemies: initialCharge <= -10,
+          areRomantic: initialSpark >= 15,
+        };
+
+        // Store for char1 -> char2
+        const data1 = getOrCreateSocialData(char1.id);
+        data1[char2.id] = relationship;
+
+        relationshipsCreated++;
       }
     }
-    
+
+    // Bulk write all accumulated social attribute updates
+    const updates = Array.from(socialUpdates.entries()).map(([charId, relationshipDetails]) => {
+      const char = charMap.get(charId)!;
+      const socialAttributes = { ...((char.socialAttributes as any) || {}), relationshipDetails };
+      return { id: charId, data: { socialAttributes: socialAttributes as Record<string, any> } };
+    });
+
+    if (updates.length > 0) {
+      await storage.bulkUpdateCharacters(updates);
+    }
+
     console.log(`   ✓ Created ${relationshipsCreated} initial relationships`);
   }
   
   /**
    * Phase 6: Implant Knowledge (based on TotT's implant_knowledge method)
    * Gives characters initial knowledge of family members and coworkers
+   *
+   * Optimized: builds all mental models in-memory, then bulk-writes once.
    */
   private async implantKnowledge(config: {
     worldId: string;
     currentTimestep: number;
   }): Promise<void> {
     const characters = await storage.getCharactersByWorld(config.worldId);
-    let mentalModelsCreated = 0;
-    
-    for (const observer of characters) {
-      // Following TotT pattern: only for age > 3
-      if ((observer as any).age <= 3) continue;
-      
-      // Initialize knowledge of family members
-      try {
-        await initializeFamilyKnowledge(observer.id, config.currentTimestep);
-        mentalModelsCreated += 5; // Estimate: parents, siblings, spouse, children
-      } catch (error) {
-        // Silent fail
+
+    // Build character lookup map
+    const charMap = new Map<string, typeof characters[0]>();
+    for (const c of characters) charMap.set(c.id, c);
+
+    // Accumulate all mental model mutations in-memory: charId -> CharacterKnowledge
+    const knowledgeUpdates = new Map<string, { mentalModels: Record<string, any> }>();
+
+    const getOrCreateKnowledge = (charId: string) => {
+      let knowledge = knowledgeUpdates.get(charId);
+      if (!knowledge) {
+        const char = charMap.get(charId)!;
+        const existing = (char.mentalModels as any) || { mentalModels: {} };
+        knowledge = { mentalModels: { ...(existing.mentalModels || {}) } };
+        knowledgeUpdates.set(charId, knowledge);
       }
-      
-      // Initialize knowledge of coworkers
+      return knowledge;
+    };
+
+    // Confidence values from knowledge-system CONFIG
+    const FAMILY_CONFIDENCE = 0.6;
+    const COWORKER_CONFIDENCE = 0.3;
+
+    const createMentalModel = (subjectId: string, confidence: number, facts: string[], timestep: number) => {
+      const knownFacts: Record<string, boolean> = {};
+      for (const fact of facts) knownFacts[fact] = true;
+      return {
+        subjectId,
+        confidence,
+        lastUpdated: timestep,
+        knownFacts,
+        knownValues: {},
+        beliefs: {}
+      };
+    };
+
+    const addBeliefToModel = (model: any, quality: string, confidence: number, evidence: any) => {
+      model.beliefs[quality] = {
+        quality,
+        confidence,
+        evidence: [evidence],
+        lastUpdated: evidence.timestamp,
+      };
+    };
+
+    let mentalModelsCreated = 0;
+
+    // Build index: company -> character ids (for coworker knowledge)
+    const companyEmployees = new Map<string, string[]>();
+    for (const char of characters) {
+      const customData = (char as any).customData as Record<string, any> | undefined;
+      const company = customData?.currentOccupation?.company;
+      if (company) {
+        const list = companyEmployees.get(company) || [];
+        list.push(char.id);
+        companyEmployees.set(company, list);
+      }
+    }
+
+    for (const observer of characters) {
+      if ((observer as any).age <= 3) continue;
+
+      const knowledge = getOrCreateKnowledge(observer.id);
+
+      // Family knowledge
+      const familyIds = [
+        ...(observer.parentIds || []),
+        ...(observer.childIds || []),
+        ...(observer.immediateFamilyIds || [])
+      ];
+
+      for (const familyMemberId of familyIds) {
+        if (!charMap.has(familyMemberId)) continue;
+        if (!knowledge.mentalModels[familyMemberId]) {
+          const model = createMentalModel(familyMemberId, FAMILY_CONFIDENCE, ['name', 'age', 'family', 'personality'], config.currentTimestep);
+          addBeliefToModel(model, 'trustworthy', 0.8, {
+            type: 'direct_experience',
+            strength: 0.9,
+            timestamp: config.currentTimestep,
+            description: 'Family member'
+          });
+          knowledge.mentalModels[familyMemberId] = model;
+          mentalModelsCreated++;
+        }
+      }
+
+      // Coworker knowledge
       const customData = (observer as any).customData as Record<string, any> | undefined;
-      if (customData?.currentOccupation) {
-        try {
-          await initializeCoworkerKnowledge(observer.id, config.currentTimestep);
-          mentalModelsCreated += 3; // Estimate: a few coworkers
-        } catch (error) {
-          // Silent fail
+      const company = customData?.currentOccupation?.company;
+      if (company) {
+        const coworkerIds = companyEmployees.get(company) || [];
+        for (const coworkerId of coworkerIds) {
+          if (coworkerId === observer.id) continue;
+          if (!knowledge.mentalModels[coworkerId]) {
+            const model = createMentalModel(coworkerId, COWORKER_CONFIDENCE, ['name', 'occupation'], config.currentTimestep);
+            addBeliefToModel(model, 'professional', 0.5, {
+              type: 'observation',
+              strength: 0.5,
+              timestamp: config.currentTimestep,
+              description: 'Works together'
+            });
+            knowledge.mentalModels[coworkerId] = model;
+            mentalModelsCreated++;
+          }
         }
       }
     }
-    
-    console.log(`   ✓ Implanted ~${mentalModelsCreated} mental models`);
+
+    // Bulk write all accumulated mental model updates
+    const updates = Array.from(knowledgeUpdates.entries()).map(([charId, knowledge]) => ({
+      id: charId,
+      data: { mentalModels: knowledge as any }
+    }));
+
+    if (updates.length > 0) {
+      await storage.bulkUpdateCharacters(updates);
+    }
+
+    console.log(`   ✓ Implanted ${mentalModelsCreated} mental models`);
   }
   
   /**

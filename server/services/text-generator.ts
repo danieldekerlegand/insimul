@@ -5,7 +5,7 @@
  * target language at specific CEFR difficulty levels using an LLM provider.
  */
 
-import type { InsertText } from '../../shared/schema.js';
+import type { InsertGameText } from '../../shared/schema.js';
 import { type ILLMProvider, createLLMProvider } from './llm-provider.js';
 
 export type TextCategory = 'book' | 'journal' | 'letter' | 'flyer' | 'recipe';
@@ -226,35 +226,28 @@ export async function generateText(params: TextGenerationParams, provider?: ILLM
 }
 
 /**
- * Convert a GeneratedTextResult into an InsertText object for storage.
+ * Convert a GeneratedTextResult into an InsertGameText object for storage.
  */
 export function generatedTextToInsertText(
   result: GeneratedTextResult,
   params: TextGenerationParams
-): InsertText {
-  const fullBody = result.pages.map((p) => p.content).join('\n\n---\n\n');
-  const fullTranslation = result.pages.map((p) => p.contentTranslation).join('\n\n---\n\n');
-
+): InsertGameText {
   return {
     worldId: params.worldId,
     title: result.title,
-    body: fullBody,
-    textType: params.category,
-    language: params.targetLanguage,
+    titleTranslation: result.titleTranslation,
+    textCategory: params.category,
+    pages: result.pages,
+    vocabularyHighlights: result.vocabularyHighlights,
+    comprehensionQuestions: result.comprehensionQuestions,
+    cefrLevel: params.cefrLevel,
+    targetLanguage: params.targetLanguage,
     difficulty: DIFFICULTY_MAP[params.cefrLevel],
-    vocabularyWords: result.vocabularyHighlights.map((v) => v.word),
-    translation: fullTranslation,
+    clueText: params.clueText ?? null,
+    isGenerated: true,
+    generationPrompt: params.theme ?? null,
+    status: 'published',
     tags: [params.cefrLevel, params.category],
-    metadata: {
-      titleTranslation: result.titleTranslation,
-      cefrLevel: params.cefrLevel,
-      pages: result.pages,
-      vocabularyHighlights: result.vocabularyHighlights,
-      comprehensionQuestions: result.comprehensionQuestions,
-      generationPrompt: params.theme ?? null,
-      clueText: params.clueText ?? null,
-      isGenerated: true,
-    },
   };
 }
 
