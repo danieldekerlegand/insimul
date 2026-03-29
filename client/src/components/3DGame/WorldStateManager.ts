@@ -67,6 +67,7 @@ export interface GameStateSource {
   getRelationshipDeltas?(): SavedRelationshipDelta[];
   getMainQuestState?(): SavedMainQuestState;
   getPhotoBookState?(): SavedPhotoBookState;
+  getPrologFacts?(): Array<{ predicate: string; args: Array<string | number> }>;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -99,6 +100,7 @@ export interface GameStateTarget {
   restoreRelationshipDeltas?(data: SavedRelationshipDelta[]): void;
   restoreMainQuestState?(data: SavedMainQuestState): void;
   restorePhotoBookState?(data: SavedPhotoBookState): void;
+  restorePrologFacts?(data: Array<{ predicate: string; args: Array<string | number> }>): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -142,6 +144,7 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'relationshipDeltas',
   'mainQuestState',
   'photoBook',
+  'prologFacts',
 ];
 
 export interface SaveStateAuditResult {
@@ -347,6 +350,7 @@ export class WorldStateManager {
       relationshipDeltas: src.getRelationshipDeltas?.() ?? undefined,
       mainQuestState: src.getMainQuestState?.() ?? undefined,
       photoBook: src.getPhotoBookState?.() ?? undefined,
+      prologFacts: src.getPrologFacts?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -373,6 +377,7 @@ export class WorldStateManager {
       'interiorState', 'timeState', 'questActiveState',
       'languageProgressDetailed', 'reputationState',
       'relationshipDeltas', 'mainQuestState', 'photoBook',
+      'prologFacts',
     ];
 
     for (const field of fieldsToCompare) {
@@ -582,6 +587,9 @@ export class WorldStateManager {
     }
     if (state.photoBook != null) {
       target.restorePhotoBookState?.(state.photoBook);
+    }
+    if (state.prologFacts != null) {
+      target.restorePrologFacts?.(state.prologFacts);
     }
   }
 

@@ -1498,6 +1498,8 @@ export interface GameSaveState {
   mainQuestState?: SavedMainQuestState;
   /** Player's photo book */
   photoBook?: SavedPhotoBookState;
+  /** Serialized Prolog gameplay facts (canonical truth state) */
+  prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
 }

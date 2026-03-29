@@ -13,8 +13,62 @@
 
 import type { TauPrologEngine } from '@shared/prolog/tau-engine';
 import type { GameEventBus, GameEvent } from './GameEventBus';
+import { GAMEPLAY_PREDICATES } from '@shared/prolog/gameplay-predicates';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+/** A single Prolog fact serialized for JSON storage. */
+export interface SerializedFact {
+  predicate: string;
+  args: Array<string | number>;
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Parse a Prolog fact string like "has_item(player, sword, 1)." into a
+ * SerializedFact. Returns null for unparseable strings.
+ */
+function parseFactString(factStr: string): SerializedFact | null {
+  const trimmed = factStr.trim().replace(/\.\s*$/, '');
+  const match = trimmed.match(/^([a-z_]\w*)\((.+)\)$/);
+  if (!match) return null;
+
+  const predicate = match[1];
+  const argsStr = match[2];
+
+  // Split args on commas at depth 0 (handle nested parens)
+  const args: Array<string | number> = [];
+  let current = '';
+  let depth = 0;
+  for (let i = 0; i < argsStr.length; i++) {
+    const ch = argsStr[i];
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    else if (ch === ',' && depth === 0) {
+      args.push(parseArg(current.trim()));
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) {
+    args.push(parseArg(current.trim()));
+  }
+
+  return { predicate, args };
+}
+
+/** Parse a single Prolog arg: numbers become numbers, atoms stay strings. */
+function parseArg(arg: string): string | number {
+  // Strip quotes if present
+  if ((arg.startsWith("'") && arg.endsWith("'")) || (arg.startsWith('"') && arg.endsWith('"'))) {
+    return arg.slice(1, -1);
+  }
+  const num = Number(arg);
+  if (!isNaN(num) && arg !== '') return num;
+  return arg;
+}
 
 /** Sanitize a string for use as a Prolog atom (lowercase, underscores). */
 function sanitize(str: string): string {
@@ -400,6 +454,124 @@ export class GameTruthSync {
     const level = sanitize(cefrLevel);
     this.languageLevels.set(lang, level);
     await this.engine.assertFact(`speaks_language(player, ${lang}, ${level})`);
+  }
+
+  // ── Serialization ───────────────────────────────────────────────────────
+
+  /**
+   * Serialize all gameplay-relevant Prolog facts to a JSON-compatible array.
+   * Filters to only predicates defined in GAMEPLAY_PREDICATES so internal
+   * Prolog system predicates are excluded.
+   */
+  serialize(): SerializedFact[] {
+    const validNames = new Set(GAMEPLAY_PREDICATES.map(p => p.name));
+    const allFacts = this.engine.getAllFacts();
+    const results: SerializedFact[] = [];
+
+    for (const factStr of allFacts) {
+      const parsed = parseFactString(factStr);
+      if (parsed && validNames.has(parsed.predicate)) {
+        results.push(parsed);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Restore previously serialized facts into the Prolog engine and rebuild
+   * local state tracking maps. Call on a fresh/cleared GameTruthSync before
+   * the game loop starts.
+   */
+  async restore(facts: SerializedFact[]): Promise<void> {
+    // Clear local state tracking
+    this.itemQuantities.clear();
+    this.equippedSlots.clear();
+    this.currentLocation = null;
+    this.currentLocationType = null;
+    this.currentHealth = { current: 100, max: 100 };
+    this.currentEnergy = { current: 100, max: 100 };
+    this.currentGold = 0;
+    this.currentHour = null;
+    this.currentDay = null;
+    this.knownVocabulary.clear();
+    this.languageLevels.clear();
+
+    // Assert all facts into the engine
+    const factStrings = facts.map(f => `${f.predicate}(${f.args.join(', ')})`);
+    if (factStrings.length > 0) {
+      await this.engine.assertFacts(factStrings);
+    }
+
+    // Rebuild local state from the restored facts
+    for (const fact of facts) {
+      this.rebuildLocalState(fact);
+    }
+  }
+
+  /** Rebuild a single local state entry from a serialized fact. */
+  private rebuildLocalState(fact: SerializedFact): void {
+    switch (fact.predicate) {
+      case 'has_item':
+        if (fact.args.length >= 3) {
+          this.itemQuantities.set(String(fact.args[1]), Number(fact.args[2]) || 0);
+        }
+        break;
+      case 'has_equipped':
+        if (fact.args.length >= 3) {
+          this.equippedSlots.set(String(fact.args[1]), String(fact.args[2]));
+        }
+        break;
+      case 'at_location':
+        if (fact.args.length >= 2 && fact.args[0] === 'player') {
+          this.currentLocation = String(fact.args[1]);
+        }
+        break;
+      case 'at_location_type':
+        if (fact.args.length >= 2 && fact.args[0] === 'player') {
+          this.currentLocationType = String(fact.args[1]);
+        }
+        break;
+      case 'health':
+        if (fact.args.length >= 3 && fact.args[0] === 'player') {
+          this.currentHealth = { current: Number(fact.args[1]), max: Number(fact.args[2]) };
+        }
+        break;
+      case 'energy':
+        if (fact.args.length >= 3 && fact.args[0] === 'player') {
+          this.currentEnergy = { current: Number(fact.args[1]), max: Number(fact.args[2]) };
+        }
+        break;
+      case 'gold':
+        if (fact.args.length >= 2 && fact.args[0] === 'player') {
+          this.currentGold = Number(fact.args[1]) || 0;
+        }
+        break;
+      case 'time_of_day':
+        if (fact.args.length >= 1) {
+          this.currentHour = Number(fact.args[0]);
+        }
+        break;
+      case 'day_number':
+        if (fact.args.length >= 1) {
+          this.currentDay = Number(fact.args[0]);
+        }
+        break;
+      case 'speaks_language':
+        if (fact.args.length >= 3 && fact.args[0] === 'player') {
+          this.languageLevels.set(String(fact.args[1]), String(fact.args[2]));
+        }
+        break;
+      case 'knows_vocabulary':
+        if (fact.args.length >= 3 && fact.args[0] === 'player') {
+          const lang = String(fact.args[1]);
+          if (!this.knownVocabulary.has(lang)) {
+            this.knownVocabulary.set(lang, new Set());
+          }
+          this.knownVocabulary.get(lang)!.add(String(fact.args[2]));
+        }
+        break;
+    }
   }
 
   // ── Error Logging ───────────────────────────────────────────────────────
