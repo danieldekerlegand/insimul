@@ -94,6 +94,7 @@ async function streamTextResponse(
   worldId: string,
   languageCode: string,
   activeQuests?: ActiveQuest[],
+  prologFacts?: Array<{ predicate: string; args: Array<string | number> }>,
 ): Promise<void> {
   const metrics = getConversationMetrics();
   const e2eTimer = new PipelineTimer('end_to_end');
@@ -104,12 +105,15 @@ async function streamTextResponse(
     session = createSession(sessionId, characterId, worldId, sessionId, languageCode);
   }
 
-  // Build context on first message
-  if (!session.conversationContext || session.characterId !== characterId) {
+  // Build context on first message, character change, or when prologFacts are provided
+  const needsRebuild = !session.conversationContext || session.characterId !== characterId || prologFacts;
+  if (needsRebuild) {
     session.characterId = characterId;
     const ctxTimer = new PipelineTimer('context');
     try {
-      const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId);
+      const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
+        prologFacts,
+      });
       session.conversationContext = fullCtx.conversationContext;
     } catch {
       session.conversationContext = {
@@ -377,7 +381,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: SSE stream of text/audio/facial/meta events
    */
   app.post('/api/conversation/stream', async (req: Request, res: Response) => {
-    const { sessionId, characterId, worldId, text, languageCode, activeQuests } = req.body;
+    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts } = req.body;
 
     if (!sessionId || !characterId || !worldId || !text) {
       res.status(400).json({ error: 'Missing required fields: sessionId, characterId, worldId, text' });
@@ -392,7 +396,7 @@ export function registerConversationRoutes(app: Express): void {
     res.flushHeaders();
 
     try {
-      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests);
+      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts);
     } catch (err: any) {
       console.error('[ConversationBridge] Stream error:', err);
       if (!res.writableEnded) {

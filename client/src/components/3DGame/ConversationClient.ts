@@ -60,6 +60,7 @@ export class ConversationClient {
   private localAI: LocalAIClient | null = null;
   private systemPromptBuilder: ((characterId: string, worldId: string) => string) | null = null;
   private _aborted = false;
+  private prologFactsProvider: (() => Array<{ predicate: string; args: Array<string | number> }>) | null = null;
 
   constructor(options: ConversationClientOptions = {}) {
     this.baseUrl = options.baseUrl || '';
@@ -74,6 +75,11 @@ export class ConversationClient {
 
   setSystemPromptBuilder(builder: (characterId: string, worldId: string) => string): void {
     this.systemPromptBuilder = builder;
+  }
+
+  /** Set a provider that returns current Prolog gameplay facts for MVT context injection. */
+  setPrologFactsProvider(provider: () => Array<{ predicate: string; args: Array<string | number> }>): void {
+    this.prologFactsProvider = provider;
   }
 
   private useLocalAI(): boolean {
@@ -157,6 +163,7 @@ export class ConversationClient {
           worldId: this.worldId,
           text,
           languageCode,
+          prologFacts: this.prologFactsProvider?.() ?? undefined,
         }),
         signal: this.abortController.signal,
       });

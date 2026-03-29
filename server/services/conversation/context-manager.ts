@@ -21,6 +21,8 @@ import {
   type WeakGrammarPattern,
 } from '@shared/language/npc-conversation-prompts';
 import { getMainQuestNPCDefinition, isMainQuestNPC } from '@shared/quest/main-quest-npcs';
+import { generateMVTContext } from '@shared/prolog/mvt-context';
+import type { SerializedFact } from '@shared/game-engine/logic/GameTruthSync';
 
 // ── Storage interface (subset needed by context manager) ──────────────
 
@@ -306,6 +308,7 @@ export async function buildContext(
     playerProgress?: { questsCompleted: number; reputation: number; isNewToTown: boolean };
     playerVocabulary?: VocabularyEntry[];
     playerGrammarPatterns?: GrammarPattern[];
+    prologFacts?: SerializedFact[];
   },
 ): Promise<FullConversationContext> {
   const storage = storageOverride ?? defaultStorage;
@@ -420,6 +423,11 @@ export async function buildContext(
     ? getWeakGrammarPatterns(gameState.playerGrammarPatterns)
     : [];
 
+  // Generate MVT context from Prolog facts (if provided by client)
+  const mvtContext = gameState?.prologFacts
+    ? generateMVTContext(gameState.prologFacts)
+    : null;
+
   // Build system prompt (kept concise to fit under 4000 tokens)
   const systemPrompt = buildSystemPrompt({
     character,
@@ -446,6 +454,7 @@ export async function buildContext(
     weakGrammarPatterns,
     playerRel,
     settlement: characterSettlement ?? null,
+    mvtContext: mvtContext || null,
   });
 
   return {
@@ -509,6 +518,7 @@ interface PromptParts {
   weakGrammarPatterns: WeakGrammarPattern[];
   playerRel: { friendshipLevel: number; romanceStage: string; trust: number; previousTopics: string[] };
   settlement: Settlement | null;
+  mvtContext: string | null;
 }
 
 function buildSystemPrompt(p: PromptParts): string {
@@ -599,6 +609,11 @@ function buildSystemPrompt(p: PromptParts): string {
   }
   if (p.playerRel.previousTopics.length > 0) {
     lines.push(`Previously discussed: ${p.playerRel.previousTopics.slice(0, 5).join(', ')}.`);
+  }
+
+  // Player game state (from Prolog MVT facts)
+  if (p.mvtContext) {
+    lines.push(`\n${p.mvtContext}`);
   }
 
   // Language learning directives
