@@ -15,6 +15,7 @@
 
 import type { GameEventBus } from '../logic/GameEventBus';
 import type { InteractableTarget } from './InteractionPromptSystem';
+import { resolveAnimationClip } from '../action-animation-map';
 
 // ── Action Type Definitions ──────────────────────────────────────────────────
 
@@ -611,6 +612,20 @@ export class PlayerActionSystem {
         }
         return { definition, canPerform: true };
       });
+  }
+
+  /**
+   * Resolve the best animation clip for an action type, validating against
+   * the Quaternius animation catalog. Falls back through the action-animation-map
+   * if the definition's clip isn't found.
+   */
+  static resolveAnimation(actionType: PhysicalActionType): string {
+    const def = ACTION_DEFINITIONS[actionType];
+    if (def) {
+      // First try the definition's clip via the catalog-aware resolver
+      return resolveAnimationClip(actionType);
+    }
+    return 'Interact';
   }
 
   dispose(): void {

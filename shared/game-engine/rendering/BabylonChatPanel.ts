@@ -24,6 +24,8 @@ import { ConversationClient } from '@/components/3DGame/ConversationClient';
 import type { ConversationState } from '@/components/3DGame/ConversationClient';
 import type { IDataSource as DataSource } from '@shared/game-engine/data-source';
 import { ConversationalActionDetector, type ConversationalAction, type NpcConversationTurnState, type DetectorContext } from "../logic/ConversationalActionDetector";
+import { ListenAndRepeatController, type RepeatAttemptResult } from "./ListenAndRepeatController";
+import type { ListenAndRepeatPhrase } from "../logic/actions/ListenAndRepeatAction";
 import { LocalAIClient } from '@/components/3DGame/LocalAIClient';
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
@@ -179,7 +181,10 @@ export class BabylonChatPanel {
   private onNpcConversationTurn: ((npcId: string, topicTag: string | undefined) => void) | null = null;
   private onWritingSubmitted: ((text: string, wordCount: number) => void) | null = null;
   private onConversationalAction: ((actions: ConversationalAction[], turnState: NpcConversationTurnState) => void) | null = null;
+  private onListenAndRepeat: ((result: RepeatAttemptResult) => void) | null = null;
   private conversationalActionDetector = new ConversationalActionDetector();
+  private listenAndRepeatController: ListenAndRepeatController | null = null;
+  private _pendingListenAndRepeatPhrase: ListenAndRepeatPhrase | null = null;
   private _questTopics: Array<{ questId: string; keywords: string[] }> = [];
   private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
   private _relationshipManager: import('./RelationshipManager').RelationshipManager | null = null;
@@ -577,6 +582,54 @@ export class BabylonChatPanel {
       }
       this.languageTracker.startConversation(this.character.id, this.character.firstName || this.character.name || 'NPC');
     }
+
+    // Initialize listen-and-repeat controller for pronunciation practice
+    this.listenAndRepeatController = new ListenAndRepeatController({
+      playTTS: async (text: string, language?: string) => {
+        await this.textToSpeech(text);
+      },
+      startSTT: async (language?: string) => {
+        return new Promise<string>((resolve) => {
+          if (this.speechService) {
+            let resolved = false;
+            this.speechService.updateOptions({
+              lang: language ?? undefined,
+              continuous: false,
+              onFinalResult: (transcript: string) => {
+                if (!resolved) { resolved = true; resolve(transcript); }
+              },
+              onError: () => {
+                if (!resolved) { resolved = true; resolve(''); }
+              },
+            });
+            this.speechService.start();
+            // Timeout after 10 seconds
+            setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                this.speechService?.stop();
+                resolve('');
+              }
+            }, 10000);
+          } else {
+            resolve('');
+          }
+        });
+      },
+      showNotification: (text: string, _color?: string) => {
+        this.messages.push({ role: 'assistant', content: text, timestamp: new Date() });
+        this.updateMessagesDisplay();
+      },
+      emitEvent: (event: any) => {
+        this.onListenAndRepeat?.(event);
+      },
+      getTargetLanguage: () => {
+        return this._targetLanguage
+          || this.worldLanguageContext?.targetLanguage
+          || this.world?.targetLanguage
+          || null;
+      },
+    });
 
     // If the NPC has a quest to offer or an active quest, they initiate conversation.
     // Otherwise the player speaks first.
@@ -1490,6 +1543,23 @@ export class BabylonChatPanel {
     const userMessage = this.inputText.text.trim();
     if (!userMessage) return;
 
+    // Check if this message is a text-based listen & repeat attempt
+    if (this._pendingListenAndRepeatPhrase && this.listenAndRepeatController) {
+      const phrase = this._pendingListenAndRepeatPhrase;
+      this._pendingListenAndRepeatPhrase = null;
+      this.inputText.text = "Type your message...";
+      if (this.inputText.placeholderText?.startsWith('Type:')) {
+        this.inputText.placeholderText = 'Type a message...';
+      }
+
+      this.messages.push({ role: 'user', content: userMessage, timestamp: new Date() });
+      this.updateMessagesDisplay();
+
+      const result = this.listenAndRepeatController.attemptFromText(phrase, userMessage);
+      this.onListenAndRepeat?.(result as any);
+      return;
+    }
+
     this.clearHintTimer();
     this._hintShown = false;
     this.inputText.text = "Type your message...";
@@ -1695,6 +1765,113 @@ export class BabylonChatPanel {
     // Fire background metadata extraction (vocab hints, grammar feedback)
     // This is a SEPARATE LLM call — does not block the conversation.
     this.requestBackgroundMetadata(userMessage, cleanedResponse);
+
+    // Detect target-language phrases for listen & repeat practice
+    this.offerListenAndRepeat(cleanedResponse);
+  }
+
+  /**
+   * Detect target-language phrases in an NPC response and show a
+   * "Listen & Repeat" button for pronunciation practice.
+   */
+  private offerListenAndRepeat(npcResponse: string): void {
+    if (!this.listenAndRepeatController || !this.character) return;
+    if (this.listenAndRepeatController.isActive) return;
+
+    const phrases = this.listenAndRepeatController.detectPhrases(
+      npcResponse,
+      this.character.id,
+      `${this.character.firstName} ${this.character.lastName}`.trim(),
+    );
+
+    if (phrases.length === 0) return;
+
+    // Offer the first detected phrase via a clickable message
+    const phrase = phrases[0];
+    const promptText = `Repeat: "${phrase.targetPhrase}"`;
+    this.messages.push({
+      role: 'system',
+      content: promptText,
+      timestamp: new Date(),
+    });
+    this.updateMessagesDisplay();
+
+    // Add a listen & repeat button to the messages area
+    this.addListenAndRepeatButton(phrase);
+  }
+
+  /**
+   * Add a "Listen & Repeat" button below the current messages.
+   * When clicked, runs the full pronunciation practice flow.
+   */
+  private addListenAndRepeatButton(phrase: ListenAndRepeatPhrase): void {
+    if (!this.messagesStack) return;
+
+    const btnContainer = new StackPanel('lar-btn-container');
+    btnContainer.isVertical = false;
+    btnContainer.height = '30px';
+    btnContainer.width = '95%';
+    btnContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    btnContainer.paddingTop = '4px';
+    btnContainer.paddingBottom = '4px';
+
+    const btn = Button.CreateSimpleButton('lar-btn', 'Listen & Repeat');
+    btn.width = '140px';
+    btn.height = '26px';
+    btn.color = 'white';
+    btn.background = '#3b82f6';
+    btn.cornerRadius = 4;
+    btn.fontSize = 11;
+    btn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    btn.left = '8px';
+
+    btn.onPointerClickObservable.add(async () => {
+      if (!this.listenAndRepeatController) return;
+      btn.isEnabled = false;
+      btn.background = '#6b7280';
+      (btn.textBlock as TextBlock).text = 'Listening...';
+
+      try {
+        const result = await this.listenAndRepeatController.attempt(phrase);
+        (btn.textBlock as TextBlock).text = `Score: ${result.score}%`;
+        btn.background = result.passed ? '#22c55e' : '#f59e0b';
+        this.onListenAndRepeat?.(result as any);
+      } catch {
+        (btn.textBlock as TextBlock).text = 'Try again';
+        btn.background = '#ef4444';
+        btn.isEnabled = true;
+      }
+    });
+
+    btnContainer.addControl(btn);
+
+    // Also add a text-input fallback button for when STT is unavailable
+    const typeBtn = Button.CreateSimpleButton('lar-type-btn', 'Type Instead');
+    typeBtn.width = '100px';
+    typeBtn.height = '26px';
+    typeBtn.color = '#9ca3af';
+    typeBtn.background = 'transparent';
+    typeBtn.fontSize = 10;
+    typeBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    typeBtn.left = '4px';
+
+    typeBtn.onPointerClickObservable.add(() => {
+      // When "Type Instead" is clicked, the next user message in the input
+      // is treated as a listen & repeat text attempt
+      this._pendingListenAndRepeatPhrase = phrase;
+      if (this.inputText) {
+        this.inputText.placeholderText = `Type: "${phrase.targetPhrase}"`;
+        this.inputText.focus();
+      }
+    });
+
+    btnContainer.addControl(typeBtn);
+    this.messagesStack.addControl(btnContainer);
+
+    // Scroll to bottom to show the button
+    if (this.messagesScrollViewer) {
+      this.messagesScrollViewer.verticalBar.value = 1;
+    }
   }
 
   /**
@@ -3094,6 +3271,10 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   }
 
   /** Set callback for conversational action detection results. */
+  public setOnListenAndRepeat(callback: (result: RepeatAttemptResult) => void) {
+    this.onListenAndRepeat = callback;
+  }
+
   public setOnConversationalAction(callback: (actions: ConversationalAction[], turnState: NpcConversationTurnState) => void) {
     this.onConversationalAction = callback;
   }
@@ -3332,6 +3513,9 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   public addNPCMessage(text: string): void {
     this.messages.push({ role: 'assistant', content: text, timestamp: new Date() });
     this.displayMessages();
+
+    // Also detect target-language phrases for listen & repeat during eavesdrop
+    this.offerListenAndRepeat(text);
   }
 
   /**

@@ -11,9 +11,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   BookOpen, Sword, Search, ChevronRight, ChevronDown, Trash2,
-  Code, Info, CheckSquare, Square,
+  Code, Info, CheckSquare, Square, Play,
 } from "lucide-react";
 import { PrologSyntaxHighlight } from "../prolog/PrologSyntaxHighlight";
+import { getAnimationForAction, isValidAnimationClip, type ActionAnimationEntry } from "@shared/game-engine/action-animation-map";
+import { ANIMATION_CATALOG } from "@shared/game-engine/animation-registry";
 
 interface BaseResource {
   id: string;
@@ -60,7 +62,7 @@ export function AdminRulesActionsHub({ mode }: AdminRulesActionsHubProps = {}) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Right panel
-  const [expandedSection, setExpandedSection] = useState<'details' | 'content' | null>('details');
+  const [expandedSection, setExpandedSection] = useState<'details' | 'content' | 'animation' | null>('details');
 
   // Delete dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -402,12 +404,74 @@ export function AdminRulesActionsHub({ mode }: AdminRulesActionsHubProps = {}) {
 
   // ─── Right Panel ───────────────────────────────────────────────────────────
 
+  // Resolve animation entry for the currently selected action
+  const selectedAnimationEntry: ActionAnimationEntry | null = useMemo(() => {
+    if (!selectedResource || activeTab !== 'actions') return null;
+    return getAnimationForAction(selectedResource.name);
+  }, [selectedResource, activeTab]);
+
+  const renderAnimationPreview = () => {
+    if (!selectedAnimationEntry) return null;
+    const entry = selectedAnimationEntry;
+    const clipInfo = ANIMATION_CATALOG[entry.animationClip];
+    const fallbackInfo = ANIMATION_CATALOG[entry.animationFallback];
+    const clipValid = isValidAnimationClip(entry.animationClip);
+    const fallbackValid = isValidAnimationClip(entry.animationFallback);
+
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Animation Clip</p>
+          <div className="flex items-center gap-1.5">
+            <Play className="w-3 h-3 text-green-500" />
+            <span className="text-xs font-mono">{entry.animationClip}</span>
+            {clipValid
+              ? <Badge variant="outline" className="text-[9px] h-3.5 bg-green-500/10 text-green-500 border-green-500/20">OK</Badge>
+              : <Badge variant="outline" className="text-[9px] h-3.5 bg-red-500/10 text-red-500 border-red-500/20">Missing</Badge>
+            }
+          </div>
+          {clipInfo && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {clipInfo.description} ({clipInfo.duration}s, {clipInfo.loop ? 'loops' : 'one-shot'})
+            </p>
+          )}
+        </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Fallback</p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-mono">{entry.animationFallback}</span>
+            {fallbackValid
+              ? <Badge variant="outline" className="text-[9px] h-3.5 bg-green-500/10 text-green-500 border-green-500/20">OK</Badge>
+              : <Badge variant="outline" className="text-[9px] h-3.5 bg-red-500/10 text-red-500 border-red-500/20">Missing</Badge>
+            }
+          </div>
+          {fallbackInfo && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {fallbackInfo.description} ({fallbackInfo.duration}s)
+            </p>
+          )}
+        </div>
+        <div className="flex gap-3">
+          <div>
+            <p className="text-[10px] text-muted-foreground">Category</p>
+            <Badge variant="secondary" className="text-[10px] capitalize">{entry.category}</Badge>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground">Loop</p>
+            <span className="text-xs">{entry.loop ? 'Yes' : 'No'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderRight = () => {
     if (!selectedResource) return null;
 
-    const sections = [
-      { id: 'details' as const, label: 'Details', icon: Info },
-      { id: 'content' as const, label: 'Raw Content', icon: Code },
+    const sections: Array<{ id: 'details' | 'content' | 'animation'; label: string; icon: typeof Info }> = [
+      { id: 'details', label: 'Details', icon: Info },
+      ...(activeTab === 'actions' ? [{ id: 'animation' as const, label: 'Animation', icon: Play }] : []),
+      { id: 'content', label: 'Raw Content', icon: Code },
     ];
 
     return (
@@ -470,6 +534,8 @@ export function AdminRulesActionsHub({ mode }: AdminRulesActionsHubProps = {}) {
                         )}
                       </>
                     )}
+
+                    {section.id === 'animation' && renderAnimationPreview()}
 
                     {section.id === 'content' && (
                       <pre className="text-[10px] font-mono whitespace-pre-wrap break-all select-all bg-muted/50 p-2 rounded">
