@@ -202,8 +202,173 @@ const COMBAT_PREREQUISITES: Record<string, PrerequisiteDefinition> = {
   },
 };
 
+// ── Resource Prerequisites ──────────────────────────────────────────────────
+
+const RESOURCE_PREREQUISITES: Record<string, PrerequisiteDefinition> = {
+  // Base gather action — requires energy and appropriate location
+  gather: {
+    actionId: 'gather',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+      'at_location_type(Actor, LocType)',
+    ],
+    inheritsFromParent: false,
+  },
+
+  // Specific gathering — inherit from gather + tool/location requirements
+  chop_tree: {
+    actionId: 'chop_tree',
+    prerequisites: [
+      'has_item(Actor, axe, _)',
+      'at_location_type(Actor, forest)',
+    ],
+    inheritsFromParent: true,
+  },
+  mine_rock: {
+    actionId: 'mine_rock',
+    prerequisites: [
+      'has_item(Actor, pickaxe, _)',
+      'at_location_type(Actor, mine)',
+    ],
+    inheritsFromParent: true,
+  },
+  fish: {
+    actionId: 'fish',
+    prerequisites: [
+      'has_item(Actor, fishing_rod, _)',
+      'at_location_type(Actor, water)',
+    ],
+    inheritsFromParent: true,
+  },
+  gather_herb: {
+    actionId: 'gather_herb',
+    prerequisites: [
+      'at_location_type(Actor, forest)',
+    ],
+    inheritsFromParent: true,
+  },
+
+  // Farming — requires farm location
+  farm_plant: {
+    actionId: 'farm_plant',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+      'at_location_type(Actor, farm)',
+    ],
+    inheritsFromParent: false,
+  },
+  farm_water: {
+    actionId: 'farm_water',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+      'at_location_type(Actor, farm)',
+    ],
+    inheritsFromParent: false,
+  },
+  farm_harvest: {
+    actionId: 'farm_harvest',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+      'at_location_type(Actor, farm)',
+    ],
+    inheritsFromParent: false,
+  },
+
+  // Crafting — requires energy + location
+  cook: {
+    actionId: 'cook',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+      'at_location_type(Actor, kitchen)',
+    ],
+    inheritsFromParent: false,
+  },
+  craft_item: {
+    actionId: 'craft_item',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+      'at_location_type(Actor, workshop)',
+    ],
+    inheritsFromParent: false,
+  },
+  fix_repair: {
+    actionId: 'fix_repair',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+      'at_location_type(Actor, workshop)',
+    ],
+    inheritsFromParent: false,
+  },
+};
+
+// ── Commerce Prerequisites ─────────────────────────────────────────────────
+
+const COMMERCE_PREREQUISITES: Record<string, PrerequisiteDefinition> = {
+  // Trading — requires proximity to a willing trader
+  trade: {
+    actionId: 'trade',
+    prerequisites: [
+      'near(Actor, Target, 5)',
+      'npc_will_trade(Target)',
+    ],
+    inheritsFromParent: false,
+  },
+  buy_item: {
+    actionId: 'buy_item',
+    prerequisites: [
+      'near(Actor, Target, 5)',
+      'npc_will_trade(Target)',
+      'gold(Actor, G), G > 0',
+    ],
+    inheritsFromParent: false,
+  },
+  sell_item: {
+    actionId: 'sell_item',
+    prerequisites: [
+      'near(Actor, Target, 5)',
+      'npc_will_trade(Target)',
+    ],
+    inheritsFromParent: false,
+  },
+
+  // Work — requires being at workplace with an occupation
+  work: {
+    actionId: 'work',
+    prerequisites: [
+      'at_location(Actor, Workplace)',
+      'occupation(Actor, _)',
+    ],
+    inheritsFromParent: false,
+  },
+
+  // Work sub-actions — energy check only (inherit from work)
+  paint: {
+    actionId: 'paint',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+    ],
+    inheritsFromParent: true,
+  },
+  sweep: {
+    actionId: 'sweep',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+    ],
+    inheritsFromParent: true,
+  },
+  push_object: {
+    actionId: 'push_object',
+    prerequisites: [
+      'energy(Actor, E, _), E >= 10',
+    ],
+    inheritsFromParent: true,
+  },
+};
+
 // ── Combined Export ──────────────────────────────────────────────────────────
 
 export const ACTION_PREREQUISITES: Record<string, PrerequisiteDefinition> = {
   ...COMBAT_PREREQUISITES,
+  ...RESOURCE_PREREQUISITES,
+  ...COMMERCE_PREREQUISITES,
 };

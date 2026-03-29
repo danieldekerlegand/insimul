@@ -1,0 +1,84 @@
+# Ralph Progress Log
+Started: Sun Mar 29 13:53:35 CDT 2026
+---
+
+## 2026-03-29 - US-001
+- Cleaned whitespace in action converter: removed 3 unconditional blank line pushes (lines 104, 133, 159) that caused double/triple blanks when prereqs, triggers, effects, and side effects were all empty
+- Added post-processing regex to collapse consecutive blank lines (`\n{3,}` → `\n\n`) and trim trailing blanks
+- Created migration 041-clean-action-prolog-whitespace.ts to re-run converter on all base actions
+- Files changed:
+  - `shared/prolog/action-converter.ts` — removed unconditional blank line pushes, added output normalization
+  - `server/migrations/041-clean-action-prolog-whitespace.ts` — new migration (idempotent, reports updated vs unchanged)
+- **Learnings for future iterations:**
+  - The converter pushes lines into an array then joins — easier to post-process the joined string than manage blank lines inline
+  - Pre-existing typecheck errors are widespread; verify only your changed files with `grep` on tsc output
+  - Migration pattern: copy from 039, adjust converter call params — storage.getBaseActions() + storage.updateAction()
+  - tsx imports use `.ts` extension (not `.js`) when running via `npx tsx -e`
+---
+
+## 2026-03-29 - US-002
+- Verified existing `shared/prolog/gameplay-predicates.ts` meets all acceptance criteria
+- 18 player state predicates, 6 NPC predicates, 8 world state predicates, 4 location predicates
+- Helper functions: getPredicatesByCategory(), getPredicateByName(), getMinimumViableTemplate()
+- MVT (Minimum Viable Template) = health, energy, speaks_language, gold, at_location, occupation, age
+- Files changed:
+  - `shared/prolog/gameplay-predicates.ts` — already implemented (committed as new tracked file)
+  - `tasks/prd.json` — marked US-002 passes: true
+- **Learnings for future iterations:**
+  - The file was already written but untracked — check `git status` for `??` files before implementing
+  - Types exported: GameplayPredicate, PredicateArg, SyncDirection, PredicateCategory
+  - This file is separate from `predicate-schema.ts` (which maps Mongo collections to Prolog); gameplay-predicates handles runtime gameplay truth
+---
+
+## 2026-03-29 - US-003
+- Created `shared/prolog/helper-predicates.ts` with HELPER_PREDICATES_PROLOG string containing:
+  - cefr_level_rank/2 and cefr_gte/2 for CEFR language level comparison
+  - is_weapon_type/2 for weapon classification (sword, axe, bow, staff, pistol)
+  - is_tool_type/2 for tool classification (fishing_rod, pickaxe, axe, hoe)
+  - skill_tier_name/2 mapping levels 1-10 to tier names (novice, apprentice, journeyman, expert, master)
+  - skill_gte/3 for skill level comparison against has_skill/3
+- Integrated into GamePrologEngine.initialize() — loads before NPC reasoning rules
+- Updated all 4 export engine templates (Unreal .h/.cpp, Unity .cs, Godot .gd) with LoadHelperPredicates/load_helper_predicates methods
+- Files changed:
+  - `shared/prolog/helper-predicates.ts` — new file
+  - `shared/game-engine/logic/GamePrologEngine.ts` — import + consult step
+  - `server/services/game-export/unreal/templates/source/systems/PrologEngine.h` — declaration
+  - `server/services/game-export/unreal/templates/source/systems/PrologEngine.cpp` — implementation
+  - `server/services/game-export/unity/templates/Scripts/Systems/PrologEngine.cs` — implementation
+  - `server/services/game-export/godot/templates/scripts/systems/prolog_engine.gd` — implementation
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - Drift hook blocks commits if export templates aren't updated — run `npm run drift:update` after updating templates
+  - Helper predicates use `:- dynamic(item_type/2).` declaration since item_type facts are asserted at runtime
+  - Export templates follow consistent pattern: string literal of Prolog rules → append to KB → parse/log
+  - Pre-existing typecheck errors in GamePrologEngine.ts (QueryResult type issues) are known and unrelated
+---
+
+## 2026-03-29 - US-004
+- Created `shared/prolog/action-prerequisites.ts` with PrerequisiteDefinition type and ACTION_PREREQUISITES record
+- 27 combat action prerequisites defined across categories: base combat, sword, unarmed, shield, ranged, defense, magic, and animation-only
+- Key patterns: inheritsFromParent=true for child actions that inherit parent prerequisites; empty prerequisites array for animation-only actions
+- Files changed:
+  - `shared/prolog/action-prerequisites.ts` — new file
+  - `tasks/prd.json` — marked US-004 passes: true
+- **Learnings for future iterations:**
+  - energy/3 predicate uses (Actor, Current, Max) — energy checks need `energy(Actor, E, _), E >= N` pattern (not energy/2)
+  - Action IDs found in migrations 019, 020, 032, 038 — use snake_case names matching animation clip IDs
+  - alive/1 predicate already exists in tott-predicates.ts, npc-reasoning.ts — safe to reference in prerequisites
+  - US-005 and US-006 will add to this same file (resource, commerce, social, language prerequisites)
+---
+
+## 2026-03-29 - US-005
+- Added resource and commerce action prerequisites to `shared/prolog/action-prerequisites.ts`
+- 12 resource actions: gather (base), chop_tree, mine_rock, fish, gather_herb, farm_plant, farm_water, farm_harvest, cook, craft_item, fix_repair
+- 7 commerce actions: trade, buy_item, sell_item, work (base), paint, sweep, push_object
+- Resource actions use at_location_type + tool requirements; commerce uses near + npc_will_trade
+- Files changed:
+  - `shared/prolog/action-prerequisites.ts` — added RESOURCE_PREREQUISITES and COMMERCE_PREREQUISITES sections
+  - `tasks/prd.json` — marked US-005 passes: true
+- **Learnings for future iterations:**
+  - gather is a base action; chop_tree/mine_rock/fish/gather_herb inherit from it via inheritsFromParent: true
+  - Farm actions (farm_plant, farm_water, farm_harvest) are standalone (not inheriting from gather) since farming is its own category
+  - Work sub-actions (paint, sweep, push_object) inherit from work and only add energy checks
+  - buy_item has gold check `gold(Actor, G), G > 0` in addition to trade prerequisites
+---
