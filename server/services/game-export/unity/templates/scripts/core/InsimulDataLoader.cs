@@ -184,6 +184,7 @@ namespace Insimul.Core
         public static T[] LoadLootTables<T>() => LoadArray<T>(DataRoot + "loot_tables");
         public static T[] LoadTruths<T>() => LoadArray<T>(DataRoot + "truths");
         public static T[] LoadGrammars<T>() => LoadArray<T>(DataRoot + "grammars");
+        public static T[] LoadTexts<T>() => LoadArray<T>(DataRoot + "texts");
         public static T[] LoadBusinesses<T>() => LoadArray<T>(DataRoot + "businesses");
         public static T[] LoadRoads<T>() => LoadArray<T>(DataRoot + "roads");
         public static T[] LoadDialogueContexts<T>() => LoadArray<T>(DataRoot + "dialogue_contexts");

@@ -123,7 +123,9 @@ namespace Insimul.Systems
         // Mining events
         MineralMined,
         // Exploration discovery events
-        InvestigationCompleted
+        InvestigationCompleted,
+        // NPC activity observation events
+        ActivityObserved
     }
 
     /// <summary>
@@ -979,6 +981,15 @@ namespace Insimul.Systems
         public string investigationPointId;
         public string contentType;
         public string content;
+    }
+
+    public class ActivityObservedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ActivityObserved;
+        public string npcId;
+        public string npcName;
+        public string activity;
+        public float durationSeconds;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────
