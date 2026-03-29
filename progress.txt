@@ -82,3 +82,68 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Work sub-actions (paint, sweep, push_object) inherit from work and only add energy checks
   - buy_item has gold check `gold(Actor, G), G > 0` in addition to trade prerequisites
 ---
+
+## 2026-03-29 - US-006
+- Added social, language, exploration, item, survival, and movement/idle/expression prerequisites to `shared/prolog/action-prerequisites.ts`
+- 6 new prerequisite sections: SOCIAL (20 actions), LANGUAGE (11 actions), EXPLORATION (2), ITEM (5), SURVIVAL (3), ANIMATION_ONLY (10)
+- Social: talk_to_npc base with 15 children inheriting near(5); give_gift, steal, eavesdrop, request_quest standalone
+- Language: CEFR level gates via cefr_gte — a1 for order_food, a2 for haggle/describe, b1 for teach_vocabulary
+- Files changed:
+  - `shared/prolog/action-prerequisites.ts` — added 6 new prerequisite sections (368 lines)
+  - `tasks/prd.json` — marked US-006 passes: true
+- **Learnings for future iterations:**
+  - Social child actions use empty prerequisites + inheritsFromParent: true to inherit parent's near() check
+  - Language actions combine speaks_language with cefr_gte in a single goal string for proper Prolog variable binding
+  - rest/sleep use `E >= 0` energy check (always succeeds if energy exists) — acts as existence check
+  - Movement/idle/expression actions have empty prerequisites and inheritsFromParent: false (truly no requirements)
+---
+
+## 2026-03-29 - US-007
+- Created `shared/prolog/action-effects.ts` with EffectDefinition type and ACTION_EFFECTS record
+- 12 resource effects: gather (base energy), chop_tree, mine_rock, fish, gather_herb, farm_plant, farm_water, farm_harvest, cook, craft_item, fix_repair
+- 7 commerce effects: trade, buy_item, sell_item, work, paint, sweep, push_object
+- Effect patterns: assert(has_item(...)) for item creation, modify_energy for costs, modify_skill_xp for skill gains, modify_gold for currency transfer
+- Files changed:
+  - `shared/prolog/action-effects.ts` — new file
+  - `tasks/prd.json` — marked US-007 passes: true
+- **Learnings for future iterations:**
+  - Effect terms use modify_energy/modify_gold/modify_skill_xp helper predicates (to be implemented in runtime)
+  - buy_item/sell_item use symmetric gold transfer: modify_gold(Actor, -Price) + modify_gold(Target, Price)
+  - US-008 will add combat, social, and language effects to this same file
+  - File follows same structure as action-prerequisites.ts: category-specific Records merged into combined export
+---
+
+## 2026-03-29 - US-008
+- Added combat, social, language, exploration, item, survival, and animation-only effects to `shared/prolog/action-effects.ts`
+- 7 new effect sections: COMBAT (17 actions), SOCIAL (20 actions), LANGUAGE (13 actions), EXPLORATION (2), ITEM (5), SURVIVAL (3), ANIMATION_ONLY (19 actions)
+- Combat: damage via modify_health(Target, -N), energy cost, combat XP; defense actions cost energy only
+- Social: disposition changes via modify_disposition(Target, Actor, N); give_gift retracts item; steal asserts stolen item + stealth XP
+- Language: XP gains scaled by difficulty (5 for basic, 10-15 for practice, 20 for teaching); examine_object/point_and_name/read_sign assert knows_vocabulary
+- Files changed:
+  - `shared/prolog/action-effects.ts` — added 7 new effect sections (477 lines)
+  - `tasks/prd.json` — marked US-008 passes: true
+- **Learnings for future iterations:**
+  - Social effects use modify_disposition/3 helper (to be implemented in runtime) instead of direct npc_disposition manipulation
+  - Language effects use modify_xp(Actor, language, N) — language XP is a separate skill tracked alongside CEFR levels
+  - Animation-only actions (idle, walk, run, combat reactions, zombie_*) have empty effects arrays
+  - throw_projectile is the only combat action that consumes an item (retract projectile)
+---
+
+## 2026-03-29 - US-009
+- Updated `convertActionToProlog()` to accept optional `ConvertOptions` parameter with `prerequisites: string[]`, `effects: string[]`, `inheritsFromParent: boolean`
+- New-style prerequisites: when provided, used directly as can_perform goals (no default energy check — prereqs already include energy checks where needed)
+- Parent inheritance: when `inheritsFromParent=true` and `parentAction` is set, looks up parent from `ACTION_PREREQUISITES` and prepends parent's prerequisites
+- Effects: emits `action_effect(actionId, (effect)).` for each effect string
+- Animation-only actions with no prerequisites get unconditional `can_perform(_, actionId).`
+- Legacy path preserved: when no options provided, old JSON-based conversion still works
+- Also fixed legacy energy check from `energy(Actor, E)` (arity 2) to `energy(Actor, E, _)` (arity 3) to match gameplay-predicates.ts
+- Files changed:
+  - `shared/prolog/action-converter.ts` — added ConvertOptions, new-style prereq/effect handling, parent resolution, legacy energy/3 fix
+  - `tasks/prd.json` — marked US-009 passes: true
+- **Learnings for future iterations:**
+  - The converter wraps each prereq/effect in parens: `action_prerequisite(id, (goal)).` — this ensures compound goals parse correctly in Prolog
+  - Parent resolution imports ACTION_PREREQUISITES directly — no need for caller to resolve
+  - Actions with empty prerequisites and `inheritsFromParent=false` get `can_perform(_, id).` (wildcard Actor)
+  - Content validator passes with 0 errors for all new-style output; animation-only actions still get action_effect/2 warning (expected)
+  - The `energy/2` → `energy/3` fix also applies to the batch converter's dynamic declarations
+---

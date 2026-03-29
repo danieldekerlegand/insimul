@@ -10,7 +10,18 @@
  *   can_perform(Actor, ActionId) :- <prerequisites check>.
  */
 
+import { ACTION_PREREQUISITES } from './action-prerequisites';
+
 // ── Types ───────────────────────────────────────────────────────────────────
+
+export interface ConvertOptions {
+  /** New-style prerequisites as raw Prolog goal strings */
+  prerequisites?: string[];
+  /** New-style effects as raw Prolog effect term strings */
+  effects?: string[];
+  /** Whether this action inherits prerequisites from its parent */
+  inheritsFromParent?: boolean;
+}
 
 interface ActionData {
   name: string;
@@ -41,7 +52,7 @@ interface ConversionResult {
 
 // ── Converter ───────────────────────────────────────────────────────────────
 
-export function convertActionToProlog(action: ActionData): ConversionResult {
+export function convertActionToProlog(action: ActionData, options?: ConvertOptions): ConversionResult {
   const errors: string[] = [];
   const predicates: string[] = [];
   const lines: string[] = [];
@@ -101,76 +112,136 @@ export function convertActionToProlog(action: ActionData): ConversionResult {
     predicates.push('action_cooldown/2');
   }
 
-  // Prerequisites → Prolog goals
-  const prereqs = action.prerequisites || [];
-  const prereqGoals: string[] = [];
+  // ── New-style prerequisites & effects (from action-prerequisites.ts / action-effects.ts) ──
+  const hasNewStylePrereqs = options?.prerequisites !== undefined;
+  const hasNewStyleEffects = options?.effects !== undefined;
 
-  for (const prereq of prereqs) {
-    const goal = convertPrerequisite(prereq, errors);
-    if (goal) {
-      prereqGoals.push(goal);
-      lines.push(`action_prerequisite(${actionId}, ${wrapGoal(goal)}).`);
+  // Collect all can_perform goals
+  const canPerformGoals: string[] = [];
+
+  if (hasNewStylePrereqs) {
+    // Resolve parent prerequisites when inheriting
+    if (options!.inheritsFromParent && action.parentAction) {
+      const parentId = sanitizeAtom(action.parentAction);
+      const parentDef = ACTION_PREREQUISITES[parentId];
+      if (parentDef) {
+        canPerformGoals.push(...parentDef.prerequisites);
+      }
     }
-  }
-  if (prereqGoals.length > 0) {
-    predicates.push('action_prerequisite/2');
-  }
+    // Add own prerequisites
+    canPerformGoals.push(...options!.prerequisites!);
 
-  // Trigger conditions (alternative prerequisites)
-  const triggers = action.triggerConditions || [];
-  for (const trigger of triggers) {
-    const goal = convertPrerequisite(trigger, errors);
-    if (goal) {
-      lines.push(`action_trigger(${actionId}, ${wrapGoal(goal)}).`);
+    // Emit action_prerequisite/2 facts for each goal
+    for (const goal of canPerformGoals) {
+      lines.push(`action_prerequisite(${actionId}, (${goal})).`);
     }
-  }
-  if (triggers.length > 0) {
-    predicates.push('action_trigger/2');
-  }
-
-  // Effects → Prolog terms
-  const effects = action.effects || [];
-  for (const effect of effects) {
-    const term = convertEffect(effect, errors);
-    if (term) {
-      lines.push(`action_effect(${actionId}, ${term}).`);
+    if (canPerformGoals.length > 0) {
+      predicates.push('action_prerequisite/2');
     }
-  }
-  if (effects.length > 0) {
-    predicates.push('action_effect/2');
-  }
-
-  // Side effects
-  const sideEffects = action.sideEffects || [];
-  for (const effect of sideEffects) {
-    const term = convertEffect(effect, errors);
-    if (term) {
-      lines.push(`action_side_effect(${actionId}, ${term}).`);
-    }
-  }
-  if (sideEffects.length > 0) {
-    predicates.push('action_side_effect/2');
-  }
-
-  // Generate can_perform rule
-  const canPerformConditions = [
-    `action(${actionId}, _, _, EnergyCost)`,
-    `energy(Actor, E)`,
-    `E >= EnergyCost`,
-  ];
-  if (prereqGoals.length > 0) {
-    canPerformConditions.push(...prereqGoals.map(g => g.replace(/\binitiator\b/g, 'Actor').replace(/\bresponder\b/g, 'Target')));
-  }
-
-  lines.push(`% Can Actor perform this action?`);
-  if (action.requiresTarget) {
-    lines.push(`can_perform(Actor, ${actionId}, Target) :-`);
-    lines.push(`    ${canPerformConditions.join(',\n    ')}.`);
-    predicates.push('can_perform/3');
   } else {
-    lines.push(`can_perform(Actor, ${actionId}) :-`);
-    lines.push(`    ${canPerformConditions.join(',\n    ')}.`);
-    predicates.push('can_perform/2');
+    // Legacy: convert from ActionData JSON prerequisites
+    const prereqs = action.prerequisites || [];
+    for (const prereq of prereqs) {
+      const goal = convertPrerequisite(prereq, errors);
+      if (goal) {
+        canPerformGoals.push(goal);
+        lines.push(`action_prerequisite(${actionId}, ${wrapGoal(goal)}).`);
+      }
+    }
+    if (canPerformGoals.length > 0) {
+      predicates.push('action_prerequisite/2');
+    }
+
+    // Trigger conditions (legacy)
+    const triggers = action.triggerConditions || [];
+    for (const trigger of triggers) {
+      const goal = convertPrerequisite(trigger, errors);
+      if (goal) {
+        lines.push(`action_trigger(${actionId}, ${wrapGoal(goal)}).`);
+      }
+    }
+    if (triggers.length > 0) {
+      predicates.push('action_trigger/2');
+    }
+  }
+
+  // ── Effects ──────────────────────────────────────────────────────────────
+  if (hasNewStyleEffects) {
+    for (const effect of options!.effects!) {
+      lines.push(`action_effect(${actionId}, (${effect})).`);
+    }
+    if (options!.effects!.length > 0) {
+      predicates.push('action_effect/2');
+    }
+  } else {
+    // Legacy: convert from ActionData JSON effects
+    const effects = action.effects || [];
+    for (const effect of effects) {
+      const term = convertEffect(effect, errors);
+      if (term) {
+        lines.push(`action_effect(${actionId}, ${term}).`);
+      }
+    }
+    if (effects.length > 0) {
+      predicates.push('action_effect/2');
+    }
+
+    // Side effects (legacy only)
+    const sideEffects = action.sideEffects || [];
+    for (const effect of sideEffects) {
+      const term = convertEffect(effect, errors);
+      if (term) {
+        lines.push(`action_side_effect(${actionId}, ${term}).`);
+      }
+    }
+    if (sideEffects.length > 0) {
+      predicates.push('action_side_effect/2');
+    }
+  }
+
+  // ── Generate can_perform rule ────────────────────────────────────────────
+  lines.push(`% Can Actor perform this action?`);
+
+  if (hasNewStylePrereqs) {
+    // New-style: prerequisites already include energy checks where needed
+    if (canPerformGoals.length > 0) {
+      if (action.requiresTarget) {
+        lines.push(`can_perform(Actor, ${actionId}, Target) :-`);
+        predicates.push('can_perform/3');
+      } else {
+        lines.push(`can_perform(Actor, ${actionId}) :-`);
+        predicates.push('can_perform/2');
+      }
+      lines.push(`    ${canPerformGoals.join(',\n    ')}.`);
+    } else {
+      // No prerequisites — action is always available (animation-only / no requirements)
+      if (action.requiresTarget) {
+        lines.push(`can_perform(_, ${actionId}, _).`);
+        predicates.push('can_perform/3');
+      } else {
+        lines.push(`can_perform(_, ${actionId}).`);
+        predicates.push('can_perform/2');
+      }
+    }
+  } else {
+    // Legacy: default energy check
+    const legacyConditions = [
+      `action(${actionId}, _, _, EnergyCost)`,
+      `energy(Actor, E, _)`,
+      `E >= EnergyCost`,
+    ];
+    if (canPerformGoals.length > 0) {
+      legacyConditions.push(...canPerformGoals.map(g => g.replace(/\binitiator\b/g, 'Actor').replace(/\bresponder\b/g, 'Target')));
+    }
+    if (action.requiresTarget) {
+      lines.push(`can_perform(Actor, ${actionId}, Target) :-`);
+      lines.push(`    ${legacyConditions.join(',\n    ')}.`);
+      predicates.push('can_perform/3');
+    } else {
+      lines.push(`can_perform(Actor, ${actionId}) :-`);
+      lines.push(`    ${legacyConditions.join(',\n    ')}.`);
+      predicates.push('can_perform/2');
+    }
   }
 
   // Collapse consecutive blank lines and trim trailing blanks
@@ -207,7 +278,7 @@ export function convertActionsToProlog(actions: ActionData[]): ConversionResult 
     'action_prerequisite/2', 'action_trigger/2',
     'action_effect/2', 'action_side_effect/2',
     'can_perform/2', 'can_perform/3',
-    'energy/2',
+    'energy/3',
   ];
   for (const p of dynamicPreds) {
     allLines.push(`:- dynamic(${p}).`);
