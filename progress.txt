@@ -324,3 +324,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - No browser testing tools available — manual verification needed
   - US-019 will add predicate builder within this template editor
 ---
+
+## 2026-03-29 - US-019
+- Created `PredicateBuilder` component with full predicate form builder
+- Select dropdown populated from GAMEPLAY_PREDICATES, grouped by category (Player State, NPC State, World State, Location)
+- Typed inputs for each argument based on predicate schema (atom → text, integer → number, float → number with step)
+- Live preview showing formatted Prolog fact before adding
+- Remove button on each truth row (hover-reveal)
+- MVT validation banner: warns with yellow alert when required predicates are missing (health, energy, speaks_language, gold, at_location, occupation, age)
+- Integrated into CharacterTemplatesHub: edit mode shows name/description + PredicateBuilder; detail view shows read-only PredicateBuilder
+- startingTruths saved via PUT API alongside name/description on template save
+- Files changed:
+  - `client/src/components/templates/PredicateBuilder.tsx` — new component (170 lines)
+  - `client/src/components/templates/CharacterTemplatesHub.tsx` — import PredicateBuilder, expanded edit state to include startingTruths, replaced inline truth display with PredicateBuilder
+  - `tasks/prd.json` — marked US-019 passes: true
+- **Learnings for future iterations:**
+  - PredicateBuilder uses `@shared/prolog/gameplay-predicates` directly — no API call needed since predicate schema is shared code
+  - Atom args get lowercase + underscore normalization via parseArgValue — prevents invalid Prolog atoms
+  - Edit form state includes startingTruths array; the PUT body now includes it alongside name/description
+  - Read-only mode reuses same PredicateBuilder with `readOnly` prop — hides add form and remove buttons
+  - No browser testing tools available — manual verification needed
+  - US-020 will add ActionFeasibilityTester using local tau-prolog
+---
