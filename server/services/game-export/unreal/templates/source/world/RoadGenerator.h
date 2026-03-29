@@ -15,6 +15,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Roads")
     void GenerateRoad(const TArray<FVector>& Waypoints, float Width);
 
+    /** Create a street name sign oriented parallel to the street direction. Double-sided. */
+    UFUNCTION(BlueprintCallable, Category = "Roads")
+    void CreateStreetSign(FVector Position, const FString& StreetName, FVector StreetDirection);
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
     FLinearColor RoadColor = FLinearColor({{ROAD_COLOR_R}}, {{ROAD_COLOR_G}}, {{ROAD_COLOR_B}});
 

@@ -342,6 +342,63 @@ func _create_light_post(pos: Vector3, forward: Vector3, side: float) -> void:
 	add_child(root)
 
 # ─────────────────────────────────────────────
+# Street signs
+# ─────────────────────────────────────────────
+
+## Create a street name sign oriented parallel to the street direction.
+## The sign is double-sided so it can be read from either side.
+func create_street_sign(pos: Vector3, street_name: String, street_dir: Vector3) -> void:
+	var root := Node3D.new()
+	root.name = "StreetSign_%s" % street_name.replace(" ", "_")
+	root.position = pos
+
+	# Pole
+	var pole := MeshInstance3D.new()
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = 0.05
+	pole_mesh.bottom_radius = 0.05
+	pole_mesh.height = 2.5
+	pole_mesh.radial_segments = 6
+	pole.mesh = pole_mesh
+	pole.position.y = 1.25
+	pole.material_override = _pole_material
+	root.add_child(pole)
+
+	# Sign face — oriented parallel to street, readable from both sides
+	var sign_mesh := QuadMesh.new()
+	sign_mesh.size = Vector2(2.0, 0.5)
+	var sign_inst := MeshInstance3D.new()
+	sign_inst.mesh = sign_mesh
+	sign_inst.position.y = 2.5
+
+	# Orient sign parallel to street direction
+	if street_dir.length_squared() > 0.001:
+		sign_inst.rotation.y = atan2(street_dir.x, street_dir.z)
+
+	# Sign material with street name text
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.16, 0.37, 0.16)
+	mat.emission_enabled = true
+	mat.emission = Color(0.16, 0.37, 0.16)
+	mat.emission_energy_multiplier = 0.5
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED  # Double-sided
+	sign_inst.material_override = mat
+
+	# Label3D for the street name (visible from both sides)
+	var label := Label3D.new()
+	label.text = street_name
+	label.font_size = 48
+	label.modulate = Color.WHITE
+	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	label.double_sided = true
+	label.no_depth_test = false
+	label.position = Vector3(0.0, 0.0, 0.01)
+	sign_inst.add_child(label)
+
+	root.add_child(sign_inst)
+	add_child(root)
+
+# ─────────────────────────────────────────────
 # Polyline helpers
 # ─────────────────────────────────────────────
 

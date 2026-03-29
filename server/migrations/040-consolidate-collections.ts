@@ -211,6 +211,112 @@ async function run() {
     }
   }
 
+  // ── 7. Migrate playthroughrelationships → truths ────────────────────────
+  const relDocs = await db.collection('playthroughrelationships').find({}).toArray();
+  if (relDocs.length > 0) {
+    console.log(`Migrating ${relDocs.length} playthroughrelationships → truths`);
+    if (!dryRun) {
+      const truthDocs = relDocs.map(({ _id, playthroughId, fromCharacterId, toCharacterId, type, strength, ...rest }) => ({
+        worldId: null,
+        playthroughId,
+        title: `${type} relationship: ${fromCharacterId} → ${toCharacterId}`,
+        content: `relationship('${fromCharacterId}', '${toCharacterId}', '${type}', ${strength}).`,
+        entryType: 'relationship',
+        timestep: 0,
+        source: 'relationship',
+        sourceData: { fromCharacterId, toCharacterId, type, strength, ...rest },
+        relatedCharacterIds: [fromCharacterId, toCharacterId],
+        createdAt: new Date(),
+      }));
+      await db.collection('truths').insertMany(truthDocs);
+      console.log(`  ✓ Migrated ${relDocs.length} relationships`);
+    }
+  }
+
+  // ── 8. Migrate occupations → truths ────────────────────────────────────
+  const occDocs = await db.collection('occupations').find({}).toArray();
+  if (occDocs.length > 0) {
+    console.log(`Migrating ${occDocs.length} occupations → truths`);
+    if (!dryRun) {
+      const truthDocs = occDocs.map(({ _id, worldId, characterId, businessId, vocation, shift, startYear, ...rest }) => ({
+        worldId,
+        title: `${vocation} at ${businessId}`,
+        content: `employed_at('${characterId}', '${businessId}', '${vocation}', '${shift}', ${startYear}).`,
+        entryType: 'occupation',
+        characterId,
+        timestep: 0,
+        timeYear: startYear,
+        source: 'occupation',
+        sourceData: { characterId, businessId, vocation, shift, startYear, ...rest },
+        relatedCharacterIds: [characterId],
+        createdAt: new Date(),
+      }));
+      await db.collection('truths').insertMany(truthDocs);
+      console.log(`  ✓ Migrated ${occDocs.length} occupations`);
+    }
+  }
+
+  // ── 9. Migrate playerprogresses → truths ───────────────────────────────
+  const progDocs = await db.collection('playerprogresses').find({}).toArray();
+  if (progDocs.length > 0) {
+    console.log(`Migrating ${progDocs.length} playerprogresses → truths`);
+    if (!dryRun) {
+      const truthDocs = progDocs.map(({ _id, worldId, userId, playthroughId, ...rest }) => ({
+        worldId,
+        playthroughId: playthroughId || null,
+        title: `Player progress: ${userId}`,
+        content: `player_progress('${userId}', '${worldId}').`,
+        entryType: 'player_progress',
+        timestep: 0,
+        source: 'player_progress',
+        sourceData: { userId, playthroughId, ...rest },
+        createdAt: new Date(),
+      }));
+      await db.collection('truths').insertMany(truthDocs);
+      console.log(`  ✓ Migrated ${progDocs.length} player progress records`);
+    }
+  }
+
+  // ── 10. Migrate achievements → truths ──────────────────────────────────
+  const achDocs = await db.collection('achievements').find({}).toArray();
+  if (achDocs.length > 0) {
+    console.log(`Migrating ${achDocs.length} achievements → truths`);
+    if (!dryRun) {
+      const truthDocs = achDocs.map(({ _id, worldId, name, achievementType, experienceReward, ...rest }) => ({
+        worldId: worldId || null,
+        title: name,
+        content: `achievement('${name}', '${achievementType}', ${experienceReward || 0}).`,
+        entryType: 'achievement',
+        timestep: 0,
+        source: 'achievement',
+        sourceData: { name, achievementType, experienceReward, ...rest },
+        createdAt: new Date(),
+      }));
+      await db.collection('truths').insertMany(truthDocs);
+      console.log(`  ✓ Migrated ${achDocs.length} achievements`);
+    }
+  }
+
+  // ── 11. Migrate charactertemplates → characters with isTemplate=true ─────
+  const templateDocs = await db.collection('charactertemplates').find({}).toArray();
+  if (templateDocs.length > 0) {
+    console.log(`Migrating ${templateDocs.length} charactertemplates → characters`);
+    if (!dryRun) {
+      const charDocs = templateDocs.map(({ _id, name, description, ...rest }) => ({
+        ...rest,
+        firstName: name,
+        lastName: 'Template',
+        gender: 'other',
+        isTemplate: true,
+        status: description,
+        createdAt: rest.createdAt || new Date(),
+        updatedAt: rest.updatedAt || new Date(),
+      }));
+      await db.collection('characters').insertMany(charDocs);
+      console.log(`  ✓ Migrated ${templateDocs.length} character templates`);
+    }
+  }
+
   // ── Drop old collections ───────────────────────────────────────────────
   const toDrop = [
     'proficiencyprogress',
@@ -234,6 +340,17 @@ async function run() {
     'vocabularyentries',
     // Settlement history events merged into truths
     'settlementhistoryevents',
+    // Round 2: merged into truths collection
+    'occupations',
+    'achievements',
+    'playtraces',
+    'playthroughrelationships',
+    'reputations',
+    'playerprogresses',
+    'languageprogress',
+    'languagechatmessages',
+    // Character templates merged into characters with isTemplate=true
+    'charactertemplates',
   ];
 
   console.log(`\nDropping ${toDrop.length} old collections...`);
@@ -254,9 +371,20 @@ async function run() {
     }
   }
 
-  // Final count
+  // Final count — in dry-run, count which collections would actually be dropped
   const remaining = await db.listCollections().toArray();
-  console.log(`\n${dryRun ? '🔍 Would result in' : '✅ Final count:'} ${remaining.length - (dryRun ? toDrop.length : 0)} collections`);
+  if (dryRun) {
+    const dropSet = new Set(toDrop);
+    const wouldRemain = remaining.filter(c => !dropSet.has(c.name));
+    console.log(`\n🔍 Would result in ${wouldRemain.length} collections:`);
+    for (const c of wouldRemain.sort((a, b) => a.name.localeCompare(b.name))) {
+      const count = await db.collection(c.name).countDocuments();
+      console.log(`  ${c.name}: ${count}`);
+    }
+  } else {
+    const finalCollections = await db.listCollections().toArray();
+    console.log(`\n✅ Final count: ${finalCollections.length} collections`);
+  }
 
   await mongoose.disconnect();
 }

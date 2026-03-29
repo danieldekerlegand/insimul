@@ -484,6 +484,60 @@ namespace Insimul.World
             }
         }
 
+        /// <summary>
+        /// Create a street name sign oriented parallel to the street direction.
+        /// Double-sided so it can be read from either side.
+        /// </summary>
+        public void CreateStreetSign(Vector3 position, string streetName, Vector3 streetDir)
+        {
+            var parent = new GameObject($"StreetSign_{streetName.Replace(" ", "_")}");
+            parent.transform.SetParent(transform);
+            parent.transform.position = position;
+
+            // Pole
+            var pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            pole.name = "Pole";
+            pole.transform.SetParent(parent.transform);
+            pole.transform.position = position + Vector3.up * 1.25f;
+            pole.transform.localScale = new Vector3(0.1f, 1.25f, 0.1f);
+            var poleMr = pole.GetComponent<MeshRenderer>();
+            poleMr.sharedMaterial = _lampPostMaterial;
+
+            // Sign face — quad oriented parallel to street
+            var sign = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            sign.name = "SignFace";
+            sign.transform.SetParent(parent.transform);
+            sign.transform.position = position + Vector3.up * 2.5f;
+            sign.transform.localScale = new Vector3(2.0f, 0.5f, 1f);
+
+            // Orient parallel to street direction
+            if (streetDir.sqrMagnitude > 0.001f)
+            {
+                float angle = Mathf.Atan2(streetDir.x, streetDir.z) * Mathf.Rad2Deg;
+                sign.transform.rotation = Quaternion.Euler(0f, angle, 0f);
+            }
+
+            // Green sign material (double-sided via shader)
+            var signMat = new Material(Shader.Find("Standard"));
+            signMat.color = new Color(0.16f, 0.37f, 0.16f);
+            signMat.EnableKeyword("_EMISSION");
+            signMat.SetColor("_EmissionColor", new Color(0.16f, 0.37f, 0.16f) * 0.5f);
+            signMat.SetFloat("_Cull", 0f); // Render both sides
+            sign.GetComponent<MeshRenderer>().sharedMaterial = signMat;
+
+            // 3D text — use TextMesh for street name
+            var textObj = new GameObject("SignText");
+            textObj.transform.SetParent(sign.transform);
+            textObj.transform.localPosition = new Vector3(0f, 0f, -0.01f);
+            textObj.transform.localScale = Vector3.one * 0.05f;
+            var tm = textObj.AddComponent<TextMesh>();
+            tm.text = streetName;
+            tm.fontSize = 64;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.color = Color.white;
+        }
+
         [System.Serializable]
         private class RoadArray { public RoadEntry[] items; }
 

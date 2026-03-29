@@ -154,17 +154,9 @@ interface UserDoc extends Omit<User, 'id'>, Document {
   _id: string;
 }
 
-interface PlayerProgressDoc extends Omit<PlayerProgress, 'id'>, Document {
-  _id: string;
-}
-
-interface PlayerSessionDoc extends Omit<PlayerSession, 'id'>, Document {
-  _id: string;
-}
-
-interface AchievementDoc extends Omit<Achievement, 'id'>, Document {
-  _id: string;
-}
+// PlayerProgressDoc removed — player progress now stored as truths
+// PlayerSessionDoc removed — sessions embedded in player_progress truth sourceData
+// AchievementDoc removed — achievements now stored as truths
 
 interface TextDoc extends Omit<Text, 'id'>, Document {
   _id: string;
@@ -178,9 +170,7 @@ interface PlaythroughDeltaDoc extends Omit<PlaythroughDelta, 'id'>, Document {
   _id: string;
 }
 
-interface PlayTraceDoc extends Omit<PlayTrace, 'id'>, Document {
-  _id: string;
-}
+// PlayTraceDoc removed — play traces now stored as truths
 
 interface PlaythroughConversationDoc extends Omit<PlaythroughConversation, 'id'>, Document {
   _id: string;
@@ -190,17 +180,9 @@ interface WorldLanguageDoc extends Omit<WorldLanguage, 'id'>, Document {
   _id: string;
 }
 
-interface LanguageChatMessageDoc extends Omit<LanguageChatMessage, 'id'>, Document {
-  _id: string;
-}
-
-interface ReputationDoc extends Omit<Reputation, 'id'>, Document {
-  _id: string;
-}
-
-interface PlaythroughRelationshipDoc extends Omit<PlaythroughRelationship, 'id'>, Document {
-  _id: string;
-}
+// LanguageChatMessageDoc removed — language chat messages removed
+// ReputationDoc removed — reputations now stored as truths
+// PlaythroughRelationshipDoc removed — relationships now stored as truths
 
 interface VersionAlertDoc extends Omit<VersionAlert, 'id'>, Document {
   _id: string;
@@ -278,6 +260,11 @@ const CharacterSchema = new Schema({
   currentResidenceId: { type: String, default: null },
   occupation: { type: String, default: null },
   status: { type: String, default: null },
+  // Template fields (when isTemplate=true, this character is a reusable preset)
+  isTemplate: { type: Boolean, default: false },
+  isDefault: { type: Boolean, default: false },
+  isBase: { type: Boolean, default: false },
+  startingTruths: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -333,16 +320,7 @@ const WorldSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const CharacterTemplateSchema = new Schema({
-  worldId: { type: String, default: null },
-  name: { type: String, required: true },
-  description: { type: String, default: null },
-  startingTruths: { type: Schema.Types.Mixed, default: [] },
-  isDefault: { type: Boolean, default: false },
-  isBase: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+// CharacterTemplateSchema removed — templates are now characters with isTemplate=true
 
 const CountrySchema = new Schema({
   worldId: { type: String, required: true },
@@ -721,30 +699,7 @@ const UserSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const PlayerProgressSchema = new Schema({
-  userId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, default: null },
-  characterId: { type: String, default: null },
-  level: { type: Number, default: 1 },
-  experience: { type: Number, default: 0 },
-  gold: { type: Number, default: 0 },
-  playtime: { type: Number, default: 0 },
-  currentPosition: { type: Schema.Types.Mixed, default: { x: 0, y: 0, z: 0 } },
-  currentLocation: { type: String, default: null },
-  questsCompleted: { type: [String], default: [] },
-  achievementsUnlocked: { type: [String], default: [] },
-  stats: { type: Schema.Types.Mixed, default: {} },
-  inventory: { type: Schema.Types.Mixed, default: [] },
-  lastCheckpoint: { type: Schema.Types.Mixed, default: {} },
-  saveData: { type: Schema.Types.Mixed, default: {} },
-  lastPlayedAt: { type: Date, default: Date.now },
-  sessionsCount: { type: Number, default: 0 },
-  // Embedded sessions (merged from PlayerSession collection)
-  sessions: { type: [Schema.Types.Mixed], default: [] },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+// PlayerProgressSchema removed — player progress is now truths with entryType='player_progress'
 
 const AssetCollectionSchema = new Schema({
   worldId: { type: String, default: null },
@@ -782,20 +737,7 @@ const AssetCollectionSchema = new Schema({
 
 // PlayerSessionSchema removed — sessions are now embedded in PlayerProgressSchema.sessions[]
 
-const AchievementSchema = new Schema({
-  worldId: { type: String, default: null },
-  name: { type: String, required: true },
-  description: { type: String, required: true },
-  iconUrl: { type: String, default: null },
-  achievementType: { type: String, required: true },
-  criteria: { type: Schema.Types.Mixed, default: {} },
-  experienceReward: { type: Number, default: 0 },
-  rewards: { type: Schema.Types.Mixed, default: {} },
-  isHidden: { type: Boolean, default: false },
-  rarity: { type: String, default: 'common' },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+// AchievementSchema removed — achievements are now truths with entryType='achievement'
 
 const TextSchema = new Schema({
   worldId: { type: String, required: true },
@@ -876,25 +818,7 @@ const PlaythroughDeltaSchema = new Schema({
 PlaythroughDeltaSchema.index({ playthroughId: 1, entityType: 1, entityId: 1 });
 PlaythroughDeltaSchema.index({ playthroughId: 1, timestep: 1 });
 
-const PlayTraceSchema = new Schema({
-  playthroughId: { type: String, required: true },
-  userId: { type: String, required: true },
-  actionType: { type: String, required: true },
-  actionName: { type: String, default: null },
-  actionData: { type: Schema.Types.Mixed, default: {} },
-  timestep: { type: Number, required: true },
-  characterId: { type: String, default: null },
-  targetId: { type: String, default: null },
-  targetType: { type: String, default: null },
-  locationId: { type: String, default: null },
-  outcome: { type: String, default: null },
-  outcomeData: { type: Schema.Types.Mixed, default: {} },
-  stateChanges: { type: Schema.Types.Mixed, default: [] },
-  narrativeText: { type: String, default: null },
-  durationMs: { type: Number, default: null },
-  timestamp: { type: Date, default: Date.now },
-  createdAt: { type: Date, default: Date.now }
-});
+// PlayTraceSchema removed — play traces are now truths with entryType='play_trace'
 
 const PlaythroughConversationSchema = new Schema({
   playthroughId: { type: String, required: true },
@@ -928,45 +852,9 @@ PlaythroughConversationSchema.index({ playthroughId: 1, createdAt: -1 });
 PlaythroughConversationSchema.index({ worldId: 1, userId: 1 });
 PlaythroughConversationSchema.index({ npcCharacterId: 1 });
 
-const ReputationSchema = new Schema({
-  playthroughId: { type: String, required: true },
-  userId: { type: String, required: true },
-  entityType: { type: String, required: true },
-  entityId: { type: String, required: true },
-  score: { type: Number, default: 0 },
-  violationCount: { type: Number, default: 0 },
-  warningCount: { type: Number, default: 0 },
-  lastViolation: { type: Date, default: null },
-  violationHistory: { type: Schema.Types.Mixed, default: [] },
-  standing: { type: String, default: 'neutral' },
-  isBanned: { type: Boolean, default: false },
-  banExpiry: { type: Date, default: null },
-  totalFinesPaid: { type: Number, default: 0 },
-  outstandingFines: { type: Number, default: 0 },
-  hasDiscounts: { type: Boolean, default: false },
-  hasSpecialAccess: { type: Boolean, default: false },
-  notes: { type: String, default: null },
-  tags: { type: [String], default: [] },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-ReputationSchema.index({ playthroughId: 1, entityType: 1, entityId: 1 }, { unique: true });
-ReputationSchema.index({ playthroughId: 1, userId: 1 });
+// ReputationSchema removed — reputations are now truths with entryType='reputation'
 
-const PlaythroughRelationshipSchema = new Schema({
-  playthroughId: { type: String, required: true },
-  fromCharacterId: { type: String, required: true },
-  toCharacterId: { type: String, required: true },
-  type: { type: String, required: true },
-  strength: { type: Number, required: true },
-  reciprocal: { type: Number, default: null },
-  lastModified: { type: Number, required: true },
-  metadata: { type: Schema.Types.Mixed, default: null },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-PlaythroughRelationshipSchema.index({ playthroughId: 1, fromCharacterId: 1, toCharacterId: 1 }, { unique: true });
-PlaythroughRelationshipSchema.index({ playthroughId: 1, fromCharacterId: 1 });
+// PlaythroughRelationshipSchema removed — relationships are now truths with entryType='relationship'
 
 const VersionAlertSchema = new Schema({
   worldId: { type: String, required: true },
@@ -1095,65 +983,11 @@ const BusinessMongoSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const OccupationSchema = new Schema({
-  worldId: { type: String, required: true },
-  characterId: { type: String, required: true },
-  businessId: { type: String, required: true },
-  vocation: { type: String, required: true },
-  level: { type: Number, default: 1 },
-  shift: { type: String, required: true },
-  startYear: { type: Number, required: true },
-  endYear: { type: Number, default: null },
-  yearsExperience: { type: Number, default: 0 },
-  terminationReason: { type: String, default: null },
-  predecessorId: { type: String, default: null },
-  successorId: { type: String, default: null },
-  isSupplemental: { type: Boolean, default: false },
-  hiredAsFavor: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+// OccupationSchema removed — occupations are now truths with entryType='occupation'
 
-const LanguageChatMessageSchema = new Schema({
-  languageId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  scopeType: { type: String, default: null },
-  scopeId: { type: String, default: null },
-  userId: { type: String, default: null },
-  role: { type: String, required: true },
-  content: { type: String, required: true },
-  inLanguage: { type: String, default: null },
-  createdAt: { type: Date, default: Date.now }
-});
+// LanguageChatMessageSchema removed — language chat messages removed, use PlaythroughConversation instead
 
-// Unified language learning progress (merges LanguageProgress, VocabularyEntry, GrammarPattern, ConversationRecord, ReadingProgress)
-const LanguageLearningSchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, default: null },
-  targetLanguage: { type: String, default: null },
-  // Aggregate stats (formerly LanguageProgress)
-  overallFluency: { type: Number, default: 0 },
-  totalConversations: { type: Number, default: 0 },
-  totalWordsLearned: { type: Number, default: 0 },
-  streakDays: { type: Number, default: 0 },
-  xp: { type: Number, default: 0 },
-  level: { type: Number, default: 1 },
-  achievements: { type: [String], default: [] },
-  dailyChallenges: { type: Schema.Types.Mixed, default: [] },
-  lastSessionAt: { type: Date, default: null },
-  // Embedded vocabulary (formerly VocabularyEntry collection)
-  vocabulary: { type: [Schema.Types.Mixed], default: [] },
-  // Embedded grammar patterns (formerly GrammarPattern collection)
-  grammarPatterns: { type: [Schema.Types.Mixed], default: [] },
-  // Embedded conversation records (formerly ConversationRecord collection)
-  conversations: { type: [Schema.Types.Mixed], default: [] },
-  // Embedded reading progress (formerly ReadingProgress collection)
-  reading: { type: Schema.Types.Mixed, default: { articlesRead: [], quizAnswers: [], totalCorrect: 0, totalAttempted: 0, xpFromReading: 0 } },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-LanguageLearningSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 }, { unique: true });
+// LanguageLearningSchema removed — language learning is now truths with entryType='language_progress'
 
 // Unified assessment schema (merges LanguageAssessment, AssessmentSession, EvaluationResponse)
 // Discriminated by `docType`: 'result' | 'session' | 'evaluation'
@@ -1276,32 +1110,32 @@ const VisualAssetModel = mongoose.model<VisualAssetDoc>('VisualAsset', VisualAss
 const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection', AssetCollectionSchema);
 const GenerationJobModel = mongoose.model<GenerationJobDoc>('GenerationJob', GenerationJobSchema);
 const UserModel = mongoose.model<UserDoc>('User', UserSchema);
-const PlayerProgressModel = mongoose.model<PlayerProgressDoc>('PlayerProgress', PlayerProgressSchema);
-// PlayerSessionModel removed — sessions embedded in PlayerProgressModel
-const AchievementModel = mongoose.model<AchievementDoc>('Achievement', AchievementSchema);
+// PlayerProgressModel removed — use TruthModel with entryType='player_progress'
+// PlayerSessionModel removed — sessions embedded in player_progress truth sourceData
+// AchievementModel removed — use TruthModel with entryType='achievement'
 // TextModel removed — use GameTextModel instead
 const PlaythroughModel = mongoose.model<PlaythroughDoc>('Playthrough', PlaythroughSchema);
 const PlaythroughDeltaModel = mongoose.model<PlaythroughDeltaDoc>('PlaythroughDelta', PlaythroughDeltaSchema);
-const PlayTraceModel = mongoose.model<PlayTraceDoc>('PlayTrace', PlayTraceSchema);
+// PlayTraceModel removed — use TruthModel with entryType='play_trace'
 const PlaythroughConversationModel = mongoose.model<PlaythroughConversationDoc>('PlaythroughConversation', PlaythroughConversationSchema);
-const ReputationModel = mongoose.model<ReputationDoc>('Reputation', ReputationSchema);
-const PlaythroughRelationshipModel = mongoose.model<PlaythroughRelationshipDoc>('PlaythroughRelationship', PlaythroughRelationshipSchema);
+// ReputationModel removed — use TruthModel with entryType='reputation'
+// PlaythroughRelationshipModel removed — use TruthModel with entryType='relationship'
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
 const LotModel = mongoose.model('Lot', LotSchema);
 const BuildingModel = mongoose.model('Building', BuildingSchema);
 const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
-const OccupationModel = mongoose.model('Occupation', OccupationSchema);
+// OccupationModel removed — use TruthModel with entryType='occupation'
 const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', VersionAlertSchema);
-const LanguageChatMessageModel = mongoose.model<LanguageChatMessageDoc>('LanguageChatMessage', LanguageChatMessageSchema);
+// LanguageChatMessageModel removed — use PlaythroughConversation instead
 // Generic collection names (renamed from language-specific names).
 // Run server/db/migrations/rename-collections-for-feature-modules.ts to rename
 // existing collections, or start fresh — Mongoose will create the new names automatically.
-const LanguageLearningModel = mongoose.model('LanguageLearning', LanguageLearningSchema, 'languageprogress');
+// LanguageLearningModel removed — use TruthModel with entryType='language_progress'
 const AssessmentModel = mongoose.model('Assessment', UnifiedAssessmentSchema, 'assessments');
 const TelemetryModel = mongoose.model('Telemetry', TelemetrySchema, 'telemetry');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
 const GeographicFeatureModel = mongoose.model('GeographicFeature', GeographicFeatureSchema);
-const CharacterTemplateModel = mongoose.model<CharacterTemplateDoc>('CharacterTemplate', CharacterTemplateSchema);
+// CharacterTemplateModel removed — use CharacterModel with isTemplate=true
 
 function docToAssessmentSession(doc: any): AssessmentSession {
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -1424,17 +1258,13 @@ function docToUser(doc: UserDoc): User {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
-function docToPlayerProgress(doc: PlayerProgressDoc): PlayerProgress {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function truthToPlayerProgress(doc: any): PlayerProgress {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return { id: (doc._id || obj._id).toString(), worldId: obj.worldId, playthroughId: obj.playthroughId, ...obj.sourceData } as any;
 }
 
-function docToPlayerSession(doc: PlayerSessionDoc): PlayerSession {
-  return { ...doc.toObject(), id: doc._id.toString() };
-}
-
-function docToAchievement(doc: AchievementDoc): Achievement {
-  return { ...doc.toObject(), id: doc._id.toString() };
-}
+// docToPlayerSession — sessions are embedded in player_progress truth sourceData.sessions[]
+// docToAchievement — achievements are truths with entryType='achievement'
 
 function docToText(doc: TextDoc): Text {
   return { ...doc.toObject(), id: doc._id.toString() };
@@ -1448,20 +1278,23 @@ function docToPlaythroughDelta(doc: PlaythroughDeltaDoc): PlaythroughDelta {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
-function docToPlayTrace(doc: PlayTraceDoc): PlayTrace {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function truthToPlayTrace(doc: any): PlayTrace {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return { id: (doc._id || obj._id).toString(), playthroughId: obj.playthroughId, ...obj.sourceData } as any;
 }
 
 function docToPlaythroughConversation(doc: PlaythroughConversationDoc): PlaythroughConversation {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
-function docToReputation(doc: ReputationDoc): Reputation {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function truthToReputation(doc: any): Reputation {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return { id: (doc._id || obj._id).toString(), playthroughId: obj.playthroughId, ...obj.sourceData } as any;
 }
 
-function docToPlaythroughRelationship(doc: PlaythroughRelationshipDoc): PlaythroughRelationship {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function truthToPlaythroughRelationship(doc: any): PlaythroughRelationship {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return { id: (doc._id || obj._id).toString(), playthroughId: obj.playthroughId, ...obj.sourceData } as any;
 }
 
 function docToVersionAlert(doc: VersionAlertDoc): VersionAlert {
@@ -1472,9 +1305,7 @@ function docToWorldLanguage(doc: WorldLanguageDoc): WorldLanguage {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
-function docToLanguageChatMessage(doc: LanguageChatMessageDoc): LanguageChatMessage {
-  return { ...doc.toObject(), id: doc._id.toString() };
-}
+// docToLanguageChatMessage removed — language chat messages removed, use PlaythroughConversation instead
 
 export class MongoStorage implements IStorage {
   private static connectionPromise: Promise<void> | null = null;
@@ -1700,7 +1531,7 @@ export class MongoStorage implements IStorage {
     await LotModel.deleteMany({ worldId: id });
     await BusinessMongoModel.deleteMany({ worldId: id });
     await BuildingModel.deleteMany({ worldId: id });
-    await OccupationModel.deleteMany({ worldId: id });
+    await TruthModel.deleteMany({ worldId: id, entryType: 'occupation' });
     await GeographicFeatureModel.deleteMany({ worldId: id });
     // Settlement history events are now truths — already deleted with truths above
     await GameTextModel.deleteMany({ worldId: id });
@@ -1723,8 +1554,8 @@ export class MongoStorage implements IStorage {
       console.log(`   ✓ Deleted ${genJobs.deletedCount} generation jobs`);
     }
 
-    // 15. Delete player progress
-    const playerProgress = await PlayerProgressModel.deleteMany({ worldId: id });
+    // 15. Delete player progress (stored as truths with entryType='player_progress')
+    const playerProgress = await TruthModel.deleteMany({ worldId: id, entryType: 'player_progress' });
     if (playerProgress.deletedCount && playerProgress.deletedCount > 0) {
       console.log(`   ✓ Deleted ${playerProgress.deletedCount} player progress records`);
     }
@@ -1733,7 +1564,7 @@ export class MongoStorage implements IStorage {
     // Player sessions are now embedded in PlayerProgress — deleted with PlayerProgress above
 
     // 17. Delete achievements
-    const achievements = await AchievementModel.deleteMany({ worldId: id });
+    const achievements = await TruthModel.deleteMany({ worldId: id, entryType: 'achievement' });
     if (achievements.deletedCount && achievements.deletedCount > 0) {
       console.log(`   ✓ Deleted ${achievements.deletedCount} achievements`);
     }
@@ -1750,11 +1581,7 @@ export class MongoStorage implements IStorage {
       console.log(`   ✓ Deleted ${ptResult.deletedCount} playthroughs`);
     }
 
-    // 19. Delete play traces
-    const playTraces = await PlayTraceModel.deleteMany({ worldId: id });
-    if (playTraces.deletedCount && playTraces.deletedCount > 0) {
-      console.log(`   ✓ Deleted ${playTraces.deletedCount} play traces`);
-    }
+    // 19. Delete play traces (stored as truths with entryType='play_trace' — caught by TruthModel.deleteMany above)
 
     // 20. Delete world languages
     const worldLanguages = await WorldLanguageModel.deleteMany({ worldId: id });
@@ -1762,17 +1589,9 @@ export class MongoStorage implements IStorage {
       console.log(`   ✓ Deleted ${worldLanguages.deletedCount} world languages`);
     }
 
-    // 21. Delete language chat messages
-    const langMessages = await LanguageChatMessageModel.deleteMany({ worldId: id });
-    if (langMessages.deletedCount && langMessages.deletedCount > 0) {
-      console.log(`   ✓ Deleted ${langMessages.deletedCount} language chat messages`);
-    }
+    // 21. Language chat messages removed — use PlaythroughConversation instead
 
-    // 22. Delete character templates
-    const charTemplates = await CharacterTemplateModel.deleteMany({ worldId: id });
-    if (charTemplates.deletedCount && charTemplates.deletedCount > 0) {
-      console.log(`   ✓ Deleted ${charTemplates.deletedCount} character templates`);
-    }
+    // 22. Character templates are now characters with isTemplate=true — already deleted with characters above
 
     // 23. Finally, delete the world itself
     const result = await WorldModel.findByIdAndDelete(id);
@@ -1977,7 +1796,7 @@ export class MongoStorage implements IStorage {
     const businessDocs = await BusinessMongoModel.find({ settlementId: id }, { _id: 1 });
     const businessIds = businessDocs.map(b => b._id.toString());
     const occupations = businessIds.length > 0
-      ? await OccupationModel.deleteMany({ businessId: { $in: businessIds } })
+      ? await TruthModel.deleteMany({ entryType: 'occupation', 'sourceData.businessId': { $in: businessIds } })
       : { deletedCount: 0 };
 
     const lots = await LotModel.deleteMany({ settlementId: id });
@@ -2205,46 +2024,85 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
-  // Occupation operations
+  // Occupation operations (stored as truths with entryType='occupation')
+  private occupationToTruth(occ: any): any {
+    return {
+      worldId: occ.worldId,
+      title: `${occ.vocation} at ${occ.businessId}`,
+      content: `employed_at('${occ.characterId}', '${occ.businessId}', '${occ.vocation}', '${occ.shift}', ${occ.startYear}).`,
+      entryType: 'occupation',
+      characterId: occ.characterId,
+      timestep: 0,
+      timeYear: occ.startYear,
+      relatedCharacterIds: [occ.characterId],
+      source: 'occupation',
+      sourceData: {
+        characterId: occ.characterId,
+        businessId: occ.businessId,
+        vocation: occ.vocation,
+        level: occ.level ?? 1,
+        shift: occ.shift,
+        startYear: occ.startYear,
+        endYear: occ.endYear ?? null,
+        yearsExperience: occ.yearsExperience ?? 0,
+        terminationReason: occ.terminationReason ?? null,
+        predecessorId: occ.predecessorId ?? null,
+        successorId: occ.successorId ?? null,
+        isSupplemental: occ.isSupplemental ?? false,
+        hiredAsFavor: occ.hiredAsFavor ?? false,
+      },
+    };
+  }
+
+  private truthToOccupation(doc: any): any {
+    const obj = doc.toObject ? doc.toObject() : doc;
+    return { id: (doc._id || obj._id).toString(), worldId: obj.worldId, ...obj.sourceData };
+  }
+
   async getOccupation(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await OccupationModel.findById(id);
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const doc = await TruthModel.findById(id);
+    return doc && (doc as any).entryType === 'occupation' ? this.truthToOccupation(doc) : undefined;
   }
 
   async getOccupationsByCharacter(characterId: string): Promise<any[]> {
     await this.connect();
-    const docs = await OccupationModel.find({ characterId });
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const docs = await TruthModel.find({ entryType: 'occupation', 'sourceData.characterId': characterId });
+    return docs.map(d => this.truthToOccupation(d));
   }
 
   async getOccupationsByBusiness(businessId: string): Promise<any[]> {
     await this.connect();
-    const docs = await OccupationModel.find({ businessId });
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const docs = await TruthModel.find({ entryType: 'occupation', 'sourceData.businessId': businessId });
+    return docs.map(d => this.truthToOccupation(d));
   }
 
   async getCurrentOccupation(characterId: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await OccupationModel.findOne({ characterId, endYear: null });
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const doc = await TruthModel.findOne({ entryType: 'occupation', 'sourceData.characterId': characterId, 'sourceData.endYear': null });
+    return doc ? this.truthToOccupation(doc) : undefined;
   }
 
   async createOccupation(occupation: any): Promise<any> {
     await this.connect();
-    const doc = await new OccupationModel(occupation).save();
-    return { ...doc.toObject(), id: doc._id.toString() };
+    const doc = await TruthModel.create(this.occupationToTruth(occupation));
+    return this.truthToOccupation(doc);
   }
 
   async updateOccupation(id: string, occupation: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await OccupationModel.findByIdAndUpdate(id, { ...occupation, updatedAt: new Date() }, { new: true });
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const existing = await TruthModel.findById(id);
+    if (!existing) return undefined;
+    const merged = { ...((existing as any).sourceData || {}), ...occupation };
+    const doc = await TruthModel.findByIdAndUpdate(id, {
+      $set: { sourceData: merged, updatedAt: new Date() }
+    }, { new: true });
+    return doc ? this.truthToOccupation(doc) : undefined;
   }
 
   async deleteOccupation(id: string): Promise<boolean> {
     await this.connect();
-    const result = await OccupationModel.findByIdAndDelete(id);
+    const result = await TruthModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -2417,7 +2275,7 @@ export class MongoStorage implements IStorage {
 
   async getCharactersByWorld(worldId: string): Promise<Character[]> {
     await this.connect();
-    const docs = await CharacterModel.find({ worldId });
+    const docs = await CharacterModel.find({ worldId, isTemplate: { $ne: true } });
     return docs.map(docToCharacter);
   }
 
@@ -2468,45 +2326,61 @@ export class MongoStorage implements IStorage {
   }
 
   // Character Template operations
+  // Character template operations (stored as characters with isTemplate=true)
   async getCharacterTemplate(id: string): Promise<CharacterTemplate | undefined> {
     await this.connect();
-    const doc = await CharacterTemplateModel.findById(id);
-    return doc ? docToCharacterTemplate(doc) : undefined;
+    const doc = await CharacterModel.findOne({ _id: id, isTemplate: true });
+    if (!doc) return undefined;
+    const obj = doc.toObject();
+    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
   }
 
   async getCharacterTemplates(worldId: string): Promise<CharacterTemplate[]> {
     await this.connect();
-    // Return base templates (worldId: null) plus world-specific templates
-    const docs = await CharacterTemplateModel.find({
+    const docs = await CharacterModel.find({
+      isTemplate: true,
       $or: [{ worldId: null }, { worldId }]
     });
-    return docs.map(docToCharacterTemplate);
+    return docs.map(doc => {
+      const obj = doc.toObject();
+      return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
+    });
   }
 
   async createCharacterTemplate(template: InsertCharacterTemplate): Promise<CharacterTemplate> {
     await this.connect();
-    const doc = await CharacterTemplateModel.create({
-      ...template,
-      startingTruths: template.startingTruths ?? [],
+    const doc = await CharacterModel.create({
+      worldId: (template as any).worldId || null,
+      firstName: (template as any).name,
+      lastName: 'Template',
+      gender: 'other',
+      isTemplate: true,
       isDefault: template.isDefault ?? false,
       isBase: template.isBase ?? false,
+      startingTruths: template.startingTruths ?? [],
+      status: (template as any).description || null,
     });
-    return docToCharacterTemplate(doc);
+    const obj = doc.toObject();
+    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
   }
 
   async updateCharacterTemplate(id: string, template: Partial<InsertCharacterTemplate>): Promise<CharacterTemplate | undefined> {
     await this.connect();
-    const doc = await CharacterTemplateModel.findByIdAndUpdate(
-      id,
-      { ...template, updatedAt: new Date() },
-      { new: true }
-    );
-    return doc ? docToCharacterTemplate(doc) : undefined;
+    const update: any = { updatedAt: new Date() };
+    if ((template as any).name) update.firstName = (template as any).name;
+    if ((template as any).description !== undefined) update.status = (template as any).description;
+    if (template.startingTruths !== undefined) update.startingTruths = template.startingTruths;
+    if (template.isDefault !== undefined) update.isDefault = template.isDefault;
+    if (template.isBase !== undefined) update.isBase = template.isBase;
+    const doc = await CharacterModel.findOneAndUpdate({ _id: id, isTemplate: true }, update, { new: true });
+    if (!doc) return undefined;
+    const obj = doc.toObject();
+    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
   }
 
   async deleteCharacterTemplate(id: string): Promise<boolean> {
     await this.connect();
-    const result = await CharacterTemplateModel.findByIdAndDelete(id);
+    const result = await CharacterModel.findOneAndDelete({ _id: id, isTemplate: true });
     return !!result;
   }
 
@@ -3031,24 +2905,19 @@ export class MongoStorage implements IStorage {
   async deleteWorldLanguage(id: string): Promise<boolean> {
     await this.connect();
     const result = await WorldLanguageModel.findByIdAndDelete(id);
-    if (result) {
-      await LanguageChatMessageModel.deleteMany({ languageId: id });
-    }
     return !!result;
   }
 
-  async getLanguageChatMessages(languageId: string): Promise<LanguageChatMessage[]> {
-    await this.connect();
-    const docs = await LanguageChatMessageModel.find({ languageId }).sort({ createdAt: 1 });
-    return docs.map(docToLanguageChatMessage);
+  // Language chat messages removed — use PlaythroughConversation instead
+  async getLanguageChatMessages(_languageId: string): Promise<LanguageChatMessage[]> {
+    return [];
   }
 
   async createLanguageChatMessage(
     message: InsertLanguageChatMessage
   ): Promise<LanguageChatMessage> {
-    await this.connect();
-    const doc = await LanguageChatMessageModel.create(message);
-    return docToLanguageChatMessage(doc);
+    // Stub: language chat messages have been removed in favor of PlaythroughConversation
+    return { id: 'deprecated', ...message, createdAt: new Date() } as any;
   }
 
   // ===== User Management =====
@@ -3088,60 +2957,76 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
-  // ===== Player Progress =====
+  // ===== Player Progress (stored as truths with entryType='player_progress') =====
   async getPlayerProgress(id: string): Promise<PlayerProgress | undefined> {
     await this.connect();
-    const doc = await PlayerProgressModel.findById(id);
-    return doc ? docToPlayerProgress(doc) : undefined;
+    const doc = await TruthModel.findById(id);
+    return doc && (doc as any).entryType === 'player_progress' ? truthToPlayerProgress(doc) : undefined;
   }
 
   async getPlayerProgressByUser(userId: string, worldId: string, playthroughId?: string): Promise<PlayerProgress | undefined> {
     await this.connect();
-    const query: any = { userId, worldId };
+    const query: any = { entryType: 'player_progress', worldId, 'sourceData.userId': userId };
     if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await PlayerProgressModel.findOne(query);
-    return doc ? docToPlayerProgress(doc) : undefined;
+    const doc = await TruthModel.findOne(query);
+    return doc ? truthToPlayerProgress(doc) : undefined;
   }
 
   async getPlayerProgressesByUser(userId: string): Promise<PlayerProgress[]> {
     await this.connect();
-    const docs = await PlayerProgressModel.find({ userId });
-    return docs.map(docToPlayerProgress);
+    const docs = await TruthModel.find({ entryType: 'player_progress', 'sourceData.userId': userId });
+    return docs.map(truthToPlayerProgress);
   }
 
   async createPlayerProgress(progress: InsertPlayerProgress): Promise<PlayerProgress> {
     await this.connect();
-    const doc = await PlayerProgressModel.create(progress);
-    return docToPlayerProgress(doc);
+    const userId = (progress as any).userId;
+    const doc = await TruthModel.create({
+      worldId: (progress as any).worldId,
+      playthroughId: (progress as any).playthroughId || null,
+      title: `Player Progress: ${userId}`,
+      content: `player_progress('${userId}', '${(progress as any).worldId}').`,
+      entryType: 'player_progress',
+      timestep: 0,
+      source: 'player_progress',
+      sourceData: progress,
+    });
+    return truthToPlayerProgress(doc);
   }
 
   async updatePlayerProgress(id: string, progress: Partial<InsertPlayerProgress>): Promise<PlayerProgress | undefined> {
     await this.connect();
-    const doc = await PlayerProgressModel.findByIdAndUpdate(id, { ...progress, updatedAt: new Date() }, { new: true });
-    return doc ? docToPlayerProgress(doc) : undefined;
+    const existing = await TruthModel.findById(id);
+    if (!existing) return undefined;
+    const merged = { ...((existing as any).sourceData || {}), ...progress };
+    const doc = await TruthModel.findByIdAndUpdate(id, {
+      $set: { sourceData: merged, updatedAt: new Date() }
+    }, { new: true });
+    return doc ? truthToPlayerProgress(doc) : undefined;
   }
 
   async deletePlayerProgress(id: string): Promise<boolean> {
     await this.connect();
-    const result = await PlayerProgressModel.findByIdAndDelete(id);
+    const result = await TruthModel.findByIdAndDelete(id);
     return !!result;
   }
 
-  // ===== Player Sessions (embedded in PlayerProgress.sessions[]) =====
+  // ===== Player Sessions (embedded in player_progress truth sourceData.sessions[]) =====
   async getPlayerSession(id: string): Promise<PlayerSession | undefined> {
     await this.connect();
-    const progress = await PlayerProgressModel.findOne({ 'sessions._id': id });
+    const progress = await TruthModel.findOne({ entryType: 'player_progress', 'sourceData.sessions._id': id });
     if (!progress) return undefined;
-    const session = ((progress as any).sessions as any[])?.find((s: any) => s._id?.toString() === id);
+    const sessions = ((progress as any).sourceData?.sessions as any[]) || [];
+    const session = sessions.find((s: any) => s._id?.toString() === id);
     return session ? { ...session, id } as PlayerSession : undefined;
   }
 
   async getPlayerSessionsByUser(userId: string): Promise<PlayerSession[]> {
     await this.connect();
-    const docs = await PlayerProgressModel.find({ userId });
+    const docs = await TruthModel.find({ entryType: 'player_progress', 'sourceData.userId': userId });
     const sessions: PlayerSession[] = [];
     for (const doc of docs) {
-      for (const s of ((doc as any).sessions as any[]) || []) {
+      for (const s of ((doc as any).sourceData?.sessions as any[]) || []) {
         sessions.push({ ...s, id: s._id?.toString() || s.id } as PlayerSession);
       }
     }
@@ -3152,9 +3037,9 @@ export class MongoStorage implements IStorage {
   async createPlayerSession(session: InsertPlayerSession): Promise<PlayerSession> {
     await this.connect();
     const sessionData = { ...session, _id: new mongoose.Types.ObjectId(), startedAt: new Date(), createdAt: new Date() };
-    await PlayerProgressModel.findByIdAndUpdate(
+    await TruthModel.findByIdAndUpdate(
       (session as any).progressId,
-      { $push: { sessions: sessionData }, $inc: { sessionsCount: 1 } }
+      { $push: { 'sourceData.sessions': sessionData }, $inc: { 'sourceData.sessionsCount': 1 } }
     );
     return { ...sessionData, id: sessionData._id.toString() } as any as PlayerSession;
   }
@@ -3163,64 +3048,82 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const updates: any = {};
     for (const [key, val] of Object.entries(session)) {
-      updates[`sessions.$[elem].${key}`] = val;
+      updates[`sourceData.sessions.$[elem].${key}`] = val;
     }
-    const doc = await PlayerProgressModel.findOneAndUpdate(
-      { 'sessions._id': id },
+    const doc = await TruthModel.findOneAndUpdate(
+      { entryType: 'player_progress', 'sourceData.sessions._id': id },
       { $set: updates },
       { arrayFilters: [{ 'elem._id': id }], new: true }
     );
     if (!doc) return undefined;
-    const s = ((doc as any).sessions as any[])?.find((s: any) => s._id?.toString() === id);
+    const s = ((doc as any).sourceData?.sessions as any[])?.find((s: any) => s._id?.toString() === id);
     return s ? { ...s, id } as PlayerSession : undefined;
   }
 
   async endPlayerSession(id: string, duration: number): Promise<PlayerSession | undefined> {
     await this.connect();
-    const doc = await PlayerProgressModel.findOneAndUpdate(
-      { 'sessions._id': id },
-      { $set: { 'sessions.$[elem].endedAt': new Date(), 'sessions.$[elem].duration': duration } },
+    const doc = await TruthModel.findOneAndUpdate(
+      { entryType: 'player_progress', 'sourceData.sessions._id': id },
+      { $set: { 'sourceData.sessions.$[elem].endedAt': new Date(), 'sourceData.sessions.$[elem].duration': duration } },
       { arrayFilters: [{ 'elem._id': id }], new: true }
     );
     if (!doc) return undefined;
-    const s = ((doc as any).sessions as any[])?.find((s: any) => s._id?.toString() === id);
+    const s = ((doc as any).sourceData?.sessions as any[])?.find((s: any) => s._id?.toString() === id);
     return s ? { ...s, id } as PlayerSession : undefined;
   }
 
-  // ===== Achievements =====
+  // ===== Achievements (stored as truths with entryType='achievement') =====
+  private truthToAchievement(doc: any): any {
+    const obj = doc.toObject ? doc.toObject() : doc;
+    return { id: (doc._id || obj._id).toString(), worldId: obj.worldId, ...obj.sourceData };
+  }
+
   async getAchievement(id: string): Promise<Achievement | undefined> {
     await this.connect();
-    const doc = await AchievementModel.findById(id);
-    return doc ? docToAchievement(doc) : undefined;
+    const doc = await TruthModel.findById(id);
+    return doc && (doc as any).entryType === 'achievement' ? this.truthToAchievement(doc) as any : undefined;
   }
 
   async getAchievementsByWorld(worldId: string): Promise<Achievement[]> {
     await this.connect();
-    const docs = await AchievementModel.find({ worldId });
-    return docs.map(docToAchievement);
+    const docs = await TruthModel.find({ worldId, entryType: 'achievement' });
+    return docs.map(d => this.truthToAchievement(d)) as any;
   }
 
   async getGlobalAchievements(): Promise<Achievement[]> {
     await this.connect();
-    const docs = await AchievementModel.find({ worldId: null });
-    return docs.map(docToAchievement);
+    const docs = await TruthModel.find({ worldId: null, entryType: 'achievement' });
+    return docs.map(d => this.truthToAchievement(d)) as any;
   }
 
   async createAchievement(achievement: InsertAchievement): Promise<Achievement> {
     await this.connect();
-    const doc = await AchievementModel.create(achievement);
-    return docToAchievement(doc);
+    const doc = await TruthModel.create({
+      worldId: (achievement as any).worldId || null,
+      title: (achievement as any).name,
+      content: `achievement('${(achievement as any).name}', '${(achievement as any).achievementType}', ${(achievement as any).experienceReward || 0}).`,
+      entryType: 'achievement',
+      timestep: 0,
+      source: 'achievement',
+      sourceData: achievement,
+    });
+    return this.truthToAchievement(doc) as any;
   }
 
   async updateAchievement(id: string, achievement: Partial<InsertAchievement>): Promise<Achievement | undefined> {
     await this.connect();
-    const doc = await AchievementModel.findByIdAndUpdate(id, { ...achievement, updatedAt: new Date() }, { new: true });
-    return doc ? docToAchievement(doc) : undefined;
+    const existing = await TruthModel.findById(id);
+    if (!existing) return undefined;
+    const merged = { ...((existing as any).sourceData || {}), ...achievement };
+    const doc = await TruthModel.findByIdAndUpdate(id, {
+      $set: { sourceData: merged, title: merged.name || (existing as any).title, updatedAt: new Date() }
+    }, { new: true });
+    return doc ? this.truthToAchievement(doc) as any : undefined;
   }
 
   async deleteAchievement(id: string): Promise<boolean> {
     await this.connect();
-    const result = await AchievementModel.findByIdAndDelete(id);
+    const result = await TruthModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -3379,34 +3282,45 @@ export class MongoStorage implements IStorage {
     return { before, after: compacted.length };
   }
 
-  // ===== Play Traces =====
+  // ===== Play Traces (stored as truths with entryType='play_trace') =====
   async getPlayTrace(id: string): Promise<PlayTrace | undefined> {
     await this.connect();
-    const doc = await PlayTraceModel.findById(id);
-    return doc ? docToPlayTrace(doc) : undefined;
+    const doc = await TruthModel.findById(id);
+    return doc && (doc as any).entryType === 'play_trace' ? truthToPlayTrace(doc) : undefined;
   }
 
   async getTracesByPlaythrough(playthroughId: string): Promise<PlayTrace[]> {
     await this.connect();
-    const docs = await PlayTraceModel.find({ playthroughId }).sort({ timestamp: 1 });
-    return docs.map(docToPlayTrace);
+    const docs = await TruthModel.find({ entryType: 'play_trace', playthroughId }).sort({ createdAt: 1 });
+    return docs.map(truthToPlayTrace);
   }
 
   async getTracesByUser(userId: string): Promise<PlayTrace[]> {
     await this.connect();
-    const docs = await PlayTraceModel.find({ userId }).sort({ timestamp: -1 });
-    return docs.map(docToPlayTrace);
+    const docs = await TruthModel.find({ entryType: 'play_trace', 'sourceData.userId': userId }).sort({ createdAt: -1 });
+    return docs.map(truthToPlayTrace);
   }
 
   async createPlayTrace(trace: InsertPlayTrace): Promise<PlayTrace> {
     await this.connect();
-    const doc = await PlayTraceModel.create(trace);
-    return docToPlayTrace(doc);
+    const t = trace as any;
+    const doc = await TruthModel.create({
+      worldId: t.worldId || 'unknown',
+      playthroughId: t.playthroughId,
+      characterId: t.characterId || null,
+      title: `Trace: ${t.actionType}${t.actionName ? ' - ' + t.actionName : ''}`,
+      content: `play_trace('${t.playthroughId}', '${t.actionType}', ${t.timestep}).`,
+      entryType: 'play_trace',
+      timestep: t.timestep || 0,
+      source: 'play_trace',
+      sourceData: trace,
+    });
+    return truthToPlayTrace(doc);
   }
 
   async deletePlayTrace(id: string): Promise<boolean> {
     await this.connect();
-    const result = await PlayTraceModel.findByIdAndDelete(id);
+    const result = await TruthModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -3459,108 +3373,135 @@ export class MongoStorage implements IStorage {
     return result.deletedCount;
   }
 
-  // ============= LANGUAGE LEARNING (unified progress, vocabulary, grammar, conversations, reading) =============
+  // ============= LANGUAGE LEARNING (stored as truths with entryType='language_progress') =============
 
   private async getOrCreateLearningDoc(playerId: string, worldId: string, playthroughId?: string): Promise<any> {
-    const query: any = { playerId, worldId };
+    const query: any = { entryType: 'language_progress', worldId, 'sourceData.playerId': playerId };
     if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await LanguageLearningModel.findOneAndUpdate(
-      query,
-      { $setOnInsert: { playerId, worldId, playthroughId: playthroughId || null, createdAt: new Date() } },
-      { upsert: true, new: true }
-    );
+    let doc = await TruthModel.findOne(query);
+    if (!doc) {
+      doc = await TruthModel.create({
+        worldId,
+        playthroughId: playthroughId || null,
+        title: `Language Progress: ${playerId}`,
+        content: `language_progress('${playerId}', '${worldId}').`,
+        entryType: 'language_progress',
+        timestep: 0,
+        source: 'language_progress',
+        sourceData: {
+          playerId, worldId, playthroughId: playthroughId || null,
+          vocabulary: [], grammarPatterns: [], conversations: [],
+          reading: { articlesRead: [], quizAnswers: [], totalCorrect: 0, totalAttempted: 0, xpFromReading: 0 },
+        },
+      });
+    }
     return doc;
   }
 
   async getLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
-    const query: any = { playerId, worldId };
+    const query: any = { entryType: 'language_progress', worldId, 'sourceData.playerId': playerId };
     if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await LanguageLearningModel.findOne(query);
-    return doc ? { id: doc._id.toString(), ...doc.toObject() } : null;
+    const doc = await TruthModel.findOne(query);
+    if (!doc) return null;
+    const obj = doc.toObject ? doc.toObject() : doc;
+    return { id: (doc._id || (obj as any)._id).toString(), ...obj.sourceData };
   }
 
   async upsertLanguageProgress(playerId: string, worldId: string, data: any, playthroughId?: string): Promise<any> {
-    const query: any = { playerId, worldId };
+    const query: any = { entryType: 'language_progress', worldId, 'sourceData.playerId': playerId };
     if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await LanguageLearningModel.findOneAndUpdate(
-      query,
-      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
-      { upsert: true, new: true }
-    );
-    return { id: doc._id.toString(), ...doc.toObject() };
+    const existing = await TruthModel.findOne(query);
+    if (existing) {
+      const merged = { ...((existing as any).sourceData || {}), ...data };
+      const doc = await TruthModel.findByIdAndUpdate(existing._id, {
+        $set: { sourceData: merged, updatedAt: new Date() }
+      }, { new: true });
+      const obj = doc!.toObject ? doc!.toObject() : doc!;
+      return { id: doc!._id.toString(), ...(obj as any).sourceData };
+    }
+    const doc = await TruthModel.create({
+      worldId,
+      playthroughId: playthroughId || null,
+      title: `Language Progress: ${playerId}`,
+      content: `language_progress('${playerId}', '${worldId}').`,
+      entryType: 'language_progress',
+      timestep: 0,
+      source: 'language_progress',
+      sourceData: { playerId, worldId, playthroughId: playthroughId || null, ...data },
+    });
+    const obj = doc.toObject ? doc.toObject() : doc;
+    return { id: doc._id.toString(), ...obj.sourceData };
   }
 
   async getVocabularyEntries(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
     const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
-    return ((doc as any).vocabulary || []) as any[];
+    return ((doc as any).sourceData?.vocabulary || []) as any[];
   }
 
   async upsertVocabularyEntry(playerId: string, worldId: string, word: string, data: any, playthroughId?: string): Promise<any> {
     const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
-    const vocab = ((doc as any).vocabulary || []) as any[];
+    const sd = (doc as any).sourceData || {};
+    const vocab = (sd.vocabulary || []) as any[];
     const idx = vocab.findIndex((v: any) => v.word === word);
     if (idx >= 0) {
       Object.assign(vocab[idx], data, { updatedAt: new Date() });
     } else {
       vocab.push({ word, ...data, createdAt: new Date(), updatedAt: new Date() });
     }
-    doc.vocabulary = vocab;
-    doc.updatedAt = new Date();
-    await doc.save();
+    sd.vocabulary = vocab;
+    await TruthModel.findByIdAndUpdate(doc._id, { $set: { sourceData: sd, updatedAt: new Date() } });
     return idx >= 0 ? vocab[idx] : vocab[vocab.length - 1];
   }
 
   async getGrammarPatterns(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
     const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
-    return ((doc as any).grammarPatterns || []) as any[];
+    return ((doc as any).sourceData?.grammarPatterns || []) as any[];
   }
 
   async upsertGrammarPattern(playerId: string, worldId: string, pattern: string, data: any, playthroughId?: string): Promise<any> {
     const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
-    const patterns = ((doc as any).grammarPatterns || []) as any[];
+    const sd = (doc as any).sourceData || {};
+    const patterns = (sd.grammarPatterns || []) as any[];
     const idx = patterns.findIndex((p: any) => p.pattern === pattern);
     if (idx >= 0) {
       Object.assign(patterns[idx], data, { updatedAt: new Date() });
     } else {
       patterns.push({ pattern, ...data, createdAt: new Date(), updatedAt: new Date() });
     }
-    doc.grammarPatterns = patterns;
-    doc.updatedAt = new Date();
-    await doc.save();
+    sd.grammarPatterns = patterns;
+    await TruthModel.findByIdAndUpdate(doc._id, { $set: { sourceData: sd, updatedAt: new Date() } });
     return idx >= 0 ? patterns[idx] : patterns[patterns.length - 1];
   }
 
   async getConversationRecords(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
     const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
-    const convos = ((doc as any).conversations || []) as any[];
+    const convos = ((doc as any).sourceData?.conversations || []) as any[];
     return convos.sort((a: any, b: any) => (b.createdAt?.getTime?.() || 0) - (a.createdAt?.getTime?.() || 0));
   }
 
   async createConversationRecord(data: any): Promise<any> {
     const { playerId, worldId, playthroughId, ...recordData } = data;
     const record = { ...recordData, createdAt: new Date() };
-    await LanguageLearningModel.findOneAndUpdate(
-      { playerId, worldId, ...(playthroughId ? { playthroughId } : {}) },
-      { $push: { conversations: record }, $set: { updatedAt: new Date() } },
-      { upsert: true, new: true }
-    );
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    const sd = (doc as any).sourceData || {};
+    const convos = (sd.conversations || []) as any[];
+    convos.push(record);
+    sd.conversations = convos;
+    await TruthModel.findByIdAndUpdate(doc._id, { $set: { sourceData: sd, updatedAt: new Date() } });
     return record;
   }
 
   async getReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
     const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
-    return (doc as any).reading || null;
+    return (doc as any).sourceData?.reading || null;
   }
 
   async upsertReadingProgress(playerId: string, worldId: string, data: any, playthroughId?: string): Promise<any> {
-    const query: any = { playerId, worldId };
-    if (playthroughId) query.playthroughId = playthroughId;
-    const doc = await LanguageLearningModel.findOneAndUpdate(
-      query,
-      { $set: { reading: data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
-      { upsert: true, new: true }
-    );
-    return (doc as any).reading;
+    const doc = await this.getOrCreateLearningDoc(playerId, worldId, playthroughId);
+    const sd = (doc as any).sourceData || {};
+    sd.reading = data;
+    await TruthModel.findByIdAndUpdate(doc._id, { $set: { sourceData: sd, updatedAt: new Date() } });
+    return data;
   }
 
   // ============= ASSESSMENTS (unified: result, session, evaluation) =============
@@ -3940,102 +3881,155 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
-  // ===== Reputations (playthrough-scoped) =====
+  // ===== Reputations (stored as truths with entryType='reputation') =====
 
   async getReputation(id: string): Promise<Reputation | undefined> {
     await this.connect();
-    const doc = await ReputationModel.findById(id);
-    return doc ? docToReputation(doc) : undefined;
+    const doc = await TruthModel.findById(id);
+    return doc && (doc as any).entryType === 'reputation' ? truthToReputation(doc) : undefined;
   }
 
   async getReputationsByPlaythrough(playthroughId: string): Promise<Reputation[]> {
     await this.connect();
-    const docs = await ReputationModel.find({ playthroughId });
-    return docs.map(docToReputation);
+    const docs = await TruthModel.find({ entryType: 'reputation', playthroughId });
+    return docs.map(truthToReputation);
   }
 
   async getReputationForEntity(playthroughId: string, entityType: string, entityId: string): Promise<Reputation | undefined> {
     await this.connect();
-    const doc = await ReputationModel.findOne({ playthroughId, entityType, entityId });
-    return doc ? docToReputation(doc) : undefined;
+    const doc = await TruthModel.findOne({ entryType: 'reputation', playthroughId, 'sourceData.entityType': entityType, 'sourceData.entityId': entityId });
+    return doc ? truthToReputation(doc) : undefined;
   }
 
   async createReputation(reputation: InsertReputation): Promise<Reputation> {
     await this.connect();
-    const doc = await ReputationModel.create(reputation);
-    return docToReputation(doc);
+    const r = reputation as any;
+    const doc = await TruthModel.create({
+      worldId: r.worldId || 'unknown',
+      playthroughId: r.playthroughId,
+      title: `Reputation: ${r.entityType}/${r.entityId}`,
+      content: `reputation('${r.playthroughId}', '${r.entityType}', '${r.entityId}', ${r.score || 0}).`,
+      entryType: 'reputation',
+      timestep: 0,
+      source: 'reputation',
+      sourceData: reputation,
+    });
+    return truthToReputation(doc);
   }
 
   async updateReputation(id: string, updates: Partial<InsertReputation>): Promise<Reputation | undefined> {
     await this.connect();
-    const doc = await ReputationModel.findByIdAndUpdate(id, { ...updates, updatedAt: new Date() }, { new: true });
-    return doc ? docToReputation(doc) : undefined;
+    const existing = await TruthModel.findById(id);
+    if (!existing) return undefined;
+    const merged = { ...((existing as any).sourceData || {}), ...updates };
+    const doc = await TruthModel.findByIdAndUpdate(id, {
+      $set: { sourceData: merged, updatedAt: new Date() }
+    }, { new: true });
+    return doc ? truthToReputation(doc) : undefined;
   }
 
   async upsertReputation(playthroughId: string, entityType: string, entityId: string, updates: Partial<InsertReputation>): Promise<Reputation> {
     await this.connect();
-    const doc = await ReputationModel.findOneAndUpdate(
-      { playthroughId, entityType, entityId },
-      { $set: { ...updates, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
-      { new: true, upsert: true }
-    );
-    return docToReputation(doc);
+    const existing = await TruthModel.findOne({ entryType: 'reputation', playthroughId, 'sourceData.entityType': entityType, 'sourceData.entityId': entityId });
+    if (existing) {
+      const merged = { ...((existing as any).sourceData || {}), ...updates, entityType, entityId, playthroughId };
+      const doc = await TruthModel.findByIdAndUpdate(existing._id, {
+        $set: { sourceData: merged, updatedAt: new Date() }
+      }, { new: true });
+      return truthToReputation(doc!);
+    }
+    const r = updates as any;
+    const doc = await TruthModel.create({
+      worldId: r.worldId || 'unknown',
+      playthroughId,
+      title: `Reputation: ${entityType}/${entityId}`,
+      content: `reputation('${playthroughId}', '${entityType}', '${entityId}', ${r.score || 0}).`,
+      entryType: 'reputation',
+      timestep: 0,
+      source: 'reputation',
+      sourceData: { ...updates, playthroughId, entityType, entityId },
+    });
+    return truthToReputation(doc);
   }
 
   async deleteReputation(id: string): Promise<boolean> {
     await this.connect();
-    const result = await ReputationModel.findByIdAndDelete(id);
+    const result = await TruthModel.findByIdAndDelete(id);
     return !!result;
   }
 
   async deleteReputationsByPlaythrough(playthroughId: string): Promise<number> {
     await this.connect();
-    const result = await ReputationModel.deleteMany({ playthroughId });
+    const result = await TruthModel.deleteMany({ entryType: 'reputation', playthroughId });
     return result.deletedCount;
   }
 
-  // ===== Playthrough Relationships (playthrough-scoped overlays) =====
+  // ===== Playthrough Relationships (stored as truths with entryType='relationship') =====
 
   async getPlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string): Promise<PlaythroughRelationship | undefined> {
     await this.connect();
-    const doc = await PlaythroughRelationshipModel.findOne({ playthroughId, fromCharacterId, toCharacterId });
-    return doc ? docToPlaythroughRelationship(doc) : undefined;
+    const doc = await TruthModel.findOne({
+      entryType: 'relationship', playthroughId,
+      'sourceData.fromCharacterId': fromCharacterId, 'sourceData.toCharacterId': toCharacterId
+    });
+    return doc ? truthToPlaythroughRelationship(doc) : undefined;
   }
 
   async getPlaythroughRelationshipsForCharacter(playthroughId: string, characterId: string): Promise<PlaythroughRelationship[]> {
     await this.connect();
-    const docs = await PlaythroughRelationshipModel.find({
-      playthroughId,
-      $or: [{ fromCharacterId: characterId }, { toCharacterId: characterId }]
+    const docs = await TruthModel.find({
+      entryType: 'relationship', playthroughId,
+      $or: [{ 'sourceData.fromCharacterId': characterId }, { 'sourceData.toCharacterId': characterId }]
     });
-    return docs.map(docToPlaythroughRelationship);
+    return docs.map(truthToPlaythroughRelationship);
   }
 
   async getPlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<PlaythroughRelationship[]> {
     await this.connect();
-    const docs = await PlaythroughRelationshipModel.find({ playthroughId });
-    return docs.map(docToPlaythroughRelationship);
+    const docs = await TruthModel.find({ entryType: 'relationship', playthroughId });
+    return docs.map(truthToPlaythroughRelationship);
   }
 
   async upsertPlaythroughRelationship(rel: InsertPlaythroughRelationship): Promise<PlaythroughRelationship> {
     await this.connect();
-    const doc = await PlaythroughRelationshipModel.findOneAndUpdate(
-      { playthroughId: rel.playthroughId, fromCharacterId: rel.fromCharacterId, toCharacterId: rel.toCharacterId },
-      { $set: { ...rel, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
-      { new: true, upsert: true }
-    );
-    return docToPlaythroughRelationship(doc);
+    const existing = await TruthModel.findOne({
+      entryType: 'relationship', playthroughId: rel.playthroughId,
+      'sourceData.fromCharacterId': rel.fromCharacterId, 'sourceData.toCharacterId': rel.toCharacterId
+    });
+    if (existing) {
+      const merged = { ...((existing as any).sourceData || {}), ...rel };
+      const doc = await TruthModel.findByIdAndUpdate(existing._id, {
+        $set: { sourceData: merged, updatedAt: new Date() }
+      }, { new: true });
+      return truthToPlaythroughRelationship(doc!);
+    }
+    const doc = await TruthModel.create({
+      worldId: (rel as any).worldId || 'unknown',
+      playthroughId: rel.playthroughId,
+      characterId: rel.fromCharacterId,
+      title: `Relationship: ${rel.fromCharacterId} -> ${rel.toCharacterId}`,
+      content: `relationship('${rel.playthroughId}', '${rel.fromCharacterId}', '${rel.toCharacterId}', '${rel.type}', ${rel.strength}).`,
+      entryType: 'relationship',
+      timestep: 0,
+      source: 'relationship',
+      sourceData: rel,
+      relatedCharacterIds: [rel.fromCharacterId, rel.toCharacterId],
+    });
+    return truthToPlaythroughRelationship(doc);
   }
 
   async deletePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string): Promise<boolean> {
     await this.connect();
-    const result = await PlaythroughRelationshipModel.findOneAndDelete({ playthroughId, fromCharacterId, toCharacterId });
+    const result = await TruthModel.findOneAndDelete({
+      entryType: 'relationship', playthroughId,
+      'sourceData.fromCharacterId': fromCharacterId, 'sourceData.toCharacterId': toCharacterId
+    });
     return !!result;
   }
 
   async deletePlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<number> {
     await this.connect();
-    const result = await PlaythroughRelationshipModel.deleteMany({ playthroughId });
+    const result = await TruthModel.deleteMany({ entryType: 'relationship', playthroughId });
     return result.deletedCount;
   }
 

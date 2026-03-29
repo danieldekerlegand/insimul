@@ -282,6 +282,57 @@ has_at_least(Player, Item, N) :- has_item(Player, Item, Qty), Qty >= N.
             Debug.Log("[Insimul] PrologEngine loaded item IS-A reasoning rules");
         }
 
+        /// <summary>
+        /// Load gameplay helper predicates (CEFR comparison, weapon/tool types, skill checks).
+        /// Mirrors HELPER_PREDICATES_PROLOG from shared/prolog/helper-predicates.ts.
+        /// </summary>
+        public void LoadHelperPredicates()
+        {
+            if (!_initialized) return;
+
+            var rules = @"
+% CEFR level ranks
+cefr_level_rank(a1, 1).
+cefr_level_rank(a2, 2).
+cefr_level_rank(b1, 3).
+cefr_level_rank(b2, 4).
+cefr_level_rank(c1, 5).
+cefr_level_rank(c2, 6).
+cefr_gte(Actual, Required) :- cefr_level_rank(Actual, AR), cefr_level_rank(Required, RR), AR >= RR.
+
+% Weapon type classification
+is_weapon_type(ItemId, sword) :- item_type(ItemId, sword).
+is_weapon_type(ItemId, axe) :- item_type(ItemId, axe).
+is_weapon_type(ItemId, bow) :- item_type(ItemId, bow).
+is_weapon_type(ItemId, staff) :- item_type(ItemId, staff).
+is_weapon_type(ItemId, pistol) :- item_type(ItemId, pistol).
+
+% Tool type classification
+is_tool_type(ItemId, fishing_rod) :- item_type(ItemId, fishing_rod).
+is_tool_type(ItemId, pickaxe) :- item_type(ItemId, pickaxe).
+is_tool_type(ItemId, axe) :- item_type(ItemId, axe).
+is_tool_type(ItemId, hoe) :- item_type(ItemId, hoe).
+
+% Skill tier names
+skill_tier_name(1, novice).
+skill_tier_name(2, novice).
+skill_tier_name(3, apprentice).
+skill_tier_name(4, apprentice).
+skill_tier_name(5, journeyman).
+skill_tier_name(6, journeyman).
+skill_tier_name(7, expert).
+skill_tier_name(8, expert).
+skill_tier_name(9, expert).
+skill_tier_name(10, master).
+
+% Skill level comparison
+skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= MinLevel.
+";
+            _knowledgeBase.AppendLine(rules);
+            ParseFactsFromContent(rules);
+            Debug.Log("[Insimul] PrologEngine loaded gameplay helper predicates");
+        }
+
         // ── Game State ────────────────────────────────────────────────────────
 
         /// <summary>
