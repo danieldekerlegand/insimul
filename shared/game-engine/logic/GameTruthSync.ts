@@ -37,6 +37,22 @@ export class GameTruthSync {
   private itemQuantities = new Map<string, number>();
   /** Track currently equipped items by slot for retract-before-assert. */
   private equippedSlots = new Map<string, string>();
+  /** Current player location for retract-before-assert. */
+  private currentLocation: string | null = null;
+  /** Current player location type. */
+  private currentLocationType: string | null = null;
+  /** Current health (current, max). */
+  private currentHealth: { current: number; max: number } = { current: 100, max: 100 };
+  /** Current energy (current, max). */
+  private currentEnergy: { current: number; max: number } = { current: 100, max: 100 };
+  /** Current time of day (hour). */
+  private currentHour: number | null = null;
+  /** Current day number. */
+  private currentDay: number | null = null;
+  /** Known vocabulary categories per language. */
+  private knownVocabulary = new Map<string, Set<string>>();
+  /** Current CEFR language levels: lang → level. */
+  private languageLevels = new Map<string, string>();
 
   constructor(eventBus: GameEventBus, engine: TauPrologEngine) {
     this.eventBus = eventBus;
@@ -71,6 +87,31 @@ export class GameTruthSync {
         break;
       case 'item_crafted':
         await this.handleItemCrafted(event);
+        break;
+      // ── Location sync ──
+      case 'location_visited':
+        await this.handleLocationVisited(event);
+        break;
+      case 'settlement_entered':
+        await this.handleSettlementEntered(event);
+        break;
+      // ── Time sync ──
+      case 'hour_changed':
+        await this.handleHourChanged(event);
+        break;
+      case 'day_changed':
+        await this.handleDayChanged(event);
+        break;
+      // ── Energy deduction from actions ──
+      case 'action_executed':
+        await this.handleActionExecuted(event);
+        break;
+      // ── Language & vocabulary sync ──
+      case 'vocabulary_used':
+        await this.handleVocabularyUsed(event);
+        break;
+      case 'assessment_completed':
+        await this.handleAssessmentCompleted(event);
         break;
     }
   }
@@ -185,6 +226,182 @@ export class GameTruthSync {
     this.currentGold = newGold;
   }
 
+  // ── Location Handlers ────────────────────────────────────────────────────
+
+  private async handleLocationVisited(event: { locationId: string; locationName: string }): Promise<void> {
+    const locId = sanitize(event.locationId);
+    await this.setLocation(locId);
+
+    // Assert location_discovered so it persists across visits
+    await this.engine.assertFact(`location_discovered(${locId})`);
+  }
+
+  private async handleSettlementEntered(event: { settlementId: string; settlementName: string }): Promise<void> {
+    const locId = sanitize(event.settlementId);
+    await this.setLocation(locId);
+    // Settlements are always "town" type
+    await this.setLocationType('town');
+  }
+
+  private async setLocation(locationId: string): Promise<void> {
+    // Retract old at_location
+    if (this.currentLocation) {
+      try {
+        await this.engine.retractFact(`at_location(player, ${this.currentLocation})`);
+      } catch { /* may not exist */ }
+    }
+    await this.engine.assertFact(`at_location(player, ${locationId})`);
+    this.currentLocation = locationId;
+  }
+
+  /** Set or update the player's current location type (forest, mine, water, town, etc.). */
+  async setLocationType(locationType: string): Promise<void> {
+    const locType = sanitize(locationType);
+    if (this.currentLocationType) {
+      try {
+        await this.engine.retractFact(`at_location_type(player, ${this.currentLocationType})`);
+      } catch { /* may not exist */ }
+    }
+    await this.engine.assertFact(`at_location_type(player, ${locType})`);
+    this.currentLocationType = locType;
+  }
+
+  /** Initialize player location (call during game setup). */
+  async initializeLocation(locationId: string, locationType?: string): Promise<void> {
+    await this.setLocation(sanitize(locationId));
+    if (locationType) {
+      await this.setLocationType(locationType);
+    }
+  }
+
+  // ── Health & Energy Handlers ────────────────────────────────────────────
+
+  /** Initialize player health (call during game setup). */
+  async initializeHealth(current: number, max: number): Promise<void> {
+    this.currentHealth = { current, max };
+    await this.engine.assertFact(`health(player, ${current}, ${max})`);
+  }
+
+  /** Modify player health by a delta (positive = heal, negative = damage). */
+  async modifyHealth(delta: number): Promise<void> {
+    const { current: oldCurrent, max } = this.currentHealth;
+    const newCurrent = Math.max(0, Math.min(max, oldCurrent + delta));
+
+    try {
+      await this.engine.retractFact(`health(player, ${oldCurrent}, ${max})`);
+    } catch { /* may not exist */ }
+
+    await this.engine.assertFact(`health(player, ${newCurrent}, ${max})`);
+    this.currentHealth = { current: newCurrent, max };
+  }
+
+  /** Initialize player energy (call during game setup). */
+  async initializeEnergy(current: number, max: number): Promise<void> {
+    this.currentEnergy = { current, max };
+    await this.engine.assertFact(`energy(player, ${current}, ${max})`);
+  }
+
+  /** Modify player energy by a delta (positive = restore, negative = cost). */
+  async modifyEnergy(delta: number): Promise<void> {
+    const { current: oldCurrent, max } = this.currentEnergy;
+    const newCurrent = Math.max(0, Math.min(max, oldCurrent + delta));
+
+    try {
+      await this.engine.retractFact(`energy(player, ${oldCurrent}, ${max})`);
+    } catch { /* may not exist */ }
+
+    await this.engine.assertFact(`energy(player, ${newCurrent}, ${max})`);
+    this.currentEnergy = { current: newCurrent, max };
+  }
+
+  private async handleActionExecuted(event: { energyCost?: number }): Promise<void> {
+    if (event.energyCost && event.energyCost > 0) {
+      await this.modifyEnergy(-event.energyCost);
+    }
+  }
+
+  // ── Time Handlers ───────────────────────────────────────────────────────
+
+  private async handleHourChanged(event: { hour: number; day: number }): Promise<void> {
+    // Retract old time_of_day
+    if (this.currentHour !== null) {
+      try {
+        await this.engine.retractFact(`time_of_day(${this.currentHour})`);
+      } catch { /* may not exist */ }
+    }
+    await this.engine.assertFact(`time_of_day(${event.hour})`);
+    this.currentHour = event.hour;
+  }
+
+  private async handleDayChanged(event: { day: number; timestep: number }): Promise<void> {
+    // Retract old day_number
+    if (this.currentDay !== null) {
+      try {
+        await this.engine.retractFact(`day_number(${this.currentDay})`);
+      } catch { /* may not exist */ }
+    }
+    await this.engine.assertFact(`day_number(${event.day})`);
+    this.currentDay = event.day;
+  }
+
+  /** Initialize time tracking (call during game setup). */
+  async initializeTime(hour: number, day: number): Promise<void> {
+    this.currentHour = hour;
+    this.currentDay = day;
+    await this.engine.assertFact(`time_of_day(${hour})`);
+    await this.engine.assertFact(`day_number(${day})`);
+  }
+
+  // ── Vocabulary & Language Handlers ──────────────────────────────────────
+
+  private async handleVocabularyUsed(event: { word: string; correct: boolean }): Promise<void> {
+    if (!event.correct) return; // Only track correctly used vocabulary
+
+    // Derive category from the word (default to 'general')
+    const category = 'general';
+    // Assert for all known languages the player speaks
+    const langs = Array.from(this.languageLevels.keys());
+    for (const lang of langs) {
+      if (!this.knownVocabulary.has(lang)) {
+        this.knownVocabulary.set(lang, new Set());
+      }
+      const vocabSet = this.knownVocabulary.get(lang)!;
+      if (!vocabSet.has(category)) {
+        vocabSet.add(category);
+        await this.engine.assertFact(`knows_vocabulary(player, ${lang}, ${category})`);
+      }
+    }
+  }
+
+  private async handleAssessmentCompleted(event: { cefrLevel?: string }): Promise<void> {
+    if (!event.cefrLevel) return;
+
+    const newLevel = sanitize(event.cefrLevel);
+
+    // Update all tracked languages to the new CEFR level
+    // (Assessment is typically for the target language — update the first non-primary language)
+    const entries = Array.from(this.languageLevels.entries());
+    for (const [lang, oldLevel] of entries) {
+      // Skip primary language (typically the first one set, or 'english')
+      if (lang === 'english') continue;
+
+      try {
+        await this.engine.retractFact(`speaks_language(player, ${lang}, ${oldLevel})`);
+      } catch { /* may not exist */ }
+      await this.engine.assertFact(`speaks_language(player, ${lang}, ${newLevel})`);
+      this.languageLevels.set(lang, newLevel);
+      break; // Only update the target language
+    }
+  }
+
+  /** Initialize a language the player speaks (call during game setup for each language). */
+  async initializeLanguage(language: string, cefrLevel: string): Promise<void> {
+    const lang = sanitize(language);
+    const level = sanitize(cefrLevel);
+    this.languageLevels.set(lang, level);
+    await this.engine.assertFact(`speaks_language(player, ${lang}, ${level})`);
+  }
+
   // ── Error Logging ───────────────────────────────────────────────────────
 
   private logError = (e: unknown): void => {
@@ -200,5 +417,13 @@ export class GameTruthSync {
     }
     this.itemQuantities.clear();
     this.equippedSlots.clear();
+    this.currentLocation = null;
+    this.currentLocationType = null;
+    this.currentHealth = { current: 100, max: 100 };
+    this.currentEnergy = { current: 100, max: 100 };
+    this.currentHour = null;
+    this.currentDay = null;
+    this.knownVocabulary.clear();
+    this.languageLevels.clear();
   }
 }
