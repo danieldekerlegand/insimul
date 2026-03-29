@@ -147,3 +147,117 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Content validator passes with 0 errors for all new-style output; animation-only actions still get action_effect/2 warning (expected)
   - The `energy/2` → `energy/3` fix also applies to the batch converter's dynamic declarations
 ---
+
+## 2026-03-29 - US-010
+- Created migration `server/migrations/042-action-prerequisites-effects.ts` to regenerate all 133 base actions with new-style prerequisites and effects
+- Migration reads ACTION_PREREQUISITES and ACTION_EFFECTS by action name, passes ConvertOptions to convertActionToProlog()
+- Actions without prerequisite/effect definitions fall back to legacy conversion (no options passed)
+- Reports counts: updated, unchanged, errors, and actions with prereqs/effects
+- Files changed:
+  - `server/migrations/042-action-prerequisites-effects.ts` — new migration
+  - `tasks/prd.json` — marked US-010 passes: true
+- **Learnings for future iterations:**
+  - Migration numbering: 040 (consolidate collections) and 041 (whitespace cleanup) already existed — new migration is 042
+  - Pattern: pass `undefined` for options when no prereqs/effects exist to preserve legacy behavior
+  - `storage.getBaseActions()` returns all base actions; match by `action.name` against prerequisite/effect records
+  - The ConvertOptions only needs `prerequisites`, `effects`, `inheritsFromParent` — parent resolution happens inside the converter
+---
+
+## 2026-03-29 - US-011
+- Created `shared/game-engine/logic/GameTruthSync.ts` — new class that syncs equipment and inventory events to canonical Prolog gameplay predicates
+- Uses `onAny` + switch pattern (same as GamePrologEngine) to handle events with proper TypeScript type narrowing
+- Equipment: item_equipped asserts has_equipped/3, retracts previous slot occupant; item_unequipped retracts
+- Inventory: item_collected/item_crafted call addItem (assert has_item/3 with quantity tracking); item_dropped calls removeItem (retract or decrement)
+- Purchases: item_purchased adds item + deducts gold via modifyGold helper
+- Gold tracking: initializeGold() for setup, modifyGold() for retract-old/assert-new pattern
+- Local state tracking: itemQuantities Map for quantity, equippedSlots Map for slot→itemId
+- Files changed:
+  - `shared/game-engine/logic/GameTruthSync.ts` — new file (204 lines)
+  - `tasks/prd.json` — marked US-011 passes: true
+- **Learnings for future iterations:**
+  - GameEventBus typed `on()` doesn't work well with extracted handler functions due to union type issues — use `onAny()` + switch (same pattern as GamePrologEngine)
+  - GameTruthSync uses has_equipped/3 and has_item/3 (canonical gameplay predicates); GamePrologEngine uses equipped/3 and has/2 (quest-tracking predicates) — they coexist
+  - TauPrologEngine.retractFact() may throw if fact doesn't exist — always wrap in try/catch
+  - Constructor takes TauPrologEngine (not raw tau-prolog session) — all operations go through the async wrapper
+  - US-012 will extend this class with location, health, energy, and time sync
+---
+
+## 2026-03-29 - US-012
+- Extended GameTruthSync with location, health, energy, time, vocabulary, and language sync
+- Location: location_visited → at_location/2 + location_discovered/1; settlement_entered → at_location/2 + at_location_type(town)
+- Health/Energy: public modifyHealth(delta)/modifyEnergy(delta) + initializeHealth/initializeEnergy methods; energy auto-deducted from action_executed events with energyCost
+- Time: hour_changed → time_of_day/1; day_changed → day_number/1; initializeTime for setup
+- Vocabulary: vocabulary_used (correct only) → knows_vocabulary/3 for all known languages
+- Language: assessment_completed with cefrLevel → updates speaks_language/3 for target language; initializeLanguage for setup
+- Added local state tracking: currentLocation, currentLocationType, currentHealth, currentEnergy, currentHour, currentDay, knownVocabulary (Map<string, Set>), languageLevels (Map<string, string>)
+- Files changed:
+  - `shared/game-engine/logic/GameTruthSync.ts` — added 225 lines: 7 new event handlers, 6 public initialization/modification methods
+  - `tasks/prd.json` — marked US-012 passes: true
+- **Learnings for future iterations:**
+  - No explicit health_changed/energy_changed events exist in GameEventBus — use action_executed.energyCost for auto-deduction, public modifyHealth/modifyEnergy for direct changes
+  - Map iteration with `for...of` triggers TS2802 when target < es2015 — use `Array.from(map.keys())` or `Array.from(map.entries())` instead
+  - vocabulary_used event only has `word` and `correct` — no language/category info; category defaults to 'general', language derived from tracked languageLevels
+  - assessment_completed has optional cefrLevel — skip if not present; updates first non-english language (target language)
+  - setLocationType is public so external systems (terrain detection, building entry) can update location type
+---
+
+## 2026-03-29 - US-013
+- Added serialize() and restore() methods to GameTruthSync for save/load of Prolog gameplay facts
+- serialize() filters facts through GAMEPLAY_PREDICATES names, returns JSON array of {predicate, args}
+- restore() asserts facts into engine via assertFacts() batch, then rebuilds all local state tracking maps (itemQuantities, equippedSlots, health, energy, gold, location, time, vocabulary, languages)
+- Added SerializedFact type and parseFactString/parseArg helpers for parsing Prolog fact strings to JSON
+- Integrated with save pipeline: added prologFacts field to GameSaveState, GameStateSource.getPrologFacts(), GameStateTarget.restorePrologFacts()
+- WorldStateManager: captureState includes prologFacts, applyState calls restorePrologFacts, added to SUBSYSTEM_KEYS and computeDiff
+- SaveConflictResolver: prologFacts included in subsystem merge strategy (local-if-changed, else server)
+- Updated drift-manifest.json hash for types.ts (GameSaveState field addition)
+- Files changed:
+  - `shared/game-engine/logic/GameTruthSync.ts` — serialize/restore methods, SerializedFact type, fact parsing helpers
+  - `shared/game-engine/types.ts` — prologFacts field on GameSaveState
+  - `client/src/components/3DGame/WorldStateManager.ts` — save/load integration, SUBSYSTEM_KEYS, computeDiff
+  - `shared/game-engine/logic/SaveConflictResolver.ts` — added prologFacts to subsystem merge list
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - TauPrologEngine.getAllFacts() returns facts as strings with trailing periods — strip before parsing
+  - Export templates don't reference GameSaveState, so types.ts changes to save-state fields cause false-positive drift warnings — just run drift:update
+  - parseFactString handles nested parens in args for compound terms
+  - restore() rebuilds local state from facts to keep Maps/tracking variables in sync with engine state
+  - SaveConflictResolver uses subsystem merge strategy for new fields: local-if-changed-from-base, else server
+---
+
+## 2026-03-29 - US-014
+- Added `initializeNpcTruths(characters: NpcCharacterData[])` method to GameTruthSync
+- Exports `NpcCharacterData` interface with fields: id, occupation, currentLocation, age, birthYear, skills, personality, role, availableQuests
+- For each NPC asserts: person/1, occupation/2, npc_occupation/2, at_location/2, age/2, has_skill/3, personality/3, health/3, energy/3
+- Merchant detection via static Sets of known merchant occupations (13 entries) and NPCRole merchant types (3 entries)
+- Quest availability: npc_quest_available/2 from availableQuests array
+- Age computed from birthYear if no explicit age field; defaults to 30 if neither
+- Uses batch assertFacts() for efficiency — all NPC facts collected first, then asserted in one call
+- Files changed:
+  - `shared/game-engine/logic/GameTruthSync.ts` — NpcCharacterData interface, initializeNpcTruths method, MERCHANT_OCCUPATIONS/MERCHANT_ROLES static Sets
+  - `tasks/prd.json` — marked US-014 passes: true
+- **Learnings for future iterations:**
+  - Character DB fields: occupation (text), currentLocation (text), skills (Record<string, number>), personality ({openness, conscientiousness, extroversion, agreeableness, neuroticism}: number)
+  - NPCRole type includes: civilian, guard, soldier, merchant, questgiver, farmer, blacksmith, innkeeper, priest, teacher, doctor, child, elder, noble, beggar, sailor
+  - Quests are linked to NPCs via quests table's assignedByCharacterId field, not a field on the character itself
+  - US-015 will extend this with dynamic NPC truth updates (movement, trade state, relationships, quest state)
+---
+
+## 2026-03-29 - US-015
+- Extended GameTruthSync with NPC dynamic truth update handlers for movement, relationships, quests, merchant stock, and schedules
+- New event subscriptions: npc_volition_action (NPC movement), npc_relationship_changed (disposition), quest_accepted (retract quest availability)
+- Schedule integration: hour_changed now calls updateNpcSchedules() which uses an external schedule provider callback to update NPC at_location and assert npc_schedule/4
+- Merchant stock: trackMerchantStock on item_purchased with merchantId; public depleteMerchantStock/restoreMerchantStock methods for inventory system integration
+- NPC state tracking: npcLocations Map, npcDispositions Map, npcTraders Set, knownNpcIds Set — populated during initializeNpcTruths
+- Movement actions detected: travel_to_location, walk, run, enter_building → update at_location(NpcId, LocationId)
+- All NPC truth changes use same retract-old/assert-new pattern as player truths
+- Files changed:
+  - `shared/game-engine/logic/GameTruthSync.ts` — added ~150 lines: 5 NPC tracking fields, 3 new event handlers, schedule provider, merchant stock API
+  - `tasks/prd.json` — marked US-015 passes: true
+- **Learnings for future iterations:**
+  - item_purchased event includes optional merchantId and merchantName fields — use for merchant-specific tracking
+  - npc_relationship_changed has npcId + newStrength — disposition is always toward the player (no towardId field on the event)
+  - quest_accepted has optional assignedByNpcId — use to retract npc_quest_available for that specific NPC
+  - Schedule provider is a callback pattern (setNpcScheduleProvider) because NPCScheduleSystem is in the rendering layer, not logic layer
+  - NPC movement detection relies on action IDs matching known movement actions — extend NPC_MOVEMENT_ACTIONS Set if new movement actions are added
+  - US-016 will add character_templates table and CRUD
+---

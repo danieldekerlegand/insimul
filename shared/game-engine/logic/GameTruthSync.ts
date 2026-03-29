@@ -127,6 +127,18 @@ export class GameTruthSync {
   /** Current CEFR language levels: lang → level. */
   private languageLevels = new Map<string, string>();
 
+  // ── NPC Dynamic State ──────────────────────────────────────────────────
+  /** NPC current locations: npcId → locationId. */
+  private npcLocations = new Map<string, string>();
+  /** NPC disposition toward others: "npcId:towardId" → value. */
+  private npcDispositions = new Map<string, number>();
+  /** NPCs currently flagged as traders. */
+  private npcTraders = new Set<string>();
+  /** NPC schedule provider callback (set externally). */
+  private npcScheduleProvider: ((npcId: string, hour: number) => { locationId?: string; activity?: string } | null) | null = null;
+  /** Set of all known NPC IDs (populated during initializeNpcTruths). */
+  private knownNpcIds = new Set<string>();
+
   constructor(eventBus: GameEventBus, engine: TauPrologEngine) {
     this.eventBus = eventBus;
     this.engine = engine;
@@ -186,6 +198,16 @@ export class GameTruthSync {
       case 'assessment_completed':
         await this.handleAssessmentCompleted(event);
         break;
+      // ── NPC dynamic truth updates ──
+      case 'npc_volition_action':
+        await this.handleNpcVolitionAction(event);
+        break;
+      case 'npc_relationship_changed':
+        await this.handleNpcRelationshipChanged(event);
+        break;
+      case 'quest_accepted':
+        await this.handleQuestAccepted(event);
+        break;
     }
   }
 
@@ -228,12 +250,17 @@ export class GameTruthSync {
     await this.removeItem(sanitize(event.itemName), event.quantity);
   }
 
-  private async handleItemPurchased(event: { itemId: string; itemName: string; quantity: number; totalPrice: number }): Promise<void> {
+  private async handleItemPurchased(event: { itemId: string; itemName: string; quantity: number; totalPrice: number; merchantId?: string }): Promise<void> {
     // Add the purchased item
     await this.addItem(sanitize(event.itemName), event.quantity);
 
     // Deduct gold: retract old, assert new
     await this.modifyGold(-event.totalPrice);
+
+    // Track merchant stock depletion (merchant may run out of items)
+    if (event.merchantId) {
+      await this.trackMerchantStock(sanitize(event.merchantId));
+    }
   }
 
   private async handleItemCrafted(event: { itemId: string; itemName: string; quantity: number }): Promise<void> {
@@ -404,6 +431,9 @@ export class GameTruthSync {
     }
     await this.engine.assertFact(`time_of_day(${event.hour})`);
     this.currentHour = event.hour;
+
+    // Update NPC locations and schedules from schedule provider
+    await this.updateNpcSchedules(event.hour);
   }
 
   private async handleDayChanged(event: { day: number; timestep: number }): Promise<void> {
@@ -473,6 +503,161 @@ export class GameTruthSync {
     const level = sanitize(cefrLevel);
     this.languageLevels.set(lang, level);
     await this.engine.assertFact(`speaks_language(player, ${lang}, ${level})`);
+  }
+
+  // ── NPC Dynamic Truth Handlers ──────────────────────────────────────────
+
+  /** Movement-related action IDs that imply the NPC changed location. */
+  private static readonly NPC_MOVEMENT_ACTIONS = new Set([
+    'travel_to_location', 'walk', 'run', 'enter_building',
+  ]);
+
+  private async handleNpcVolitionAction(event: {
+    npcId: string; actionId: string; targetId?: string;
+  }): Promise<void> {
+    const npcId = sanitize(event.npcId);
+
+    // If the action implies movement and has a target location, update at_location
+    if (GameTruthSync.NPC_MOVEMENT_ACTIONS.has(event.actionId) && event.targetId) {
+      await this.setNpcLocation(npcId, sanitize(event.targetId));
+    }
+  }
+
+  private async handleNpcRelationshipChanged(event: {
+    npcId: string; newStrength: number; delta: number;
+  }): Promise<void> {
+    const npcId = sanitize(event.npcId);
+    // npc_disposition tracks NPC disposition toward the player
+    const key = `${npcId}:player`;
+    const oldValue = this.npcDispositions.get(key);
+
+    if (oldValue !== undefined) {
+      try {
+        await this.engine.retractFact(`npc_disposition(${npcId}, player, ${oldValue})`);
+      } catch { /* may not exist */ }
+    }
+
+    await this.engine.assertFact(`npc_disposition(${npcId}, player, ${event.newStrength})`);
+    this.npcDispositions.set(key, event.newStrength);
+  }
+
+  private async handleQuestAccepted(event: {
+    questId: string; assignedByNpcId?: string;
+  }): Promise<void> {
+    if (!event.assignedByNpcId) return;
+
+    const npcId = sanitize(event.assignedByNpcId);
+    const questId = sanitize(event.questId);
+
+    // Retract the quest availability — NPC has given this quest
+    try {
+      await this.engine.retractFact(`npc_quest_available(${npcId}, ${questId})`);
+    } catch { /* may not exist */ }
+  }
+
+  /** Set or update an NPC's current location. */
+  private async setNpcLocation(npcId: string, locationId: string): Promise<void> {
+    const oldLoc = this.npcLocations.get(npcId);
+    if (oldLoc) {
+      try {
+        await this.engine.retractFact(`at_location(${npcId}, ${oldLoc})`);
+      } catch { /* may not exist */ }
+    }
+
+    await this.engine.assertFact(`at_location(${npcId}, ${locationId})`);
+    this.npcLocations.set(npcId, locationId);
+  }
+
+  /**
+   * Set the schedule provider callback. The NPCScheduleSystem or similar
+   * external system calls this to enable hour-based NPC location updates.
+   *
+   * The callback receives (npcId, hour) and returns the NPC's scheduled
+   * location and activity for that hour, or null if no schedule data.
+   */
+  setNpcScheduleProvider(
+    provider: (npcId: string, hour: number) => { locationId?: string; activity?: string } | null,
+  ): void {
+    this.npcScheduleProvider = provider;
+  }
+
+  /** Update all known NPC locations and schedules from the schedule provider. */
+  private async updateNpcSchedules(hour: number): Promise<void> {
+    if (!this.npcScheduleProvider) return;
+
+    const facts: string[] = [];
+    const retractions: string[] = [];
+
+    for (const npcId of Array.from(this.knownNpcIds)) {
+      const schedule = this.npcScheduleProvider(npcId, hour);
+      if (!schedule) continue;
+
+      // Update NPC location if schedule provides one
+      if (schedule.locationId) {
+        const locId = sanitize(schedule.locationId);
+        const oldLoc = this.npcLocations.get(npcId);
+        if (oldLoc && oldLoc !== locId) {
+          retractions.push(`at_location(${npcId}, ${oldLoc})`);
+        }
+        if (oldLoc !== locId) {
+          facts.push(`at_location(${npcId}, ${locId})`);
+          this.npcLocations.set(npcId, locId);
+        }
+      }
+
+      // Assert npc_schedule/4: npc_schedule(NpcId, Hour, Location, Activity)
+      const activity = sanitize(schedule.activity || 'idle');
+      const loc = sanitize(schedule.locationId || this.npcLocations.get(npcId) || 'unknown');
+      facts.push(`npc_schedule(${npcId}, ${hour}, ${loc}, ${activity})`);
+    }
+
+    // Batch retract old locations, then assert new facts
+    for (const r of retractions) {
+      try {
+        await this.engine.retractFact(r);
+      } catch { /* may not exist */ }
+    }
+    if (facts.length > 0) {
+      await this.engine.assertFacts(facts);
+    }
+  }
+
+  /**
+   * Track merchant stock depletion. Called after a purchase from a merchant.
+   * Merchants with no remaining stock lose npc_will_trade status.
+   */
+  private async trackMerchantStock(merchantId: string): Promise<void> {
+    // Note: actual stock tracking depends on the merchant inventory system.
+    // This provides the retraction mechanism — call depleteMerchantStock()
+    // externally when a merchant's inventory is confirmed empty.
+    // The event handler ensures the merchant ID is tracked.
+    this.npcTraders.add(merchantId);
+  }
+
+  /**
+   * Mark a merchant NPC as out of stock — retracts npc_will_trade.
+   * Call when merchant inventory system confirms empty stock.
+   */
+  async depleteMerchantStock(npcId: string): Promise<void> {
+    const id = sanitize(npcId);
+    if (this.npcTraders.has(id)) {
+      try {
+        await this.engine.retractFact(`npc_will_trade(${id})`);
+      } catch { /* may not exist */ }
+      this.npcTraders.delete(id);
+    }
+  }
+
+  /**
+   * Restore a merchant NPC's trade status — asserts npc_will_trade.
+   * Call when merchant restocks.
+   */
+  async restoreMerchantStock(npcId: string): Promise<void> {
+    const id = sanitize(npcId);
+    if (!this.npcTraders.has(id)) {
+      await this.engine.assertFact(`npc_will_trade(${id})`);
+      this.npcTraders.add(id);
+    }
   }
 
   // ── Serialization ───────────────────────────────────────────────────────
@@ -690,6 +875,26 @@ export class GameTruthSync {
     if (facts.length > 0) {
       await this.engine.assertFacts(facts);
     }
+
+    // Populate NPC tracking maps for dynamic updates
+    for (const npc of characters) {
+      const npcId = sanitize(npc.id);
+      this.knownNpcIds.add(npcId);
+
+      if (npc.currentLocation) {
+        this.npcLocations.set(npcId, sanitize(npc.currentLocation));
+      }
+
+      // Track merchant NPCs in trader set
+      const occLower = (npc.occupation || '').toLowerCase();
+      const roleLower = (npc.role || '').toLowerCase();
+      if (
+        GameTruthSync.MERCHANT_OCCUPATIONS.has(occLower) ||
+        GameTruthSync.MERCHANT_ROLES.has(roleLower)
+      ) {
+        this.npcTraders.add(npcId);
+      }
+    }
   }
 
   // ── Error Logging ───────────────────────────────────────────────────────
@@ -715,5 +920,10 @@ export class GameTruthSync {
     this.currentDay = null;
     this.knownVocabulary.clear();
     this.languageLevels.clear();
+    this.npcLocations.clear();
+    this.npcDispositions.clear();
+    this.npcTraders.clear();
+    this.npcScheduleProvider = null;
+    this.knownNpcIds.clear();
   }
 }
