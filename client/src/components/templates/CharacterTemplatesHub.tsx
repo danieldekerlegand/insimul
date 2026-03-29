@@ -18,6 +18,7 @@ import {
   LayoutTemplate, Plus, Edit, Save, X, Trash2, Copy, Star, Loader2, Globe, User,
 } from 'lucide-react';
 import type { CharacterTemplate } from '@shared/schema';
+import { PredicateBuilder, type StartingTruth } from './PredicateBuilder';
 
 interface CharacterTemplatesHubProps {
   worldId: string;
@@ -31,7 +32,7 @@ export function CharacterTemplatesHub({ worldId }: CharacterTemplatesHubProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<CharacterTemplate | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<{ name: string; description: string }>({ name: '', description: '' });
+  const [editForm, setEditForm] = useState<{ name: string; description: string; startingTruths: StartingTruth[] }>({ name: '', description: '', startingTruths: [] });
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createForm, setCreateForm] = useState<{ name: string; description: string }>({ name: '', description: '' });
   const [deleteTarget, setDeleteTarget] = useState<CharacterTemplate | null>(null);
@@ -134,6 +135,7 @@ export function CharacterTemplatesHub({ worldId }: CharacterTemplatesHubProps) {
         body: JSON.stringify({
           name: editForm.name.trim(),
           description: editForm.description.trim() || null,
+          startingTruths: editForm.startingTruths,
         }),
       });
       if (!response.ok) throw new Error('Failed to update template');
@@ -194,7 +196,11 @@ export function CharacterTemplatesHub({ worldId }: CharacterTemplatesHubProps) {
   };
 
   const startEditing = (template: CharacterTemplate) => {
-    setEditForm({ name: template.name, description: template.description || '' });
+    setEditForm({
+      name: template.name,
+      description: template.description || '',
+      startingTruths: (template.startingTruths as StartingTruth[] | null) || [],
+    });
     setIsEditing(true);
   };
 
@@ -336,24 +342,30 @@ export function CharacterTemplatesHub({ worldId }: CharacterTemplatesHubProps) {
             {/* Body */}
             <ScrollArea className="flex-1 p-4">
               {isEditing ? (
-                <div className="space-y-4 max-w-xl">
-                  <div>
-                    <Label>Name</Label>
-                    <Input
-                      value={editForm.name}
-                      onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Template name"
-                    />
+                <div className="space-y-6 max-w-2xl">
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Name</Label>
+                      <Input
+                        value={editForm.name}
+                        onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Template name"
+                      />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <Textarea
+                        value={editForm.description}
+                        onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Describe this character template..."
+                        rows={3}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label>Description</Label>
-                    <Textarea
-                      value={editForm.description}
-                      onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Describe this character template..."
-                      rows={3}
-                    />
-                  </div>
+                  <PredicateBuilder
+                    truths={editForm.startingTruths}
+                    onChange={startingTruths => setEditForm(prev => ({ ...prev, startingTruths }))}
+                  />
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -364,20 +376,11 @@ export function CharacterTemplatesHub({ worldId }: CharacterTemplatesHubProps) {
                   </div>
 
                   {/* Starting Truths */}
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Starting Truths</h4>
-                    {(selectedTemplate.startingTruths as any[] | null)?.length ? (
-                      <div className="space-y-1">
-                        {(selectedTemplate.startingTruths as Array<{ predicate: string; args: any[] }>).map((truth, i) => (
-                          <div key={i} className="font-mono text-xs bg-muted/50 px-3 py-1.5 rounded border">
-                            {truth.predicate}({truth.args.map(a => String(a)).join(', ')}).
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No starting truths defined.</p>
-                    )}
-                  </div>
+                  <PredicateBuilder
+                    truths={(selectedTemplate.startingTruths as StartingTruth[] | null) || []}
+                    onChange={() => {}}
+                    readOnly
+                  />
 
                   {/* Metadata */}
                   <div className="flex gap-4 text-xs text-muted-foreground">
