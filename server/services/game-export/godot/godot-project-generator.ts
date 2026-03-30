@@ -33,6 +33,9 @@ function injectConditionalAutoloads(content: string, ir: WorldIR): string {
   const extraAutoloads: string[] = [];
   const genre = ir.meta.genreConfig;
 
+  // Audio manifest autoload (always included)
+  extraAutoloads.push('AudioManifest="*res://scripts/systems/audio_manifest.gd"');
+
   if (ir.survival != null) {
     extraAutoloads.push('SurvivalSystem="*res://scripts/systems/survival_system.gd"');
   }

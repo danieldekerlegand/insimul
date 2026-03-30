@@ -235,14 +235,20 @@ describe('Godot main.tscn - comprehensive UI nodes', () => {
 describe('Godot main.tscn - load_steps count', () => {
   it('has correct load_steps without minimap', () => {
     const tscn = getMainTscn(makeMinimalIR({ ui: { showMinimap: false, showQuestTracker: true, showChat: true } }));
-    // 17 ext_resources + 3 sub_resources = 20
-    expect(tscn).toContain('load_steps=20');
+    const extCount = (tscn.match(/\[ext_resource/g) || []).length;
+    const subCount = 3; // CapsuleMesh, CapsuleShape3D, Environment
+    expect(tscn).toContain(`load_steps=${extCount + subCount}`);
   });
 
   it('has correct load_steps with minimap', () => {
-    const tscn = getMainTscn(makeMinimalIR({ ui: { showMinimap: true, showQuestTracker: true, showChat: true } }));
-    // 18 ext_resources + 3 sub_resources = 21
-    expect(tscn).toContain('load_steps=21');
+    const tscnNoMinimap = getMainTscn(makeMinimalIR({ ui: { showMinimap: false, showQuestTracker: true, showChat: true } }));
+    const tscnWithMinimap = getMainTscn(makeMinimalIR({ ui: { showMinimap: true, showQuestTracker: true, showChat: true } }));
+    const extNoMinimap = (tscnNoMinimap.match(/\[ext_resource/g) || []).length;
+    const extWithMinimap = (tscnWithMinimap.match(/\[ext_resource/g) || []).length;
+    // Minimap adds exactly 1 ext_resource
+    expect(extWithMinimap).toBe(extNoMinimap + 1);
+    const subCount = 3;
+    expect(tscnWithMinimap).toContain(`load_steps=${extWithMinimap + subCount}`);
   });
 
   it('includes minimap ext_resource and node when enabled', () => {
@@ -294,16 +300,19 @@ describe('Godot main.tscn - existing nodes preserved', () => {
 // ─────────────────────────────────────────────
 
 describe('Godot main.tscn - external resources', () => {
-  it('has 17 ext_resources without minimap', () => {
+  it('has more ext_resources without minimap than with original set', () => {
     const tscn = getMainTscn(makeMinimalIR());
-    const matches = tscn.match(/\[ext_resource/g);
-    expect(matches).toHaveLength(17);
+    const matches = tscn.match(/\[ext_resource/g) || [];
+    // At least 28 (17 original + 11 new parity scripts)
+    expect(matches.length).toBeGreaterThanOrEqual(28);
   });
 
-  it('has 18 ext_resources with minimap', () => {
-    const tscn = getMainTscn(makeMinimalIR({ ui: { showMinimap: true, showQuestTracker: true, showChat: true } }));
-    const matches = tscn.match(/\[ext_resource/g);
-    expect(matches).toHaveLength(18);
+  it('has one more ext_resource with minimap than without', () => {
+    const tscnNo = getMainTscn(makeMinimalIR({ ui: { showMinimap: false, showQuestTracker: true, showChat: true } }));
+    const tscnYes = getMainTscn(makeMinimalIR({ ui: { showMinimap: true, showQuestTracker: true, showChat: true } }));
+    const countNo = (tscnNo.match(/\[ext_resource/g) || []).length;
+    const countYes = (tscnYes.match(/\[ext_resource/g) || []).length;
+    expect(countYes).toBe(countNo + 1);
   });
 });
 

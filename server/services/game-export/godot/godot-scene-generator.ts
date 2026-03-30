@@ -59,6 +59,18 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 20, path: 'res://scripts/world/item_spawner.gd', type: 'Script' },
     { id: 21, path: 'res://scripts/world/weather_system.gd', type: 'Script' },
     { id: 22, path: 'res://scripts/world/animal_system.gd', type: 'Script' },
+    // New parity scripts
+    { id: 23, path: 'res://scripts/world/terrain_foundation_renderer.gd', type: 'Script' },
+    { id: 24, path: 'res://scripts/world/settlement_scene_manager.gd', type: 'Script' },
+    { id: 25, path: 'res://scripts/world/chunk_manager.gd', type: 'Script' },
+    { id: 26, path: 'res://scripts/world/town_square_generator.gd', type: 'Script' },
+    { id: 27, path: 'res://scripts/world/building_placement_system.gd', type: 'Script' },
+    { id: 28, path: 'res://scripts/world/building_sign_manager.gd', type: 'Script' },
+    { id: 29, path: 'res://scripts/world/building_collision_system.gd', type: 'Script' },
+    { id: 30, path: 'res://scripts/world/interior_scene_manager.gd', type: 'Script' },
+    { id: 31, path: 'res://scripts/world/outdoor_furniture_generator.gd', type: 'Script' },
+    { id: 32, path: 'res://scripts/world/container_spawn_system.gd', type: 'Script' },
+    { id: 33, path: 'res://scripts/world/exterior_item_manager.gd', type: 'Script' },
   ];
 
   const showMinimap = ir.ui?.showMinimap ?? false;
@@ -132,6 +144,50 @@ function generateMainTscn(ir: WorldIR): string {
 
   tscn += `\n[node name="WaterGenerator" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("9")\n`;
+
+  // Terrain foundation renderer (before buildings)
+  tscn += `\n[node name="TerrainFoundationRenderer" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("23")\n`;
+
+  // Settlement scene manager
+  tscn += `\n[node name="SettlementSceneManager" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("24")\n`;
+
+  // Chunk manager
+  tscn += `\n[node name="ChunkManager" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("25")\n`;
+
+  // Town square generator
+  tscn += `\n[node name="TownSquareGenerator" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("26")\n`;
+
+  // Building placement system
+  tscn += `\n[node name="BuildingPlacementSystem" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("27")\n`;
+
+  // Building sign manager
+  tscn += `\n[node name="BuildingSignManager" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("28")\n`;
+
+  // Building collision system
+  tscn += `\n[node name="BuildingCollisionSystem" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("29")\n`;
+
+  // Interior scene manager
+  tscn += `\n[node name="InteriorSceneManager" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("30")\n`;
+
+  // Outdoor furniture generator
+  tscn += `\n[node name="OutdoorFurnitureGenerator" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("31")\n`;
+
+  // Container spawn system
+  tscn += `\n[node name="ContainerSpawnSystem" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("32")\n`;
+
+  // Exterior item manager
+  tscn += `\n[node name="ExteriorItemManager" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("33")\n`;
 
   // NPC spawner
   tscn += `\n[node name="NPCSpawner" type="Node3D" parent="."]\n`;

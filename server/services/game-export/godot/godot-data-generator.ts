@@ -373,6 +373,31 @@ function generateBiomeZones(ir: WorldIR): object[] {
   }));
 }
 
+function generateContainers(ir: WorldIR): object[] {
+  return (ir.entities.containers || []).map(c => ({
+    id: c.id,
+    type: c.type || 'chest',
+    position: c.position ? { x: c.position.x, y: c.position.y, z: c.position.z } : null,
+    settlementId: c.settlementId || '',
+    buildingId: c.buildingId || '',
+    lootTableId: c.lootTableId || '',
+    items: c.items || [],
+    context: c.context || '',
+  }));
+}
+
+function generateQuestObjects(ir: WorldIR): object[] {
+  return (ir.entities.questObjects || []).map(q => ({
+    id: q.id,
+    questId: q.questId || '',
+    objectType: q.objectType || 'interact',
+    position: q.position ? { x: q.position.x, y: q.position.y, z: q.position.z } : null,
+    modelAssetKey: q.modelAssetKey || '',
+    interactionType: q.interactionType || 'collect',
+    description: q.description || '',
+  }));
+}
+
 function generateAnimations(ir: WorldIR): object[] {
   return ir.assets.animations.map(a => ({
     name: a.name,
@@ -428,6 +453,8 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'loot_tables', data: generateLootTables(ir) },
     { name: 'biome_zones', data: generateBiomeZones(ir) },
     { name: 'animations', data: generateAnimations(ir) },
+    { name: 'containers', data: generateContainers(ir) },
+    { name: 'quest_objects', data: generateQuestObjects(ir) },
   ];
 
   for (const table of tables) {
@@ -499,5 +526,41 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Audio manifest data (maps worldType → role → paths)
+  files.push({
+    path: `${base}/audio_manifest.json`,
+    content: toJSON(generateAudioManifest(ir)),
+  });
+
   return files;
+}
+
+function generateAudioManifest(ir: WorldIR): object {
+  const worldType = ir.meta?.worldType || 'generic';
+  return {
+    [worldType]: {
+      ambient: [
+        { path: 'audio/ambient/medieval_village.mp3', name: 'village_ambient' },
+        { path: 'audio/ambient/wind.mp3', name: 'wind_ambient' },
+      ],
+      footstep: [
+        { path: 'audio/footstep/stone.mp3', name: 'footstep_stone' },
+      ],
+      effects: [
+        { path: 'audio/interact/door.mp3', name: 'door_open' },
+        { path: 'audio/interact/button.mp3', name: 'button_press' },
+      ],
+    },
+    generic: {
+      ambient: [
+        { path: 'audio/ambient/wind.mp3', name: 'wind_ambient' },
+      ],
+      footstep: [
+        { path: 'audio/footstep/stone.mp3', name: 'footstep_stone' },
+      ],
+      effects: [
+        { path: 'audio/interact/button.mp3', name: 'button_press' },
+      ],
+    },
+  };
 }

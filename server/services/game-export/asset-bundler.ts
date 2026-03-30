@@ -775,21 +775,20 @@ export async function bundleCoreAssets(engine: TargetEngine = 'babylon'): Promis
   const basePath = getAssetsBasePath();
   console.log(`[AssetBundler] bundleCoreAssets: basePath=${basePath}, engine=${engine}`);
 
-  // Core character assets use .babylon format which is Babylon.js-only.
-  // For other engines, skip them — users must supply GLB/GLTF character models
-  // via a world asset collection.
-  const includeCharacters = engine === 'babylon';
-  if (!includeCharacters) {
-    console.warn(
-      `[AssetBundler] Skipping core character assets for engine="${engine}" — ` +
-      `.babylon format is not importable by ${engine}. ` +
-      'Assign a world asset collection with GLB character models instead.'
+  // Core character assets (.babylon format) are Babylon.js-only.
+  // However, Quaternius characters are GLTF/GLB and work with all engines.
+  const includeBabylonCharacters = engine === 'babylon';
+  if (!includeBabylonCharacters) {
+    console.log(
+      `[AssetBundler] Skipping .babylon character assets for engine="${engine}" — ` +
+      'including Quaternius GLTF/GLB characters instead.'
     );
   }
 
   const allDefs: AssetDef[] = [
-    ...(includeCharacters ? CORE_CHARACTERS : []),
-    ...(includeCharacters ? getQuaterniusCharacters(basePath) : []),
+    ...(includeBabylonCharacters ? CORE_CHARACTERS : []),
+    // Quaternius models are GLTF/GLB — include for ALL engines
+    ...getQuaterniusCharacters(basePath),
     ...CORE_GROUND,
     ...CORE_CONTAINERS,
     ...CORE_MARKERS,
