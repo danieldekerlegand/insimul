@@ -6,7 +6,11 @@
  * - Core classes (GameMode, GameInstance, PlayerController)
  * - Character classes (Player, NPC)
  * - Game systems (Action, Combat, Quest, Inventory, Crafting, Resource, Survival, Dialogue, Rule)
+ * - Part 2 systems (CharacterController, CameraManager, NPC assembly/animation/movement/schedule/LOD/greeting/activity/conversation,
+ *   LipSync, BusinessInteraction, QuestCompletion, CombatMode, ResourceGathering, Exploration, Reputation,
+ *   SpatialAudio, Photography, Puzzle, Onboarding, TruthSync, SaveLoad, AnimalNPC, VR)
  * - UI classes (HUD widget with health, energy, gold, survival bars, compass, quest journal)
+ * - Part 2 UI (ChatPanel, GameMenu, QuestTracker, QuestOffer, IntroSequence, ActionQuickBar, DocumentReader)
  * - World generators (Building, Nature, Road, Dungeon, WorldScale)
  */
 
@@ -174,6 +178,72 @@ function genSystemClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ContainerSpawnSystem.cpp`, content: loadStaticTemplate('source/systems/ContainerSpawnSystem.cpp') },
     { path: `${base}/ExteriorItemManager.h`, content: loadStaticTemplate('source/systems/ExteriorItemManager.h') },
     { path: `${base}/ExteriorItemManager.cpp`, content: loadStaticTemplate('source/systems/ExteriorItemManager.cpp') },
+    // Character controller & camera
+    { path: `${base}/CharacterController.h`, content: loadStaticTemplate('source/systems/CharacterController.h') },
+    { path: `${base}/CharacterController.cpp`, content: loadStaticTemplate('source/systems/CharacterController.cpp') },
+    { path: `${base}/CameraManager.h`, content: loadStaticTemplate('source/systems/CameraManager.h') },
+    { path: `${base}/CameraManager.cpp`, content: loadStaticTemplate('source/systems/CameraManager.cpp') },
+    // NPC systems
+    { path: `${base}/NPCModularAssembler.h`, content: loadStaticTemplate('source/systems/NPCModularAssembler.h') },
+    { path: `${base}/NPCModularAssembler.cpp`, content: loadStaticTemplate('source/systems/NPCModularAssembler.cpp') },
+    { path: `${base}/NPCAccessorySystem.h`, content: loadStaticTemplate('source/systems/NPCAccessorySystem.h') },
+    { path: `${base}/NPCAccessorySystem.cpp`, content: loadStaticTemplate('source/systems/NPCAccessorySystem.cpp') },
+    { path: `${base}/NPCAnimationController.h`, content: loadStaticTemplate('source/systems/NPCAnimationController.h') },
+    { path: `${base}/NPCAnimationController.cpp`, content: loadStaticTemplate('source/systems/NPCAnimationController.cpp') },
+    { path: `${base}/NPCMovementController.h`, content: loadStaticTemplate('source/systems/NPCMovementController.h') },
+    { path: `${base}/NPCMovementController.cpp`, content: loadStaticTemplate('source/systems/NPCMovementController.cpp') },
+    { path: `${base}/NPCScheduleSystem.h`, content: loadStaticTemplate('source/systems/NPCScheduleSystem.h') },
+    { path: `${base}/NPCScheduleSystem.cpp`, content: loadStaticTemplate('source/systems/NPCScheduleSystem.cpp') },
+    { path: `${base}/NPCSimulationLOD.h`, content: loadStaticTemplate('source/systems/NPCSimulationLOD.h') },
+    { path: `${base}/NPCSimulationLOD.cpp`, content: loadStaticTemplate('source/systems/NPCSimulationLOD.cpp') },
+    { path: `${base}/NPCGreetingSystem.h`, content: loadStaticTemplate('source/systems/NPCGreetingSystem.h') },
+    { path: `${base}/NPCGreetingSystem.cpp`, content: loadStaticTemplate('source/systems/NPCGreetingSystem.cpp') },
+    { path: `${base}/NPCActivityLabelSystem.h`, content: loadStaticTemplate('source/systems/NPCActivityLabelSystem.h') },
+    { path: `${base}/NPCActivityLabelSystem.cpp`, content: loadStaticTemplate('source/systems/NPCActivityLabelSystem.cpp') },
+    { path: `${base}/AmbientConversationSystem.h`, content: loadStaticTemplate('source/systems/AmbientConversationSystem.h') },
+    { path: `${base}/AmbientConversationSystem.cpp`, content: loadStaticTemplate('source/systems/AmbientConversationSystem.cpp') },
+    // Dialogue & interaction
+    { path: `${base}/LipSyncController.h`, content: loadStaticTemplate('source/systems/LipSyncController.h') },
+    { path: `${base}/LipSyncController.cpp`, content: loadStaticTemplate('source/systems/LipSyncController.cpp') },
+    { path: `${base}/BusinessInteractionSystem.h`, content: loadStaticTemplate('source/systems/BusinessInteractionSystem.h') },
+    { path: `${base}/BusinessInteractionSystem.cpp`, content: loadStaticTemplate('source/systems/BusinessInteractionSystem.cpp') },
+    // Quest completion
+    { path: `${base}/QuestCompletionManager.h`, content: loadStaticTemplate('source/systems/QuestCompletionManager.h') },
+    { path: `${base}/QuestCompletionManager.cpp`, content: loadStaticTemplate('source/systems/QuestCompletionManager.cpp') },
+    // Combat modes
+    { path: `${base}/CombatModeManager.h`, content: loadStaticTemplate('source/systems/CombatModeManager.h') },
+    { path: `${base}/CombatModeManager.cpp`, content: loadStaticTemplate('source/systems/CombatModeManager.cpp') },
+    // Resource gathering
+    { path: `${base}/ResourceGatheringSystem.h`, content: loadStaticTemplate('source/systems/ResourceGatheringSystem.h') },
+    { path: `${base}/ResourceGatheringSystem.cpp`, content: loadStaticTemplate('source/systems/ResourceGatheringSystem.cpp') },
+    // Exploration & reputation
+    { path: `${base}/ExplorationDiscoverySystem.h`, content: loadStaticTemplate('source/systems/ExplorationDiscoverySystem.h') },
+    { path: `${base}/ExplorationDiscoverySystem.cpp`, content: loadStaticTemplate('source/systems/ExplorationDiscoverySystem.cpp') },
+    { path: `${base}/ReputationManager.h`, content: loadStaticTemplate('source/systems/ReputationManager.h') },
+    { path: `${base}/ReputationManager.cpp`, content: loadStaticTemplate('source/systems/ReputationManager.cpp') },
+    // Audio & media
+    { path: `${base}/SpatialAudioManager.h`, content: loadStaticTemplate('source/systems/SpatialAudioManager.h') },
+    { path: `${base}/SpatialAudioManager.cpp`, content: loadStaticTemplate('source/systems/SpatialAudioManager.cpp') },
+    { path: `${base}/PhotographySystem.h`, content: loadStaticTemplate('source/systems/PhotographySystem.h') },
+    { path: `${base}/PhotographySystem.cpp`, content: loadStaticTemplate('source/systems/PhotographySystem.cpp') },
+    // Puzzle & dungeons
+    { path: `${base}/PuzzleGameSystem.h`, content: loadStaticTemplate('source/systems/PuzzleGameSystem.h') },
+    { path: `${base}/PuzzleGameSystem.cpp`, content: loadStaticTemplate('source/systems/PuzzleGameSystem.cpp') },
+    // Onboarding & tutorials
+    { path: `${base}/OnboardingManager.h`, content: loadStaticTemplate('source/systems/OnboardingManager.h') },
+    { path: `${base}/OnboardingManager.cpp`, content: loadStaticTemplate('source/systems/OnboardingManager.cpp') },
+    // Truth sync & content gating
+    { path: `${base}/TruthSyncSystem.h`, content: loadStaticTemplate('source/systems/TruthSyncSystem.h') },
+    { path: `${base}/TruthSyncSystem.cpp`, content: loadStaticTemplate('source/systems/TruthSyncSystem.cpp') },
+    // Save/load
+    { path: `${base}/SaveLoadSystem.h`, content: loadStaticTemplate('source/systems/SaveLoadSystem.h') },
+    { path: `${base}/SaveLoadSystem.cpp`, content: loadStaticTemplate('source/systems/SaveLoadSystem.cpp') },
+    // Animal NPCs
+    { path: `${base}/AnimalNPCManager.h`, content: loadStaticTemplate('source/systems/AnimalNPCManager.h') },
+    { path: `${base}/AnimalNPCManager.cpp`, content: loadStaticTemplate('source/systems/AnimalNPCManager.cpp') },
+    // VR scaffolding
+    { path: `${base}/VRScaffolding.h`, content: loadStaticTemplate('source/systems/VRScaffolding.h') },
+    { path: `${base}/VRScaffolding.cpp`, content: loadStaticTemplate('source/systems/VRScaffolding.cpp') },
   ];
 
   if (genre.features.crafting) {
@@ -313,6 +383,21 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/InsimulShopPanel.cpp`, content: loadStaticTemplate('source/ui/InsimulShopPanel.cpp') },
     { path: `${base}/InsimulSkillTreePanel.h`,   content: loadStaticTemplate('source/ui/InsimulSkillTreePanel.h') },
     { path: `${base}/InsimulSkillTreePanel.cpp`, content: loadStaticTemplate('source/ui/InsimulSkillTreePanel.cpp') },
+    // Part 2 UI widgets
+    { path: `${base}/InsimulChatPanel.h`,   content: loadStaticTemplate('source/ui/InsimulChatPanel.h') },
+    { path: `${base}/InsimulChatPanel.cpp`, content: loadStaticTemplate('source/ui/InsimulChatPanel.cpp') },
+    { path: `${base}/InsimulGameMenuWidget.h`,   content: loadStaticTemplate('source/ui/InsimulGameMenuWidget.h') },
+    { path: `${base}/InsimulGameMenuWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulGameMenuWidget.cpp') },
+    { path: `${base}/InsimulQuestTrackerWidget.h`,   content: loadStaticTemplate('source/ui/InsimulQuestTrackerWidget.h') },
+    { path: `${base}/InsimulQuestTrackerWidget.cpp`, content: loadStaticTemplate('source/ui/InsimulQuestTrackerWidget.cpp') },
+    { path: `${base}/InsimulQuestOfferPanel.h`,   content: loadStaticTemplate('source/ui/InsimulQuestOfferPanel.h') },
+    { path: `${base}/InsimulQuestOfferPanel.cpp`, content: loadStaticTemplate('source/ui/InsimulQuestOfferPanel.cpp') },
+    { path: `${base}/InsimulIntroSequence.h`,   content: loadStaticTemplate('source/ui/InsimulIntroSequence.h') },
+    { path: `${base}/InsimulIntroSequence.cpp`, content: loadStaticTemplate('source/ui/InsimulIntroSequence.cpp') },
+    { path: `${base}/InsimulActionQuickBar.h`,   content: loadStaticTemplate('source/ui/InsimulActionQuickBar.h') },
+    { path: `${base}/InsimulActionQuickBar.cpp`, content: loadStaticTemplate('source/ui/InsimulActionQuickBar.cpp') },
+    { path: `${base}/InsimulDocumentReader.h`,   content: loadStaticTemplate('source/ui/InsimulDocumentReader.h') },
+    { path: `${base}/InsimulDocumentReader.cpp`, content: loadStaticTemplate('source/ui/InsimulDocumentReader.cpp') },
   ];
 
   // World map widget (always included when map screen is enabled or by default)
