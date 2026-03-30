@@ -579,7 +579,8 @@ export function resolveNarrativeText(
   text: string,
   writerName: WriterNameEntry,
 ): string {
-  return text.replace(/\{WRITER\}/g, writerName.fullName);
+  // Store as template variable with fallback — resolved at game startup
+  return text.replace(/\{WRITER\}/g, `{{writer_name|${writerName.fullName}}}`);
 }
 
 /**

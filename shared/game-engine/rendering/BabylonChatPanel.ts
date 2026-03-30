@@ -12,6 +12,7 @@ import {
 } from "@babylonjs/gui";
 import { Scene, Mesh } from "@babylonjs/core";
 import { BabylonDialogueActions } from "./BabylonDialogueActions";
+import { BabylonGesturePanel } from "./BabylonGesturePanel";
 import { HoverTranslationSystem } from "./HoverTranslationSystem";
 import type { VocabHint } from "./HoverTranslationSystem";
 import { Action } from "./types/actions";
@@ -159,6 +160,9 @@ export class BabylonChatPanel {
   private availableActions: Action[] = [];
   private playerEnergy: number = 100;
 
+  // Gesture Panel (non-verbal actions during conversation)
+  private gesturePanel: BabylonGesturePanel | null = null;
+
   // Talking Indicator
   private talkingIndicator: NPCTalkingIndicator | null = null;
   private npcMesh: Mesh | null = null;
@@ -168,6 +172,7 @@ export class BabylonChatPanel {
   private onQuestAssigned: ((questData: any) => void) | null = null;
   private onQuestBranched: ((questId: string, choiceId: string, targetStageId: string) => void) | null = null;
   private onActionSelect: ((actionId: string) => void) | null = null;
+  private onGesturePerformed: ((gestureId: string) => void) | null = null;
   private onVocabularyUsed: ((word: string) => void) | null = null;
   private onConversationTurn: ((keywords: string[]) => void) | null = null;
   private onNPCConversationStarted: ((npcId: string) => void) | null = null;
@@ -347,6 +352,7 @@ export class BabylonChatPanel {
       if (this._closeBtn) this._closeBtn.isVisible = true;
 
       this.initializeChat();
+      this.showGesturePanel();
       this._advancedTexture.markAsDirty();
       return;
     }
@@ -354,6 +360,7 @@ export class BabylonChatPanel {
     // Create the chat UI for the first time
     this.createChatUI();
     this.initializeChat();
+    this.showGesturePanel();
   }
 
   private async fetchWorldData(worldId: string) {
@@ -487,6 +494,7 @@ export class BabylonChatPanel {
       this.chatContainer.isVisible = false;
     }
     this.updateNPCIndicator();
+    this.gesturePanel?.hide();
     if (this.dialogueActions) {
       this.dialogueActions.hide();
     }
@@ -2426,65 +2434,8 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     return prompt;
   }
 
-  /**
-   * Request grammar analysis from a separate LLM call.
-   * Runs in the background — doesn't block dialogue display or TTS.
-   */
-  private async requestGrammarAnalysis(playerMessage: string, npcResponse: string): Promise<void> {
-    try {
-      const res = await fetch('/api/gemini/grammar-analysis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerMessage,
-          npcResponse,
-          targetLanguage: this.worldLanguageContext?.targetLanguage || 'Spanish',
-        }),
-      });
-
-      if (!res.ok) return;
-      const data = await res.json();
-
-      if (!data || !this.languageTracker) return;
-
-      const feedback = {
-        status: data.status as 'correct' | 'corrected' | 'no_target_language',
-        errors: (data.errors || []).map((e: any) => ({
-          pattern: e.pattern || 'unknown',
-          incorrect: e.incorrect || '',
-          corrected: e.corrected || '',
-          explanation: e.explanation || '',
-        })),
-        errorCount: data.errors?.length || 0,
-        timestamp: Date.now(),
-      };
-
-      this.languageTracker.recordGrammarFeedback(feedback);
-
-      if (feedback.status === 'corrected' && feedback.errors.length > 0) {
-        console.log(`[GrammarAnalysis] Grammar corrections: ${feedback.errors.length}`);
-        const corrections = feedback.errors.map((err: any) =>
-          `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
-        ).join('\n');
-        this.displayGrammarFeedback(corrections, false);
-
-        // Track repeated grammar errors — show focus popup after 3 errors of same type
-        for (const err of feedback.errors) {
-          const count = (this._sessionGrammarErrors.get(err.pattern) || 0) + 1;
-          this._sessionGrammarErrors.set(err.pattern, count);
-          if (count >= 3 && !this._grammarFocusShown.has(err.pattern)) {
-            this._grammarFocusShown.add(err.pattern);
-            this.showGrammarFocusPopup(err.pattern, err.explanation, err.corrected);
-          }
-        }
-      } else if (feedback.status === 'correct') {
-        console.log('[GrammarAnalysis] Grammar: correct!');
-        this.displayGrammarFeedback('Great grammar!', true);
-      }
-    } catch (err) {
-      console.warn('[GrammarAnalysis] Failed:', err);
-    }
-  }
+  // Grammar analysis is handled by requestBackgroundMetadata() which calls
+  // /api/conversation/metadata and processes grammar feedback from the response.
 
   /** Clean text for spoken output — strip all formatting, markers, stage directions */
   private cleanTextForSpeech(text: string): string {
@@ -3210,6 +3161,10 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
 
   public setOnActionSelect(callback: (actionId: string) => void) {
     this.onActionSelect = callback;
+  }
+
+  public setOnGesturePerformed(callback: (gestureId: string) => void) {
+    this.onGesturePerformed = callback;
   }
 
   public setOnVocabularyUsed(callback: (word: string) => void) {
@@ -4092,6 +4047,25 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   }
 
   /**
+   * Show the gesture panel inside the chat container.
+   * Creates it lazily on first call.
+   */
+  private showGesturePanel(): void {
+    if (!this.chatContainer || !this.onGesturePerformed) return;
+
+    if (!this.gesturePanel) {
+      this.gesturePanel = new BabylonGesturePanel();
+    }
+
+    this.gesturePanel?.show(
+      this.chatContainer!,
+      (gestureId: string) => {
+        this.onGesturePerformed?.(gestureId);
+      },
+    );
+  }
+
+  /**
    * Update dialogue actions (e.g., when player energy changes)
    */
   public updateDialogueActions(playerEnergy: number) {
@@ -4309,6 +4283,10 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     if (this.dialogueActions) {
       this.dialogueActions.hide();
       this.dialogueActions = null;
+    }
+    if (this.gesturePanel) {
+      this.gesturePanel.dispose();
+      this.gesturePanel = null;
     }
     if (this.talkingIndicator) {
       this.talkingIndicator.dispose();

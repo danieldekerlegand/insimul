@@ -121,18 +121,52 @@ const CLUE_TEMPLATES = [
 ];
 
 /**
+ * Resolve template variables in narrative text using current world data.
+ * Variables use {{variable_name}} syntax with fallback defaults.
+ */
+export function resolveNarrativeVariables(
+  text: string,
+  context: {
+    writerName?: string;
+    settlementName?: string;
+    npcNames?: string[];
+    streetNames?: string[];
+    businessNames?: string[];
+  }
+): string {
+  return text
+    .replace(/\{\{writer_name\|([^}]*)\}\}/g, (_, fallback) => context.writerName || fallback)
+    .replace(/\{\{settlement_name\|([^}]*)\}\}/g, (_, fallback) => context.settlementName || fallback)
+    .replace(/\{\{npc_name_(\d+)\|([^}]*)\}\}/g, (_, idx, fallback) => context.npcNames?.[parseInt(idx)] || fallback)
+    .replace(/\{\{street_name\|([^}]*)\}\}/g, (_, fallback) => context.streetNames?.[0] || fallback)
+    .replace(/\{\{business_name\|([^}]*)\}\}/g, (_, fallback) => context.businessNames?.[0] || fallback)
+    // Simple variables without fallback
+    .replace(/\{\{writer_name\}\}/g, context.writerName || 'the writer')
+    .replace(/\{\{settlement_name\}\}/g, context.settlementName || 'the settlement')
+    // Legacy {WRITER} and {SETTLEMENT} syntax for backward compat
+    .replace(/\{WRITER\}/g, context.writerName || 'the writer')
+    .replace(/\{SETTLEMENT\}/g, context.settlementName || 'the settlement');
+}
+
+/**
  * Generate a complete narrative outline for the "Missing Writer" main quest.
  * Uses deterministic template selection based on worldId for reproducibility.
+ *
+ * Templates use {{variable_name|fallback}} syntax. Variables are resolved at
+ * runtime via resolveNarrativeVariables() so text stays fresh when world data changes.
  */
 export function generateNarrative(input: NarrativeGeneratorInput): NarrativeIR {
   const { worldId, writerName, settlementNames, npcNames } = input;
   const fullName = writerName.fullName;
   const mainSettlement = settlementNames[0] || 'the settlement';
 
+  // Convert legacy {WRITER}/{SETTLEMENT} to {{variable|fallback}} template syntax.
+  // The stored narrative keeps these as templates — they get resolved at game startup
+  // via resolveNarrativeVariables() with current world data.
   const resolve = (text: string): string =>
     text
-      .replace(/\{WRITER\}/g, fullName)
-      .replace(/\{SETTLEMENT\}/g, mainSettlement);
+      .replace(/\{WRITER\}/g, `{{writer_name|${fullName}}}`)
+      .replace(/\{SETTLEMENT\}/g, `{{settlement_name|${mainSettlement}}}`);
 
   const backstory = resolve(seededPick(BACKSTORY_TEMPLATES, worldId, 1));
   const disappearanceReason = resolve(seededPick(DISAPPEARANCE_REASONS, worldId, 2));

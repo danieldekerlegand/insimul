@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Clock, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe, Trash2, Lock, Play, Eye,
+  Clock, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe, Trash2, Lock, Play, Eye, AlertTriangle,
 } from 'lucide-react';
 import { QuestCreateDialog } from '../QuestCreateDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
@@ -18,6 +18,7 @@ import { PrologQueryTester } from '../prolog/PrologQueryTester';
 import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
 import { ContentValidationIndicator } from '../prolog/ContentValidationIndicator';
 import { validateQuestContent } from '@shared/prolog/content-validators';
+import { lintQuestContent, type LintWarning, type LintContext } from '@shared/prolog/quest-linter';
 import { QuestChecklist } from './QuestChecklist';
 
 interface Quest {
@@ -86,6 +87,52 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
     queryKey: ['/api/worlds', worldId, 'quests'],
     enabled: !!worldId,
   });
+
+  // Load world entities for Prolog linting
+  const { data: worldCharacters = [] } = useQuery<any[]>({
+    queryKey: ['/api/worlds', worldId, 'characters'],
+    queryFn: async () => {
+      const res = await fetch(`/api/worlds/${worldId}/characters`);
+      return res.ok ? res.json() : [];
+    },
+    enabled: !!worldId,
+  });
+
+  const { data: worldItems = [] } = useQuery<any[]>({
+    queryKey: ['/api/worlds', worldId, 'items-for-lint'],
+    queryFn: async () => {
+      const res = await fetch(`/api/worlds/${worldId}/items`);
+      return res.ok ? res.json() : [];
+    },
+    enabled: !!worldId,
+  });
+
+  const { data: worldData } = useQuery<any>({
+    queryKey: ['/api/worlds', worldId, 'world-data'],
+    queryFn: async () => {
+      const res = await fetch(`/api/worlds/${worldId}`);
+      return res.ok ? res.json() : null;
+    },
+    enabled: !!worldId,
+  });
+
+  // Build lint context from world data
+  const lintContext = useMemo((): LintContext => ({
+    characterNames: worldCharacters.map((c: any) => `${c.firstName || ''} ${c.lastName || ''}`.trim()),
+    characterIds: worldCharacters.map((c: any) => c.id),
+    locationNames: [], // Locations loaded per-settlement, skip for now
+    locationIds: [],
+    businessNames: [],
+    itemNames: worldItems.map((i: any) => i.name),
+    questIds: quests.map(q => q.id),
+    targetLanguage: worldData?.targetLanguage,
+  }), [worldCharacters, worldItems, quests, worldData]);
+
+  // Lint selected quest
+  const lintWarnings = useMemo((): LintWarning[] => {
+    if (!selectedQuest?.content) return [];
+    return lintQuestContent(selectedQuest.content, lintContext);
+  }, [selectedQuest?.content, lintContext]);
 
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
@@ -340,8 +387,40 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
             <ScrollArea className="flex-1">
               <div className="p-4">
                 {selectedQuest.content ? (
-                  <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-lg">
-                    <PrologSyntaxHighlight code={selectedQuest.content} className="text-[11px]" />
+                  <div className="space-y-2">
+                    <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-lg">
+                      <PrologSyntaxHighlight code={selectedQuest.content} className="text-[11px]" />
+                    </div>
+
+                    {/* Lint Warnings */}
+                    {lintWarnings.length > 0 && (
+                      <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                        <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          {lintWarnings.length} reference warning{lintWarnings.length !== 1 ? 's' : ''}
+                        </p>
+                        <div className="space-y-1.5">
+                          {lintWarnings.map((w, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs">
+                              <Badge variant="outline" className={`text-[9px] shrink-0 ${
+                                w.type === 'character' ? 'text-blue-500 border-blue-500/30' :
+                                w.type === 'location' ? 'text-green-500 border-green-500/30' :
+                                w.type === 'item' ? 'text-purple-500 border-purple-500/30' :
+                                w.type === 'language' ? 'text-cyan-500 border-cyan-500/30' :
+                                'text-muted-foreground'
+                              }`}>{w.type}</Badge>
+                              <span className="text-muted-foreground">{w.message}</span>
+                              {w.line && <span className="text-[9px] text-muted-foreground/60 ml-auto">L{w.line}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {lintWarnings.length === 0 && selectedQuest.content && (
+                      <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 px-1">
+                        <span>✓</span> All entity references valid
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12 space-y-3">
@@ -614,15 +693,69 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                 </div>
               </div>
 
-              {/* Context */}
-              {selectedQuest.conversationContext && (
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Context</h4>
-                  <div className="p-2 bg-muted/30 rounded-lg">
-                    <p className="text-[10px] text-muted-foreground">{selectedQuest.conversationContext}</p>
+              {/* Narrative Context (rich view for main quests, simple text for others) */}
+              {selectedQuest.conversationContext && (() => {
+                let narrativeCtx: any = null;
+                try { narrativeCtx = JSON.parse(selectedQuest.conversationContext); } catch {}
+                const isMainQuest = selectedQuest.questType === 'main_quest' || selectedQuest.tags?.includes('main_quest');
+
+                if (isMainQuest && narrativeCtx?.introNarrative) {
+                  return (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Narrative Context</h4>
+                      <div className="space-y-2">
+                        <div className="p-2 bg-muted/30 rounded-lg">
+                          <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">Intro Narrative</p>
+                          <p className="text-xs">{narrativeCtx.introNarrative}</p>
+                        </div>
+                        {narrativeCtx.mysteryDetails && (
+                          <div className="p-2 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                            <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mb-0.5">Mystery Details</p>
+                            <p className="text-xs">{narrativeCtx.mysteryDetails}</p>
+                          </div>
+                        )}
+                        {narrativeCtx.clueDescriptions?.length > 0 && (
+                          <div className="p-2 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                            <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 mb-1">Clues</p>
+                            <div className="space-y-1">
+                              {narrativeCtx.clueDescriptions.map((clue: any, i: number) => (
+                                <div key={i} className="flex items-start gap-1.5">
+                                  <span className="text-[10px] text-blue-500 mt-0.5">•</span>
+                                  <div>
+                                    <p className="text-xs">{clue.text}</p>
+                                    {(clue.locationId || clue.npcRole) && (
+                                      <div className="flex gap-1 mt-0.5">
+                                        {clue.locationId && <span className="text-[9px] px-1 py-0 rounded bg-muted text-muted-foreground">{clue.locationId}</span>}
+                                        {clue.npcRole && <span className="text-[9px] px-1 py-0 rounded bg-primary/10 text-primary">{clue.npcRole}</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {narrativeCtx.outroNarrative && (
+                          <div className="p-2 bg-green-500/5 border border-green-500/20 rounded-lg">
+                            <p className="text-[10px] font-semibold text-green-600 dark:text-green-400 mb-0.5">Outro Narrative</p>
+                            <p className="text-xs">{narrativeCtx.outroNarrative}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Simple text fallback for non-main quests
+                return (
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Context</h4>
+                    <div className="p-2 bg-muted/30 rounded-lg">
+                      <p className="text-[10px] text-muted-foreground">{selectedQuest.conversationContext}</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Tags */}
               {selectedQuest.tags && selectedQuest.tags.length > 0 && (

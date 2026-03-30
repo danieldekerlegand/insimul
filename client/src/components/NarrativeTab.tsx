@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import {
   BookOpen, RefreshCw, Save, AlertTriangle,
-  ChevronDown, ChevronRight, User, MapPin, Search,
+  ChevronDown, ChevronRight, User, MapPin, Search, ScrollText, ExternalLink,
 } from 'lucide-react';
 
 interface NarrativeTabProps {
@@ -73,6 +73,32 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
       return data;
     },
   });
+
+  // Load quests to show corresponding main quest for each chapter
+  const { data: quests = [] } = useQuery<any[]>({
+    queryKey: ['/api/worlds', worldId, 'quests'],
+    queryFn: async () => {
+      const res = await fetch(`/api/worlds/${worldId}/quests`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  // Load gametexts for linked texts display
+  const { data: gametexts = [] } = useQuery<any[]>({
+    queryKey: ['/api/worlds', worldId, 'texts'],
+    queryFn: async () => {
+      const res = await fetch(`/api/worlds/${worldId}/texts`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const mainQuests = quests.filter((q: any) => q.questType === 'main_quest' || q.tags?.includes('main_quest'));
+  const getQuestForChapter = (chapterId: string) =>
+    mainQuests.find((q: any) => q.tags?.includes(`chapterId:${chapterId}`));
+  const getTextsForChapter = (chapterId: string) =>
+    gametexts.filter((t: any) => t.tags?.includes(`chapterId:${chapterId}`));
 
   const data = editData ?? narrative;
 
@@ -239,7 +265,20 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
                     <Badge variant="outline">Ch. {ch.chapterNumber}</Badge>
                     <span className="font-medium">{ch.title}</span>
                   </div>
-                  <Badge>{ch.clueDescriptions.length} clues</Badge>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const quest = getQuestForChapter(ch.chapterId);
+                      return quest ? (
+                        <Badge variant="secondary" className="text-[10px] gap-1">
+                          <ScrollText className="w-3 h-3" />
+                          {quest.title}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">No quest</Badge>
+                      );
+                    })()}
+                    <Badge>{ch.clueDescriptions.length} clues</Badge>
+                  </div>
                 </button>
                 {isExpanded && (
                   <div className="p-4 pt-0 space-y-3">
@@ -279,6 +318,74 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
                         rows={3}
                       />
                     </div>
+                    {/* Linked Quest */}
+                    {(() => {
+                      const quest = getQuestForChapter(ch.chapterId);
+                      if (!quest) return null;
+                      return (
+                        <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium flex items-center gap-1">
+                              <ScrollText className="w-3.5 h-3.5" /> Linked Quest
+                            </label>
+                            <Badge variant={quest.status === 'completed' ? 'default' : quest.status === 'active' ? 'secondary' : 'outline'} className="text-[10px]">
+                              {quest.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm font-medium">{quest.title}</p>
+                          {quest.description && <p className="text-xs text-muted-foreground mt-1">{quest.description}</p>}
+                          {quest.objectives?.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {quest.objectives.map((obj: any, oi: number) => (
+                                <div key={oi} className="flex items-center gap-2 text-xs">
+                                  <span className={obj.completed ? 'text-green-500' : 'text-muted-foreground'}>
+                                    {obj.completed ? '✓' : '○'}
+                                  </span>
+                                  <span className={obj.completed ? 'line-through text-muted-foreground' : ''}>
+                                    {obj.description || obj.title || obj.id}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {quest.experienceReward && (
+                            <p className="text-[10px] text-muted-foreground mt-2">Reward: {quest.experienceReward} XP</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Linked Texts (journal entries, clue letters) */}
+                    {(() => {
+                      const chapterTexts = getTextsForChapter(ch.chapterId);
+                      if (chapterTexts.length === 0) return null;
+                      return (
+                        <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                          <label className="text-sm font-medium flex items-center gap-1 mb-2">
+                            <BookOpen className="w-3.5 h-3.5" /> Linked Texts ({chapterTexts.length})
+                          </label>
+                          <div className="space-y-1.5">
+                            {chapterTexts.map((text: any) => (
+                              <div key={text.id} className="flex items-start gap-2 text-xs">
+                                <Badge variant="outline" className={`text-[9px] shrink-0 ${
+                                  text.textCategory === 'journal' ? 'text-amber-500 border-amber-500/30' :
+                                  text.textCategory === 'letter' ? 'text-blue-500 border-blue-500/30' :
+                                  'text-muted-foreground'
+                                }`}>{text.textCategory}</Badge>
+                                <div className="flex-1">
+                                  <span className="font-medium">{text.title}</span>
+                                  {text.clueText && (
+                                    <p className="text-muted-foreground mt-0.5">{text.clueText}</p>
+                                  )}
+                                </div>
+                                <Badge variant="outline" className="text-[9px]">{text.cefrLevel}</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Clue Descriptions */}
                     <div>
                       <label className="text-sm font-medium flex items-center gap-1">
@@ -309,6 +416,33 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
                                   <User className="w-3 h-3 mr-1" />{clue.npcRole}
                                 </Badge>
                               )}
+                              {(() => {
+                                // NPC-based clues are delivered via conversation, not text
+                                if (clue.npcRole) {
+                                  return (
+                                    <Badge variant="outline" className="text-xs text-cyan-500 border-cyan-500/30">
+                                      💬 NPC conversation
+                                    </Badge>
+                                  );
+                                }
+                                // Location-based clues should have a linked text
+                                const chapterTexts = getTextsForChapter(ch.chapterId);
+                                const linkedText = chapterTexts.find((t: any) =>
+                                  t.tags?.includes('clue') && (
+                                    (clue.locationId && t.spawnLocationHint === clue.locationId) ||
+                                    t.clueText
+                                  )
+                                );
+                                return linkedText ? (
+                                  <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">
+                                    <BookOpen className="w-3 h-3 mr-1" /> Text linked
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs text-amber-500 border-amber-500/30">
+                                    No text
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                           </div>
                         ))}
@@ -344,7 +478,25 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
                   rows={2}
                 />
               </div>
-              <Badge variant="outline">{rh.source}</Badge>
+              <div className="flex flex-col gap-1 min-w-[120px]">
+                <Badge variant="outline">{rh.source}</Badge>
+                {(() => {
+                  const src = rh.source.toLowerCase();
+                  const isNPC = src.includes('gossip') || src.includes('rumor') || src.includes('anonymous') || src.includes('source');
+                  if (isNPC) {
+                    return <Badge variant="outline" className="text-[10px] text-cyan-500 border-cyan-500/30">💬 NPC</Badge>;
+                  }
+                  // Check if a text exists for this red herring
+                  const linkedText = gametexts.find((t: any) => t.tags?.includes('red_herring'));
+                  return linkedText ? (
+                    <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">
+                      <BookOpen className="w-3 h-3 mr-1" /> Text linked
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30">📄 No text</Badge>
+                  );
+                })()}
+              </div>
             </div>
           ))}
         </CardContent>

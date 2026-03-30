@@ -5,7 +5,7 @@
  * Adds default values for new fields across multiple collections:
  * 1. Worlds: timestepUnit, gameplayTimestepUnit
  * 2. Truths: historicalEra, historicalSignificance, causesTruthIds, causedByTruthIds
- * 3. Items: craftingRecipe, questRelevance, loreText, languageLearningData
+ * 3. Items: craftingRecipe, questRelevance, loreText, translations
  * 4. Grammars: truthBindings, contextType
  * 5. World Languages: culturalTruthIds, historicalTruthIds, idiomsAndProverbs
  *
@@ -118,10 +118,10 @@ async function main() {
   console.log(`  Set loreText on ${itemLoreResult.modifiedCount} items`);
 
   const itemLangResult = await itemsCollection.updateMany(
-    { languageLearningData: { $exists: false } },
-    { $set: { languageLearningData: null } }
+    { translations: { $exists: false } },
+    { $set: { translations: null } }
   );
-  console.log(`  Set languageLearningData on ${itemLangResult.modifiedCount} items`);
+  console.log(`  Set translations on ${itemLangResult.modifiedCount} items`);
 
   // ── 4. Grammars: default new fields ────────────────────────────────────────
 

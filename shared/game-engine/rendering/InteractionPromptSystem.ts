@@ -59,6 +59,8 @@ export interface InteractableTarget {
   /** For containers */
   containerId?: string;
   containerType?: string;
+  /** Whether this object can be picked up by the player */
+  possessable?: boolean;
 }
 
 export interface RegisteredNPC {
@@ -271,6 +273,12 @@ export class InteractionPromptSystem {
       return;
     }
 
+    // For ArcRotateCamera (third-person), camera.target is the player position.
+    // Short-range objects (containers, furniture, props) must measure distance from
+    // the player, not the camera — otherwise objects behind the player (closer to
+    // the camera) are detected while objects in front are out of range.
+    const playerPos: Vector3 = (camera as any).target ?? camera.position;
+
     let target: InteractableTarget | null = null;
 
     // 1. Center-screen ray pick
@@ -281,12 +289,12 @@ export class InteractionPromptSystem {
     );
 
     if (pickResult?.hit && pickResult.pickedMesh) {
-      target = this.resolveFromMesh(pickResult.pickedMesh, pickResult.distance);
+      target = this.resolveFromMesh(pickResult.pickedMesh, pickResult.distance, playerPos);
     }
 
     // 2. Fallback: view-cone proximity (primarily helps NPC detection)
     if (!target) {
-      target = this.findConeTarget(camera.position, camera.getForwardRay().direction);
+      target = this.findConeTarget(camera.position, camera.getForwardRay().direction, playerPos);
     }
 
     // 3. Last resort: if the PLAYER (not camera) is very close to a building door,
@@ -313,21 +321,16 @@ export class InteractionPromptSystem {
 
   // ── Resolution from a picked mesh ─────────────────────────────────────
 
-  private resolveFromMesh(mesh: AbstractMesh, distance: number): InteractableTarget | null {
+  private resolveFromMesh(mesh: AbstractMesh, distance: number, playerPos: Vector3): InteractableTarget | null {
     // NPC (walk parent chain)
     const npc = this.findNPCFromMesh(mesh);
     if (npc && distance <= MAX_NPC_DISTANCE) {
       // Before returning NPC, check if a building door is closer to the PLAYER —
       // the player likely wants to enter the building, not talk to an NPC near the door.
-      // Use camera.target (player position) for ArcRotateCamera, not camera.position (orbit point).
-      const camera = this.scene.activeCamera;
-      if (camera) {
-        const playerPos = (camera as any).target ?? camera.position;
-        const nearestDoorDist = this.findNearestBuildingDoorDist(playerPos);
-        if (nearestDoorDist !== null && nearestDoorDist < 5) {
-          const building = this.findNearestBuildingByDoor(playerPos);
-          if (building) return this.buildBuildingTarget(building);
-        }
+      const nearestDoorDist = this.findNearestBuildingDoorDist(playerPos);
+      if (nearestDoorDist !== null && nearestDoorDist < 5) {
+        const building = this.findNearestBuildingByDoor(playerPos);
+        if (building) return this.buildBuildingTarget(building);
       }
       return this.buildNPCTarget(npc);
     }
@@ -338,9 +341,14 @@ export class InteractionPromptSystem {
       return this.buildBuildingTarget(building);
     }
 
+    // For short-range targets, use distance from the player (not the camera) so
+    // that third-person camera offset doesn't cause backwards detection.
+    const distFromPlayer = (m: AbstractMesh) =>
+      Vector3.Distance(playerPos, m.absolutePosition ?? m.getAbsolutePosition());
+
     // Notice board (walk parent chain)
     const nb = this.findNoticeBoardFromMesh(mesh);
-    if (nb && distance <= MAX_OBJECT_DISTANCE) {
+    if (nb && distFromPlayer(mesh) <= MAX_OBJECT_DISTANCE) {
       return {
         type: 'notice_board',
         id: nb.id,
@@ -352,13 +360,13 @@ export class InteractionPromptSystem {
 
     // Furniture (walk parent chain)
     const furn = this.findFurnitureFromMesh(mesh);
-    if (furn && distance <= MAX_FURNITURE_DISTANCE) {
+    if (furn && distFromPlayer(furn.mesh) <= MAX_FURNITURE_DISTANCE) {
       return this.buildFurnitureTarget(furn.mesh, furn.info);
     }
 
     // Action hotspot (walk parent chain)
     const hotspot = this.findActionHotspotFromMesh(mesh);
-    if (hotspot && distance <= MAX_FURNITURE_DISTANCE) {
+    if (hotspot && distFromPlayer(hotspot.mesh) <= MAX_FURNITURE_DISTANCE) {
       return {
         type: 'action_hotspot',
         id: `hotspot_${hotspot.info.actionType}`,
@@ -371,13 +379,13 @@ export class InteractionPromptSystem {
 
     // Container (walk parent chain)
     const container = this.findContainerFromMesh(mesh);
-    if (container && distance <= MAX_OBJECT_DISTANCE) {
+    if (container && distFromPlayer(container.mesh) <= MAX_OBJECT_DISTANCE) {
       return this.buildContainerTarget(container.mesh, container.info);
     }
 
     // World prop (walk parent chain to find registered prop)
     const prop = this.findWorldPropFromMesh(mesh);
-    if (prop && distance <= MAX_OBJECT_DISTANCE) {
+    if (prop && distFromPlayer(prop) <= MAX_OBJECT_DISTANCE) {
       return this.buildPropTarget(prop);
     }
 
@@ -389,12 +397,20 @@ export class InteractionPromptSystem {
   private findConeTarget(
     cameraPos: Vector3,
     forward: Vector3,
+    playerPos: Vector3,
   ): InteractableTarget | null {
     const fwd = forward.normalize();
     let best: InteractableTarget | null = null;
     let bestDist = Infinity;
 
-    // NPCs
+    // Helper: for short-range targets, use player position for distance AND direction
+    // checks so third-person camera offset doesn't cause backwards detection.
+    const playerFwd = playerPos.subtract(cameraPos);
+    // If camera is essentially at the player (first-person), fall back to camera forward
+    const usePlayerFwd = playerFwd.length() > 0.5;
+    const playerFwdNorm = usePlayerFwd ? playerFwd.normalize() : fwd;
+
+    // NPCs — use camera position (long range, not affected by offset)
     this.npcs.forEach((npc) => {
       if (!npc.mesh || npc.mesh.isDisposed()) return;
       const toTarget = npc.mesh.position.subtract(cameraPos);
@@ -407,10 +423,9 @@ export class InteractionPromptSystem {
       }
     });
 
-    // Buildings — check distance to door position (not building center) for accurate proximity
+    // Buildings — use camera position (long range)
     this.buildings.forEach((building) => {
       if (!building.mesh || building.mesh.isDisposed()) return;
-      // Use door position if available (much more accurate), fall back to building center
       const targetPos = building.doorPosition ?? building.mesh.position;
       const toTarget = targetPos.subtract(cameraPos);
       const dist = toTarget.length();
@@ -422,13 +437,13 @@ export class InteractionPromptSystem {
       }
     });
 
-    // World props (only within short range) — iterate both registered set and shared source
+    // World props — use player position for distance and direction
     const checkProp = (mesh: Mesh) => {
       if (!mesh || mesh.isDisposed()) return;
-      const toTarget = mesh.position.subtract(cameraPos);
+      const toTarget = mesh.position.subtract(playerPos);
       const dist = toTarget.length();
       if (dist > MAX_OBJECT_DISTANCE || dist >= bestDist) return;
-      const dot = Vector3.Dot(toTarget.normalize(), fwd);
+      const dot = Vector3.Dot(toTarget.normalize(), playerFwdNorm);
       if (dot >= COS_CONE) {
         bestDist = dist;
         best = this.buildPropTarget(mesh);
@@ -441,13 +456,13 @@ export class InteractionPromptSystem {
       }
     }
 
-    // Notice boards
+    // Notice boards — use player position
     this.noticeBoardMeshes.forEach((nb, mesh) => {
       if (!mesh || (mesh as Mesh).isDisposed?.()) return;
-      const toTarget = mesh.absolutePosition.subtract(cameraPos);
+      const toTarget = mesh.absolutePosition.subtract(playerPos);
       const dist = toTarget.length();
       if (dist > MAX_OBJECT_DISTANCE || dist >= bestDist) return;
-      const dot = Vector3.Dot(toTarget.normalize(), fwd);
+      const dot = Vector3.Dot(toTarget.normalize(), playerFwdNorm);
       if (dot >= COS_CONE) {
         bestDist = dist;
         best = {
@@ -460,26 +475,26 @@ export class InteractionPromptSystem {
       }
     });
 
-    // Furniture
+    // Furniture — use player position
     this.furnitureMeshes.forEach((info, mesh) => {
       if (!mesh || (mesh as Mesh).isDisposed?.()) return;
-      const toTarget = mesh.absolutePosition.subtract(cameraPos);
+      const toTarget = mesh.absolutePosition.subtract(playerPos);
       const dist = toTarget.length();
       if (dist > MAX_FURNITURE_DISTANCE || dist >= bestDist) return;
-      const dot = Vector3.Dot(toTarget.normalize(), fwd);
+      const dot = Vector3.Dot(toTarget.normalize(), playerFwdNorm);
       if (dot >= COS_CONE) {
         bestDist = dist;
         best = this.buildFurnitureTarget(mesh, info);
       }
     });
 
-    // Containers
+    // Containers — use player position
     this.containerMeshes.forEach((info, mesh) => {
       if (!mesh || (mesh as Mesh).isDisposed?.()) return;
-      const toTarget = mesh.absolutePosition.subtract(cameraPos);
+      const toTarget = mesh.absolutePosition.subtract(playerPos);
       const dist = toTarget.length();
       if (dist > MAX_OBJECT_DISTANCE || dist >= bestDist) return;
-      const dot = Vector3.Dot(toTarget.normalize(), fwd);
+      const dot = Vector3.Dot(toTarget.normalize(), playerFwdNorm);
       if (dot >= COS_CONE) {
         bestDist = dist;
         best = this.buildContainerTarget(mesh, info);
@@ -576,16 +591,20 @@ export class InteractionPromptSystem {
         mesh,
         promptText: `[G]: Pick up "${bookTitle}"`,
         objectRole: 'book',
+        possessable: true,
       };
     }
+
+    const possessable = mesh.metadata?.possessable !== false;
 
     return {
       type: 'object',
       id: objectRole,
       name: prettyName,
       mesh,
-      promptText: `[Enter]: Examine ${prettyName}`,
+      promptText: possessable ? `[G]: Pick up ${prettyName}` : `[Enter]: Examine ${prettyName}`,
       objectRole,
+      possessable,
     };
   }
 

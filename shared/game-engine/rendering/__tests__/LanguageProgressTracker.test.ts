@@ -172,10 +172,18 @@ describe('LanguageProgressTracker', () => {
   describe('conversation lifecycle', () => {
     it('tracks new words learned during conversation', () => {
       tracker.analyzeNPCResponse('kali traveler, have some akwa');
+      // Player must participate for fluency gain
+      tracker.analyzePlayerMessage('kali!');
       const result = tracker.endConversation();
       expect(result).not.toBeNull();
       expect(result!.wordsLearned).toBe(2);
       expect(result!.newWordsList).toHaveLength(2);
+    });
+
+    it('returns null for conversations with no player participation', () => {
+      tracker.analyzeNPCResponse('kali traveler, have some akwa');
+      const result = tracker.endConversation();
+      expect(result).toBeNull();
     });
 
     it('tracks reinforced words from player usage', () => {
@@ -190,10 +198,12 @@ describe('LanguageProgressTracker', () => {
 
     it('accumulates vocabulary across conversations', () => {
       tracker.analyzeNPCResponse('kali traveler');
+      tracker.analyzePlayerMessage('kali');
       tracker.endConversation();
 
       tracker.startConversation('npc2', 'Healer');
       tracker.analyzeNPCResponse('have some akwa');
+      tracker.analyzePlayerMessage('akwa');
       tracker.endConversation();
 
       expect(tracker.getTotalWordsLearned()).toBe(2);

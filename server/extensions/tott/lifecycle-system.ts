@@ -462,22 +462,24 @@ export async function conceive(
 export async function giveBirth(
   motherId: string,
   location: string,
-  currentTimestep: number
+  currentTimestep: number,
+  birthYear?: number,
+  childFirstName?: string
 ): Promise<Birth> {
   const pregnancy = activePregnancies.get(motherId);
   if (!pregnancy) {
     throw new Error('Character is not pregnant');
   }
-  
+
   const mother = await storage.getCharacter(motherId);
   const father = await storage.getCharacter(pregnancy.fatherId);
-  
+
   if (!mother || !father) {
     throw new Error('Parent not found');
   }
-  
+
   // Generate child
-  const child = await generateChild(mother, father, currentTimestep);
+  const child = await generateChild(mother, father, currentTimestep, birthYear, childFirstName);
   
   const birth: Birth = {
     id: `birth_${Date.now()}`,
@@ -505,21 +507,24 @@ export async function giveBirth(
 async function generateChild(
   mother: Character,
   father: Character,
-  birthTimestep: number
+  birthTimestep: number,
+  birthYear?: number,
+  firstName?: string
 ): Promise<Character> {
   const gender = Math.random() < 0.5 ? 'Male' : 'Female';
   const mp = (mother.personality as any) || {};
   const fp = (father.personality as any) || {};
-  
+
   const child = await storage.createCharacter({
     worldId: mother.worldId,
-    firstName: `Child_${Date.now()}`,  // Would use proper name generator
+    firstName: firstName || `Baby ${father.lastName}`,
     lastName: father.lastName,
     gender,
-    birthYear: timestepToYear(birthTimestep),
+    birthYear: birthYear ?? timestepToYear(birthTimestep),
     age: 0,
     isAlive: true,
-    
+    currentLocation: (mother.currentLocation || father.currentLocation || mother.worldId) as string,
+
     // Inherit personality
     personality: {
       openness: inheritTrait(mp.openness, fp.openness),
@@ -528,12 +533,17 @@ async function generateChild(
       agreeableness: inheritTrait(mp.agreeableness, fp.agreeableness),
       neuroticism: inheritTrait(mp.neuroticism, fp.neuroticism)
     } as any,
-    
-    motherId: mother.id,
-    fatherId: father.id,
-    residenceId: mother.residenceId
+
+    parentIds: [father.id, mother.id],
+    immediateFamilyIds: [father.id, mother.id],
   });
-  
+
+  // Update parents' childIds
+  const fatherChildIds = [...(father.childIds || []), child.id];
+  const motherChildIds = [...(mother.childIds || []), child.id];
+  await storage.updateCharacter(father.id, { childIds: fatherChildIds });
+  await storage.updateCharacter(mother.id, { childIds: motherChildIds });
+
   return child;
 }
 

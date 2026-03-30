@@ -1054,7 +1054,7 @@ export interface DamageResult {
 
 // ─── Inventory ──────────────────────────────────────────────────────────────
 
-export type ItemType = 'quest' | 'collectible' | 'key' | 'consumable' | 'weapon' | 'armor' | 'food' | 'drink' | 'material' | 'tool';
+export type ItemType = 'quest' | 'collectible' | 'key' | 'consumable' | 'weapon' | 'armor' | 'food' | 'drink' | 'material' | 'tool' | 'document' | 'environmental' | 'decoration' | 'furniture' | 'equipment' | 'container' | 'accessory' | 'ammunition';
 
 export type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
 
@@ -1079,13 +1079,12 @@ export interface InventoryItem {
   baseType?: string;
   rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
   possessable?: boolean;
-  // Language learning data (for vocabulary items in language-learning games)
-  languageLearningData?: {
+  // Translations keyed by language (e.g. { French: { targetWord: "Épée", pronunciation: "ay-PAY", category: "weapon" } })
+  translations?: Record<string, {
     targetWord: string;
-    targetLanguage: string;
     pronunciation: string;
     category: string;
-  };
+  }>;
 }
 
 // ─── Mercantile ─────────────────────────────────────────────────────────────

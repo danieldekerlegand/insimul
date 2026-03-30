@@ -584,11 +584,12 @@ const ItemSchema = new Schema({
   tags: { type: Schema.Types.Mixed, default: [] },
   isBase: { type: Boolean, default: false },
   possessable: { type: Boolean, default: true },
+  isContainer: { type: Boolean, default: false },
   metadata: { type: Schema.Types.Mixed, default: {} },
   craftingRecipe: { type: Schema.Types.Mixed, default: null },
   questRelevance: { type: Schema.Types.Mixed, default: [] },
   loreText: { type: String, default: null },
-  languageLearningData: { type: Schema.Types.Mixed, default: null },
+  translations: { type: Schema.Types.Mixed, default: null },
   relatedTruthIds: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -622,34 +623,7 @@ GameTextSchema.index({ worldId: 1 });
 GameTextSchema.index({ worldId: 1, textCategory: 1 });
 GameTextSchema.index({ worldId: 1, cefrLevel: 1 });
 
-const ContainerSchema = new Schema({
-  worldId: { type: String, required: true },
-  name: { type: String, required: true },
-  containerType: { type: String, required: true },
-  capacity: { type: Number, default: 10 },
-  items: { type: Schema.Types.Mixed, default: [] },
-  locked: { type: Boolean, default: false },
-  lockDifficulty: { type: Number, default: null },
-  keyItemId: { type: String, default: null },
-  businessId: { type: String, default: null },
-  residenceId: { type: String, default: null },
-  lotId: { type: String, default: null },
-  positionX: { type: Number, default: null },
-  positionY: { type: Number, default: null },
-  positionZ: { type: Number, default: null },
-  rotationY: { type: Number, default: null },
-  objectRole: { type: String, default: null },
-  respawns: { type: Boolean, default: false },
-  respawnTimeMinutes: { type: Number, default: null },
-  lastOpenedAt: { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-
-ContainerSchema.index({ worldId: 1 });
-ContainerSchema.index({ worldId: 1, businessId: 1 });
-ContainerSchema.index({ worldId: 1, residenceId: 1 });
-ContainerSchema.index({ worldId: 1, lotId: 1 });
+// ContainerSchema removed — containers are now Items with isContainer=true
 
 const VisualAssetSchema = new Schema({
   worldId: { type: String, default: null },
@@ -913,16 +887,15 @@ const WorldLanguageSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const LotSchema = new Schema({
+const LocationSchema = new Schema({
   worldId: { type: String, required: true },
-  settlementId: { type: String, required: true },
-  address: { type: String, required: true },
-  houseNumber: { type: Number, required: true },
-  streetName: { type: String, required: true },
+  settlementId: { type: String, default: null },
+  address: { type: String, default: null },
+  houseNumber: { type: Number, default: null },
+  streetName: { type: String, default: null },
   block: { type: String, default: null },
   districtName: { type: String, default: null },
-  buildingId: { type: String, default: null },
-  buildingType: { type: String, default: 'vacant' },
+  lotType: { type: String, default: 'buildable' }, // 'buildable', 'park', 'forest', 'cemetery', 'garden', 'agricultural', 'terrain', 'water'
   positionX: { type: Number, default: null },
   positionZ: { type: Number, default: null },
   lotWidth: { type: Number, default: 12 },
@@ -936,52 +909,39 @@ const LotSchema = new Schema({
   foundationType: { type: String, default: 'flat' },
   neighboringLotIds: { type: [String], default: [] },
   distanceFromDowntown: { type: Number, default: null },
-  formerBuildingIds: { type: [String], default: [] },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-
-const BuildingSchema = new Schema({
-  worldId: { type: String, required: true },
-  settlementId: { type: String, required: true },
-  lotId: { type: String, required: true },
-  address: { type: String, required: true },
-  buildingCategory: { type: String, required: true }, // 'residence' or 'public'
-  // Residence-specific
-  ownerIds: { type: [String], default: [] },
-  residentIds: { type: [String], default: [] },
-  residenceType: { type: String, default: null },
-  // PublicBuilding-specific
+  // Embedded building (null if vacant or park)
+  building: { type: Schema.Types.Mixed, default: null },
+  // Historical layering — previous buildings on this lot
+  formerBuildings: { type: [Schema.Types.Mixed], default: [] },
+  // Geographic feature fields (from merged GeographicFeatureSchema)
+  featureCategory: { type: String, default: null }, // 'terrain' or 'water'
+  featureType: { type: String, default: null },
+  subType: { type: String, default: null },
   name: { type: String, default: null },
-  publicBuildingType: { type: String, default: null },
-  foundedYear: { type: Number, default: null },
-  isOperational: { type: Boolean, default: true },
-  capacity: { type: Number, default: null },
-  employeeIds: { type: [String], default: [] },
-  buildingData: { type: Schema.Types.Mixed, default: {} },
+  description: { type: String, default: null },
+  position: { type: Schema.Types.Mixed, default: null },
+  radius: { type: Number, default: null },
+  waterLevel: { type: Number, default: null },
+  bounds: { type: Schema.Types.Mixed, default: null },
+  depth: { type: Number, default: null },
+  width: { type: Number, default: null },
+  flowDirection: { type: Schema.Types.Mixed, default: null },
+  flowSpeed: { type: Number, default: null },
+  shorelinePoints: { type: Schema.Types.Mixed, default: [] },
+  biome: { type: String, default: null },
+  isNavigable: { type: Boolean, default: null },
+  isDrinkable: { type: Boolean, default: null },
+  modelAssetKey: { type: String, default: null },
+  color: { type: Schema.Types.Mixed, default: null },
+  transparency: { type: Number, default: null },
+  // Inventory fields
+  items: { type: Schema.Types.Mixed, default: {} },
+  containers: { type: Schema.Types.Mixed, default: {} },
+  furniture: { type: Schema.Types.Mixed, default: {} },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-BuildingSchema.index({ settlementId: 1 });
-BuildingSchema.index({ settlementId: 1, buildingCategory: 1 });
-
-const BusinessMongoSchema = new Schema({
-  worldId: { type: String, required: true },
-  settlementId: { type: String, required: true },
-  name: { type: String, required: true },
-  businessType: { type: String, required: true },
-  ownerId: { type: String, default: null },
-  founderId: { type: String, default: null },
-  isOutOfBusiness: { type: Boolean, default: false },
-  foundedYear: { type: Number, default: null },
-  closedYear: { type: Number, default: null },
-  lotId: { type: String, default: null },
-  address: { type: String, default: null },
-  vacancies: { type: Schema.Types.Mixed, default: [] },
-  businessData: { type: Schema.Types.Mixed, default: {} },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+// BuildingSchema and BusinessMongoSchema removed — buildings and businesses are now embedded in lots
 
 // OccupationSchema removed — occupations are now truths with entryType='occupation'
 
@@ -1054,38 +1014,7 @@ const ApiKeySchema = new Schema({
 });
 ApiKeySchema.index({ key: 1 });
 
-const GeographicFeatureSchema = new Schema({
-  worldId: { type: String, required: true },
-  settlementId: { type: String, default: null },
-  featureCategory: { type: String, required: true }, // 'terrain' or 'water'
-  featureType: { type: String, required: true },
-  subType: { type: String, default: null },
-  name: { type: String, required: true },
-  position: { type: Schema.Types.Mixed, default: { x: 0, y: 0, z: 0 } },
-  description: { type: String, default: null },
-  // Terrain-specific
-  radius: { type: Number, default: null },
-  elevation: { type: Number, default: null },
-  // Water-specific
-  waterLevel: { type: Number, default: null },
-  bounds: { type: Schema.Types.Mixed, default: null },
-  depth: { type: Number, default: null },
-  width: { type: Number, default: null },
-  flowDirection: { type: Schema.Types.Mixed, default: null },
-  flowSpeed: { type: Number, default: null },
-  shorelinePoints: { type: Schema.Types.Mixed, default: [] },
-  biome: { type: String, default: null },
-  isNavigable: { type: Boolean, default: null },
-  isDrinkable: { type: Boolean, default: null },
-  modelAssetKey: { type: String, default: null },
-  color: { type: Schema.Types.Mixed, default: null },
-  transparency: { type: Number, default: null },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-GeographicFeatureSchema.index({ worldId: 1 });
-GeographicFeatureSchema.index({ settlementId: 1 });
-GeographicFeatureSchema.index({ worldId: 1, featureCategory: 1 });
+// GeographicFeatureSchema removed — geographic features are now merged into LocationSchema
 
 // AssessmentSessionSchema removed — merged into UnifiedAssessmentSchema above
 
@@ -1105,7 +1034,7 @@ const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
 const QuestModel = mongoose.model<QuestDoc>('Quest', QuestSchema);
 const ItemModel = mongoose.model<ItemDoc>('Item', ItemSchema);
 const GameTextModel = mongoose.model<GameTextDoc>('GameText', GameTextSchema);
-const ContainerModel = mongoose.model<ContainerDoc>('Container', ContainerSchema);
+// ContainerModel removed — containers are now Items with isContainer=true
 const VisualAssetModel = mongoose.model<VisualAssetDoc>('VisualAsset', VisualAssetSchema);
 const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection', AssetCollectionSchema);
 const GenerationJobModel = mongoose.model<GenerationJobDoc>('GenerationJob', GenerationJobSchema);
@@ -1121,9 +1050,9 @@ const PlaythroughConversationModel = mongoose.model<PlaythroughConversationDoc>(
 // ReputationModel removed — use TruthModel with entryType='reputation'
 // PlaythroughRelationshipModel removed — use TruthModel with entryType='relationship'
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
-const LotModel = mongoose.model('Lot', LotSchema);
-const BuildingModel = mongoose.model('Building', BuildingSchema);
-const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
+const LocationModel = mongoose.model('Location', LocationSchema, 'locations');
+// BuildingModel removed — buildings are now embedded in lots as lot.building
+// BusinessMongoModel removed — businesses are now embedded in lots as lot.building
 // OccupationModel removed — use TruthModel with entryType='occupation'
 const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', VersionAlertSchema);
 // LanguageChatMessageModel removed — use PlaythroughConversation instead
@@ -1134,8 +1063,56 @@ const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', Versio
 const AssessmentModel = mongoose.model('Assessment', UnifiedAssessmentSchema, 'assessments');
 const TelemetryModel = mongoose.model('Telemetry', TelemetrySchema, 'telemetry');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
-const GeographicFeatureModel = mongoose.model('GeographicFeature', GeographicFeatureSchema);
+// LocationModel removed — geographic features are now locations with featureCategory set
 // CharacterTemplateModel removed — use CharacterModel with isTemplate=true
+
+/** Convert a lot doc with an embedded business building to a backward-compatible business object */
+function lotToBusinessObj(doc: any): any {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  const lotId = (doc._id || obj._id).toString();
+  const building = obj.building || {};
+  return {
+    id: lotId,
+    lotId,
+    worldId: obj.worldId,
+    settlementId: obj.settlementId,
+    address: obj.address,
+    ...building,
+    _id: undefined,
+  };
+}
+
+/** Convert a lot doc with an embedded residence building to a backward-compatible residence object */
+function lotToResidenceObj(doc: any): any {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  const lotId = (doc._id || obj._id).toString();
+  const building = obj.building || {};
+  return {
+    id: lotId,
+    lotId,
+    worldId: obj.worldId,
+    settlementId: obj.settlementId,
+    address: obj.address,
+    ...building,
+    _id: undefined,
+  };
+}
+
+/** Convert a lot doc with any embedded building to a backward-compatible building object */
+function lotToBuildingObj(doc: any): any {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  const lotId = (doc._id || obj._id).toString();
+  const building = obj.building || {};
+  return {
+    id: lotId,
+    lotId,
+    worldId: obj.worldId,
+    settlementId: obj.settlementId,
+    address: obj.address,
+    ...building,
+    _id: undefined,
+  };
+}
 
 function docToAssessmentSession(doc: any): AssessmentSession {
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -1238,9 +1215,7 @@ function docToGameText(doc: GameTextDoc): GameText {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
-function docToContainer(doc: ContainerDoc): ContainerSchema {
-  return { ...doc.toObject(), id: doc._id.toString() };
-}
+// docToContainer removed — containers are now Items with isContainer=true
 
 function docToVisualAsset(doc: VisualAssetDoc): VisualAsset {
   return { ...doc.toObject(), id: doc._id.toString() };
@@ -1521,18 +1496,13 @@ export class MongoStorage implements IStorage {
       console.log(`   ✓ Deleted ${items.deletedCount} items`);
     }
 
-    // 11b. Delete containers
-    const containerResult = await ContainerModel.deleteMany({ worldId: id });
-    if (containerResult.deletedCount && containerResult.deletedCount > 0) {
-      console.log(`   ✓ Deleted ${containerResult.deletedCount} containers`);
-    }
+    // 11b. Containers removed — containers are now Items with isContainer=true
 
     // 11c. Delete remaining infrastructure (catch any missed by settlement cascade)
-    await LotModel.deleteMany({ worldId: id });
-    await BusinessMongoModel.deleteMany({ worldId: id });
-    await BuildingModel.deleteMany({ worldId: id });
+    await LocationModel.deleteMany({ worldId: id });
+    // BusinessMongoModel/BuildingModel removed — buildings/businesses are embedded in lots
     await TruthModel.deleteMany({ worldId: id, entryType: 'occupation' });
-    await GeographicFeatureModel.deleteMany({ worldId: id });
+    // GeographicFeatureModel removed — geographic features are now locations (already deleted above)
     // Settlement history events are now truths — already deleted with truths above
     await GameTextModel.deleteMany({ worldId: id });
 
@@ -1779,39 +1749,63 @@ export class MongoStorage implements IStorage {
 
     console.log(`      🗑️  Deleting settlement ${id} with cascade...`);
 
-    // Cascade delete: Delete all characters in this settlement
+    // Collect character IDs before deleting so we can cascade-delete their truths
+    // Also find characters with null currentLocation that belong to this settlement's world
+    // (e.g. children born during history simulation whose mother had no location set)
+    const settlement = await SettlementModel.findById(id);
+    const worldId = settlement?.worldId;
+    const charDocs = await CharacterModel.find(
+      { $or: [
+        { currentLocation: id },
+        { currentResidenceId: id },
+        // Catch orphaned characters in this world with no location
+        ...(worldId ? [{ worldId, currentLocation: null, isTemplate: { $ne: true } }] : []),
+      ] },
+      { _id: 1 }
+    );
+    const charIds = charDocs.map(c => c._id.toString());
+
+    // Delete the characters
     const characters = await CharacterModel.deleteMany({ currentLocation: id });
-    if (characters.deletedCount) {
-      console.log(`         Deleted ${characters.deletedCount} characters`);
+    const residenceChars = await CharacterModel.deleteMany({ currentResidenceId: id });
+    // Also delete world characters with no location (orphans from history sim)
+    if (worldId) {
+      await CharacterModel.deleteMany({ worldId, currentLocation: null, isTemplate: { $ne: true } });
+    }
+    const totalCharsDeleted = (characters.deletedCount || 0) + (residenceChars.deletedCount || 0);
+    if (totalCharsDeleted > 0) {
+      console.log(`         Deleted ${totalCharsDeleted} characters`);
     }
 
-    // Delete characters who might have this settlement in other location fields
-    const residenceChars = await CharacterModel.deleteMany({ currentResidenceId: id });
-    if (residenceChars.deletedCount && residenceChars.deletedCount > 0) {
-      console.log(`         Deleted ${residenceChars.deletedCount} characters by residence`);
+    // Delete truths associated with those characters (by characterId or relatedCharacterIds)
+    if (charIds.length > 0) {
+      const charTruths = await TruthModel.deleteMany({
+        $or: [{ characterId: { $in: charIds } }, { relatedCharacterIds: { $in: charIds } }]
+      });
+      if (charTruths.deletedCount) {
+        console.log(`         Deleted ${charTruths.deletedCount} character truths`);
+      }
     }
 
     // Cascade delete settlement infrastructure
-    // Delete occupations via business IDs before deleting businesses
-    const businessDocs = await BusinessMongoModel.find({ settlementId: id }, { _id: 1 });
-    const businessIds = businessDocs.map(b => b._id.toString());
+    // Delete occupations via business lot IDs before deleting lots
+    const businessLots = await LocationModel.find({ settlementId: id, 'building.buildingCategory': 'business' }, { _id: 1 });
+    const businessIds = businessLots.map(b => b._id.toString());
     const occupations = businessIds.length > 0
       ? await TruthModel.deleteMany({ entryType: 'occupation', 'sourceData.businessId': { $in: businessIds } })
       : { deletedCount: 0 };
 
-    const lots = await LotModel.deleteMany({ settlementId: id });
-    const businesses = await BusinessMongoModel.deleteMany({ settlementId: id });
-    const buildings = await BuildingModel.deleteMany({ settlementId: id });
-    const containers = await ContainerModel.deleteMany({ settlementId: id });
+    const lots = await LocationModel.deleteMany({ settlementId: id });
+    // BusinessMongoModel/BuildingModel removed — buildings/businesses are embedded in lots
+    // ContainerModel removed — containers are now Items with isContainer=true
     const historyEvents = await TruthModel.deleteMany({ entryType: 'settlement_history', relatedLocationIds: id });
-    const waterFeatures = await GeographicFeatureModel.deleteMany({ settlementId: id });
+    // GeographicFeatureModel removed — geographic features are now locations (already deleted above)
 
-    const infraDeleted = (lots.deletedCount || 0) + (businesses.deletedCount || 0) +
-      (buildings.deletedCount || 0) +
-      (occupations.deletedCount || 0) + (containers.deletedCount || 0) +
-      (historyEvents.deletedCount || 0) + (waterFeatures.deletedCount || 0);
+    const infraDeleted = (lots.deletedCount || 0) +
+      (occupations.deletedCount || 0) +
+      (historyEvents.deletedCount || 0);
     if (infraDeleted > 0) {
-      console.log(`         Deleted ${infraDeleted} infrastructure entities (${lots.deletedCount || 0} lots, ${businesses.deletedCount || 0} businesses, ${buildings.deletedCount || 0} buildings)`);
+      console.log(`         Deleted ${infraDeleted} infrastructure entities (${lots.deletedCount || 0} lots with embedded buildings/businesses)`);
     }
 
     // Finally delete the settlement itself
@@ -1874,154 +1868,255 @@ export class MongoStorage implements IStorage {
   // Lot operations
   async getLot(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await LotModel.findById(id);
+    const doc = await LocationModel.findById(id);
     return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async getLotsBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await LotModel.find({ settlementId });
+    const docs = await LocationModel.find({ settlementId });
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   async createLot(lot: any): Promise<any> {
     await this.connect();
-    const doc = await new LotModel(lot).save();
+    const doc = await new LocationModel(lot).save();
     return { ...doc.toObject(), id: doc._id.toString() };
   }
 
   async updateLot(id: string, lot: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await LotModel.findByIdAndUpdate(id, { ...lot, updatedAt: new Date() }, { new: true });
+    const doc = await LocationModel.findByIdAndUpdate(id, { ...lot, updatedAt: new Date() }, { new: true });
     return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async deleteLot(id: string): Promise<boolean> {
     await this.connect();
-    const result = await LotModel.findByIdAndDelete(id);
+    const result = await LocationModel.findByIdAndDelete(id);
     return !!result;
   }
 
   async createLotsInBulk(lots: any[]): Promise<any[]> {
     await this.connect();
-    const docs = await LotModel.insertMany(lots);
+    const docs = await LocationModel.insertMany(lots);
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
-  // Business operations
+  // Business operations (businesses are now embedded in lots as lot.building with buildingCategory='business')
   async getBusiness(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await BusinessMongoModel.findById(id);
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const doc = await LocationModel.findOne({ _id: id, 'building.buildingCategory': 'business' });
+    return doc ? lotToBusinessObj(doc) : undefined;
   }
 
   async getBusinessesBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await BusinessMongoModel.find({ settlementId });
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const docs = await LocationModel.find({ settlementId, 'building.buildingCategory': 'business' });
+    return docs.map(d => lotToBusinessObj(d));
   }
 
   async getBusinessesByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await BusinessMongoModel.find({ worldId });
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const docs = await LocationModel.find({ worldId, 'building.buildingCategory': 'business' });
+    return docs.map(d => lotToBusinessObj(d));
   }
 
   async createBusiness(business: any): Promise<any> {
     await this.connect();
-    const doc = await new BusinessMongoModel(business).save();
-    return { ...doc.toObject(), id: doc._id.toString() };
+    const { settlementId, worldId, address, lotId, ...buildingFields } = business;
+    const buildingData = { buildingCategory: 'business' as const, ...buildingFields };
+    if (lotId) {
+      // Update existing lot with the business building
+      const doc = await LocationModel.findByIdAndUpdate(lotId, { $set: { building: buildingData, updatedAt: new Date() } }, { new: true });
+      return doc ? lotToBusinessObj(doc) : undefined;
+    }
+    // Create a new lot with the business embedded
+    const doc = await new LocationModel({ settlementId, worldId, address, building: buildingData }).save();
+    return lotToBusinessObj(doc);
   }
 
   async updateBusiness(id: string, business: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await BusinessMongoModel.findByIdAndUpdate(id, { ...business, updatedAt: new Date() }, { new: true });
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const existing = await LocationModel.findById(id);
+    if (!existing) return undefined;
+    const existingObj = existing.toObject();
+    const merged = { ...(existingObj.building || {}), ...business, buildingCategory: 'business' };
+    const doc = await LocationModel.findByIdAndUpdate(id, { $set: { building: merged, updatedAt: new Date() } }, { new: true });
+    return doc ? lotToBusinessObj(doc) : undefined;
   }
 
   async deleteBusiness(id: string): Promise<boolean> {
     await this.connect();
-    const result = await BusinessMongoModel.findByIdAndDelete(id);
-    return !!result;
+    const existing = await LocationModel.findById(id);
+    if (!existing || !existing.toObject().building || existing.toObject().building?.buildingCategory !== 'business') return false;
+    const obj = existing.toObject();
+    // Move current building to formerBuildings, then clear building
+    const formerBuildings = obj.formerBuildings || [];
+    formerBuildings.push(obj.building);
+    await LocationModel.findByIdAndUpdate(id, { $set: { building: null, formerBuildings, updatedAt: new Date() } });
+    return true;
   }
 
   async createBusinessesInBulk(businesses: any[]): Promise<any[]> {
     await this.connect();
-    const docs = await BusinessMongoModel.insertMany(businesses);
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const results: any[] = [];
+    // Separate into lots that need updating vs new lots
+    const withLotId = businesses.filter(b => b.lotId);
+    const withoutLotId = businesses.filter(b => !b.lotId);
+
+    // Update existing lots
+    for (const business of withLotId) {
+      const { lotId, settlementId, worldId, address, ...buildingFields } = business;
+      const buildingData = { buildingCategory: 'business' as const, ...buildingFields };
+      const doc = await LocationModel.findByIdAndUpdate(lotId, { $set: { building: buildingData, updatedAt: new Date() } }, { new: true });
+      if (doc) results.push(lotToBusinessObj(doc));
+    }
+
+    // Create new lots for businesses without lotId
+    if (withoutLotId.length > 0) {
+      const lotDocs = withoutLotId.map(b => {
+        const { settlementId, worldId, address, ...buildingFields } = b;
+        return { settlementId, worldId, address, building: { buildingCategory: 'business' as const, ...buildingFields } };
+      });
+      const docs = await LocationModel.insertMany(lotDocs);
+      results.push(...docs.map(d => lotToBusinessObj(d)));
+    }
+
+    return results;
   }
 
-  // Building operations (unified residences + public buildings)
+  // Building operations (buildings are now embedded in lots as lot.building)
   async getResidence(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await BuildingModel.findById(id);
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const doc = await LocationModel.findOne({ _id: id, 'building.buildingCategory': 'residence' });
+    return doc ? lotToResidenceObj(doc) : undefined;
   }
 
   async getResidencesBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await BuildingModel.find({ settlementId, buildingCategory: 'residence' });
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const docs = await LocationModel.find({ settlementId, 'building.buildingCategory': 'residence' });
+    return docs.map(d => lotToResidenceObj(d));
+  }
+
+  async getBuildingsBySettlement(settlementId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await LocationModel.find({ settlementId, building: { $ne: null } });
+    return docs.map(d => lotToBuildingObj(d));
   }
 
   async createResidence(residence: any): Promise<any> {
     await this.connect();
-    const doc = await new BuildingModel({ ...residence, buildingCategory: 'residence' }).save();
-    return { ...doc.toObject(), id: doc._id.toString() };
+    const { lotId, settlementId, worldId, address, ...buildingFields } = residence;
+    const buildingData = { buildingCategory: 'residence' as const, ...buildingFields };
+    if (lotId) {
+      // Update existing lot with the residence building
+      const doc = await LocationModel.findByIdAndUpdate(lotId, { $set: { building: buildingData, updatedAt: new Date() } }, { new: true });
+      return doc ? lotToResidenceObj(doc) : undefined;
+    }
+    // Create a new lot with the residence embedded
+    const doc = await new LocationModel({ settlementId, worldId, address, building: buildingData }).save();
+    return lotToResidenceObj(doc);
   }
 
   async updateResidence(id: string, residence: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await BuildingModel.findByIdAndUpdate(id, { ...residence, updatedAt: new Date() }, { new: true });
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const existing = await LocationModel.findById(id);
+    if (!existing) return undefined;
+    const existingObj = existing.toObject();
+    const merged = { ...(existingObj.building || {}), ...residence, buildingCategory: 'residence' };
+    const doc = await LocationModel.findByIdAndUpdate(id, { $set: { building: merged, updatedAt: new Date() } }, { new: true });
+    return doc ? lotToResidenceObj(doc) : undefined;
   }
 
   async deleteResidence(id: string): Promise<boolean> {
     await this.connect();
-    const result = await BuildingModel.findByIdAndDelete(id);
-    return !!result;
+    const existing = await LocationModel.findById(id);
+    if (!existing) return false;
+    const obj = existing.toObject();
+    if (!obj.building || obj.building?.buildingCategory !== 'residence') return false;
+    const formerBuildings = obj.formerBuildings || [];
+    formerBuildings.push(obj.building);
+    await LocationModel.findByIdAndUpdate(id, { $set: { building: null, formerBuildings, updatedAt: new Date() } });
+    return true;
   }
 
   async createResidencesInBulk(residences: any[]): Promise<any[]> {
     await this.connect();
-    const docs = await BuildingModel.insertMany(residences.map(r => ({ ...r, buildingCategory: 'residence' })));
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const results: any[] = [];
+    const withLotId = residences.filter(r => r.lotId);
+    const withoutLotId = residences.filter(r => !r.lotId);
+
+    // Update existing lots
+    for (const residence of withLotId) {
+      const { lotId, settlementId, worldId, address, ...buildingFields } = residence;
+      const buildingData = { buildingCategory: 'residence' as const, ...buildingFields };
+      const doc = await LocationModel.findByIdAndUpdate(lotId, { $set: { building: buildingData, updatedAt: new Date() } }, { new: true });
+      if (doc) results.push(lotToResidenceObj(doc));
+    }
+
+    // Create new lots for residences without lotId
+    if (withoutLotId.length > 0) {
+      const lotDocs = withoutLotId.map(r => {
+        const { settlementId, worldId, address, ...buildingFields } = r;
+        return { settlementId, worldId, address, building: { buildingCategory: 'residence' as const, ...buildingFields } };
+      });
+      const docs = await LocationModel.insertMany(lotDocs);
+      results.push(...docs.map(d => lotToResidenceObj(d)));
+    }
+
+    return results;
   }
 
   async getPublicBuilding(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await BuildingModel.findById(id);
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const doc = await LocationModel.findOne({ _id: id, 'building.buildingCategory': 'public' });
+    return doc ? lotToBuildingObj(doc) : undefined;
   }
 
   async getPublicBuildingsBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await BuildingModel.find({ settlementId, buildingCategory: 'public' });
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const docs = await LocationModel.find({ settlementId, 'building.buildingCategory': 'public' });
+    return docs.map(d => lotToBuildingObj(d));
   }
 
   async getPublicBuildingsByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await BuildingModel.find({ worldId, buildingCategory: 'public' });
-    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+    const docs = await LocationModel.find({ worldId, 'building.buildingCategory': 'public' });
+    return docs.map(d => lotToBuildingObj(d));
   }
 
   async createPublicBuilding(building: any): Promise<any> {
     await this.connect();
-    const doc = await new BuildingModel({ ...building, buildingCategory: 'public' }).save();
-    return { ...doc.toObject(), id: doc._id.toString() };
+    const { lotId, settlementId, worldId, address, ...buildingFields } = building;
+    const buildingData = { buildingCategory: 'public' as const, ...buildingFields };
+    if (lotId) {
+      const doc = await LocationModel.findByIdAndUpdate(lotId, { $set: { building: buildingData, updatedAt: new Date() } }, { new: true });
+      return doc ? lotToBuildingObj(doc) : undefined;
+    }
+    const doc = await new LocationModel({ settlementId, worldId, address, building: buildingData }).save();
+    return lotToBuildingObj(doc);
   }
 
   async updatePublicBuilding(id: string, building: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await BuildingModel.findByIdAndUpdate(id, { ...building, updatedAt: new Date() }, { new: true });
-    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+    const existing = await LocationModel.findById(id);
+    if (!existing) return undefined;
+    const existingObj = existing.toObject();
+    const merged = { ...(existingObj.building || {}), ...building, buildingCategory: 'public' };
+    const doc = await LocationModel.findByIdAndUpdate(id, { $set: { building: merged, updatedAt: new Date() } }, { new: true });
+    return doc ? lotToBuildingObj(doc) : undefined;
   }
 
   async deletePublicBuilding(id: string): Promise<boolean> {
     await this.connect();
-    const result = await BuildingModel.findByIdAndDelete(id);
-    return !!result;
+    const existing = await LocationModel.findById(id);
+    if (!existing) return false;
+    const obj = existing.toObject();
+    if (!obj.building || obj.building?.buildingCategory !== 'public') return false;
+    const formerBuildings = obj.formerBuildings || [];
+    formerBuildings.push(obj.building);
+    await LocationModel.findByIdAndUpdate(id, { $set: { building: null, formerBuildings, updatedAt: new Date() } });
+    return true;
   }
 
   // Occupation operations (stored as truths with entryType='occupation')
@@ -2322,6 +2417,12 @@ export class MongoStorage implements IStorage {
   async deleteCharacter(id: string): Promise<boolean> {
     await this.connect();
     const result = await CharacterModel.findByIdAndDelete(id);
+    if (result) {
+      // Cascade: delete truths associated with this character (by characterId or relatedCharacterIds)
+      await TruthModel.deleteMany({
+        $or: [{ characterId: id }, { relatedCharacterIds: id }]
+      });
+    }
     return !!result;
   }
 
@@ -2332,7 +2433,7 @@ export class MongoStorage implements IStorage {
     const doc = await CharacterModel.findOne({ _id: id, isTemplate: true });
     if (!doc) return undefined;
     const obj = doc.toObject();
-    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
+    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: (obj as any).startingTruths ?? [], isDefault: (obj as any).isDefault ?? false, isBase: (obj as any).isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
   }
 
   async getCharacterTemplates(worldId: string): Promise<CharacterTemplate[]> {
@@ -2343,7 +2444,7 @@ export class MongoStorage implements IStorage {
     });
     return docs.map(doc => {
       const obj = doc.toObject();
-      return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
+      return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: (obj as any).startingTruths ?? [], isDefault: (obj as any).isDefault ?? false, isBase: (obj as any).isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
     });
   }
 
@@ -2361,7 +2462,7 @@ export class MongoStorage implements IStorage {
       status: (template as any).description || null,
     });
     const obj = doc.toObject();
-    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
+    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: (obj as any).startingTruths ?? [], isDefault: (obj as any).isDefault ?? false, isBase: (obj as any).isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
   }
 
   async updateCharacterTemplate(id: string, template: Partial<InsertCharacterTemplate>): Promise<CharacterTemplate | undefined> {
@@ -2375,7 +2476,7 @@ export class MongoStorage implements IStorage {
     const doc = await CharacterModel.findOneAndUpdate({ _id: id, isTemplate: true }, update, { new: true });
     if (!doc) return undefined;
     const obj = doc.toObject();
-    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: obj.startingTruths ?? [], isDefault: obj.isDefault ?? false, isBase: obj.isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
+    return { id: doc._id.toString(), worldId: obj.worldId, name: obj.firstName, description: obj.status, startingTruths: (obj as any).startingTruths ?? [], isDefault: (obj as any).isDefault ?? false, isBase: (obj as any).isBase ?? false, createdAt: obj.createdAt, updatedAt: obj.updatedAt } as any;
   }
 
   async deleteCharacterTemplate(id: string): Promise<boolean> {
@@ -2665,46 +2766,30 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
-  // ============= CONTAINERS =============
+  // ============= CONTAINERS (deprecated — containers are now Items with isContainer=true) =============
 
   async getContainer(id: string): Promise<ContainerSchema | undefined> {
-    await this.connect();
-    const doc = await ContainerModel.findById(id);
-    return doc ? docToContainer(doc) : undefined;
+    return undefined;
   }
 
   async getContainersByWorld(worldId: string): Promise<ContainerSchema[]> {
-    await this.connect();
-    const docs = await ContainerModel.find({ worldId });
-    return docs.map(docToContainer);
+    return [];
   }
 
   async getContainersByLocation(worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<ContainerSchema[]> {
-    await this.connect();
-    const query: any = { worldId };
-    if (location.businessId) query.businessId = location.businessId;
-    if (location.residenceId) query.residenceId = location.residenceId;
-    if (location.lotId) query.lotId = location.lotId;
-    const docs = await ContainerModel.find(query);
-    return docs.map(docToContainer);
+    return [];
   }
 
   async createContainer(container: InsertContainer): Promise<ContainerSchema> {
-    await this.connect();
-    const doc = await ContainerModel.create(container);
-    return docToContainer(doc);
+    return { id: 'deprecated', ...container } as any;
   }
 
   async updateContainer(id: string, container: Partial<InsertContainer>): Promise<ContainerSchema | undefined> {
-    await this.connect();
-    const doc = await ContainerModel.findByIdAndUpdate(id, { ...container, updatedAt: new Date() }, { new: true });
-    return doc ? docToContainer(doc) : undefined;
+    return undefined;
   }
 
   async deleteContainer(id: string): Promise<boolean> {
-    await this.connect();
-    const result = await ContainerModel.findByIdAndDelete(id);
-    return !!result;
+    return true;
   }
 
   // ============= VISUAL ASSETS =============
@@ -3168,7 +3253,11 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const result = await PlaythroughModel.findByIdAndDelete(id);
     if (result) {
-      await PlaythroughDeltaModel.deleteMany({ playthroughId: id });
+      await Promise.all([
+        PlaythroughDeltaModel.deleteMany({ playthroughId: id }),
+        PlaythroughConversationModel.deleteMany({ playthroughId: id }),
+        TruthModel.deleteMany({ playthroughId: id }),
+      ]);
     }
     return !!result;
   }
@@ -3813,25 +3902,25 @@ export class MongoStorage implements IStorage {
 
   async getTerrainFeature(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await GeographicFeatureModel.findById(id);
+    const doc = await LocationModel.findById(id);
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
   }
 
   async getTerrainFeaturesByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await GeographicFeatureModel.find({ worldId, featureCategory: 'terrain' });
+    const docs = await LocationModel.find({ worldId, featureCategory: 'terrain' });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async createTerrainFeature(feature: any): Promise<any> {
     await this.connect();
-    const doc = await GeographicFeatureModel.create({ ...feature, featureCategory: 'terrain' });
+    const doc = await LocationModel.create({ ...feature, featureCategory: 'terrain' });
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
   async updateTerrainFeature(id: string, feature: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await GeographicFeatureModel.findByIdAndUpdate(
+    const doc = await LocationModel.findByIdAndUpdate(
       id, { $set: { ...feature, updatedAt: new Date() } }, { new: true }
     );
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
@@ -3839,37 +3928,37 @@ export class MongoStorage implements IStorage {
 
   async deleteTerrainFeature(id: string): Promise<boolean> {
     await this.connect();
-    const result = await GeographicFeatureModel.findByIdAndDelete(id);
+    const result = await LocationModel.findByIdAndDelete(id);
     return !!result;
   }
 
   async getWaterFeature(id: string): Promise<any | undefined> {
     await this.connect();
-    const doc = await GeographicFeatureModel.findById(id);
+    const doc = await LocationModel.findById(id);
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
   }
 
   async getWaterFeaturesByWorld(worldId: string): Promise<any[]> {
     await this.connect();
-    const docs = await GeographicFeatureModel.find({ worldId, featureCategory: 'water' });
+    const docs = await LocationModel.find({ worldId, featureCategory: 'water' });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async getWaterFeaturesBySettlement(settlementId: string): Promise<any[]> {
     await this.connect();
-    const docs = await GeographicFeatureModel.find({ settlementId, featureCategory: 'water' });
+    const docs = await LocationModel.find({ settlementId, featureCategory: 'water' });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
   async createWaterFeature(feature: any): Promise<any> {
     await this.connect();
-    const doc = await GeographicFeatureModel.create({ ...feature, featureCategory: 'water' });
+    const doc = await LocationModel.create({ ...feature, featureCategory: 'water' });
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
   async updateWaterFeature(id: string, feature: any): Promise<any | undefined> {
     await this.connect();
-    const doc = await GeographicFeatureModel.findByIdAndUpdate(
+    const doc = await LocationModel.findByIdAndUpdate(
       id, { $set: { ...feature, updatedAt: new Date() } }, { new: true }
     );
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
@@ -3877,7 +3966,7 @@ export class MongoStorage implements IStorage {
 
   async deleteWaterFeature(id: string): Promise<boolean> {
     await this.connect();
-    const result = await GeographicFeatureModel.findByIdAndDelete(id);
+    const result = await LocationModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -4003,17 +4092,47 @@ export class MongoStorage implements IStorage {
       }, { new: true });
       return truthToPlaythroughRelationship(doc!);
     }
+
+    // Resolve human-readable names and proper IDs
+    const playthrough = rel.playthroughId ? await PlaythroughModel.findById(rel.playthroughId) : null;
+    const worldId = (rel as any).worldId || playthrough?.worldId || null;
+
+    // Resolve "player" to the actual user ID from the playthrough
+    const resolveId = (id: string) => id === 'player' && playthrough?.userId ? playthrough.userId : id;
+    const fromId = resolveId(rel.fromCharacterId);
+    const toId = resolveId(rel.toCharacterId);
+
+    // Resolve character names for human-readable title/content
+    const resolveName = async (id: string) => {
+      if (id === 'player' || id === playthrough?.userId) {
+        // Try the player's in-game character first
+        if (playthrough?.playerCharacterId) {
+          const playerChar = await CharacterModel.findById(playthrough.playerCharacterId);
+          if (playerChar) return `${playerChar.firstName} ${playerChar.lastName}`.trim();
+        }
+        // Fall back to the user account name
+        const user = playthrough?.userId ? await UserModel.findById(playthrough.userId) : null;
+        if (user) return user.displayName || user.username;
+        return 'Player';
+      }
+      const char = await CharacterModel.findById(id);
+      return char ? `${char.firstName} ${char.lastName}` : id.substring(0, 12);
+    };
+
+    const fromName = await resolveName(rel.fromCharacterId);
+    const toName = await resolveName(rel.toCharacterId);
+
     const doc = await TruthModel.create({
-      worldId: (rel as any).worldId || 'unknown',
+      worldId,
       playthroughId: rel.playthroughId,
-      characterId: rel.fromCharacterId,
-      title: `Relationship: ${rel.fromCharacterId} -> ${rel.toCharacterId}`,
-      content: `relationship('${rel.playthroughId}', '${rel.fromCharacterId}', '${rel.toCharacterId}', '${rel.type}', ${rel.strength}).`,
+      characterId: fromId,
+      title: `${rel.type}: ${fromName} and ${toName}`,
+      content: `relationship('${fromName}', '${toName}', '${rel.type}', ${rel.strength}).`,
       entryType: 'relationship',
       timestep: 0,
       source: 'relationship',
-      sourceData: rel,
-      relatedCharacterIds: [rel.fromCharacterId, rel.toCharacterId],
+      sourceData: { ...rel, fromCharacterId: fromId, toCharacterId: toId },
+      relatedCharacterIds: [fromId, toId],
     });
     return truthToPlaythroughRelationship(doc);
   }

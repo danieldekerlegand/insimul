@@ -31,7 +31,8 @@ export type BusinessType =
   | 'Harbor' | 'Boatyard' | 'FishMarket' | 'CustomsHouse' | 'Lighthouse'
   | 'Warehouse'
   | 'Blacksmith' | 'Tailor' | 'Butcher' | 'BookStore' | 'HerbShop' | 'PawnShop'
-  | 'Barbershop' | 'Bathhouse' | 'Carpenter' | 'Stables' | 'Clinic';
+  | 'Barbershop' | 'Bathhouse' | 'Carpenter' | 'Stables' | 'Clinic'
+  | 'GuildMarchands' | 'GuildArtisans' | 'GuildConteurs' | 'GuildExplorateurs' | 'GuildDiplomates';
 
 export type ShiftType = 'day' | 'night';
 
@@ -699,6 +700,10 @@ export const quests = pgTable("quests", {
   questChainId: varchar("quest_chain_id", { length: 255 }),
   questChainOrder: integer("quest_chain_order"),
   prerequisiteQuestIds: text("prerequisite_quest_ids").array(),
+
+  // Guild system — organizes quests into language-learning skill trees
+  guildId: varchar("guild_id", { length: 100 }), // marchands, artisans, conteurs, explorateurs, diplomates
+  guildTier: integer("guild_tier"), // 0=join, 1=starter, 2=intermediate, 3=advanced
   
   // Quest objectives and progress
   objectives: jsonb("objectives").$type<any[]>().default([]),
@@ -833,13 +838,12 @@ export const items = pgTable("items", {
   // In-game lore text (separate from editor description)
   loreText: text("lore_text"),
 
-  // Language learning data (for vocabulary items in language-learning games)
-  languageLearningData: jsonb("language_learning_data").$type<{
+  // Translations keyed by language (e.g. { French: { targetWord: "Épée", pronunciation: "ay-PAY", category: "weapon" } })
+  translations: jsonb("translations").$type<Record<string, {
     targetWord: string;
-    targetLanguage: string;
     pronunciation: string;
     category: string;
-  }>(),
+  }>>(),
 
   relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
 
@@ -1258,7 +1262,7 @@ export const insertItemSchema = createInsertSchema(items).pick({
   craftingRecipe: true,
   questRelevance: true,
   loreText: true,
-  languageLearningData: true,
+  translations: true,
   relatedTruthIds: true,
 });
 

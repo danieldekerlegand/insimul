@@ -75,7 +75,7 @@ const DEFAULT_NAME_POOL = {
 };
 
 /** Resolve the name pool for a target language, falling back to English defaults */
-function resolveNamePool(targetLanguage?: string): typeof DEFAULT_NAME_POOL {
+export function resolveNamePool(targetLanguage?: string): typeof DEFAULT_NAME_POOL {
   if (!targetLanguage) return DEFAULT_NAME_POOL;
   const lang = targetLanguage.toLowerCase();
   for (const [key, pool] of Object.entries(LANGUAGE_NAME_POOLS)) {
@@ -92,6 +92,14 @@ export class GenealogyGenerator {
   private worldContext: any = null;
   private countryContext: any = null;
   private settlementContext: any = null;
+
+  /** Pre-generated pools of first names and surnames (filled once, drawn from many times). */
+  private maleFirstNames: string[] = [];
+  private femaleFirstNames: string[] = [];
+  private surnameNames: string[] = [];
+  private maleIdx = 0;
+  private femaleIdx = 0;
+  private surnameIdx = 0;
 
   /**
    * Generate a complete multi-generational genealogy
@@ -113,41 +121,131 @@ export class GenealogyGenerator {
     
     // Load context for name generation
     await this.loadContext(config);
-    
+
+    // Estimate total names needed: ~4 children per couple × generations, plus founders
+    // Generous overcount ensures we never run out and have to make additional calls
+    const estimatedChars = config.numFoundingFamilies * 4 * config.generationsToGenerate;
+    const maleCount = Math.max(60, Math.ceil(estimatedChars * 0.6));
+    const femaleCount = Math.max(60, Math.ceil(estimatedChars * 0.6));
+    const surnameCount = Math.max(30, config.numFoundingFamilies * 3);
+
+    console.log(`   👥 Pre-generating name pool (~${maleCount}M + ${femaleCount}F + ${surnameCount} surnames)...`);
+    const pool = await nameGenerator.generateNamePool({
+      worldId: config.worldId,
+      worldType: this.worldContext?.worldType,
+      customLabel: this.worldContext?.customLabel,
+      countryName: this.countryContext?.name,
+      countryDescription: this.countryContext?.description,
+      settlementName: this.settlementContext?.name,
+      settlementType: this.settlementContext?.settlementType,
+      targetLanguage: this.targetLanguage,
+    }, { male: maleCount, female: femaleCount, surnames: surnameCount });
+
+    this.maleFirstNames = pool.male;
+    this.femaleFirstNames = pool.female;
+    this.surnameNames = pool.surnames;
+    this.maleIdx = 0;
+    this.femaleIdx = 0;
+    this.surnameIdx = 0;
+
     const families: FamilyLine[] = [];
-    
-    // Batch generate ALL founder names upfront to reduce API calls
-    console.log(`   👥 Batch generating names for ${config.numFoundingFamilies} founding families...`);
-    const founderNames = await this.batchGenerateFounderNames(config.numFoundingFamilies);
-    
+
     // Create founding generation (Generation 0)
     for (let i = 0; i < config.numFoundingFamilies; i++) {
-      const family = await this.createFoundingFamily(config, i, founderNames[i]);
+      const family = await this.createFoundingFamily(config, i);
       families.push(family);
     }
     
-    // Generate subsequent generations
+    // Generate subsequent generations with gradual immigration
     for (let gen = 1; gen < config.generationsToGenerate; gen++) {
       console.log(`   👨‍👩‍👧‍👦 Generating generation ${gen}...`);
-      
+
       for (const family of families) {
         await this.generateNextGeneration(config, family, gen);
       }
-      
-      // Create cross-family marriages
+
+      // Inject immigrant individuals into the marriage pool for this generation.
+      // This simulates gradual settlement growth — new people arrive and marry locals.
+      // Scale: ~2 immigrants per generation per 5 founding families, declining over time.
+      const immigrantsPerGen = Math.max(1, Math.round(config.numFoundingFamilies * 0.4));
+      const genBirthYear = config.startYear + (gen * 25);
+      for (let im = 0; im < immigrantsPerGen; im++) {
+        const gender = im % 2 === 0 ? 'male' as const : 'female' as const;
+        const firstName = this.drawFirstName(gender);
+        const lastName = this.drawSurname();
+        const immigrantBirthYear = genBirthYear + Math.floor(Math.random() * 10);
+        const personality = this.inheritPersonality(null, null);
+
+        const immigrant = await storage.createCharacter({
+          worldId: config.worldId,
+          firstName,
+          lastName,
+          gender,
+          birthYear: immigrantBirthYear,
+          age: Math.max(0, config.currentYear - immigrantBirthYear),
+          isAlive: true,
+          currentLocation: config.settlementId!,
+          personality,
+          socialAttributes: { immigrant: true, generation: gen },
+        });
+
+        // Add immigrant to a random family so they're in the marriage pool
+        const targetFamily = families[Math.floor(Math.random() * families.length)];
+        const existing = targetFamily.generations.get(gen) || [];
+        targetFamily.generations.set(gen, [...existing, immigrant.id]);
+      }
+
+      // Create cross-family marriages (now includes immigrants)
       await this.createMarriages(config, families, gen);
     }
     
-    // Count total characters
+    // Log per-generation population summary
+    const genSummary: Record<number, { total: number; married: number; minBirth: number; maxBirth: number }> = {};
+    for (const family of families) {
+      for (const [gen, charIds] of Array.from(family.generations.entries())) {
+        if (!genSummary[gen]) genSummary[gen] = { total: 0, married: 0, minBirth: 9999, maxBirth: 0 };
+        genSummary[gen].total += charIds.length;
+        for (const charId of charIds) {
+          const c = await storage.getCharacter(charId);
+          if (c?.spouseId) genSummary[gen].married++;
+          const by = c?.birthYear || 0;
+          if (by < genSummary[gen].minBirth) genSummary[gen].minBirth = by;
+          if (by > genSummary[gen].maxBirth) genSummary[gen].maxBirth = by;
+        }
+      }
+    }
+    for (const [gen, s] of Object.entries(genSummary).sort((a, b) => Number(a[0]) - Number(b[0]))) {
+      const age = config.currentYear - s.maxBirth;
+      console.log(`   Gen ${gen}: ${s.total} chars (${s.married} married), born ${s.minBirth}-${s.maxBirth}, youngest age ${age}`);
+    }
+
+    // Post-processing: now that all generations and marriages are built,
+    // mark characters as dead based on their age at currentYear.
+    // This is done AFTER generation so that dead ancestors can still marry
+    // and have children during the genealogy construction.
     let totalCharacters = 0;
+    let livingCount = 0;
+    let deadCount = 0;
     for (const family of families) {
       for (const [_, charIds] of Array.from(family.generations.entries())) {
         totalCharacters += charIds.length;
+        for (const charId of charIds) {
+          const char = await storage.getCharacter(charId);
+          if (char) {
+            const shouldBeAlive = this.isAlive(char.birthYear || 0, config.currentYear, config.deathRate);
+            if (!shouldBeAlive) {
+              await storage.updateCharacter(charId, { isAlive: false });
+              deadCount++;
+            } else {
+              livingCount++;
+            }
+          }
+        }
       }
     }
-    
-    console.log(`✅ Generated ${totalCharacters} characters across ${config.generationsToGenerate} generations`);
-    
+
+    console.log(`✅ Generated ${totalCharacters} characters across ${config.generationsToGenerate} generations (${livingCount} living, ${deadCount} deceased)`);
+
     return {
       families,
       totalCharacters,
@@ -156,102 +254,16 @@ export class GenealogyGenerator {
   }
 
   /**
-   * Batch generate all founder names to reduce API calls
-   */
-  private async batchGenerateFounderNames(numFamilies: number): Promise<Array<{
-    surname: string,
-    fatherName: string,
-    motherName: string,
-    motherMaidenName: string
-  }>> {
-    if (!this.worldContext) {
-      // Fallback to traditional name generation
-      return Array(numFamilies).fill(null).map(() => ({
-        surname: this.getFallbackName('male') + 'son',
-        fatherName: this.getFallbackName('male'),
-        motherName: this.getFallbackName('female'),
-        motherMaidenName: this.getFallbackName('male') + 'son'
-      }));
-    }
-
-    try {
-      // Generate all male names (for fathers) in one batch
-      const maleNames = await nameGenerator.generateCharacterNamesBatch({
-        worldId: this.worldContext.id,
-        worldName: this.worldContext.name,
-        worldDescription: this.worldContext.description || undefined,
-        worldType: this.worldContext.worldType || undefined,
-        countryName: this.countryContext?.name,
-        countryDescription: this.countryContext?.description || undefined,
-        settlementName: this.settlementContext?.name,
-        settlementType: this.settlementContext?.settlementType,
-        gender: 'male',
-        generation: 0,
-        isFounder: true,
-        targetLanguage: this.targetLanguage,
-      }, numFamilies);
-
-      // Generate all female names (for mothers) in one batch
-      const femaleNames = await nameGenerator.generateCharacterNamesBatch({
-        worldId: this.worldContext.id,
-        worldName: this.worldContext.name,
-        worldDescription: this.worldContext.description || undefined,
-        worldType: this.worldContext.worldType || undefined,
-        countryName: this.countryContext?.name,
-        countryDescription: this.countryContext?.description || undefined,
-        settlementName: this.settlementContext?.name,
-        settlementType: this.settlementContext?.settlementType,
-        gender: 'female',
-        generation: 0,
-        isFounder: true,
-        targetLanguage: this.targetLanguage,
-      }, numFamilies);
-
-      // Combine into founder records
-      const founders = [];
-      for (let i = 0; i < numFamilies; i++) {
-        const male = maleNames[i] || { firstName: this.getFallbackName('male'), lastName: this.getFallbackName('male') + 'son' };
-        const female = femaleNames[i] || { firstName: this.getFallbackName('female'), lastName: this.getFallbackName('male') + 'son' };
-        
-        founders.push({
-          surname: male.lastName,
-          fatherName: male.firstName,
-          motherName: female.firstName,
-          motherMaidenName: female.lastName
-        });
-        
-        // Mark names as used
-        this.usedNames.add(male.firstName);
-        this.usedNames.add(female.firstName);
-        this.usedNames.add(male.lastName);
-        this.usedNames.add(female.lastName);
-      }
-
-      return founders;
-    } catch (error) {
-      console.warn('Batch founder name generation failed, using fallbacks:', error);
-      return Array(numFamilies).fill(null).map(() => ({
-        surname: this.getFallbackName('male') + 'son',
-        fatherName: this.getFallbackName('male'),
-        motherName: this.getFallbackName('female'),
-        motherMaidenName: this.getFallbackName('male') + 'son'
-      }));
-    }
-  }
-
-  /**
    * Create a founding family (generation 0)
    */
   private async createFoundingFamily(
-    config: GenerationConfig, 
+    config: GenerationConfig,
     index: number,
-    names?: {surname: string, fatherName: string, motherName: string, motherMaidenName: string}
   ): Promise<FamilyLine> {
-    // Use pre-generated names if provided, otherwise generate them
-    const surname = names?.surname || await this.getUniqueSurname();
-    const fatherName = names?.fatherName || await this.getUniqueName('male', 0, true);
-    const motherName = names?.motherName || await this.getUniqueName('female', 0, true);
-    const motherMaidenName = names?.motherMaidenName || await this.getUniqueSurname();
+    const surname = this.drawSurname();
+    const fatherName = this.drawFirstName('male');
+    const motherName = this.drawFirstName('female');
+    const motherMaidenName = this.drawSurname();
     
     // Create father
     const fatherPersonality = this.generatePersonality();
@@ -263,7 +275,7 @@ export class GenealogyGenerator {
       gender: 'male',
       birthYear: config.startYear - 25,
       age: fatherAge,
-      isAlive: this.isAlive(config.startYear - 25, config.currentYear, config.deathRate),
+      isAlive: true, // Mark dead later after all generations are built
       currentLocation: config.settlementId!,
       personality: fatherPersonality,
       skills: this.generateSkills(fatherPersonality, fatherAge),
@@ -287,7 +299,7 @@ export class GenealogyGenerator {
       gender: 'female',
       birthYear: config.startYear - 23,
       age: motherAge,
-      isAlive: this.isAlive(config.startYear - 23, config.currentYear, config.deathRate),
+      isAlive: true, // Mark dead later after all generations are built
       spouseId: father.id,
       currentLocation: config.settlementId!,
       personality: motherPersonality,
@@ -395,7 +407,7 @@ export class GenealogyGenerator {
   ): Promise<void> {
     // Collect all unmarried adults from this generation across all families
     const unmarried: any[] = [];
-    
+
     for (const family of families) {
       const genCharIds = family.generations.get(generation) || [];
       for (const charId of genCharIds) {
@@ -405,37 +417,34 @@ export class GenealogyGenerator {
         }
       }
     }
-    
-    // Shuffle and pair them up based on marriage rate
-    this.shuffle(unmarried);
-    
-    for (let i = 0; i < unmarried.length - 1; i += 2) {
+
+    // Separate by gender and shuffle each pool independently
+    const males = unmarried.filter(c => c.gender?.toLowerCase() === 'male');
+    const females = unmarried.filter(c => c.gender?.toLowerCase() === 'female');
+    this.shuffle(males);
+    this.shuffle(females);
+
+    // Pair males with females (avoids wasting pairs on same-gender matches)
+    const pairCount = Math.min(males.length, females.length);
+    for (let i = 0; i < pairCount; i++) {
       if (Math.random() > config.marriageRate) continue;
-      
-      const char1 = unmarried[i];
-      const char2 = unmarried[i + 1];
-      
-      // Don't marry siblings or people of same gender
-      if (char1.gender === char2.gender) continue;
-      if (char1.parentIds && char2.parentIds && 
+
+      const char1 = males[i];
+      const char2 = females[i];
+
+      // Don't marry siblings
+      if (char1.parentIds && char2.parentIds &&
           char1.parentIds.some((p: string) => char2.parentIds?.includes(p))) continue;
-      
+
       // Create marriage
       await storage.updateCharacter(char1.id, { spouseId: char2.id });
       await storage.updateCharacter(char2.id, { spouseId: char1.id });
-      
-      // If female, update maiden name and surname
-      if (char1.gender === 'female') {
-        await storage.updateCharacter(char1.id, {
-          maidenName: char1.lastName,
-          lastName: char2.lastName
-        });
-      } else {
-        await storage.updateCharacter(char2.id, {
-          maidenName: char2.lastName,
-          lastName: char1.lastName
-        });
-      }
+
+      // Update female surname (char2 is always female in the new pairing)
+      await storage.updateCharacter(char2.id, {
+        maidenName: char2.lastName,
+        lastName: char1.lastName,
+      });
     }
   }
 
@@ -451,72 +460,17 @@ export class GenealogyGenerator {
     count: number
   ): Promise<any[]> {
     const children = [];
-    
-    // Pre-determine genders
-    const childrenInfo = Array(count).fill(null).map((_, i) => ({
-      gender: Math.random() > 0.5 ? 'male' as const : 'female' as const,
-      birthYear: birthYear + i
-    }));
-    
-    // Batch generate all names at once if LLM is available
-    let firstNames: string[];
-    if (this.worldContext) {
-      try {
-        const maleCount = childrenInfo.filter(c => c.gender === 'male').length;
-        const femaleCount = childrenInfo.filter(c => c.gender === 'female').length;
-        
-        const maleNames = maleCount > 0 ? await nameGenerator.generateCharacterNamesBatch({
-          worldId: this.worldContext.id,
-          worldName: this.worldContext.name,
-          worldDescription: this.worldContext.description || undefined,
-          worldType: this.worldContext.worldType || undefined,
-          countryName: this.countryContext?.name,
-          countryDescription: this.countryContext?.description || undefined,
-          settlementName: this.settlementContext?.name,
-          settlementType: this.settlementContext?.settlementType,
-          gender: 'male',
-          generation,
-          isFounder: false,
-          targetLanguage: this.targetLanguage,
-        }, maleCount) : [];
 
-        const femaleNames = femaleCount > 0 ? await nameGenerator.generateCharacterNamesBatch({
-          worldId: this.worldContext.id,
-          worldName: this.worldContext.name,
-          worldDescription: this.worldContext.description || undefined,
-          worldType: this.worldContext.worldType || undefined,
-          countryName: this.countryContext?.name,
-          countryDescription: this.countryContext?.description || undefined,
-          settlementName: this.settlementContext?.name,
-          settlementType: this.settlementContext?.settlementType,
-          gender: 'female',
-          generation,
-          isFounder: false,
-          targetLanguage: this.targetLanguage,
-        }, femaleCount) : [];
-        
-        // Interleave names based on original gender order
-        let maleIdx = 0, femaleIdx = 0;
-        firstNames = childrenInfo.map(c => {
-          if (c.gender === 'male') {
-            return maleNames[maleIdx++]?.firstName || this.getFallbackName('male');
-          } else {
-            return femaleNames[femaleIdx++]?.firstName || this.getFallbackName('female');
-          }
-        });
-      } catch (error) {
-        console.warn('Batch name generation failed, using fallbacks');
-        firstNames = childrenInfo.map(c => this.getFallbackName(c.gender));
-      }
-    } else {
-      firstNames = childrenInfo.map(c => this.getFallbackName(c.gender));
-    }
-    
-    // Create all children with generated names
+    // Pre-determine genders and draw names from the pre-generated pool
+    const childrenInfo = Array(count).fill(null).map((_, i) => {
+      const gender = Math.random() > 0.5 ? 'male' as const : 'female' as const;
+      return { gender, birthYear: birthYear + i, firstName: this.drawFirstName(gender) };
+    });
+
+    // Create all children
     for (let i = 0; i < count; i++) {
       const info = childrenInfo[i];
-      const firstName = firstNames[i];
-      this.usedNames.add(firstName);
+      const firstName = info.firstName;
       
       const childPersonality = this.inheritPersonality(father.personality, mother.personality);
       const childAge = Math.max(0, config.currentYear - info.birthYear);
@@ -527,7 +481,7 @@ export class GenealogyGenerator {
         gender: info.gender,
         birthYear: info.birthYear,
         age: childAge,
-        isAlive: this.isAlive(info.birthYear, config.currentYear, config.deathRate),
+        isAlive: true, // Mark dead later after all generations are built
         parentIds: [father.id, mother.id],
         currentLocation: config.settlementId!,
         personality: childPersonality,
@@ -680,109 +634,34 @@ export class GenealogyGenerator {
   }
 
   /**
-   * Get a fallback name from the name pool
+   * Draw the next first name from the pre-generated pool.
+   * Cycles back to the start (with a suffix) if exhausted.
    */
-  private getFallbackName(gender: 'male' | 'female'): string {
-    const pool = this.namePool[gender];
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  /**
-   * Get a unique name from the pool (or LLM if available)
-   */
-  private async getUniqueName(gender: 'male' | 'female', generation: number = 0, isFounder: boolean = false): Promise<string> {
-    // Try LLM generation if context is available
-    if (this.worldContext) {
-      try {
-        const names = await nameGenerator.generateCharacterNames({
-          worldName: this.worldContext.name,
-          worldDescription: this.worldContext.description,
-          countryName: this.countryContext?.name,
-          countryDescription: this.countryContext?.description,
-          settlementName: this.settlementContext?.name,
-          settlementType: this.settlementContext?.settlementType,
-          gender,
-          generation,
-          isFounder,
-          targetLanguage: this.targetLanguage,
-        }, 1);
-
-        if (names.length > 0) {
-          const firstName = names[0].firstName;
-          if (!this.usedNames.has(firstName)) {
-            this.usedNames.add(firstName);
-            return firstName;
-          }
-        }
-      } catch (error) {
-        console.warn('LLM name generation failed, using fallback');
-      }
+  private drawFirstName(gender: 'male' | 'female'): string {
+    const pool = gender === 'male' ? this.maleFirstNames : this.femaleFirstNames;
+    const idxProp = gender === 'male' ? 'maleIdx' : 'femaleIdx';
+    if (pool.length === 0) {
+      const fb = this.namePool[gender];
+      return fb[Math.floor(Math.random() * fb.length)];
     }
-
-    // Fallback to language-appropriate pool
-    const pool = this.namePool[gender];
-    let name;
-    let attempts = 0;
-    
-    do {
-      name = pool[Math.floor(Math.random() * pool.length)];
-      attempts++;
-      if (attempts > 100) {
-        // Add suffix if we've exhausted names
-        name = name + ' ' + (attempts - 100);
-      }
-    } while (this.usedNames.has(name) && attempts < 200);
-    
-    this.usedNames.add(name);
+    // Cycle through pool — name reuse is natural (multiple Pierres, Maries, etc.)
+    const name = pool[this[idxProp] % pool.length];
+    this[idxProp]++;
     return name;
   }
 
   /**
-   * Get a unique surname (or LLM-generated if available)
+   * Draw the next surname from the pre-generated pool.
    */
-  private async getUniqueSurname(): Promise<string> {
-    // Try LLM generation if context is available
-    if (this.worldContext) {
-      try {
-        const names = await nameGenerator.generateCharacterNames({
-          worldName: this.worldContext.name,
-          worldDescription: this.worldContext.description,
-          countryName: this.countryContext?.name,
-          countryDescription: this.countryContext?.description,
-          settlementName: this.settlementContext?.name,
-          settlementType: this.settlementContext?.settlementType,
-          gender: 'male', // Use male for surname generation
-          generation: 0,
-          isFounder: true,
-          targetLanguage: this.targetLanguage,
-        }, 1);
-        
-        if (names.length > 0) {
-          const lastName = names[0].lastName;
-          if (!this.usedNames.has(lastName)) {
-            this.usedNames.add(lastName);
-            return lastName;
-          }
-        }
-      } catch (error) {
-        console.warn('LLM surname generation failed, using fallback');
-      }
+  private drawSurname(): string {
+    const pool = this.surnameNames;
+    if (pool.length === 0) {
+      const fb = this.namePool.surnames;
+      return fb[Math.floor(Math.random() * fb.length)];
     }
-    
-    // Fallback to pool
-    const pool = this.namePool.surnames;
-    let name;
-    let attempts = 0;
-    
-    do {
-      name = pool[Math.floor(Math.random() * pool.length)];
-      attempts++;
-      if (attempts > 50) {
-        name = name + (attempts - 50);
-      }
-    } while (this.usedNames.has(name) && attempts < 100);
-    
-    this.usedNames.add(name);
+    // Cycle through pool — surname reuse is natural in small communities
+    const name = pool[this.surnameIdx % pool.length];
+    this.surnameIdx++;
     return name;
   }
 
@@ -880,48 +759,37 @@ export class GenealogyGenerator {
       }
     }
 
-    // Batch-generate all names in 2 LLM calls (one per gender)
-    const maleCount = slots.filter(s => s.gender === 'male').length;
-    const femaleCount = slots.filter(s => s.gender === 'female').length;
-
-    const nameContext = {
-      worldName: this.worldContext?.name,
-      worldDescription: this.worldContext?.description,
-      countryName: this.countryContext?.name,
-      countryDescription: this.countryContext?.description,
-      settlementName: this.settlementContext?.name,
-      settlementType: this.settlementContext?.settlementType,
-      worldId: this.worldContext?.id,
-      worldType: this.worldContext?.worldType,
-      generation: 0,
-      isFounder: false,
-      targetLanguage: this.targetLanguage,
-    };
-
-    const [maleNames, femaleNames] = await Promise.all([
-      maleCount > 0
-        ? nameGenerator.generateCharacterNamesBatch({ ...nameContext, gender: 'male' }, maleCount)
-        : [],
-      femaleCount > 0
-        ? nameGenerator.generateCharacterNamesBatch({ ...nameContext, gender: 'female' }, femaleCount)
-        : [],
-    ]);
-    console.log(`   👥 Batch generated ${maleNames.length} male + ${femaleNames.length} female immigrant names`);
+    // Ensure name pool is populated (generateImmigrants can be called independently)
+    if (this.maleFirstNames.length === 0) {
+      const pool = await nameGenerator.generateNamePool({
+        worldId: this.worldContext?.id,
+        worldType: this.worldContext?.worldType,
+        countryName: this.countryContext?.name,
+        countryDescription: this.countryContext?.description,
+        settlementName: this.settlementContext?.name,
+        settlementType: this.settlementContext?.settlementType,
+        targetLanguage: this.targetLanguage,
+      }, { male: slots.length, female: slots.length, surnames: Math.ceil(slots.length / 2) });
+      this.maleFirstNames = pool.male;
+      this.femaleFirstNames = pool.female;
+      this.surnameNames = pool.surnames;
+      this.maleIdx = 0;
+      this.femaleIdx = 0;
+      this.surnameIdx = 0;
+    }
 
     // Create all characters and track them by family for linking
-    let maleIdx = 0, femaleIdx = 0;
     const createdByFamily = new Map<number, { spouses: any[]; children: any[] }>();
 
     for (const slot of slots) {
-      const nameData = slot.gender === 'male' ? maleNames[maleIdx++] : femaleNames[femaleIdx++];
       // Children take surname from their family's first spouse
       const familyEntry = createdByFamily.get(slot.familyIdx);
       const familySurname = familyEntry?.spouses[0]?.lastName;
 
-      const firstName = nameData?.firstName || this.getFallbackName(slot.gender);
+      const firstName = this.drawFirstName(slot.gender as 'male' | 'female');
       const lastName = slot.role === 'child' && familySurname
         ? familySurname
-        : (nameData?.lastName || `Immigrant${slot.familyIdx}`);
+        : this.drawSurname();
       const birthYear = config.currentYear - slot.age;
       const personality = this.generatePersonality();
 
@@ -988,5 +856,11 @@ export class GenealogyGenerator {
     this.settlementContext = null;
     this.targetLanguage = undefined;
     this.namePool = DEFAULT_NAME_POOL;
+    this.maleFirstNames = [];
+    this.femaleFirstNames = [];
+    this.surnameNames = [];
+    this.maleIdx = 0;
+    this.femaleIdx = 0;
+    this.surnameIdx = 0;
   }
 }

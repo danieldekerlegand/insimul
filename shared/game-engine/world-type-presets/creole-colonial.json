@@ -14,14 +14,24 @@
   },
 
   "buildingTextures": {
-    "wall":  ["plastered_wall", "yellow_plaster", "red_brick_plaster_patch_02"],
-    "roof":  ["clay_roof_tiles", "roof_slates_02", "grey_roof_tiles"],
+    "wall":  ["blue_painted_planks", "dark_wooden_planks", "green_rough_planks", "wood_plank_wall", "wooden_rough_planks"],
+    "roof":  ["red_slate_roof_tiles_01", "roof_slates_03", "roof_slates_02", "grey_roof_01", "corrugated_iron"],
     "door":  ["dark_wood", "fine_grained_wood"],
     "floor": ["old_wood_floor", "plank_flooring"]
   },
 
+  "categoryTextures": {
+    "residential":        { "wall": "blue_painted_planks",  "roof": "red_slate_roof_tiles_01" },
+    "commercial_food":    { "wall": "blue_painted_planks",  "roof": "red_slate_roof_tiles_01" },
+    "commercial_retail":  { "wall": "dark_wooden_planks",   "roof": "roof_slates_03" },
+    "commercial_service": { "wall": "green_rough_planks",   "roof": "roof_slates_02" },
+    "civic":              { "wall": "wood_plank_wall",      "roof": "grey_roof_01" },
+    "industrial":         { "wall": "wooden_rough_planks",  "roof": "corrugated_iron" },
+    "maritime":           { "wall": "dark_wooden_planks",   "roof": "corrugated_iron" }
+  },
+
   "groundConfig": {
-    "ground":   { "color": { "r": 0.30, "g": 0.48, "b": 0.22 }, "texture": "forrest_ground_01" },
+    "ground":   { "color": { "r": 0.30, "g": 0.48, "b": 0.22 }, "texture": "sparse_grass" },
     "road":     { "color": { "r": 0.45, "g": 0.40, "b": 0.35 }, "texture": "cobblestone_floor_01" },
     "sidewalk": { "color": { "r": 0.55, "g": 0.52, "b": 0.48 }, "texture": "brick_floor" }
   },

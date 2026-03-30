@@ -1067,7 +1067,7 @@ export class QuestCompletionEngine {
   trackTextFound(textId: string, textName: string, questId?: string): void {
     const lowerName = textName.toLowerCase();
 
-    this.forEachObjective(questId, 'find_text', (quest, obj) => {
+    this.forEachObjective(questId, ['find_text', 'collect_text'], (quest, obj) => {
       const targetName = (obj.itemName || '').toLowerCase();
       if (targetName && targetName !== lowerName && targetName !== textId) return;
 

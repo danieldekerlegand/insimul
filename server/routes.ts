@@ -1484,7 +1484,33 @@ app.get("/api/rules", async (req, res) => {
       res.status(500).json({ error: "Failed to delete character" });
     }
   });
-  
+
+  // Bulk delete characters by IDs (with truth cascade)
+  app.post("/api/characters/bulk-delete", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const char = await storage.getCharacter(id);
+        if (!char) continue;
+        if (!(await canEditWorld(payload?.userId, char.worldId))) continue;
+        if (await storage.deleteCharacter(id)) {
+          prologAutoSync.onCharacterDeleted(char.worldId, id, char.firstName, char.lastName).catch(() => {});
+          deleted++;
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      console.error("Failed to bulk delete characters:", error);
+      res.status(500).json({ error: "Failed to bulk delete characters" });
+    }
+  });
+
   // ============ Character Templates ============
 
   // List character templates for a world (includes base templates)
@@ -2326,8 +2352,6 @@ app.get("/api/rules", async (req, res) => {
         elevation: match.elevation ?? 0,
         streetEdgeId: match.streetEdgeId ?? null,
         side: match.side ?? null,
-        buildingId: match.buildingId ?? null,
-        buildingType: match.buildingType ?? null,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to lookup address" });
@@ -2642,10 +2666,10 @@ app.get("/api/rules", async (req, res) => {
 
   app.get("/api/settlements/:settlementId/residences", async (req, res) => {
     try {
-      const residences = await storage.getResidencesBySettlement(req.params.settlementId);
-      res.json(residences);
+      const buildings = await storage.getBuildingsBySettlement(req.params.settlementId);
+      res.json(buildings);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch residences" });
+      res.status(500).json({ error: "Failed to fetch buildings" });
     }
   });
 
@@ -4421,7 +4445,12 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         foundedYear: number;
         generateStates: boolean;
         numStatesPerCountry: number;
+        numLandingsPerState: number;
+        numForgesPerState: number;
+        numChapelsPerState: number;
+        numMarketsPerState: number;
         numHamletsPerState: number;
+        numHomesteadsPerState: number;
         numCitiesPerState: number;
         numTownsPerState: number;
         numVillagesPerState: number;
@@ -4430,30 +4459,44 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         marriageRate: number;
         fertilityRate: number;
         deathRate: number;
+        // Guild assignments: maps settlement type+index to guild list
+        // e.g. { "hamlet_0": ["GuildConteurs", "GuildArtisans", "GuildExplorateurs"], "landing_0": ["GuildDiplomates"] }
+        guildAssignments?: Record<string, string[]>;
       }> = config.countries && Array.isArray(config.countries) && config.countries.length > 0
         ? config.countries.map((c: any) => ({
             terrain: c.terrain || 'plains',
             foundedYear: c.foundedYear || 1850,
             generateStates: c.generateStates !== false,
             numStatesPerCountry: c.numStatesPerCountry || 1,
+            numLandingsPerState: c.numLandingsPerState ?? 0,
+            numForgesPerState: c.numForgesPerState ?? 0,
+            numChapelsPerState: c.numChapelsPerState ?? 0,
+            numMarketsPerState: c.numMarketsPerState ?? 0,
             numHamletsPerState: c.numHamletsPerState ?? 0,
+            numHomesteadsPerState: c.numHomesteadsPerState ?? 0,
             numCitiesPerState: c.numCitiesPerState ?? 0,
-            numTownsPerState: c.numTownsPerState ?? 1,
+            numTownsPerState: c.numTownsPerState ?? 0,
             numVillagesPerState: c.numVillagesPerState ?? 0,
             numFoundingFamilies: c.numFoundingFamilies || 10,
             generations: c.generations || 4,
             marriageRate: c.marriageRate || 0.7,
             fertilityRate: c.fertilityRate || 0.6,
             deathRate: c.deathRate || 0.3,
+            guildAssignments: c.guildAssignments,
           }))
         : Array(config.numCountries || 1).fill(null).map(() => ({
             terrain: config.terrain || 'plains',
             foundedYear: config.foundedYear || 1850,
             generateStates: config.generateStates !== false,
             numStatesPerCountry: config.numStatesPerCountry || 1,
+            numLandingsPerState: config.numLandingsPerState ?? 0,
+            numForgesPerState: config.numForgesPerState ?? 0,
+            numChapelsPerState: config.numChapelsPerState ?? 0,
+            numMarketsPerState: config.numMarketsPerState ?? 0,
             numHamletsPerState: config.numHamletsPerState ?? 0,
+            numHomesteadsPerState: config.numHomesteadsPerState ?? 0,
             numCitiesPerState: config.numCitiesPerState ?? 0,
-            numTownsPerState: config.numTownsPerState ?? 1,
+            numTownsPerState: config.numTownsPerState ?? 0,
             numVillagesPerState: config.numVillagesPerState ?? 0,
             numFoundingFamilies: config.numFoundingFamilies || 10,
             generations: config.generations || 4,
@@ -4473,38 +4516,37 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         const world = await storage.getWorld(config.worldId);
 
         // Build settlement plan across ALL countries
-        const settlementPlan: Array<{ type: 'city' | 'town' | 'village' | 'hamlet'; numFamilies: number; childrenPerFamily: number }> = [];
+        const settlementPlan: Array<{ type: string; numFamilies: number; childrenPerFamily: number }> = [];
         // Track which settlements belong to which country (for later assignment)
         const countrySettlementRanges: Array<{ start: number; end: number; statesCount: number }> = [];
 
         // Per-settlement-type genealogy computation
-        const BASE_FAMILIES_SS: Record<string, number> = { dwelling: 1, roadhouse: 1, homestead: 2, hamlet: 3, village: 5, town: 15, city: 50 };
+        const BASE_FAMILIES_SS: Record<string, number> = { dwelling: 1, roadhouse: 1, landing: 1, forge: 1, chapel: 1, homestead: 1, market: 3, hamlet: 3, village: 4, town: 15, city: 50 };
         const YEARS_PER_GEN_SS = 25;
         const computeGenealogySS = (type: string, foundedYear: number) => {
-          const currentYear = new Date().getFullYear();
-          const yearsOld = Math.max(0, currentYear - foundedYear);
-          const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GEN_SS)));
-          const baseFamilies = BASE_FAMILIES_SS[type] || 10;
-          const generationScale = Math.max(0.5, 2.0 - (generations - 1) * 0.3);
-          return Math.max(2, Math.min(60, Math.round(baseFamilies * generationScale)));
+          return BASE_FAMILIES_SS[type] || 10;
         };
 
         for (const cc of countryConfigs) {
           const statesCount = cc.generateStates ? (cc.numStatesPerCountry || 1) : 1;
           const startIdx = settlementPlan.length;
           for (let j = 0; j < statesCount; j++) {
-            for (let k = 0; k < (cc.numCitiesPerState || 0); k++) {
-              settlementPlan.push({ type: 'city', numFamilies: computeGenealogySS('city', cc.foundedYear), childrenPerFamily: 2 });
-            }
-            for (let k = 0; k < (cc.numTownsPerState || 0); k++) {
-              settlementPlan.push({ type: 'town', numFamilies: computeGenealogySS('town', cc.foundedYear), childrenPerFamily: 2 });
-            }
-            for (let k = 0; k < (cc.numVillagesPerState || 0); k++) {
-              settlementPlan.push({ type: 'village', numFamilies: computeGenealogySS('village', cc.foundedYear), childrenPerFamily: 2 });
-            }
-            for (let k = 0; k < (cc.numHamletsPerState || 0); k++) {
-              settlementPlan.push({ type: 'hamlet', numFamilies: computeGenealogySS('hamlet', cc.foundedYear), childrenPerFamily: 2 });
-            }
+            const ga = cc.guildAssignments || {};
+            const pushWithGuilds = (type: string, count: number) => {
+              for (let k = 0; k < count; k++) {
+                const guilds = ga[`${type}_${k}`] || undefined;
+                settlementPlan.push({ type, numFamilies: computeGenealogySS(type, cc.foundedYear), childrenPerFamily: 2, guilds });
+              }
+            };
+            pushWithGuilds('city', cc.numCitiesPerState || 0);
+            pushWithGuilds('town', cc.numTownsPerState || 0);
+            pushWithGuilds('village', cc.numVillagesPerState || 0);
+            pushWithGuilds('hamlet', cc.numHamletsPerState || 0);
+            pushWithGuilds('homestead', cc.numHomesteadsPerState || 0);
+            pushWithGuilds('landing', cc.numLandingsPerState || 0);
+            pushWithGuilds('forge', cc.numForgesPerState || 0);
+            pushWithGuilds('chapel', cc.numChapelsPerState || 0);
+            pushWithGuilds('market', cc.numMarketsPerState || 0);
           }
           countrySettlementRanges.push({ start: startIdx, end: settlementPlan.length, statesCount });
         }
@@ -4602,7 +4644,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
 
                 // Store settlement info for the unified pipeline (run after territory layout)
                 // Genealogy params are computed from settlement type and founding year
-                const POPULATION_BY_TYPE_SS: Record<string, number> = { dwelling: 3, roadhouse: 3, homestead: 10, hamlet: 50, village: 100, town: 1000, city: 5000 };
+                const POPULATION_BY_TYPE_SS: Record<string, number> = { dwelling: 3, roadhouse: 3, landing: 10, forge: 10, chapel: 10, homestead: 10, market: 30, hamlet: 50, village: 100, town: 1000, city: 5000 };
                 const { foundingFamilies: typeFamilies, generations: typeGenerations } = (() => {
                   const currentYr = new Date().getFullYear();
                   const yearsOld = Math.max(0, currentYr - cc.foundedYear);
@@ -4627,6 +4669,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   fertilityRate: cc.fertilityRate || 0.6,
                   deathRate: cc.deathRate || 0.3,
                   targetPopulation: POPULATION_BY_TYPE_SS[plan.type] || 50,
+                  guilds: plan.guilds,
                 });
 
                 settlementIdx++;
@@ -4650,7 +4693,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 terrain: countryConfigs[0]?.terrain || 'plains',
                 settlements: countrySettlements.map(s => ({
                   id: s.id,
-                  type: (s.settlementType || 'town') as 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city',
+                  type: (s.settlementType || 'town') as 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city',
                   terrain: (s.terrain || countryConfigs[0]?.terrain || 'plains'),
                   population: s.population || 50,
                   stateId: s.stateId || undefined,
@@ -4732,6 +4775,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 fertilityRate: ps.fertilityRate,
                 deathRate: ps.deathRate,
                 targetPopulation: ps.targetPopulation,
+                guilds: ps.guilds,
                 generateGenealogy: config.generateGenealogy,
                 generateGeography: config.generateGeography,
               });
@@ -4843,22 +4887,24 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           const numTowns = cc.numTownsPerState || 0;
           const numVillages = cc.numVillagesPerState || 0;
           const numHamlets = cc.numHamletsPerState || 0;
+          const numLandings = cc.numLandingsPerState || 0;
+          const numForges = cc.numForgesPerState || 0;
+          const numChapels = cc.numChapelsPerState || 0;
+          const numMarkets = cc.numMarketsPerState || 0;
 
           // Compute per-settlement-type genealogy from founding year
-          const BASE_FAMILIES: Record<string, number> = { dwelling: 1, roadhouse: 1, homestead: 2, hamlet: 3, village: 5, town: 15, city: 50 };
+          const BASE_FAMILIES: Record<string, number> = { dwelling: 1, roadhouse: 1, landing: 1, forge: 1, chapel: 1, homestead: 1, market: 3, hamlet: 3, village: 4, town: 15, city: 50 };
           const YEARS_PER_GEN = 25;
           const computeSettlementGenealogy = (type: string, foundedYear: number) => {
             const currentYear = new Date().getFullYear();
             const yearsOld = Math.max(0, currentYear - foundedYear);
             const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GEN)));
-            const baseFamilies = BASE_FAMILIES[type] || 10;
-            const generationScale = Math.max(0.5, 2.0 - (generations - 1) * 0.3);
-            const foundingFamilies = Math.max(2, Math.min(60, Math.round(baseFamilies * generationScale)));
+            const foundingFamilies = BASE_FAMILIES[type] || 10;
             return { foundingFamilies, generations };
           };
 
           // Helper to create settlements with batch name generation
-          const createSettlements = async (type: 'city' | 'town' | 'village' | 'hamlet', count: number) => {
+          const createSettlements = async (type: string, count: number) => {
             if (count === 0) return;
 
             // Compute genealogy for this settlement type
@@ -4950,6 +4996,10 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           await createSettlements('town', numTowns);
           await createSettlements('village', numVillages);
           await createSettlements('hamlet', numHamlets);
+          await createSettlements('landing', numLandings);
+          await createSettlements('forge', numForges);
+          await createSettlements('chapel', numChapels);
+          await createSettlements('market', numMarkets);
         }
       }
 
@@ -5829,8 +5879,8 @@ Return ONLY valid JSON array.`;
           const { batchTranslateItems } = await import("./services/item-translation.js");
           const allItems = await storage.getItemsByWorld(worldId);
           const untranslated = allItems.filter(item =>
-            !item.languageLearningData ||
-            item.languageLearningData.targetLanguage !== worldTargetLanguage
+            !item.translations ||
+            item.translations.targetLanguage !== worldTargetLanguage
           );
 
           if (untranslated.length > 0) {
@@ -5863,10 +5913,10 @@ Return ONLY valid JSON array.`;
                   id: undefined as any,
                   worldId,
                   isBase: false,
-                  languageLearningData: langData,
+                  translations: langData,
                 });
               } else {
-                await storage.updateItem(originalItem.id, { languageLearningData: langData });
+                await storage.updateItem(originalItem.id, { translations: langData });
               }
               translatedCount++;
             }
@@ -9095,6 +9145,68 @@ Respond with this JSON structure:
     }
   });
 
+  // ── Guild quest system ──────────────────────────────────────────────────
+
+  app.get("/api/worlds/:worldId/guilds", async (req, res) => {
+    try {
+      const { GUILD_DEFINITIONS, getAllGuildIds } = require('../shared/guild-definitions');
+      const { GuildQuestManager } = require('./services/guild-quest-manager');
+      const manager = new GuildQuestManager();
+
+      const allQuests = await storage.getQuestsByWorld(req.params.worldId);
+      const completedIds = new Set(
+        allQuests.filter((q: any) => q.status === 'completed').map((q: any) => q.id)
+      );
+
+      // Get guild memberships from playthrough overlay truths
+      const joinedGuilds = new Set<string>();
+      for (const q of allQuests) {
+        if (q.guildTier === 0 && q.status === 'completed' && q.guildId) {
+          joinedGuilds.add(q.guildId);
+        }
+      }
+
+      const progress = manager.getGuildProgress(allQuests, completedIds, joinedGuilds);
+
+      const guilds = getAllGuildIds().map((id: string) => {
+        const def = GUILD_DEFINITIONS[id];
+        const prog = progress.get(id);
+        return { ...def, progress: prog };
+      });
+
+      res.json(guilds);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch guilds" });
+    }
+  });
+
+  app.get("/api/worlds/:worldId/quests/visible", async (req, res) => {
+    try {
+      const { GuildQuestManager } = require('./services/guild-quest-manager');
+      const manager = new GuildQuestManager();
+
+      const allQuests = await storage.getQuestsByWorld(req.params.worldId);
+      const completedIds = new Set(
+        allQuests.filter((q: any) => q.status === 'completed').map((q: any) => q.id)
+      );
+
+      // Determine joined guilds from completed Tier 0 quests
+      const joinedGuilds = new Set<string>();
+      for (const q of allQuests) {
+        if (q.guildTier === 0 && q.status === 'completed' && q.guildId) {
+          joinedGuilds.add(q.guildId);
+        }
+      }
+
+      const guildProgress = manager.getGuildProgress(allQuests, completedIds, joinedGuilds);
+      const visible = manager.getVisibleQuests(allQuests, completedIds, guildProgress);
+
+      res.json(visible.map((v: any) => ({ ...v.quest, _visibilityReason: v.reason })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch visible quests" });
+    }
+  });
+
   // Batch convert world quests to Prolog
   app.post("/api/worlds/:worldId/quests/convert-all", async (req, res) => {
     try {
@@ -9967,27 +10079,21 @@ Respond with this JSON structure:
   });
 
   // Batch-translate item names for a language-learning world
-  app.post("/api/worlds/:worldId/items/translate", async (req, res) => {
+  app.post("/api/items/translate", async (req, res) => {
     try {
-      const { worldId } = req.params;
-      const { targetLanguage } = req.body;
+      const { targetLanguage, worldType } = req.body;
 
       if (!targetLanguage) {
         return res.status(400).json({ error: "targetLanguage is required" });
       }
 
-      const world = await storage.getWorld(worldId);
-      if (!world) {
-        return res.status(404).json({ error: "World not found" });
-      }
+      // Get base items (optionally filtered by world type)
+      const items = await storage.getBaseItems(worldType || undefined);
 
-      // Get all items for this world (includes base items)
-      const items = await storage.getItemsByWorld(worldId);
-
-      // Filter to items that don't already have translations for this language
+      // Filter to items that don't already have a translation for this language
       const untranslated = items.filter(item =>
-        !item.languageLearningData ||
-        item.languageLearningData.targetLanguage !== targetLanguage
+        !item.translations ||
+        !(item.translations as Record<string, any>)[targetLanguage]
       );
 
       if (untranslated.length === 0) {
@@ -9995,7 +10101,7 @@ Respond with this JSON structure:
       }
 
       const { batchTranslateItems } = await import("./services/item-translation.js");
-      const translations = await batchTranslateItems(
+      const translationResults = await batchTranslateItems(
         untranslated.map(item => ({
           id: item.id,
           name: item.name,
@@ -10005,33 +10111,23 @@ Respond with this JSON structure:
         targetLanguage
       );
 
-      // Save translations: for base items (no worldId), create world-specific copies;
-      // for world items, update in place
+      // Merge new translation into the base item's translations dict
       let translated = 0;
-      for (const t of translations) {
+      for (const t of translationResults) {
         const originalItem = items.find(i => i.id === t.id);
         if (!originalItem) continue;
 
-        const langData = {
-          targetWord: t.targetWord,
-          targetLanguage,
-          pronunciation: t.pronunciation,
-          category: t.category,
+        const existing = (originalItem.translations as Record<string, any>) || {};
+        const merged = {
+          ...existing,
+          [targetLanguage]: {
+            targetWord: t.targetWord,
+            pronunciation: t.pronunciation,
+            category: t.category,
+          },
         };
 
-        if (originalItem.isBase && !originalItem.worldId) {
-          // Create a world-specific copy of the base item with translation
-          const { id: _id, ...itemWithoutId } = originalItem;
-          await storage.createItem({
-            ...itemWithoutId,
-            worldId,
-            isBase: false,
-            languageLearningData: langData,
-          });
-        } else {
-          // Update existing world item
-          await storage.updateItem(originalItem.id, { languageLearningData: langData });
-        }
+        await storage.updateItem(originalItem.id, { translations: merged });
         translated++;
       }
 
@@ -11208,8 +11304,41 @@ Make the action names thematic and immersive.`;
         cefrLevel as any,
         playthroughId,
       );
-      const investigationBoard = buildInvestigationBoard(summary.state, summary.chapters);
-      res.json({ ...summary, investigationBoard });
+
+      // Load narrative truth for writer name and chapter narrative history
+      let writerName: string | undefined;
+      let narrativeHistory: Array<{ chapterId: string; chapterNumber: number; title: string; introNarrative?: string; outroNarrative?: string; mysteryDetails?: string }> = [];
+      try {
+        const truths = await storage.getTruthsByWorld(worldId);
+        const narrativeTruth = truths.find((t: any) => t.entryType === 'world_narrative');
+        if (narrativeTruth?.content) {
+          const narrative = JSON.parse(narrativeTruth.content);
+          // Resolve template variables
+          const settlements = await storage.getSettlementsByWorld(worldId);
+          const resolveVars = (text: string | undefined) => {
+            if (!text) return text;
+            return text
+              .replace(/\{\{writer_name\|([^}]*)\}\}/g, (_, fb) => narrative.writerName || fb)
+              .replace(/\{\{settlement_name\|([^}]*)\}\}/g, (_, fb) => settlements[0]?.name || fb)
+              .replace(/\{\{writer_name\}\}/g, narrative.writerName || 'the writer')
+              .replace(/\{\{settlement_name\}\}/g, settlements[0]?.name || 'the settlement')
+              .replace(/\{WRITER\}/g, narrative.writerName || 'the writer')
+              .replace(/\{SETTLEMENT\}/g, settlements[0]?.name || 'the settlement');
+          };
+          writerName = narrative.writerName;
+          narrativeHistory = (narrative.chapters || []).map((ch: any) => ({
+            chapterId: ch.chapterId,
+            chapterNumber: ch.chapterNumber,
+            title: ch.title,
+            introNarrative: resolveVars(ch.introNarrative),
+            outroNarrative: resolveVars(ch.outroNarrative),
+            mysteryDetails: resolveVars(ch.mysteryDetails),
+          }));
+        }
+      } catch {}
+
+      const investigationBoard = buildInvestigationBoard(summary.state, summary.chapters, writerName);
+      res.json({ ...summary, investigationBoard, narrativeHistory });
     } catch (error) {
       console.error('[MainQuest] Error fetching journal:', error);
       res.status(500).json({ error: "Failed to fetch main quest state" });
@@ -14553,7 +14682,7 @@ Make the action names thematic and immersive.`;
     try {
       const { worldId } = req.params;
       const truths = await storage.getTruthsByWorld(worldId);
-      const narrativeTruth = truths.find((t: any) => t.category === 'world_narrative');
+      const narrativeTruth = truths.find((t: any) => t.entryType === 'world_narrative');
       if (!narrativeTruth) {
         return res.json(null);
       }
@@ -14568,7 +14697,7 @@ Make the action names thematic and immersive.`;
       const { worldId } = req.params;
       const narrativeData = req.body;
       const truths = await storage.getTruthsByWorld(worldId);
-      const existing = truths.find((t: any) => t.category === 'world_narrative');
+      const existing = truths.find((t: any) => t.entryType === 'world_narrative');
 
       if (existing) {
         await storage.updateTruth(existing.id, {
@@ -14579,8 +14708,10 @@ Make the action names thematic and immersive.`;
           worldId,
           title: 'World Narrative',
           content: JSON.stringify(narrativeData),
-          category: 'world_narrative',
-          isSecret: false,
+          entryType: 'world_narrative',
+          timestep: 0,
+          isPublic: true,
+          source: 'narrative_editor',
         });
       }
       res.json({ success: true });
@@ -14613,7 +14744,7 @@ Make the action names thematic and immersive.`;
 
       // Store as truth
       const truths = await storage.getTruthsByWorld(worldId);
-      const existing = truths.find((t: any) => t.category === 'world_narrative');
+      const existing = truths.find((t: any) => t.entryType === 'world_narrative');
       if (existing) {
         await storage.updateTruth(existing.id, { content: JSON.stringify(narrative) });
       } else {
@@ -14621,8 +14752,10 @@ Make the action names thematic and immersive.`;
           worldId,
           title: 'World Narrative',
           content: JSON.stringify(narrative),
-          category: 'world_narrative',
-          isSecret: false,
+          entryType: 'world_narrative',
+          timestep: 0,
+          isPublic: true,
+          source: 'narrative_generator',
         });
       }
 

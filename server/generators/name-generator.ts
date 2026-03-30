@@ -19,7 +19,7 @@ interface SettlementNameContext {
   countryGovernment?: string;
   countryEconomy?: string;
   stateName?: string;
-  settlementType: 'city' | 'town' | 'village';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
   terrain?: string;
 }
 
@@ -1109,6 +1109,255 @@ export class NameGenerator {
       pool = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis'];
     }
     return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // ── Bulk generation (single call, both genders) ──────────────────────────
+
+  /**
+   * Pre-generate a large pool of character names for both genders in a single
+   * call. Uses Tracery grammars when available, falls back to a single LLM
+   * call, then to hardcoded language pools.
+   *
+   * Returns `{ male: [...], female: [...], surnames: [...] }` so callers can
+   * draw from the pools without any further I/O.
+   */
+  async generateNamePool(context: {
+    worldId?: string;
+    worldType?: string;
+    customLabel?: string;
+    countryName?: string;
+    countryDescription?: string;
+    settlementName?: string;
+    settlementType?: string;
+    targetLanguage?: string;
+  }, counts: { male: number; female: number; surnames: number }): Promise<{
+    male: string[];
+    female: string[];
+    surnames: string[];
+  }> {
+    const pool: { male: string[]; female: string[]; surnames: string[] } = {
+      male: [],
+      female: [],
+      surnames: [],
+    };
+
+    // ── 1. Try Tracery grammar ──────────────────────────────────────────
+    const worldType = context.worldType || context.customLabel;
+    if (worldType && context.worldId) {
+      try {
+        const grammars = await this.loadGrammarsForWorldType(worldType, context.worldId);
+        const characterGrammar = this.findBestGrammar(grammars, 'character');
+        if (characterGrammar) {
+          const seenFirst = new Set<string>();
+          const seenLast = new Set<string>();
+          const maxAttempts = (counts.male + counts.female + counts.surnames) * 3;
+
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            if (pool.male.length >= counts.male && pool.female.length >= counts.female && pool.surnames.length >= counts.surnames) break;
+
+            // Alternate genders to fill both pools evenly
+            const needMale = pool.male.length < counts.male;
+            const needFemale = pool.female.length < counts.female;
+            const gender = needMale && (!needFemale || attempt % 2 === 0) ? 'male' : 'female';
+
+            const fullName = this.generateFromGrammarWithGender(characterGrammar, gender);
+            if (!fullName) continue;
+            const parts = fullName.trim().split(/\s+/);
+            if (parts.length < 1) continue;
+
+            const firstName = parts[0];
+            const lastName = parts.length >= 2 ? parts.slice(1).join(' ') : null;
+
+            if (!seenFirst.has(firstName)) {
+              seenFirst.add(firstName);
+              if (gender === 'male' && pool.male.length < counts.male) {
+                pool.male.push(firstName);
+              } else if (gender === 'female' && pool.female.length < counts.female) {
+                pool.female.push(firstName);
+              }
+            }
+
+            if (lastName && !seenLast.has(lastName) && pool.surnames.length < counts.surnames) {
+              seenLast.add(lastName);
+              pool.surnames.push(lastName);
+            }
+          }
+
+          if (pool.male.length >= counts.male && pool.female.length >= counts.female && pool.surnames.length >= counts.surnames) {
+            console.log(`   👤 Generated name pool from grammar: ${pool.male.length}M + ${pool.female.length}F + ${pool.surnames.length} surnames`);
+            return pool;
+          }
+          // If grammar didn't produce enough, fall through to LLM / fallback
+          // but keep whatever we already generated
+        }
+      } catch (error) {
+        console.warn('Grammar-based name pool generation failed, falling back:', error);
+      }
+    }
+
+    // ── 2. Try a single LLM call ────────────────────────────────────────
+    const remainingMale = counts.male - pool.male.length;
+    const remainingFemale = counts.female - pool.female.length;
+    const remainingSurnames = counts.surnames - pool.surnames.length;
+
+    if (this.enabled && this.ai && (remainingMale > 0 || remainingFemale > 0 || remainingSurnames > 0)) {
+      try {
+        const prompt = this.buildNamePoolPrompt(context, remainingMale, remainingFemale, remainingSurnames);
+        const result = await this.ai.models.generateContent({
+          model: GEMINI_MODELS.PRO,
+          contents: prompt,
+          config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        });
+        const text = (result.text || '').trim();
+        const parsed = this.parseNamePoolResponse(text, remainingMale, remainingFemale, remainingSurnames);
+        pool.male.push(...parsed.male);
+        pool.female.push(...parsed.female);
+        pool.surnames.push(...parsed.surnames);
+      } catch (error) {
+        console.warn('LLM name pool generation failed, using language fallback:', error);
+      }
+    }
+
+    // ── 3. Fill remaining gaps from language-specific hardcoded pools ────
+    this.fillFromLanguagePool(pool, counts, context.targetLanguage);
+
+    console.log(`   👤 Generated name pool: ${pool.male.length}M + ${pool.female.length}F + ${pool.surnames.length} surnames`);
+    return pool;
+  }
+
+  private buildNamePoolPrompt(
+    context: {
+      worldType?: string;
+      customLabel?: string;
+      countryName?: string;
+      countryDescription?: string;
+      settlementName?: string;
+      settlementType?: string;
+      targetLanguage?: string;
+    },
+    maleCount: number,
+    femaleCount: number,
+    surnameCount: number,
+  ): string {
+    let prompt = 'Generate character names for a world simulation.\n\n';
+    if (context.worldType) prompt += `World type: ${context.worldType}\n`;
+    if (context.countryName) {
+      prompt += `Country: ${context.countryName}`;
+      if (context.countryDescription) prompt += ` — ${context.countryDescription}`;
+      prompt += '\n';
+    }
+    if (context.settlementName) prompt += `Settlement: ${context.settlementName} (${context.settlementType || 'town'})\n`;
+
+    if (context.targetLanguage) {
+      prompt += `\nNames MUST be authentic ${context.targetLanguage} names with correct diacritics.\n`;
+    }
+
+    prompt += `\nReturn EXACTLY this format (no numbers, no explanations):\n`;
+    prompt += `MALE\n`;
+    prompt += `(${maleCount} male first names, one per line)\n`;
+    prompt += `FEMALE\n`;
+    prompt += `(${femaleCount} female first names, one per line)\n`;
+    prompt += `SURNAMES\n`;
+    prompt += `(${surnameCount} surnames, one per line)\n`;
+
+    return prompt;
+  }
+
+  private parseNamePoolResponse(
+    text: string,
+    expectedMale: number,
+    expectedFemale: number,
+    expectedSurnames: number,
+  ): { male: string[]; female: string[]; surnames: string[] } {
+    const result: { male: string[]; female: string[]; surnames: string[] } = {
+      male: [], female: [], surnames: [],
+    };
+
+    // Split into sections by header keywords
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let currentSection: 'male' | 'female' | 'surnames' | null = null;
+
+    for (const line of lines) {
+      const upper = line.toUpperCase();
+      if (upper === 'MALE' || upper === 'MALE:' || upper.startsWith('MALE FIRST')) {
+        currentSection = 'male';
+        continue;
+      }
+      if (upper === 'FEMALE' || upper === 'FEMALE:' || upper.startsWith('FEMALE FIRST')) {
+        currentSection = 'female';
+        continue;
+      }
+      if (upper === 'SURNAMES' || upper === 'SURNAMES:' || upper.startsWith('SURNAME')) {
+        currentSection = 'surnames';
+        continue;
+      }
+      if (!currentSection) continue;
+
+      const cleaned = this.cleanName(line.replace(/^\d+[\.\)]\s*/, ''));
+      if (cleaned.length === 0 || cleaned.length > 40) continue;
+      // First names shouldn't contain spaces; surnames might (e.g. "de la Cruz")
+      if (currentSection !== 'surnames' && cleaned.includes(' ')) continue;
+
+      const limit = currentSection === 'male' ? expectedMale
+        : currentSection === 'female' ? expectedFemale
+        : expectedSurnames;
+
+      if (result[currentSection].length < limit) {
+        result[currentSection].push(cleaned);
+      }
+    }
+
+    return result;
+  }
+
+  private fillFromLanguagePool(
+    pool: { male: string[]; female: string[]; surnames: string[] },
+    counts: { male: number; female: number; surnames: number },
+    targetLanguage?: string,
+  ): void {
+    const lang = (targetLanguage || '').toLowerCase();
+
+    // Pick the right hardcoded pool
+    let malePool: string[];
+    let femalePool: string[];
+    let surnamePool: string[];
+
+    if (lang.includes('french')) {
+      malePool = ['Jean', 'Pierre', 'Jacques', 'Louis', 'Henri', 'François', 'Antoine', 'Michel', 'Claude', 'André',
+        'Philippe', 'René', 'Marcel', 'Étienne', 'Gérard', 'Yves', 'Alain', 'Bernard', 'Thierry', 'Lucien',
+        'Évariste', 'Gervais', 'Théo', 'Émile', 'Gustave', 'Léon', 'Raoul', 'Gaston', 'Armand', 'Julien'];
+      femalePool = ['Marie', 'Jeanne', 'Marguerite', 'Céleste', 'Geneviève', 'Françoise', 'Madeleine', 'Catherine',
+        'Thérèse', 'Élise', 'Claire', 'Hélène', 'Isabelle', 'Adèle', 'Charlotte', 'Colette', 'Simone',
+        'Lucienne', 'Renée', 'Odette', 'Sylvie', 'Monique', 'Brigitte', 'Yvette', 'Solange',
+        'Delphine', 'Cécile', 'Josette', 'Paulette', 'Bernadette'];
+      surnamePool = ['Broussard', 'Fontenot', 'Thibodeaux', 'Landry', 'Mouton', 'Guidry', 'Boudreaux', 'Hébert',
+        'Doucet', 'Arceneaux', 'Trahan', 'Melancon', 'Leblanc', 'Comeaux', 'Dugas', 'Richard',
+        'Gaudet', 'Pellerin', 'Aucoin', 'Babineaux', 'Theriot', 'Breaux', 'Leger', 'Picard',
+        'Robichaux', 'Arnaud', 'Bergeron', 'Castille', 'Daigle', 'Girard'];
+    } else if (lang.includes('spanish')) {
+      malePool = ['Carlos', 'Miguel', 'José', 'Juan', 'Pedro', 'Luis', 'Antonio', 'Francisco', 'Manuel', 'Rafael'];
+      femalePool = ['María', 'Carmen', 'Isabel', 'Ana', 'Rosa', 'Elena', 'Lucía', 'Teresa', 'Pilar', 'Dolores'];
+      surnamePool = ['García', 'Rodríguez', 'Martínez', 'López', 'González', 'Hernández', 'Pérez', 'Sánchez', 'Ramírez', 'Torres'];
+    } else if (lang.includes('german')) {
+      malePool = ['Hans', 'Friedrich', 'Wilhelm', 'Karl', 'Heinrich', 'Otto', 'Ernst', 'Werner', 'Klaus', 'Dieter'];
+      femalePool = ['Anna', 'Maria', 'Greta', 'Helga', 'Ingrid', 'Ursula', 'Elke', 'Monika', 'Renate', 'Brigitte'];
+      surnamePool = ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann'];
+    } else {
+      malePool = ['James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles'];
+      femalePool = ['Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara', 'Elizabeth', 'Susan', 'Jessica', 'Sarah', 'Karen'];
+      surnamePool = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+    }
+
+    // Fill gaps by cycling through the hardcoded pool
+    while (pool.male.length < counts.male) {
+      pool.male.push(malePool[pool.male.length % malePool.length]);
+    }
+    while (pool.female.length < counts.female) {
+      pool.female.push(femalePool[pool.female.length % femalePool.length]);
+    }
+    while (pool.surnames.length < counts.surnames) {
+      pool.surnames.push(surnamePool[pool.surnames.length % surnamePool.length]);
+    }
   }
 
   /**

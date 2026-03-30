@@ -15,7 +15,7 @@ export interface BusinessFoundingOptions {
   founderId: string;
   name: string;
   businessType: BusinessType;
-  address: string;
+  address?: string;
   currentYear: number;
   currentTimestep: number;
 
@@ -82,7 +82,6 @@ export async function foundBusiness(options: BusinessFoundingOptions): Promise<B
     ...(resolvedSettlementId && { settlementId: resolvedSettlementId }),
     name,
     businessType,
-    address,
     ownerId: founderId,
     foundedYear: currentYear,
     isOutOfBusiness: false,
@@ -216,7 +215,7 @@ export async function closeBusiness(options: BusinessClosureOptions): Promise<vo
     }, {
       businessId,
       businessName: business.name,
-      location: business.address,
+      location: business.name,
       tags: [reason]
     });
   } catch (error) {

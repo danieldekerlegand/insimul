@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -498,8 +498,14 @@ export function AdminAssetsHub() {
   };
 
   // Inline PATCH for 3D config changes (right panel editing)
-  const patchCollectionConfig = async (patch: Partial<AssetCollection>) => {
-    if (!token || !selectedCollection) return;
+  // Debounced to avoid flooding the server during slider/color picker drags.
+  const pendingPatchRef = useRef<Partial<AssetCollection> | null>(null);
+  const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPatch = useCallback(async () => {
+    const patch = pendingPatchRef.current;
+    pendingPatchRef.current = null;
+    if (!patch || !token || !selectedCollection) return;
     try {
       const response = await fetch(`/api/asset-collections/${selectedCollection.id}`, {
         method: 'PATCH',
@@ -513,7 +519,16 @@ export function AdminAssetsHub() {
     } catch {
       toast({ title: "Update failed", variant: "destructive" });
     }
-  };
+  }, [token, selectedCollection, queryClient, toast]);
+
+  const patchCollectionConfig = useCallback((patch: Partial<AssetCollection>) => {
+    // Merge with any pending patch so we don't lose intermediate changes
+    pendingPatchRef.current = pendingPatchRef.current
+      ? { ...pendingPatchRef.current, ...patch }
+      : patch;
+    if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
+    patchTimerRef.current = setTimeout(flushPatch, 500);
+  }, [flushPatch]);
 
   const handleInlineModelAssign = (modelField: string, role: string, assetId: string | null) => {
     if (!selectedCollection) return;

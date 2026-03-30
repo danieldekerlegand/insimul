@@ -44,7 +44,7 @@ namespace Insimul.Systems
 
             foreach (var item in wd.systems.items)
             {
-                var ld = item.languageLearningData;
+                var ld = item.translations;
                 if (ld == null || string.IsNullOrEmpty(ld.targetWord)) continue;
                 string key = ld.targetWord.ToLowerInvariant();
                 if (_vocab.ContainsKey(key)) continue;

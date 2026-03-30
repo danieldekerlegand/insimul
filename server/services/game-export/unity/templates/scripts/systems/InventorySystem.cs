@@ -11,7 +11,9 @@ namespace Insimul.Systems
     public enum InsimulItemType
     {
         Quest, Collectible, Key, Consumable,
-        Weapon, Armor, Food, Drink, Material, Tool, Crafted
+        Weapon, Armor, Food, Drink, Material, Tool,
+        Document, Environmental, Decoration, Furniture,
+        Equipment, Container, Accessory, Ammunition
     }
 
     /// <summary>
@@ -39,15 +41,12 @@ namespace Insimul.Systems
     }
 
     /// <summary>
-    /// Language-learning metadata attached to an inventory item.
-    /// Used when the game is in language-learning mode to display
-    /// target-language item names alongside English names.
+    /// Translation entry for a single language.
     /// </summary>
     [System.Serializable]
-    public class LanguageLearningData
+    public class TranslationEntry
     {
         public string targetWord;
-        public string targetLanguage;
         public string pronunciation;
         public string category;
 
@@ -83,8 +82,8 @@ namespace Insimul.Systems
         public string rarity;
         public bool possessable;
 
-        // Language learning data (for vocabulary items in language-learning games)
-        public LanguageLearningData languageLearningData;
+        // Translations keyed by language (e.g. { "French": { targetWord: "Épée", ... } })
+        public Dictionary<string, TranslationEntry> translations = new();
     }
 
     /// <summary>
@@ -127,11 +126,16 @@ namespace Insimul.Systems
         /// <summary>
         /// Get the display name for an item, using target language when available.
         /// </summary>
-        public string GetDisplayName(InventoryItem item)
+        public string GetDisplayName(InventoryItem item, string targetLanguage = null)
         {
-            if (_languageLearning && item.languageLearningData != null && item.languageLearningData.IsValid)
+            if (_languageLearning && item.translations != null && item.translations.Count > 0)
             {
-                return item.languageLearningData.targetWord;
+                // Use specified language or first available
+                if (!string.IsNullOrEmpty(targetLanguage) && item.translations.TryGetValue(targetLanguage, out var entry) && entry.IsValid)
+                    return entry.targetWord;
+                // Fallback: first available translation
+                foreach (var kvp in item.translations)
+                    if (kvp.Value.IsValid) return kvp.Value.targetWord;
             }
             return item.name;
         }
@@ -230,8 +234,9 @@ namespace Insimul.Systems
             var item = _items.Find(s => s.id == itemId);
             if (item == null) return false;
 
-            // Quest and key items: emit event without consuming
-            if (item.type == InsimulItemType.Quest || item.type == InsimulItemType.Key)
+            // Quest, key, document, collectible items: emit event without consuming
+            if (item.type == InsimulItemType.Quest || item.type == InsimulItemType.Key ||
+                item.type == InsimulItemType.Document || item.type == InsimulItemType.Collectible)
             {
                 OnItemUsed?.Invoke(item);
                 return true;

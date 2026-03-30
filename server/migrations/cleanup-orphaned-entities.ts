@@ -138,6 +138,69 @@ async function run() {
     console.log(`containers: 0 orphaned (of ${containers.length} total)`);
   }
 
+  // Truths: orphaned if characterId references a character that no longer exists
+  const characterDocs = await db.collection('characters').find({}, { projection: { _id: 1 } }).toArray();
+  const validCharacterIds = new Set(characterDocs.map(c => c._id.toString()));
+
+  const truthsWithChar = await db.collection('truths').find(
+    { characterId: { $exists: true, $ne: null } },
+    { projection: { _id: 1, characterId: 1, title: 1 } }
+  ).toArray();
+  const orphanedTruths = truthsWithChar.filter(t => !validCharacterIds.has(String(t.characterId)));
+
+  if (orphanedTruths.length > 0) {
+    console.log(`truths (orphaned by character): ${orphanedTruths.length} orphaned (of ${truthsWithChar.length} with characterId)`);
+    if (!dryRun) {
+      const ids = orphanedTruths.map(t => t._id);
+      const result = await db.collection('truths').deleteMany({ _id: { $in: ids } });
+      console.log(`  → Deleted ${result.deletedCount}`);
+    }
+    totalOrphaned += orphanedTruths.length;
+  } else {
+    console.log(`truths (orphaned by character): 0 orphaned (of ${truthsWithChar.length} with characterId)`);
+  }
+
+  // Truths: orphaned if worldId references a world that no longer exists
+  const truthsWithWorld = await db.collection('truths').find(
+    { worldId: { $exists: true, $ne: null } },
+    { projection: { _id: 1, worldId: 1 } }
+  ).toArray();
+  const orphanedWorldTruths = truthsWithWorld.filter(t => !validWorldIds.has(String(t.worldId)));
+
+  if (orphanedWorldTruths.length > 0) {
+    console.log(`truths (orphaned by world): ${orphanedWorldTruths.length} orphaned (of ${truthsWithWorld.length} with worldId)`);
+    if (!dryRun) {
+      const ids = orphanedWorldTruths.map(t => t._id);
+      const result = await db.collection('truths').deleteMany({ _id: { $in: ids } });
+      console.log(`  → Deleted ${result.deletedCount}`);
+    }
+    totalOrphaned += orphanedWorldTruths.length;
+  } else {
+    console.log(`truths (orphaned by world): 0 orphaned (of ${truthsWithWorld.length} with worldId)`);
+  }
+
+  // Truths: orphaned if playthroughId references a playthrough that no longer exists
+  const playthroughDocs = await db.collection('playthroughs').find({}, { projection: { _id: 1 } }).toArray();
+  const validPlaythroughIds = new Set(playthroughDocs.map(p => p._id.toString()));
+
+  const truthsWithPlaythrough = await db.collection('truths').find(
+    { playthroughId: { $exists: true, $ne: null } },
+    { projection: { _id: 1, playthroughId: 1 } }
+  ).toArray();
+  const orphanedPtTruths = truthsWithPlaythrough.filter(t => !validPlaythroughIds.has(String(t.playthroughId)));
+
+  if (orphanedPtTruths.length > 0) {
+    console.log(`truths (orphaned by playthrough): ${orphanedPtTruths.length} orphaned (of ${truthsWithPlaythrough.length} with playthroughId)`);
+    if (!dryRun) {
+      const ids = orphanedPtTruths.map(t => t._id);
+      const result = await db.collection('truths').deleteMany({ _id: { $in: ids } });
+      console.log(`  → Deleted ${result.deletedCount}`);
+    }
+    totalOrphaned += orphanedPtTruths.length;
+  } else {
+    console.log(`truths (orphaned by playthrough): 0 orphaned (of ${truthsWithPlaythrough.length} with playthroughId)`);
+  }
+
   console.log(`\n${dryRun ? '🔍 Would delete' : '✅ Deleted'} ${totalOrphaned} total orphaned entities`);
 
   await mongoose.disconnect();

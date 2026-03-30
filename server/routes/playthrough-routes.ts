@@ -265,6 +265,57 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // Delete an individual playthrough truth (trace, reputation, relationship, etc.)
+  app.delete("/api/playthroughs/:playthroughId/truths/:truthId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const deleted = await storage.deleteTruth(req.params.truthId);
+      if (!deleted) return res.status(404).json({ message: "Truth not found" });
+      res.json({ message: "Deleted" });
+    } catch (error) {
+      console.error("Delete playthrough truth error:", error);
+      res.status(500).json({ message: "Failed to delete" });
+    }
+  });
+
+  // Delete an individual playthrough delta
+  app.delete("/api/playthroughs/:playthroughId/deltas/:deltaId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const deleted = await storage.deletePlaythroughDelta(req.params.deltaId);
+      if (!deleted) return res.status(404).json({ message: "Delta not found" });
+      res.json({ message: "Deleted" });
+    } catch (error) {
+      console.error("Delete playthrough delta error:", error);
+      res.status(500).json({ message: "Failed to delete" });
+    }
+  });
+
+  // Delete an individual playthrough conversation
+  app.delete("/api/playthroughs/:playthroughId/conversations/:conversationId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const deleted = await storage.deletePlaythroughConversation(req.params.conversationId);
+      if (!deleted) return res.status(404).json({ message: "Conversation not found" });
+      res.json({ message: "Deleted" });
+    } catch (error) {
+      console.error("Delete playthrough conversation error:", error);
+      res.status(500).json({ message: "Failed to delete" });
+    }
+  });
+
   // ===== PLAYTHROUGH DELTA ROUTES =====
 
   // Get deltas for a playthrough
@@ -954,7 +1005,22 @@ export function registerPlaythroughRoutes(app: Express) {
       }
 
       const playthroughs = await storage.getPlaythroughsByWorld(worldId);
-      res.json(playthroughs);
+
+      // Resolve user info for each playthrough
+      const userIds = Array.from(new Set(playthroughs.map(p => p.userId)));
+      const users = await Promise.all(userIds.map(id => storage.getUser(id)));
+      const userMap = new Map(users.filter(Boolean).map(u => [u!.id, u!]));
+
+      const enriched = playthroughs.map(p => {
+        const user = userMap.get(p.userId);
+        return {
+          ...p,
+          userName: user?.displayName || user?.username || p.userId,
+          userEmail: user?.email || null,
+        };
+      });
+
+      res.json(enriched);
     } catch (error) {
       console.error("Get analytics error:", error);
       res.status(500).json({ message: "Failed to get analytics" });
@@ -1013,10 +1079,12 @@ export function registerPlaythroughRoutes(app: Express) {
         return res.status(404).json({ message: "Playthrough not found" });
       }
 
-      const [traces, deltas, reputations] = await Promise.all([
+      const [traces, deltas, reputations, relationships, conversations] = await Promise.all([
         storage.getTracesByPlaythrough(playthroughId),
         storage.getDeltasByPlaythrough(playthroughId),
         storage.getReputationsByPlaythrough(playthroughId),
+        storage.getPlaythroughRelationshipsByPlaythrough(playthroughId),
+        storage.getConversationsByPlaythrough(playthroughId),
       ]);
 
       // Action type breakdown
@@ -1095,6 +1163,8 @@ export function registerPlaythroughRoutes(app: Express) {
           totalTraces: traces.length,
           totalDeltas: deltas.length,
           totalReputations: reputations.length,
+          totalRelationships: relationships.length,
+          totalConversations: conversations.length,
           avgDurationMs,
           uniqueLocations: Object.keys(locationVisits).length,
           uniqueActionTypes: Object.keys(actionBreakdown).length,
@@ -1105,6 +1175,8 @@ export function registerPlaythroughRoutes(app: Express) {
         deltaBreakdown,
         actionsPerTimestep,
         reputations,
+        relationships,
+        conversations,
         timeline: timelineEvents,
       });
     } catch (error) {

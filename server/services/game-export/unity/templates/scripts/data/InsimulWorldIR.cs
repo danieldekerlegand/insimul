@@ -256,19 +256,27 @@ namespace Insimul.Data
         public bool possessable;
 
         /// <summary>Language learning data for vocabulary items.</summary>
-        public InsimulLanguageLearningData languageLearningData;
+        public InsimulLanguageLearningData translations;
     }
 
     /// <summary>
-    /// Language learning metadata attached to vocabulary items.
-    /// Mirrors InventoryItem.languageLearningData from types.ts.
+    /// Translation entry for a single language.
+    /// Mirrors InventoryItem.translations[lang] from types.ts.
+    /// </summary>
+    [Serializable] public class InsimulTranslationEntry
+    {
+        public string targetWord;
+        public string pronunciation;
+        public string category;
+    }
+
+    /// <summary>
+    /// Language learning data — Dictionary keyed by language name.
+    /// e.g. { "French": { targetWord: "Épée", pronunciation: "ay-PAY", category: "weapon" } }
     /// </summary>
     [Serializable] public class InsimulLanguageLearningData
     {
-        public string targetWord;
-        public string targetLanguage;
-        public string pronunciation;
-        public string category;
+        public Dictionary<string, InsimulTranslationEntry> entries = new();
     }
 
     // ── Loot Tables ──────────────────────────────────────────────────────
@@ -411,7 +419,7 @@ namespace Insimul.Data
         public string rarity;
 
         public bool possessable;
-        public InsimulLanguageLearningData languageLearningData;
+        public InsimulLanguageLearningData translations;
     }
 
     [Serializable] public class InsimulMerchantInventoryData

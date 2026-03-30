@@ -74,7 +74,7 @@ export interface HarborConfig {
   /** Coastline data from the coastline generator */
   coastline: CoastlineData;
   /** Settlement type affects harbor size */
-  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
   /** Year the settlement was founded */
   foundedYear?: number;
 }

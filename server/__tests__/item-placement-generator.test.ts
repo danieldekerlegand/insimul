@@ -53,7 +53,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     craftingRecipe: null,
     questRelevance: [],
     loreText: null,
-    languageLearningData: null,
+    translations: null,
     relatedTruthIds: [],
     createdAt: new Date(),
     updatedAt: new Date(),

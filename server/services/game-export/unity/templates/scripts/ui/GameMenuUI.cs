@@ -13,9 +13,38 @@ namespace Insimul.UI
     {
         private const string SCENE_MAIN_MENU = "MainMenu";
 
+        /// <summary>
+        /// Narrative history entries for Story So Far recap.
+        /// </summary>
+        [System.Serializable]
+        public class NarrativeHistoryEntry
+        {
+            public string chapterId;
+            public int chapterNumber;
+            public string title;
+            public string introNarrative;
+            public string outroNarrative;
+            public string mysteryDetails;
+        }
+
+        /// <summary>
+        /// Guild quest progress data.
+        /// </summary>
+        [System.Serializable]
+        public class GuildQuestEntry
+        {
+            public string guildId;
+            public int guildTier;
+            public string status;
+        }
+
         private GameObject _menuPanel;
         private GameObject _settingsPanel;
         private bool _isOpen;
+
+        // Guild skill tree state
+        private List<GuildQuestEntry> _guildQuestData = new();
+        private List<NarrativeHistoryEntry> _narrativeHistory = new();
 
         private Slider _masterVolSlider;
         private Slider _musicVolSlider;
@@ -100,6 +129,7 @@ namespace Insimul.UI
             titleLE.preferredWidth = 300;
 
             CreateButton("Resume", _menuPanel.transform, ResumeGame);
+            CreateButton("Journal", _menuPanel.transform, ShowJournal);
             CreateButton("Settings", _menuPanel.transform, ShowSettings);
             CreateButton("Main Menu", _menuPanel.transform, ReturnToMainMenu);
             CreateButton("Quit", _menuPanel.transform, QuitGame);
@@ -302,7 +332,35 @@ namespace Insimul.UI
 
         // ─── Actions ───
 
+        /// <summary>
+        /// Set narrative history entries for the Story So Far section.
+        /// </summary>
+        public void SetNarrativeHistory(List<NarrativeHistoryEntry> history)
+        {
+            _narrativeHistory = history ?? new();
+        }
+
+        /// <summary>
+        /// Set guild quest progress data.
+        /// </summary>
+        public void SetGuildQuestData(List<GuildQuestEntry> data)
+        {
+            _guildQuestData = data ?? new();
+        }
+
         public void ResumeGame() => ToggleMenu();
+
+        private void ShowJournal()
+        {
+            // Journal/Story So Far — placeholder for full journal UI
+            // In the Babylon.js source, this opens a tabbed menu with:
+            // Character, Quest Journal (with Story So Far), Clues, Inventory,
+            // Vocabulary, Notices/Library, Guild Skill Trees, and System tabs.
+            Debug.Log($"[GameMenuUI] Journal: {_narrativeHistory.Count} narrative entries, {_guildQuestData.Count} guild quests");
+            _menuPanel.SetActive(false);
+            _settingsPanel.SetActive(false);
+            // TODO: Implement full journal panel with tabs matching GameMenuSystem.ts
+        }
 
         private void ShowSettings()
         {

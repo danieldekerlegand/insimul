@@ -48,8 +48,13 @@ import { BabylonGUIManager } from "@shared/game-engine/rendering/BabylonGUIManag
 import { BabylonChatPanel } from "@shared/game-engine/rendering/BabylonChatPanel";
 import { BabylonQuestTracker } from "@shared/game-engine/rendering/BabylonQuestTracker";
 import { BabylonRadialMenu } from "@shared/game-engine/rendering/BabylonRadialMenu";
-import { PhysicalActionRadialMenu } from "@shared/game-engine/rendering/actions/PhysicalActionRadialMenu";
+import { ContextualActionMenu } from "@shared/game-engine/rendering/actions/ContextualActionMenu";
+import { getAnimationForAction } from "@shared/game-engine/action-animation-map";
+import { QuestRewardIntegration } from "@shared/game-engine/logic/QuestRewardIntegration";
+import { resolveActions, resolveMenuOptions, type ActionResolverContext } from "@shared/game-engine/rendering/actions/ContextualActionResolver";
 import { QuestObjectManager } from "@shared/game-engine/rendering/QuestObjectManager";
+import { QuestHotspotManager } from "@shared/game-engine/rendering/QuestHotspotManager";
+import { CONVERSATIONAL_GESTURES } from "@shared/game-engine/action-animation-map";
 import { QuestIndicatorManager } from "@shared/game-engine/rendering/QuestIndicatorManager";
 import { QuestWorldObjectLinker } from "@shared/game-engine/rendering/QuestWorldObjectLinker";
 import { ListeningComprehensionManager } from "@shared/game-engine/rendering/ListeningComprehensionManager";
@@ -57,6 +62,8 @@ import { ProceduralBuildingGenerator, BuildingStyle } from "@shared/game-engine/
 import { computeFoundationData } from "@shared/game-engine/rendering/TerrainFoundationRenderer";
 import { ProceduralNatureGenerator, BiomeStyle } from "@shared/game-engine/rendering/ProceduralNatureGenerator";
 import { AnimalNPCSystem } from "@shared/game-engine/rendering/AnimalNPCSystem";
+import { ItemThumbnailRenderer } from "@shared/game-engine/rendering/ItemThumbnailRenderer";
+import { RomanceSystem } from "@shared/game-engine/logic/RomanceSystem";
 import { RoadGenerator } from "@shared/game-engine/rendering/RoadGenerator";
 import { RiverGenerator } from "@shared/game-engine/rendering/RiverGenerator";
 import { WaterRenderer } from "@shared/game-engine/rendering/WaterRenderer";
@@ -200,6 +207,7 @@ import {
   isFirstPlaythrough,
   isLanguageLearningWorld,
   getTargetLanguage,
+  getItemTranslation,
   launchOnboarding,
 } from "@shared/game-engine/rendering/OnboardingLauncher";
 import {
@@ -474,8 +482,9 @@ export class BabylonGame {
   private chatPanel: BabylonChatPanel | null = null;
   private questTracker: BabylonQuestTracker | null = null;
   private radialMenu: BabylonRadialMenu | null = null;
-  private physicalActionMenu: PhysicalActionRadialMenu | null = null;
+  private contextualActionMenu: ContextualActionMenu | null = null;
   private questObjectManager: QuestObjectManager | null = null;
+  private questHotspotManager: QuestHotspotManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
   private questOfferPanel: QuestOfferPanel | null = null;
   /** Set to true when opening chat after accepting from the QuestOfferPanel to avoid re-showing the offer */
@@ -504,6 +513,7 @@ export class BabylonGame {
   private skillTreePanel: BabylonSkillTreePanel | null = null;
   private buildingSignManager: BuildingSignManager | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
+  private questRewardIntegration: QuestRewardIntegration | null = null;
   private questCompletionManager: QuestCompletionManager | null = null;
   private questAutoCompletionDetector: QuestAutoCompletionDetector | null = null;
   private environmentalAudio: EnvironmentalAudioManager | null = null;
@@ -521,6 +531,7 @@ export class BabylonGame {
   private weatherSystem: WeatherSystem | null = null;
   private dayNightCycle: DayNightCycle | null = null;
   private combatSystem: CombatSystem | null = null;
+  private romanceSystem: RomanceSystem | null = null;
   private equipmentManager: EquipmentManager | null = null;
   private rangedCombat: RangedCombatSystem | null = null;
   private fightingCombat: FightingCombatSystem | null = null;
@@ -584,7 +595,11 @@ export class BabylonGame {
   private settlementMeshes: Map<string, Mesh> = new Map();
   private settlementRoadMeshes: Mesh[] = [];
   private zoneBoundaryMeshes: Map<string, { boundary: Mesh | null; particles?: ParticleSystem | null; zoneRadius?: number; zoneColor?: Color3 }> = new Map();
-  private buildingData: Map<string, { position: Vector3; metadata: any; mesh: Mesh }> = new Map();
+  private buildingData: Map<string, {
+    position: Vector3; metadata: any; mesh: Mesh;
+    width: number; depth: number; rotation: number;
+    hasPorch?: boolean; porchDepth?: number; porchSteps?: number;
+  }> = new Map();
   /** Building footprints for point-in-building checks (NPC spawn/wander validation). */
   private buildingFootprints: Array<{ cx: number; cz: number; halfW: number; halfD: number; cos: number; sin: number }> = [];
   private buildingCollisionSystem: BuildingCollisionSystem | null = null;
@@ -685,6 +700,7 @@ export class BabylonGame {
   private objectModelTemplates: Map<string, Mesh> = new Map();
   private objectModelOriginalHeights: Map<string, number> = new Map();
   private objectModelScaleHints: Map<string, number> = new Map();
+  private itemThumbnailRenderer: ItemThumbnailRenderer | null = null;
   private worldPropMeshes: Mesh[] = [];
 
   // Shared material cache for furniture props (avoids duplicate materials)
@@ -990,6 +1006,9 @@ export class BabylonGame {
       this.startGameLoop();
       this.hideLoadingScreen();
 
+
+      // Show game intro cutscene on first playthrough
+      this.tryShowGameIntro();
 
       // Launch onboarding for first-time language-learning playthroughs
       this.tryLaunchOnboarding();
@@ -1405,6 +1424,68 @@ export class BabylonGame {
     this.narrativeBeatDispatcher = new NarrativeBeatDispatcher(this.cutscenePanel);
   }
 
+  /** Show game intro cutscene on first playthrough — pulls content from the Narrative truth */
+  private async tryShowGameIntro(): Promise<void> {
+    if (!this.cutscenePanel || !this.dataSource) return;
+
+    // Check if intro was already shown (stored in playthrough saveData)
+    const playthrough = this.worldData?.playthrough || (this.worldData as any)?.activePlaythrough;
+    const saveData = playthrough?.saveData as Record<string, any> | undefined;
+    if (saveData?.introShown) return;
+
+    try {
+      // Load narrative truth for intro content
+      const truths = await this.dataSource.loadTruths(this.config.worldId);
+      const narrativeTruth = truths.find((t: any) => t.entryType === 'world_narrative');
+      let narrative: any = null;
+      if (narrativeTruth?.content) {
+        try { narrative = JSON.parse(narrativeTruth.content); } catch {}
+      }
+
+      // Build context from world data
+      const settlements = this.worldData?.settlements || [];
+      const settlement = settlements[0];
+      const countries = this.worldData?.countries || [];
+      const country = countries[0];
+      const targetLanguage = (this.worldData as any)?.targetLanguage || 'the local language';
+
+      const { buildIntroPages } = await import('./GameIntroSequence');
+      const { resolveNarrativeVariables } = await import('../../narrative/narrative-generator');
+      const writerName = narrative?.writerName || 'a local writer';
+      const settlementName = settlement?.name || 'the settlement';
+
+      const pages = buildIntroPages({
+        settlementName,
+        countryName: country?.name || 'the region',
+        targetLanguage,
+        writerName,
+        playerName: (playthrough as any)?.name || undefined,
+        narrative: narrative || undefined,
+      });
+
+      // Resolve {{variable|fallback}} templates in all page text
+      const resolvedPages = pages.map(p => ({
+        ...p,
+        text: resolveNarrativeVariables(p.text, { writerName, settlementName }),
+      }));
+
+      if (resolvedPages.length > 0) {
+        this.cutscenePanel.show(resolvedPages);
+
+        // Mark intro as shown so it doesn't replay
+        if (playthrough?.id) {
+          try {
+            await this.dataSource.updatePlaythrough?.(playthrough.id, {
+              saveData: { ...(saveData || {}), introShown: true },
+            });
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('[BabylonGame] Failed to show game intro:', err);
+    }
+  }
+
   private getNpcNameById(npcId: string): string | null {
     const npc = this.npcInfos.find(n => n.id === npcId);
     return npc?.name ?? null;
@@ -1637,8 +1718,12 @@ export class BabylonGame {
         const ctrl = this.interiorPlayerController ?? this.playerController;
         ctrl?.enableKeyBoard(!locked);
       },
-      playPlayerAnimation: (_name) => { /* animation integration deferred */ },
-      stopPlayerAnimation: (_name) => { /* animation integration deferred */ },
+      playPlayerAnimation: (clipName) => {
+        this.playActionAnimation('player', { clip: clipName, loop: true, speed: 1.0 });
+      },
+      stopPlayerAnimation: (_clipName) => {
+        this.playActionAnimation('player', { clip: 'Idle', loop: true, speed: 1.0 });
+      },
       getTruths: () => (this as any)._cachedTruths ?? [],
       isPlayerOwnedBuilding: (_id) => false, // ownership not yet implemented
       getCurrentBusinessType: () => this.currentBuildingBusinessType ?? null,
@@ -1656,8 +1741,13 @@ export class BabylonGame {
         const ctrl = this.interiorPlayerController ?? this.playerController;
         ctrl?.enableKeyBoard(!locked);
       },
-      playPlayerAnimation: (_name) => { /* animation integration deferred */ },
-      stopPlayerAnimation: (_name) => { /* animation integration deferred */ },
+      playPlayerAnimation: (clipName) => {
+        this.playActionAnimation('player', { clip: clipName, loop: true, speed: 1.0 });
+      },
+      stopPlayerAnimation: (_clipName) => {
+        // Resume idle animation
+        this.playActionAnimation('player', { clip: 'Idle', loop: true, speed: 1.0 });
+      },
       getPlayerEnergy: () => this.playerEnergy,
       setPlayerEnergy: (energy) => { this.playerEnergy = energy; },
       addInventoryItem: (itemName, quantity) => {
@@ -1721,7 +1811,9 @@ export class BabylonGame {
     this.interactionPrompt?.setWorldPropSource(this.worldPropMeshes);
 
     // Initialize world object action manager (examine, identify, point-and-name, read sign)
-    this.worldObjectActionManager = new WorldObjectActionManager(this.eventBus);
+    this.worldObjectActionManager = new WorldObjectActionManager(this.eventBus, {
+      targetLanguage: getTargetLanguage(this.worldData),
+    });
     this.worldObjectActionManager.setOnToast((title, description, duration) => {
       this.guiManager?.showToast({ title, description, duration: duration ?? 2500 });
     });
@@ -2116,6 +2208,19 @@ export class BabylonGame {
         const engine = this.questObjectManager?.getCompletionEngine();
         engine?.trackEvent({ type: 'activity_observed', npcId, npcName, activity, durationSeconds: duration });
         this.updateQuestIndicators();
+        // Clear progress indicator
+        this.guiManager?.hideProgressBar?.();
+      },
+      onObservationProgress: (_npcId, npcName, activity, progress) => {
+        if (progress > 0.1 && progress < 1) {
+          const pct = Math.round(progress * 100);
+          const bar = '\u2588'.repeat(Math.round(progress * 10)) + '\u2591'.repeat(10 - Math.round(progress * 10));
+          this.guiManager?.showToast({
+            title: `Observing ${npcName}...`,
+            description: `${bar} ${pct}% — ${activity}`,
+            duration: 800,
+          });
+        }
       },
     });
 
@@ -2357,6 +2462,13 @@ export class BabylonGame {
           questsCompleted: this.gamificationTracker?.getState().questsCompleted || 0,
         };
       },
+      getGuildQuestData: () => {
+        return (this.quests || []).map((q: any) => ({
+          guildId: q.guildId,
+          guildTier: q.guildTier,
+          status: q.status,
+        }));
+      },
       getNoticeArticles: () => {
         const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
         return {
@@ -2485,6 +2597,31 @@ export class BabylonGame {
       onRest: (hours: number) => this.gameTimeManager.advanceHours(hours),
       onTimeSpeedChange: (delta: number) => this.handleTimeSpeedChange(delta),
       onTimePauseToggle: () => this.handleTimePauseToggle(),
+      // Crafting
+      getCraftingRecipes: () => {
+        if (!this.craftingSystem) return [];
+        return this.craftingSystem.getAllRecipes().map(recipe => {
+          const ingredientEntries = Object.entries(recipe.ingredients as Record<string, number>);
+          return {
+            id: recipe.id,
+            name: recipe.name,
+            category: recipe.category,
+            ingredients: ingredientEntries.map(([name, required]) => ({
+              name,
+              required,
+              available: this.resourceSystem?.getResourceAmount(name as any) ?? 0,
+            })),
+            canCraft: this.craftingSystem?.canCraft(recipe.id) ?? false,
+            outputName: recipe.name,
+            outputQuantity: recipe.outputQuantity ?? 1,
+          };
+        });
+      },
+      onCraftItem: (recipeId: string) => {
+        if (this.craftingSystem) {
+          this.craftingSystem.startCraft(recipeId);
+        }
+      },
     };
 
     // Initialize WorldStateManager for save/load
@@ -2505,6 +2642,9 @@ export class BabylonGame {
     this.initCutscenePanel();
 
     this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
+    if (isLanguageLearningWorld(this.worldData)) {
+      this.gameMenuSystem.setTargetLanguage(getTargetLanguage(this.worldData));
+    }
     this.gameMenuSystem.setOnMenuOpened(() => {
       // Pause character controller input when menu is open
       if (this.playerController) {
@@ -2614,6 +2754,11 @@ export class BabylonGame {
     this.chatPanel.setOnActionSelect((actionId: string) => {
       this.handlePerformAction(actionId);
     });
+    // Wire conversational gesture panel
+    this.chatPanel.setOnGesturePerformed((gestureId: string) => {
+      this.handleConversationalGesture(gestureId);
+    });
+
     this.chatPanel.setOnNPCConversationStarted((npcId: string) => {
       // Track NPC conversation for quest objectives (talk_to_npc)
       this.questObjectManager?.trackNPCConversation(npcId);
@@ -2650,6 +2795,9 @@ export class BabylonGame {
       for (const action of actions) {
         this.questObjectManager?.trackConversationalAction(action.action, action.npcId, action.topic, action.questId);
         this.eventBus.emit({ type: 'conversational_action', action: action.action, topic: action.topic, npcId: action.npcId, questId: action.questId });
+
+        // Show visual feedback for conversational actions
+        this.showConversationalActionFeedback(action.action, action.npcId, action.topic);
       }
       this.questObjectManager?.trackConversationTurnCounted(turnState.npcId, turnState.totalTurns, turnState.meaningfulTurns);
       this.eventBus.emit({ type: 'conversation_turn_counted', npcId: turnState.npcId, totalTurns: turnState.totalTurns, meaningfulTurns: turnState.meaningfulTurns });
@@ -2792,11 +2940,16 @@ export class BabylonGame {
 
     // Initialize radial menus
     this.radialMenu = new BabylonRadialMenu(scene);
-    this.physicalActionMenu = new PhysicalActionRadialMenu(scene);
+    this.contextualActionMenu = new ContextualActionMenu(scene);
 
     // Initialize quest object manager
     this.questObjectManager = new QuestObjectManager(scene);
     this.questObjectManager.setPointInBuildingCheck((x, z) => this.isPointInsideAnyBuilding(x, z));
+
+    // Initialize quest hotspot manager for quest-spawned temporary hotspots
+    if (this.interactionPrompt) {
+      this.questHotspotManager = new QuestHotspotManager(scene, this.interactionPrompt, this.minimap ?? null);
+    }
     this.questObjectManager.setOnQuestItemCollected((questId, objectiveId, itemName) => {
       // Add quest-spawned item to inventory with quest type tag
       if (this.inventory) {
@@ -2965,6 +3118,9 @@ export class BabylonGame {
     this.containerPanel.setOnPlace((transaction) => this.handleContainerPlace(transaction));
     this.containerPanel.setOnExamine((transaction) => this.handleContainerExamine(transaction));
     this.containerPanel.setOnClose(() => {});
+    if (isLanguageLearningWorld(this.worldData)) {
+      this.containerPanel.setTargetLanguage(getTargetLanguage(this.worldData));
+    }
     this.containerSpawnSystem = new ContainerSpawnSystem(scene, this.eventBus);
 
     // Initialize rules panel
@@ -3133,12 +3289,33 @@ export class BabylonGame {
       }
     });
     this.documentReadingPanel.setOnDocumentRead((docId) => {
+      const textData = this.fullTextCache.find(t => t.id === docId) as any;
       this.eventBus.emit('text_collected', {
         textId: docId,
-        title: this.fullTextCache.find(t => t.id === docId)?.title || '',
-        authorName: this.fullTextCache.find(t => t.id === docId)?.authorName || undefined,
-        clueText: this.fullTextCache.find(t => t.id === docId)?.clueText || undefined,
+        title: textData?.title || '',
+        authorName: textData?.authorName || undefined,
+        clueText: textData?.clueText || undefined,
       });
+
+      // Recipe discovery: if this text has a linked recipeId, unlock the recipe
+      if (textData?.textCategory === 'recipe' || textData?.recipeId) {
+        const recipeId = textData.recipeId;
+        if (recipeId && this.craftingSystem) {
+          const unlocked = this.craftingSystem.unlockRecipe(recipeId);
+          if (unlocked) {
+            const recipe = this.craftingSystem.getAllRecipes().find(r => r.id === recipeId);
+            this.guiManager?.showToast({
+              title: 'Recipe Discovered!',
+              description: `Learned to craft: ${recipe?.name || recipeId}`,
+              duration: 4000,
+            });
+            this.eventBus.emit({
+              type: 'action_executed', actionName: 'learn_word', actorId: 'player',
+              category: 'crafting', result: 'success',
+            } as any);
+          }
+        }
+      }
     });
     this.documentReadingPanel.setOnClueDiscovered((_docId, clueText) => {
       this.guiManager?.showToast({ title: 'Clue Discovered!', description: clueText, duration: 5000 });
@@ -3330,6 +3507,50 @@ export class BabylonGame {
     // Subscribe to quest-relevant events to refresh NPC indicators
     this.eventBus.on('quest_failed', () => this.updateQuestIndicators());
     this.eventBus.on('quest_abandoned', () => this.updateQuestIndicators());
+
+    // Initialize quest reward integration (vocabulary, knowledge, skill unlocks)
+    this.questRewardIntegration = new QuestRewardIntegration();
+    this.questRewardIntegration.setEventBus(this.eventBus);
+    this.questRewardIntegration.setMarkVocabularyPracticed((words) => {
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) words.forEach(w => tracker.analyzeNPCResponse(w));
+    });
+    this.questRewardIntegration.setAddVocabulary((entries) => {
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) entries.forEach(e => tracker.analyzeNPCResponse(e.word));
+    });
+    this.questRewardIntegration.setOnSummaryReady((summary) => {
+      if (summary.vocabularyLearned.length > 0 || summary.skillsUnlocked.length > 0) {
+        const parts: string[] = [];
+        if (summary.vocabularyLearned.length > 0) parts.push(`${summary.vocabularyLearned.length} words learned`);
+        if (summary.skillsUnlocked.length > 0) parts.push(`Skill unlocked: ${summary.skillsUnlocked[0].skillBranch}`);
+        this.guiManager?.showToast({ title: 'Rewards', description: parts.join(', '), duration: 4000 });
+      }
+    });
+
+    // Clean up quest-spawned hotspots when quests end
+    this.eventBus.on('quest_completed', (event) => {
+      this.questHotspotManager?.removeAllForQuest(event.questId);
+
+      // Process quest rewards (vocabulary, knowledge, skills)
+      const quest = this.quests?.find((q: any) => q.id === event.questId);
+      if (quest && this.questRewardIntegration) {
+        this.questRewardIntegration.processQuestCompletion({
+          questId: event.questId,
+          questTitle: quest.title || quest.name || event.questId,
+          questCategory: quest.questType,
+          chapterNumber: quest.chapterNumber,
+          targetVocabulary: quest.targetVocabulary,
+          xpEarned: quest.experienceReward || 0,
+        });
+      }
+    });
+    this.eventBus.on('quest_failed', (event: any) => {
+      if (event?.questId) this.questHotspotManager?.removeAllForQuest(event.questId);
+    });
+    this.eventBus.on('quest_abandoned', (event: any) => {
+      if (event?.questId) this.questHotspotManager?.removeAllForQuest(event.questId);
+    });
     this.eventBus.on('utterance_quest_completed', () => this.updateQuestIndicators());
     this.eventBus.on('utterance_quest_progress', () => this.updateQuestIndicators());
     this.eventBus.on('item_collected', () => this.updateQuestIndicators());
@@ -3403,6 +3624,11 @@ export class BabylonGame {
         });
       }
       this.updateQuestIndicators();
+
+      // Award XP from physical actions via the gamification tracker
+      if (event.xpGained && event.xpGained > 0) {
+        this.gamificationTracker?.onQuestCompleted(event.actionType, event.xpGained);
+      }
     });
 
     // Bridge reading events → QuestCompletionEngine
@@ -3601,6 +3827,9 @@ export class BabylonGame {
         this.isInCombat = true;
       }
     });
+
+    // Initialize romance system
+    this.romanceSystem = new RomanceSystem(this.eventBus);
 
     // Initialize combat UI
     this.combatUI = new CombatUI(scene, this.guiManager.advancedTexture);
@@ -4030,6 +4259,21 @@ export class BabylonGame {
       this.config3D = config3D;
       this.worldItems = worldItems || [];
 
+      // Wire base items and texts into container loot system
+      if (this.containerSpawnSystem && this.worldItems.length > 0) {
+        this.containerSpawnSystem.setWorldItems(this.worldItems, getTargetLanguage(this.worldData));
+      }
+      if (this.containerSpawnSystem && this.fullTextCache.length > 0) {
+        this.containerSpawnSystem.setWorldTexts(
+          this.fullTextCache.map((t: any) => ({
+            id: t.id,
+            title: t.title || '',
+            textCategory: t.textCategory || 'book',
+            recipeId: t.recipeId || undefined,
+          })),
+        );
+      }
+
       // Spawn exterior items (items with metadata.position) in the overworld
       if (this.scene && this.worldItems.length > 0) {
         this.exteriorItemManager = new ExteriorItemManager(
@@ -4065,7 +4309,7 @@ export class BabylonGame {
 
       // Enable language-learning display mode for inventory
       if (this.inventory && isLanguageLearningWorld(this.worldData)) {
-        this.inventory.setLanguageLearning(true);
+        this.inventory.setLanguageLearning(true, getTargetLanguage(this.worldData));
       }
 
       // Initialize persistent language progress tracker and load server data
@@ -4489,6 +4733,8 @@ export class BabylonGame {
     this.objectModelTemplates.clear();
     this.objectModelOriginalHeights.clear();
     this.objectModelScaleHints.clear();
+    this.itemThumbnailRenderer?.dispose();
+    this.itemThumbnailRenderer = null;
     if (config3D.objectModels) {
       for (const [role, id] of Object.entries(config3D.objectModels)) {
         const asset = findAssetById(id);
@@ -4549,6 +4795,13 @@ export class BabylonGame {
           }
         }
       }
+    }
+
+    // Generate item thumbnails from loaded object model templates
+    if (this.objectModelTemplates.size > 0 && scene) {
+      this.itemThumbnailRenderer = new ItemThumbnailRenderer(scene);
+      await this.itemThumbnailRenderer.generateThumbnails(this.objectModelTemplates, this.objectModelOriginalHeights);
+      this.containerPanel?.setThumbnailRenderer(this.itemThumbnailRenderer);
     }
 
     // Quest object models: preload templates for quest items (collectible, marker, container, etc.)
@@ -4840,7 +5093,7 @@ export class BabylonGame {
             return {
               position: this.projectToGround(lot.positionX + lotOffsetX, lot.positionZ + lotOffsetZ),
               facingAngle: lot.facingAngle ?? 0,
-              zone: lot.buildingType === 'business' ? 'commercial' : 'residential',
+              zone: lot.building?.buildingCategory === 'business' ? 'commercial' : 'residential',
             };
           }
           // Fallback to generated position
@@ -4932,7 +5185,9 @@ export class BabylonGame {
           this.buildingData.set(business.id, {
             position: building.position.clone(),
             metadata: building.metadata,
-            mesh: building
+            mesh: building,
+            width: buildingSpec.width, depth: buildingSpec.depth, rotation: buildingSpec.rotation,
+            hasPorch: buildingSpec.hasPorch, porchDepth: buildingSpec.style?.porchDepth, porchSteps: buildingSpec.style?.porchSteps,
           });
 
           // Register building with NPC schedule system for pathfinding
@@ -5084,7 +5339,9 @@ export class BabylonGame {
           this.buildingData.set(residence.id, {
             position: building.position.clone(),
             metadata: building.metadata,
-            mesh: building
+            mesh: building,
+            width: buildingSpec.width, depth: buildingSpec.depth, rotation: buildingSpec.rotation,
+            hasPorch: buildingSpec.hasPorch, porchDepth: buildingSpec.style?.porchDepth, porchSteps: buildingSpec.style?.porchSteps,
           });
 
           // Register building with NPC schedule system for pathfinding
@@ -5163,9 +5420,10 @@ export class BabylonGame {
           }
         }
 
-        // Place trees at DB park lots — reserve one lot for cemetery if there are deceased characters
+        // Place trees/features at DB park lots (park, forest, cemetery, garden)
+        const parkLotTypes = new Set(['park', 'forest', 'cemetery', 'garden']);
         const dbParkLots = lots.filter((l: any) =>
-          l.buildingType === 'park' && l.positionX != null && l.positionZ != null
+          parkLotTypes.has(l.lotType) && l.positionX != null && l.positionZ != null
         );
         const allChars = this.characters || this.worldData?.characters || [];
         const deceasedChars = allChars.filter((c: any) =>
@@ -5173,7 +5431,6 @@ export class BabylonGame {
           (c.currentLocation === settlement.id || c.currentLocation === settlement.name)
         );
         let cemeteryCenter: Vector3 | null = null;
-        let cemeteryLotUsed = false;
         for (const parkLot of dbParkLots) {
           const parkPos = this.projectToGround(
             parkLot.positionX + lotOffsetX,
@@ -5181,32 +5438,36 @@ export class BabylonGame {
           );
           const pw = parkLot.lotWidth || 30;
           const pd = parkLot.lotDepth || 30;
+          const lt = parkLot.lotType || 'park';
 
-          // Place cemetery gravestones on exactly one park lot
-          if (!cemeteryLotUsed && deceasedChars.length > 0) {
-            cemeteryLotUsed = true;
-            cemeteryCenter = parkPos.clone();
-            this.placeCemeteryGravestones(scene, parkPos, deceasedChars, settlement.id);
-            // Still place trees on this lot, but skip the cemetery footprint area
-          }
-
-          // Place trees across the park lot, skipping the cemetery area
-          const cemW = BabylonGame.CEMETERY_WIDTH;
-          const cemD = BabylonGame.CEMETERY_DEPTH;
-          const treeCount = Math.max(4, Math.floor((pw * pd) / 80));
+          // Seeded RNG for deterministic placement
           let parkSeed = 0;
           for (let ci = 0; ci < parkLot.id.length; ci++) parkSeed = ((parkSeed << 5) - parkSeed + parkLot.id.charCodeAt(ci)) | 0;
           parkSeed = Math.abs(parkSeed);
           const parkRng = () => { parkSeed = (parkSeed * 16807 + 0) % 2147483647; return parkSeed / 2147483647; };
-          for (let ti = 0; ti < treeCount; ti++) {
-            const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
-            const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
-            // Skip tree if it would overlap the cemetery
-            if (cemeteryCenter && Math.abs(tx - cemeteryCenter.x) < cemW / 2 + 1 && Math.abs(tz - cemeteryCenter.z) < cemD / 2 + 1) {
-              continue;
+
+          if (lt === 'cemetery') {
+            // Cemetery: place gravestones
+            cemeteryCenter = parkPos.clone();
+            this.placeCemeteryGravestones(scene, parkPos, deceasedChars, settlement.id);
+          } else if (lt === 'forest' || lt === 'garden') {
+            // Forest/garden: dense trees
+            const treeCount = Math.max(4, Math.floor((pw * pd) / 80));
+            for (let ti = 0; ti < treeCount; ti++) {
+              const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
+              const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
+              const treePos = this.projectToGround(tx, tz);
+              this.placeTreeAtPosition(scene, treePos, settlement.id);
             }
-            const treePos = this.projectToGround(tx, tz);
-            this.placeTreeAtPosition(scene, treePos, settlement.id);
+          } else {
+            // Town square (park): place notice board area + scattered trees
+            const treeCount = Math.max(2, Math.floor((pw * pd) / 120));
+            for (let ti = 0; ti < treeCount; ti++) {
+              const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
+              const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
+              const treePos = this.projectToGround(tx, tz);
+              this.placeTreeAtPosition(scene, treePos, settlement.id);
+            }
           }
         }
 
@@ -5215,7 +5476,7 @@ export class BabylonGame {
         for (const b of businesses) { if (b.lotId) usedLotIds.add(b.lotId); }
         for (const r of residences) { if (r.lotId) usedLotIds.add(r.lotId); }
         const unclaimedLots = lots.filter((l: any) =>
-          !usedLotIds.has(l.id) && l.buildingType !== 'park' && l.positionX != null && l.positionZ != null
+          !usedLotIds.has(l.id) && !parkLotTypes.has(l.lotType) && l.positionX != null && l.positionZ != null
         );
         // Also build a simple fallback array for auto-fill phases
         const autoFillPositions = unclaimedLots.map((l: any) => ({
@@ -5347,7 +5608,9 @@ export class BabylonGame {
             this.buildingData.set(bizId, {
               position: building.position.clone(),
               metadata: building.metadata,
-              mesh: building
+              mesh: building,
+              width: buildingSpec.width, depth: buildingSpec.depth, rotation: buildingSpec.rotation,
+              hasPorch: buildingSpec.hasPorch, porchDepth: buildingSpec.style?.porchDepth, porchSteps: buildingSpec.style?.porchSteps,
             });
 
             // Register with NPC schedule system
@@ -5475,7 +5738,9 @@ export class BabylonGame {
           this.buildingData.set(genericResId, {
             position: building.position.clone(),
             metadata: building.metadata,
-            mesh: building
+            mesh: building,
+            width: buildingSpec.width, depth: buildingSpec.depth, rotation: buildingSpec.rotation,
+            hasPorch: buildingSpec.hasPorch, porchDepth: buildingSpec.style?.porchDepth, porchSteps: buildingSpec.style?.porchSteps,
           });
 
           // Generate wall collision meshes
@@ -5652,24 +5917,27 @@ export class BabylonGame {
           }
         }
 
-        // Spawn outdoor containers near buildings
+        // Spawn outdoor containers near buildings (using real building geometry)
         if (this.containerSpawnSystem && this.interactionPrompt) {
-          const allOutdoorSpawnPoints: import('./ContainerSpawnSystem').OutdoorSpawnPoint[] = [];
+          const buildingContexts: import('./ContainerSpawnSystem').BuildingContainerContext[] = [];
           for (const [buildingId, buildingInfo] of this.buildingData) {
             const meta = buildingInfo.metadata as Record<string, any> | undefined;
             if (!meta?.settlementId || meta.settlementId !== settlement.id) continue;
-            const points = this.containerSpawnSystem.generateOutdoorSpawnPoints(
-              buildingInfo.position,
-              10, // approximate building width
-              10, // approximate building depth
-              0,
+            buildingContexts.push({
               buildingId,
-              meta?.businessType,
-            );
-            allOutdoorSpawnPoints.push(...points);
+              position: buildingInfo.position,
+              width: buildingInfo.width,
+              depth: buildingInfo.depth,
+              rotation: buildingInfo.rotation,
+              businessType: meta?.businessType,
+              buildingType: meta?.buildingType,
+              hasPorch: buildingInfo.hasPorch,
+              porchDepth: buildingInfo.porchDepth,
+              porchSteps: buildingInfo.porchSteps,
+            });
           }
-          if (allOutdoorSpawnPoints.length > 0) {
-            const spawned = this.containerSpawnSystem.spawnOutdoorContainers(allOutdoorSpawnPoints);
+          if (buildingContexts.length > 0) {
+            const spawned = this.containerSpawnSystem.spawnExteriorContainers(buildingContexts);
             for (const container of spawned) {
               if (container.mesh) {
                 this.interactionPrompt.registerContainer(
@@ -5692,9 +5960,11 @@ export class BabylonGame {
         // Add settlement center to avoidance list so trees don't spawn on the sign
         allBuildingPositions.push(settlementCenter.clone());
 
-        // Store first settlement spawn — offset from center to avoid spawning
-        // inside the settlement sign or buildings
-        if (!this.firstSettlementSpawnPosition && i === 0) {
+        // Store player spawn position — prefer 'landing' settlement (dock/arrival point),
+        // fall back to first settlement if no landing exists.
+        // Landing always wins, even if a fallback was already set from an earlier index.
+        const isLanding = (settlement as any).settlementType === 'landing';
+        if (isLanding || (!this.firstSettlementSpawnPosition && i === 0)) {
           // Always offset from center by at least the settlement radius
           const offsetDist = Math.max(scaledSettlement.radius || 30, 30);
           const spawnEdge = this.projectToGround(
@@ -5880,8 +6150,9 @@ export class BabylonGame {
               occupation: c.occupation || undefined,
             }));
           const articles = generateSettlementNotices(settlement.id, settlement.name, settlementNPCs);
-          // Add notice-type DB texts to the board
-          const noticeTexts = this.fullTextCache.filter(t => t.textCategory === 'notice');
+          // Add notice/flyer/letter DB texts to the board
+          const boardCategories = new Set(['notice', 'flyer', 'letter']);
+          const noticeTexts = this.fullTextCache.filter(t => boardCategories.has(t.textCategory));
           for (const nt of noticeTexts) {
             articles.push(dbTextToNoticeArticle(nt as any));
           }
@@ -6363,7 +6634,8 @@ export class BabylonGame {
       const meta = data.metadata;
       if (!meta?.settlementId) return;
 
-      if (meta.buildingType === 'business') {
+      const bc = meta.buildingCategory || meta.buildingType;
+      if (bc === 'business') {
         if (meta.ownerId === characterId ||
             (Array.isArray(meta.employees) && meta.employees.some((e: any) =>
               typeof e === 'string' ? e === characterId : e?.id === characterId
@@ -6371,7 +6643,7 @@ export class BabylonGame {
           foundSettlementId = meta.settlementId;
         }
       }
-      if (meta.buildingType === 'residence') {
+      if (bc === 'residence') {
         if (Array.isArray(meta.occupants) && meta.occupants.some((o: any) =>
           typeof o === 'string' ? o === characterId : o?.id === characterId
         )) {
@@ -7481,16 +7753,16 @@ export class BabylonGame {
     if (this.scene) this.scene.blockMaterialDirtyMechanism = true;
 
     const total = characters.length;
-    for (let i = 0; i < total; i++) {
-      const character = characters[i];
-      if (i % 5 === 0) {
-        this.updateLoadingScreen(`Loading NPCs... (${i + 1}/${total})`, 70 + Math.round((i / total) * 15));
-      }
-      try {
-        await this.loadNPC(character);
-      } catch (error) {
-        console.error(`Failed to load NPC ${character.id}:`, error);
-      }
+    // Load NPCs in parallel batches for faster startup
+    const BATCH_SIZE = 8;
+    for (let batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
+      const batch = characters.slice(batchStart, batchStart + BATCH_SIZE);
+      this.updateLoadingScreen(`Loading NPCs... (${Math.min(batchStart + BATCH_SIZE, total)}/${total})`, 70 + Math.round((batchStart / total) * 15));
+      await Promise.all(batch.map(character =>
+        this.loadNPC(character).catch(error => {
+          console.error(`Failed to load NPC ${character.id}:`, error);
+        })
+      ));
     }
 
     // Re-enable material dirty mechanism
@@ -8631,7 +8903,7 @@ export class BabylonGame {
     // Register container meshes for interaction
     if (this.activeInterior && this.containerSpawnSystem && this.interactionPrompt) {
       this.interactionPrompt.clearContainers();
-      const containers = this.containerSpawnSystem.registerInteriorContainers(
+      const containers = this.containerSpawnSystem.spawnInteriorContainers(
         this.activeInterior.furniture,
         buildingId,
         businessType,
@@ -9021,8 +9293,9 @@ export class BabylonGame {
     );
     if (dbItem && dbItem.possessable === false) {
       // Non-possessable items can be examined but not collected
-      const examName = (dbItem.languageLearningData?.targetWord && isLanguageLearningWorld(this.worldData))
-        ? `${dbItem.languageLearningData.targetWord} (${dbItem.name})`
+      const examTranslation = getItemTranslation(dbItem, getTargetLanguage(this.worldData));
+      const examName = (examTranslation?.targetWord && isLanguageLearningWorld(this.worldData))
+        ? `${examTranslation.targetWord} (${dbItem.name})`
         : (dbItem.name || objectRole);
       this.guiManager?.showToast({
         title: examName,
@@ -9061,7 +9334,7 @@ export class BabylonGame {
 
   /**
    * Briefly show the target language word as a large centered overlay when collecting
-   * an item with languageLearningData.
+   * an item with translations.
    */
   private showLanguageWordOverlay(targetWord: string, targetLanguage?: string, englishName?: string): void {
     if (!this.guiManager?.advancedTexture) return;
@@ -9180,7 +9453,7 @@ export class BabylonGame {
         objectRole: nearest.objectRole,
         name: dbItem?.name || nearest.objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "),
         position: { x: nearest.mesh.position.x, y: nearest.mesh.position.y, z: nearest.mesh.position.z },
-        languageLearningData: dbItem?.languageLearningData,
+        translations: dbItem?.translations,
         signData: dbItem?.signData,
         isSign: this.worldObjectActionManager.isSignObject(nearest.objectRole),
         description: dbItem?.description,
@@ -9197,16 +9470,17 @@ export class BabylonGame {
       });
 
       // Track vocabulary exposure for language learning worlds
-      if (isLangWorld && dbItem?.languageLearningData?.targetWord) {
+      const resolvedLangData = dbItem ? getItemTranslation(dbItem, getTargetLanguage(this.worldData)) : null;
+      if (isLangWorld && resolvedLangData?.targetWord) {
         const tracker = this.chatPanel?.getLanguageTracker();
         if (tracker) {
-          tracker.analyzeNPCResponse(dbItem.languageLearningData.targetWord);
+          tracker.analyzeNPCResponse(resolvedLangData.targetWord);
         }
       }
     } else {
       // Fallback: direct event emission (no manager available)
       const itemName = dbItem?.name || nearest.objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-      const langData = dbItem?.languageLearningData;
+      const langData = dbItem ? getItemTranslation(dbItem, getTargetLanguage(this.worldData)) : null;
 
       if (isLangWorld && langData?.targetWord) {
         const pronunciation = langData.pronunciation ? ` [${langData.pronunciation}]` : '';
@@ -9220,7 +9494,7 @@ export class BabylonGame {
           objectId: dbItem?.id || nearest.objectRole,
           objectName: itemName,
           targetWord: langData.targetWord,
-          targetLanguage: langData.targetLanguage,
+          targetLanguage: getTargetLanguage(this.worldData),
           pronunciation: langData.pronunciation,
           category: langData.category,
         });
@@ -9301,11 +9575,11 @@ export class BabylonGame {
         spawnLocationHint: t.spawnLocationHint || 'market',
       }));
 
-      // Build CollectibleTextData for the spawner — only outdoor spawn hints
-      const outdoorHints = ['market', 'town_square', 'park', 'dock', 'exterior', 'hidden'];
-      const outdoorTexts = texts
-        .filter((t: any) => outdoorHints.includes(t.spawnLocationHint))
-        .map((t: any) => ({
+      // Build CollectibleTextData for the spawner — spawn ALL texts, hide gated ones
+      const allSpawnableTexts = texts.map((t: any) => {
+        const tags: string[] = t.tags || [];
+        const chapterTag = tags.find((tag: string) => tag.startsWith('chapterId:'));
+        return {
           id: t.id as string,
           title: (t.title || '') as string,
           textCategory: (t.textCategory || 'book') as CollectibleTextData['textCategory'],
@@ -9313,15 +9587,28 @@ export class BabylonGame {
           spawnLocationHint: (t.spawnLocationHint || 'market') as CollectibleTextData['spawnLocationHint'],
           authorName: t.authorName as string | undefined,
           clueText: t.clueText as string | undefined,
-          isMainQuest: ((t.tags || []) as string[]).includes('main-quest'),
-        }));
+          isMainQuest: tags.includes('main_quest'),
+          chapterTag: chapterTag || undefined,
+        };
+      });
 
-      if (outdoorTexts.length > 0) {
+      // Determine which chapters' texts should be visible
+      const visibleChapterIds = new Set<string>();
+      if (this.mainQuestJournalData?.currentChapterId) {
+        visibleChapterIds.add(`chapterId:${this.mainQuestJournalData.currentChapterId}`);
+      }
+      for (const ch of (this.mainQuestJournalData?.chapters || [])) {
+        if (ch.progress?.status === 'completed') {
+          visibleChapterIds.add(`chapterId:${ch.chapter?.id}`);
+        }
+      }
+
+      if (allSpawnableTexts.length > 0) {
         const buildings: { id: string; businessType?: string; position: { x: number; y: number; z: number } }[] = [];
         this.buildingData.forEach((bd, id) => {
           buildings.push({ id, businessType: bd.metadata?.businessType, position: { x: bd.position.x, y: bd.position.y, z: bd.position.z } });
         });
-        this.textSpawner.spawnTexts(outdoorTexts, buildings, []);
+        this.textSpawner.spawnTexts(allSpawnableTexts, buildings, [], visibleChapterIds);
       }
     } catch {
       // Texts unavailable — outdoor texts won't spawn
@@ -9395,7 +9682,7 @@ export class BabylonGame {
 
       const objectRole = (propMesh.metadata?.objectRole || propMesh.name || '').toLowerCase();
       const dbItem = this.resolveWorldItem(objectRole);
-      const langData = dbItem?.languageLearningData;
+      const langData = dbItem ? getItemTranslation(dbItem, getTargetLanguage(this.worldData)) : null;
       const name = dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
 
       objects.push({
@@ -9404,7 +9691,7 @@ export class BabylonGame {
         category: langData?.category || 'item',
         position: propMesh.position,
         targetWord: langData?.targetWord,
-        targetLanguage: langData?.targetLanguage,
+        targetLanguage: langData ? getTargetLanguage(this.worldData) : undefined,
         pronunciation: langData?.pronunciation,
       });
     }
@@ -9445,7 +9732,7 @@ export class BabylonGame {
         baseType: dbItem.baseType || undefined,
         rarity: dbItem.rarity || undefined,
         possessable: dbItem.possessable !== false,
-        languageLearningData: dbItem.languageLearningData || undefined,
+        translations: dbItem.translations || undefined,
       };
     }
 
@@ -11135,6 +11422,8 @@ export class BabylonGame {
     // Enter - Universal interact: dispatch based on what the player is looking at
     if (event.code === KEY_BUILDING_INTERACT && !event.repeat) {
       event.preventDefault();
+      // If the contextual action menu is open, let its own keyboard handler process Enter
+      if (this.contextualActionMenu?.isOpen()) return;
       if (this.conversationNPCId) {
         // If in conversation, exit it
         this.handleConversationEnd();
@@ -11159,14 +11448,14 @@ export class BabylonGame {
       this.handleAttack();
     }
 
-    // Q - Physical action menu (when near action hotspot)
+    // Q - Contextual action menu (for any target the player is looking at)
     if (event.code === KEY_PHYSICAL_ACTION && !event.repeat) {
-      if (this.physicalActionMenu?.isOpen()) {
+      if (this.contextualActionMenu?.isOpen()) {
         event.preventDefault();
-        this.physicalActionMenu.hide();
+        this.contextualActionMenu.hide();
       } else {
-        const handled = this.handlePhysicalActionMenu();
-        if (handled) event.preventDefault();
+        event.preventDefault();
+        await this.handleUnifiedInteraction();
       }
     }
 
@@ -11299,8 +11588,9 @@ export class BabylonGame {
   }
 
   /**
-   * Unified G-key interaction dispatcher. Checks what the player is looking at
-   * via the InteractionPromptSystem and routes to the appropriate handler.
+   * Unified interaction dispatcher. Checks what the player is looking at
+   * via the InteractionPromptSystem, resolves available actions, and either
+   * auto-executes (single action) or shows the ContextualActionMenu.
    * Falls back to proximity-based NPC interaction if no target is in view.
    */
   private async handleUnifiedInteraction(): Promise<void> {
@@ -11312,12 +11602,65 @@ export class BabylonGame {
       return;
     }
 
-    switch (target.type) {
-      case 'npc': {
-        // Select and talk to the NPC
+    // Build resolver context
+    const playerPos = this.playerMesh?.getAbsolutePosition();
+    const nearbyTypes = playerPos && this.interactionPrompt
+      ? this.interactionPrompt.getNearbyActionHotspotTypes(playerPos, 4)
+      : [];
+
+    // Check if NPC has business interactions
+    let hasBusinessInteractions = false;
+    if (target.type === 'npc' && this.isInsideBuilding && this.currentBuildingBusinessType && this.interiorNPCManager) {
+      const placedNPC = this.interiorNPCManager.getPlacedNPC(target.id);
+      hasBusinessInteractions = !!placedNPC;
+    }
+
+    const resolverContext: ActionResolverContext = {
+      playerActionSystem: this.playerActionSystem,
+      nearbyActionHotspotTypes: nearbyTypes,
+      isInsideBuilding: this.isInsideBuilding,
+      currentBusinessType: this.currentBuildingBusinessType,
+      hasBusinessInteractions,
+      hasInventoryItems: (this.inventory?.getAllItems()?.length ?? 0) > 0,
+    };
+
+    const actions = resolveActions(target, resolverContext);
+    const menuOptions = resolveMenuOptions(target);
+
+    if (actions.length === 0) {
+      await this.handleProximityInteraction();
+      return;
+    }
+
+    // Show the contextual menu (auto-executes if single action)
+    const autoExecuted = this.contextualActionMenu?.show(
+      actions,
+      menuOptions,
+      (action) => this.dispatchContextualAction(action, target),
+      () => { /* menu closed */ },
+    );
+
+    // If auto-executed, the callback already fired
+    if (autoExecuted) return;
+  }
+
+  /**
+   * Dispatch a selected contextual action to the appropriate handler.
+   */
+  private async dispatchContextualAction(
+    action: import('./actions/ContextualActionMenu').ContextualAction,
+    target: import('./InteractionPromptSystem').InteractableTarget,
+  ): Promise<void> {
+    switch (action.id) {
+      // ── Social ─────────────────────────────────────────────────────
+      case '__talk__': {
         this.setSelectedNPC(target.id);
-        // If inside a business building, show business interaction menu
-        if (this.isInsideBuilding && this.currentBuildingBusinessType && this.interiorNPCManager) {
+        await this.handleOpenChat();
+        break;
+      }
+      case '__business__': {
+        this.setSelectedNPC(target.id);
+        if (this.interiorNPCManager) {
           const placedNPC = this.interiorNPCManager.getPlacedNPC(target.id);
           if (placedNPC) {
             await this.handleBusinessInteraction(placedNPC);
@@ -11327,101 +11670,115 @@ export class BabylonGame {
         await this.handleOpenChat();
         break;
       }
-
-      case 'npc_eavesdrop': {
-        // Activate eavesdrop on the conversation
+      case '__eavesdrop__': {
         this.ambientConversationManager?.activateEavesdrop();
         break;
       }
 
-      case 'building': {
-        // Enter the building
+      // ── Navigation ─────────────────────────────────────────────────
+      case '__enter_building__': {
         await this.handleBuildingInteraction();
         break;
       }
 
-      case 'sign':
-      case 'object': {
-        // Check if this is a book to pick up
-        if (target.objectRole === 'book' && target.mesh.metadata?.bookData) {
-          this.handleBookPickup(target.mesh as Mesh);
-          break;
-        }
-        // Examine/read the object
+      // ── Examine ────────────────────────────────────────────────────
+      case '__examine__': {
         this.handleExamineObject();
         break;
       }
-
-      case 'notice_board': {
-        // Open the notice board panel
+      case '__pick_up_book__': {
+        this.handleBookPickup(target.mesh as Mesh);
+        break;
+      }
+      case '__pick_up__': {
+        const objectRole = target.objectRole || target.mesh.metadata?.objectRole || '';
+        this.handleWorldPropClicked(target.mesh as Mesh, objectRole);
+        break;
+      }
+      case '__read_notice_board__': {
         this.noticeBoardPanel?.show();
         break;
       }
 
-      case 'furniture': {
+      // ── Furniture ──────────────────────────────────────────────────
+      case '__furniture_sit__':
+      case '__furniture_read__':
+      case '__furniture_use__': {
         await this.furnitureInteractionManager?.handleInteraction(target);
         break;
       }
 
-      case 'action_hotspot': {
-        // If multiple physical actions available nearby, show radial menu
-        const handled = this.handlePhysicalActionMenu();
-        if (!handled) {
-          // Fallback: single action from the targeted hotspot
-          this.playerActionSystem?.handleInteraction(target);
-        }
+      // ── Romance ──────────────────────────────────────────────────
+      case '__give_gift__': {
+        this.setSelectedNPC(target.id);
+        await this.handlePerformAction('give_gift');
         break;
       }
 
-      case 'container': {
+      // ── Containers ─────────────────────────────────────────────────
+      case '__open_container__': {
         this.handleContainerInteraction(target);
         break;
       }
 
-      default:
-        await this.handleProximityInteraction();
+      // ── Physical actions ───────────────────────────────────────────
+      default: {
+        if (action.id.startsWith('__physical_') && this.playerActionSystem) {
+          const actionType = action.id.replace('__physical_', '').replace('__', '');
+          const definition = this.playerActionSystem.getDefinition(
+            actionType as import('./PlayerActionSystem').PhysicalActionType,
+          );
+          if (definition) {
+            this.playerActionSystem.startAction(definition);
+          }
+        }
+        break;
+      }
     }
   }
 
-  /**
-   * Opens the physical action radial menu if there are nearby action hotspots.
-   * If exactly one action is available, performs it directly (skipping the menu).
-   * Returns true if the interaction was handled.
-   */
-  private handlePhysicalActionMenu(): boolean {
-    if (!this.playerActionSystem || !this.interactionPrompt) return false;
-    if (this.physicalActionMenu?.isOpen()) return false;
+  // ── Conversational action feedback ──────────────────────────────────────
 
-    // Get player position
-    if (!this.playerMesh) return false;
-    const playerPos = this.playerMesh.getAbsolutePosition();
+  private static readonly CONVERSATIONAL_ACTION_FEEDBACK: Record<string, { icon: string; label: string; labelFr: string }> = {
+    asked_about_topic: { icon: '❓', label: 'Asked about a topic', labelFr: 'Question posée' },
+    used_target_language: { icon: '🗣️', label: 'Used target language!', labelFr: 'Langue cible utilisée !' },
+    answered_question: { icon: '💬', label: 'Answered a question', labelFr: 'Répondu à une question' },
+    requested_information: { icon: '🔎', label: 'Requested information', labelFr: 'Information demandée' },
+    made_introduction: { icon: '👋', label: 'Introduced yourself', labelFr: 'Présentation faite' },
+  };
 
-    // Find all action hotspot types within range (larger radius for menu)
-    const nearbyTypes = this.interactionPrompt.getNearbyActionHotspotTypes(playerPos, 4);
-    if (nearbyTypes.length === 0) return false;
+  private handleConversationalGesture(gestureId: string): void {
+    const gesture = CONVERSATIONAL_GESTURES.find((g) => g.id === gestureId);
+    if (!gesture) return;
 
-    // Check availability for each action type
-    const available = this.playerActionSystem.checkAvailability(
-      nearbyTypes as import('./PlayerActionSystem').PhysicalActionType[],
-    );
+    // Play the player animation
+    this.playActionAnimation?.('player', gesture.animationClip);
 
-    // If exactly one action and it can be performed, do it directly
-    if (available.length === 1 && available[0].canPerform) {
-      this.playerActionSystem.startAction(available[0].definition);
-      return true;
-    }
+    // Emit as conversational action for quest tracking
+    const npcId = this.selectedNPCId || '';
+    const actionName = `gesture_${gestureId}`;
+    this.eventBus.emit({ type: 'conversational_action', action: actionName, npcId, topic: undefined, questId: undefined });
+    this.questObjectManager?.trackConversationalAction(actionName, npcId);
 
-    // Show radial menu
-    this.physicalActionMenu?.show(
-      available,
-      (definition) => {
-        this.playerActionSystem?.startAction(definition);
-      },
-      () => {
-        // Menu closed — no-op
-      },
-    );
-    return true;
+    // Show toast feedback
+    this.guiManager?.showToast({
+      title: `${gesture.icon} ${gesture.labelFr}`,
+      description: gesture.labelEn,
+      duration: 1500,
+    });
+  }
+
+  private showConversationalActionFeedback(action: string, _npcId?: string, topic?: string): void {
+    const feedback = BabylonGame.CONVERSATIONAL_ACTION_FEEDBACK[action];
+    if (!feedback) return;
+
+    const description = topic ? `"${topic}"` : feedback.label;
+
+    this.guiManager?.showToast({
+      title: `${feedback.icon} ${feedback.labelFr}`,
+      description,
+      duration: 2000,
+    });
   }
 
   private async handleOpenChat(): Promise<void> {
@@ -11966,7 +12323,8 @@ export class BabylonGame {
     ) || [];
 
     // 4. Show pickup toast (with quest context if applicable)
-    const targetWord = item.languageLearningData?.targetWord;
+    const collectedTranslation = getItemTranslation(item, getTargetLanguage(this.worldData));
+    const targetWord = collectedTranslation?.targetWord;
     const displayName = (targetWord && isLanguageLearningWorld(this.worldData))
       ? targetWord
       : item.name;
@@ -12000,10 +12358,10 @@ export class BabylonGame {
     }
 
     // 5. Show language learning overlay if applicable
-    if (item.languageLearningData?.targetWord) {
+    if (collectedTranslation?.targetWord) {
       this.showLanguageWordOverlay(
-        item.languageLearningData.targetWord,
-        item.languageLearningData.targetLanguage,
+        collectedTranslation.targetWord,
+        getTargetLanguage(this.worldData),
         item.name,
       );
     }
@@ -12088,6 +12446,7 @@ export class BabylonGame {
     this.inventory?.setGold(this.playerGold);
 
     this.eventBus.emit({ type: 'item_removed', itemId: transaction.item.id, itemName: transaction.item.name, quantity: transaction.quantity });
+    this.eventBus.emit({ type: 'action_executed', actionName: 'sell_item', actorId: 'player', targetId: transaction.item.id, itemName: transaction.item.name, itemType: transaction.item.type, category: 'items', result: 'success' });
 
     // Record transfer via API
     this.dataSource.transferItem(this.config.worldId, {
@@ -12160,7 +12519,7 @@ export class BabylonGame {
       value: item.value,
       rarity: item.rarity,
       category: item.category,
-      languageLearningData: item.languageLearningData,
+      translations: item.translations,
     }, 'container');
   }
 
@@ -12170,7 +12529,22 @@ export class BabylonGame {
   }
 
   private handleContainerExamine(transaction: ContainerTransaction): void {
-    this.eventBus.emit({ type: 'object_examined', itemId: transaction.item.id, itemName: transaction.item.name });
+    const item = transaction.item;
+    this.eventBus.emit({ type: 'object_examined', itemId: item.id, itemName: item.name });
+
+    // Show language word overlay if translation exists
+    const lang = getTargetLanguage(this.worldData);
+    const translation = getItemTranslation(item, lang);
+    if (translation?.targetWord) {
+      this.showLanguageWordOverlay(translation.targetWord, lang, item.name);
+    } else {
+      // No translation — just show the item name as a toast
+      this.guiManager?.showToast({
+        title: item.name,
+        description: item.description || `${item.category || item.type}`,
+        duration: 3000,
+      });
+    }
   }
 
   // ─── Business Interaction Handlers ────────────────────────────────────────
@@ -12311,6 +12685,7 @@ export class BabylonGame {
   }
 
   private handleDropItem(item: InventoryItem): void {
+    this.playInventoryActionAnimation('drop_item');
     this.inventory?.removeItem(item.id, 1);
 
     this.eventBus.emit({ type: 'item_dropped', itemId: item.id, itemName: item.name, quantity: 1 });
@@ -12333,10 +12708,38 @@ export class BabylonGame {
     });
   }
 
+  /** Play a brief animation for an inventory action, then return to idle. */
+  private playInventoryActionAnimation(actionName: string): void {
+    const entry = getAnimationForAction(actionName);
+    this.playActionAnimation('player', { clip: entry.animationClip, clipAlt: entry.animationFallback, loop: false, speed: 1.0 });
+    // Return to idle after a short delay
+    setTimeout(() => {
+      this.playActionAnimation('player', { clip: 'Idle', loop: true, speed: 1.0 });
+    }, 1500);
+  }
+
   private handleUseItem(item: InventoryItem): void {
+    // Document items: open the reading panel
+    if (item.type === 'document' || item.type === 'collectible' && item.category === 'document') {
+      const textId = (item as any).textId;
+      if (textId) {
+        this.openDocumentReader(textId);
+      } else {
+        this.guiManager?.showToast({
+          title: `Read ${item.name}`,
+          description: item.description || 'A document with no readable content.',
+          duration: 2000,
+        });
+      }
+      this.eventBus.emit({ type: 'item_used', itemId: item.id, itemName: item.name });
+      this.eventBus.emit({ type: 'action_executed', actionName: 'use_item', actorId: 'player', targetId: item.id, itemName: item.name, itemType: item.type, category: 'items', result: 'success' });
+      return;
+    }
+
     // Quest and key items: emit event without consuming
     if (item.type === 'quest' || item.type === 'key') {
       this.eventBus.emit({ type: 'item_used', itemId: item.id, itemName: item.name });
+      this.eventBus.emit({ type: 'action_executed', actionName: 'use_item', actorId: 'player', targetId: item.id, itemName: item.name, itemType: item.type, category: 'items', result: 'success' });
       this.guiManager?.showToast({
         title: `Used ${item.name}`,
         description: item.type === 'key' ? 'Key item activated' : 'Quest item used',
@@ -12347,6 +12750,7 @@ export class BabylonGame {
 
     // Consumable, food, drink: apply effects and consume
     if (['consumable', 'food', 'drink'].includes(item.type)) {
+      this.playInventoryActionAnimation('consume');
       this.inventory?.removeItem(item.id, 1);
       this.eventBus.emit({ type: 'item_used', itemId: item.id, itemName: item.name });
 
@@ -12384,6 +12788,7 @@ export class BabylonGame {
 
   private handleEquipItem(item: InventoryItem): void {
     if (!this.equipmentManager) return;
+    this.playInventoryActionAnimation('equip_item');
 
     const result = this.equipmentManager.equip(item);
     if (result) {
@@ -12734,6 +13139,7 @@ export class BabylonGame {
         playerCefrLevel: this.playerCefrLevel,
         investigationBoard: data.investigationBoard ?? null,
         caseNotes: data.state?.caseNotes ?? [],
+        narrativeHistory: data.narrativeHistory ?? [],
       };
     } catch {
       // Non-critical — journal will show empty state
@@ -12795,6 +13201,20 @@ export class BabylonGame {
       // Refresh journal and portfolio data
       await this.fetchMainQuestJournalData();
       this.fetchPortfolioData();
+
+      // Reveal texts for the newly active chapter
+      if (this.textSpawner && this.mainQuestJournalData) {
+        const visibleIds = new Set<string>();
+        if (this.mainQuestJournalData.currentChapterId) {
+          visibleIds.add(`chapterId:${this.mainQuestJournalData.currentChapterId}`);
+        }
+        for (const ch of (this.mainQuestJournalData.chapters || [])) {
+          if (ch.progress?.status === 'completed') {
+            visibleIds.add(`chapterId:${ch.chapter?.id}`);
+          }
+        }
+        this.textSpawner.updateVisibility(visibleIds);
+      }
     } catch {
       // Non-critical
     }
@@ -13570,6 +13990,37 @@ export class BabylonGame {
           this.questObjectManager.trackGiftGiven(npcId, '');
         }
       }
+
+      // Wire romance actions through the RomanceSystem
+      const ROMANCE_ACTION_IDS = ['compliment', 'flirt', 'give_gift', 'ask_on_date', 'confess_feelings', 'propose'];
+      if (this.romanceSystem && ROMANCE_ACTION_IDS.includes(actionId)) {
+        // Initialize relationship if needed
+        const targetNPCData = this.characters?.find((c) => c.id === npcId) || this.worldData?.characters?.find((c) => c.id === npcId);
+        const npcName = targetNPCData ? `${targetNPCData.firstName || ''} ${targetNPCData.lastName || ''}`.trim() : npcId;
+        this.romanceSystem.initRelationship(npcId, npcName);
+
+        const romanceResult = this.romanceSystem.performAction(npcId, actionId, targetNPCData?.personality);
+
+        if (romanceResult.stageChanged && romanceResult.newStage) {
+          this.guiManager?.showToast({
+            title: `\u2764\uFE0F ${romanceResult.message}`,
+            description: `Stage: ${romanceResult.newStage}`,
+            duration: 4000,
+          });
+        } else if (romanceResult.success) {
+          this.guiManager?.showToast({
+            title: `\u2764\uFE0F ${npcName}`,
+            description: romanceResult.message,
+            duration: 2500,
+          });
+        } else {
+          this.guiManager?.showToast({
+            title: `\uD83D\uDC94 ${npcName}`,
+            description: romanceResult.message,
+            duration: 2500,
+          });
+        }
+      }
     } catch (error) {
       console.error("Failed to perform action", error);
       this.guiManager?.showToast({
@@ -13811,6 +14262,13 @@ export class BabylonGame {
   }
 
   private handleDamageDealt(result: DamageResult): void {
+    // Emit combat_action event for quest tracking
+    this.eventBus.emit({
+      type: 'combat_action',
+      actionType: 'attack',
+      targetId: result.targetId,
+    });
+
     if (this.combatUI && this.combatSystem) {
       const targetEntity = this.combatSystem.getEntity(result.targetId);
       if (targetEntity?.mesh) {
@@ -14142,7 +14600,43 @@ export class BabylonGame {
       }));
 
       engine.addQuest({ id: quest.id, objectives });
+
+      // Spawn temporary hotspots for objectives that require them (staged, not yet active)
+      if (this.questHotspotManager && quest.locationPosition) {
+        for (const obj of (quest.objectives || [])) {
+          if (obj.requiredHotspotType && !obj.completed) {
+            const pos = quest.locationPosition;
+            this.questHotspotManager.spawnHotspot(
+              quest.id,
+              obj.id,
+              obj.requiredHotspotType,
+              new Vector3(pos.x ?? 0, pos.y ?? 0, pos.z ?? 0),
+              obj.description,
+            );
+          }
+        }
+      }
     }
+
+    // Activate hotspots whose objectives are "up next" (not blocked)
+    this.refreshQuestHotspotStates();
+  }
+
+  /**
+   * Refresh which quest-spawned hotspots are active based on objective ordering.
+   * Only the next incomplete, non-blocked objective's hotspot gets the "!" marker.
+   */
+  private refreshQuestHotspotStates(): void {
+    const engine = this.questObjectManager?.getCompletionEngine();
+    if (!engine || !this.questHotspotManager) return;
+
+    this.questHotspotManager.refreshActiveState((questId, objectiveId) => {
+      const quest = engine.getQuests().find((q: any) => q.id === questId);
+      if (!quest) return false;
+      const objective = (quest.objectives || []).find((o: any) => o.id === objectiveId);
+      if (!objective || objective.completed) return false;
+      return !engine.isObjectiveLocked(quest, objective);
+    });
   }
 
   /**
@@ -14465,6 +14959,9 @@ export class BabylonGame {
           this.questTracker.setWorldData(directorBuildingData, npcBuildingMap, npcPositions);
         }
       }
+
+      // Refresh quest hotspot active states (only show "!" for objectives that are up next)
+      this.refreshQuestHotspotStates();
     } catch (error) {
       console.error('[BabylonGame] Failed to update quest indicators:', error);
     }
@@ -15115,7 +15612,7 @@ export class BabylonGame {
     this.questIndicatorManager = null;
     this.questOfferPanel = null;
     this.radialMenu?.dispose();
-    this.physicalActionMenu?.dispose();
+    this.contextualActionMenu?.dispose();
     this.questNotificationManager?.dispose();
     this.questNotificationManager = null;
     this.questLanguageFeedbackTracker = null;

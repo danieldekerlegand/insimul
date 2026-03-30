@@ -127,6 +127,18 @@ export function getTargetLanguage(worldData: any): string {
 }
 
 /**
+ * Look up an item's translation for a given language from the translations dict.
+ * Returns `{ targetWord, pronunciation, category }` or null if not translated.
+ */
+export function getItemTranslation(
+  item: { translations?: Record<string, { targetWord: string; pronunciation: string; category: string }> | null },
+  language: string,
+): { targetWord: string; pronunciation: string; category: string } | null {
+  if (!item.translations || !language) return null;
+  return (item.translations as Record<string, any>)[language] ?? null;
+}
+
+/**
  * Launch the onboarding flow. Dynamically imports assessment/onboarding modules
  * so the game still works if those modules aren't available yet.
  *

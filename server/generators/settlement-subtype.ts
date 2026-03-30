@@ -124,6 +124,12 @@ const SUBTYPE_CONFIGS: Record<SettlementSubtype, SubtypeConfig> = {
 export function inferSettlementSubtype(config: GeographyConfig): SettlementSubtype {
   const { terrain, population, settlementType } = config;
 
+  // Specialized settlement types map directly
+  if (settlementType === 'landing') return 'fishing_village';
+  if (settlementType === 'forge') return 'mining_town';
+  if (settlementType === 'chapel') return 'standard';
+  if (settlementType === 'market') return 'market_town';
+
   // Terrain-primary rules
   if (terrain === 'coast') {
     if (settlementType === 'city' || population >= 500) return 'port_city';

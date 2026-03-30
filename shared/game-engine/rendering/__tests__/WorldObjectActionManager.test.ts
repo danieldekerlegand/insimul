@@ -22,7 +22,7 @@ function makeWorldItem(overrides: Partial<{
   objectRole: string;
   name: string;
   description: string;
-  languageLearningData: WorldObjectRef['languageLearningData'];
+  translations: WorldObjectRef['translations'];
   signData: { signId: string; targetText: string; nativeText: string; category?: string };
 }> = {}) {
   return {
@@ -30,7 +30,7 @@ function makeWorldItem(overrides: Partial<{
     objectRole: overrides.objectRole ?? 'apple',
     name: overrides.name ?? 'Apple',
     description: overrides.description ?? 'A red apple.',
-    languageLearningData: overrides.languageLearningData,
+    translations: overrides.translations,
     signData: overrides.signData,
   };
 }
@@ -122,7 +122,7 @@ describe('WorldObjectActionManager', () => {
         name: 'Apple',
         position: { x: 10, y: 0, z: 20 },
         isSign: false,
-        languageLearningData: {
+        translations: {
           targetWord: 'pomme',
           targetLanguage: 'French',
           pronunciation: 'pom',
@@ -171,7 +171,7 @@ describe('WorldObjectActionManager', () => {
         name: 'Bakery Sign',
         position: { x: 5, y: 2, z: 10 },
         isSign: true,
-        languageLearningData: {
+        translations: {
           targetWord: 'Boulangerie',
           targetLanguage: 'French',
           category: 'buildings',
@@ -228,7 +228,7 @@ describe('WorldObjectActionManager', () => {
         name: 'Notice',
         position: { x: 0, y: 0, z: 0 },
         isSign: true,
-        languageLearningData: {
+        translations: {
           targetWord: 'Avis',
           targetLanguage: 'French',
           category: 'general',
@@ -356,7 +356,7 @@ describe('WorldObjectActionManager', () => {
           id: 'apple',
           objectRole: 'apple',
           name: 'Apple',
-          languageLearningData: {
+          translations: {
             targetWord: 'pomme',
             targetLanguage: 'French',
             category: 'food',
@@ -381,7 +381,7 @@ describe('WorldObjectActionManager', () => {
           id: 'apple',
           objectRole: 'apple',
           name: 'Apple',
-          languageLearningData: {
+          translations: {
             targetWord: 'pomme',
             targetLanguage: 'French',
             category: 'food',
@@ -402,7 +402,7 @@ describe('WorldObjectActionManager', () => {
           id: 'apple',
           objectRole: 'apple',
           name: 'Apple',
-          languageLearningData: {
+          translations: {
             targetWord: 'pomme',
             targetLanguage: 'French',
             category: 'food',

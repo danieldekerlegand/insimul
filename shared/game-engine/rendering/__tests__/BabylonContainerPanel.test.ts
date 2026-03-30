@@ -289,7 +289,7 @@ describe('BabylonContainerPanel', () => {
     const item = makeItem({
       id: 'lang-1',
       name: 'Bread',
-      languageLearningData: {
+      translations: {
         targetWord: 'pain',
         targetLanguage: 'French',
         pronunciation: 'pan',

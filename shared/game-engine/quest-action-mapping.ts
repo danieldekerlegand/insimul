@@ -154,6 +154,16 @@ export const QUEST_ACTION_MAPPINGS: QuestActionMapping[] = [
     quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
     description: 'Player overhears an NPC-to-NPC conversation about a topic',
   },
+  {
+    objectiveType: 'observe_activity',
+    eventType: 'activity_observed',
+    matchFields: [
+      { eventField: 'activity', objectiveField: 'activityType', comparison: 'exact', optional: true },
+      { eventField: 'npcName', objectiveField: 'npcName', comparison: 'contains_lower', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player observes an NPC performing an activity',
+  },
   // ─── Inventory action mappings ──────────────────────────────────────────────
   {
     objectiveType: 'use_item',

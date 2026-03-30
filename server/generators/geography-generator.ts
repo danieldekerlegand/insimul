@@ -14,6 +14,7 @@ import {
   generateStreetNetwork,
   placeLots,
   placeLotsAlongStreets,
+  pruneUnusedStreets,
   type StreetNetwork,
   type StreetNetworkConfig,
   type LotPlacement,
@@ -82,7 +83,7 @@ export interface GeographyConfig {
   worldId: string;
   settlementId: string; // Now generates for a specific settlement
   settlementName: string;
-  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
   population: number;
   foundedYear: number;
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
@@ -102,6 +103,10 @@ const DISTRICT_ROLES: Record<string, DistrictRole[]> = {
   dwelling: ['general'],
   roadhouse: ['commercial'],
   homestead: ['general'],
+  landing: ['commercial'],
+  forge: ['industrial'],
+  chapel: ['religious_civic'],
+  market: ['commercial'],
   hamlet: ['general'],
   village: ['commercial', 'general'],
   town: ['commercial', 'wealthy_residential', 'working_residential', 'religious_civic'],
@@ -333,6 +338,35 @@ export class GeographyGenerator {
           },
         });
       }
+    }
+
+    // Prune streets that have no buildings nearby
+    const buildingStreetNames = buildings
+      .map(b => b.properties?.streetName as string)
+      .filter(Boolean);
+    const buildingPositions = buildings.map(b => ({ x: b.x, z: b.y }));
+    const prunedNetwork = pruneUnusedStreets(streetNetwork, buildingStreetNames, buildingPositions);
+    // Replace segments/nodes in the network so downstream consumers see pruned data
+    streetNetwork.segments = prunedNetwork.segments;
+    streetNetwork.nodes = prunedNetwork.nodes;
+    // Rebuild the streets Location array to match pruned segments
+    streets.length = 0;
+    for (let i = 0; i < prunedNetwork.segments.length; i++) {
+      const seg = prunedNetwork.segments[i];
+      streets.push({
+        id: seg.id,
+        name: seg.name,
+        type: 'street' as const,
+        x: seg.waypoints[0]?.x || 0,
+        y: seg.waypoints[0]?.z || 0,
+        parentId: districts[i % districts.length]?.id,
+        properties: {
+          direction: seg.direction,
+          width: seg.width,
+          waypoints: seg.waypoints,
+          nodeIds: seg.nodeIds,
+        },
+      });
     }
 
     // Update settlement with geography metadata including street network and boundary
@@ -947,23 +981,22 @@ export class GeographyGenerator {
       }
     }
     // Separate park placements from buildable placements
-    const parkPlacements = allPlacements.filter(p => p.zone === 'park');
-    const lotPlacements = allPlacements.filter(p => p.zone !== 'park');
+    // Tiny settlements (dwelling/roadhouse/homestead) don't have parks or town centers
+    const tinyTypes = new Set(['dwelling', 'roadhouse', 'homestead']);
+    const parkPlacements = tinyTypes.has(config.settlementType) ? [] : allPlacements.filter(p => p.zone === 'park');
+    const lotPlacements = tinyTypes.has(config.settlementType) ? allPlacements : allPlacements.filter(p => p.zone !== 'park');
 
-    // Clear existing lots, residences, and businesses for this settlement
+    // Clear existing lots, buildings, and businesses for this settlement
     // so regeneration replaces rather than duplicates.
     const existingLots = await storage.getLotsBySettlement(config.settlementId);
     if (existingLots.length > 0) {
-      for (const lot of existingLots) {
-        if (lot.buildingId) {
-          if (lot.buildingType === 'residence') {
-            await storage.deleteResidence(lot.buildingId);
-          } else {
-            await storage.deleteBusiness(lot.buildingId);
-          }
-        }
-        await storage.deleteLot(lot.id);
-      }
+      // Buildings and businesses are cascade-deleted via deleteSettlement,
+      // but for regeneration we clean up manually
+      const existingResidences = await storage.getResidencesBySettlement(config.settlementId);
+      for (const r of existingResidences) await storage.deleteResidence(r.id);
+      const existingBusinesses = await storage.getBusinessesBySettlement(config.settlementId);
+      for (const b of existingBusinesses) await storage.deleteBusiness(b.id);
+      for (const lot of existingLots) await storage.deleteLot(lot.id);
       console.log(`🧹 Cleared ${existingLots.length} existing lots for settlement ${config.settlementId}`);
     }
 
@@ -1016,7 +1049,6 @@ export class GeographyGenerator {
         houseNumber,
         streetName,
         districtName,
-        buildingType: isResidence ? 'residence' : 'business',
         positionX: placement.x,
         positionZ: placement.z,
         lotWidth,
@@ -1028,7 +1060,6 @@ export class GeographyGenerator {
         facingAngle,
         elevation,
         foundationType,
-        formerBuildingIds: [],
         _buildingIndex: lotDocs.length,
         _isResidence: isResidence,
         _buildingName: building.name,
@@ -1037,35 +1068,54 @@ export class GeographyGenerator {
       });
     }
 
-    // Add park lots — these are dedicated green spaces, not buildable lots
-    for (const placement of parkPlacements) {
+    // Decompose park placements into 4 sub-sections
+    // Layout: town square, grove, cemetery, grove (second grove fills the 4th quadrant)
+    const parkLayout: Array<{ type: string; suffix: string }> = [
+      { type: 'park', suffix: 'Town Square' },
+      { type: 'forest', suffix: 'Grove' },
+      { type: 'cemetery', suffix: 'Cemetery' },
+      { type: 'forest', suffix: 'Grove' },
+    ];
+    for (let pi = 0; pi < parkPlacements.length; pi++) {
+      const placement = parkPlacements[pi];
       const streetName = placement.streetName || 'Town Square';
-      lotDocs.push({
-        worldId: config.worldId,
-        settlementId: config.settlementId,
-        address: `${streetName} Park`,
-        houseNumber: 0,
-        streetName,
-        districtName: 'Town Center',
-        buildingType: 'park',
-        positionX: placement.x,
-        positionZ: placement.z,
-        lotWidth: placement.lotWidth,
-        lotDepth: placement.lotDepth,
-        streetEdgeId: placement.streetId,
-        distanceAlongStreet: 0,
-        side: placement.side,
-        blockId: null,
-        facingAngle: placement.facingAngle,
-        elevation: 0,
-        foundationType: 'flat',
-        formerBuildingIds: [],
-        _buildingIndex: -1,
-        _isResidence: false,
-        _buildingName: `${streetName} Park`,
-        _floors: 0,
-        _built: config.foundedYear,
-      });
+      const subLotSize = Math.min(placement.lotWidth, placement.lotDepth) / 2;
+      const offsets = [
+        { dx: -subLotSize / 2, dz: -subLotSize / 2 },
+        { dx: subLotSize / 2, dz: -subLotSize / 2 },
+        { dx: -subLotSize / 2, dz: subLotSize / 2 },
+        { dx: subLotSize / 2, dz: subLotSize / 2 },
+      ];
+      // Always create all 4 sub-lots
+      for (let si = 0; si < 4; si++) {
+        const subType = parkLayout[si];
+        lotDocs.push({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          address: `${streetName} ${subType.suffix}`,
+          houseNumber: 0,
+          streetName,
+          districtName: 'Town Center',
+          lotType: subType.type,
+          name: `${streetName} ${subType.suffix}`,
+          positionX: placement.x + offsets[si].dx,
+          positionZ: placement.z + offsets[si].dz,
+          lotWidth: subLotSize,
+          lotDepth: subLotSize,
+          streetEdgeId: placement.streetId,
+          distanceAlongStreet: 0,
+          side: placement.side,
+          blockId: null,
+          facingAngle: placement.facingAngle,
+          elevation: 0,
+          foundationType: 'flat',
+          _buildingIndex: -1,
+          _isResidence: false,
+          _buildingName: `${streetName} ${subType.suffix}`,
+          _floors: 0,
+          _built: config.foundedYear,
+        });
+      }
     }
 
     // Bulk-insert lots
@@ -1073,7 +1123,7 @@ export class GeographyGenerator {
       lotDocs.map(({ _buildingIndex, _isResidence, _buildingName, _floors, _built, ...lot }) => lot)
     );
 
-    // Create residences and businesses referencing the lot IDs
+    // Embed buildings directly into the lots
     for (let i = 0; i < createdLots.length; i++) {
       const lot = createdLots[i];
       const meta = lotDocs[i];
@@ -1083,51 +1133,27 @@ export class GeographyGenerator {
 
       if (meta._isResidence) {
         const residenceType = this.getResidenceType(config.settlementType || 'town', meta._buildingIndex);
-        residenceDocs.push({
-          worldId: config.worldId,
-          settlementId: config.settlementId,
-          lotId: lot.id,
-          address: lot.address,
-          residenceType,
-          ownerIds: [],
-          residentIds: [],
+        await storage.updateLot(lot.id, {
+          building: {
+            buildingCategory: 'residence',
+            residenceType,
+            ownerIds: [],
+            residentIds: [],
+          }
         });
       } else {
-        businessDocs.push({
-          worldId: config.worldId,
-          settlementId: config.settlementId,
-          lotId: lot.id,
-          name: meta._buildingName,
-          businessType: this.inferBusinessType(meta._buildingName),
-          ownerId: null,
-          founderId: null,
-          foundedYear: meta._built,
-          address: lot.address,
+        await storage.updateLot(lot.id, {
+          building: {
+            buildingCategory: 'business',
+            name: meta._buildingName,
+            businessType: this.inferBusinessType(meta._buildingName),
+            ownerId: null,
+            founderId: null,
+            foundedYear: meta._built,
+            isOutOfBusiness: false,
+            vacancies: [],
+          }
         });
-      }
-    }
-
-    if (residenceDocs.length > 0) {
-      const createdResidences = await (storage as any).createResidencesInBulk(residenceDocs);
-      let resIdx = 0;
-      for (let i = 0; i < createdLots.length; i++) {
-        if (lotDocs[i]._buildingIndex === -1) continue; // Skip park lots
-        if (lotDocs[i]._isResidence) {
-          await storage.updateLot(createdLots[i].id, { buildingId: createdResidences[resIdx].id });
-          resIdx++;
-        }
-      }
-    }
-
-    if (businessDocs.length > 0) {
-      const createdBusinesses = await (storage as any).createBusinessesInBulk(businessDocs);
-      let bizIdx = 0;
-      for (let i = 0; i < createdLots.length; i++) {
-        if (lotDocs[i]._buildingIndex === -1) continue; // Skip park lots
-        if (!lotDocs[i]._isResidence) {
-          await storage.updateLot(createdLots[i].id, { buildingId: createdBusinesses[bizIdx].id });
-          bizIdx++;
-        }
       }
     }
 
@@ -1223,10 +1249,10 @@ export class GeographyGenerator {
    */
   private getDistrictCount(type: string): number {
     switch (type) {
-      case 'dwelling': return 1;
-      case 'roadhouse': return 1;
-      case 'homestead': return 1;
-      case 'hamlet': return 1;
+      case 'dwelling': case 'roadhouse': case 'homestead':
+      case 'landing': case 'forge': case 'chapel':
+        return 1;
+      case 'market': case 'hamlet': return 1;
       case 'village': return 2;
       case 'town': return 4;
       case 'city': return 8;
@@ -1360,9 +1386,10 @@ export class GeographyGenerator {
    */
   private getMapSize(type: string): number {
     switch (type) {
-      case 'dwelling': return 100;
-      case 'roadhouse': return 100;
+      case 'dwelling': case 'roadhouse': return 100;
+      case 'landing': case 'forge': case 'chapel': return 100;
       case 'homestead': return 150;
+      case 'market': return 150;
       case 'hamlet': return 300;
       case 'village': return 500;
       case 'town': return 1000;
@@ -1376,9 +1403,10 @@ export class GeographyGenerator {
    */
   private getBuildingsPerStreet(type: string): number {
     switch (type) {
-      case 'dwelling': return 1;
-      case 'roadhouse': return 1;
+      case 'dwelling': case 'roadhouse': return 1;
+      case 'landing': case 'forge': case 'chapel': return 1;
       case 'homestead': return 1;
+      case 'market': return 2;
       case 'hamlet': return 3;
       case 'village': return 5;
       case 'town': return 10;

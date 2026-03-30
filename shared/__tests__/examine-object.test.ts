@@ -101,7 +101,7 @@ describe('examine_object action', () => {
      * its display data. This mirrors what BabylonGame.handleExamineObject does.
      */
     function resolveExamineData(
-      worldItems: Array<{ objectRole?: string; name?: string; description?: string; id?: string; languageLearningData?: { targetWord: string; targetLanguage: string; pronunciation?: string; category?: string } }>,
+      worldItems: Array<{ objectRole?: string; name?: string; description?: string; id?: string; translations?: { targetWord: string; targetLanguage: string; pronunciation?: string; category?: string } }>,
       objectRole: string,
       isLangWorld: boolean,
     ) {
@@ -110,7 +110,7 @@ describe('examine_object action', () => {
         (item) => item.objectRole && item.objectRole.toLowerCase() === role
       );
       const itemName = dbItem?.name || role.split(/[_\s]+/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-      const langData = dbItem?.languageLearningData;
+      const langData = dbItem?.translations;
 
       if (isLangWorld && langData?.targetWord) {
         const pronunciation = langData.pronunciation ? ` [${langData.pronunciation}]` : '';
@@ -143,7 +143,7 @@ describe('examine_object action', () => {
         objectRole: 'apple',
         name: 'Apple',
         id: 'item_1',
-        languageLearningData: {
+        translations: {
           targetWord: 'nakasi',
           targetLanguage: 'Chitimacha',
           pronunciation: 'na-KA-si',
@@ -164,7 +164,7 @@ describe('examine_object action', () => {
         objectRole: 'apple',
         name: 'Apple',
         description: 'A red apple',
-        languageLearningData: {
+        translations: {
           targetWord: 'nakasi',
           targetLanguage: 'Chitimacha',
           pronunciation: 'na-KA-si',
@@ -190,7 +190,7 @@ describe('examine_object action', () => {
         objectRole: 'book',
         name: 'Book',
         id: 'item_book',
-        languageLearningData: {
+        translations: {
           targetWord: 'libro',
           targetLanguage: 'Spanish',
           category: 'objects',
@@ -208,7 +208,7 @@ describe('examine_object action', () => {
         objectRole: 'Bread_Loaf',
         name: 'Bread Loaf',
         id: 'item_bread',
-        languageLearningData: {
+        translations: {
           targetWord: 'pan',
           targetLanguage: 'Spanish',
           category: 'food',

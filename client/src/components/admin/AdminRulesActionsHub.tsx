@@ -16,6 +16,7 @@ import {
 import { PrologSyntaxHighlight } from "../prolog/PrologSyntaxHighlight";
 import { getAnimationForAction, isValidAnimationClip, type ActionAnimationEntry } from "@shared/game-engine/action-animation-map";
 import { ANIMATION_CATALOG } from "@shared/game-engine/animation-registry";
+import { ActionAnimationPreview } from "./ActionAnimationPreview";
 
 interface BaseResource {
   id: string;
@@ -412,57 +413,7 @@ export function AdminRulesActionsHub({ mode }: AdminRulesActionsHubProps = {}) {
 
   const renderAnimationPreview = () => {
     if (!selectedAnimationEntry) return null;
-    const entry = selectedAnimationEntry;
-    const clipInfo = ANIMATION_CATALOG[entry.animationClip];
-    const fallbackInfo = ANIMATION_CATALOG[entry.animationFallback];
-    const clipValid = isValidAnimationClip(entry.animationClip);
-    const fallbackValid = isValidAnimationClip(entry.animationFallback);
-
-    return (
-      <div className="space-y-3">
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1">Animation Clip</p>
-          <div className="flex items-center gap-1.5">
-            <Play className="w-3 h-3 text-green-500" />
-            <span className="text-xs font-mono">{entry.animationClip}</span>
-            {clipValid
-              ? <Badge variant="outline" className="text-[9px] h-3.5 bg-green-500/10 text-green-500 border-green-500/20">OK</Badge>
-              : <Badge variant="outline" className="text-[9px] h-3.5 bg-red-500/10 text-red-500 border-red-500/20">Missing</Badge>
-            }
-          </div>
-          {clipInfo && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {clipInfo.description} ({clipInfo.duration}s, {clipInfo.loop ? 'loops' : 'one-shot'})
-            </p>
-          )}
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1">Fallback</p>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-mono">{entry.animationFallback}</span>
-            {fallbackValid
-              ? <Badge variant="outline" className="text-[9px] h-3.5 bg-green-500/10 text-green-500 border-green-500/20">OK</Badge>
-              : <Badge variant="outline" className="text-[9px] h-3.5 bg-red-500/10 text-red-500 border-red-500/20">Missing</Badge>
-            }
-          </div>
-          {fallbackInfo && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {fallbackInfo.description} ({fallbackInfo.duration}s)
-            </p>
-          )}
-        </div>
-        <div className="flex gap-3">
-          <div>
-            <p className="text-[10px] text-muted-foreground">Category</p>
-            <Badge variant="secondary" className="text-[10px] capitalize">{entry.category}</Badge>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Loop</p>
-            <span className="text-xs">{entry.loop ? 'Yes' : 'No'}</span>
-          </div>
-        </div>
-      </div>
-    );
+    return <ActionAnimationPreview entry={selectedAnimationEntry} height={200} />;
   };
 
   const renderRight = () => {

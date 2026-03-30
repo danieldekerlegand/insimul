@@ -652,11 +652,12 @@ export async function generateAndPersistWorldInventories(
       for (const item of inventory.items) {
         const translation = translationMap.get(item.name);
         if (translation) {
-          item.languageLearningData = {
-            targetWord: translation.targetWord,
-            targetLanguage,
-            pronunciation: translation.pronunciation,
-            category: item.category || 'general',
+          item.translations = {
+            [targetLanguage]: {
+              targetWord: translation.targetWord,
+              pronunciation: translation.pronunciation,
+              category: item.category || 'general',
+            },
           };
           translatedCount++;
         }

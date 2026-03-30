@@ -387,6 +387,17 @@ export class LanguageProgressTracker {
     const turns = conv.turns || 0;
     const wordsUsed = conv.wordsUsed?.length || 0;
 
+    // Require at least 1 player turn for meaningful progress.
+    // Without this, opening and immediately closing a chat awards free XP/fluency.
+    if (turns < 1) {
+      this.currentConversation = null;
+      this.conversationGrammarCorrect = 0;
+      this.conversationGrammarErrors = 0;
+      this.conversationNewWords = [];
+      this.conversationReinforcedWords = new Set();
+      return null;
+    }
+
     // Calculate target language usage percentage
     conv.targetLanguagePercentage = turns > 0 ? Math.min(100, (wordsUsed / turns) * 50) : 0;
 
@@ -394,7 +405,7 @@ export class LanguageProgressTracker {
     const totalGrammarTurns = this.conversationGrammarCorrect + this.conversationGrammarErrors;
     const grammarScore = totalGrammarTurns > 0
       ? this.conversationGrammarCorrect / totalGrammarTurns
-      : 1.0; // Default to 1.0 if no target language was used (no penalty)
+      : 0; // Default to 0 when no grammar data — don't reward lack of engagement
 
     // Store grammar stats on conversation record
     conv.grammarErrorCount = this.conversationGrammarErrors;
@@ -523,12 +534,13 @@ export class LanguageProgressTracker {
 
   /**
    * Spaced repetition: get words due for review.
-   * A word is "due" if it hasn't been encountered in the last N conversations
-   * (scaled by mastery: new=2, learning=3, familiar=5, mastered=8).
+   * Base intervals scale by mastery level. Error frequency shortens the
+   * interval — words the player gets wrong often come back sooner.
+   * Words used correctly consistently get longer intervals.
    */
   public getWordsDueForReview(): VocabularyEntry[] {
     const now = Date.now();
-    const intervalMs: Record<string, number> = {
+    const baseIntervalMs: Record<string, number> = {
       new: 2 * 60 * 60 * 1000,       // 2 hours
       learning: 8 * 60 * 60 * 1000,   // 8 hours
       familiar: 24 * 60 * 60 * 1000,  // 1 day
@@ -536,9 +548,23 @@ export class LanguageProgressTracker {
     };
 
     return this.progress.vocabulary.filter(v => {
-      const interval = intervalMs[v.masteryLevel] || intervalMs.learning;
+      const base = baseIntervalMs[v.masteryLevel] || baseIntervalMs.learning;
+      // Error ratio shrinks the interval: more errors → review sooner
+      const totalAttempts = v.timesUsedCorrectly + v.timesUsedIncorrectly;
+      const errorRatio = totalAttempts > 0
+        ? v.timesUsedIncorrectly / totalAttempts
+        : 0.5; // untested words treated as moderately urgent
+      // Scale: 0 errors → 1.5x interval, 100% errors → 0.25x interval
+      const errorMultiplier = 1.5 - (errorRatio * 1.25);
+      const interval = base * Math.max(0.25, errorMultiplier);
       return (now - v.lastEncountered) > interval;
-    }).sort((a, b) => a.lastEncountered - b.lastEncountered); // oldest first
+    }).sort((a, b) => {
+      // Prioritize high-error words first, then oldest
+      const aErrors = a.timesUsedIncorrectly / Math.max(1, a.timesUsedCorrectly + a.timesUsedIncorrectly);
+      const bErrors = b.timesUsedIncorrectly / Math.max(1, b.timesUsedCorrectly + b.timesUsedIncorrectly);
+      if (Math.abs(aErrors - bErrors) > 0.2) return bErrors - aErrors;
+      return a.lastEncountered - b.lastEncountered;
+    });
   }
 
   /**

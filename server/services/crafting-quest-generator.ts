@@ -43,7 +43,7 @@ export interface CraftableItemInfo {
     requiredLevel: number;
     requiredStation?: string;
   } | null;
-  languageLearningData?: {
+  translations?: {
     targetWord: string;
     targetLanguage: string;
     pronunciation: string;

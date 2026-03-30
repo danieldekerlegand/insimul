@@ -113,9 +113,12 @@ export interface SpawnResult {
 export async function spawnMainQuestNPCs(
   worldId: string,
   targetLanguage?: string,
+  settlementId?: string,
 ): Promise<SpawnResult> {
   const existingCharacters = await storage.getCharactersByWorld(worldId);
   const businesses = await storage.getBusinessesByWorld(worldId);
+  // Resolve settlement ID for currentLocation
+  const resolvedSettlementId = settlementId || (await storage.getSettlementsByWorld(worldId))[0]?.id;
 
   // Check which roles already exist
   const existingRoles = new Set<string>();
@@ -158,8 +161,6 @@ export async function spawnMainQuestNPCs(
     // Pick a gender (alternate)
     const gender = result.created % 2 === 0 ? 'male' : 'female';
 
-    const location = business?.name ?? 'town center';
-
     const insertData: InsertCharacter & { age?: number; occupation?: string } = {
       worldId,
       firstName,
@@ -168,7 +169,7 @@ export async function spawnMainQuestNPCs(
       birthYear: 1970,
       isAlive: true,
       personality: def.personality,
-      currentLocation: location,
+      currentLocation: resolvedSettlementId || worldId,
       occupation: def.occupation,
       status: 'active',
       generationMethod: 'insimul',

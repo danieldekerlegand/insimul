@@ -29,6 +29,7 @@ interface ChapterEntry {
 export function buildInvestigationBoard(
   state: MainQuestState,
   chapters: ChapterEntry[],
+  writerNameOverride?: string,
 ): InvestigationBoardData {
   const caseNotes = state.caseNotes ?? [];
 
@@ -70,9 +71,7 @@ export function buildInvestigationBoard(
     }
   }
 
-  // Writer name defaults to a placeholder — the actual name
-  // is set in the main quest chapters narrative
-  const writerName = 'The Missing Writer';
+  const writerName = writerNameOverride || 'The Missing Writer';
 
   return {
     writerName,

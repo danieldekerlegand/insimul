@@ -6,6 +6,7 @@ import {
   GamepadIcon, Clock, Activity, User, GraduationCap, Radio,
   ChevronRight, ChevronDown, BarChart3, Info, TrendingUp, MapPin, Layers, Shield,
   ArrowLeft, CheckCircle, XCircle, AlertCircle, Target, GitCompareArrows,
+  Heart, MessageSquare, Trash2,
 } from 'lucide-react';
 import { AssessmentDashboard } from './AssessmentDashboard';
 import { TelemetryMonitorDashboard } from './TelemetryMonitorDashboard';
@@ -18,6 +19,8 @@ interface Playthrough {
   userId: string;
   worldId: string;
   name?: string;
+  userName?: string;
+  userEmail?: string;
   status: string;
   currentTimestep?: number;
   playtime?: number;
@@ -50,12 +53,38 @@ interface ReputationEntry {
   warningCount?: number;
 }
 
+interface RelationshipEntry {
+  id: string;
+  sourceData: {
+    fromCharacterId: string;
+    toCharacterId: string;
+    type: string;
+    strength: number;
+    metadata?: any;
+  };
+}
+
+interface ConversationEntry {
+  id: string;
+  npcCharacterName?: string;
+  npcCharacterId: string;
+  turnCount: number;
+  targetLanguage?: string;
+  targetLanguagePercentage?: number;
+  fluencyGained?: number;
+  topics?: string[];
+  startedAt?: string;
+  durationMs?: number;
+}
+
 interface JourneyData {
   playthrough: Playthrough;
   summary: {
     totalTraces: number;
     totalDeltas: number;
     totalReputations: number;
+    totalRelationships: number;
+    totalConversations: number;
     avgDurationMs: number | null;
     uniqueLocations: number;
     uniqueActionTypes: number;
@@ -66,6 +95,8 @@ interface JourneyData {
   deltaBreakdown: Record<string, { creates: number; updates: number; deletes: number }>;
   actionsPerTimestep: Record<string, number>;
   reputations: ReputationEntry[];
+  relationships: RelationshipEntry[];
+  conversations: ConversationEntry[];
   timeline: TimelineEvent[];
 }
 
@@ -74,7 +105,7 @@ interface PlaythroughAnalyticsProps {
 }
 
 type ActiveView = 'overview' | 'playthroughs' | 'comparison' | 'assessments' | 'learning_progress' | 'telemetry';
-type DetailTab = 'timeline' | 'actions' | 'locations' | 'changes' | 'reputations';
+type DetailTab = 'timeline' | 'actions' | 'locations' | 'changes' | 'reputations' | 'relationships' | 'conversations';
 type RightPanel = 'summary' | 'details';
 
 const VIEW_META: Record<ActiveView, { label: string; icon: typeof Activity; group: string }> = {
@@ -94,6 +125,8 @@ const DETAIL_TABS: { id: DetailTab; label: string; icon: typeof Activity }[] = [
   { id: 'locations', label: 'Locations', icon: MapPin },
   { id: 'changes', label: 'World Changes', icon: Layers },
   { id: 'reputations', label: 'Reputations', icon: Shield },
+  { id: 'relationships', label: 'Relationships', icon: Heart },
+  { id: 'conversations', label: 'Conversations', icon: MessageSquare },
 ];
 
 const OUTCOME_ICONS: Record<string, typeof CheckCircle> = {
@@ -189,6 +222,22 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
       setJourneyData(null);
     }
   }, [loadJourneyData]);
+
+  const deleteItem = useCallback(async (type: 'truths' | 'deltas' | 'conversations', itemId: string) => {
+    if (!selectedPlaythrough || !token) return;
+    try {
+      const res = await fetch(`/api/playthroughs/${selectedPlaythrough.id}/${type}/${itemId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        // Refresh journey data
+        loadJourneyData(selectedPlaythrough.id);
+      }
+    } catch (e) {
+      console.error(`Failed to delete ${type} item:`, e);
+    }
+  }, [selectedPlaythrough, token, loadJourneyData]);
 
   const formatDuration = (seconds: number | undefined) => {
     if (!seconds) return '0m';
@@ -379,6 +428,8 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
         {detailTab === 'locations' && renderLocationVisits()}
         {detailTab === 'changes' && renderWorldChanges()}
         {detailTab === 'reputations' && renderReputations()}
+        {detailTab === 'relationships' && renderRelationships()}
+        {detailTab === 'conversations' && renderConversations()}
       </>
     );
   };
@@ -437,6 +488,13 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                     <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
                       T{event.timestep}
                     </span>
+                    <button
+                      className="text-muted-foreground/40 hover:text-destructive transition-colors shrink-0"
+                      title="Delete this event"
+                      onClick={() => deleteItem('truths', event.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
                   {event.narrativeText && (
                     <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 pl-5">
@@ -641,9 +699,14 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                       <span className="font-medium capitalize">{rep.entityType}</span>
                       <span className="text-muted-foreground"> / {rep.entityId.substring(0, 12)}...</span>
                     </div>
-                    <span className={`text-sm font-bold tabular-nums ${scoreColor}`}>
-                      {rep.score > 0 ? '+' : ''}{rep.score}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-bold tabular-nums ${scoreColor}`}>
+                        {rep.score > 0 ? '+' : ''}{rep.score}
+                      </span>
+                      <button className="text-muted-foreground/40 hover:text-destructive transition-colors" title="Delete" onClick={() => deleteItem('truths', rep.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   {/* Score bar centered at 0 */}
                   <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden flex">
@@ -674,6 +737,106 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
               );
             })}
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRelationships = () => {
+    const rels = journeyData!.relationships || [];
+    if (rels.length === 0) {
+      return <p className="text-sm text-muted-foreground">No relationship data recorded.</p>;
+    }
+
+    return (
+      <div className="space-y-4">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Relationships ({rels.length})
+        </h4>
+        <div className="space-y-1.5">
+          {rels.sort((a, b) => (b.sourceData?.strength || 0) - (a.sourceData?.strength || 0)).map(rel => {
+            const data = rel.sourceData || {} as any;
+            const strength = data.strength || 0;
+            const scoreColor = strength > 0.3 ? 'text-green-600 dark:text-green-400'
+              : strength < -0.3 ? 'text-red-600 dark:text-red-400'
+              : 'text-muted-foreground';
+            const barWidth = Math.min(100, Math.abs(strength) * 100);
+            const isPositive = strength >= 0;
+
+            return (
+              <div key={rel.id} className="bg-muted/20 rounded p-2">
+                <div className="flex justify-between items-center mb-1">
+                  <div className="text-xs">
+                    <span className="font-medium capitalize">{data.type || 'unknown'}</span>
+                    <span className="text-muted-foreground"> {data.fromCharacterId?.substring(0, 8)}... &rarr; {data.toCharacterId?.substring(0, 8)}...</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold tabular-nums ${scoreColor}`}>
+                      {strength > 0 ? '+' : ''}{strength.toFixed(2)}
+                    </span>
+                    <button className="text-muted-foreground/40 hover:text-destructive transition-colors" title="Delete" onClick={() => deleteItem('truths', rel.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden flex">
+                  <div className="w-1/2 flex justify-end">
+                    {!isPositive && (
+                      <div className="h-full bg-red-500/60 rounded-l-full" style={{ width: `${barWidth}%` }} />
+                    )}
+                  </div>
+                  <div className="w-1/2">
+                    {isPositive && (
+                      <div className="h-full bg-green-500/60 rounded-r-full" style={{ width: `${barWidth}%` }} />
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderConversations = () => {
+    const convos = journeyData!.conversations || [];
+    if (convos.length === 0) {
+      return <p className="text-sm text-muted-foreground">No conversations recorded.</p>;
+    }
+
+    return (
+      <div className="space-y-4">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          NPC Conversations ({convos.length})
+        </h4>
+        <div className="space-y-1.5">
+          {convos.map((convo: any) => (
+            <div key={convo.id} className="bg-muted/20 rounded p-2">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-medium">{convo.npcCharacterName || convo.npcCharacterId?.substring(0, 12) || 'Unknown NPC'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">{convo.turnCount || 0} turns</span>
+                  <button className="text-muted-foreground/40 hover:text-destructive transition-colors" title="Delete" onClick={() => deleteItem('conversations', convo.id)}>
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-muted-foreground">
+                {convo.targetLanguage && <span>Language: {convo.targetLanguage}</span>}
+                {convo.targetLanguagePercentage != null && <span>{Math.round(convo.targetLanguagePercentage)}% target language</span>}
+                {convo.fluencyGained ? <span className="text-green-600 dark:text-green-400">+{convo.fluencyGained.toFixed(1)} fluency</span> : null}
+                {convo.durationMs ? <span>{Math.round(convo.durationMs / 1000)}s</span> : null}
+              </div>
+              {convo.topics?.length > 0 && (
+                <div className="flex gap-1 mt-1 flex-wrap">
+                  {convo.topics.map((t: string) => (
+                    <Badge key={t} variant="outline" className="text-[9px] px-1 py-0">{t}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -867,9 +1030,9 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                         </Badge>
                       </div>
                       <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                        <span>{p.userName || p.userId.substring(0, 12)}</span>
                         <span>{p.actionsCount || 0} actions</span>
                         <span>{formatDuration(p.playtime)}</span>
-                        <span>Started {formatDate(p.createdAt)}</span>
                       </div>
                     </button>
                   ))}
@@ -893,13 +1056,35 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <h2 className="text-lg font-bold break-words">{selectedPlaythrough.name || 'Unnamed Playthrough'}</h2>
+            <h2 className="text-lg font-bold break-words flex-1">{selectedPlaythrough.name || 'Unnamed Playthrough'}</h2>
             <Badge variant={selectedPlaythrough.status === 'active' ? 'default' : 'secondary'}>
               {selectedPlaythrough.status}
             </Badge>
+            <button
+              className="text-muted-foreground hover:text-destructive transition-colors ml-2"
+              title="Delete playthrough"
+              onClick={async () => {
+                if (!confirm(`Delete "${selectedPlaythrough.name || 'Unnamed Playthrough'}" and all its data? This cannot be undone.`)) return;
+                try {
+                  const res = await fetch(`/api/playthroughs/${selectedPlaythrough.id}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  if (res.ok) {
+                    setPlaythroughs(prev => prev.filter(p => p.id !== selectedPlaythrough.id));
+                    selectPlaythrough(null);
+                  }
+                } catch (e) {
+                  console.error('Failed to delete playthrough:', e);
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
           <p className="text-xs text-muted-foreground pl-6">
-            Player: {selectedPlaythrough.userId.substring(0, 12)}...
+            Player: {selectedPlaythrough.userName || selectedPlaythrough.userId}
+            {selectedPlaythrough.userEmail && <span className="ml-2 opacity-60">({selectedPlaythrough.userEmail})</span>}
           </p>
         </div>
 

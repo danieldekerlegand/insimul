@@ -95,8 +95,23 @@ export class QuestIndicatorManager {
     );
     if (activeQuest) return 'in_progress';
 
-    // Check if NPC can give quests (based on occupation or flag)
-    if (this.canNPCGiveQuests(npc)) return 'available';
+    // Check if NPC has visible available quests assigned to them
+    // (guild-gated: only show "!" if a quest they give is in the visible set)
+    // Status 'available' is used for guild-gated quests that are unlocked but not yet accepted
+    const hasVisibleQuest = quests.some(q =>
+      q.assignedByCharacterId === npc.id
+      && (q.status as string) === 'available'
+    );
+    if (hasVisibleQuest) return 'available';
+
+    // Fallback: check if NPC can give quests (occupation-based, for NPCs without pre-assigned quests)
+    if (this.canNPCGiveQuests(npc)) {
+      const hasUnassignedQuests = quests.some(q =>
+        !q.assignedByCharacterId
+        && (q.status as string) === 'available'
+      );
+      if (hasUnassignedQuests) return 'available';
+    }
 
     return null;
   }

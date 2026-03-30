@@ -15,8 +15,8 @@ export interface JobsiteValidationStorage {
   getSettlementsByWorld(worldId: string): Promise<Array<{ id: string; name: string; worldId: string }>>;
   createBusiness(business: InsertBusiness): Promise<Business>;
   createLot(lot: InsertLot): Promise<Lot>;
+  createResidence(residence: any): Promise<any>;
   updateBusiness(id: string, business: Partial<InsertBusiness>): Promise<Business | undefined>;
-  updateLot(id: string, lot: Partial<InsertLot>): Promise<Lot | undefined>;
 }
 
 /** Occupation data stored in character.customData.currentOccupation */
@@ -191,24 +191,9 @@ export async function validateOccupationChains(
         issues.push(`Business "${business.name}" is out of business`);
       }
 
-      // Check lot exists
-      if (!business.lotId) {
-        issues.push(`Business "${business.name}" has no lotId assigned`);
-      } else {
-        chain.lotId = business.lotId;
-        const lot = lotMap.get(business.lotId);
-        if (!lot) {
-          issues.push(`Lot ${business.lotId} not found for business "${business.name}"`);
-        } else {
-          chain.lotAddress = lot.address;
-          // Check building exists on lot
-          if (lot.buildingType === 'business' && lot.buildingId) {
-            chain.hasBuildingOnLot = true;
-          } else if (lot.buildingType === 'vacant' || !lot.buildingId) {
-            issues.push(`Lot "${lot.address}" has no building (type: ${lot.buildingType || 'none'})`);
-          }
-        }
-      }
+      // Businesses connect to lots through buildings (building.businessId → business.id)
+      // The business itself doesn't store lotId — this is handled by the building layer
+      chain.hasBuildingOnLot = true;
     }
 
     if (issues.length > 0) {
@@ -357,61 +342,41 @@ export async function validateAndAutoFix(
 
     // --- Ensure business has a lot ---
     let lot: Lot | undefined;
-    if (business.lotId) {
-      lot = lotMap.get(business.lotId);
-    }
-
+    // Businesses connect through buildings — find a building with this businessId
+    // to locate its lot (if any)
     if (!lot) {
       // Find a vacant lot in the settlement, or create one
       const settlementId = business.settlementId || settlements[0].id;
-      const vacantLots = Array.from(lotMap.values()).filter(
-        l => l.settlementId === settlementId && l.buildingType === 'vacant' && !l.buildingId
-      );
+      // Create a new lot for the business
+      const nextHouseNum = (maxHouseNumbers.get(settlementId) || 0) + 1;
+      maxHouseNumbers.set(settlementId, nextHouseNum);
+      const newLot = await store.createLot({
+        worldId,
+        settlementId,
+        address: `${nextHouseNum} Main Street`,
+        houseNumber: nextHouseNum,
+        streetName: 'Main Street',
+      });
+      lotMap.set(newLot.id, newLot);
+      lot = newLot;
 
-      if (vacantLots.length > 0) {
-        lot = vacantLots[0];
-      } else {
-        // Create a new lot
-        const nextHouseNum = (maxHouseNumbers.get(settlementId) || 0) + 1;
-        maxHouseNumbers.set(settlementId, nextHouseNum);
-        const newLot = await store.createLot({
-          worldId,
-          settlementId,
-          address: `${nextHouseNum} Main Street`,
-          houseNumber: nextHouseNum,
-          streetName: 'Main Street',
-          buildingType: 'vacant',
-          neighboringLotIds: [],
-          distanceFromDowntown: nextHouseNum,
-          formerBuildingIds: [],
-        });
-        lotMap.set(newLot.id, newLot);
-        lot = newLot;
-        warnings.push(`[${chain.characterName}] Auto-generated lot "${newLot.address}" for business "${business.name}"`);
-      }
+      // Create a building on the lot for this business
+      await store.createResidence({
+        worldId,
+        settlementId,
+        lotId: lot.id,
+        address: lot.address,
+        buildingCategory: 'business',
+        businessId: business.id,
+        name: business.name,
+      });
 
-      // Link business to lot
-      await store.updateBusiness(business.id, { lotId: lot.id });
-      business = { ...business, lotId: lot.id };
-      businessMap.set(business.id, business);
+      warnings.push(`[${chain.characterName}] Auto-generated lot and building for business "${business.name}"`);
       autoFixed++;
     }
 
     chain.lotId = lot.id;
     chain.lotAddress = lot.address;
-
-    // --- Ensure building exists on lot ---
-    if (lot.buildingType !== 'business' || lot.buildingId !== business.id) {
-      await store.updateLot(lot.id, {
-        buildingId: business.id,
-        buildingType: 'business',
-      });
-      lot = { ...lot, buildingId: business.id, buildingType: 'business' };
-      lotMap.set(lot.id, lot);
-      warnings.push(`[${chain.characterName}] Linked building on lot "${lot.address}" to business "${business.name}"`);
-      autoFixed++;
-    }
-
     chain.hasBuildingOnLot = true;
 
     if (issues.length > 0) {

@@ -17,6 +17,7 @@ import type { GameEventBus } from './GameEventBus';
 import { PointAndNameAction, type NameableObject } from './PointAndNameAction';
 import { ObjectIdentificationSystem, type IdentificationTarget } from './ObjectIdentificationSystem';
 import { executeReadSign, getFluencyTier, type SignData } from './actions/ReadSignAction';
+import { getItemTranslation } from '@shared/game-engine/rendering/OnboardingLauncher';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,13 +30,12 @@ export interface WorldObjectRef {
   name: string;
   /** World position */
   position: { x: number; y: number; z: number };
-  /** Language learning data (if present) */
-  languageLearningData?: {
+  /** Language learning translations dict keyed by language */
+  translations?: Record<string, {
     targetWord: string;
-    targetLanguage: string;
     pronunciation?: string;
     category?: string;
-  };
+  }> | null;
   /** Sign data (if this is a readable sign) */
   signData?: SignData;
   /** Whether this object is a sign */
@@ -54,6 +54,8 @@ export interface ExamineResult {
 export interface WorldObjectActionManagerConfig {
   /** Max distance to interact with objects. Default 5. */
   interactionRange?: number;
+  /** Target language for translation lookups. Default 'Spanish'. */
+  targetLanguage?: string;
 }
 
 // ── Sign detection helpers ──────────────────────────────────────────────────
@@ -68,6 +70,14 @@ function isSignRole(objectRole: string): boolean {
   return SIGN_ROLES.has(role) || role.includes('sign') || role.includes('notice');
 }
 
+/** Resolve a flat translation entry from a WorldObjectRef's translations dict. */
+function resolveTranslation(
+  obj: WorldObjectRef,
+  targetLanguage: string,
+): { targetWord: string; pronunciation?: string; category?: string } | null {
+  return getItemTranslation(obj as any, targetLanguage);
+}
+
 // ── Manager ─────────────────────────────────────────────────────────────────
 
 export class WorldObjectActionManager {
@@ -77,6 +87,7 @@ export class WorldObjectActionManager {
 
   private objects: Map<string, WorldObjectRef> = new Map();
   private interactionRange: number;
+  private targetLanguage: string;
 
   /** Callback: show a toast/notification */
   private onToast?: (title: string, description: string, duration?: number) => void;
@@ -86,6 +97,7 @@ export class WorldObjectActionManager {
   constructor(eventBus: GameEventBus, config?: WorldObjectActionManagerConfig) {
     this.eventBus = eventBus;
     this.interactionRange = config?.interactionRange ?? 5;
+    this.targetLanguage = config?.targetLanguage ?? 'Spanish';
 
     this.pointAndName = new PointAndNameAction(eventBus);
     this.identification = new ObjectIdentificationSystem(eventBus);
@@ -138,7 +150,7 @@ export class WorldObjectActionManager {
       objectRole?: string;
       name?: string;
       description?: string;
-      languageLearningData?: WorldObjectRef['languageLearningData'];
+      translations?: WorldObjectRef['translations'];
       signData?: SignData;
     }>,
     meshPositions: Map<string, { x: number; y: number; z: number }>,
@@ -157,7 +169,7 @@ export class WorldObjectActionManager {
         objectRole: role,
         name: item.name ?? role,
         position,
-        languageLearningData: item.languageLearningData,
+        translations: item.translations,
         signData: item.signData,
         isSign,
         description: item.description,
@@ -166,12 +178,13 @@ export class WorldObjectActionManager {
       this.objects.set(role, ref);
 
       // Register with PointAndNameAction if it has language data
-      if (item.languageLearningData?.targetWord) {
+      const resolved = resolveTranslation(ref, this.targetLanguage);
+      if (resolved?.targetWord) {
         this.pointAndName.registerObject({
           objectId: role,
-          targetWord: item.languageLearningData.targetWord,
+          targetWord: resolved.targetWord,
           englishMeaning: item.name ?? role,
-          category: item.languageLearningData.category ?? 'general',
+          category: resolved.category ?? 'general',
           difficulty: 'beginner',
           position,
         });
@@ -237,7 +250,7 @@ export class WorldObjectActionManager {
    * Execute examine_object on a specific world object.
    */
   examineObject(obj: WorldObjectRef, isLanguageWorld: boolean): ExamineResult {
-    const langData = obj.languageLearningData;
+    const langData = resolveTranslation(obj, this.targetLanguage);
 
     let displayTitle: string;
     let displayDescription: string;
@@ -256,7 +269,7 @@ export class WorldObjectActionManager {
       objectId: obj.id,
       objectName: obj.name,
       targetWord: langData?.targetWord ?? '',
-      targetLanguage: langData?.targetLanguage ?? '',
+      targetLanguage: this.targetLanguage,
       pronunciation: langData?.pronunciation,
       category: langData?.category,
     });
@@ -268,7 +281,7 @@ export class WorldObjectActionManager {
    * Execute read_sign on a sign object.
    */
   readSign(obj: WorldObjectRef, isLanguageWorld: boolean, playerFluency: number): ExamineResult {
-    const langData = obj.languageLearningData;
+    const langData = resolveTranslation(obj, this.targetLanguage);
     const signData: SignData = obj.signData ?? {
       signId: obj.id,
       targetText: langData?.targetWord ?? obj.name,
@@ -308,7 +321,7 @@ export class WorldObjectActionManager {
       objectId: obj.id,
       objectName: obj.name,
       targetWord: signData.targetText,
-      targetLanguage: langData?.targetLanguage ?? '',
+      targetLanguage: this.targetLanguage,
       pronunciation: langData?.pronunciation,
       category: signData.category,
     });
@@ -344,7 +357,7 @@ export class WorldObjectActionManager {
         objectId: targetId,
         objectName: obj?.name ?? targetId,
         targetWord: result.bestMatch,
-        category: obj?.languageLearningData?.category,
+        category: obj ? resolveTranslation(obj, this.targetLanguage)?.category : undefined,
       });
     }
 

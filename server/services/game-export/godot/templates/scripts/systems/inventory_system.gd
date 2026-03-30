@@ -14,7 +14,8 @@ signal gold_changed(new_gold: int)
 ## Item types matching Insimul's shared ItemType enum.
 const ITEM_TYPES: Array[String] = [
 	"quest", "collectible", "key", "consumable", "weapon", "armor",
-	"food", "drink", "material", "tool",
+	"food", "drink", "material", "tool", "document", "environmental",
+	"decoration", "furniture", "equipment", "container", "accessory", "ammunition",
 ]
 
 ## Equipment slot names.
@@ -37,7 +38,7 @@ var _language_learning := false
 ## Each slot Dictionary may contain:
 ##   id, name, description, type, quantity, icon, quest_id, value, sell_value,
 ##   weight, tradeable, equipped, effects, equip_slot, category, material,
-##   base_type, rarity, possessable, language_learning_data
+##   base_type, rarity, possessable, translations
 var _slots: Array[Dictionary] = []
 
 ## Equipped items by slot name ("weapon", "armor", "accessory")
@@ -62,14 +63,23 @@ func is_language_learning() -> bool:
 	return _language_learning
 
 ## Get the display name for an item, using target language when available.
-## When language-learning mode is active and the item has language_learning_data
-## with a non-empty target_word, returns the target word. Otherwise returns the item name.
-func get_display_name(item: Dictionary) -> String:
+## translations is a Dictionary keyed by language, e.g. { "French": { "target_word": "Épée", ... } }
+func get_display_name(item: Dictionary, target_language: String = "") -> String:
 	if _language_learning:
-		var lang_data: Dictionary = item.get("language_learning_data", {})
-		var target_word: String = lang_data.get("target_word", "")
-		if not target_word.is_empty():
-			return target_word
+		var translations: Dictionary = item.get("translations", {})
+		if not translations.is_empty():
+			# Use specified language if available
+			if not target_language.is_empty() and translations.has(target_language):
+				var entry: Dictionary = translations[target_language]
+				var tw: String = entry.get("target_word", "")
+				if not tw.is_empty():
+					return tw
+			# Fallback: first available translation
+			for lang in translations:
+				var entry: Dictionary = translations[lang]
+				var tw: String = entry.get("target_word", "")
+				if not tw.is_empty():
+					return tw
 	return item.get("name", item.get("id", ""))
 
 # --- Item Management ---
@@ -140,8 +150,8 @@ func use_item(item_id: String) -> bool:
 		if slot_id == item_id:
 			var item_type: String = str(slot.get("type", "collectible"))
 
-			# Quest and key items: emit event without consuming
-			if item_type == "quest" or item_type == "key":
+			# Quest, key, document, collectible items: emit event without consuming
+			if item_type in ["quest", "key", "document", "collectible"]:
 				item_used.emit(slot.duplicate())
 				return true
 

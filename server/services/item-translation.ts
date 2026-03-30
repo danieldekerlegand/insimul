@@ -3,7 +3,7 @@
  *
  * Batch-translates item names and descriptions into a target language
  * using the LLM provider interface, and stores the results as
- * `languageLearningData` on each item. This pre-generation avoids
+ * `translations` on each item. This pre-generation avoids
  * runtime translation costs during gameplay.
  */
 

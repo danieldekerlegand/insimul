@@ -39,7 +39,11 @@ FString UInventorySystem::GetDisplayName(const FInsimulInventoryItem& Item) cons
 {
     if (bLanguageLearning && Item.HasLanguageLearningData())
     {
-        return Item.TargetWord;
+        // Return first available translation word
+        for (const auto& Pair : Item.TranslationWords)
+        {
+            if (!Pair.Value.IsEmpty()) return Pair.Value;
+        }
     }
     return Item.Name;
 }
@@ -127,8 +131,9 @@ bool UInventorySystem::UseItem(const FString& ItemId)
     FInsimulInventoryItem* Existing = FindItem(ItemId);
     if (!Existing) return false;
 
-    // Quest and key items: emit event without consuming
-    if (Existing->Type == EInsimulItemType::Quest || Existing->Type == EInsimulItemType::Key)
+    // Quest, key, and document items: emit event without consuming
+    if (Existing->Type == EInsimulItemType::Quest || Existing->Type == EInsimulItemType::Key ||
+        Existing->Type == EInsimulItemType::Document || Existing->Type == EInsimulItemType::Collectible)
     {
         OnItemUsed.Broadcast(*Existing);
         return true;

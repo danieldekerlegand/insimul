@@ -21,10 +21,17 @@ namespace Insimul.UI
         [SerializeField] private GameObject _userMessagePrefab;
         [SerializeField] private GameObject _npcMessagePrefab;
 
+        [Header("Gesture Panel")]
+        [SerializeField] private GameObject _gesturePanel;
+        [SerializeField] private Button[] _gestureButtons;
+
         private string _currentCharacterId;
         private TMP_Text _streamingMessageText;
         private bool _isStreaming;
         private List<GameObject> _messageObjects = new();
+
+        // Callbacks
+        public event System.Action<string> OnGesturePerformed;
 
         public bool IsOpen => _panel != null && _panel.activeSelf;
 
@@ -49,6 +56,7 @@ namespace Insimul.UI
             _panel.SetActive(true);
             _inputField.text = "";
             _inputField.ActivateInputField();
+            ShowGesturePanel();
 
             // Show greeting
             if (ctx != null && !string.IsNullOrEmpty(ctx.greeting))
@@ -62,6 +70,25 @@ namespace Insimul.UI
             _panel.SetActive(false);
             _currentCharacterId = null;
             _isStreaming = false;
+            HideGesturePanel();
+        }
+
+        /// <summary>
+        /// Perform a non-verbal gesture during conversation.
+        /// </summary>
+        public void PerformGesture(string gestureId)
+        {
+            OnGesturePerformed?.Invoke(gestureId);
+        }
+
+        private void ShowGesturePanel()
+        {
+            if (_gesturePanel != null) _gesturePanel.SetActive(true);
+        }
+
+        private void HideGesturePanel()
+        {
+            if (_gesturePanel != null) _gesturePanel.SetActive(false);
         }
 
         private void OnSendClicked()

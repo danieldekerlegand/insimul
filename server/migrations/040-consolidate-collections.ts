@@ -351,6 +351,13 @@ async function run() {
     'languagechatmessages',
     // Character templates merged into characters with isTemplate=true
     'charactertemplates',
+    // Buildings and businesses merged into lots as embedded fields
+    'buildings',
+    'businesses',
+    // Lots renamed to locations, geographic features merged in, containers removed
+    'lots',
+    'geographicfeatures',
+    'containers',
   ];
 
   console.log(`\nDropping ${toDrop.length} old collections...`);

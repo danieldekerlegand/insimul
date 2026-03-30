@@ -290,7 +290,7 @@ describe('ContainerSpawnSystem', () => {
     });
   });
 
-  // ── French names and languageLearningData ─────────────────────────────
+  // ── French names and translations ─────────────────────────────
 
   describe('French loot items', () => {
     const buildingTypes = ['tavern', 'bakery', 'library', 'church', 'farm', 'blacksmith', 'shop', 'workshop', 'warehouse', 'residence', 'outdoor', '_default'];
@@ -312,14 +312,14 @@ describe('ContainerSpawnSystem', () => {
       });
     }
 
-    it('generated items include languageLearningData', () => {
+    it('generated items include translations', () => {
       const items = generateContainerItems('chest', 'bakery', 'lang_test');
       for (const item of items) {
         if (item.type !== 'quest_item') {
-          expect(item.languageLearningData).toBeDefined();
-          expect(item.languageLearningData!.targetLanguage).toBe('French');
-          expect(item.languageLearningData!.targetWord).toBeTruthy();
-          expect(item.languageLearningData!.pronunciation).toBeTruthy();
+          expect(item.translations).toBeDefined();
+          expect(item.translations!.targetLanguage).toBe('French');
+          expect(item.translations!.targetWord).toBeTruthy();
+          expect(item.translations!.pronunciation).toBeTruthy();
         }
       }
     });
@@ -452,7 +452,7 @@ describe('ContainerSpawnSystem', () => {
         if (clue) {
           expect(clue.tradeable).toBe(false);
           expect(clue.rarity).toBe('rare');
-          expect(clue.languageLearningData).toBeDefined();
+          expect(clue.translations).toBeDefined();
           return;
         }
       }

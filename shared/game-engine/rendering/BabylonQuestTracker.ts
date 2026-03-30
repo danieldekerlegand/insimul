@@ -644,12 +644,11 @@ export class BabylonQuestTracker {
     const filtered = filterQuests(baseQuests, this.filters);
     const sorted = sortQuests(filtered, this.sortBy);
 
-    // Partition: main quests first, then side quests
+    // Partition: main quests first, then group side quests by guild
     const mainQuests = sorted.filter(q => isMainQuest(q));
     const sideQuests = sorted.filter(q => !isMainQuest(q));
-    const ordered = [...mainQuests, ...sideQuests];
 
-    if (ordered.length === 0) {
+    if (mainQuests.length === 0 && sideQuests.length === 0) {
       const emptyText = new TextBlock();
       emptyText.text = this.activeTab === 'active'
         ? "No active quests\n\nTalk to NPCs to receive quests!"
@@ -663,9 +662,57 @@ export class BabylonQuestTracker {
       return;
     }
 
-    ordered.forEach((quest) => {
-      this.questListPanel?.addControl(this.createQuestCard(quest));
+    // Main quests section
+    if (mainQuests.length > 0) {
+      this.addGuildHeader('Main Quest', '#FFD700', '⭐');
+      mainQuests.forEach((quest) => {
+        this.questListPanel?.addControl(this.createQuestCard(quest));
+      });
+    }
+
+    // Group side quests by guild
+    const GUILD_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+      marchands: { label: 'Marchands', icon: '🏪', color: '#f59e0b' },
+      artisans: { label: 'Artisans', icon: '🔨', color: '#ef4444' },
+      conteurs: { label: 'Conteurs', icon: '📖', color: '#8b5cf6' },
+      explorateurs: { label: 'Explorateurs', icon: '🧭', color: '#10b981' },
+      diplomates: { label: 'Diplomates', icon: '🤝', color: '#3b82f6' },
+    };
+
+    // Group by guild
+    const guildGroups = new Map<string, typeof sideQuests>();
+    for (const q of sideQuests) {
+      const guildId = (q as any).guildId || 'other';
+      if (!guildGroups.has(guildId)) guildGroups.set(guildId, []);
+      guildGroups.get(guildId)!.push(q);
+    }
+
+    // Render guild groups
+    guildGroups.forEach((quests, guildId) => {
+      const guild = GUILD_LABELS[guildId];
+      if (guild) {
+        this.addGuildHeader(guild.label, guild.color, guild.icon);
+      } else if (quests.length > 0) {
+        this.addGuildHeader('Other Quests', '#888', '📋');
+      }
+      quests.forEach((quest) => {
+        this.questListPanel?.addControl(this.createQuestCard(quest));
+      });
     });
+  }
+
+  private addGuildHeader(label: string, color: string, icon: string): void {
+    if (!this.questListPanel) return;
+    const header = new TextBlock();
+    header.text = `${icon} ${label}`;
+    header.color = color;
+    header.fontSize = 9;
+    header.fontWeight = 'bold';
+    header.height = '18px';
+    header.textHorizontalAlignment = 0; // left
+    header.paddingTop = '4px';
+    header.paddingLeft = '4px';
+    this.questListPanel.addControl(header);
   }
 
   private createQuestCard(quest: Quest): Rectangle {

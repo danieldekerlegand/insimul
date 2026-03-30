@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -77,12 +78,16 @@ export const LANGUAGES = [
 
 // --- Per-Country Configuration ---
 
-type SettlementType = 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
+type SettlementType = 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
 
 const POPULATION_BY_TYPE: Record<SettlementType, number> = {
   dwelling: 3,
   roadhouse: 3,
+  landing: 10,
+  forge: 10,
+  chapel: 10,
   homestead: 10,
+  market: 30,
   hamlet: 50,
   village: 100,
   town: 1000,
@@ -92,9 +97,13 @@ const POPULATION_BY_TYPE: Record<SettlementType, number> = {
 const BASE_FAMILIES: Record<SettlementType, number> = {
   dwelling: 1,
   roadhouse: 1,
-  homestead: 2,
+  landing: 1,
+  forge: 1,
+  chapel: 1,
+  homestead: 1,
+  market: 3,
   hamlet: 3,
-  village: 5,
+  village: 4,
   town: 15,
   city: 50,
 };
@@ -105,28 +114,50 @@ function computeGenealogy(type: SettlementType, foundedYear: number): { founding
   const currentYear = new Date().getFullYear();
   const yearsOld = Math.max(0, currentYear - foundedYear);
   const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GENERATION)));
-  const baseFamilies = BASE_FAMILIES[type];
-  const generationScale = Math.max(0.5, 2.0 - (generations - 1) * 0.3);
-  const foundingFamilies = Math.max(2, Math.min(60, Math.round(baseFamilies * generationScale)));
-  return { foundingFamilies, generations };
+  return { foundingFamilies: BASE_FAMILIES[type], generations };
 }
+
+const ALL_GUILDS = [
+  { id: 'GuildDiplomates', label: 'Diplomates' },
+  { id: 'GuildArtisans', label: 'Artisans' },
+  { id: 'GuildExplorateurs', label: 'Explorateurs' },
+  { id: 'GuildMarchands', label: 'Marchands' },
+  { id: 'GuildConteurs', label: 'Conteurs' },
+];
 
 interface CountryConfig {
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
+  numLandings: number;
+  numForges: number;
+  numChapels: number;
+  numMarkets: number;
   numHamlets: number;
+  numHomesteads: number;
   numVillages: number;
   numTowns: number;
   numCities: number;
+  // Maps "type_index" -> guild IDs, e.g. { "hamlet_0": ["GuildConteurs", "GuildArtisans"] }
+  guildAssignments: Record<string, string[]>;
 }
 
 const DEFAULT_COUNTRY_CONFIG: CountryConfig = {
   terrain: 'plains',
   foundedYear: 1850,
-  numHamlets: 0,
+  numLandings: 1,
+  numForges: 0,
+  numChapels: 0,
+  numMarkets: 0,
+  numHamlets: 1,
+  numHomesteads: 3,
   numVillages: 0,
-  numTowns: 1,
+  numTowns: 0,
   numCities: 0,
+  guildAssignments: {
+    'hamlet_0': ['GuildConteurs', 'GuildArtisans', 'GuildExplorateurs'],
+    'landing_0': ['GuildDiplomates'],
+    'homestead_0': ['GuildMarchands'],
+  },
 };
 
 // --- Country Config Panel ---
@@ -145,9 +176,14 @@ function CountryConfigPanel({
   const update = (partial: Partial<CountryConfig>) => onChange({ ...config, ...partial });
 
   // Show a summary of computed population
-  const totalSettlements = config.numHamlets + config.numVillages + config.numTowns + config.numCities;
+  const totalSettlements = config.numLandings + config.numForges + config.numChapels + config.numMarkets + config.numHamlets + config.numHomesteads + config.numVillages + config.numTowns + config.numCities;
   const estimatedPop =
+    config.numLandings * POPULATION_BY_TYPE.landing +
+    config.numForges * POPULATION_BY_TYPE.forge +
+    config.numChapels * POPULATION_BY_TYPE.chapel +
+    config.numMarkets * POPULATION_BY_TYPE.market +
     config.numHamlets * POPULATION_BY_TYPE.hamlet +
+    config.numHomesteads * POPULATION_BY_TYPE.homestead +
     config.numVillages * POPULATION_BY_TYPE.village +
     config.numTowns * POPULATION_BY_TYPE.town +
     config.numCities * POPULATION_BY_TYPE.city;
@@ -189,50 +225,85 @@ function CountryConfigPanel({
         )}
       </div>
 
-      {/* Settlement Counts */}
+      {/* Generation Preview + Guild Assignment */}
       <div className="space-y-3">
-        <Label className="text-xs font-medium">Settlements</Label>
-        <div className="grid grid-cols-4 gap-3">
-          <div className="space-y-2">
-            <Label className="text-xs">Hamlets: {config.numHamlets}</Label>
-            <Slider
-              value={[config.numHamlets]}
-              onValueChange={([v]) => update({ numHamlets: v })}
-              min={0}
-              max={10}
-              step={1}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs">Villages: {config.numVillages}</Label>
-            <Slider
-              value={[config.numVillages]}
-              onValueChange={([v]) => update({ numVillages: v })}
-              min={0}
-              max={10}
-              step={1}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs">Towns: {config.numTowns}</Label>
-            <Slider
-              value={[config.numTowns]}
-              onValueChange={([v]) => update({ numTowns: v })}
-              min={0}
-              max={5}
-              step={1}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs">Cities: {config.numCities}</Label>
-            <Slider
-              value={[config.numCities]}
-              onValueChange={([v]) => update({ numCities: v })}
-              min={0}
-              max={3}
-              step={1}
-            />
-          </div>
+        <Label className="text-xs font-medium">Settlements & Guild Assignment</Label>
+        <div className="space-y-1.5">
+          {(() => {
+            const settlements: { type: string; index: number; key: string; count: number; pop: number; businesses: string; icon: string }[] = [];
+            const typeConfigs: { type: string; count: number; pop: number; businesses: string; icon: string }[] = [
+              { type: 'landing', count: config.numLandings, pop: POPULATION_BY_TYPE.landing, businesses: 'Harbor, FishMarket', icon: '⚓' },
+              { type: 'forge', count: config.numForges, pop: POPULATION_BY_TYPE.forge, businesses: 'Blacksmith, Carpenter', icon: '🔨' },
+              { type: 'chapel', count: config.numChapels, pop: POPULATION_BY_TYPE.chapel, businesses: 'Church, School', icon: '⛪' },
+              { type: 'market', count: config.numMarkets, pop: POPULATION_BY_TYPE.market, businesses: 'Shop, Grocery, Tavern', icon: '🏪' },
+              { type: 'hamlet', count: config.numHamlets, pop: POPULATION_BY_TYPE.hamlet, businesses: 'Farm, Grocery, Restaurant', icon: '🏘️' },
+              { type: 'homestead', count: config.numHomesteads, pop: POPULATION_BY_TYPE.homestead, businesses: 'Farm', icon: '🏡' },
+            ];
+            for (const tc of typeConfigs) {
+              for (let i = 0; i < tc.count; i++) {
+                settlements.push({ ...tc, index: i, key: `${tc.type}_${i}` });
+              }
+            }
+            const assignedGuilds = new Set(Object.values(config.guildAssignments).flat());
+            const unassignedGuilds = ALL_GUILDS.filter(g => !assignedGuilds.has(g.id));
+
+            return (
+              <>
+                {settlements.map(s => {
+                  const guilds = config.guildAssignments[s.key] || [];
+                  return (
+                    <div key={s.key} className="px-3 py-2 rounded-md bg-muted/30 border border-border text-xs space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{s.icon}</span>
+                        <div className="flex-1">
+                          <div className="font-medium capitalize">{s.type}{s.count > 1 ? ` #${s.index + 1}` : ''}</div>
+                          <div className="text-muted-foreground">{s.businesses}</div>
+                        </div>
+                        <span className="text-muted-foreground">~{s.pop}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 ml-7">
+                        {guilds.map(gid => {
+                          const g = ALL_GUILDS.find(x => x.id === gid);
+                          return (
+                            <Badge key={gid} variant="secondary" className="text-[9px] cursor-pointer hover:bg-destructive/20"
+                              onClick={() => {
+                                const next = { ...config.guildAssignments };
+                                next[s.key] = (next[s.key] || []).filter(id => id !== gid);
+                                if (next[s.key].length === 0) delete next[s.key];
+                                update({ guildAssignments: next });
+                              }}>
+                              {g?.label || gid} ×
+                            </Badge>
+                          );
+                        })}
+                        {ALL_GUILDS.filter(g => !guilds.includes(g.id)).length > 0 && (
+                          <select className="h-5 text-[9px] bg-muted border rounded px-1"
+                            value=""
+                            onChange={e => {
+                              if (!e.target.value) return;
+                              const next = { ...config.guildAssignments };
+                              next[s.key] = [...(next[s.key] || []), e.target.value];
+                              update({ guildAssignments: next });
+                              e.target.value = '';
+                            }}>
+                            <option value="">+ guild</option>
+                            {ALL_GUILDS.filter(g => !guilds.includes(g.id)).map(g => (
+                              <option key={g.id} value={g.id}>{g.label}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {unassignedGuilds.length > 0 && (
+                  <p className="text-[10px] text-amber-500">
+                    Unassigned guilds: {unassignedGuilds.map(g => g.label).join(', ')}
+                  </p>
+                )}
+              </>
+            );
+          })()}
         </div>
         {totalSettlements > 0 && (
           <p className="text-xs text-muted-foreground">
@@ -348,7 +419,9 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
         if (cc.numTowns > 0) settlementTypes.push('town');
         if (cc.numVillages > 0) settlementTypes.push('village');
         if (cc.numHamlets > 0) settlementTypes.push('hamlet');
-        const primaryType = settlementTypes[0] || 'town';
+        if (cc.numMarkets > 0) settlementTypes.push('market');
+        if (cc.numHomesteads > 0 || cc.numLandings > 0 || cc.numForges > 0 || cc.numChapels > 0) settlementTypes.push('homestead');
+        const primaryType = settlementTypes[0] || 'market';
         const { foundingFamilies, generations } = computeGenealogy(primaryType, cc.foundedYear);
 
         return {
@@ -356,7 +429,12 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
           foundedYear: cc.foundedYear,
           generateStates: true,
           numStatesPerCountry: 1,
+          numLandingsPerState: cc.numLandings,
+          numForgesPerState: cc.numForges,
+          numChapelsPerState: cc.numChapels,
+          numMarketsPerState: cc.numMarkets,
           numHamletsPerState: cc.numHamlets,
+          numHomesteadsPerState: cc.numHomesteads,
           numVillagesPerState: cc.numVillages,
           numTownsPerState: cc.numTowns,
           numCitiesPerState: cc.numCities,
@@ -365,6 +443,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
           marriageRate: 0.7,
           fertilityRate: 0.6,
           deathRate: 0.3,
+          guildAssignments: Object.keys(cc.guildAssignments).length > 0 ? cc.guildAssignments : undefined,
         };
       });
 

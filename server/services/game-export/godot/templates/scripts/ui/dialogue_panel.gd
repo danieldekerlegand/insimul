@@ -4,6 +4,7 @@ extends CanvasLayer
 ## and optional language learning mode.
 
 signal dialogue_closed
+signal gesture_performed(gesture_id: String)
 
 const TYPEWRITER_SPEED := 30.0  # characters per second
 const MAX_RESPONSE_BUTTONS := 4
@@ -16,6 +17,7 @@ var _typewriter_full_text := ""
 var _typewriter_visible_chars := 0
 var _pending_responses: Array = []
 var _language_mode := false
+var _gesture_container: HBoxContainer
 
 # Root UI nodes
 var _panel: PanelContainer
@@ -56,12 +58,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			close_dialogue()
 			get_viewport().set_input_as_handled()
 
+func perform_gesture(gesture_id: String) -> void:
+	gesture_performed.emit(gesture_id)
+
 func open_dialogue(character_id: String) -> void:
 	_current_character_id = character_id
 	_is_open = true
 	visible = true
 	_clear_responses()
 	_dialogue_text.text = ""
+	if _gesture_container:
+		_gesture_container.visible = true
 
 	# Load NPC context from AIService
 	var ai := get_node_or_null("/root/AIService")
@@ -89,6 +96,8 @@ func close_dialogue() -> void:
 	_current_character_id = ""
 	visible = false
 	_clear_responses()
+	if _gesture_container:
+		_gesture_container.visible = false
 	dialogue_closed.emit()
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
@@ -339,3 +348,17 @@ func _build_ui() -> void:
 	_response_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_response_container.add_theme_constant_override("separation", 6)
 	main_hbox.add_child(_response_container)
+
+	# ── Gesture panel (non-verbal actions during conversation) ──
+	_gesture_container = HBoxContainer.new()
+	_gesture_container.visible = false
+	_gesture_container.add_theme_constant_override("separation", 4)
+	_gesture_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_vbox.add_child(_gesture_container)
+
+	for gesture_id in ["wave", "nod", "bow", "shrug"]:
+		var btn := Button.new()
+		btn.text = gesture_id.capitalize()
+		btn.custom_minimum_size = Vector2(60, 28)
+		btn.pressed.connect(perform_gesture.bind(gesture_id))
+		_gesture_container.add_child(btn)

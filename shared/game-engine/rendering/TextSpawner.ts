@@ -32,7 +32,10 @@ export type SpawnLocationHint =
   | 'residence'
   | 'office'
   | 'market'
-  | 'hidden';
+  | 'hidden'
+  | 'notice_board'
+  | 'park'
+  | 'town_square';
 
 export interface CollectibleTextData {
   id: string;
@@ -97,10 +100,13 @@ const HINT_TO_BUSINESS_TYPES: Record<SpawnLocationHint, string[]> = {
   library: ['library'],
   bookshop: ['bookshop', 'book_shop', 'bookstore'],
   cafe: ['cafe', 'tavern', 'inn', 'restaurant', 'bakery'],
-  residence: [],  // handled separately via residences
+  residence: [],        // outdoor placement near residences
   office: ['office', 'town_hall', 'city_hall', 'newspaper', 'guild'],
   market: ['market', 'shop', 'general_store', 'stall'],
-  hidden: [],     // outdoor placement
+  hidden: [],           // outdoor placement at hidden/remote spots
+  notice_board: [],     // placed near notice board in town square
+  park: [],             // outdoor placement in park areas
+  town_square: [],      // outdoor placement in town square
 };
 
 /** Bob animation amplitude and speed */
@@ -141,30 +147,50 @@ export class TextSpawner {
   }
 
   /**
-   * Spawn collectible texts in the world.
-   * Filters to published, non-collected texts and places them based on
-   * spawnLocationHint and available buildings.
+   * Spawn ALL collectible texts in the world.
+   * Main quest texts start hidden and are revealed via updateVisibility()
+   * when their chapter becomes active or completed.
    */
   spawnTexts(
     texts: CollectibleTextData[],
     buildings: BuildingInfo[],
     residences: BuildingInfo[],
-    activeChapter?: number,
+    visibleChapterIds?: Set<string>,
   ): void {
     for (const text of texts) {
       if (this.collectedTextIds.has(text.id)) continue;
       if (this.spawnedTexts.has(text.id)) continue;
 
-      // Main quest texts only spawn when their chapter is active
-      if (text.isMainQuest && text.chapter !== undefined) {
-        if (activeChapter === undefined || text.chapter !== activeChapter) continue;
-      }
-
       const position = this.resolveSpawnPosition(text, buildings, residences);
       if (!position) continue;
 
       this.spawnSingleText(text, position);
+
+      // Hide main quest texts that aren't in visible chapters yet
+      if (text.isMainQuest && visibleChapterIds) {
+        const chapterTag = (text as any).chapterTag as string | undefined;
+        if (chapterTag && !visibleChapterIds.has(chapterTag)) {
+          const spawned = this.spawnedTexts.get(text.id);
+          if (spawned) spawned.mesh.setEnabled(false);
+        }
+      }
     }
+  }
+
+  /**
+   * Update visibility of main quest texts based on current quest state.
+   * Call this when a chapter advances — newly visible texts will appear.
+   */
+  updateVisibility(visibleChapterIds: Set<string>): void {
+    this.spawnedTexts.forEach((spawned) => {
+      if (!spawned.data.isMainQuest) return;
+      const chapterTag = (spawned.data as any).chapterTag as string | undefined;
+      if (!chapterTag) return;
+      const shouldBeVisible = visibleChapterIds.has(chapterTag);
+      if (spawned.mesh.isEnabled() !== shouldBeVisible) {
+        spawned.mesh.setEnabled(shouldBeVisible);
+      }
+    });
   }
 
   /**

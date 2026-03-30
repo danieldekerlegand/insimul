@@ -19,12 +19,16 @@ import {
   type LayoutPattern,
 } from '@shared/street-pattern-selection';
 
-export type SettlementType = 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
+export type SettlementType = 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
 
 export const POPULATION_BY_TYPE: Record<SettlementType, number> = {
   dwelling: 3,
   roadhouse: 3,
+  landing: 10,
+  forge: 10,
+  chapel: 10,
   homestead: 10,
+  market: 30,
   hamlet: 50,
   village: 100,
   town: 1000,
@@ -34,26 +38,116 @@ export const POPULATION_BY_TYPE: Record<SettlementType, number> = {
 export const BASE_FAMILIES: Record<SettlementType, number> = {
   dwelling: 1,
   roadhouse: 1,
-  homestead: 2,
+  landing: 1,
+  forge: 1,
+  chapel: 1,
+  homestead: 1,
+  market: 3,
   hamlet: 3,
-  village: 5,
+  village: 4,
   town: 15,
   city: 50,
 };
 
+/** Default generation parameters per settlement type (rates that produce target populations) */
+export const DEFAULT_GEN_PARAMS: Record<SettlementType, Omit<GenerationParams, 'foundingFamilies' | 'generations'>> = {
+  dwelling:   { marriageRate: 0.8, fertilityRate: 0.7, deathRate: 0.3, immigrationRate: 0.5 },
+  roadhouse:  { marriageRate: 0.8, fertilityRate: 0.7, deathRate: 0.3, immigrationRate: 0.5 },
+  landing:    { marriageRate: 0.8, fertilityRate: 0.7, deathRate: 0.3, immigrationRate: 0.5 },
+  forge:      { marriageRate: 0.8, fertilityRate: 0.7, deathRate: 0.3, immigrationRate: 0.5 },
+  chapel:     { marriageRate: 0.8, fertilityRate: 0.7, deathRate: 0.3, immigrationRate: 0.5 },
+  homestead:  { marriageRate: 0.8, fertilityRate: 0.9, deathRate: 0.2, immigrationRate: 0.6 },
+  market:     { marriageRate: 0.8, fertilityRate: 0.8, deathRate: 0.3, immigrationRate: 0.8 },
+  hamlet:     { marriageRate: 0.8, fertilityRate: 0.7, deathRate: 0.3, immigrationRate: 0.2 },
+  village:    { marriageRate: 0.8, fertilityRate: 0.7, deathRate: 0.3, immigrationRate: 0.25 },
+  town:       { marriageRate: 0.8, fertilityRate: 0.8, deathRate: 0.3, immigrationRate: 1.5 },
+  city:       { marriageRate: 0.85, fertilityRate: 0.9, deathRate: 0.25, immigrationRate: 3.0 },
+};
+
 export const YEARS_PER_GENERATION = 25;
 
+/** All generation parameters for a settlement */
+export interface GenerationParams {
+  foundingFamilies: number;
+  generations: number;
+  marriageRate: number;
+  fertilityRate: number;
+  deathRate: number;
+  immigrationRate: number;
+}
+
 /**
- * Compute founding families and generations from settlement type + founded year.
+ * Compute default generation params from settlement type + founded year.
  */
-export function computeGenealogy(type: SettlementType, foundedYear: number): { foundingFamilies: number; generations: number } {
+export function computeGenealogy(type: SettlementType, foundedYear: number): GenerationParams {
   const currentYear = new Date().getFullYear();
   const yearsOld = Math.max(0, currentYear - foundedYear);
   const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GENERATION)));
   const baseFamilies = BASE_FAMILIES[type];
-  const generationScale = Math.max(0.5, 2.0 - (generations - 1) * 0.3);
-  const foundingFamilies = Math.max(2, Math.min(60, Math.round(baseFamilies * generationScale)));
-  return { foundingFamilies, generations };
+  const defaults = DEFAULT_GEN_PARAMS[type];
+  return {
+    foundingFamilies: baseFamilies,
+    generations: baseFamilies <= 2 ? Math.min(generations, 2) : generations,
+    ...defaults,
+  };
+}
+
+/**
+ * Estimate the living population from generation parameters.
+ * Simulates generation-by-generation growth with cross-family marriage pooling.
+ */
+export function estimatePopulation(params: GenerationParams): { living: number; total: number } {
+  const { foundingFamilies, generations, marriageRate, fertilityRate, deathRate, immigrationRate } = params;
+
+  // Average children per fertile couple (matches rollChildren distribution)
+  const avgChildren = 0.15*1 + 0.25*2 + 0.25*3 + 0.20*4 + 0.10*5 + 0.05*6; // ~2.95
+
+  // Per-generation immigration: ~0.4 * foundingFamilies, min 1
+  const immigrantsPerGen = Math.max(1, Math.round(foundingFamilies * 0.4));
+
+  // Track population per generation
+  const genPop: number[] = [];
+
+  // Gen 0: founding couples
+  genPop.push(foundingFamilies * 2);
+
+  if (generations > 1) {
+    // Gen 1: founding children + immigrants (founders immediately have children)
+    const foundingChildren = Math.round(foundingFamilies * fertilityRate * avgChildren);
+    genPop.push(foundingChildren + immigrantsPerGen);
+  }
+
+  for (let g = 2; g < generations; g++) {
+    const prev = genPop[g - 1] + immigrantsPerGen;
+    // With gender-separated pairing, ~marriageRate of min(males,females) marry
+    const pairPool = prev / 2;
+    const couples = Math.round(pairPool * marriageRate);
+    const fertile = Math.round(couples * fertilityRate);
+    const children = Math.round(fertile * avgChildren);
+    genPop.push(Math.max(1, children) + immigrantsPerGen);
+  }
+
+  // Apply death rates: older generations die based on age at currentYear
+  let total = 0;
+  let living = 0;
+  for (let g = 0; g < genPop.length; g++) {
+    // Gen 0 is the oldest; last gen is the youngest
+    const genAge = (genPop.length - 1 - g) * 25;
+    total += genPop[g];
+    if (genAge > 85) {
+      // All dead
+    } else {
+      const survivalRate = 1 - (genAge / 100) * deathRate;
+      living += Math.round(genPop[g] * Math.max(0, survivalRate));
+    }
+  }
+
+  // Immigration adds a percentage on top of the genealogy-generated population
+  const immigrants = Math.round(living * immigrationRate);
+  living += immigrants;
+  total += immigrants;
+
+  return { living: Math.max(1, living), total: Math.max(1, total) };
 }
 
 export const PATTERN_LABELS: Record<LayoutPattern, string> = {

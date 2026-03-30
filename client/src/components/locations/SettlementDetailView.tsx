@@ -93,9 +93,15 @@ export function SettlementDetailView({
     return [char.firstName, char.lastName].filter(Boolean).join(' ');
   };
 
-  // Find the business or residence on a given lot
-  const getBusinessOnLot = (lotId: string) => businesses.find((b: any) => b.lotId === lotId);
-  const getResidenceOnLot = (lotId: string) => residences.find((r: any) => r.lotId === lotId);
+  // Buildings are now embedded in lots — just check the lot's building field
+  const getBusinessOnLot = (lotId: string) => {
+    const lot = lots.find((l: any) => l.id === lotId);
+    return lot?.building?.buildingCategory === 'business' ? lot.building : null;
+  };
+  const getResidenceOnLot = (lotId: string) => {
+    const lot = lots.find((l: any) => l.id === lotId);
+    return lot?.building?.buildingCategory === 'residence' ? lot.building : null;
+  };
 
   // Batch generate character portraits mutation
   const batchGeneratePortraitsMutation = useMutation({
@@ -508,9 +514,14 @@ export function SettlementDetailView({
                         <CardTitle className="text-base">{lot.address}</CardTitle>
                         <CardDescription>
                           District: {lot.districtName || 'None'}
-                          {lotBusiness && ` • ${lotBusiness.name}`}
-                          {lotResidence && ` • Residence`}
-                          {!lotBusiness && !lotResidence && ' • Vacant'}
+                          {(() => {
+                            const lt = (lot as any).lotType;
+                            const specialTypes: Record<string, string> = { park: 'Park', forest: 'Forest', cemetery: 'Cemetery', garden: 'Garden', agricultural: 'Agricultural' };
+                            if (specialTypes[lt]) return ` • ${specialTypes[lt]}`;
+                            if (lotBusiness) return ` • ${lotBusiness.name}`;
+                            if (lotResidence) return ' • Residence';
+                            return ' • Vacant';
+                          })()}
                         </CardDescription>
                       </div>
                     </div>

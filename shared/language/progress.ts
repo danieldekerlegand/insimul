@@ -157,8 +157,8 @@ export function calculateFluencyGain(
     ? (grammarScore ? 1.0 : 0.0)
     : grammarScore;
 
-  // Base gain from conversation
-  const baseGain = 0.5;
+  // Base gain scales with conversation length — short chats earn less
+  const baseGain = Math.min(0.5, conversationLength * 0.15);
   gain += baseGain;
 
   // Vocabulary usage bonus

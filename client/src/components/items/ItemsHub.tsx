@@ -25,25 +25,41 @@ interface ItemsHubProps {
 const ITEM_TYPE_LABELS: Record<string, string> = {
   weapon: 'Weapons',
   armor: 'Armor',
+  accessory: 'Accessories',
+  ammunition: 'Ammunition',
   consumable: 'Consumables',
   food: 'Food',
   drink: 'Drinks',
   tool: 'Tools',
   material: 'Materials',
   collectible: 'Collectibles',
-  key: 'Key Items',
+  container: 'Containers',
+  decoration: 'Decorations',
+  document: 'Documents',
+  equipment: 'Equipment',
+  furniture: 'Furniture',
+  environmental: 'Environmental',
+  key: 'Keys',
   quest: 'Quest Items',
 };
 
 const ITEM_TYPE_COLORS: Record<string, string> = {
   weapon: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
   armor: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  accessory: 'bg-pink-500/10 text-pink-500 border-pink-500/20',
+  ammunition: 'bg-red-500/10 text-red-400 border-red-500/20',
   consumable: 'bg-green-500/10 text-green-500 border-green-500/20',
   food: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
   drink: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
   tool: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
   material: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
   collectible: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+  container: 'bg-stone-500/10 text-stone-400 border-stone-500/20',
+  decoration: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  document: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  equipment: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  furniture: 'bg-amber-600/10 text-amber-600 border-amber-600/20',
+  environmental: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   key: 'bg-red-500/10 text-red-500 border-red-500/20',
   quest: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
 };
@@ -945,32 +961,28 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
                     );
                   })()}
 
-                  {/* Language Learning Data */}
-                  {selectedItem.languageLearningData && (
+                  {/* Translations (keyed by language) */}
+                  {selectedItem.translations && typeof selectedItem.translations === 'object' && Object.keys(selectedItem.translations).length > 0 && (
                     <div className="text-sm">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <Languages className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-muted-foreground font-medium">Language Learning Data</span>
+                        <span className="text-muted-foreground font-medium">Translations</span>
                       </div>
-                      <div className="bg-muted/30 border border-border rounded-md p-3 space-y-2">
-                        {selectedItem.languageLearningData.targetWord && (
-                          <div><span className="text-muted-foreground">Target Word:</span> <span className="font-mono">{selectedItem.languageLearningData.targetWord}</span></div>
-                        )}
-                        {selectedItem.languageLearningData.targetLanguage && (
-                          <div><span className="text-muted-foreground">Language:</span> {selectedItem.languageLearningData.targetLanguage}</div>
-                        )}
-                        {selectedItem.languageLearningData.pronunciation && (
-                          <div><span className="text-muted-foreground">Pronunciation:</span> <span className="italic">{selectedItem.languageLearningData.pronunciation}</span></div>
-                        )}
-                        {selectedItem.languageLearningData.category && (
-                          <div><span className="text-muted-foreground">Category:</span> <Badge variant="secondary" className="text-[10px] ml-1">{selectedItem.languageLearningData.category}</Badge></div>
-                        )}
-                        {Object.entries(selectedItem.languageLearningData)
-                          .filter(([key]) => !['targetWord', 'targetLanguage', 'pronunciation', 'category'].includes(key))
-                          .map(([key, val]) => (
-                            <div key={key}><span className="text-muted-foreground">{key}:</span> {String(val)}</div>
-                          ))
-                        }
+                      <div className="bg-muted/30 border border-border rounded-md p-3 space-y-3">
+                        {Object.entries(selectedItem.translations).map(([lang, data]: [string, any]) => (
+                          <div key={lang} className="space-y-1">
+                            <div className="font-medium text-xs uppercase tracking-wide text-muted-foreground">{lang}</div>
+                            {data?.targetWord && (
+                              <div><span className="text-muted-foreground">Word:</span> <span className="font-mono">{data.targetWord}</span></div>
+                            )}
+                            {data?.pronunciation && (
+                              <div><span className="text-muted-foreground">Pronunciation:</span> <span className="italic">{data.pronunciation}</span></div>
+                            )}
+                            {data?.category && (
+                              <div><span className="text-muted-foreground">Category:</span> <Badge variant="secondary" className="text-[10px] ml-1">{data.category}</Badge></div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

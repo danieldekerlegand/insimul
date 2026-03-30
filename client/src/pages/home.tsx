@@ -7,7 +7,7 @@ import { UnifiedWorldExplorerTab } from '@/components/UnifiedWorldExplorerTab';
 import { ActionsHub } from '@/components/actions/ActionsHub';
 import { WorldManagementTab } from '@/components/WorldManagementTab';
 import { QuestsHub } from '@/components/quests/QuestsHub';
-import { ItemsHub } from '@/components/items/ItemsHub';
+import { AdminItemsHub } from '@/components/admin/AdminItemsHub';
 import { TextsHub } from '@/components/texts/TextsHub';
 import { WorldIntelligenceTab } from '@/components/WorldIntelligenceTab';
 import { GrammarsHub } from '@/components/grammars/GrammarsHub';
@@ -191,7 +191,7 @@ export default function Home() {
 
       {activeTab === 'items' && selectedWorld && (
         <div className="px-6 py-4">
-          <ItemsHub worldId={selectedWorld} />
+          <AdminItemsHub worldId={selectedWorld} />
         </div>
       )}
 

@@ -1293,7 +1293,13 @@ export class InsimulSimulationEngine {
                 const fatherId = resolveId(event.args[1]);
                 try {
                   await conceive(motherId, fatherId, timestep);
-                  const birth = await giveBirth(motherId, '', timestep + 270);
+                  // Generate a proper name for the child
+                  const { resolveNamePool } = await import('../generators/genealogy-generator.js');
+                  const world = await this.storage.getWorld(worldId);
+                  const namePool = resolveNamePool(world?.targetLanguage || undefined);
+                  const childGender = Math.random() < 0.5 ? 'male' : 'female';
+                  const childName = namePool[childGender][Math.floor(Math.random() * namePool[childGender].length)];
+                  const birth = await giveBirth(motherId, '', timestep + 270, currentYear, childName);
                   totalLifeEvents.births++;
 
                   if (birth.childId) {

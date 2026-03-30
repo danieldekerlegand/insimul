@@ -35,7 +35,7 @@ export interface WorldGeographyConfig {
     terrain: string;
     settlements: Array<{
       id: string;
-      type: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
+      type: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
       terrain: string;
       population: number;
       /** Optional: states this settlement belongs to */

@@ -139,13 +139,16 @@ export class NarrativeCutscenePanel {
     this.container.zIndex = 70;
     this.advancedTexture.addControl(this.container);
 
-    // Content stack
+    // Content stack — top-aligned with padding to prevent bottom clipping
     const stack = new GUI.StackPanel('cutsceneStack');
     stack.isVertical = true;
     stack.width = '600px';
+    stack.maxWidth = '80%';
     (stack as any).adaptHeight = true;
     stack.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    stack.paddingTop = '40px';
+    stack.paddingBottom = '40px';
     this.container.addControl(stack);
 
     // Beat type indicator
@@ -191,11 +194,14 @@ export class NarrativeCutscenePanel {
 
     // Narrative text — split long text into paragraphs
     const paragraphs = page.text.split('\n').filter(Boolean);
+    // Scale font size down for longer text to prevent overflow
+    const totalLength = page.text.length;
+    const fontSize = totalLength > 400 ? 13 : totalLength > 250 ? 14 : 16;
     for (const para of paragraphs) {
       const textBlock = new GUI.TextBlock();
       textBlock.text = para;
       textBlock.color = 'rgba(255, 255, 255, 0.9)';
-      textBlock.fontSize = 16;
+      textBlock.fontSize = fontSize;
       textBlock.fontFamily = 'Georgia, serif';
       textBlock.lineSpacing = '6px';
       textBlock.textWrapping = GUI.TextWrapping.WordWrap;

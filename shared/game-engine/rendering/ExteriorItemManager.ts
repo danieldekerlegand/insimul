@@ -149,6 +149,7 @@ export class ExteriorItemManager {
       objectRole: item.objectRole || item.itemType,
       itemId: item.id,
       exteriorItem: true,
+      possessable: item.possessable !== false,
     };
 
     mesh.getChildMeshes().forEach(child => {
@@ -159,6 +160,7 @@ export class ExteriorItemManager {
         objectRole: item.objectRole || item.itemType,
         itemId: item.id,
         exteriorItem: true,
+        possessable: item.possessable !== false,
       };
     });
 

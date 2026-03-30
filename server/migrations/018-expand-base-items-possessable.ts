@@ -1353,7 +1353,7 @@ async function main() {
       craftingRecipe: null,
       questRelevance: [],
       loreText: null,
-      languageLearningData: null,
+      translations: null,
       relatedTruthIds: [],
       createdAt: new Date(),
       updatedAt: new Date(),

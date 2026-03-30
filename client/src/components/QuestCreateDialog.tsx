@@ -318,6 +318,41 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="guildId">Guild</Label>
+                  <Select value={(formData as any).guildId || ''} onValueChange={(v) => setFormData({ ...formData, guildId: v || undefined } as any)}>
+                    <SelectTrigger id="guildId">
+                      <SelectValue placeholder="No guild" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="marchands">Marchands (Commerce)</SelectItem>
+                      <SelectItem value="artisans">Artisans (Crafting)</SelectItem>
+                      <SelectItem value="conteurs">Conteurs (Reading)</SelectItem>
+                      <SelectItem value="explorateurs">Explorateurs (Navigation)</SelectItem>
+                      <SelectItem value="diplomates">Diplomates (Social)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="guildTier">Guild Tier</Label>
+                  <Select value={String((formData as any).guildTier ?? '')} onValueChange={(v) => setFormData({ ...formData, guildTier: v ? Number(v) : undefined } as any)}>
+                    <SelectTrigger id="guildTier">
+                      <SelectValue placeholder="No tier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="0">Tier 0 - Join Quest</SelectItem>
+                      <SelectItem value="1">Tier 1 - Apprenti</SelectItem>
+                      <SelectItem value="2">Tier 2 - Compagnon</SelectItem>
+                      <SelectItem value="3">Tier 3 - Grand Maitre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="experienceReward">Experience Reward</Label>
                 <Input

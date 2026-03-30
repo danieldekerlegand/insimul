@@ -27,6 +27,7 @@ import {
 } from "@babylonjs/gui";
 
 import type { ConversationRecord, VocabularyEntry, GrammarPattern } from '@shared/language/language-progress';
+import { getItemTranslation } from '@shared/game-engine/rendering/OnboardingLauncher';
 import type { MinimapData } from './BabylonGUIManager';
 import { NotificationStore } from '../logic/NotificationStore';
 import type { SkillTreeStats } from './BabylonSkillTreePanel';
@@ -42,6 +43,14 @@ import {
   updateSkillProgress,
   type SkillTreeState,
 } from '@shared/language/language-skill-tree';
+import {
+  createGuildSkillTrees,
+  updateGuildSkillProgress,
+  computeGuildStats,
+  type GuildSkillTreeEntry,
+  type GuildSkillStats,
+} from '@shared/guild-skill-tree';
+import { GUILD_DEFINITIONS, type GuildId } from '@shared/guild-definitions';
 
 // ─── Data interfaces ────────────────────────────────────────────────────────
 
@@ -94,12 +103,11 @@ export interface MenuInventoryItem {
   type: string;
   quantity: number;
   icon?: string;
-  languageLearningData?: {
+  translations?: Record<string, {
     targetWord: string;
-    targetLanguage: string;
     pronunciation: string;
     category: string;
-  };
+  }>;
 }
 
 export interface MenuRuleData {
@@ -246,6 +254,15 @@ export interface MenuJournalData {
   investigationBoard?: InvestigationBoardData | null;
   /** Case notes from the investigation (newest first) */
   caseNotes?: CaseNote[];
+  /** Narrative history per chapter — for Story So Far recap */
+  narrativeHistory?: Array<{
+    chapterId: string;
+    chapterNumber: number;
+    title: string;
+    introNarrative?: string;
+    outroNarrative?: string;
+    mysteryDetails?: string;
+  }>;
 }
 
 export interface MenuClueData {
@@ -271,6 +288,7 @@ export interface GameMenuCallbacks {
   getVocabularyData?: () => { vocabulary: VocabularyEntry[]; grammarPatterns: GrammarPattern[]; overallFluency: number; totalCorrectUsages: number; dueForReview: VocabularyEntry[] } | null;
   getConversationHistory?: () => ConversationRecord[];
   getSkillTreeStats?: () => SkillTreeStats | null;
+  getGuildQuestData?: () => Array<{ guildId?: string; guildTier?: number; status?: string }>;
   getNoticeArticles?: () => { articles: NoticeArticle[]; playerFluency: number };
   fetchServerTexts?: () => Promise<NoticeArticle[]>;
   getAssessmentData?: () => { data: PlayerAssessmentData | null; playerLevel: number };
@@ -400,6 +418,7 @@ export class GameMenuSystem {
   private _isOpen = false;
   private activeTab: MenuTab = "character";
   private skillTreeState: SkillTreeState = createDefaultSkillTreeState();
+  private guildSkillTrees: GuildSkillTreeEntry[] = createGuildSkillTrees();
   private answeredNoticeQuestions: Set<string> = new Set();
   private noticeShowTranslations: boolean = true;
   private libraryActiveCategory: string = 'all';
@@ -410,6 +429,9 @@ export class GameMenuSystem {
   private libraryServerTexts: NoticeArticle[] = [];
   private libraryServerTextsLoading: boolean = false;
   private libraryServerTextsFetched: boolean = false;
+
+  // Language-learning
+  private targetLanguage: string = 'Spanish';
 
   // Save/Load state
   private systemSubView: 'main' | 'save' | 'load' | 'playthrough' = 'main';
@@ -448,6 +470,10 @@ export class GameMenuSystem {
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────
+
+  public setTargetLanguage(language: string): void {
+    this.targetLanguage = language;
+  }
 
   public get isOpen(): boolean {
     return this._isOpen;
@@ -1282,7 +1308,12 @@ export class GameMenuSystem {
 
     this.addDivider(stack);
 
-    // ─── SECTION 2: Chapter Progress ───────────────────────────────
+    // ─── SECTION 2: Story So Far ─────────────────────────────────
+    this.renderStorySoFar(stack, data);
+
+    this.addDivider(stack);
+
+    // ─── SECTION 3: Chapter Progress ───────────────────────────────
     this.renderChapterProgressSection(stack, data);
 
     this.addDivider(stack);
@@ -1403,6 +1434,86 @@ export class GameMenuSystem {
         npcRow.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         npcRow.paddingLeft = "10px";
         boardCard.addControl(npcRow);
+      }
+    }
+  }
+
+  // ─── STORY SO FAR SECTION ────────────────────────────────────────────────
+
+  private renderStorySoFar(parent: StackPanel, data: MenuJournalData): void {
+    const history = data.narrativeHistory || [];
+    // Only show chapters that have been started or completed
+    const completedOrActive = data.chapters.filter(
+      ch => ch.progress.status === 'completed' || ch.progress.status === 'active'
+    );
+
+    if (completedOrActive.length === 0 && history.length === 0) return;
+
+    this.addSectionHeader(parent, "📖 Story So Far");
+
+    for (const chEntry of completedOrActive) {
+      const narrative = history.find(h => h.chapterId === chEntry.chapter.id);
+      if (!narrative?.introNarrative && !narrative?.outroNarrative) continue;
+
+      const isCompleted = chEntry.progress.status === 'completed';
+      const isCurrent = chEntry.progress.status === 'active';
+
+      // Chapter title
+      const titleBlock = new TextBlock();
+      titleBlock.text = `${isCompleted ? '✅' : '🔍'} Chapter ${chEntry.chapter.number}: ${chEntry.chapter.title}`;
+      titleBlock.color = isCurrent ? '#FFD700' : COLORS.textPrimary;
+      titleBlock.fontSize = 14;
+      titleBlock.fontWeight = 'bold';
+      titleBlock.height = '24px';
+      titleBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      titleBlock.paddingLeft = '8px';
+      titleBlock.paddingTop = '6px';
+      parent.addControl(titleBlock);
+
+      // Intro narrative
+      if (narrative.introNarrative) {
+        const introBlock = new TextBlock();
+        introBlock.text = narrative.introNarrative;
+        introBlock.color = COLORS.textMuted;
+        introBlock.fontSize = 12;
+        introBlock.textWrapping = TextWrapping.WordWrap;
+        introBlock.resizeToFit = true;
+        introBlock.paddingLeft = '16px';
+        introBlock.paddingRight = '8px';
+        introBlock.paddingTop = '4px';
+        introBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        parent.addControl(introBlock);
+      }
+
+      // Mystery details (if completed or current)
+      if (narrative.mysteryDetails) {
+        const mysteryBlock = new TextBlock();
+        mysteryBlock.text = `🔎 ${narrative.mysteryDetails}`;
+        mysteryBlock.color = '#D4A574';
+        mysteryBlock.fontSize = 11;
+        mysteryBlock.textWrapping = TextWrapping.WordWrap;
+        mysteryBlock.resizeToFit = true;
+        mysteryBlock.paddingLeft = '16px';
+        mysteryBlock.paddingRight = '8px';
+        mysteryBlock.paddingTop = '4px';
+        mysteryBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        parent.addControl(mysteryBlock);
+      }
+
+      // Outro narrative (only for completed chapters)
+      if (isCompleted && narrative.outroNarrative) {
+        const outroBlock = new TextBlock();
+        outroBlock.text = narrative.outroNarrative;
+        outroBlock.color = '#7EC8A0';
+        outroBlock.fontSize = 12;
+        outroBlock.fontStyle = 'italic';
+        outroBlock.textWrapping = TextWrapping.WordWrap;
+        outroBlock.resizeToFit = true;
+        outroBlock.paddingLeft = '16px';
+        outroBlock.paddingRight = '8px';
+        outroBlock.paddingTop = '4px';
+        outroBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        parent.addControl(outroBlock);
       }
     }
   }
@@ -2456,7 +2567,7 @@ export class GameMenuSystem {
         card.addControl(nameRow);
 
         const nameText = new TextBlock();
-        const itemDisplayName = item.languageLearningData?.targetWord || item.name;
+        const itemDisplayName = getItemTranslation(item, this.targetLanguage)?.targetWord || item.name;
         nameText.text = `${item.icon || "•"} ${itemDisplayName}`;
         nameText.color = COLORS.textPrimary;
         nameText.fontSize = 12;
@@ -5239,112 +5350,144 @@ export class GameMenuSystem {
 
   private renderSkillsTab(): void {
     const { stack } = this.makeScrollableContent("skills");
-    const stats = this.callbacks.getSkillTreeStats?.();
+    const questData = this.callbacks.getGuildQuestData?.() || [];
 
-    this.addSectionHeader(stack, "Skill Tree");
+    this.addSectionHeader(stack, "Guild Progress");
 
-    if (stats) {
-      updateSkillProgress(this.skillTreeState, stats);
+    // Update all guild trees
+    let totalUnlocked = 0;
+    let totalNodes = 0;
+    for (const entry of this.guildSkillTrees) {
+      const guildStats = computeGuildStats(entry.guildId, questData);
+      updateGuildSkillProgress(entry, guildStats);
+      totalUnlocked += entry.state.nodes.filter(n => n.unlocked).length;
+      totalNodes += entry.state.nodes.length;
     }
+    this.addSubHeader(stack, `${totalUnlocked}/${totalNodes} skills unlocked across all guilds`);
 
-    const unlocked = this.skillTreeState.nodes.filter(n => n.unlocked).length;
-    const total = this.skillTreeState.nodes.length;
-    this.addSubHeader(stack, `${unlocked}/${total} skills unlocked`);
+    // Render each guild's skill tree
+    for (const entry of this.guildSkillTrees) {
+      const guildDef = GUILD_DEFINITIONS[entry.guildId];
+      if (!guildDef) continue;
 
-    for (const tierDef of SKILL_TIERS) {
-      const tierNodes = this.skillTreeState.nodes.filter(n => n.tier === tierDef.tier);
-      const unlockedCount = tierNodes.filter(n => n.unlocked).length;
-      const allUnlocked = unlockedCount === tierNodes.length;
+      const guildUnlocked = entry.state.nodes.filter(n => n.unlocked).length;
+      const guildTotal = entry.state.nodes.length;
+      const isJoined = entry.state.nodes.some(n => n.id.endsWith('_join') && n.unlocked);
 
-      // Tier header card
-      const tierCard = this.makeCard(stack);
+      const guildCard = this.makeCard(stack);
 
-      const tierHeader = new Rectangle();
-      tierHeader.width = 1;
-      tierHeader.height = "20px";
-      tierHeader.thickness = 0;
-      tierCard.addControl(tierHeader);
+      const guildHeader = new Rectangle();
+      guildHeader.width = 1;
+      guildHeader.height = "24px";
+      guildHeader.thickness = 0;
+      guildCard.addControl(guildHeader);
 
-      const tierTitle = new TextBlock();
-      tierTitle.text = `Tier ${tierDef.tier}: ${tierDef.name}  (${tierDef.range[0]}-${tierDef.range[1]}% fluency)`;
-      tierTitle.color = allUnlocked ? tierDef.color : COLORS.textSecondary;
-      tierTitle.fontSize = 12;
-      tierTitle.fontWeight = "bold";
-      tierTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      tierHeader.addControl(tierTitle);
+      const guildTitle = new TextBlock();
+      guildTitle.text = `${guildDef.icon} ${guildDef.nameFr}`;
+      guildTitle.color = isJoined ? guildDef.color : COLORS.textMuted;
+      guildTitle.fontSize = 13;
+      guildTitle.fontWeight = "bold";
+      guildTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      guildHeader.addControl(guildTitle);
 
-      const tierBadge = new TextBlock();
-      tierBadge.text = `${unlockedCount}/${tierNodes.length}`;
-      tierBadge.color = allUnlocked ? COLORS.accentGreen : COLORS.textMuted;
-      tierBadge.fontSize = 12;
-      tierBadge.fontWeight = "bold";
-      tierBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      tierHeader.addControl(tierBadge);
+      const guildBadge = new TextBlock();
+      guildBadge.text = isJoined ? `${guildUnlocked}/${guildTotal}` : 'Not joined';
+      guildBadge.color = isJoined ? COLORS.accentGreen : COLORS.textMuted;
+      guildBadge.fontSize = 11;
+      guildBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      guildHeader.addControl(guildBadge);
 
-      // Individual skill nodes
-      for (const node of tierNodes) {
-        const nodeRow = new Rectangle();
-        nodeRow.width = 1;
-        nodeRow.height = "33px";
-        nodeRow.thickness = 0;
-        nodeRow.background = node.unlocked
-          ? `rgba(${this.hexToRgb(tierDef.color)}, 0.1)`
-          : "transparent";
-        nodeRow.cornerRadius = 3;
-        tierCard.addControl(nodeRow);
+      const descText = new TextBlock();
+      descText.text = guildDef.description;
+      descText.color = COLORS.textSecondary;
+      descText.fontSize = 10;
+      descText.textWrapping = TextWrapping.WordWrap;
+      descText.height = "24px";
+      descText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      descText.paddingLeft = "4px";
+      guildCard.addControl(descText);
 
-        const icon = new TextBlock();
-        icon.text = node.icon;
-        icon.fontSize = 15;
-        icon.width = "24px";
-        icon.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        icon.left = "5px";
-        nodeRow.addControl(icon);
+      for (const tierDef of entry.config.tiers) {
+        const tierNodes = entry.state.nodes.filter(n => n.tier === tierDef.tier);
+        const tierUnlocked = tierNodes.filter(n => n.unlocked).length;
 
-        const nodeName = new TextBlock();
-        nodeName.text = node.name;
-        nodeName.color = node.unlocked ? COLORS.textPrimary : COLORS.textMuted;
-        nodeName.fontSize = 12;
-        nodeName.fontWeight = "bold";
-        nodeName.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        nodeName.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        nodeName.left = "30px";
-        nodeName.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-        nodeName.top = "5px";
-        nodeName.height = "15px";
-        nodeRow.addControl(nodeName);
+        const tierRow = new Rectangle();
+        tierRow.width = 1;
+        tierRow.height = "16px";
+        tierRow.thickness = 0;
+        guildCard.addControl(tierRow);
 
-        const nodeDesc = new TextBlock();
-        nodeDesc.text = node.description;
-        nodeDesc.color = node.unlocked ? COLORS.textSecondary : COLORS.textMuted;
-        nodeDesc.fontSize = 12;
-        nodeDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        nodeDesc.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        nodeDesc.left = "30px";
-        nodeDesc.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-        nodeDesc.top = "18px";
-        nodeDesc.height = "12px";
-        nodeRow.addControl(nodeDesc);
+        const tierLabel = new TextBlock();
+        tierLabel.text = `${tierDef.name} (${tierUnlocked}/${tierNodes.length})`;
+        tierLabel.color = tierUnlocked > 0 ? guildDef.color : COLORS.textMuted;
+        tierLabel.fontSize = 10;
+        tierLabel.fontWeight = "bold";
+        tierLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        tierLabel.left = "8px";
+        tierRow.addControl(tierLabel);
 
-        if (node.unlocked) {
-          const check = new TextBlock();
-          check.text = "✓";
-          check.fontSize = 14;
-          check.fontWeight = "bold";
-          check.color = COLORS.accentGreen;
-          check.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-          check.left = "-12px";
-          check.width = "20px";
-          nodeRow.addControl(check);
-        } else {
-          const pctText = new TextBlock();
-          pctText.text = `${Math.round(node.progress * 100)}%`;
-          pctText.fontSize = 12;
-          pctText.color = COLORS.textMuted;
-          pctText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-          pctText.left = "-12px";
-          pctText.width = "30px";
-          nodeRow.addControl(pctText);
+        for (const node of tierNodes) {
+          const nodeRow = new Rectangle();
+          nodeRow.width = 1;
+          nodeRow.height = "28px";
+          nodeRow.thickness = 0;
+          nodeRow.background = node.unlocked ? `rgba(${this.hexToRgb(guildDef.color)}, 0.1)` : "transparent";
+          nodeRow.cornerRadius = 3;
+          guildCard.addControl(nodeRow);
+
+          const nodeIcon = new TextBlock();
+          nodeIcon.text = node.icon;
+          nodeIcon.fontSize = 13;
+          nodeIcon.width = "20px";
+          nodeIcon.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          nodeIcon.left = "12px";
+          nodeRow.addControl(nodeIcon);
+
+          const nodeName = new TextBlock();
+          nodeName.text = node.name;
+          nodeName.color = node.unlocked ? COLORS.textPrimary : COLORS.textMuted;
+          nodeName.fontSize = 11;
+          nodeName.fontWeight = "bold";
+          nodeName.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          nodeName.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          nodeName.left = "34px";
+          nodeName.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+          nodeName.top = "3px";
+          nodeName.height = "14px";
+          nodeRow.addControl(nodeName);
+
+          const nodeDesc = new TextBlock();
+          nodeDesc.text = node.description;
+          nodeDesc.color = node.unlocked ? COLORS.textSecondary : COLORS.textMuted;
+          nodeDesc.fontSize = 9;
+          nodeDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          nodeDesc.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          nodeDesc.left = "34px";
+          nodeDesc.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+          nodeDesc.top = "15px";
+          nodeDesc.height = "12px";
+          nodeRow.addControl(nodeDesc);
+
+          if (node.unlocked) {
+            const check = new TextBlock();
+            check.text = "\u2713";
+            check.fontSize = 13;
+            check.fontWeight = "bold";
+            check.color = COLORS.accentGreen;
+            check.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            check.left = "-10px";
+            check.width = "18px";
+            nodeRow.addControl(check);
+          } else if (node.progress > 0) {
+            const pctText = new TextBlock();
+            pctText.text = `${Math.round(node.progress * 100)}%`;
+            pctText.fontSize = 10;
+            pctText.color = COLORS.textMuted;
+            pctText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+            pctText.left = "-10px";
+            pctText.width = "28px";
+            nodeRow.addControl(pctText);
+          }
         }
       }
     }

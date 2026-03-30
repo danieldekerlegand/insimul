@@ -5,16 +5,17 @@
  * (chests, cupboards, barrels, crates, shelves, cabinets).
  *
  * Features:
- * - Scrollable item list with rarity color coding
- * - Take / Take All actions to move items to player inventory
- * - Place Item section showing player inventory for depositing items
+ * - Scrollable item list with icon, rarity color coding, and quantity
+ * - Icon buttons: Take (arrow), Examine (eye), Place (box)
+ * - Two-column layout: container contents (left) + player inventory (right)
  * - Capacity indicator (used/total slots)
- * - Language-learning item name display
- * - Examine action for vocabulary quest objectives
+ * - Language-learning translation display on examine
  */
 
 import * as GUI from '@babylonjs/gui';
 import type { InventoryItem, GameContainer, ContainerType } from '@shared/game-engine/types';
+import { getItemTranslation } from '@shared/game-engine/rendering/OnboardingLauncher';
+import type { ItemThumbnailRenderer } from '@shared/game-engine/rendering/ItemThumbnailRenderer';
 
 const RARITY_COLORS: Record<string, string> = {
   common: '#CCCCCC',
@@ -24,13 +25,47 @@ const RARITY_COLORS: Record<string, string> = {
   legendary: '#FF8000',
 };
 
-const CONTAINER_ICONS: Record<ContainerType, string> = {
+const CONTAINER_ICONS: Record<string, string> = {
   chest: '\u{1F4E6}',
   cupboard: '\u{1F6AA}',
   barrel: '\u{1F6E2}',
   crate: '\u{1F4E6}',
   shelf: '\u{1F4DA}',
   cabinet: '\u{1F6AA}',
+  wardrobe: '\u{1F6AA}',
+  safe: '\u{1F512}',
+  sack: '\u{1F45C}',
+};
+
+// Icon-only button symbols
+const ICON_TAKE = '\u2B07';     // ⬇ down arrow
+const ICON_EXAMINE = '\u{1F441}'; // 👁 eye
+const ICON_PLACE = '\u2B06';    // ⬆ up arrow
+const ICON_TAKE_ALL = '\u2B07\u2B07'; // ⬇⬇
+
+// Default item icons by category
+const CATEGORY_ICONS: Record<string, string> = {
+  melee_weapon: '\u2694\uFE0F',
+  ranged_weapon: '\u{1F3F9}',
+  ammunition: '\u27A1\uFE0F',
+  shield: '\u{1F6E1}\uFE0F',
+  armor: '\u{1FA96}',
+  food: '\u{1F356}',
+  drink: '\u{1F37A}',
+  potion: '\u{1F9EA}',
+  medical: '\u{1F48A}',
+  tool: '\u{1F527}',
+  furniture: '\u{1FA91}',
+  container: '\u{1F4E6}',
+  light_source: '\u{1F526}',
+  jewelry: '\u{1F48D}',
+  collectible: '\u{1F48E}',
+  key: '\u{1F511}',
+  document: '\u{1F4DC}',
+  raw_material: '\u{1FAB5}',
+  equipment: '\u2699\uFE0F',
+  decoration: '\u{1F3FA}',
+  environmental: '\u{1F33F}',
 };
 
 export interface ContainerPanelConfig {
@@ -62,6 +97,10 @@ export class BabylonContainerPanel {
   private onPlace: ((transaction: ContainerTransaction) => void) | null = null;
   private onExamine: ((transaction: ContainerTransaction) => void) | null = null;
   private onClose: (() => void) | null = null;
+  private targetLanguage: string = 'Spanish';
+  private thumbnailRenderer: ItemThumbnailRenderer | null = null;
+  /** Maps item category/objectRole to objectRole for thumbnail lookup */
+  private itemObjectRoles: Map<string, string> = new Map();
 
   constructor(advancedTexture: GUI.AdvancedDynamicTexture) {
     this.advancedTexture = advancedTexture;
@@ -69,16 +108,18 @@ export class BabylonContainerPanel {
   }
 
   private createUI(): void {
-    // Main container
     this.panel = new GUI.Rectangle('containerPanel');
     this.panel.width = '700px';
     this.panel.height = '520px';
     this.panel.cornerRadius = 10;
-    this.panel.color = 'white';
-    this.panel.thickness = 2;
-    this.panel.background = 'rgba(0, 0, 0, 0.9)';
+    this.panel.color = '#4a5568';
+    this.panel.thickness = 1;
+    this.panel.background = 'rgba(12, 12, 18, 0.95)';
     this.panel.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.panel.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    this.panel.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    this.panel.shadowBlur = 20;
+    this.panel.shadowOffsetY = 4;
     this.advancedTexture.addControl(this.panel);
 
     const mainLayout = new GUI.StackPanel('containerMainLayout');
@@ -92,7 +133,7 @@ export class BabylonContainerPanel {
     titleBar.width = '700px';
     titleBar.height = '45px';
     titleBar.cornerRadius = 10;
-    titleBar.background = 'rgba(40, 50, 60, 1)';
+    titleBar.background = 'rgba(30, 30, 42, 0.98)';
     titleBar.thickness = 0;
     mainLayout.addControl(titleBar);
 
@@ -101,9 +142,11 @@ export class BabylonContainerPanel {
     this.titleText.fontSize = 18;
     this.titleText.fontWeight = 'bold';
     this.titleText.color = '#87CEEB';
+    this.titleText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.titleText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.titleText.left = '15px';
     titleBar.addControl(this.titleText);
 
-    // Capacity indicator in title bar
     this.capacityText = new GUI.TextBlock('containerCapacity');
     this.capacityText.text = '0/0';
     this.capacityText.fontSize = 13;
@@ -113,8 +156,7 @@ export class BabylonContainerPanel {
     this.capacityText.left = '-50px';
     titleBar.addControl(this.capacityText);
 
-    // Close button
-    const closeBtn = GUI.Button.CreateSimpleButton('containerClose', 'X');
+    const closeBtn = GUI.Button.CreateSimpleButton('containerClose', '\u2715');
     closeBtn.width = '35px';
     closeBtn.height = '35px';
     closeBtn.color = 'white';
@@ -144,11 +186,11 @@ export class BabylonContainerPanel {
     const divider = new GUI.Rectangle('containerDivider');
     divider.width = '2px';
     divider.height = '400px';
-    divider.background = 'rgba(100, 100, 100, 0.5)';
+    divider.background = 'rgba(100, 100, 100, 0.3)';
     divider.thickness = 0;
     columnsContainer.addControl(divider);
 
-    // Right column: Player inventory (placeable items)
+    // Right column: Player inventory
     const rightCol = this.createColumn('placeCol', 'Your Items');
     columnsContainer.addControl(rightCol.wrapper);
     this.playerItemsPanel = rightCol.itemsPanel;
@@ -180,11 +222,10 @@ export class BabylonContainerPanel {
     colLayout.height = '100%';
     wrapper.addControl(colLayout);
 
-    // Column header
     const header = new GUI.Rectangle(`${id}_header`);
     header.width = '330px';
     header.height = '35px';
-    header.background = 'rgba(40, 40, 40, 0.8)';
+    header.background = 'rgba(40, 40, 50, 0.8)';
     header.cornerRadius = 5;
     header.thickness = 0;
     colLayout.addControl(header);
@@ -195,11 +236,10 @@ export class BabylonContainerPanel {
     headerText.fontWeight = 'bold';
     headerText.color = 'white';
     headerText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    headerText.paddingLeft = '10px';
     headerText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    headerText.left = '10px';
     header.addControl(headerText);
 
-    // Scrollable items area
     const scrollViewer = new GUI.ScrollViewer(`${id}_scroll`);
     scrollViewer.width = '330px';
     scrollViewer.height = '400px';
@@ -210,11 +250,62 @@ export class BabylonContainerPanel {
 
     const itemsPanel = new GUI.StackPanel(`${id}_items`);
     itemsPanel.width = '310px';
-    itemsPanel.spacing = 4;
+    itemsPanel.spacing = 3;
     scrollViewer.addControl(itemsPanel);
 
     return { wrapper, itemsPanel, headerText };
   }
+
+  // ── Item icon helper ───────────────────────────────────────────────────────
+
+  private getItemEmoji(item: InventoryItem): string {
+    if (item.icon) return item.icon;
+    return CATEGORY_ICONS[item.category || ''] || '\u{1F4E6}';
+  }
+
+  /**
+   * Create either a thumbnail Image or an emoji TextBlock for an item icon.
+   */
+  private createItemIcon(item: InventoryItem, uid: string, size: number): GUI.Control {
+    // Try thumbnail first
+    const role = (item as any).objectRole || item.baseType || item.category;
+    if (role && this.thumbnailRenderer?.hasThumbnail(role)) {
+      const img = this.thumbnailRenderer.createThumbnailImage(role, `${uid}_thumb`, size);
+      if (img) {
+        img.height = `${size}px`;
+        return img;
+      }
+    }
+    // Fallback to emoji
+    const iconText = new GUI.TextBlock(`${uid}_icon`, this.getItemEmoji(item));
+    iconText.fontSize = size - 8;
+    iconText.width = `${size}px`;
+    iconText.height = `${size}px`;
+    return iconText;
+  }
+
+  // ── Icon button helper ─────────────────────────────────────────────────────
+
+  private createIconButton(
+    id: string,
+    icon: string,
+    tooltip: string,
+    bgColor: string,
+    onClick: () => void,
+  ): GUI.Button {
+    const btn = GUI.Button.CreateSimpleButton(id, icon);
+    btn.width = '30px';
+    btn.height = '28px';
+    btn.color = 'white';
+    btn.background = bgColor;
+    btn.cornerRadius = 4;
+    btn.fontSize = 14;
+    btn.hoverCursor = 'pointer';
+    btn.onPointerUpObservable.add(onClick);
+    return btn;
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
 
   public open(config: ContainerPanelConfig): void {
     this.containerConfig = config.container;
@@ -228,7 +319,6 @@ export class BabylonContainerPanel {
       this.updateCapacity();
       this.refreshContainerItems();
       this.refreshPlayerItems();
-
       this.panel.isVisible = true;
       this.isVisible = true;
     }
@@ -258,13 +348,15 @@ export class BabylonContainerPanel {
     this.capacityText.color = used >= total ? '#FF6347' : '#AAA';
   }
 
+  // ── Container items (left column) ──────────────────────────────────────────
+
   private refreshContainerItems(): void {
     if (!this.containerItemsPanel || !this.containerConfig) return;
     this.containerItemsPanel.clearControls();
 
     if (this.containerConfig.isLocked) {
       const lockedText = new GUI.TextBlock('contLocked');
-      lockedText.text = 'This container is locked.';
+      lockedText.text = '\u{1F512} This container is locked.';
       lockedText.height = '30px';
       lockedText.fontSize = 13;
       lockedText.color = '#FF6347';
@@ -277,17 +369,17 @@ export class BabylonContainerPanel {
       emptyText.text = 'Empty';
       emptyText.height = '30px';
       emptyText.fontSize = 13;
-      emptyText.color = '#888';
+      emptyText.color = '#666';
       this.containerItemsPanel.addControl(emptyText);
     } else {
       // Take All button
-      const takeAllBtn = GUI.Button.CreateSimpleButton('contTakeAll', 'Take All');
+      const takeAllBtn = GUI.Button.CreateSimpleButton('contTakeAll', `${ICON_TAKE_ALL} Take All`);
       takeAllBtn.width = '305px';
-      takeAllBtn.height = '28px';
+      takeAllBtn.height = '26px';
       takeAllBtn.color = 'white';
       takeAllBtn.background = 'rgba(40, 120, 40, 0.8)';
       takeAllBtn.cornerRadius = 5;
-      takeAllBtn.fontSize = 13;
+      takeAllBtn.fontSize = 12;
       takeAllBtn.fontWeight = 'bold';
       takeAllBtn.onPointerUpObservable.add(() => this.handleTakeAll());
       this.containerItemsPanel.addControl(takeAllBtn);
@@ -298,6 +390,80 @@ export class BabylonContainerPanel {
       }
     }
   }
+
+  private createContainerItemCard(item: InventoryItem): GUI.Rectangle {
+    const uid = `cont_${item.id}`;
+    const card = new GUI.Rectangle(uid);
+    card.width = '305px';
+    card.height = '48px';
+    card.cornerRadius = 5;
+    card.color = 'rgba(100, 100, 100, 0.3)';
+    card.thickness = 1;
+    card.background = 'rgba(25, 25, 30, 0.9)';
+
+    // Horizontal layout: [icon] [name+desc] [buttons]
+    const row = new GUI.StackPanel(`${uid}_row`);
+    row.isVertical = false;
+    row.width = '100%';
+    row.height = '100%';
+    card.addControl(row);
+
+    // Item icon (thumbnail or emoji fallback)
+    const icon = this.createItemIcon(item, uid, 36);
+    row.addControl(icon);
+
+    // Name + description column
+    const nameCol = new GUI.StackPanel(`${uid}_nameCol`);
+    nameCol.isVertical = true;
+    nameCol.width = '170px';
+    nameCol.height = '48px';
+    nameCol.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    row.addControl(nameCol);
+
+    const nameText = new GUI.TextBlock(`${uid}_name`);
+    const qtyLabel = item.quantity > 1 ? ` x${item.quantity}` : '';
+    nameText.text = item.name + qtyLabel;
+    nameText.fontSize = 12;
+    nameText.fontWeight = 'bold';
+    nameText.color = item.rarity ? RARITY_COLORS[item.rarity] || '#CCCCCC' : '#CCCCCC';
+    nameText.height = '20px';
+    nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    nameText.textWrapping = true;
+    nameCol.addControl(nameText);
+
+    // Value + type line
+    const infoText = new GUI.TextBlock(`${uid}_info`);
+    const valueStr = item.value ? `${item.value}g` : '';
+    const rarityStr = item.rarity && item.rarity !== 'common' ? item.rarity : '';
+    infoText.text = [valueStr, rarityStr].filter(Boolean).join(' \u00B7 ');
+    infoText.fontSize = 10;
+    infoText.color = item.value ? '#FFD700' : '#666';
+    infoText.height = '14px';
+    infoText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    nameCol.addControl(infoText);
+
+    // Action buttons
+    const btnGroup = new GUI.StackPanel(`${uid}_btns`);
+    btnGroup.isVertical = false;
+    btnGroup.width = '90px';
+    btnGroup.height = '48px';
+    btnGroup.spacing = 4;
+    row.addControl(btnGroup);
+
+    // Examine button (eye icon)
+    btnGroup.addControl(
+      this.createIconButton(`${uid}_examine`, ICON_EXAMINE, 'Examine', 'rgba(80, 80, 150, 0.9)', () => this.handleExamine(item)),
+    );
+
+    // Take button (down arrow icon)
+    btnGroup.addControl(
+      this.createIconButton(`${uid}_take`, ICON_TAKE, 'Take', 'rgba(40, 120, 40, 0.9)', () => this.handleTake(item)),
+    );
+
+    return card;
+  }
+
+  // ── Player items (right column) ────────────────────────────────────────────
 
   private refreshPlayerItems(): void {
     if (!this.playerItemsPanel || !this.containerConfig) return;
@@ -310,7 +476,7 @@ export class BabylonContainerPanel {
       emptyText.text = 'No items in inventory';
       emptyText.height = '30px';
       emptyText.fontSize = 13;
-      emptyText.color = '#888';
+      emptyText.color = '#666';
       this.playerItemsPanel.addControl(emptyText);
       return;
     }
@@ -318,8 +484,8 @@ export class BabylonContainerPanel {
     if (isFull) {
       const fullText = new GUI.TextBlock('placeFull');
       fullText.text = 'Container is full';
-      fullText.height = '30px';
-      fullText.fontSize = 13;
+      fullText.height = '24px';
+      fullText.fontSize = 12;
       fullText.color = '#FF6347';
       this.playerItemsPanel.addControl(fullText);
     }
@@ -330,168 +496,59 @@ export class BabylonContainerPanel {
     }
   }
 
-  private createContainerItemCard(item: InventoryItem): GUI.Rectangle {
-    const uid = `cont_${item.id}`;
-    const card = new GUI.Rectangle(uid);
-    card.width = '305px';
-    card.height = '65px';
-    card.cornerRadius = 5;
-    card.color = 'rgba(100, 100, 100, 0.4)';
-    card.thickness = 1;
-    card.background = 'rgba(25, 25, 25, 0.9)';
-
-    const cardStack = new GUI.StackPanel(`${uid}_stack`);
-    cardStack.isVertical = true;
-    cardStack.width = '100%';
-    cardStack.height = '100%';
-    cardStack.paddingLeft = '10px';
-    cardStack.paddingRight = '10px';
-    cardStack.paddingTop = '4px';
-    card.addControl(cardStack);
-
-    // Row 1: Name + rarity + quantity
-    const topRow = new GUI.StackPanel(`${uid}_topRow`);
-    topRow.isVertical = false;
-    topRow.width = '100%';
-    topRow.height = '20px';
-    cardStack.addControl(topRow);
-
-    const nameText = new GUI.TextBlock(`${uid}_name`);
-    const rarityLabel = item.rarity && item.rarity !== 'common' ? ` [${item.rarity}]` : '';
-    nameText.text = item.name + rarityLabel;
-    nameText.fontSize = 14;
-    nameText.fontWeight = 'bold';
-    nameText.color = item.rarity ? RARITY_COLORS[item.rarity] || '#CCCCCC' : '#CCCCCC';
-    nameText.width = '70%';
-    nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    topRow.addControl(nameText);
-
-    if (item.quantity > 1) {
-      const qtyText = new GUI.TextBlock(`${uid}_qty`);
-      qtyText.text = `x${item.quantity}`;
-      qtyText.fontSize = 12;
-      qtyText.color = '#AAA';
-      qtyText.width = '30%';
-      qtyText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      topRow.addControl(qtyText);
-    }
-
-    // Row 2: Description
-    if (item.description) {
-      const descText = new GUI.TextBlock(`${uid}_desc`);
-      descText.text = item.description;
-      descText.fontSize = 10;
-      descText.color = '#999';
-      descText.height = '14px';
-      descText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      cardStack.addControl(descText);
-    }
-
-    // Row 3: Action buttons
-    const btnRow = new GUI.StackPanel(`${uid}_btnRow`);
-    btnRow.isVertical = false;
-    btnRow.width = '100%';
-    btnRow.height = '26px';
-    cardStack.addControl(btnRow);
-
-    // Value display
-    if (item.value) {
-      const valueText = new GUI.TextBlock(`${uid}_val`);
-      valueText.text = `${item.value}g`;
-      valueText.fontSize = 12;
-      valueText.color = '#FFD700';
-      valueText.width = '40%';
-      valueText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      btnRow.addControl(valueText);
-    } else {
-      const spacer = new GUI.TextBlock(`${uid}_spacer`);
-      spacer.text = '';
-      spacer.width = '40%';
-      btnRow.addControl(spacer);
-    }
-
-    // Examine button
-    const examineBtn = GUI.Button.CreateSimpleButton(`${uid}_examine`, 'Examine');
-    examineBtn.width = '70px';
-    examineBtn.height = '24px';
-    examineBtn.color = 'white';
-    examineBtn.background = 'rgba(80, 80, 150, 0.9)';
-    examineBtn.cornerRadius = 4;
-    examineBtn.fontSize = 11;
-    examineBtn.fontWeight = 'bold';
-    examineBtn.onPointerUpObservable.add(() => {
-      this.handleExamine(item);
-    });
-    btnRow.addControl(examineBtn);
-
-    // Take button
-    const takeBtn = GUI.Button.CreateSimpleButton(`${uid}_take`, 'Take');
-    takeBtn.width = '60px';
-    takeBtn.height = '24px';
-    takeBtn.color = 'white';
-    takeBtn.background = 'rgba(40, 120, 40, 0.9)';
-    takeBtn.cornerRadius = 4;
-    takeBtn.fontSize = 12;
-    takeBtn.fontWeight = 'bold';
-    takeBtn.onPointerUpObservable.add(() => {
-      this.handleTake(item);
-    });
-    btnRow.addControl(takeBtn);
-
-    return card;
-  }
-
   private createPlayerItemCard(item: InventoryItem, containerFull: boolean): GUI.Rectangle {
     const uid = `place_${item.id}`;
     const card = new GUI.Rectangle(uid);
     card.width = '305px';
-    card.height = '50px';
+    card.height = '40px';
     card.cornerRadius = 5;
-    card.color = containerFull ? 'rgba(80, 50, 50, 0.6)' : 'rgba(100, 100, 100, 0.4)';
+    card.color = containerFull ? 'rgba(80, 50, 50, 0.4)' : 'rgba(100, 100, 100, 0.3)';
     card.thickness = 1;
-    card.background = containerFull ? 'rgba(30, 15, 15, 0.9)' : 'rgba(25, 25, 25, 0.9)';
+    card.background = containerFull ? 'rgba(30, 15, 15, 0.9)' : 'rgba(25, 25, 30, 0.9)';
 
-    const cardStack = new GUI.StackPanel(`${uid}_stack`);
-    cardStack.isVertical = false;
-    cardStack.width = '100%';
-    cardStack.height = '100%';
-    cardStack.paddingLeft = '10px';
-    cardStack.paddingRight = '10px';
-    card.addControl(cardStack);
+    // Horizontal layout: [icon] [name] [place button]
+    const row = new GUI.StackPanel(`${uid}_row`);
+    row.isVertical = false;
+    row.width = '100%';
+    row.height = '100%';
+    card.addControl(row);
+
+    // Item icon (thumbnail or emoji fallback)
+    const icon = this.createItemIcon(item, uid, 32);
+    if (containerFull) icon.alpha = 0.4;
+    row.addControl(icon);
 
     // Item name
     const nameText = new GUI.TextBlock(`${uid}_name`);
-    const rarityLabel = item.rarity && item.rarity !== 'common' ? ` [${item.rarity}]` : '';
-    nameText.text = item.name + rarityLabel + (item.quantity > 1 ? ` x${item.quantity}` : '');
-    nameText.fontSize = 13;
+    const qtyLabel = item.quantity > 1 ? ` x${item.quantity}` : '';
+    nameText.text = item.name + qtyLabel;
+    nameText.fontSize = 12;
     nameText.fontWeight = 'bold';
-    nameText.color = containerFull
-      ? '#666'
-      : (item.rarity ? RARITY_COLORS[item.rarity] || '#CCCCCC' : '#CCCCCC');
-    nameText.width = '70%';
+    nameText.color = containerFull ? '#666' : (item.rarity ? RARITY_COLORS[item.rarity] || '#CCCCCC' : '#CCCCCC');
+    nameText.width = '230px';
+    nameText.height = '40px';
     nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cardStack.addControl(nameText);
+    nameText.textWrapping = true;
+    row.addControl(nameText);
 
-    // Place button
-    const placeBtn = GUI.Button.CreateSimpleButton(`${uid}_place`, 'Place');
-    placeBtn.width = '60px';
-    placeBtn.height = '24px';
-    placeBtn.color = containerFull ? '#666' : 'white';
-    placeBtn.background = containerFull
-      ? 'rgba(50, 50, 50, 0.5)'
-      : 'rgba(40, 80, 150, 0.9)';
-    placeBtn.cornerRadius = 4;
-    placeBtn.fontSize = 12;
-    placeBtn.fontWeight = 'bold';
+    // Place button (up arrow icon)
     if (!containerFull) {
-      placeBtn.onPointerUpObservable.add(() => {
-        this.handlePlace(item);
-      });
+      row.addControl(
+        this.createIconButton(`${uid}_place`, ICON_PLACE, 'Place', 'rgba(40, 80, 150, 0.9)', () => this.handlePlace(item)),
+      );
+    } else {
+      const disabledBtn = new GUI.TextBlock(`${uid}_disabled`, ICON_PLACE);
+      disabledBtn.width = '30px';
+      disabledBtn.height = '28px';
+      disabledBtn.fontSize = 14;
+      disabledBtn.color = '#444';
+      row.addControl(disabledBtn);
     }
-    cardStack.addControl(placeBtn);
 
     return card;
   }
+
+  // ── Transaction handlers ───────────────────────────────────────────────────
 
   private handleTake(item: InventoryItem): void {
     if (!this.containerConfig) return;
@@ -502,9 +559,9 @@ export class BabylonContainerPanel {
       containerId: this.containerConfig.id,
     };
 
-    // Remove from container items
+    // Remove from container, add to player inventory
     this.containerConfig.items = this.containerConfig.items.filter(i => i.id !== item.id);
-
+    this.playerItems.push(item);
     if (this.onTake) this.onTake(transaction);
     this.showStatus(`Took ${item.name}`, '#2ecc71');
     this.updateCapacity();
@@ -522,6 +579,7 @@ export class BabylonContainerPanel {
         quantity: item.quantity,
         containerId: this.containerConfig.id,
       };
+      this.playerItems.push(item);
       if (this.onTake) this.onTake(transaction);
     }
 
@@ -546,7 +604,6 @@ export class BabylonContainerPanel {
       containerId: this.containerConfig.id,
     };
 
-    // Add to container, remove from player
     this.containerConfig.items.push(item);
     this.playerItems = this.playerItems.filter(i => i.id !== item.id);
 
@@ -567,8 +624,9 @@ export class BabylonContainerPanel {
     };
     if (this.onExamine) this.onExamine(transaction);
 
-    const langInfo = item.languageLearningData
-      ? ` — "${item.languageLearningData.targetWord}" (${item.languageLearningData.targetLanguage})`
+    const translation = getItemTranslation(item, this.targetLanguage);
+    const langInfo = translation
+      ? ` \u2014 "${translation.targetWord}" (${this.targetLanguage})`
       : '';
     this.showStatus(`${item.name}: ${item.description || 'No description'}${langInfo}`, '#87CEEB');
   }
@@ -579,6 +637,8 @@ export class BabylonContainerPanel {
       this.statusText.color = color;
     }
   }
+
+  // ── Event setters ──────────────────────────────────────────────────────────
 
   public setOnTake(callback: (transaction: ContainerTransaction) => void): void {
     this.onTake = callback;
@@ -594,6 +654,14 @@ export class BabylonContainerPanel {
 
   public setOnClose(callback: () => void): void {
     this.onClose = callback;
+  }
+
+  public setTargetLanguage(language: string): void {
+    this.targetLanguage = language;
+  }
+
+  public setThumbnailRenderer(renderer: ItemThumbnailRenderer): void {
+    this.thumbnailRenderer = renderer;
   }
 
   public dispose(): void {

@@ -11,8 +11,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Zap, Plus, ChevronRight, ChevronDown, Edit, Globe, Trash2, RefreshCw,
+  Zap, Plus, ChevronRight, ChevronDown, Edit, Globe, Trash2, RefreshCw, Play,
 } from 'lucide-react';
+import { getAnimationForAction } from '@shared/game-engine/action-animation-map';
+import { ActionAnimationPreview } from '@/components/admin/ActionAnimationPreview';
 import { ActionCreateDialog } from '../ActionCreateDialog';
 import { ActionEditDialog } from '../ActionEditDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
@@ -89,7 +91,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
 
   // Right panel section state
-  const [expandedSection, setExpandedSection] = useState<'details' | 'predicates' | 'query' | null>(null);
+  const [expandedSection, setExpandedSection] = useState<'details' | 'animation' | 'predicates' | 'query' | null>(null);
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -534,6 +536,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
       <div className="w-64 flex-shrink-0 border-l border-white/15 dark:border-white/10 flex flex-col min-h-0">
         {[
           { id: 'details' as const, label: 'Details', icon: Zap },
+          { id: 'animation' as const, label: 'Animation', icon: Play },
           { id: 'predicates' as const, label: 'Predicates', icon: Edit },
           { id: 'query' as const, label: 'Query', icon: Globe },
         ].map((section, idx) => {
@@ -560,6 +563,12 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
               {/* Section content */}
               {isExpanded && (
                 <div className="flex-1 min-h-0 flex flex-col">
+                  {section.id === 'animation' && selectedAction && (
+                    <div className="p-3">
+                      <ActionAnimationPreview entry={getAnimationForAction(selectedAction.name)} height={200} />
+                    </div>
+                  )}
+
                   {section.id === 'predicates' && (
                     <PredicatePalette compact onInsert={(text) => navigator.clipboard.writeText(text)} />
                   )}

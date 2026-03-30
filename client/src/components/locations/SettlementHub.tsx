@@ -221,7 +221,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: 'country' | 'settlement' | 'character' | 'business' | 'residence';
+    type: 'country' | 'settlement' | 'character' | 'business' | 'residence' | 'bulk_characters' | 'bulk_businesses' | 'bulk_buildings' | 'bulk_lots';
     id: string;
     name: string;
   } | null>(null);
@@ -229,16 +229,79 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const { type, id } = deleteTarget;
-    const endpoints: Record<string, string> = {
-      country: `/api/countries/${id}`,
-      settlement: `/api/settlements/${id}`,
-      character: `/api/characters/${id}`,
-      business: `/api/businesses/${id}`,
-      residence: `/api/residences/${id}`,
-    };
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     try {
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      // Handle bulk deletes
+      if (type.startsWith('bulk_')) {
+        let ids: string[] = [];
+        let endpoint = '';
+        let refreshFn: () => void = () => {};
+
+        if (type === 'bulk_characters') {
+          ids = residents.filter((c: any) => c.isAlive !== false).map((c: any) => c.id);
+          endpoint = '/api/characters/bulk-delete';
+          refreshFn = () => { fetchAllCharacters(); if (selectedSettlement) fetchResidents(selectedSettlement.id); else setResidents([]); };
+        } else if (type === 'bulk_businesses') {
+          ids = businesses.map((b: any) => b.id);
+          endpoint = '/api/characters/bulk-delete'; // placeholder — delete individually below
+        } else if (type === 'bulk_buildings') {
+          ids = residences.map((r: any) => r.id);
+        } else if (type === 'bulk_lots') {
+          ids = lots.map((l: any) => l.id);
+        }
+
+        if (type === 'bulk_characters' && ids.length > 0) {
+          const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ ids }) });
+          if (res.ok) {
+            const data = await res.json();
+            toast({ title: `Deleted ${data.deleted} characters and their truths` });
+            refreshFn();
+          }
+        } else if (type === 'bulk_businesses' || type === 'bulk_buildings' || type === 'bulk_lots') {
+          // Delete individually via existing endpoints
+          const deleteEndpoint = type === 'bulk_businesses' ? '/api/businesses/'
+            : type === 'bulk_buildings' ? '/api/residences/'
+            : '/api/lots/';
+          let deleted = 0;
+          for (const itemId of ids) {
+            const res = await fetch(`${deleteEndpoint}${itemId}`, { method: 'DELETE', headers });
+            if (res.ok || res.status === 204) deleted++;
+          }
+          toast({ title: `Deleted ${deleted} ${type.replace('bulk_', '')}` });
+          if (selectedSettlement) {
+            fetchDataForSettlements([selectedSettlement.id]);
+          } else if (selectedCountry) {
+            const countrySettlements = settlements.filter(s => s.countryId === selectedCountry.id);
+            fetchDataForSettlements(countrySettlements.map(s => s.id));
+          } else {
+            fetchDataForSettlements(settlements.map(s => s.id));
+          }
+        }
+
+        // Also handle deceased bulk delete
+        if (type === 'bulk_characters' && id === 'deceased') {
+          const deceasedIds = residents.filter((c: any) => c.isAlive === false).map((c: any) => c.id);
+          if (deceasedIds.length > 0) {
+            await fetch('/api/characters/bulk-delete', { method: 'POST', headers, body: JSON.stringify({ ids: deceasedIds }) });
+            fetchAllCharacters();
+          }
+        }
+
+        setDeleteTarget(null);
+        return;
+      }
+
+      // Single item delete
+      const endpoints: Record<string, string> = {
+        country: `/api/countries/${id}`,
+        settlement: `/api/settlements/${id}`,
+        character: `/api/characters/${id}`,
+        business: `/api/businesses/${id}`,
+        residence: `/api/residences/${id}`,
+      };
       const res = await fetch(endpoints[type], { method: 'DELETE', headers });
       if (res.ok || res.status === 204) {
         toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted` });
@@ -302,9 +365,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         fetchAllCharacters();
         if (type === 'country' && selectedCountry?.id === id) selectWorld();
         if (type === 'settlement' && selectedSettlement?.id === id) {
-          fetchLots(id);
-          fetchBusinesses(id);
-          fetchResidences(id);
+          fetchDataForSettlements([id]);
           fetchResidents(id);
         }
       } else {
@@ -339,17 +400,25 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     })();
   }, [worldId]);
 
+  // Fetch entity data when settlements and characters are loaded (for world-level view)
+  useEffect(() => {
+    if (settlements.length > 0 && !selectedSettlement && !selectedCountry) {
+      fetchDataForSettlements(settlements.map(s => s.id));
+    }
+  }, [settlements.length]);
+
+  // Show all characters at world level once loaded
+  useEffect(() => {
+    if (allCharacters.length > 0 && !selectedSettlement && !selectedCountry) {
+      setResidents(allCharacters);
+    }
+  }, [allCharacters.length, selectedSettlement, selectedCountry]);
+
+  // Fetch entity data when a settlement is selected
   useEffect(() => {
     if (selectedSettlement) {
-      fetchLots(selectedSettlement.id);
-      fetchBusinesses(selectedSettlement.id);
-      fetchResidences(selectedSettlement.id);
+      fetchDataForSettlements([selectedSettlement.id]);
       fetchResidents(selectedSettlement.id);
-    } else {
-      setLots([]);
-      setBusinesses([]);
-      setResidences([]);
-      setResidents([]);
     }
   }, [selectedSettlement?.id]);
 
@@ -467,24 +536,27 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     }
   };
 
-  const fetchResidents = async (settlementId: string) => {
-    // Filter from allCharacters if available, otherwise fetch
-    if (allCharacters.length > 0) {
-      setResidents(
-        allCharacters.filter((c: any) => c.settlementId === settlementId || c.currentLocation === settlementId)
-      );
-      return;
+  const fetchResidents = async (settlementId?: string, countryId?: string) => {
+    // Ensure allCharacters is loaded
+    let chars = allCharacters;
+    if (chars.length === 0) {
+      try {
+        const res = await fetch(`/api/worlds/${worldId}/characters`);
+        if (res.ok) { chars = await res.json(); setAllCharacters(chars); }
+      } catch { setResidents([]); return; }
     }
-    try {
-      const res = await fetch(`/api/worlds/${worldId}/characters`);
-      if (res.ok) {
-        const all: Character[] = await res.json();
-        setAllCharacters(all);
-        setResidents(
-          all.filter((c: any) => c.settlementId === settlementId || c.currentLocation === settlementId)
-        );
-      }
-    } catch { setResidents([]); }
+
+    if (settlementId) {
+      // Settlement level: filter to this settlement
+      setResidents(chars.filter((c: any) => c.settlementId === settlementId || c.currentLocation === settlementId));
+    } else if (countryId) {
+      // Country level: filter to settlements in this country
+      const countrySettlementIds = new Set(settlements.filter(s => s.countryId === countryId).map(s => s.id));
+      setResidents(chars.filter((c: any) => countrySettlementIds.has(c.currentLocation)));
+    } else {
+      // World level: show all characters
+      setResidents(chars);
+    }
   };
 
   // Lookup map: character ID → character name
@@ -520,6 +592,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     setSelectedCountry(country);
     setSelectedSettlement(null);
     setViewLevel('country');
+    // Fetch data for all settlements in this country
+    const countrySettlements = settlements.filter(s => s.countryId === country.id);
+    fetchDataForSettlements(countrySettlements.map(s => s.id));
+    fetchResidents(undefined, country.id);
   };
 
   const selectSettlement = (settlement: any) => {
@@ -530,12 +606,37 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       if (country) setSelectedCountry(country);
     }
     setViewLevel('settlement');
+    fetchDataForSettlements([settlement.id]);
+    fetchResidents(settlement.id);
   };
 
   const selectWorld = () => {
     setSelectedCountry(null);
     setSelectedSettlement(null);
     setViewLevel('world');
+    // Fetch data for all settlements
+    fetchDataForSettlements(settlements.map(s => s.id));
+    fetchResidents();
+  };
+
+  // Fetch lots, businesses, buildings for one or more settlements
+  const fetchDataForSettlements = async (settlementIds: string[]) => {
+    if (settlementIds.length === 0) {
+      setLots([]); setBusinesses([]); setResidences([]);
+      return;
+    }
+    try {
+      const [allLots, allBusinesses, allBuildings] = await Promise.all([
+        Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}/lots`).then(r => r.ok ? r.json() : []))),
+        Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}/businesses`).then(r => r.ok ? r.json() : []))),
+        Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}/residences`).then(r => r.ok ? r.json() : []))),
+      ]);
+      setLots(allLots.flat());
+      setBusinesses(allBusinesses.flat());
+      setResidences(allBuildings.flat());
+    } catch {
+      setLots([]); setBusinesses([]); setResidences([]);
+    }
   };
 
   const settlementTypeColor = (type: string) => {
@@ -901,10 +1002,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             const lot = lots.find(l => l.id === lotId);
             if (!lot) return;
             // If it has a business, open as business; if residence, open as residence; else as lot
-            const biz = businesses.find(b => b.lotId === lotId);
-            const res = residences.find(r => r.lotId === lotId);
-            if (biz) selectBuilding('business', biz);
-            else if (res) selectBuilding('residence', res);
+            // Buildings are embedded in lots
+            const building = lot.building;
+            if (building?.buildingCategory === 'business') selectBuilding('business', { ...building, id: lot.id, address: lot.address });
+            else if (building?.buildingCategory === 'residence') selectBuilding('residence', { ...building, id: lot.id, address: lot.address });
             else selectBuilding('lot', lot);
           }}
           visibleLayers={visibleLayers}
@@ -925,22 +1026,15 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   // ─── Right panel ───────────────────────────────────────────────────────────
 
   const renderRight = () => {
-    if (viewLevel !== 'settlement' || !selectedSettlement) {
-      return (
-        <div className="w-72 shrink-0 border-l flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
-          Select a settlement to browse its residents, businesses, residences, and lots
-        </div>
-      );
-    }
-
     const livingResidents = residents.filter((c: any) => c.isAlive !== false);
     const formerResidents = residents.filter((c: any) => c.isAlive === false);
 
+    const scopeLabel = viewLevel === 'world' ? 'World' : viewLevel === 'country' ? 'Country' : 'Settlement';
     const sections = [
-      { id: 'people' as const, icon: Users, label: 'Residents', count: livingResidents.length, data: livingResidents },
-      { id: 'former' as const, icon: Users, label: 'Former Residents', count: formerResidents.length, data: formerResidents },
+      { id: 'people' as const, icon: Users, label: `Characters`, count: livingResidents.length, data: livingResidents },
+      { id: 'former' as const, icon: Users, label: 'Deceased', count: formerResidents.length, data: formerResidents },
       { id: 'businesses' as const, icon: Briefcase, label: 'Businesses', count: businesses.length, data: businesses },
-      { id: 'residences' as const, icon: Home, label: 'Residences', count: residences.length, data: residences },
+      { id: 'residences' as const, icon: Home, label: 'Buildings', count: residences.length, data: residences },
       { id: 'lots' as const, icon: Home, label: 'Lots', count: lots.length, data: lots },
     ];
 
@@ -974,6 +1068,34 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                     title="View family tree"
                   >
                     <GitBranch className="w-3 h-3" />
+                  </Button>
+                )}
+                {canEdit && section.count > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 ml-1 text-muted-foreground/40 hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const bulkTypeMap: Record<string, string> = {
+                        people: 'bulk_characters',
+                        former: 'bulk_characters',
+                        businesses: 'bulk_businesses',
+                        residences: 'bulk_buildings',
+                        lots: 'bulk_lots',
+                      };
+                      const bulkType = bulkTypeMap[section.id];
+                      if (bulkType) {
+                        setDeleteTarget({
+                          type: bulkType as any,
+                          id: section.id === 'former' ? 'deceased' : 'all',
+                          name: `all ${section.count} ${section.label.toLowerCase()}`
+                        });
+                      }
+                    }}
+                    title={`Delete all ${section.label.toLowerCase()}`}
+                  >
+                    <Trash2 className="w-3 h-3" />
                   </Button>
                 )}
                 {canEdit && (section.id === 'businesses' || section.id === 'residences' || section.id === 'lots') && (
@@ -1121,34 +1243,47 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                         );
                       })
                     ) : (
-                      lots.map(l => (
+                      lots.map(l => {
+                        const bldg = l.building;
+                        const lt = l.lotType;
+                        const specialTypes: Record<string, { label: string; color: string }> = {
+                          park: { label: 'Park', color: 'green' },
+                          forest: { label: 'Forest', color: 'emerald' },
+                          cemetery: { label: 'Cemetery', color: 'stone' },
+                          garden: { label: 'Garden', color: 'lime' },
+                          agricultural: { label: 'Agricultural', color: 'amber' },
+                        };
+                        const special = specialTypes[lt];
+                        const category = bldg?.buildingCategory;
+                        const iconColor = special ? `text-${special.color}-500` :
+                          category === 'business' ? 'text-orange-500' :
+                          category === 'residence' ? 'text-blue-500' :
+                          'text-gray-500';
+                        const bgColor = special ? `bg-${special.color}-500/20` :
+                          category === 'business' ? 'bg-orange-500/20' :
+                          category === 'residence' ? 'bg-blue-500/20' :
+                          'bg-gray-500/20';
+                        const label = special?.label || (category === 'business' ? bldg?.name : category) || 'Vacant';
+
+                        return (
                         <div key={l.id} className="px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer flex items-start gap-1"
                           onClick={() => selectBuilding('lot', l)}
                         >
-                          <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${
-                            l.buildingType === 'business' ? 'bg-orange-500/20' :
-                            l.buildingType === 'residence' ? 'bg-blue-500/20' :
-                            'bg-gray-500/20'
-                          }`}>
-                            <Building2 className={`w-3 h-3 ${
-                              l.buildingType === 'business' ? 'text-orange-500' :
-                              l.buildingType === 'residence' ? 'text-blue-500' :
-                              'text-gray-500'
-                            }`} />
+                          <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${bgColor}`}>
+                            <Building2 className={`w-3 h-3 ${iconColor}`} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{l.address}</p>
+                            <p className="text-sm font-medium">{l.address || l.name || 'Unnamed'}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               {l.districtName && (
                                 <span className="text-xs text-muted-foreground">{l.districtName}</span>
                               )}
-                              {l.buildingType && (
-                                <Badge variant="outline" className="text-xs py-0 h-4">{l.buildingType}</Badge>
-                              )}
+                              <Badge variant="outline" className="text-xs py-0 h-4">{label}</Badge>
                             </div>
                           </div>
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </ScrollArea>
@@ -1530,11 +1665,15 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteTarget?.type}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleteTarget?.type?.startsWith('bulk_') ? deleteTarget?.name : deleteTarget?.type}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>?
+              {deleteTarget?.type?.startsWith('bulk_')
+                ? <>Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? Associated truths will also be deleted.</>
+                : <>Are you sure you want to delete <strong>{deleteTarget?.name}</strong>?</>
+              }
               {deleteTarget?.type === 'country' && ' This will also delete all states and settlements within it.'}
               {deleteTarget?.type === 'settlement' && ' This will also delete all associated businesses, residences, and lots.'}
+              {deleteTarget?.type === 'character' && ' Associated truths will also be deleted.'}
               {' '}This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

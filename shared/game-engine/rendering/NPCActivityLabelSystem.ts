@@ -29,6 +29,8 @@ export interface ActivityLabelCallbacks {
   getNPCMesh: (npcId: string) => Mesh | null;
   /** Called when player has observed an NPC activity for the required duration */
   onActivityObserved: (npcId: string, npcName: string, activity: string, durationSeconds: number) => void;
+  /** Called each update with observation progress (0-1). Return false to suppress. */
+  onObservationProgress?: (npcId: string, npcName: string, activity: string, progress: number) => void;
 }
 
 /** Per-NPC observation state */
@@ -252,9 +254,14 @@ export class NPCActivityLabelSystem {
       // Check if observation duration met
       if (!existing.reported) {
         const elapsedSeconds = (now - existing.startTime) / 1000;
+        const progress = Math.min(1, elapsedSeconds / OBSERVE_DURATION_SECONDS);
+        const npcName = this.callbacks.getNPCName(npcId);
+
+        // Fire progress callback for UI
+        this.callbacks.onObservationProgress?.(npcId, npcName, activity, progress);
+
         if (elapsedSeconds >= OBSERVE_DURATION_SECONDS) {
           existing.reported = true;
-          const npcName = this.callbacks.getNPCName(npcId);
           this.callbacks.onActivityObserved(npcId, npcName, activity, elapsedSeconds);
         }
       }

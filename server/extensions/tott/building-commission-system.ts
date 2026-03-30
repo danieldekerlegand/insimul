@@ -921,15 +921,10 @@ export async function renovateBuilding(
     businessType: newBusinessType,
   });
 
-  // Find the lot for return value
+  // Find the lot via the building record
   let lot: Lot | undefined;
-  if (business.lotId) {
-    lot = await storage.getLot(business.lotId);
-  }
-  if (!lot) {
-    const foundLot = await findLotByBuildingId(worldId, buildingId);
-    if (foundLot) lot = foundLot;
-  }
+  const foundLot = await findLotByBuildingId(worldId, buildingId);
+  if (foundLot) lot = foundLot;
 
   if (!lot) {
     throw new Error(`No lot found for business ${buildingId}`);

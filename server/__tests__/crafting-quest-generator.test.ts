@@ -39,7 +39,7 @@ function makeItem(overrides: Partial<CraftableItemInfo> = {}): CraftableItemInfo
     category: 'melee_weapon',
     material: 'iron',
     craftingRecipe: null,
-    languageLearningData: null,
+    translations: null,
     ...overrides,
   };
 }

@@ -77,6 +77,12 @@ export async function createMainQuestRecord(
   playerId: string,
   chapter: MainQuestChapter,
   targetLanguage: string,
+  narrativeContext?: {
+    introNarrative?: string;
+    outroNarrative?: string;
+    mysteryDetails?: string;
+    clueDescriptions?: Array<{ clueId: string; text: string; locationId?: string; npcRole?: string }>;
+  },
 ): Promise<Quest> {
   // Check if a record already exists for this chapter
   const existing = await findMainQuestRecord(worldId, chapter.id, playerId);
@@ -115,6 +121,15 @@ export async function createMainQuestRecord(
       chapterTag(chapter.number),
       `chapterId:${chapter.id}`,
     ],
+    conversationContext: narrativeContext ? JSON.stringify({
+      introNarrative: narrativeContext.introNarrative || chapter.introNarrative,
+      outroNarrative: narrativeContext.outroNarrative || chapter.outroNarrative,
+      mysteryDetails: narrativeContext.mysteryDetails,
+      clueDescriptions: narrativeContext.clueDescriptions,
+    }) : JSON.stringify({
+      introNarrative: chapter.introNarrative,
+      outroNarrative: chapter.outroNarrative,
+    }),
   };
 
   return storage.createQuest(questData);

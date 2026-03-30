@@ -12,9 +12,10 @@ import * as GUI from '@babylonjs/gui';
 // Re-export engine-agnostic type from shared game-engine
 export type { InventoryItem } from '@shared/game-engine/types';
 import type { InventoryItem, EquipmentSlot } from '@shared/game-engine/types';
+import { getItemTranslation } from '@shared/game-engine/rendering/OnboardingLauncher';
 
 const EQUIPPABLE_TYPES = new Set(['weapon', 'armor', 'tool']);
-const USABLE_TYPES = new Set(['consumable', 'food', 'drink', 'quest', 'key']);
+const USABLE_TYPES = new Set(['consumable', 'food', 'drink', 'quest', 'key', 'document', 'collectible']);
 const SLOT_LABELS: Record<EquipmentSlot, string> = {
   weapon: 'Weapon',
   armor: 'Armor',
@@ -90,6 +91,7 @@ export class BabylonInventory {
 
   // Language-learning mode
   private isLanguageLearning: boolean = false;
+  private targetLanguage: string = 'Spanish';
 
   // Callbacks
   private onItemAdded: ((item: InventoryItem) => void) | null = null;
@@ -107,14 +109,16 @@ export class BabylonInventory {
   }
 
   /** Enable language-learning mode so inventory shows target-language item names. */
-  public setLanguageLearning(enabled: boolean): void {
+  public setLanguageLearning(enabled: boolean, targetLanguage?: string): void {
     this.isLanguageLearning = enabled;
+    if (targetLanguage) this.targetLanguage = targetLanguage;
   }
 
   /** Get the display name for an item, using target language when available. */
   private getDisplayName(item: InventoryItem): string {
-    if (this.isLanguageLearning && item.languageLearningData?.targetWord) {
-      return item.languageLearningData.targetWord;
+    const translation = getItemTranslation(item, this.targetLanguage);
+    if (this.isLanguageLearning && translation?.targetWord) {
+      return translation.targetWord;
     }
     return item.name;
   }
@@ -585,7 +589,7 @@ export class BabylonInventory {
 
     // Item name (with [E] badge if equipped)
     const displayName = this.getDisplayName(item);
-    const hasLangData = this.isLanguageLearning && !!item.languageLearningData?.targetWord;
+    const hasLangData = this.isLanguageLearning && !!getItemTranslation(item, this.targetLanguage)?.targetWord;
     const nameText = new GUI.TextBlock(`item_name_${item.id}`);
     nameText.text = item.equipped ? `[E] ${displayName}` : displayName;
     nameText.fontSize = 15;
@@ -714,9 +718,10 @@ export class BabylonInventory {
       buttonsRow.addControl(equipBtn);
     }
 
-    // Use button — for consumable, food, drink, quest, key items
+    // Use/Read button — for consumable, food, drink, quest, key, document items
     if (USABLE_TYPES.has(item.type)) {
-      const useBtn = GUI.Button.CreateSimpleButton(`use_${item.id}`, 'Use');
+      const isDocument = item.type === 'document' || item.category === 'document';
+      const useBtn = GUI.Button.CreateSimpleButton(`use_${item.id}`, isDocument ? 'Read' : 'Use');
       useBtn.width = '50px';
       useBtn.height = '22px';
       useBtn.color = 'white';

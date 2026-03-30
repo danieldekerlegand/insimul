@@ -888,16 +888,23 @@ export function LocationMapPreview({
         const lz = pos.z;
         const facingAngle = pos.angle;
         const rng = seededRandom(hashStr(lot.id));
-        const bType = lot.buildingType?.toLowerCase() ?? 'vacant';
+        const lt = lot.lotType?.toLowerCase() ?? 'buildable';
+        const bc = lot.building?.buildingCategory?.toLowerCase();
         const biz = bizByLot.get(lot.id);
         const res = resByLot.get(lot.id);
-        const isPark = bType === 'park';
-        const isBusiness = !isPark && (bType === 'business' || !!biz);
-        const isResidence = !isPark && (bType === 'residence' || !!res);
+        const isPark = ['park', 'forest', 'cemetery', 'garden'].includes(lt);
+        const isBusiness = !isPark && (bc === 'business' || !!biz);
+        const isResidence = !isPark && (bc === 'residence' || !!res);
         const buildingType = isPark ? 'park' : isBusiness ? 'business' : isResidence ? 'residence' : 'vacant';
 
+        const parkColors: Record<string, BABYLON.Color3> = {
+          park: new BABYLON.Color3(0.45, 0.55, 0.35),     // warm sage — town square
+          forest: new BABYLON.Color3(0.15, 0.45, 0.15),    // deep green — grove
+          cemetery: new BABYLON.Color3(0.4, 0.4, 0.35),    // muted stone — cemetery
+          garden: new BABYLON.Color3(0.35, 0.55, 0.25),    // bright green — garden
+        };
         const tintColor = isPark
-          ? new BABYLON.Color3(0.25, 0.55, 0.2)
+          ? (parkColors[lt] || new BABYLON.Color3(0.25, 0.55, 0.2))
           : isBusiness
             ? new BABYLON.Color3(0.55, 0.4, 0.25)
             : isResidence
@@ -926,36 +933,89 @@ export function LocationMapPreview({
         tagMesh(lotPlane, 'buildings');
 
         if (isPark) {
-          lotPlaneMat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 0.15);
+          const parkGroundColor = parkColors[lt] || new BABYLON.Color3(0.2, 0.5, 0.15);
+          lotPlaneMat.diffuseColor = parkGroundColor;
           lotPlaneMat.alpha = 0.6;
-          const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
-          for (let ti = 0; ti < treeCount; ti++) {
-            const tx = lx + (rng() - 0.5) * scaledW * 0.8;
-            const tz = lz + (rng() - 0.5) * scaledD * 0.8;
-            const treeScale = 0.15 + rng() * 0.15;
-            const trunk = BABYLON.MeshBuilder.CreateCylinder(`park_trunk_${lot.id}_${ti}`, { height: treeScale * 2, diameter: treeScale * 0.3, tessellation: 6 }, scene);
-            trunk.position = new BABYLON.Vector3(tx, treeScale, tz);
-            trunk.parent = detailNode;
-            const trunkMat = new BABYLON.StandardMaterial(`park_trunkMat_${lot.id}_${ti}`, scene);
-            trunkMat.diffuseColor = new BABYLON.Color3(0.4, 0.28, 0.15);
-            trunkMat.specularColor = BABYLON.Color3.Black();
-            trunk.material = trunkMat;
-            tagMesh(trunk, 'buildings');
-            const foliage = BABYLON.MeshBuilder.CreateSphere(`park_foliage_${lot.id}_${ti}`, { diameter: treeScale * 2.5, segments: 6 }, scene);
-            foliage.position = new BABYLON.Vector3(tx, treeScale * 2.2, tz);
-            foliage.parent = detailNode;
-            const foliageMat = new BABYLON.StandardMaterial(`park_foliageMat_${lot.id}_${ti}`, scene);
-            foliageMat.diffuseColor = new BABYLON.Color3(0.15 + rng() * 0.1, 0.45 + rng() * 0.15, 0.1);
-            foliageMat.specularColor = BABYLON.Color3.Black();
-            foliage.material = foliageMat;
-            tagMesh(foliage, 'buildings');
+
+          if (lt === 'forest' || lt === 'garden') {
+            // Forest/garden: dense trees
+            const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
+            for (let ti = 0; ti < treeCount; ti++) {
+              const tx = lx + (rng() - 0.5) * scaledW * 0.8;
+              const tz = lz + (rng() - 0.5) * scaledD * 0.8;
+              const treeScale = lt === 'garden' ? 0.08 + rng() * 0.08 : 0.15 + rng() * 0.15;
+              const trunk = BABYLON.MeshBuilder.CreateCylinder(`park_trunk_${lot.id}_${ti}`, { height: treeScale * 2, diameter: treeScale * 0.3, tessellation: 6 }, scene);
+              trunk.position = new BABYLON.Vector3(tx, treeScale, tz);
+              trunk.parent = detailNode;
+              const trunkMat = new BABYLON.StandardMaterial(`park_trunkMat_${lot.id}_${ti}`, scene);
+              trunkMat.diffuseColor = new BABYLON.Color3(0.4, 0.28, 0.15);
+              trunkMat.specularColor = BABYLON.Color3.Black();
+              trunk.material = trunkMat;
+              tagMesh(trunk, 'buildings');
+              const foliage = BABYLON.MeshBuilder.CreateSphere(`park_foliage_${lot.id}_${ti}`, { diameter: treeScale * 2.5, segments: 6 }, scene);
+              foliage.position = new BABYLON.Vector3(tx, treeScale * 2.2, tz);
+              foliage.parent = detailNode;
+              const foliageMat = new BABYLON.StandardMaterial(`park_foliageMat_${lot.id}_${ti}`, scene);
+              foliageMat.diffuseColor = lt === 'garden'
+                ? new BABYLON.Color3(0.3 + rng() * 0.3, 0.5 + rng() * 0.2, 0.1) // varied greens/yellows for garden
+                : new BABYLON.Color3(0.15 + rng() * 0.1, 0.45 + rng() * 0.15, 0.1); // deep greens for forest
+              foliageMat.specularColor = BABYLON.Color3.Black();
+              foliage.material = foliageMat;
+              tagMesh(foliage, 'buildings');
+            }
+          } else if (lt === 'cemetery') {
+            // Cemetery: gravestones (tall thin boxes)
+            const stoneCount = Math.max(4, Math.floor((scaledW * scaledD) / 1.5));
+            for (let ti = 0; ti < stoneCount; ti++) {
+              const tx = lx + (rng() - 0.5) * scaledW * 0.7;
+              const tz = lz + (rng() - 0.5) * scaledD * 0.7;
+              const stoneH = 0.06 + rng() * 0.06;
+              const stone = BABYLON.MeshBuilder.CreateBox(`grave_${lot.id}_${ti}`, { width: 0.04, height: stoneH, depth: 0.02 }, scene);
+              stone.position = new BABYLON.Vector3(tx, stoneH / 2, tz);
+              stone.parent = detailNode;
+              const stoneMat = new BABYLON.StandardMaterial(`graveMat_${lot.id}_${ti}`, scene);
+              stoneMat.diffuseColor = new BABYLON.Color3(0.55 + rng() * 0.1, 0.55 + rng() * 0.1, 0.5 + rng() * 0.1);
+              stoneMat.specularColor = BABYLON.Color3.Black();
+              stone.material = stoneMat;
+              tagMesh(stone, 'buildings');
+            }
+          } else {
+            // Town square (park): benches and a central feature
+            // Central feature (fountain/statue — simple cylinder + sphere)
+            const fountain = BABYLON.MeshBuilder.CreateCylinder(`fountain_${lot.id}`, { height: 0.08, diameter: 0.15, tessellation: 12 }, scene);
+            fountain.position = new BABYLON.Vector3(lx, 0.04, lz);
+            fountain.parent = detailNode;
+            const fountainMat = new BABYLON.StandardMaterial(`fountainMat_${lot.id}`, scene);
+            fountainMat.diffuseColor = new BABYLON.Color3(0.6, 0.6, 0.65);
+            fountainMat.specularColor = BABYLON.Color3.Black();
+            fountain.material = fountainMat;
+            tagMesh(fountain, 'buildings');
+            // Benches (small flat boxes around the center)
+            for (let bi = 0; bi < 4; bi++) {
+              const angle = (bi / 4) * Math.PI * 2;
+              const dist = Math.min(scaledW, scaledD) * 0.3;
+              const bx = lx + Math.cos(angle) * dist;
+              const bz = lz + Math.sin(angle) * dist;
+              const bench = BABYLON.MeshBuilder.CreateBox(`bench_${lot.id}_${bi}`, { width: 0.08, height: 0.02, depth: 0.03 }, scene);
+              bench.position = new BABYLON.Vector3(bx, 0.01, bz);
+              bench.rotation.y = angle + Math.PI / 2;
+              bench.parent = detailNode;
+              const benchMat = new BABYLON.StandardMaterial(`benchMat_${lot.id}_${bi}`, scene);
+              benchMat.diffuseColor = new BABYLON.Color3(0.45, 0.3, 0.15);
+              benchMat.specularColor = BABYLON.Color3.Black();
+              bench.material = benchMat;
+              tagMesh(bench, 'buildings');
+            }
           }
+
           const parkLabelAnchor = new BABYLON.Mesh(`parkLabel_${lot.id}`, scene);
           parkLabelAnchor.position = new BABYLON.Vector3(lx, 0.5, lz);
           parkLabelAnchor.parent = detailNode;
           parkLabelAnchor.isVisible = false;
           tagMesh(parkLabelAnchor, 'labels');
-          addLabel(gui, parkLabelAnchor, lot.address || 'Park', 10, '#50FA7B', 15);
+          const labelText = lot.name || lot.address || lt.charAt(0).toUpperCase() + lt.slice(1);
+          const labelColor = lt === 'cemetery' ? '#A0A0A0' : lt === 'forest' ? '#2ECC71' : '#50FA7B';
+          addLabel(gui, parkLabelAnchor, labelText, 10, labelColor, 15);
         } else {
           // Building box using real dimensions
           const typeName = biz?.businessType || (isResidence ? (res?.residenceType || 'house') : '');
@@ -1795,13 +1855,14 @@ async function buildSettlementView(
     const facingAngle = pos.angle;
 
     const rng = seededRandom(hashStr(lot.id));
-    const bType = lot.buildingType?.toLowerCase() ?? 'vacant';
+    const lt = lot.lotType?.toLowerCase() ?? 'buildable';
+    const bc = lot.building?.buildingCategory?.toLowerCase();
     const biz = bizByLot.get(lot.id);
     const res = resByLot.get(lot.id);
 
-    const isPark = bType === 'park';
-    const isBusiness = !isPark && (bType === 'business' || !!biz);
-    const isResidence = !isPark && (bType === 'residence' || !!res);
+    const isPark = ['park', 'forest', 'cemetery', 'garden'].includes(lt);
+    const isBusiness = !isPark && (bc === 'business' || !!biz);
+    const isResidence = !isPark && (bc === 'residence' || !!res);
 
     // Determine building type for role mapping
     const buildingType = isPark ? 'park' : isBusiness ? 'business' : isResidence ? 'residence' : 'vacant';
@@ -1862,42 +1923,79 @@ async function buildSettlementView(
     tagMesh(lotPlane, 'buildings');
 
     if (isPark) {
-      // ─── Park rendering: green ground + decorative trees ────────────
-      // Make park ground plane more visible
-      lotPlaneMat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 0.15);
+      // ─── Park rendering: type-specific visuals ────────────
+      const parkColors: Record<string, BABYLON.Color3> = {
+        park: new BABYLON.Color3(0.45, 0.55, 0.35),
+        forest: new BABYLON.Color3(0.15, 0.45, 0.15),
+        cemetery: new BABYLON.Color3(0.4, 0.4, 0.35),
+        garden: new BABYLON.Color3(0.35, 0.55, 0.25),
+      };
+      const parkGroundColor = parkColors[lt] || new BABYLON.Color3(0.2, 0.5, 0.15);
+      lotPlaneMat.diffuseColor = parkGroundColor;
       lotPlaneMat.alpha = 0.6;
 
-      // Place small decorative trees within the park
-      const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
-      for (let ti = 0; ti < treeCount; ti++) {
-        const tx = lx + (rng() - 0.5) * scaledW * 0.8;
-        const tz = lz + (rng() - 0.5) * scaledD * 0.8;
-        const treeScale = 0.15 + rng() * 0.15;
-
-        // Trunk
-        const trunk = BABYLON.MeshBuilder.CreateCylinder(`park_trunk_${lot.id}_${ti}`, {
-          height: treeScale * 2,
-          diameter: treeScale * 0.3,
-          tessellation: 6,
-        }, scene);
-        trunk.position = new BABYLON.Vector3(tx, treeScale, tz);
-        const trunkMat = new BABYLON.StandardMaterial(`park_trunkMat_${lot.id}_${ti}`, scene);
-        trunkMat.diffuseColor = new BABYLON.Color3(0.4, 0.28, 0.15);
-        trunkMat.specularColor = BABYLON.Color3.Black();
-        trunk.material = trunkMat;
-        tagMesh(trunk, 'buildings');
-
-        // Foliage
-        const foliage = BABYLON.MeshBuilder.CreateSphere(`park_foliage_${lot.id}_${ti}`, {
-          diameter: treeScale * 2.5,
-          segments: 6,
-        }, scene);
-        foliage.position = new BABYLON.Vector3(tx, treeScale * 2.2, tz);
-        const foliageMat = new BABYLON.StandardMaterial(`park_foliageMat_${lot.id}_${ti}`, scene);
-        foliageMat.diffuseColor = new BABYLON.Color3(0.15 + rng() * 0.1, 0.45 + rng() * 0.15, 0.1);
-        foliageMat.specularColor = BABYLON.Color3.Black();
-        foliage.material = foliageMat;
-        tagMesh(foliage, 'buildings');
+      if (lt === 'forest' || lt === 'garden') {
+        // Trees for forest/garden
+        const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
+        for (let ti = 0; ti < treeCount; ti++) {
+          const tx = lx + (rng() - 0.5) * scaledW * 0.8;
+          const tz = lz + (rng() - 0.5) * scaledD * 0.8;
+          const treeScale = lt === 'garden' ? 0.08 + rng() * 0.08 : 0.15 + rng() * 0.15;
+          const trunk = BABYLON.MeshBuilder.CreateCylinder(`park_trunk_${lot.id}_${ti}`, { height: treeScale * 2, diameter: treeScale * 0.3, tessellation: 6 }, scene);
+          trunk.position = new BABYLON.Vector3(tx, treeScale, tz);
+          const trunkMat = new BABYLON.StandardMaterial(`park_trunkMat_${lot.id}_${ti}`, scene);
+          trunkMat.diffuseColor = new BABYLON.Color3(0.4, 0.28, 0.15);
+          trunkMat.specularColor = BABYLON.Color3.Black();
+          trunk.material = trunkMat;
+          tagMesh(trunk, 'buildings');
+          const foliage = BABYLON.MeshBuilder.CreateSphere(`park_foliage_${lot.id}_${ti}`, { diameter: treeScale * 2.5, segments: 6 }, scene);
+          foliage.position = new BABYLON.Vector3(tx, treeScale * 2.2, tz);
+          const foliageMat = new BABYLON.StandardMaterial(`park_foliageMat_${lot.id}_${ti}`, scene);
+          foliageMat.diffuseColor = lt === 'garden'
+            ? new BABYLON.Color3(0.3 + rng() * 0.3, 0.5 + rng() * 0.2, 0.1)
+            : new BABYLON.Color3(0.15 + rng() * 0.1, 0.45 + rng() * 0.15, 0.1);
+          foliageMat.specularColor = BABYLON.Color3.Black();
+          foliage.material = foliageMat;
+          tagMesh(foliage, 'buildings');
+        }
+      } else if (lt === 'cemetery') {
+        // Gravestones
+        const stoneCount = Math.max(4, Math.floor((scaledW * scaledD) / 1.5));
+        for (let ti = 0; ti < stoneCount; ti++) {
+          const tx = lx + (rng() - 0.5) * scaledW * 0.7;
+          const tz = lz + (rng() - 0.5) * scaledD * 0.7;
+          const stoneH = 0.06 + rng() * 0.06;
+          const stone = BABYLON.MeshBuilder.CreateBox(`grave_${lot.id}_${ti}`, { width: 0.04, height: stoneH, depth: 0.02 }, scene);
+          stone.position = new BABYLON.Vector3(tx, stoneH / 2, tz);
+          const stoneMat = new BABYLON.StandardMaterial(`graveMat_${lot.id}_${ti}`, scene);
+          stoneMat.diffuseColor = new BABYLON.Color3(0.55 + rng() * 0.1, 0.55 + rng() * 0.1, 0.5 + rng() * 0.1);
+          stoneMat.specularColor = BABYLON.Color3.Black();
+          stone.material = stoneMat;
+          tagMesh(stone, 'buildings');
+        }
+      } else {
+        // Town square: fountain + benches
+        const fountain = BABYLON.MeshBuilder.CreateCylinder(`fountain_${lot.id}`, { height: 0.08, diameter: 0.15, tessellation: 12 }, scene);
+        fountain.position = new BABYLON.Vector3(lx, 0.04, lz);
+        const fountainMat = new BABYLON.StandardMaterial(`fountainMat_${lot.id}`, scene);
+        fountainMat.diffuseColor = new BABYLON.Color3(0.6, 0.6, 0.65);
+        fountainMat.specularColor = BABYLON.Color3.Black();
+        fountain.material = fountainMat;
+        tagMesh(fountain, 'buildings');
+        for (let bi = 0; bi < 4; bi++) {
+          const angle = (bi / 4) * Math.PI * 2;
+          const dist = Math.min(scaledW, scaledD) * 0.3;
+          const bx = lx + Math.cos(angle) * dist;
+          const bz = lz + Math.sin(angle) * dist;
+          const bench = BABYLON.MeshBuilder.CreateBox(`bench_${lot.id}_${bi}`, { width: 0.08, height: 0.02, depth: 0.03 }, scene);
+          bench.position = new BABYLON.Vector3(bx, 0.01, bz);
+          bench.rotation.y = angle + Math.PI / 2;
+          const benchMat = new BABYLON.StandardMaterial(`benchMat_${lot.id}_${bi}`, scene);
+          benchMat.diffuseColor = new BABYLON.Color3(0.45, 0.3, 0.15);
+          benchMat.specularColor = BABYLON.Color3.Black();
+          bench.material = benchMat;
+          tagMesh(bench, 'buildings');
+        }
       }
 
       // Label
@@ -1905,7 +2003,9 @@ async function buildSettlementView(
       labelAnchor.position = new BABYLON.Vector3(lx, 0.5, lz);
       labelAnchor.isVisible = false;
       tagMesh(labelAnchor, 'labels');
-      addLabel(gui, labelAnchor, lot.address || 'Park', 10, '#50FA7B', 15);
+      const labelText = lot.name || lot.address || lt.charAt(0).toUpperCase() + lt.slice(1);
+      const labelColor = lt === 'cemetery' ? '#A0A0A0' : lt === 'forest' ? '#2ECC71' : '#50FA7B';
+      addLabel(gui, labelAnchor, labelText, 10, labelColor, 15);
     } else if (prototype && buildingType !== 'vacant') {
       // Create parent mesh at the lot position
       const parent = new BABYLON.Mesh(`lot_parent_${lot.id}`, scene);
@@ -2537,8 +2637,11 @@ function setupLotHover(scene: BABYLON.Scene, gui: GUI.AdvancedDynamicTexture) {
     const lines: string[] = [];
     if (lotMeta.address) lines.push(lotMeta.address);
     if (lotMeta.bizName) lines.push(`Business: ${lotMeta.bizName}`);
-    if (lotMeta.resType) lines.push(`Type: ${lotMeta.resType}`);
-    lines.push(`Building: ${lotMeta.buildingType}`);
+    else if (lotMeta.resType) lines.push(`Type: ${lotMeta.resType}`);
+    else {
+      const typeLabels: Record<string, string> = { park: 'Park', forest: 'Forest', cemetery: 'Cemetery', garden: 'Garden', vacant: 'Vacant' };
+      lines.push(typeLabels[lotMeta.buildingType] || lotMeta.buildingType);
+    }
     if (lotMeta.streetName) lines.push(`Street: ${lotMeta.streetName}`);
     if (lotMeta.side) lines.push(`Side: ${lotMeta.side}`);
     if (lotMeta.lotWidth && lotMeta.lotDepth) {

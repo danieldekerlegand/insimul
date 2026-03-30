@@ -418,10 +418,10 @@ describe('Merchant Inventory Auto-Generation', () => {
       expect(result.translatedCount).toBeGreaterThan(0);
 
       const inventory = updates[0].data.businessData.inventory;
-      const translatedItems = inventory.items.filter((i: any) => i.languageLearningData);
+      const translatedItems = inventory.items.filter((i: any) => i.translations);
       expect(translatedItems.length).toBeGreaterThan(0);
-      expect(translatedItems[0].languageLearningData.targetLanguage).toBe('French');
-      expect(translatedItems[0].languageLearningData.targetWord).toMatch(/^fr_/);
+      expect(translatedItems[0].translations.targetLanguage).toBe('French');
+      expect(translatedItems[0].translations.targetWord).toMatch(/^fr_/);
     });
 
     it('skips non-merchant business types', async () => {
@@ -562,7 +562,7 @@ describe('Merchant Inventory Auto-Generation', () => {
       metadata: null,
       craftingRecipe: null,
       questRelevance: null,
-      languageLearningData: null,
+      translations: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,

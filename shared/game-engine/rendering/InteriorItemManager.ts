@@ -25,7 +25,7 @@ export interface InteriorItemData {
   icon?: string | null;
   metadata?: Record<string, any> | null;
   possessable?: boolean | null;
-  languageLearningData?: any;
+  translations?: any;
 }
 
 interface ItemPlacement {
@@ -517,6 +517,7 @@ export class InteriorItemManager {
       objectRole: item.objectRole || item.itemType,
       itemId: item.id,
       interiorItem: true,
+      possessable: item.possessable !== false,
     };
 
     // Propagate metadata to child meshes (for glTF hierarchies)

@@ -4,7 +4,7 @@
  */
 
 import { storage } from '../db/storage';
-import { GenealogyGenerator } from './genealogy-generator';
+import { GenealogyGenerator, resolveNamePool } from './genealogy-generator';
 import { GeographyGenerator } from './geography-generator';
 import type { InsertWorld, Business, Character, BusinessType, OccupationVocation } from '../../shared/schema';
 import { foundBusiness, closeBusiness } from '../extensions/tott/business-system.js';
@@ -95,6 +95,9 @@ export interface SettlementPipelineConfig {
   initializeCommunityMorale?: boolean;
   simulateHistory?: boolean;
   historyFidelity?: 'low' | 'medium' | 'high';
+  // Guild assignment: list of guild business types to place in this settlement
+  // e.g. ['GuildDiplomates', 'GuildConteurs']. Overrides the default guild-per-type binding.
+  guilds?: string[];
   // Progress callback (optional, for UI updates)
   onProgress?: (phase: string, message: string) => void;
 }
@@ -105,7 +108,7 @@ export interface WorldGenerationConfig {
   worldType?: string;
   settlementName: string;
   settlementDescription?: string;
-  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
   currentYear: number;
@@ -276,7 +279,7 @@ export class WorldGenerator {
     console.log(`   ✓ Settlement at (${settlementGeo?.worldPositionX?.toFixed(0) ?? '?'}, ${settlementGeo?.worldPositionZ?.toFixed(0) ?? '?'}) radius ${settlementGeo?.radius ?? '?'}`);
 
     // ── Delegate to the unified per-settlement pipeline ───────────────
-    const POPULATION_BY_TYPE: Record<string, number> = { dwelling: 3, roadhouse: 3, homestead: 10, hamlet: 50, village: 100, town: 1000, city: 5000 };
+    const POPULATION_BY_TYPE: Record<string, number> = { dwelling: 3, roadhouse: 3, landing: 10, forge: 10, chapel: 10, homestead: 10, market: 30, hamlet: 50, village: 100, town: 1000, city: 5000 };
 
     const result = await this.generateSettlement({
       worldId: world.id,
@@ -388,15 +391,22 @@ export class WorldGenerator {
     // ── Phase 1: Genealogy ─────────────────────────────────────────────
     if (config.generateGenealogy !== false) {
       progress('genealogy', 'Generating families & characters...');
+      // Ensure enough founding families to produce a viable living population.
+      // Each family tree yields ~10-15 living descendants over 6 generations,
+      // so we need at least ceil(targetPop / 12) families.
+      const minFamilies = Math.max(
+        config.numFoundingFamilies,
+        Math.ceil((config.targetPopulation || 50) / 12)
+      );
       const genealogyResult = await this.genealogyGen.generate({
         worldId: config.worldId,
         settlementId: config.settlementId,
         startYear: config.foundedYear,
         currentYear: config.currentYear,
-        numFoundingFamilies: config.numFoundingFamilies,
+        numFoundingFamilies: minFamilies,
         generationsToGenerate: config.generations,
         marriageRate: config.marriageRate || 0.7,
-        fertilityRate: config.fertilityRate || 0.6,
+        fertilityRate: config.fertilityRate || 0.8,
         deathRate: config.deathRate || 0.3,
         targetLanguage,
       });
@@ -469,6 +479,8 @@ export class WorldGenerator {
         population: livingCount,
         currentYear: config.currentYear,
         terrain: config.terrain,
+        settlementType: config.settlementType,
+        guilds: config.guilds,
       });
       businessCount = resultBusinesses.length;
     }
@@ -516,16 +528,67 @@ export class WorldGenerator {
       }
     }
 
+    // ── Phase 4.75: Merchant inventories ────────────────────────────────
+    if (businessCount > 0) {
+      progress('merchants', 'Populating merchant inventories...');
+      try {
+        const { generateAndPersistWorldInventories } = await import('../services/merchant-inventory.js');
+        const merchantResult = await generateAndPersistWorldInventories(config.worldId, storage, targetLanguage);
+        console.log(`   🏪 Generated ${merchantResult.inventoryCount} merchant inventories (${merchantResult.translatedCount} translated)`);
+      } catch (e) {
+        console.warn('Merchant inventory generation failed:', e);
+      }
+    }
+
     // ── Phase 4.8: Main quest NPCs ─────────────────────────────────────
     if (livingCount > 0) {
       try {
-        const mqResult = await spawnMainQuestNPCs(config.worldId, targetLanguage);
+        const mqResult = await spawnMainQuestNPCs(config.worldId, targetLanguage, config.settlementId);
         if (mqResult.created > 0) {
           progress('npcs', `Spawned ${mqResult.created} main quest NPCs`);
         }
       } catch (e) {
         console.warn('Main quest NPC spawning failed:', e);
       }
+    }
+
+    // ── Phase 4.85: Generate main quest chapter records ─────────────────
+    try {
+      const { MAIN_QUEST_CHAPTERS } = await import('../../shared/quest/main-quest-chapters.js');
+      const { createMainQuestRecord } = await import('../services/main-quest-records.js');
+
+      // Load narrative truth for chapter context
+      const allTruths = await storage.getTruthsByWorld(config.worldId);
+      const narrativeTruth = allTruths.find((t: any) => t.entryType === 'world_narrative');
+      let narrativeData: any = null;
+      if (narrativeTruth?.content) {
+        try { narrativeData = JSON.parse(narrativeTruth.content); } catch {}
+      }
+
+      let chaptersCreated = 0;
+      for (const chapter of MAIN_QUEST_CHAPTERS) {
+        const narrativeCtx = narrativeData?.chapters?.find((ch: any) => ch.chapterId === chapter.id);
+        try {
+          await createMainQuestRecord(
+            config.worldId,
+            'Player',
+            chapter,
+            targetLanguage || 'French',
+            narrativeCtx ? {
+              introNarrative: narrativeCtx.introNarrative,
+              outroNarrative: narrativeCtx.outroNarrative,
+              mysteryDetails: narrativeCtx.mysteryDetails,
+              clueDescriptions: narrativeCtx.clueDescriptions,
+            } : undefined,
+          );
+          chaptersCreated++;
+        } catch {}
+      }
+      if (chaptersCreated > 0) {
+        progress('quests', `Created ${chaptersCreated} main quest chapters`);
+      }
+    } catch (e) {
+      console.warn('Main quest chapter generation failed:', e);
     }
 
     // ── Phase 4.9: Text document seeding ───────────────────────────────
@@ -597,6 +660,7 @@ export class WorldGenerator {
         startYear: config.foundedYear,
         endYear: config.currentYear,
         fidelity: config.historyFidelity || 'low',
+        targetLanguage,
       });
     }
 
@@ -803,7 +867,25 @@ export class WorldGenerator {
     if (living.length === 0) return 0;
 
     const currentYear = new Date().getFullYear();
-    const charactersToProcess = living.slice(0, 50);
+    // Process in batches of 10 to avoid LLM output truncation
+    const BATCH_SIZE = 10;
+    let totalTruths = 0;
+    for (let batchStart = 0; batchStart < Math.min(living.length, 50); batchStart += BATCH_SIZE) {
+      const charactersToProcess = living.slice(batchStart, batchStart + BATCH_SIZE);
+      try {
+        totalTruths += await this.generateTruthBatch(config, charactersToProcess, currentYear);
+      } catch (err) {
+        console.warn(`Truth batch ${batchStart}-${batchStart + BATCH_SIZE} failed:`, (err as Error).message);
+      }
+    }
+    return totalTruths;
+  }
+
+  private async generateTruthBatch(
+    config: { worldId: string; worldName: string; worldDescription?: string; worldType?: string },
+    charactersToProcess: any[],
+    currentYear: number,
+  ): Promise<number> {
     const worldContext = `A ${config.worldType || 'medieval-fantasy'} world named "${config.worldName}". ${config.worldDescription || ''}`;
 
     const truthsPrompt = `Generate interesting character truths (backstories, personality traits, secrets, relationships) for ${charactersToProcess.length} characters in ${worldContext}.
@@ -831,41 +913,74 @@ Return as a JSON array with this structure:
 Character list:
 ${charactersToProcess.map((c, i) => `${i}. ${c.firstName} ${c.lastName} (${c.gender}, age ${c.birthYear ? (currentYear - c.birthYear) : 'unknown'})`).join('\n')}
 
-Make truths fitting for the world's theme and each character's context.`;
+Make truths fitting for the world's theme and each character's context.
+
+IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any special characters (apostrophes, quotes) inside string values with backslash. Do not include markdown fences.`;
 
     try {
       const contentResult = await getContentProvider().generate({
         prompt: truthsPrompt,
-        temperature: 0.95,
+        temperature: 0.7,
         responseMimeType: 'application/json',
         model: 'pro',
       });
 
-      // Sanitize: strip markdown fences, trailing commas, and truncated JSON
+      // Robust JSON sanitization for LLM output
       let jsonText = contentResult.text.trim();
+      // Strip markdown fences
       jsonText = jsonText.replace(/^```json?\s*/i, '').replace(/\s*```\s*$/, '');
-      // Fix common LLM JSON issues: trailing commas before } or ]
+      // Fix trailing commas before } or ]
       jsonText = jsonText.replace(/,\s*([}\]])/g, '$1');
-      // If JSON is truncated (unterminated string), try to close it
+      // Fix single-quoted strings → double-quoted (but preserve apostrophes inside words)
+      // Replace single-quoted property names: 'key': → "key":
+      jsonText = jsonText.replace(/(?<=[\{,\s])'(\w+)'\s*:/g, '"$1":');
+      // Fix unescaped control characters in strings
+      jsonText = jsonText.replace(/[\x00-\x1f]/g, (ch) => ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : '');
+      // If truncated, find last complete object and close
       if (!jsonText.endsWith(']')) {
-        // Find the last complete object and close the array
-        const lastCompleteObject = jsonText.lastIndexOf('}');
-        if (lastCompleteObject > 0) {
-          jsonText = jsonText.substring(0, lastCompleteObject + 1) + ']}]';
+        const lastBrace = jsonText.lastIndexOf('}');
+        if (lastBrace > 0) {
+          // Check if we need to close a truths array or the outer array
+          const afterBrace = jsonText.substring(lastBrace + 1).trim();
+          if (!afterBrace.startsWith(']')) {
+            jsonText = jsonText.substring(0, lastBrace + 1) + ']}]';
+          }
         }
       }
 
       let generatedTruths: any[];
       try {
         generatedTruths = JSON.parse(jsonText);
-      } catch (parseErr) {
-        console.warn('Truth generation JSON parse failed, attempting recovery...');
-        // Last resort: try to extract valid JSON array prefix
-        const arrayMatch = jsonText.match(/^\[[\s\S]*?\}\s*\]/);
-        if (arrayMatch) {
-          generatedTruths = JSON.parse(arrayMatch[0]);
-        } else {
-          throw parseErr;
+      } catch (parseErr1) {
+        // Attempt 1: Fix unescaped quotes inside string values
+        // Pattern: "content": "He said "hello" to her" → "content": "He said \"hello\" to her"
+        try {
+          const fixedQuotes = jsonText.replace(
+            /"((?:title|content|entryType)":\s*")([^"]*?)(?="[,}\s])/g,
+            (_, prefix, value) => `"${prefix}${value.replace(/"/g, '\\"')}`
+          );
+          generatedTruths = JSON.parse(fixedQuotes);
+        } catch {
+          // Attempt 2: Extract individual character truth objects via regex
+          console.warn('Truth generation JSON parse failed, attempting object-by-object recovery...');
+          try {
+            const objectMatches = jsonText.match(/\{\s*"characterIndex"\s*:\s*\d+\s*,\s*"truths"\s*:\s*\[[\s\S]*?\]\s*\}/g);
+            if (objectMatches && objectMatches.length > 0) {
+              generatedTruths = [];
+              for (const objStr of objectMatches) {
+                try {
+                  generatedTruths.push(JSON.parse(objStr));
+                } catch {
+                  // Skip malformed individual objects
+                }
+              }
+              if (generatedTruths.length === 0) throw parseErr1;
+            } else {
+              throw parseErr1;
+            }
+          } catch {
+            throw parseErr1;
+          }
         }
       }
 
@@ -1004,6 +1119,7 @@ Make truths fitting for the world's theme and each character's context.`;
     currentYear: number;
     terrain: string;
     worldType?: string;
+    settlementType?: string;
   }): Promise<{ businesses: number; employed: number; occupations: number; housed: number }> {
     const characters = await storage.getCharactersByWorld(config.worldId);
     const population = characters.filter(c => c.isAlive).length;
@@ -1018,6 +1134,8 @@ Make truths fitting for the world's theme and each character's context.`;
         population,
         currentYear: config.currentYear,
         terrain: config.terrain,
+        settlementType: config.settlementType,
+        guilds: config.guilds,
       });
       businessCount = businesses.length;
 
@@ -1075,6 +1193,8 @@ Make truths fitting for the world's theme and each character's context.`;
     population: number;
     currentYear: number;
     terrain: string;
+    settlementType?: string;
+    guilds?: string[];
   }): Promise<Business[]> {
     const resultBusinesses: Business[] = [];
 
@@ -1082,7 +1202,9 @@ Make truths fitting for the world's theme and each character's context.`;
     const businessPlan = this.determineBusinessMix(
       config.population,
       config.terrain,
-      config.currentYear
+      config.currentYear,
+      config.settlementType,
+      config.guilds
     );
 
     console.log(`   Planning ${businessPlan.length} businesses...`);
@@ -1125,7 +1247,7 @@ Make truths fitting for the world's theme and each character's context.`;
           });
           await storage.updateCharacter(founder.id, { occupation: `Owner (${businessType})` });
           resultBusinesses.push({ ...lotBusiness, businessType, name, ownerId: founder.id, founderId: founder.id } as Business);
-          console.log(`   ✓ Founded ${name} at ${lotBusiness.address}`);
+          console.log(`   ✓ Founded ${name}`);
         } catch (error) {
           console.error(`   ✗ Failed to assign ${businessType} to lot:`, error);
           availableFounders.push(founder);
@@ -1138,6 +1260,7 @@ Make truths fitting for the world's theme and each character's context.`;
     }
 
     // Phase 2: Create new businesses for types that couldn't be placed on lots
+    // foundBusiness → storage.createBusiness creates a lot with an embedded business building
     for (const businessType of remainingPlan) {
       const founder = availableFounders.pop();
       if (founder) {
@@ -1148,7 +1271,6 @@ Make truths fitting for the world's theme and each character's context.`;
             founderId: founder.id,
             name: this.generateBusinessName(businessType, founder),
             businessType: businessType,
-            address: `${businessType} Street`,
             currentYear: config.currentYear,
             currentTimestep: 0,
             initialVacancies: this.getVacanciesForBusinessType(businessType)
@@ -1156,7 +1278,7 @@ Make truths fitting for the world's theme and each character's context.`;
 
           resultBusinesses.push(business);
           await storage.updateCharacter(founder.id, { occupation: `Owner (${businessType})` });
-          console.log(`   ✓ Founded ${business.name} (no lot)`);
+          console.log(`   ✓ Founded ${business.name}`);
         } catch (error) {
           console.error(`   ✗ Failed to found ${businessType}:`, error);
         }
@@ -1193,9 +1315,9 @@ Make truths fitting for the world's theme and each character's context.`;
           });
           await storage.updateCharacter(owner.id, { occupation: `Owner (${businessType})` });
           resultBusinesses.push({ ...business, ownerId: owner.id, founderId: owner.id, name } as Business);
-          console.log(`   ✓ Assigned owner to ${name} at ${business.address}`);
+          console.log(`   ✓ Assigned owner to ${name}`);
         } catch (error) {
-          console.error(`   ✗ Failed to assign owner to business at ${business.address}:`, error);
+          console.error(`   ✗ Failed to assign owner to business ${business.name}:`, error);
         }
       }
     }
@@ -1209,9 +1331,64 @@ Make truths fitting for the world's theme and each character's context.`;
   private determineBusinessMix(
     population: number,
     terrain: string,
-    year: number
+    year: number,
+    settlementType?: string,
+    guilds?: string[],
   ): BusinessType[] {
     const businesses: BusinessType[] = [];
+
+    // Specialized settlement types guarantee specific businesses
+    if (settlementType === 'landing') {
+      businesses.push('Harbor', 'FishMarket');
+      if (population > 3) businesses.push('Farm');
+    } else if (settlementType === 'forge') {
+      businesses.push('Blacksmith', 'Carpenter');
+      if (population > 3) businesses.push('Farm');
+    } else if (settlementType === 'chapel') {
+      businesses.push('Church', 'School');
+      if (population > 3) businesses.push('Farm');
+    } else if (settlementType === 'market') {
+      businesses.push('Shop', 'GroceryStore', 'Tavern' as any);
+      if (population > 10) businesses.push('Farm');
+    } else if (settlementType === 'hamlet') {
+      businesses.push('Farm', 'GroceryStore', 'Restaurant');
+    } else if (settlementType === 'village') {
+      businesses.push('Farm', 'GroceryStore', 'Restaurant');
+      if (population > 30) businesses.push('School');
+    } else if (settlementType === 'homestead') {
+      businesses.push('Farm');
+    }
+
+    // Add explicitly assigned guilds
+    const specializedTypes = ['landing', 'forge', 'chapel', 'market', 'hamlet', 'village', 'homestead'];
+    if (guilds && guilds.length > 0) {
+      for (const guild of guilds) {
+        businesses.push(guild as BusinessType);
+      }
+      // Early return for specialized types that already have their businesses
+      if (specializedTypes.includes(settlementType || '')) {
+        return businesses;
+      }
+    } else if (specializedTypes.includes(settlementType || '')) {
+      // No explicit guilds — use legacy defaults for backward compatibility
+      const defaultGuild: Record<string, string> = {
+        landing: 'GuildDiplomates',
+        forge: 'GuildArtisans',
+        chapel: 'GuildExplorateurs',
+        market: 'GuildMarchands',
+        hamlet: 'GuildConteurs',
+      };
+      if (settlementType && defaultGuild[settlementType]) {
+        businesses.push(defaultGuild[settlementType] as BusinessType);
+      }
+      return businesses;
+    }
+
+    // Tiny settlements (< 15 people): just a farm, maybe nothing
+    if (population < 15) {
+      businesses.push('Farm');
+      return businesses;
+    }
 
     // Core essentials (always needed)
     businesses.push('Farm');
@@ -1282,6 +1459,11 @@ Make truths fitting for the world's theme and each character's context.`;
       'TownHall': ['Town Hall', 'City Hall', 'Municipal Building'],
       'Blacksmith': ['Forge', 'Smithy', 'Ironworks'],
       'Harbor': ['Shipping Co.', 'Dock', 'Wharf'],
+      'GuildMarchands': ['La Guilde des Marchands'],
+      'GuildArtisans': ['La Guilde des Artisans'],
+      'GuildConteurs': ['La Guilde des Conteurs'],
+      'GuildExplorateurs': ['La Guilde des Explorateurs'],
+      'GuildDiplomates': ['La Guilde des Diplomates'],
     };
 
     const typeTemplates = templates[businessType] || [businessType];
@@ -1320,6 +1502,12 @@ Make truths fitting for the world's theme and each character's context.`;
       // Large businesses (3-5 employees)
       'Factory': { day: ['Laborer', 'Laborer', 'Laborer'], night: ['Laborer', 'Laborer'] },
       'Hospital': { day: ['Doctor', 'Nurse', 'Nurse'], night: ['Nurse', 'Nurse'] },
+      // Guild halls (1 trainer employee)
+      'GuildMarchands': { day: ['Cashier'], night: [] },
+      'GuildArtisans': { day: ['Carpenter'], night: [] },
+      'GuildConteurs': { day: ['Teacher'], night: [] },
+      'GuildExplorateurs': { day: ['Farmer'], night: [] },
+      'GuildDiplomates': { day: ['Secretary'], night: [] },
     };
 
     return vacancies[businessType] || { day: [], night: [] };
@@ -1760,12 +1948,16 @@ Make truths fitting for the world's theme and each character's context.`;
     startYear: number;
     endYear: number;
     fidelity: 'low' | 'medium' | 'high';
+    targetLanguage?: string;
   }): Promise<number> {
     const yearsToSimulate = config.endYear - config.startYear;
     if (yearsToSimulate <= 0) return 0;
 
     // Lo-fi: simulate probabilistically per year (like TotT's chance_of_a_timestep_being_simulated)
     const simChance = config.fidelity === 'low' ? 0.15 : config.fidelity === 'medium' ? 0.4 : 1.0;
+
+    // Resolve name pool for generating child names
+    const namePool = resolveNamePool(config.targetLanguage);
 
     let timestep = 0;
     let totalEvents = 0;
@@ -1870,7 +2062,11 @@ Make truths fitting for the world's theme and each character's context.`;
         if (Math.random() < birthChance && mother.spouseId) {
           try {
             await conceive(mother.id, mother.spouseId, timestep);
-            const birth = await giveBirth(mother.id, mother.currentLocation || '', timestep + 270);
+            // Pick a name from the culture-appropriate pool
+            const childGender = Math.random() < 0.5 ? 'male' : 'female';
+            const childNamePool = namePool[childGender as 'male' | 'female'];
+            const childFirstName = childNamePool[Math.floor(Math.random() * childNamePool.length)];
+            const birth = await giveBirth(mother.id, mother.currentLocation || '', timestep + 270, currentYear, childFirstName);
             births++;
             totalEvents++;
 
@@ -2061,10 +2257,14 @@ Make truths fitting for the world's theme and each character's context.`;
    */
   private estimatePopulation(type: string): number {
     switch (type) {
-      case 'village': return 500;
-      case 'town': return 5000;
-      case 'city': return 50000;
-      default: return 5000;
+      case 'dwelling': case 'roadhouse': return 2;
+      case 'landing': case 'forge': case 'chapel': case 'homestead': return 5;
+      case 'market': return 15;
+      case 'hamlet': return 25;
+      case 'village': return 50;
+      case 'town': return 500;
+      case 'city': return 2500;
+      default: return 50;
     }
   }
 

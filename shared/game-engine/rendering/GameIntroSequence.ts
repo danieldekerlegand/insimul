@@ -20,6 +20,16 @@ export interface IntroContext {
   targetLanguage: string;
   writerName: string;
   playerName?: string;
+  /** Narrative data from the world_narrative truth (if available) */
+  narrative?: {
+    writerBackstory?: string;
+    disappearanceReason?: string;
+    chapters?: Array<{
+      chapterNumber: number;
+      title: string;
+      introNarrative?: string;
+    }>;
+  };
 }
 
 export interface GameIntroState {
@@ -34,28 +44,38 @@ export interface GameIntroState {
 // ── Intro Page Builder ──────────────────────────────────────────────────────
 
 /**
- * Build the multi-page intro cutscene from world context.
+ * Build the multi-page intro cutscene from world context and narrative data.
+ * Uses narrative truth content when available, with hardcoded fallbacks.
  */
 export function buildIntroPages(context: IntroContext): CutscenePageData[] {
-  const { settlementName, countryName, targetLanguage, writerName, playerName } = context;
+  const { settlementName, countryName, targetLanguage, writerName, playerName, narrative } = context;
   const name = playerName || 'Traveler';
+  const chapter1 = narrative?.chapters?.find(ch => ch.chapterNumber === 1);
 
-  return [
+  const pages: CutscenePageData[] = [
+    // Page 1: Setting — where are we?
     {
       text: `Welcome to ${settlementName}, a quiet town nestled in the heart of ${countryName}.\n\nThe cobblestone streets wind between colorful buildings, and the air carries the sound of ${targetLanguage} spoken by the locals going about their day.`,
       chapterTitle: 'A New Beginning',
       beatType: 'chapter_intro',
     },
+    // Page 2: Inciting incident — the writer's story from the narrative
     {
-      text: `You've arrived as part of a language immersion program — a chance to learn ${targetLanguage} by living among native speakers.\n\nBut ${settlementName} holds more than lessons. The town has been unsettled since the disappearance of ${writerName}, a beloved local writer whose unfinished manuscript may hold secrets about the region's forgotten history.`,
+      text: narrative?.writerBackstory
+        ? `${narrative.writerBackstory}\n\n${narrative.disappearanceReason || `But ${writerName} has vanished, and no one knows why.`}`
+        : `You've arrived as part of a language immersion program — a chance to learn ${targetLanguage} by living among native speakers.\n\nBut ${settlementName} holds more than lessons. The town has been unsettled since the disappearance of ${writerName}, a beloved local writer whose unfinished manuscript may hold secrets about the region's forgotten history.`,
       beatType: 'chapter_intro',
     },
+    // Page 3: The player's goal — from chapter 1 intro narrative if available
     {
-      text: `Your goal is simple, ${name}: explore the town, learn the language, and piece together the mystery of ${writerName}'s disappearance.\n\nSpeak with the townsfolk. Read the signs and notices. Every conversation brings you closer to fluency — and closer to the truth.`,
-      chapterTitle: 'Your Journey Begins',
+      text: chapter1?.introNarrative
+        || `Your goal is simple, ${name}: explore the town, learn the language, and piece together the mystery of ${writerName}'s disappearance.\n\nSpeak with the townsfolk. Read the signs and notices. Every conversation brings you closer to fluency — and closer to the truth.`,
+      chapterTitle: chapter1?.title || 'Your Journey Begins',
       beatType: 'chapter_intro',
     },
   ];
+
+  return pages;
 }
 
 // ── Game Intro Sequence Manager ─────────────────────────────────────────────

@@ -110,6 +110,7 @@ import {
   generateStreetNetwork,
   chooseLayout,
   placeLots,
+  pruneUnusedStreets,
   type StreetNetwork,
 } from '../../generators/street-network-generator';
 import { getEligibleBuildingTypes, type GeographyTag } from '@shared/game-engine/building-generation-rules';
@@ -1702,13 +1703,18 @@ export async function generateWorldIR(
     }
 
     // Generate street network topology for this settlement
-    const streetNetwork = generateStreetNetwork({
+    const rawStreetNetwork = generateStreetNetwork({
       centerX: placed.position.x,
       centerZ: placed.position.z,
       settlementType: (s.settlementType as 'village' | 'town' | 'city') || 'town',
       foundedYear: s.foundedYear || 1900,
       seed: `${seed}_${s.id}`,
     });
+
+    // Prune streets that have no buildings nearby
+    const lotStreetNames = lotIRs.map(l => l.streetName);
+    const lotPositionsList = lotIRs.map(l => ({ x: l.position.x, z: l.position.z }));
+    const streetNetwork = pruneUnusedStreets(rawStreetNetwork, lotStreetNames, lotPositionsList);
 
     // Convert street segments to internal road IRs (polyline waypoints)
     const internalRoads: RoadIR[] = streetNetwork.segments.map(seg => ({

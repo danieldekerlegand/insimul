@@ -13,6 +13,50 @@ import {
   completeMainQuestRecord,
   updateMainQuestObjectiveProgress,
 } from './main-quest-records.js';
+
+/** Resolve {{variable|fallback}} templates in narrative text */
+function resolveTemplateVars(text: string | undefined, context: { writerName?: string; settlementName?: string }): string | undefined {
+  if (!text) return text;
+  return text
+    .replace(/\{\{writer_name\|([^}]*)\}\}/g, (_, fallback) => context.writerName || fallback)
+    .replace(/\{\{settlement_name\|([^}]*)\}\}/g, (_, fallback) => context.settlementName || fallback)
+    .replace(/\{\{writer_name\}\}/g, context.writerName || 'the writer')
+    .replace(/\{\{settlement_name\}\}/g, context.settlementName || 'the settlement')
+    .replace(/\{WRITER\}/g, context.writerName || 'the writer')
+    .replace(/\{SETTLEMENT\}/g, context.settlementName || 'the settlement');
+}
+
+/** Load narrative context for a specific chapter from the world's narrative truth.
+ *  Resolves {{variable|fallback}} templates with current world data. */
+async function loadNarrativeContextForChapter(worldId: string, chapterId: string): Promise<any | undefined> {
+  try {
+    const truths = await storage.getTruthsByWorld(worldId);
+    const narrativeTruth = truths.find((t: any) => t.entryType === 'world_narrative');
+    if (!narrativeTruth?.content) return undefined;
+    const narrative = JSON.parse(narrativeTruth.content);
+    const chapter = narrative.chapters?.find((ch: any) => ch.chapterId === chapterId);
+    if (!chapter) return undefined;
+
+    // Resolve template variables with current world data
+    const settlements = await storage.getSettlementsByWorld(worldId);
+    const resolveCtx = {
+      writerName: narrative.writerName,
+      settlementName: settlements[0]?.name,
+    };
+
+    return {
+      introNarrative: resolveTemplateVars(chapter.introNarrative, resolveCtx),
+      outroNarrative: resolveTemplateVars(chapter.outroNarrative, resolveCtx),
+      mysteryDetails: resolveTemplateVars(chapter.mysteryDetails, resolveCtx),
+      clueDescriptions: chapter.clueDescriptions?.map((c: any) => ({
+        ...c,
+        text: resolveTemplateVars(c.text, resolveCtx),
+      })),
+    };
+  } catch {
+    return undefined;
+  }
+}
 import {
   MAIN_QUEST_CHAPTERS,
   type MainQuestState,
@@ -213,12 +257,15 @@ export class MainQuestProgressionManager {
     completedProgress.completedAt = new Date().toISOString();
     state.totalXPEarned += completedChapter.completionBonusXP;
 
+    // Load narrative truth for richer outro/intro text
+    const narrativeCtx = worldId ? await loadNarrativeContextForChapter(worldId, completedChapter.id) : undefined;
+
     const result: ChapterAdvanceResult = {
       advanced: true,
       completedChapterId: completedChapter.id,
       completedChapterTitle: completedChapter.title,
       bonusXP: completedChapter.completionBonusXP,
-      outroNarrative: completedChapter.outroNarrative,
+      outroNarrative: narrativeCtx?.outroNarrative || completedChapter.outroNarrative,
     };
 
     // Find next chapter
@@ -236,7 +283,8 @@ export class MainQuestProgressionManager {
         state.currentChapterId = nextChapter.id;
         result.nextChapterId = nextChapter.id;
         result.nextChapterTitle = nextChapter.title;
-        result.introNarrative = nextChapter.introNarrative;
+        const nextNarrativeCtx = worldId ? await loadNarrativeContextForChapter(worldId, nextChapter.id) : undefined;
+        result.introNarrative = nextNarrativeCtx?.introNarrative || nextChapter.introNarrative;
       } else if (nextProgress) {
         nextProgress.status = 'available';
         state.currentChapterId = null; // Waiting for CEFR level
@@ -254,7 +302,8 @@ export class MainQuestProgressionManager {
           const nextChapter = MAIN_QUEST_CHAPTERS.find(ch => ch.id === result.nextChapterId);
           if (nextChapter) {
             const targetLanguage = await this.getWorldTargetLanguage(worldId);
-            await createMainQuestRecord(worldId, playerId, nextChapter, targetLanguage);
+            const narrativeCtx = await loadNarrativeContextForChapter(worldId, nextChapter.id);
+            await createMainQuestRecord(worldId, playerId, nextChapter, targetLanguage, narrativeCtx);
           }
         }
       } catch (err) {
@@ -304,7 +353,8 @@ export class MainQuestProgressionManager {
         // Create quest record for the newly activated chapter
         try {
           const targetLanguage = await this.getWorldTargetLanguage(worldId);
-          await createMainQuestRecord(worldId, playerId, chapter, targetLanguage);
+          const narrativeCtx = await loadNarrativeContextForChapter(worldId, chapter.id);
+          await createMainQuestRecord(worldId, playerId, chapter, targetLanguage, narrativeCtx);
         } catch (err) {
           console.error('[MainQuest] Failed to create quest record on unlock:', err);
         }
@@ -333,7 +383,8 @@ export class MainQuestProgressionManager {
 
     try {
       const targetLanguage = await this.getWorldTargetLanguage(worldId);
-      await createMainQuestRecord(worldId, playerId, chapter, targetLanguage);
+      const narrativeCtx = await loadNarrativeContextForChapter(worldId, chapter.id);
+      await createMainQuestRecord(worldId, playerId, chapter, targetLanguage, narrativeCtx);
     } catch (err) {
       console.error('[MainQuest] Failed to ensure quest record:', err);
     }

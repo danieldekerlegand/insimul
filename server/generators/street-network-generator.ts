@@ -49,7 +49,7 @@ export interface StreetNetworkConfig {
   centerX: number;
   centerZ: number;
   /** Settlement type determines scale */
-  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city';
+  settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
   /** Founding year — older settlements get organic layout */
   foundedYear: number;
   /** Seed string for deterministic generation */
@@ -77,9 +77,13 @@ export interface StreetNetworkConfig {
 // ─────────────────────────────────────────────
 
 const GRID_SPACING: Record<string, number> = {
-  dwelling: 60,
-  roadhouse: 60,
-  homestead: 60,
+  dwelling: 20,
+  roadhouse: 20,
+  homestead: 25,
+  landing: 30,
+  forge: 30,
+  chapel: 30,
+  market: 40,
   hamlet: 55,
   village: 50,
   town: 45,
@@ -90,6 +94,10 @@ const GRID_SIZE: Record<string, number> = {
   dwelling: 1,
   roadhouse: 1,
   homestead: 2,
+  landing: 2,
+  forge: 2,
+  chapel: 2,
+  market: 3,
   hamlet: 3,
   village: 4,
   town: 6,
@@ -100,6 +108,10 @@ const STREET_WIDTH: Record<string, number> = {
   dwelling: 6,
   roadhouse: 6,
   homestead: 6,
+  landing: 7,
+  forge: 7,
+  chapel: 7,
+  market: 8,
   hamlet: 8,
   village: 10,
   town: 12,
@@ -306,7 +318,7 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
       worldId: '',
       settlementId: '',
       settlementName: '',
-      settlementType: config.settlementType as 'dwelling' | 'roadhouse' | 'homestead' | 'hamlet' | 'village' | 'town' | 'city',
+      settlementType: config.settlementType as 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city',
       population: config.population ?? 500,
       foundedYear: config.foundedYear,
       terrain: config.terrain as 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert',
@@ -1186,4 +1198,47 @@ function polylineTangent(
     }
   }
   return { x: 1, z: 0 };
+}
+
+// ─────────────────────────────────────────────
+// Street pruning — remove streets with no buildings
+// ─────────────────────────────────────────────
+
+/**
+ * Remove street segments that have no lots/buildings near them.
+ * A street is "occupied" if at least one lot's streetName matches the segment name,
+ * or if any lot center is within `proximityThreshold` world units of the segment polyline.
+ *
+ * Also removes orphaned nodes (nodes not referenced by any remaining segment).
+ */
+export function pruneUnusedStreets(
+  network: StreetNetwork,
+  lotStreetNames: string[],
+  lotPositions: { x: number; z: number }[],
+  proximityThreshold: number = 30,
+): StreetNetwork {
+  const usedNames = new Set(lotStreetNames.map(n => n.toLowerCase()));
+
+  const keptSegments = network.segments.filter(seg => {
+    // Keep if any lot references this street by name
+    if (usedNames.has(seg.name.toLowerCase())) return true;
+
+    // Keep if any lot center is close to this street polyline
+    for (const pos of lotPositions) {
+      const dist = pointToPolylineDist(pos.x, pos.z, seg.waypoints);
+      if (dist <= proximityThreshold) return true;
+    }
+
+    return false;
+  });
+
+  // Collect node IDs still referenced by kept segments
+  const usedNodeIds = new Set<string>();
+  for (const seg of keptSegments) {
+    for (const nid of seg.nodeIds) usedNodeIds.add(nid);
+  }
+
+  const keptNodes = network.nodes.filter(n => usedNodeIds.has(n.id));
+
+  return { nodes: keptNodes, segments: keptSegments };
 }

@@ -19,7 +19,15 @@ enum class EInsimulItemType : uint8
     Food         UMETA(DisplayName = "Food"),
     Drink        UMETA(DisplayName = "Drink"),
     Material     UMETA(DisplayName = "Material"),
-    Tool         UMETA(DisplayName = "Tool")
+    Tool         UMETA(DisplayName = "Tool"),
+    Document     UMETA(DisplayName = "Document"),
+    Environmental UMETA(DisplayName = "Environmental"),
+    Decoration   UMETA(DisplayName = "Decoration"),
+    Furniture    UMETA(DisplayName = "Furniture"),
+    Equipment    UMETA(DisplayName = "Equipment"),
+    Container    UMETA(DisplayName = "Container"),
+    Accessory    UMETA(DisplayName = "Accessory"),
+    Ammunition   UMETA(DisplayName = "Ammunition")
 };
 
 /**
@@ -68,14 +76,20 @@ struct FInsimulInventoryItem
     /** Whether the item can be possessed/owned by NPCs */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPossessable = false;
 
-    // ── Language learning data (for vocabulary items) ────────────────
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetWord;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetLanguage;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Pronunciation;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageCategory;
+    // ── Translations keyed by language (e.g. "French" -> { TargetWord, Pronunciation, Category }) ──
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> TranslationWords;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> TranslationPronunciations;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> TranslationCategories;
 
-    /** Returns true if this item has valid language-learning data. */
-    bool HasLanguageLearningData() const { return !TargetWord.IsEmpty(); }
+    /** Returns true if this item has valid language-learning data for any language. */
+    bool HasLanguageLearningData() const { return TranslationWords.Num() > 0; }
+
+    /** Get the target word for a specific language, or empty string. */
+    FString GetTargetWord(const FString& Language) const
+    {
+        const FString* Word = TranslationWords.Find(Language);
+        return Word ? *Word : FString();
+    }
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemChanged, const FString&, ItemId, int32, Count);
