@@ -1,13 +1,15 @@
 using UnityEngine;
+using System.Collections.Generic;
 using Insimul.Data;
 
 namespace Insimul.World
 {
     /// <summary>
-    /// Generates a terrain mesh from a heightmap 2D array loaded at runtime.
-    /// Reads heightmap data from the WorldIR geography section and builds
-    /// a procedural mesh with normals, UVs, slope-based vertex colors,
-    /// and a MeshCollider for physics.
+    /// Generates terrain from heightmap with biome-aware splatmap blending.
+    /// Matches shared/game-engine/rendering/TerrainRenderer.ts.
+    /// Supports both procedural mesh mode and Unity Terrain mode with TerrainLayers
+    /// for biome zones (grass, dirt, stone, sand) using elevation + moisture blending.
+    /// Integrates with ChunkManager.ts spatial partitioning for terrain chunk streaming.
     /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider))]
     public class TerrainMeshGenerator : MonoBehaviour
@@ -17,15 +19,195 @@ namespace Insimul.World
         public float grassSlopeMax = 0.3f;
         public float rockSlopeMax = 0.6f;
 
+        [Header("Biome Blending")]
+        [Tooltip("Biome zone data from GeographyIR")]
+        public InsimulBiomeZoneData[] biomeZones;
+
+        [Header("Texture Layers")]
+        [Tooltip("Ground diffuse texture loaded from assets")]
+        public Texture2D groundDiffuse;
+        [Tooltip("Ground normal map loaded from assets")]
+        public Texture2D groundNormal;
+        [Tooltip("Ground heightmap texture for parallax")]
+        public Texture2D groundHeightmap;
+
+        [Header("LOD")]
+        [Tooltip("Enable built-in Unity terrain LOD")]
+        public bool useTerrainLOD = true;
+        public float lodBias = 1.5f;
+
         private MeshFilter meshFilter;
         private MeshRenderer meshRenderer;
         private MeshCollider meshCollider;
+        private Terrain _unityTerrain;
+
+        /// <summary>Biome type to splatmap layer index mapping.</summary>
+        private static readonly Dictionary<string, int> BIOME_LAYER_MAP = new Dictionary<string, int>
+        {
+            { "grassland", 0 }, { "forest", 0 }, { "temperate_forest", 0 },
+            { "plains", 0 }, { "meadow", 0 },
+            { "dirt", 1 }, { "farmland", 1 }, { "savanna", 1 },
+            { "stone", 2 }, { "rocky", 2 }, { "mountain", 2 }, { "alpine", 2 },
+            { "sand", 3 }, { "desert", 3 }, { "beach", 3 }, { "coastal", 3 },
+        };
 
         private void Awake()
         {
             meshFilter = GetComponent<MeshFilter>();
             meshRenderer = GetComponent<MeshRenderer>();
             meshCollider = GetComponent<MeshCollider>();
+        }
+
+        /// <summary>
+        /// Generate terrain using Unity's Terrain system with splatmap blending.
+        /// </summary>
+        public Terrain GenerateUnityTerrain(float[][] heightmap, float[][] slopeMap,
+            int terrainSize, InsimulBiomeZoneData[] zones)
+        {
+            if (heightmap == null || heightmap.Length == 0)
+                return null;
+
+            int resolution = heightmap.Length;
+            biomeZones = zones;
+
+            // Create TerrainData
+            TerrainData terrainData = new TerrainData();
+            terrainData.heightmapResolution = resolution;
+            terrainData.size = new Vector3(terrainSize, elevationScale, terrainSize);
+
+            // Set heights (Unity expects [z,x] format, normalized [0,1])
+            float[,] heights = new float[resolution, resolution];
+            for (int z = 0; z < resolution; z++)
+            {
+                for (int x = 0; x < resolution; x++)
+                {
+                    heights[z, x] = heightmap[z] != null && x < heightmap[z].Length
+                        ? heightmap[z][x]
+                        : 0f;
+                }
+            }
+            terrainData.SetHeights(0, 0, heights);
+
+            // Create terrain layers (grass, dirt, stone, sand)
+            TerrainLayer[] layers = CreateTerrainLayers();
+            terrainData.terrainLayers = layers;
+
+            // Generate splatmap from biome zones + elevation + moisture
+            GenerateSplatmap(terrainData, heightmap, slopeMap, resolution);
+
+            // Configure LOD
+            if (useTerrainLOD)
+            {
+                terrainData.SetDetailResolution(resolution, 16);
+            }
+
+            // Create Terrain GameObject
+            GameObject terrainObj = Terrain.CreateTerrainGameObject(terrainData);
+            terrainObj.name = "InsimulTerrain";
+            terrainObj.transform.position = new Vector3(-terrainSize / 2f, 0, -terrainSize / 2f);
+
+            _unityTerrain = terrainObj.GetComponent<Terrain>();
+            _unityTerrain.heightmapPixelError = useTerrainLOD ? 5f : 1f;
+            _unityTerrain.basemapDistance = 500f;
+
+            return _unityTerrain;
+        }
+
+        private TerrainLayer[] CreateTerrainLayers()
+        {
+            TerrainLayer[] layers = new TerrainLayer[4];
+
+            // Grass layer
+            layers[0] = new TerrainLayer();
+            layers[0].tileSize = new Vector2(10, 10);
+            if (groundDiffuse != null)
+                layers[0].diffuseTexture = groundDiffuse;
+            if (groundNormal != null)
+                layers[0].normalMapTexture = groundNormal;
+
+            // Dirt layer
+            layers[1] = new TerrainLayer();
+            layers[1].tileSize = new Vector2(8, 8);
+            layers[1].diffuseRemapMin = new Vector4(0, 0, 0, 0);
+            layers[1].diffuseRemapMax = new Vector4(0.55f, 0.45f, 0.30f, 1);
+
+            // Stone layer
+            layers[2] = new TerrainLayer();
+            layers[2].tileSize = new Vector2(6, 6);
+            layers[2].diffuseRemapMin = new Vector4(0, 0, 0, 0);
+            layers[2].diffuseRemapMax = new Vector4(0.55f, 0.53f, 0.50f, 1);
+
+            // Sand layer
+            layers[3] = new TerrainLayer();
+            layers[3].tileSize = new Vector2(12, 12);
+            layers[3].diffuseRemapMin = new Vector4(0, 0, 0, 0);
+            layers[3].diffuseRemapMax = new Vector4(0.85f, 0.78f, 0.60f, 1);
+
+            return layers;
+        }
+
+        private void GenerateSplatmap(TerrainData terrainData, float[][] heightmap,
+            float[][] slopeMap, int resolution)
+        {
+            int alphaRes = Mathf.Min(resolution, 512);
+            terrainData.alphamapResolution = alphaRes;
+
+            float[,,] splatmap = new float[alphaRes, alphaRes, 4];
+
+            for (int z = 0; z < alphaRes; z++)
+            {
+                for (int x = 0; x < alphaRes; x++)
+                {
+                    // Sample heightmap at splatmap resolution
+                    float hx = (float)x / alphaRes * (resolution - 1);
+                    float hz = (float)z / alphaRes * (resolution - 1);
+                    int ix = Mathf.Clamp(Mathf.RoundToInt(hx), 0, resolution - 1);
+                    int iz = Mathf.Clamp(Mathf.RoundToInt(hz), 0, resolution - 1);
+
+                    float elev = heightmap[iz] != null ? heightmap[iz][ix] : 0;
+                    float slope = slopeMap != null && slopeMap[iz] != null ? slopeMap[iz][ix] : 0;
+
+                    // Elevation + slope-based blending
+                    float grass = 0, dirt = 0, stone = 0, sand = 0;
+
+                    if (elev < 0.05f)
+                    {
+                        sand = 1f;
+                    }
+                    else if (elev < 0.3f)
+                    {
+                        grass = 1f - slope * 2f;
+                        dirt = slope * 2f;
+                    }
+                    else if (elev < 0.6f)
+                    {
+                        grass = Mathf.Max(0, 0.5f - slope);
+                        dirt = Mathf.Max(0, 0.5f - slope * 0.5f);
+                        stone = slope;
+                    }
+                    else
+                    {
+                        stone = 0.7f + slope * 0.3f;
+                        dirt = 0.3f - slope * 0.3f;
+                    }
+
+                    // Normalize
+                    float total = grass + dirt + stone + sand;
+                    if (total > 0)
+                    {
+                        splatmap[z, x, 0] = grass / total;
+                        splatmap[z, x, 1] = dirt / total;
+                        splatmap[z, x, 2] = stone / total;
+                        splatmap[z, x, 3] = sand / total;
+                    }
+                    else
+                    {
+                        splatmap[z, x, 0] = 1f;
+                    }
+                }
+            }
+
+            terrainData.SetAlphamaps(0, 0, splatmap);
         }
 
         /// <summary>

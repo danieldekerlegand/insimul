@@ -192,6 +192,15 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/AnimalAmbientLifeSystem.cs`, content: loadStaticTemplate('scripts/world/AnimalAmbientLifeSystem.cs') },
     { path: `${base}/BuildingSignManager.cs`,    content: loadStaticTemplate('scripts/world/BuildingSignManager.cs') },
     { path: `${base}/OutdoorFurnitureGenerator.cs`, content: loadStaticTemplate('scripts/world/OutdoorFurnitureGenerator.cs') },
+    // ── Export parity part 1: new world generators ──
+    { path: `${base}/SettlementSceneManager.cs`,    content: loadStaticTemplate('scripts/world/SettlementSceneManager.cs') },
+    { path: `${base}/ChunkManager.cs`,              content: loadStaticTemplate('scripts/world/ChunkManager.cs') },
+    { path: `${base}/TownSquareGenerator.cs`,       content: loadStaticTemplate('scripts/world/TownSquareGenerator.cs') },
+    { path: `${base}/BuildingPlacementSystem.cs`,   content: loadStaticTemplate('scripts/world/BuildingPlacementSystem.cs') },
+    { path: `${base}/BuildingCollisionSystem.cs`,   content: loadStaticTemplate('scripts/world/BuildingCollisionSystem.cs') },
+    { path: `${base}/InteriorSceneManager.cs`,      content: loadStaticTemplate('scripts/world/InteriorSceneManager.cs') },
+    { path: `${base}/InteriorLightingSystem.cs`,    content: loadStaticTemplate('scripts/world/InteriorLightingSystem.cs') },
+    { path: `${base}/InteriorDecorationGenerator.cs`, content: loadStaticTemplate('scripts/world/InteriorDecorationGenerator.cs') },
   ];
 }
 

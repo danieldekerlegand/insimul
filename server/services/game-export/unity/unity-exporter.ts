@@ -59,6 +59,44 @@ function sanitiseName(name: string): string {
   return name.replace(/[^a-zA-Z0-9]/g, '');
 }
 
+/**
+ * Route a bundled asset into the appropriate Unity Resources/ subdirectory
+ * by category, matching the asset manifest paths used by C# Resources.Load<>().
+ */
+function getUnityResourcePath(asset: BundledAsset): string {
+  const filename = asset.exportPath.split('/').pop() || 'asset';
+
+  switch (asset.category) {
+    case 'character':
+      return `Models/Characters/${filename}`;
+    case 'building':
+      return `Models/Buildings/${filename}`;
+    case 'furniture':
+      return `Models/Furniture/${filename}`;
+    case 'nature':
+      return `Models/Nature/${filename}`;
+    case 'container':
+      return `Models/Containers/${filename}`;
+    case 'marker':
+      return `Models/Markers/${filename}`;
+    case 'prop':
+      return `Models/Props/${filename}`;
+    case 'structural':
+      return `Models/Structural/${filename}`;
+    case 'vehicle':
+      return `Models/Vehicles/${filename}`;
+    case 'interior':
+      return `Models/Interiors/${filename}`;
+    case 'ground':
+    case 'texture':
+      return `Textures/${filename}`;
+    case 'audio':
+      return `Audio/${filename}`;
+    default:
+      return asset.exportPath;
+  }
+}
+
 function countByExtension(files: GeneratedFile[], ...exts: string[]): number {
   return files.filter(f => exts.some(e => f.path.endsWith(e))).length;
 }
@@ -84,9 +122,10 @@ async function packageAsZip(
     }
 
     for (const asset of binaryAssets) {
-      // Place assets inside Resources/ so Unity's Resources.Load<GameObject>() can find them
-      // after the editor auto-imports GLTF/GLB files on project open.
-      archive.append(asset.buffer, { name: `${projectName}/Assets/Resources/${asset.exportPath}` });
+      // Route assets into category-specific subdirectories under Resources/
+      // so Unity's Resources.Load<>() can find them by category path.
+      const unityPath = getUnityResourcePath(asset);
+      archive.append(asset.buffer, { name: `${projectName}/Assets/Resources/${unityPath}` });
     }
 
     // AI model files go into StreamingAssets so they're accessible at runtime via File.IO
@@ -178,9 +217,19 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
     assetBundle = await bundleCoreAssets(engine);
   }
 
+  // Generate manifest with Unity-specific resource paths
+  const unityManifest = assetBundle.manifest.map(entry => ({
+    ...entry,
+    exportPath: getUnityResourcePath({
+      exportPath: entry.exportPath,
+      buffer: Buffer.alloc(0),
+      category: entry.category as BundledAsset['category'],
+      role: entry.role,
+    }),
+  }));
   allFiles.push({
     path: 'Assets/Resources/Data/asset-manifest.json',
-    content: generateAssetManifestJson(assetBundle.manifest),
+    content: generateAssetManifestJson(unityManifest),
   });
 
   const projectName = options?.projectName || buildExportName(ir.meta.worldName, 'Unity', ir.aiConfig?.apiMode);
