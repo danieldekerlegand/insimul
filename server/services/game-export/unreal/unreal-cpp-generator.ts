@@ -162,6 +162,18 @@ function genSystemClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/EventBus.cpp`,    content: loadStaticTemplate('source/systems/EventBus.cpp') },
     { path: `${base}/PrologEngine.h`,  content: loadStaticTemplate('source/systems/PrologEngine.h') },
     { path: `${base}/PrologEngine.cpp`, content: loadStaticTemplate('source/systems/PrologEngine.cpp') },
+    // Building systems
+    { path: `${base}/BuildingPlacementSystem.h`, content: loadStaticTemplate('source/systems/BuildingPlacementSystem.h') },
+    { path: `${base}/BuildingPlacementSystem.cpp`, content: loadStaticTemplate('source/systems/BuildingPlacementSystem.cpp') },
+    { path: `${base}/BuildingSignManager.h`, content: loadStaticTemplate('source/systems/BuildingSignManager.h') },
+    { path: `${base}/BuildingSignManager.cpp`, content: loadStaticTemplate('source/systems/BuildingSignManager.cpp') },
+    { path: `${base}/BuildingCollisionSystem.h`, content: loadStaticTemplate('source/systems/BuildingCollisionSystem.h') },
+    { path: `${base}/BuildingCollisionSystem.cpp`, content: loadStaticTemplate('source/systems/BuildingCollisionSystem.cpp') },
+    // Spawning systems
+    { path: `${base}/ContainerSpawnSystem.h`, content: loadStaticTemplate('source/systems/ContainerSpawnSystem.h') },
+    { path: `${base}/ContainerSpawnSystem.cpp`, content: loadStaticTemplate('source/systems/ContainerSpawnSystem.cpp') },
+    { path: `${base}/ExteriorItemManager.h`, content: loadStaticTemplate('source/systems/ExteriorItemManager.h') },
+    { path: `${base}/ExteriorItemManager.cpp`, content: loadStaticTemplate('source/systems/ExteriorItemManager.cpp') },
   ];
 
   if (genre.features.crafting) {
@@ -235,6 +247,29 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ProceduralTerrainGenerator.cpp`,   content: loadStaticTemplate('source/world/ProceduralTerrainGenerator.cpp') },
     { path: `${base}/AnimalSystem.h`,                   content: loadStaticTemplate('source/world/AnimalSystem.h') },
     { path: `${base}/AnimalSystem.cpp`,                 content: loadStaticTemplate('source/world/AnimalSystem.cpp') },
+    // Terrain & settlement systems
+    { path: `${base}/TerrainFoundationRenderer.h`, content: loadStaticTemplate('source/world/TerrainFoundationRenderer.h') },
+    { path: `${base}/TerrainFoundationRenderer.cpp`, content: loadStaticTemplate('source/world/TerrainFoundationRenderer.cpp') },
+    { path: `${base}/SettlementSceneManager.h`, content: loadStaticTemplate('source/world/SettlementSceneManager.h') },
+    { path: `${base}/SettlementSceneManager.cpp`, content: loadStaticTemplate('source/world/SettlementSceneManager.cpp') },
+    { path: `${base}/ChunkManager.h`, content: loadStaticTemplate('source/world/ChunkManager.h') },
+    { path: `${base}/ChunkManager.cpp`, content: loadStaticTemplate('source/world/ChunkManager.cpp') },
+    { path: `${base}/TownSquareGenerator.h`, content: loadStaticTemplate('source/world/TownSquareGenerator.h') },
+    { path: `${base}/TownSquareGenerator.cpp`, content: loadStaticTemplate('source/world/TownSquareGenerator.cpp') },
+    // Water & nature
+    { path: `${base}/WaterRenderer.h`, content: loadStaticTemplate('source/world/WaterRenderer.h') },
+    { path: `${base}/WaterRenderer.cpp`, content: loadStaticTemplate('source/world/WaterRenderer.cpp') },
+    { path: `${base}/OutdoorFurnitureGenerator.h`, content: loadStaticTemplate('source/world/OutdoorFurnitureGenerator.h') },
+    { path: `${base}/OutdoorFurnitureGenerator.cpp`, content: loadStaticTemplate('source/world/OutdoorFurnitureGenerator.cpp') },
+    // Interiors
+    { path: `${base}/InteriorSceneManager.h`, content: loadStaticTemplate('source/world/InteriorSceneManager.h') },
+    { path: `${base}/InteriorSceneManager.cpp`, content: loadStaticTemplate('source/world/InteriorSceneManager.cpp') },
+    { path: `${base}/BuildingInteriorGenerator.h`, content: loadStaticTemplate('source/world/BuildingInteriorGenerator.h') },
+    { path: `${base}/BuildingInteriorGenerator.cpp`, content: loadStaticTemplate('source/world/BuildingInteriorGenerator.cpp') },
+    { path: `${base}/InteriorLightingSystem.h`, content: loadStaticTemplate('source/world/InteriorLightingSystem.h') },
+    { path: `${base}/InteriorLightingSystem.cpp`, content: loadStaticTemplate('source/world/InteriorLightingSystem.cpp') },
+    { path: `${base}/InteriorDecorationGenerator.h`, content: loadStaticTemplate('source/world/InteriorDecorationGenerator.h') },
+    { path: `${base}/InteriorDecorationGenerator.cpp`, content: loadStaticTemplate('source/world/InteriorDecorationGenerator.cpp') },
   ];
 }
 

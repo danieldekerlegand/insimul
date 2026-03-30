@@ -34,6 +34,11 @@ export interface AssetConversionResult {
     staticModels: number;
     textures: number;
     audio: number;
+    furniture: number;
+    structural: number;
+    vehicles: number;
+    interiors: number;
+    nature: number;
   };
 }
 
@@ -88,6 +93,18 @@ function getUnrealContentPath(asset: BundledAsset, isAnimated: boolean): string 
     case 'marker':
     case 'prop':
       return `Content/Models/${filename}`;
+    case 'furniture':
+      return `Content/Assets/Furniture/${filename}`;
+    case 'structural':
+      return `Content/Assets/Structural/${filename}`;
+    case 'vehicle':
+      return `Content/Assets/Vehicles/${filename}`;
+    case 'interior':
+      return `Content/Assets/Interiors/${filename}`;
+    case 'texture':
+      return `Content/Assets/Textures/${filename}`;
+    case 'nature':
+      return `Content/Assets/Nature/${filename}`;
     case 'ground':
       return `Content/Textures/${filename}`;
     case 'audio':
@@ -116,8 +133,20 @@ export function convertAssetsForUnreal(assets: BundledAsset[]): AssetConversionR
   let staticModels = 0;
   let textures = 0;
   let audio = 0;
+  let furniture = 0;
+  let structural = 0;
+  let vehicles = 0;
+  let interiors = 0;
+  let nature = 0;
 
   for (const asset of assets) {
+    // Track new category counters
+    if (asset.category === 'furniture') furniture++;
+    else if (asset.category === 'structural') structural++;
+    else if (asset.category === 'vehicle') vehicles++;
+    else if (asset.category === 'interior') interiors++;
+    else if (asset.category === 'nature') nature++;
+
     const ext = asset.exportPath.split('.').pop()?.toLowerCase() || '';
     const isGlb = ext === 'glb';
     let isAnimated = false;
@@ -207,6 +236,11 @@ export function convertAssetsForUnreal(assets: BundledAsset[]): AssetConversionR
       staticModels,
       textures,
       audio,
+      furniture,
+      structural,
+      vehicles,
+      interiors,
+      nature,
     },
   };
 }

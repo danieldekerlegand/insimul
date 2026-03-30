@@ -30,7 +30,7 @@ export interface BundledAsset {
   /** Binary content */
   buffer: Buffer;
   /** Semantic category */
-  category: 'character' | 'building' | 'ground' | 'nature' | 'container' | 'marker' | 'audio' | 'prop';
+  category: 'character' | 'building' | 'ground' | 'nature' | 'container' | 'marker' | 'audio' | 'prop' | 'furniture' | 'structural' | 'vehicle' | 'interior' | 'texture';
   /** Semantic role (e.g. "player_default", "npc_guard", "ground_diffuse") */
   role: string;
 }
@@ -190,6 +190,207 @@ function getKayKitBuildings(): AssetDef[] {
     role: 'building_texture',
   });
 
+  return defs;
+}
+
+// ─────────────────────────────────────────────
+// Reusable directory scanner helper
+// ─────────────────────────────────────────────
+
+function scanModelsDirectory(basePath: string, relativeDir: string, category: BundledAsset['category'], rolePrefix: string): AssetDef[] {
+  const defs: AssetDef[] = [];
+  const fullDir = path.join(basePath, relativeDir);
+  if (!fs.existsSync(fullDir)) return defs;
+
+  const scanDir = (dir: string, relPath: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        scanDir(path.join(dir, entry.name), `${relPath}/${entry.name}`);
+      } else if (/\.(gltf|glb)$/i.test(entry.name)) {
+        const sourcePath = `${relativeDir}${relPath}/${entry.name}`;
+        const id = entry.name.replace(/\.(gltf|glb)$/i, '');
+        defs.push({
+          sourcePath,
+          exportPath: `assets/${sourcePath}`,
+          category,
+          role: `${rolePrefix}_${id}`,
+        });
+      }
+    }
+  };
+
+  scanDir(fullDir, '');
+  return defs;
+}
+
+// ─────────────────────────────────────────────
+// Full model catalog scanners
+// ─────────────────────────────────────────────
+
+function getFurnitureModels(basePath: string): AssetDef[] {
+  const defs: AssetDef[] = [
+    ...scanModelsDirectory(basePath, 'models/furniture/quaternius', 'furniture', 'furniture'),
+    ...scanModelsDirectory(basePath, 'models/furniture/polyhaven', 'furniture', 'furniture'),
+  ];
+  console.log(`[AssetBundler] Found ${defs.length} furniture model files`);
+  return defs;
+}
+
+function getStructuralModels(basePath: string): AssetDef[] {
+  const defs = scanModelsDirectory(basePath, 'models/structural/quaternius', 'structural', 'structural');
+  console.log(`[AssetBundler] Found ${defs.length} structural model files`);
+  return defs;
+}
+
+function getPropsModels(basePath: string): AssetDef[] {
+  const defs = scanModelsDirectory(basePath, 'models/props/polyhaven', 'prop', 'prop');
+  console.log(`[AssetBundler] Found ${defs.length} additional prop model files`);
+  return defs;
+}
+
+function getNatureModels(basePath: string): AssetDef[] {
+  const defs = scanModelsDirectory(basePath, 'models/nature/polyhaven', 'nature', 'nature');
+  console.log(`[AssetBundler] Found ${defs.length} nature model files`);
+  return defs;
+}
+
+function getVehicleModels(basePath: string): AssetDef[] {
+  const defs = scanModelsDirectory(basePath, 'models/vehicles/quaternius', 'vehicle', 'vehicle');
+  console.log(`[AssetBundler] Found ${defs.length} vehicle model files`);
+  return defs;
+}
+
+function getInteriorModels(basePath: string): AssetDef[] {
+  const defs: AssetDef[] = [];
+  const interiorsDir = path.join(basePath, 'models/interiors');
+  if (!fs.existsSync(interiorsDir)) {
+    console.log(`[AssetBundler] Found 0 interior model files`);
+    return defs;
+  }
+
+  for (const subdir of fs.readdirSync(interiorsDir, { withFileTypes: true })) {
+    if (!subdir.isDirectory()) continue;
+    const subdirPath = path.join(interiorsDir, subdir.name);
+    const scanRecursive = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          scanRecursive(path.join(dir, entry.name));
+        } else if (/\.glb$/i.test(entry.name)) {
+          const filename = entry.name.replace(/\.glb$/i, '');
+          const relSource = path.relative(basePath, path.join(dir, entry.name));
+          defs.push({
+            sourcePath: relSource,
+            exportPath: `assets/${relSource}`,
+            category: 'interior',
+            role: `interior_${subdir.name}_${filename}`,
+          });
+        }
+      }
+    };
+    scanRecursive(subdirPath);
+  }
+
+  console.log(`[AssetBundler] Found ${defs.length} interior model files`);
+  return defs;
+}
+
+function getEnvironmentTextures(basePath: string): AssetDef[] {
+  const defs: AssetDef[] = [];
+  const envDir = path.join(basePath, 'textures/environment');
+  if (!fs.existsSync(envDir)) {
+    console.log(`[AssetBundler] Found 0 environment texture files`);
+    return defs;
+  }
+
+  // Track already-included core ground files to avoid duplicates
+  const coreGroundFiles = new Set(CORE_GROUND.map(g => g.sourcePath));
+
+  for (const entry of fs.readdirSync(envDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    if (!/\.(jpg|png)$/i.test(entry.name)) continue;
+    const sourcePath = `textures/environment/${entry.name}`;
+    if (coreGroundFiles.has(sourcePath)) continue;
+    const role = entry.name.replace(/\.(jpg|png)$/i, '');
+    defs.push({
+      sourcePath,
+      exportPath: `assets/${sourcePath}`,
+      category: 'texture',
+      role: `envtex_${role}`,
+    });
+  }
+
+  console.log(`[AssetBundler] Found ${defs.length} environment texture files`);
+  return defs;
+}
+
+function getPBRTextureSets(basePath: string): AssetDef[] {
+  const defs: AssetDef[] = [];
+  const pbrDir = path.join(basePath, 'textures/polyhaven');
+  if (!fs.existsSync(pbrDir)) {
+    console.log(`[AssetBundler] Found 0 PBR texture set files`);
+    return defs;
+  }
+
+  for (const setDir of fs.readdirSync(pbrDir, { withFileTypes: true })) {
+    if (!setDir.isDirectory()) continue;
+    const setPath = path.join(pbrDir, setDir.name);
+    for (const entry of fs.readdirSync(setPath, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      if (!/\.(jpg|png)$/i.test(entry.name)) continue;
+      const sourcePath = `textures/polyhaven/${setDir.name}/${entry.name}`;
+      let type = 'other';
+      if (/_diff_/i.test(entry.name)) type = 'diffuse';
+      else if (/_nor_/i.test(entry.name)) type = 'normal';
+      else if (/_arm_/i.test(entry.name)) type = 'arm';
+      defs.push({
+        sourcePath,
+        exportPath: `assets/${sourcePath}`,
+        category: 'texture',
+        role: `pbr_${setDir.name}_${type}`,
+      });
+    }
+  }
+
+  console.log(`[AssetBundler] Found ${defs.length} PBR texture set files`);
+  return defs;
+}
+
+function getAudioAssets(basePath: string): AssetDef[] {
+  const defs: AssetDef[] = [];
+  const coreAudioFiles = new Set(CORE_AUDIO.map(a => a.sourcePath));
+  const audioDirs = ['audio/ambient', 'audio/effects', 'audio/footstep'];
+
+  for (const relDir of audioDirs) {
+    const fullDir = path.join(basePath, relDir);
+    if (!fs.existsSync(fullDir)) continue;
+    const subCategory = relDir.split('/')[1]; // ambient, effects, footstep
+    for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const sourcePath = `${relDir}/${entry.name}`;
+      if (coreAudioFiles.has(sourcePath)) continue;
+      const role = `audio_${subCategory}_${entry.name.replace(/\.[^.]+$/, '')}`;
+      defs.push({
+        sourcePath,
+        exportPath: `assets/${sourcePath}`,
+        category: 'audio',
+        role,
+      });
+    }
+  }
+
+  // Include audio manifest if it exists
+  const manifestPath = 'audio/manifest.json';
+  const manifestFull = path.join(basePath, manifestPath);
+  if (fs.existsSync(manifestFull)) {
+    defs.push({
+      sourcePath: manifestPath,
+      exportPath: `assets/${manifestPath}`,
+      category: 'audio',
+      role: 'audio_manifest',
+    });
+  }
+
+  console.log(`[AssetBundler] Found ${defs.length} additional audio files`);
   return defs;
 }
 
@@ -521,6 +722,11 @@ export async function bundleAssetsFromCollection(collectionId: string, worldId?:
   const hasMarkers = bundledAssets.some(a => a.category === 'marker');
   const hasProps = bundledAssets.some(a => a.category === 'prop');
   const hasAudio = bundledAssets.some(a => a.category === 'audio');
+  const hasFurniture = bundledAssets.some(a => a.category === 'furniture');
+  const hasStructural = bundledAssets.some(a => a.category === 'structural');
+  const hasVehicles = bundledAssets.some(a => a.category === 'vehicle' as any);
+  const hasInteriors = bundledAssets.some(a => a.category === 'interior' as any);
+  const hasNature = bundledAssets.some(a => a.category === 'nature');
 
   const coreSupplements: AssetDef[] = [
     ...CORE_GROUND,
@@ -530,6 +736,14 @@ export async function bundleAssetsFromCollection(collectionId: string, worldId?:
     ...(!hasMarkers ? CORE_MARKERS : []),
     ...(!hasProps ? CORE_QUEST_PROPS : []),
     ...(!hasAudio ? CORE_AUDIO : []),
+    ...(!hasFurniture ? getFurnitureModels(basePath) : []),
+    ...(!hasStructural ? getStructuralModels(basePath) : []),
+    ...(!hasNature ? getNatureModels(basePath) : []),
+    ...getVehicleModels(basePath),
+    ...getInteriorModels(basePath),
+    ...getEnvironmentTextures(basePath),
+    ...getPBRTextureSets(basePath),
+    ...getAudioAssets(basePath),
   ];
   for (const def of coreSupplements) {
     const fullPath = path.join(basePath, def.sourcePath);
@@ -582,6 +796,16 @@ export async function bundleCoreAssets(engine: TargetEngine = 'babylon'): Promis
     ...CORE_QUEST_PROPS,
     ...CORE_AUDIO,
     ...getKayKitBuildings(),
+    // New full model catalog
+    ...getFurnitureModels(basePath),
+    ...getStructuralModels(basePath),
+    ...getPropsModels(basePath),
+    ...getNatureModels(basePath),
+    ...getVehicleModels(basePath),
+    ...getInteriorModels(basePath),
+    ...getEnvironmentTextures(basePath),
+    ...getPBRTextureSets(basePath),
+    ...getAudioAssets(basePath),
   ];
   
   console.log(`[AssetBundler] bundleCoreAssets: processing ${allDefs.length} asset definitions`);

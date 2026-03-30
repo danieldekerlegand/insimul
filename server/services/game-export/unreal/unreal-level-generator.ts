@@ -35,6 +35,12 @@ interface LevelDescriptor {
   npcs: NPCActorDesc[];
   roads: RoadActorDesc[];
   nature: NatureDesc;
+  waterFeatures: WaterFeatureActorDesc[];
+  containers: ContainerActorDesc[];
+  foliage: FoliageLayerDesc[];
+  interiorTemplates: Record<string, InteriorTemplateDesc>;
+  townSquares: TownSquareDesc[];
+  outdoorFurniture: OutdoorFurnitureDesc[];
 }
 
 interface TerrainDesc {
@@ -104,6 +110,59 @@ interface NatureDesc {
   seed: string;
   terrainSize: number;
   biomeHint: string;
+}
+
+interface WaterFeatureActorDesc {
+  id: string;
+  type: string;
+  position: { X: number; Y: number; Z: number };
+  size: { width: number; depth: number; waterLevel: number }; // cm
+  riverPath: { X: number; Y: number; Z: number }[];
+  color: [number, number, number] | null;
+}
+
+interface ContainerActorDesc {
+  id: string;
+  buildingId: string;
+  containerType: string;
+  position: { X: number; Y: number; Z: number };
+  location: 'interior' | 'outdoor';
+  lootTable: Array<{ itemName: string; itemType: string; quantity: number; rarity?: string }>;
+}
+
+interface FoliageLayerDesc {
+  type: string;
+  biome: string;
+  settlementId: string;
+  density: number;
+  scaleRange: [number, number];
+  maxSlope: number;
+  elevationRange: [number, number];
+  instanceCount: number;
+}
+
+interface InteriorTemplateDesc {
+  mode: 'model' | 'procedural';
+  assetPath: string | null;
+  roomTemplates: Array<{
+    width: number;   // cm
+    depth: number;   // cm
+    height: number;  // cm
+    furnitureCount: number;
+  }>;
+}
+
+interface TownSquareDesc {
+  settlementId: string;
+  settlementName: string;
+  position: { X: number; Y: number; Z: number };
+  radius: number; // cm
+}
+
+interface OutdoorFurnitureDesc {
+  settlementId: string;
+  density: number;
+  types: string[];
 }
 
 // ─────────────────────────────────────────────
@@ -191,6 +250,76 @@ function buildLevelDescriptor(ir: WorldIR): LevelDescriptor {
       terrainSize: ir.geography.terrainSize,
       biomeHint: ir.meta.worldType || 'default',
     },
+
+    // ── Water features ──────────────────────────────────────────────────
+    waterFeatures: (ir.geography.waterFeatures ?? []).map(wf => ({
+      id: wf.id,
+      type: wf.type,
+      position: toUE(wf.position),
+      size: {
+        width: wf.width * 100,
+        depth: wf.depth * 100,
+        waterLevel: wf.waterLevel * 100,
+      },
+      riverPath: wf.shorelinePoints.map(p => toUE(p)),
+      color: wf.color ? [wf.color.r, wf.color.g, wf.color.b] as [number, number, number] : null,
+    })),
+
+    // ── Containers ──────────────────────────────────────────────────────
+    containers: (ir.entities.containers ?? []).map(c => ({
+      id: c.id,
+      buildingId: c.buildingId,
+      containerType: c.containerType,
+      position: toUE(c.position),
+      location: c.location,
+      lootTable: c.items,
+    })),
+
+    // ── Foliage / nature scatter layers ─────────────────────────────────
+    foliage: (ir.geography.foliageLayers ?? []).map(fl => ({
+      type: fl.type,
+      biome: fl.biome,
+      settlementId: fl.settlementId,
+      density: fl.density,
+      scaleRange: fl.scaleRange,
+      maxSlope: fl.maxSlope,
+      elevationRange: fl.elevationRange,
+      instanceCount: fl.instances.length,
+    })),
+
+    // ── Interior templates per building ─────────────────────────────────
+    interiorTemplates: Object.fromEntries(
+      ir.entities.buildings
+        .filter(b => b.interior)
+        .map(b => [
+          b.id,
+          {
+            mode: (b.modelAssetKey ? 'model' : 'procedural') as 'model' | 'procedural',
+            assetPath: b.modelAssetKey ?? null,
+            roomTemplates: b.interior ? [{
+              width: b.interior.width * 100,
+              depth: b.interior.depth * 100,
+              height: b.interior.height * 100,
+              furnitureCount: b.interior.furniture?.length ?? 0,
+            }] : [],
+          },
+        ]),
+    ),
+
+    // ── Town squares (one per settlement center) ────────────────────────
+    townSquares: ir.geography.settlements.map(s => ({
+      settlementId: s.id,
+      settlementName: s.name,
+      position: toUE(s.position),
+      radius: Math.min(s.radius * 0.15, 50) * 100, // 15% of settlement radius, max 50m → cm
+    })),
+
+    // ── Outdoor furniture per settlement ────────────────────────────────
+    outdoorFurniture: ir.geography.settlements.map(s => ({
+      settlementId: s.id,
+      density: Math.min(s.population / 100, 1.0), // scale with population, cap at 1.0
+      types: ['bench', 'lantern', 'signpost', 'barrel', 'cart', 'well'],
+    })),
   };
 }
 
