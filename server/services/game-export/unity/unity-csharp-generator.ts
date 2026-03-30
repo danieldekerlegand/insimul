@@ -73,6 +73,15 @@ function genCharacterClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/NPCAppearanceGenerator.cs`,      content: loadStaticTemplate('scripts/characters/NPCAppearanceGenerator.cs') },
     { path: `${base}/NPCGreetingSystem.cs`,          content: loadStaticTemplate('scripts/characters/NPCGreetingSystem.cs') },
     { path: `${base}/NPCTalkingIndicator.cs`,       content: loadStaticTemplate('scripts/characters/NPCTalkingIndicator.cs') },
+    // ── Export parity part 2: enhanced character systems ──
+    { path: `${base}/InsimulCharacterController.cs`, content: loadStaticTemplate('scripts/characters/InsimulCharacterController.cs') },
+    { path: `${base}/CameraManager.cs`,              content: loadStaticTemplate('scripts/characters/CameraManager.cs') },
+    { path: `${base}/NPCModularAssembler.cs`,        content: loadStaticTemplate('scripts/characters/NPCModularAssembler.cs') },
+    { path: `${base}/NPCAccessorySystem.cs`,         content: loadStaticTemplate('scripts/characters/NPCAccessorySystem.cs') },
+    { path: `${base}/NPCAnimationController.cs`,     content: loadStaticTemplate('scripts/characters/NPCAnimationController.cs') },
+    { path: `${base}/NPCMovementController.cs`,      content: loadStaticTemplate('scripts/characters/NPCMovementController.cs') },
+    { path: `${base}/LipSyncController.cs`,          content: loadStaticTemplate('scripts/characters/LipSyncController.cs') },
+    { path: `${base}/NPCActivityLabelSystem.cs`,     content: loadStaticTemplate('scripts/characters/NPCActivityLabelSystem.cs') },
   ];
 }
 
@@ -111,6 +120,23 @@ function genSystemClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/ContainerSystem.cs`,       content: loadStaticTemplate('scripts/systems/ContainerSystem.cs') },
     { path: `${base}/PuzzleSystem.cs`,          content: loadStaticTemplate('scripts/systems/PuzzleSystem.cs') },
     { path: `${base}/OnboardingManager.cs`,     content: loadStaticTemplate('scripts/systems/OnboardingManager.cs') },
+    // ── Export parity part 2: gameplay systems ──
+    { path: `${base}/NPCScheduleSystem.cs`,           content: loadStaticTemplate('scripts/systems/NPCScheduleSystem.cs') },
+    { path: `${base}/NPCSimulationLOD.cs`,            content: loadStaticTemplate('scripts/systems/NPCSimulationLOD.cs') },
+    { path: `${base}/AmbientConversationSystem.cs`,   content: loadStaticTemplate('scripts/systems/AmbientConversationSystem.cs') },
+    { path: `${base}/NPCBusinessInteractionSystem.cs`, content: loadStaticTemplate('scripts/systems/NPCBusinessInteractionSystem.cs') },
+    { path: `${base}/QuestCompletionManager.cs`,      content: loadStaticTemplate('scripts/systems/QuestCompletionManager.cs') },
+    { path: `${base}/ExplorationDiscoverySystem.cs`,  content: loadStaticTemplate('scripts/systems/ExplorationDiscoverySystem.cs') },
+    { path: `${base}/AnimalNPCSystem.cs`,             content: loadStaticTemplate('scripts/systems/AnimalNPCSystem.cs') },
+    { path: `${base}/PhotographySystem.cs`,           content: loadStaticTemplate('scripts/systems/PhotographySystem.cs') },
+    { path: `${base}/SaveSystem.cs`,                  content: loadStaticTemplate('scripts/systems/SaveSystem.cs') },
+    // ── Export parity part 2: VR scaffolding ──
+    { path: `${base}/VRManager.cs`,                   content: loadStaticTemplate('scripts/systems/VRManager.cs') },
+    { path: `${base}/VRHandTrackingManager.cs`,       content: loadStaticTemplate('scripts/systems/VRHandTrackingManager.cs') },
+    { path: `${base}/VRInteractionManager.cs`,        content: loadStaticTemplate('scripts/systems/VRInteractionManager.cs') },
+    { path: `${base}/VRHUDManager.cs`,                content: loadStaticTemplate('scripts/systems/VRHUDManager.cs') },
+    { path: `${base}/VRChatPanel.cs`,                 content: loadStaticTemplate('scripts/systems/VRChatPanel.cs') },
+    { path: `${base}/VRCombatAdapter.cs`,             content: loadStaticTemplate('scripts/systems/VRCombatAdapter.cs') },
   ];
 
   const genre = ir.meta.genreConfig;
@@ -232,6 +258,10 @@ function genUIClasses(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/NotificationSystem.cs`,   content: loadStaticTemplate('scripts/ui/NotificationSystem.cs') },
     { path: `${base}/ConversationHistoryPanel.cs`, content: loadStaticTemplate('scripts/ui/ConversationHistoryPanel.cs') },
     { path: `${base}/CombatUI.cs`,            content: loadStaticTemplate('scripts/ui/CombatUI.cs') },
+    // ── Export parity part 2: new UI panels ──
+    { path: `${base}/GameIntroSequence.cs`,       content: loadStaticTemplate('scripts/ui/GameIntroSequence.cs') },
+    { path: `${base}/ActionQuickBar.cs`,          content: loadStaticTemplate('scripts/ui/ActionQuickBar.cs') },
+    { path: `${base}/DocumentReadingPanel.cs`,    content: loadStaticTemplate('scripts/ui/DocumentReadingPanel.cs') },
   ];
 
   const mapEnabled = ir.ui?.menuConfig?.mapScreen?.enabled !== false;
