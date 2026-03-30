@@ -44,6 +44,18 @@ function genCharacterScripts(ir: WorldIR): GeneratedFile[] {
     { path: 'scripts/characters/npc_controller.gd',                content: loadStaticTemplate('scripts/characters/npc_controller.gd') },
     { path: 'scripts/characters/npc_spawner.gd',                   content: loadStaticTemplate('scripts/characters/npc_spawner.gd') },
     { path: 'scripts/characters/character_animation_controller.gd', content: loadStaticTemplate('scripts/characters/character_animation_controller.gd') },
+    // Parity part 2 — character systems
+    { path: 'scripts/characters/camera_manager.gd',                content: loadStaticTemplate('scripts/characters/camera_manager.gd') },
+    { path: 'scripts/characters/npc_modular_assembler.gd',         content: loadStaticTemplate('scripts/characters/npc_modular_assembler.gd') },
+    { path: 'scripts/characters/npc_accessory_system.gd',          content: loadStaticTemplate('scripts/characters/npc_accessory_system.gd') },
+    { path: 'scripts/characters/npc_animation_controller.gd',      content: loadStaticTemplate('scripts/characters/npc_animation_controller.gd') },
+    { path: 'scripts/characters/npc_movement_controller.gd',       content: loadStaticTemplate('scripts/characters/npc_movement_controller.gd') },
+    { path: 'scripts/characters/npc_schedule_system.gd',           content: loadStaticTemplate('scripts/characters/npc_schedule_system.gd') },
+    { path: 'scripts/characters/npc_simulation_lod.gd',            content: loadStaticTemplate('scripts/characters/npc_simulation_lod.gd') },
+    { path: 'scripts/characters/npc_greeting_system.gd',           content: loadStaticTemplate('scripts/characters/npc_greeting_system.gd') },
+    { path: 'scripts/characters/npc_activity_label_system.gd',     content: loadStaticTemplate('scripts/characters/npc_activity_label_system.gd') },
+    { path: 'scripts/characters/ambient_conversation_system.gd',   content: loadStaticTemplate('scripts/characters/ambient_conversation_system.gd') },
+    { path: 'scripts/characters/lip_sync_controller.gd',           content: loadStaticTemplate('scripts/characters/lip_sync_controller.gd') },
   ];
 }
 
@@ -99,6 +111,16 @@ function genSystemScripts(ir: WorldIR): GeneratedFile[] {
   files.push({ path: 'scripts/systems/fighting_combat_system.gd', content: loadStaticTemplate('scripts/systems/fighting_combat_system.gd') });
   files.push({ path: 'scripts/systems/turn_based_combat_system.gd', content: loadStaticTemplate('scripts/systems/turn_based_combat_system.gd') });
   files.push({ path: 'scripts/systems/ranged_combat_system.gd', content: loadStaticTemplate('scripts/systems/ranged_combat_system.gd') });
+
+  // Parity part 2 — system scripts
+  files.push({ path: 'scripts/systems/npc_business_interaction_system.gd', content: loadStaticTemplate('scripts/systems/npc_business_interaction_system.gd') });
+  files.push({ path: 'scripts/systems/reputation_manager.gd', content: loadStaticTemplate('scripts/systems/reputation_manager.gd') });
+  files.push({ path: 'scripts/systems/exploration_discovery_system.gd', content: loadStaticTemplate('scripts/systems/exploration_discovery_system.gd') });
+  files.push({ path: 'scripts/systems/quest_completion_manager.gd', content: loadStaticTemplate('scripts/systems/quest_completion_manager.gd') });
+  files.push({ path: 'scripts/systems/animal_npc_system.gd', content: loadStaticTemplate('scripts/systems/animal_npc_system.gd') });
+  files.push({ path: 'scripts/systems/photography_system.gd', content: loadStaticTemplate('scripts/systems/photography_system.gd') });
+  files.push({ path: 'scripts/systems/puzzle_system.gd', content: loadStaticTemplate('scripts/systems/puzzle_system.gd') });
+  files.push({ path: 'scripts/systems/vr_support.gd', content: loadStaticTemplate('scripts/systems/vr_support.gd') });
 
   return files;
 }
@@ -223,6 +245,12 @@ function genUIScripts(ir: WorldIR): GeneratedFile[] {
   if (ir.ui?.showMinimap) {
     files.push({ path: 'scripts/ui/minimap.gd', content: loadStaticTemplate('scripts/ui/minimap.gd') });
   }
+
+  // Parity part 2 — UI scripts
+  files.push({ path: 'scripts/ui/game_intro_sequence.gd', content: loadStaticTemplate('scripts/ui/game_intro_sequence.gd') });
+  files.push({ path: 'scripts/ui/onboarding_manager.gd', content: loadStaticTemplate('scripts/ui/onboarding_manager.gd') });
+  files.push({ path: 'scripts/ui/action_quick_bar.gd', content: loadStaticTemplate('scripts/ui/action_quick_bar.gd') });
+  files.push({ path: 'scripts/ui/document_reading_panel.gd', content: loadStaticTemplate('scripts/ui/document_reading_panel.gd') });
 
   return files;
 }

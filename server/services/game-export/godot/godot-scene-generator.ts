@@ -71,6 +71,16 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 31, path: 'res://scripts/world/outdoor_furniture_generator.gd', type: 'Script' },
     { id: 32, path: 'res://scripts/world/container_spawn_system.gd', type: 'Script' },
     { id: 33, path: 'res://scripts/world/exterior_item_manager.gd', type: 'Script' },
+    // Parity part 2 — character and system scripts
+    { id: 34, path: 'res://scripts/characters/camera_manager.gd', type: 'Script' },
+    { id: 35, path: 'res://scripts/characters/npc_greeting_system.gd', type: 'Script' },
+    { id: 36, path: 'res://scripts/characters/npc_simulation_lod.gd', type: 'Script' },
+    { id: 37, path: 'res://scripts/characters/npc_activity_label_system.gd', type: 'Script' },
+    { id: 38, path: 'res://scripts/characters/ambient_conversation_system.gd', type: 'Script' },
+    { id: 39, path: 'res://scripts/systems/reputation_manager.gd', type: 'Script' },
+    { id: 40, path: 'res://scripts/systems/exploration_discovery_system.gd', type: 'Script' },
+    { id: 41, path: 'res://scripts/systems/quest_completion_manager.gd', type: 'Script' },
+    { id: 42, path: 'res://scripts/ui/action_quick_bar.gd', type: 'Script' },
   ];
 
   const showMinimap = ir.ui?.showMinimap ?? false;
@@ -209,6 +219,31 @@ function generateMainTscn(ir: WorldIR): string {
   tscn += `\n[node name="AnimalSystem" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("22")\n`;
 
+  // Parity part 2 — character and system nodes
+  tscn += `\n[node name="CameraManager" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("34")\n`;
+
+  tscn += `\n[node name="NPCGreetingSystem" type="Node" parent="."]\n`;
+  tscn += `script = ExtResource("35")\n`;
+
+  tscn += `\n[node name="NPCSimulationLOD" type="Node" parent="."]\n`;
+  tscn += `script = ExtResource("36")\n`;
+
+  tscn += `\n[node name="NPCActivityLabelSystem" type="Node" parent="."]\n`;
+  tscn += `script = ExtResource("37")\n`;
+
+  tscn += `\n[node name="AmbientConversationSystem" type="Node" parent="."]\n`;
+  tscn += `script = ExtResource("38")\n`;
+
+  tscn += `\n[node name="ReputationManager" type="Node" parent="."]\n`;
+  tscn += `script = ExtResource("39")\n`;
+
+  tscn += `\n[node name="ExplorationDiscoverySystem" type="Node" parent="."]\n`;
+  tscn += `script = ExtResource("40")\n`;
+
+  tscn += `\n[node name="QuestCompletionManager" type="Node" parent="."]\n`;
+  tscn += `script = ExtResource("41")\n`;
+
   // ─── UI Layer ───────────────────────────────
 
   // HUD (always-visible overlay)
@@ -324,6 +359,11 @@ function generateMainTscn(ir: WorldIR): string {
   tscn += `grow_horizontal = 2\n`;
   tscn += `grow_vertical = 0\n`;
   tscn += `script = ExtResource("17")\n`;
+
+  // Action quick bar (HUD hotbar)
+  tscn += `\n[node name="ActionQuickBar" type="CanvasLayer" parent="."]\n`;
+  tscn += `layer = 3\n`;
+  tscn += `script = ExtResource("42")\n`;
 
   return tscn;
 }
