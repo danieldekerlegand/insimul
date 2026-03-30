@@ -28,12 +28,16 @@ export interface Clue {
   followedUp: boolean;
   /** Tags for connection visualization (NPC names, location names, topics) */
   tags: string[];
+  /** Narrative chapter this clue belongs to (null = always available) */
+  chapterId: string | null;
 }
 
 /** Serializable snapshot for save/load */
 export interface ClueStoreState {
   clues: Clue[];
   totalClueCount: number;
+  /** Chapter IDs that the player has unlocked (active + completed) */
+  allowedChapterIds?: string[];
 }
 
 // ── Keywords for detecting investigation-relevant conversations ──────────────
@@ -51,18 +55,38 @@ export class ClueStore {
   private clues: Map<string, Clue> = new Map();
   private eventBus: GameEventBus | null;
   private totalClueCount: number;
+  /** Chapters the player has unlocked. Clues with a chapterId NOT in this set are rejected. */
+  private allowedChapterIds: Set<string> = new Set();
 
   constructor(eventBus?: GameEventBus, totalClueCount = 12) {
     this.eventBus = eventBus ?? null;
     this.totalClueCount = totalClueCount;
   }
 
+  // ── Chapter gating ────────────────────────────────────────────────────────
+
+  /** Set which chapters the player has unlocked (active + completed). */
+  setAllowedChapters(chapterIds: string[]): void {
+    this.allowedChapterIds = new Set(chapterIds);
+  }
+
+  /** Get clues filtered by a specific chapter. */
+  getCluesByChapter(chapterId: string): Clue[] {
+    return this.getClues().filter(c => c.chapterId === chapterId);
+  }
+
   // ── Core API ─────────────────────────────────────────────────────────────
 
   /**
    * Add a clue if it doesn't already exist. Returns true if the clue was new.
+   * Clues with a chapterId that hasn't been unlocked are rejected.
    */
   addClue(clue: Omit<Clue, 'id' | 'discoveredAt' | 'followedUp'>): boolean {
+    // Gate by chapter — don't discover clues from future chapters
+    if (clue.chapterId && this.allowedChapterIds.size > 0 && !this.allowedChapterIds.has(clue.chapterId)) {
+      return false;
+    }
+
     const id = this.makeId(clue.category, clue.source, clue.text);
     if (this.clues.has(id)) return false;
 
@@ -146,7 +170,7 @@ export class ClueStore {
   /**
    * Process a collected text that has clueText — creates a written_evidence clue.
    */
-  addTextClue(textTitle: string, clueText: string, authorName?: string): boolean {
+  addTextClue(textTitle: string, clueText: string, authorName?: string, chapterId?: string | null): boolean {
     const source = authorName ? `${textTitle} by ${authorName}` : textTitle;
     const tags = this.extractTags(clueText);
     if (textTitle) tags.push(textTitle.toLowerCase());
@@ -157,6 +181,7 @@ export class ClueStore {
       category: 'written_evidence',
       source,
       tags,
+      chapterId: chapterId ?? null,
     });
   }
 
@@ -164,7 +189,7 @@ export class ClueStore {
    * Process conversation keywords to potentially create a witness_testimony clue.
    * Returns true if a clue was added.
    */
-  addConversationClue(npcName: string, keywords: string[], conversationSnippet?: string): boolean {
+  addConversationClue(npcName: string, keywords: string[], conversationSnippet?: string, chapterId?: string | null): boolean {
     const relevant = keywords.filter(k =>
       INVESTIGATION_KEYWORDS.some(ik => k.toLowerCase().includes(ik)),
     );
@@ -179,6 +204,7 @@ export class ClueStore {
       category: 'witness_testimony',
       source: npcName,
       tags,
+      chapterId: chapterId ?? null,
     });
   }
 
@@ -208,6 +234,7 @@ export class ClueStore {
       category: 'witness_testimony',
       source: `Overheard: ${npc1Name} & ${npc2Name}`,
       tags,
+      chapterId: null,
     });
   }
 
@@ -231,18 +258,20 @@ export class ClueStore {
       category: 'photo_evidence',
       source: location ?? subjectName,
       tags,
+      chapterId: null,
     });
   }
 
   /**
    * Add a physical evidence clue from examining an object or visiting a location.
    */
-  addPhysicalClue(description: string, source: string, tags: string[] = []): boolean {
+  addPhysicalClue(description: string, source: string, tags: string[] = [], chapterId?: string | null): boolean {
     return this.addClue({
       text: description,
       category: 'physical_evidence',
       source,
       tags: tags.map(t => t.toLowerCase()),
+      chapterId: chapterId ?? null,
     });
   }
 
@@ -262,6 +291,7 @@ export class ClueStore {
     return {
       clues: Array.from(this.clues.values()),
       totalClueCount: this.totalClueCount,
+      allowedChapterIds: Array.from(this.allowedChapterIds),
     };
   }
 
@@ -272,6 +302,9 @@ export class ClueStore {
       this.clues.set(clue.id, clue);
     });
     this.totalClueCount = state.totalClueCount;
+    if (state.allowedChapterIds) {
+      this.allowedChapterIds = new Set(state.allowedChapterIds);
+    }
   }
 
   /** Remove all clues. */

@@ -229,46 +229,54 @@ export class WorldGenerator {
     const settlement = await storage.createSettlement(settlementData);
     console.log(`✅ Created settlement: ${settlement.id}`);
 
-    // Generate world geography — territory boundaries, settlement world positions
-    console.log('\n🗺️  Generating world territory layout...');
-    const worldScale = (config as any).worldScale as WorldScale | ScaleConfig | undefined;
+    // Generate world geography — always use grid-based layout
+    // Single world: 1×1 world grid, 1×1 country, settlement at (0,0)
+    console.log('\n🗺️  Generating world territory layout (grid-based)...');
+
     const geoLayout = generateWorldGeography({
       worldId: world.id,
       seed: `${world.id}-territory`,
-      scale: worldScale || 'standard',
+      scale: ((config as any).worldScale as WorldScale) || 'standard',
+      worldGrid: { width: 1, height: 1 },
       countries: [{
         id: country.id,
         terrain: config.terrain,
+        gridPlacement: { gridX: 0, gridY: 0, gridWidth: 1, gridHeight: 1 },
         settlements: [{
           id: settlement.id,
           type: config.settlementType,
           terrain: config.terrain,
           population: this.estimatePopulation(config.settlementType),
+          gridPlacement: { countryGridX: 0, countryGridY: 0 },
         }],
       }],
     });
 
-    // Persist world map dimensions
+    // Persist world grid + map dimensions
     await storage.updateWorld(world.id, {
+      gridWidth: 1,
+      gridHeight: 1,
       mapWidth: geoLayout.mapWidth,
       mapDepth: geoLayout.mapDepth,
       mapCenter: geoLayout.mapCenter,
     } as any);
 
-    // Persist country territory
+    // Persist country territory + grid placement
     const countryGeo = geoLayout.countries.get(country.id);
     if (countryGeo) {
       await storage.updateCountry(country.id, {
+        gridX: 0, gridY: 0, gridWidth: 1, gridHeight: 1,
         position: countryGeo.position,
         territoryPolygon: countryGeo.territoryPolygon,
         territoryRadius: countryGeo.territoryRadius,
       } as any);
     }
 
-    // Persist settlement world position and radius
+    // Persist settlement world position + grid cell
     const settlementGeo = geoLayout.settlements.get(settlement.id);
     if (settlementGeo) {
       await storage.updateSettlement(settlement.id, {
+        countryGridX: 0, countryGridY: 0,
         worldPositionX: settlementGeo.worldPositionX,
         worldPositionZ: settlementGeo.worldPositionZ,
         radius: settlementGeo.radius,
@@ -936,6 +944,8 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
       jsonText = jsonText.replace(/(?<=[\{,\s])'(\w+)'\s*:/g, '"$1":');
       // Fix unescaped control characters in strings
       jsonText = jsonText.replace(/[\x00-\x1f]/g, (ch) => ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : '');
+      // Fix invalid JSON escape sequences (e.g. \' → ', LLMs often escape apostrophes)
+      jsonText = jsonText.replace(/\\'/g, "'");
       // If truncated, find last complete object and close
       if (!jsonText.endsWith(']')) {
         const lastBrace = jsonText.lastIndexOf('}');
@@ -1209,8 +1219,9 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
 
     console.log(`   Planning ${businessPlan.length} businesses...`);
 
-    // Get available characters to be founders
-    const characters = await storage.getCharactersByWorld(config.worldId);
+    // Get available characters to be founders — only from THIS settlement
+    // so businesses aren't owned by people who live elsewhere.
+    const characters = await storage.getCharactersBySettlement(config.settlementId);
     const adultCharacters = characters.filter(c =>
       this.getAge(c, config.currentYear) >= 18 &&
       this.getAge(c, config.currentYear) <= 65 &&
@@ -1285,23 +1296,29 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
       }
     }
 
-    // Phase 3: Ensure remaining unowned lot businesses get owners assigned
-    // This handles cases where there are more geography-generated businesses than business plan entries
+    // Phase 3: Handle remaining unowned lot businesses.
+    // Only assign owners from the settlement's own adults. If no adults are
+    // available, delete the business and its lot — don't leave vacant buildings.
     if (unownedQueue.length > 0) {
-      // Build pool of all adult characters (allow multi-ownership if needed)
-      const allAdults = adultCharacters.sort(() => Math.random() - 0.5);
+      const allAdults = adultCharacters.filter(c =>
+        !resultBusinesses.some(b => b.ownerId === c.id)
+      );
       let adultIndex = 0;
 
       for (const business of unownedQueue) {
-        if (allAdults.length === 0) {
-          // No adults at all — close the business
-          await storage.updateBusiness(business.id, { isOutOfBusiness: true, closedYear: config.currentYear });
-          console.log(`   ✗ Closed ${business.name} (no available owners)`);
+        if (adultIndex >= allAdults.length) {
+          // No more local adults — remove the vacant business and its lot
+          try {
+            await storage.deleteBusiness(business.id);
+            if ((business as any).lotId) {
+              await storage.deleteLot((business as any).lotId);
+            }
+          } catch { /* lot may already be gone */ }
+          console.log(`   🗑️ Removed vacant ${business.name} (no local owners)`);
           continue;
         }
 
-        const owner = allAdults[adultIndex % allAdults.length];
-        adultIndex++;
+        const owner = allAdults[adultIndex++];
 
         try {
           const businessType = business.businessType || 'Shop';
@@ -1677,7 +1694,8 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
     settlementId: string;
     currentYear: number;
   }): Promise<void> {
-    const characters = await storage.getCharactersByWorld(config.worldId);
+    // Only house characters who actually belong to this settlement
+    const characters = await storage.getCharactersBySettlement(config.settlementId);
     let residences = await storage.getResidencesBySettlement(config.settlementId);
 
     const livingCharacters = characters.filter(c => c.isAlive);
@@ -1861,9 +1879,21 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
     }
 
     const occupied = residenceCapacity.filter(r => r.residentIds.length > 0).length;
-    const empty = residenceCapacity.filter(r => r.residentIds.length === 0).length;
+    const emptyFinal = residenceCapacity.filter(r => r.residentIds.length === 0);
     const owned = residenceCapacity.filter(r => r.ownerIds.length > 0).length;
-    console.log(`   ✓ Assigned ${assignedCount} characters to ${occupied} residences (${owned} with owners, ${empty} empty)`);
+
+    // Remove vacant residences and their lots — no reason to keep empty buildings
+    if (emptyFinal.length > 0) {
+      for (const res of emptyFinal) {
+        try {
+          await storage.deleteResidence(res.id);
+          if (res.lotId) await storage.deleteLot(res.lotId);
+        } catch { /* lot may already be gone */ }
+      }
+      console.log(`   🗑️ Removed ${emptyFinal.length} vacant residence(s)`);
+    }
+
+    console.log(`   ✓ Assigned ${assignedCount} characters to ${occupied} residences (${owned} with owners)`);
   }
 
   private totalCapacity(residences: any[]): number {

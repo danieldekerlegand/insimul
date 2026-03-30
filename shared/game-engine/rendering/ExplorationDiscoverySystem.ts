@@ -35,6 +35,8 @@ export interface HiddenLocationDef {
   rarity: 'common' | 'uncommon' | 'rare';
   /** Whether this location is a writer's secret spot (main quest clue). */
   isWriterSecret: boolean;
+  /** If set, location only appears when this chapter is active or completed. */
+  gateChapterId?: string;
   investigationPoints: InvestigationPointDef[];
 }
 
@@ -94,6 +96,7 @@ export function getDefaultHiddenLocations(terrainSize: number): HiddenLocationDe
       position: { x: half * 0.7, z: half * 0.3 },
       rarity: 'uncommon',
       isWriterSecret: true,
+      gateChapterId: 'ch4_hidden_messages',
       investigationPoints: [
         { id: 'cabin_desk', offset: { x: 1, z: 0 }, contentType: 'clue', contentFr: 'Un journal intime ouvert... "Je dois partir avant qu\'ils ne me trouvent."', contentEn: 'An open diary... "I must leave before they find me."' },
         { id: 'cabin_bookshelf', offset: { x: -1, z: 1 }, contentType: 'vocabulary', contentFr: 'la bibliothèque — bookshelf', contentEn: 'A dusty bookshelf with volumes in French.' },
@@ -121,6 +124,7 @@ export function getDefaultHiddenLocations(terrainSize: number): HiddenLocationDe
       position: { x: half * 0.5, z: -half * 0.7 },
       rarity: 'rare',
       isWriterSecret: true,
+      gateChapterId: 'ch5_the_truth_emerges',
       investigationPoints: [
         { id: 'cave_markings', offset: { x: 1, z: 1 }, contentType: 'lore', contentFr: 'Des marques de griffes anciennes sur les parois rocheuses.', contentEn: 'Ancient claw marks on the rock walls.' },
         { id: 'cave_notebook', offset: { x: -1, z: 0 }, contentType: 'clue', contentFr: 'Un carnet trempé. La dernière entrée : "La vérité est enterrée ici."', contentEn: 'A soggy notebook. The last entry: "The truth is buried here."' },
@@ -148,6 +152,7 @@ export function getDefaultHiddenLocations(terrainSize: number): HiddenLocationDe
       position: { x: half * 0.3, z: half * 0.7 },
       rarity: 'rare',
       isWriterSecret: true,
+      gateChapterId: 'ch6_the_final_chapter',
       investigationPoints: [
         { id: 'garden_fountain', offset: { x: 0, z: 1 }, contentType: 'vocabulary', contentFr: 'la fontaine — fountain', contentEn: 'A moss-covered fountain, still trickling water.' },
         { id: 'garden_bench', offset: { x: -2, z: 0 }, contentType: 'clue', contentFr: 'Un message gravé sous le banc : "Cherchez là où les mots se taisent."', contentEn: 'A message carved under the bench: "Look where words fall silent."' },
@@ -220,6 +225,8 @@ export class ExplorationDiscoverySystem {
   private glowLayer: GlowLayer | null = null;
   private projectToGround: (x: number, z: number) => Vector3;
   private disposed = false;
+  /** Chapters the player has unlocked — gated locations only appear when their chapter is here. */
+  private activeChapterIds: Set<string> = new Set();
 
   constructor(
     scene: Scene,
@@ -236,6 +243,27 @@ export class ExplorationDiscoverySystem {
     this.glowLayer.intensity = 0.6;
 
     this.spawnLocationMarkers();
+  }
+
+  /** Update which chapters are active/completed — gated locations become visible. */
+  setActiveChapters(chapterIds: string[]): void {
+    this.activeChapterIds = new Set(chapterIds);
+    this.updateLocationGating();
+  }
+
+  private updateLocationGating(): void {
+    for (const loc of this.locations) {
+      if (!loc.gateChapterId) continue;
+      const mesh = this.locationMeshes.get(loc.id);
+      if (!mesh) continue;
+      const visible = this.activeChapterIds.has(loc.gateChapterId);
+      mesh.setEnabled(visible);
+      // Also toggle investigation point meshes
+      for (const ip of loc.investigationPoints) {
+        const ipMesh = this.investigationMeshes.get(ip.id);
+        if (ipMesh) ipMesh.setEnabled(visible && this.discovered.has(loc.id));
+      }
+    }
   }
 
   // ── Spawning ─────────────────────────────────────────────────────────────
@@ -266,6 +294,11 @@ export class ExplorationDiscoverySystem {
       }
 
       this.locationMeshes.set(loc.id, pillar);
+
+      // Hide gated locations until their chapter is active
+      if (loc.gateChapterId && !this.activeChapterIds.has(loc.gateChapterId)) {
+        pillar.setEnabled(false);
+      }
     }
   }
 
@@ -313,6 +346,8 @@ export class ExplorationDiscoverySystem {
 
     for (const loc of this.locations) {
       if (this.discovered.has(loc.id)) continue;
+      // Skip gated locations whose chapter hasn't been reached
+      if (loc.gateChapterId && !this.activeChapterIds.has(loc.gateChapterId)) continue;
 
       const groundPos = this.projectToGround(loc.position.x, loc.position.z);
       const dx = playerPosition.x - groundPos.x;

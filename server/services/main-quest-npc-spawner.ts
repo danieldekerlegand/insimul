@@ -249,3 +249,82 @@ function pickName(
   usedIndices.add(idx);
   return [names[idx][0], names[idx][1]];
 }
+
+/**
+ * Ensure all 5 main quest NPC roles are filled. If any role NPC has been
+ * deleted, reassigns the role to another active non-main-quest character.
+ * Returns the current role → character map (guaranteed complete if the
+ * world has enough characters).
+ */
+export async function ensureMainQuestRoles(
+  worldId: string,
+): Promise<Map<MainQuestNPCRole, Character>> {
+  const currentMap = await getMainQuestNPCs(worldId);
+  const allCharacters = await storage.getCharactersByWorld(worldId);
+
+  const missingRoles = MAIN_QUEST_NPC_DEFINITIONS.filter(
+    def => !currentMap.has(def.role),
+  );
+
+  if (missingRoles.length === 0) return currentMap;
+
+  // Find candidates: alive, non-template, not already a main quest NPC
+  const candidates = allCharacters.filter(c => {
+    if (!c.isAlive) return false;
+    const config = c.generationConfig as Record<string, any> | null;
+    if (config?.mainQuestRole) return false;
+    if (config?.isTemplate) return false;
+    return true;
+  });
+
+  for (const def of missingRoles) {
+    const candidate = candidates.shift();
+    if (!candidate) {
+      console.warn(`[MainQuestNPC] No candidate available for role ${def.role}`);
+      continue;
+    }
+
+    await storage.updateCharacter(candidate.id, {
+      generationConfig: {
+        ...(candidate.generationConfig as Record<string, any> || {}),
+        mainQuestRole: def.role,
+        mainQuestNPC: true,
+        tag: MAIN_QUEST_NPC_TAG,
+      },
+      occupation: def.occupation,
+    } as any);
+
+    const updated = { ...candidate, generationConfig: { ...(candidate.generationConfig as any || {}), mainQuestRole: def.role, mainQuestNPC: true, tag: MAIN_QUEST_NPC_TAG } };
+    currentMap.set(def.role, updated);
+    console.log(`[MainQuestNPC] Reassigned role ${def.role} → ${candidate.firstName} ${candidate.lastName}`);
+  }
+
+  return currentMap;
+}
+
+/**
+ * Get a name map for all main quest NPC roles. Calls ensureMainQuestRoles
+ * first to guarantee all roles are filled, then returns a simple
+ * role → "FirstName LastName" map with fallback defaults.
+ */
+export async function getMainQuestNPCNames(
+  worldId: string,
+): Promise<Record<string, string>> {
+  const npcMap = await ensureMainQuestRoles(worldId);
+  const names: Record<string, string> = {};
+
+  const fallbacks: Record<MainQuestNPCRole, string> = {
+    the_editor: 'the editor',
+    the_neighbor: 'the neighbor',
+    the_patron: 'the patron',
+    the_scholar: 'the scholar',
+    the_confidant: 'the confidant',
+  };
+
+  for (const [role, fallback] of Object.entries(fallbacks) as [MainQuestNPCRole, string][]) {
+    const char = npcMap.get(role);
+    names[role] = char ? `${char.firstName} ${char.lastName}` : fallback;
+  }
+
+  return names;
+}

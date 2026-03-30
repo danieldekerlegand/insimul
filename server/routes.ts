@@ -164,6 +164,7 @@ import {
 } from "./extensions/tott/business-system.js";
 import { WorldGenerator } from "./generators/world-generator.js";
 import { generateWorldGeography, resolveScaleConfig, getSettlementBaseRadius, type WorldScale } from "./generators/territory-generator.js";
+import { deriveWorldDimensions, deriveCountryGeometry, deriveSettlementWorldPosition, countryInternalGridSize, validateCountryPlacement, validateSettlementPlacement, type CountryGridPlacement } from "../shared/grid-constants.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerPlaythroughRoutes } from "./routes/playthrough-routes.js";
 import { registerExportRoutes } from "./routes/export-routes.js";
@@ -1724,6 +1725,14 @@ app.get("/api/rules", async (req, res) => {
         }
       }
 
+      // Derive map dimensions from grid if provided
+      if (validatedData.gridWidth && validatedData.gridHeight) {
+        const dims = deriveWorldDimensions(validatedData.gridWidth, validatedData.gridHeight);
+        validatedData.mapWidth = dims.mapWidth;
+        validatedData.mapDepth = dims.mapDepth;
+        validatedData.mapCenter = dims.mapCenter;
+      }
+
       const world = await storage.createWorld(validatedData);
 
       // REQUIRED: Ensure world has an asset collection assigned
@@ -1785,8 +1794,17 @@ app.get("/api/rules", async (req, res) => {
         return res.status(403).json({ error: "Only the world owner can modify settings" });
       }
 
+      // Derive map dimensions from grid if grid is being updated
+      const updateData = { ...req.body };
+      if (updateData.gridWidth != null && updateData.gridHeight != null) {
+        const dims = deriveWorldDimensions(updateData.gridWidth, updateData.gridHeight);
+        updateData.mapWidth = dims.mapWidth;
+        updateData.mapDepth = dims.mapDepth;
+        updateData.mapCenter = dims.mapCenter;
+      }
+
       // Update world settings
-      const updatedWorld = await storage.updateWorld(id, req.body);
+      const updatedWorld = await storage.updateWorld(id, updateData);
       if (!updatedWorld) {
         return res.status(404).json({ error: "World not found" });
       }
@@ -2042,10 +2060,45 @@ app.get("/api/rules", async (req, res) => {
       }
 
       const validatedData = insertCountrySchema.parse(req.body);
-      const country = await storage.createCountry({
-        ...validatedData,
-        worldId
-      });
+      const countryData: any = { ...validatedData, worldId };
+
+      // If grid placement provided, validate and derive geometry
+      if (countryData.gridX != null && countryData.gridY != null && countryData.gridWidth != null && countryData.gridHeight != null) {
+        const world = await storage.getWorld(worldId);
+        if (!world) {
+          return res.status(404).json({ error: "World not found" });
+        }
+        if (!world.gridWidth || !world.gridHeight) {
+          return res.status(400).json({ error: "World does not have grid dimensions set" });
+        }
+
+        // Check overlap with existing countries
+        const existingCountries = await storage.getCountriesByWorld(worldId);
+        const existingPlacements: CountryGridPlacement[] = existingCountries
+          .filter(c => c.gridX != null && c.gridY != null && c.gridWidth != null && c.gridHeight != null)
+          .map(c => ({ gridX: c.gridX!, gridY: c.gridY!, gridWidth: c.gridWidth!, gridHeight: c.gridHeight! }));
+
+        const validation = validateCountryPlacement(
+          world.gridWidth, world.gridHeight,
+          existingPlacements,
+          { gridX: countryData.gridX, gridY: countryData.gridY, gridWidth: countryData.gridWidth, gridHeight: countryData.gridHeight },
+        );
+        if (!validation.valid) {
+          return res.status(400).json({ error: validation.error });
+        }
+
+        // Derive legacy geographic fields
+        const geo = deriveCountryGeometry(
+          world.gridWidth, world.gridHeight,
+          countryData.gridX, countryData.gridY,
+          countryData.gridWidth, countryData.gridHeight,
+        );
+        countryData.position = geo.position;
+        countryData.territoryPolygon = geo.territoryPolygon;
+        countryData.territoryRadius = geo.territoryRadius;
+      }
+
+      const country = await storage.createCountry(countryData);
       res.status(201).json(country);
     } catch (error) {
       console.error("Failed to create country:", error);
@@ -2089,7 +2142,38 @@ app.get("/api/rules", async (req, res) => {
         return res.status(403).json({ error: "You don't have permission to edit this world" });
       }
 
-      const country = await storage.updateCountry(id, req.body);
+      const updateData = { ...req.body };
+
+      // If grid placement is being updated, validate and derive geometry
+      if (updateData.gridX != null && updateData.gridY != null && updateData.gridWidth != null && updateData.gridHeight != null) {
+        const world = await storage.getWorld(existingCountry.worldId);
+        if (world?.gridWidth && world?.gridHeight) {
+          const existingCountries = await storage.getCountriesByWorld(existingCountry.worldId);
+          const existingPlacements: CountryGridPlacement[] = existingCountries
+            .filter(c => c.id !== id && c.gridX != null && c.gridY != null && c.gridWidth != null && c.gridHeight != null)
+            .map(c => ({ gridX: c.gridX!, gridY: c.gridY!, gridWidth: c.gridWidth!, gridHeight: c.gridHeight! }));
+
+          const validation = validateCountryPlacement(
+            world.gridWidth, world.gridHeight,
+            existingPlacements,
+            { gridX: updateData.gridX, gridY: updateData.gridY, gridWidth: updateData.gridWidth, gridHeight: updateData.gridHeight },
+          );
+          if (!validation.valid) {
+            return res.status(400).json({ error: validation.error });
+          }
+
+          const geo = deriveCountryGeometry(
+            world.gridWidth, world.gridHeight,
+            updateData.gridX, updateData.gridY,
+            updateData.gridWidth, updateData.gridHeight,
+          );
+          updateData.position = geo.position;
+          updateData.territoryPolygon = geo.territoryPolygon;
+          updateData.territoryRadius = geo.territoryRadius;
+        }
+      }
+
+      const country = await storage.updateCountry(id, updateData);
       if (!country) {
         return res.status(404).json({ error: "Country not found" });
       }
@@ -4707,37 +4791,78 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
               };
             });
 
-            const worldScale = (config.worldScale || 'standard') as WorldScale;
+            // ── Grid-based geography: auto-assign grid placements ────────────
+            // Each country gets a 1×1 world-cell, laid out in a row.
+            // Each settlement gets a cell in its country's internal grid.
+            const numC = territoryCountries.length;
+            const worldGridW = Math.ceil(Math.sqrt(numC));
+            const worldGridH = Math.ceil(numC / worldGridW);
+
+            let countryIdx = 0;
+            for (const tc of territoryCountries) {
+              const gx = countryIdx % worldGridW;
+              const gy = Math.floor(countryIdx / worldGridW);
+              (tc as any).gridPlacement = { gridX: gx, gridY: gy, gridWidth: 1, gridHeight: 1 };
+
+              // Assign settlements to country grid cells (4×4 internal grid per world cell)
+              tc.settlements.forEach((s, si) => {
+                const cx = si % 4;
+                const cy = Math.floor(si / 4);
+                (s as any).gridPlacement = { countryGridX: cx, countryGridY: cy };
+              });
+
+              countryIdx++;
+            }
+
             const geoLayout = generateWorldGeography({
               worldId: config.worldId,
               seed: `${config.worldId}-territory`,
-              scale: worldScale,
+              scale: (config.worldScale || 'standard') as WorldScale,
+              worldGrid: { width: worldGridW, height: worldGridH },
               countries: territoryCountries,
             });
 
-            // Persist world map dimensions
+            // Persist world grid + map dimensions
             await storage.updateWorld(config.worldId, {
+              gridWidth: worldGridW,
+              gridHeight: worldGridH,
               mapWidth: geoLayout.mapWidth,
               mapDepth: geoLayout.mapDepth,
               mapCenter: geoLayout.mapCenter,
             } as any);
 
-            // Persist country territories
-            for (const [countryId, geo] of geoLayout.countries) {
-              await storage.updateCountry(countryId, {
-                position: geo.position,
-                territoryPolygon: geo.territoryPolygon,
-                territoryRadius: geo.territoryRadius,
-              } as any);
+            // Persist country territories + grid placements
+            for (const tc of territoryCountries) {
+              const geo = geoLayout.countries.get(tc.id);
+              const gp = (tc as any).gridPlacement;
+              if (geo) {
+                await storage.updateCountry(tc.id, {
+                  gridX: gp.gridX,
+                  gridY: gp.gridY,
+                  gridWidth: gp.gridWidth,
+                  gridHeight: gp.gridHeight,
+                  position: geo.position,
+                  territoryPolygon: geo.territoryPolygon,
+                  territoryRadius: geo.territoryRadius,
+                } as any);
+              }
             }
 
-            // Persist settlement world positions
-            for (const [settlementId, geo] of geoLayout.settlements) {
-              await storage.updateSettlement(settlementId, {
-                worldPositionX: geo.worldPositionX,
-                worldPositionZ: geo.worldPositionZ,
-                radius: geo.radius,
-              } as any);
+            // Persist settlement world positions + grid cells
+            for (const tc of territoryCountries) {
+              for (const s of tc.settlements) {
+                const geo = geoLayout.settlements.get(s.id);
+                const sp = (s as any).gridPlacement;
+                if (geo) {
+                  await storage.updateSettlement(s.id, {
+                    countryGridX: sp?.countryGridX ?? null,
+                    countryGridY: sp?.countryGridY ?? null,
+                    worldPositionX: geo.worldPositionX,
+                    worldPositionZ: geo.worldPositionZ,
+                    radius: geo.radius,
+                  } as any);
+                }
+              }
             }
 
             // Persist state boundaries
@@ -5516,7 +5641,45 @@ Make truths fitting for the world's theme and each character's context.`;
               responseMimeType: 'application/json',
               model: 'pro',
             });
-            const generatedTruths = JSON.parse(contentResult.text.trim());
+            // Robust JSON sanitization for LLM output
+            let jsonText = contentResult.text.trim();
+            // Strip markdown fences
+            jsonText = jsonText.replace(/^```json?\s*/i, '').replace(/\s*```\s*$/, '');
+            // Fix trailing commas before } or ]
+            jsonText = jsonText.replace(/,\s*([}\]])/g, '$1');
+            // Fix single-quoted property names
+            jsonText = jsonText.replace(/(?<=[\{,\s])'(\w+)'\s*:/g, '"$1":');
+            // Fix unescaped control characters
+            jsonText = jsonText.replace(/[\x00-\x1f]/g, (ch) => ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : '');
+            // Fix invalid JSON escape sequences (e.g. \' → ')
+            jsonText = jsonText.replace(/\\'/g, "'");
+            // If truncated, find last complete object and close
+            if (!jsonText.endsWith(']')) {
+              const lastBrace = jsonText.lastIndexOf('}');
+              if (lastBrace > 0) {
+                const afterBrace = jsonText.substring(lastBrace + 1).trim();
+                if (!afterBrace.startsWith(']')) {
+                  jsonText = jsonText.substring(0, lastBrace + 1) + ']}]';
+                }
+              }
+            }
+            let generatedTruths: any[];
+            try {
+              generatedTruths = JSON.parse(jsonText);
+            } catch (parseErr) {
+              // Attempt: Extract individual objects via regex
+              console.warn('Truth generation JSON parse failed, attempting object-by-object recovery...');
+              const objectMatches = jsonText.match(/\{\s*"characterIndex"\s*:\s*\d+\s*,\s*"truths"\s*:\s*\[[\s\S]*?\]\s*\}/g);
+              if (objectMatches && objectMatches.length > 0) {
+                generatedTruths = [];
+                for (const objStr of objectMatches) {
+                  try { generatedTruths.push(JSON.parse(objStr)); } catch { /* skip */ }
+                }
+                if (generatedTruths.length === 0) throw parseErr;
+              } else {
+                throw parseErr;
+              }
+            }
             
             let numTruths = 0;
             
@@ -9154,24 +9317,13 @@ Respond with this JSON structure:
       const manager = new GuildQuestManager();
 
       const allQuests = await storage.getQuestsByWorld(req.params.worldId);
-      const completedIds = new Set(
-        allQuests.filter((q: any) => q.status === 'completed').map((q: any) => q.id)
-      );
-
-      // Get guild memberships from playthrough overlay truths
-      const joinedGuilds = new Set<string>();
-      for (const q of allQuests) {
-        if (q.guildTier === 0 && q.status === 'completed' && q.guildId) {
-          joinedGuilds.add(q.guildId);
-        }
-      }
-
-      const progress = manager.getGuildProgress(allQuests, completedIds, joinedGuilds);
+      const progress = manager.getAllGuildProgress(allQuests);
 
       const guilds = getAllGuildIds().map((id: string) => {
         const def = GUILD_DEFINITIONS[id];
         const prog = progress.get(id);
-        return { ...def, progress: prog };
+        const nextQuest = manager.getNextQuestForGuild(id, allQuests);
+        return { ...def, progress: prog, nextQuestId: nextQuest?.id || null };
       });
 
       res.json(guilds);
@@ -9180,28 +9332,40 @@ Respond with this JSON structure:
     }
   });
 
-  app.get("/api/worlds/:worldId/quests/visible", async (req, res) => {
+  // Receive the next quest from a guild master (unavailable → available)
+  app.post("/api/worlds/:worldId/guilds/:guildId/receive-quest", async (req, res) => {
     try {
       const { GuildQuestManager } = require('./services/guild-quest-manager');
       const manager = new GuildQuestManager();
 
       const allQuests = await storage.getQuestsByWorld(req.params.worldId);
-      const completedIds = new Set(
-        allQuests.filter((q: any) => q.status === 'completed').map((q: any) => q.id)
-      );
+      const questId = manager.receiveNextQuest(req.params.guildId, allQuests);
 
-      // Determine joined guilds from completed Tier 0 quests
-      const joinedGuilds = new Set<string>();
-      for (const q of allQuests) {
-        if (q.guildTier === 0 && q.status === 'completed' && q.guildId) {
-          joinedGuilds.add(q.guildId);
-        }
+      if (!questId) {
+        return res.json({ received: false, reason: 'No quest available — complete your current guild quest first.' });
       }
 
-      const guildProgress = manager.getGuildProgress(allQuests, completedIds, joinedGuilds);
-      const visible = manager.getVisibleQuests(allQuests, completedIds, guildProgress);
+      await storage.updateQuest(questId, { status: 'available' });
+      const quest = await storage.getQuest(questId);
+      res.json({ received: true, quest });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to receive quest" });
+    }
+  });
 
-      res.json(visible.map((v: any) => ({ ...v.quest, _visibilityReason: v.reason })));
+  app.get("/api/worlds/:worldId/quests/visible", async (req, res) => {
+    try {
+      const allQuests = await storage.getQuestsByWorld(req.params.worldId);
+
+      // Visible = active + available + main quest chain (non-guild, non-completed)
+      const visible = allQuests.filter((q: any) =>
+        q.status === 'active' ||
+        q.status === 'available' ||
+        // Main quest chain quests with met prerequisites
+        (q.questChainId && q.status !== 'completed' && q.status !== 'failed' && q.status !== 'abandoned')
+      );
+
+      res.json(visible);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch visible quests" });
     }
@@ -14714,6 +14878,16 @@ Make the action names thematic and immersive.`;
           source: 'narrative_editor',
         });
       }
+
+      // Sync downstream records (quests, texts) with narrative chapter data
+      try {
+        const { syncNarrativeToGameRecords } = await import('./services/narrative-sync.js');
+        const syncResult = await syncNarrativeToGameRecords(worldId, narrativeData);
+        console.log(`[Narrative] Synced: ${syncResult.questsUpdated} quests, ${syncResult.textsUpdated} texts`);
+      } catch (syncErr) {
+        console.error('[Narrative] Sync failed (non-fatal):', syncErr);
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to save narrative" });

@@ -853,37 +853,6 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                 </CardContent>
               </Card>
 
-              {/* World Scale */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">World Scale</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1.5">
-                    <div className="flex gap-2">
-                      {(['compact', 'standard', 'expansive'] as const).map(scale => (
-                        <button
-                          key={scale}
-                          type="button"
-                          onClick={() => setWorldScale(scale)}
-                          className={`flex-1 px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                            worldScale === scale
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-muted/50 border-border hover:bg-muted'
-                          }`}
-                        >
-                          {scale.charAt(0).toUpperCase() + scale.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {worldScale === 'compact' ? 'Small game world — settlements close together' :
-                       worldScale === 'expansive' ? 'Large game world — vast distances between settlements' :
-                       'Balanced distances between settlements'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           )}
 

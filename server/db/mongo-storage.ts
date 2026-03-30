@@ -299,7 +299,11 @@ const WorldSchema = new Schema({
   historyEndYear: { type: Number, default: null },
   currentGameYear: { type: Number, default: null },
 
-  // Geographic dimensions
+  // Grid dimensions
+  gridWidth: { type: Number, default: null },
+  gridHeight: { type: Number, default: null },
+
+  // Geographic dimensions (derived from grid)
   mapWidth: { type: Number, default: null },
   mapDepth: { type: Number, default: null },
   mapCenter: { type: Schema.Types.Mixed, default: null },
@@ -336,7 +340,13 @@ const CountrySchema = new Schema({
   currentYear: { type: Number, default: null },
   currentMonth: { type: Number, default: 1 },
   currentDay: { type: Number, default: 1 },
-  // Geographic position and territory
+  // Grid placement
+  gridWidth: { type: Number, default: null },
+  gridHeight: { type: Number, default: null },
+  gridX: { type: Number, default: null },
+  gridY: { type: Number, default: null },
+
+  // Geographic position and territory (derived from grid)
   position: { type: Schema.Types.Mixed, default: null },
   territoryPolygon: { type: Schema.Types.Mixed, default: null },
   territoryRadius: { type: Number, default: null },
@@ -403,7 +413,11 @@ const SettlementSchema = new Schema({
   previousCountryIds: { type: Schema.Types.Mixed, default: null },
   previousStateIds: { type: Schema.Types.Mixed, default: null },
   annexationHistory: { type: Schema.Types.Mixed, default: null },
-  // World-space position
+  // Grid placement within country
+  countryGridX: { type: Number, default: null },
+  countryGridY: { type: Number, default: null },
+
+  // World-space position (derived from country grid)
   worldPositionX: { type: Number, default: null },
   worldPositionZ: { type: Number, default: null },
   radius: { type: Number, default: null },
@@ -522,7 +536,7 @@ const QuestSchema = new Schema({
   prerequisiteQuestIds: { type: [String], default: null },
   objectives: { type: Schema.Types.Mixed, default: [] },
   progress: { type: Schema.Types.Mixed, default: {} },
-  status: { type: String, default: 'active' },
+  status: { type: String, default: 'unavailable' }, // unavailable, available, active, completed, failed, abandoned
   completionCriteria: { type: Schema.Types.Mixed, default: {} },
   experienceReward: { type: Number, default: 0 },
   moneyReward: { type: Number, default: 0 },
@@ -554,6 +568,7 @@ const QuestSchema = new Schema({
   expiresAt: { type: Date, default: null },
   conversationContext: { type: String, default: null },
   tags: { type: Schema.Types.Mixed, default: [] },
+  narrativeChapterId: { type: String, default: null }, // Main quest chapter link
   content: { type: String, default: null }, // Prolog content — single source of truth
   relatedTruthIds: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
@@ -616,10 +631,12 @@ const GameTextSchema = new Schema({
   generationPrompt: { type: String, default: null },
   status: { type: String, default: 'draft' },
   tags: { type: [String], default: [] },
+  narrativeChapterId: { type: String, default: null }, // Main quest chapter link
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 GameTextSchema.index({ worldId: 1 });
+GameTextSchema.index({ worldId: 1, narrativeChapterId: 1 });
 GameTextSchema.index({ worldId: 1, textCategory: 1 });
 GameTextSchema.index({ worldId: 1, cefrLevel: 1 });
 

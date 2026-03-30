@@ -1,0 +1,160 @@
+{
+  "tasks": [
+    {
+      "title": "Asset bundling pipeline with full model catalog",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Update the Unity exporter to bundle ALL asset categories from client/public/assets/models/ into Assets/Resources/Models/. Include buildings (KayKit, Polyhaven, Sketchfab, Quaternius — 230 models), furniture (186 Polyhaven models), props (926 models), structural (365 models), nature (18 models), containers, markers, vehicles (33 models), animals (12 models), interiors (17 pre-built GLB environments), and characters (100+ Quaternius variants). Unity auto-imports GLTF/GLB on editor open. Generate .meta files for all assets via GuidRegistry. Create comprehensive asset-manifest.json at Assets/Resources/Data/ mapping each asset by category/role/id to its Resources path, matching shared/game-engine/quaternius-asset-manifest.ts and shared/game-engine/logic/NPCModelManifest.ts."
+    },
+    {
+      "title": "Texture asset bundling with PBR materials",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Bundle all 792 textures (40 environment + 752 Polyhaven PBR sets) into Assets/Resources/Textures/. Generate .meta files for each texture. Create Unity material presets for each PBR texture set using Standard shader (albedo, normal, metallic/smoothness). Map texture IDs to the same roles used by TextureManager.ts in the in-app game (ground diffuse, ground normal, ground heightmap, wall textures, building materials). Register textures in asset manifest for runtime Resources.Load lookup."
+    },
+    {
+      "title": "Audio asset bundling with manifest",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Bundle all audio assets from client/public/assets/audio/ into Assets/Resources/Audio/. Import the audio manifest.json which maps audio by worldType (medieval-fantasy, sci-fi-space, cyberpunk, generic) and role (ambient, footstep, effects/interact, voices). Generate AudioClip references and a JSON lookup table for runtime audio selection matching the categories used by AudioManager.ts and EnvironmentalAudioManager.ts. Generate .meta files for all audio clips."
+    },
+    {
+      "title": "WorldScaleManager C# implementation",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Implement WorldScaleManager.cs MonoBehaviour matching shared/game-engine/rendering/WorldScaleManager.ts exactly. Must position countries, states, and settlements within world bounds using the same population-based settlement radius tiers. Terrain size scales from 512-2048 units based on settlement/country/state count. Use the same worldScaleFactor (0.6 compact to 1.7 expansive). Settlement collision avoidance with grid-based fallback. Output scaled territory data for all downstream generators. Unity uses Y-up like Babylon, so no coordinate conversion needed."
+    },
+    {
+      "title": "TerrainRenderer with heightmap and biomes",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Implement TerrainGenerator.cs MonoBehaviour matching shared/game-engine/rendering/TerrainRenderer.ts. Create Unity Terrain from IR heightmap (row-major [0,1] normalized) and slopeMap. Apply terrain layers for biome zones from GeographyIR with elevation + moisture-based splatmap blending (grass, dirt, stone, sand). Apply ground textures (diffuse, normal, heightmap) from bundled assets as TerrainLayer objects. Implement LOD via Unity's built-in terrain LOD system and detail rendering. Support ChunkManager.ts spatial partitioning for terrain chunk streaming."
+    },
+    {
+      "title": "TerrainFoundationRenderer for building sites",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Implement TerrainFoundationRenderer.cs matching shared/game-engine/rendering/TerrainFoundationRenderer.ts. Use Terrain.SetHeights() to flatten areas under buildings. Support multiple foundation types (stone, wood, concrete) with appropriate material overlays. Flatten slopes for building placement. Foundations must be applied before buildings are placed so buildings sit level on terrain. Create foundation meshes with appropriate materials around building bases."
+    },
+    {
+      "title": "SettlementSceneManager with zone management",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Implement SettlementSceneManager.cs matching shared/game-engine/rendering/SettlementSceneManager.ts. Manage up to MAX_SETTLEMENTS_3D (16) visible settlements. Control settlement visibility and LOD based on player distance using Unity's LODGroup components. Track settlement zones and boundaries from GeographyIR settlements data. Handle settlement game objects (terrain patches, boundary markers, zone indicators). Implement the same settlement radius calculation based on population tiers used in the IR generator."
+    },
+    {
+      "title": "ChunkManager spatial partitioning and culling",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Implement ChunkManager.cs matching shared/game-engine/rendering/ChunkManager.ts. Divide the world into chunks for efficient culling. Use Unity's occlusion culling and LODGroup system. Load/unload chunks based on player position. Manage which settlements, buildings, NPCs, and nature objects are active per chunk. Disable renderers and components for inactive chunks. This is critical for performance with large world sizes."
+    },
+    {
+      "title": "RoadGenerator with street network layout",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Implement RoadGenerator.cs matching shared/game-engine/rendering/RoadGenerator.ts and shared/game-engine/logic/StreetNetworkLayout.ts. Generate road meshes from IR road waypoints with configurable ROAD_WIDTH (3 units). Apply road materials from bundled textures. Support the street pattern types defined in shared/street-pattern-selection.ts (grid, radial, organic, etc.). Roads must connect buildings and define the settlement street network that BuildingPlacementSystem uses for street-aligned placement. Use mesh generation or decal projectors for road rendering."
+    },
+    {
+      "title": "TownSquareGenerator for settlement centers",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Implement TownSquareGenerator.cs matching shared/game-engine/rendering/TownSquareGenerator.ts. Generate central gathering areas for settlements with appropriate ground materials, decorative elements (fountains, benches, market stalls), and connection points to the street network. Instantiate prop models from bundled assets. Town squares serve as landmarks and NPC gathering points."
+    },
+    {
+      "title": "ProceduralBuildingGenerator with asset-backed models",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement ProceduralBuildingGenerator.cs matching shared/game-engine/rendering/ProceduralBuildingGenerator.ts. For each BuildingIR, check UnifiedBuildingTypeConfig.mode: if 'asset', load the corresponding GLTF/GLB model from Assets/Resources/ by assetId using Resources.Load; if 'procedural', generate building geometry using the style presets from building-preset-definitions.ts (material types: wood/stone/brick/metal/glass/concrete, architecture styles: Castle/Gothic/Victorian/Modern/Brutalist, roof styles: Gabled/Flat/Hip/Mansard). Apply color palettes per material type. Support LOT_SPACING (20 units) between buildings."
+    },
+    {
+      "title": "BuildingPlacementSystem with street alignment",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement BuildingPlacementSystem.cs matching shared/game-engine/rendering/BuildingPlacementSystem.ts and StreetAlignedPlacement.ts. Place buildings along streets with proper facing direction toward roads. Handle building collision avoidance using Physics.OverlapBox checks. Support BuildingScaleByZone.ts scaling logic (buildings scale based on their zone: downtown larger, residential smaller). Integrate with TerrainFoundationRenderer to flatten terrain under each building."
+    },
+    {
+      "title": "BuildingSignManager for business signage",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement BuildingSignManager.cs matching shared/game-engine/rendering/BuildingSignManager.ts. Generate and place sign meshes on building facades showing business names from BusinessIR data. Signs must face the street. Use TextMeshPro for dynamic business name display with appropriate fonts for the world genre. Signs should have appropriate backing geometry (wooden plank for medieval, neon frame for cyberpunk, etc.)."
+    },
+    {
+      "title": "BuildingCollisionSystem and entry detection",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement BuildingCollisionSystem.cs matching shared/game-engine/rendering/BuildingCollisionSystem.ts and BuildingEntrySystem.ts. Add BoxColliders or MeshColliders to all buildings. Use trigger colliders at doorways to detect player approach. Trigger door interaction prompts via the InteractionPromptSystem. Handle the transition between exterior and interior scenes when the player enters a building using scene loading or object toggling."
+    },
+    {
+      "title": "InteriorSceneManager with scene transitions",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement InteriorSceneManager.cs matching shared/game-engine/rendering/InteriorSceneManager.ts. Manage loading/unloading interior scenes when the player enters/exits buildings. For buildings with InteriorTemplateConfig.mode='model', load the pre-built interior GLTF from Assets/Resources/Models/interiors/ (church: silent_hill_3_cathedral, residence: mansion_furnished/modern_apartment_interior/small_apartment_morning_version, restaurant: 7 variants, shop: convenience_store_2/one_stop, tavern: british_pub/food_bar/old_bar/silent_hill_old_bar_2). For mode='procedural', invoke BuildingInteriorGenerator. Disable exterior rendering while inside."
+    },
+    {
+      "title": "BuildingInteriorGenerator procedural interiors",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement BuildingInteriorGenerator.cs matching shared/game-engine/rendering/BuildingInteriorGenerator.ts. Generate interior rooms using interior-templates.ts room types (Living Room, Kitchen, Bedroom, Tavern/Bar, Church/Sanctuary, Classroom, Office, Medical). Apply room dimensions, floor count, zone layouts. Use color palettes (wood, stone, brick, marble) with Unity Standard Shader materials. Place furniture sets per room function from the furniture role definitions. Every building type must have a visitable interior."
+    },
+    {
+      "title": "InteriorLightingSystem with atmospheric effects",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement InteriorLightingSystem.cs matching shared/game-engine/rendering/InteriorLightingSystem.ts and InteriorAtmosphericEffects.ts. Support lighting presets from InteriorTemplateConfig: bright, dim, warm, cool, candlelit. Add Point Lights, Spot Lights, and emissive materials for windows. Implement atmospheric effects using particle systems (dust particles, smoke) and light cookies (light shafts through windows). Taverns get warm candlelit glow; churches get light shafts; shops get bright even lighting."
+    },
+    {
+      "title": "InteriorDecorationGenerator and furniture loading",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement InteriorDecorationGenerator.cs matching shared/game-engine/rendering/InteriorDecorationGenerator.ts and FurnitureModelLoader.ts. Load furniture models from the 186 bundled Polyhaven furniture assets via Resources.Load. Place furniture according to room templates (beds/tables/chairs/stools/shelves/cabinets/wardrobes/counters/forges/barrels/altars/pews/anvils/desks/safes/display cases). Support role-specific furniture sets (blacksmith: forge+anvil, merchant: counter+display, tavern: bar+stools+tables). Implement FurnitureInteractionManager.ts interaction logic for usable furniture."
+    },
+    {
+      "title": "WaterRenderer with rivers and water bodies",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Implement WaterRenderer.cs matching shared/game-engine/rendering/WaterRenderer.ts and RiverGenerator.ts. Render water features from GeographyIR waterFeatures (lakes, ponds, rivers, ocean). Use planar reflections or screen-space reflections with a custom water shader (transparency, color tint, wave animation via vertex displacement, foam at edges). Generate river meshes following terrain contours. Water level must match the in-app game's water placement logic."
+    },
+    {
+      "title": "ProceduralNatureGenerator with biome-aware vegetation",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Implement ProceduralNatureGenerator.cs matching shared/game-engine/rendering/ProceduralNatureGenerator.ts and logic/TerrainVegetationPlacer.ts. Place nature objects (trees, rocks, bushes, flowers) from bundled nature models based on biome zones and foliage layers from GeographyIR. Respect NatureLODConfig.ts for LOD distances. Use Unity's Terrain tree/detail system or GPU instancing for performance. Place vegetation using the same seeded PRNG as the IR generator for deterministic matching."
+    },
+    {
+      "title": "OutdoorFurnitureGenerator for settlement decoration",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Implement OutdoorFurnitureGenerator.cs matching shared/game-engine/rendering/OutdoorFurnitureGenerator.ts. Place outdoor furniture and decorations in settlements: market stalls, benches, lamp posts, barrels, crates, planters, fences. Instantiate from the 926 bundled prop models via Resources.Load. Place items along streets and in public areas to make settlements feel lived-in. Use LODGroup components for distance-based culling."
+    },
+    {
+      "title": "DayNightCycle with dynamic lighting",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement DayNightCycle.cs matching shared/game-engine/rendering/DayNightCycle.ts and logic/GameTimeManager.ts. Rotate Directional Light (sun) through a full day cycle. Adjust RenderSettings (skybox, ambient light, fog color/density) from ThemeIR. Enable/disable Point Lights (street lamps, building windows) based on time of day. Use gradient textures or AnimationCurves for smooth color transitions. Sync with the game time system so NPCs follow their schedules relative to the day/night cycle."
+    },
+    {
+      "title": "WeatherSystem with visual effects",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement WeatherSystem.cs matching shared/game-engine/rendering/WeatherSystem.ts. Support weather states: clear, cloudy, rain, snow, fog, storm. Use Unity particle systems for rain/snow effects. Adjust RenderSettings.fog, skybox exposure, and ambient lighting per weather state. Weather should transition smoothly between states using Lerp on all parameters. Integrate with audio system for weather sounds (rain, thunder, wind). Use post-processing volume for storm lightning flashes."
+    },
+    {
+      "title": "Minimap and FullscreenMap UI panels",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement minimap and fullscreen map Canvas UI panels matching shared/game-engine/rendering/BabylonMinimap.ts, MinimapTerrainRenderer.ts, and FullscreenMap.ts. Minimap: corner HUD RawImage rendered by overhead orthographic camera showing player position, nearby NPCs (colored dots), buildings, quest markers, and settlement boundaries. Fullscreen map: Canvas overlay showing the entire world with countries, states, settlements, roads, and points of interest. Support zoom (scroll), pan (drag), and quest waypoint markers from logic/QuestMinimapMarkers.ts."
+    },
+    {
+      "title": "ContainerSpawnSystem and quest object placement",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement ContainerSpawnSystem.cs matching shared/game-engine/rendering/ContainerSpawnSystem.ts, ProceduralQuestObjects.ts, and QuestObjectManager.ts. Spawn container GameObjects (chests, barrels, crates) from IR containers data with loot tables. Spawn quest objects at IR-specified positions with trigger colliders for interaction. Load bundled container and marker GLTF models. Containers must be interactable and display their contents via a Container UI panel equivalent to BabylonContainerPanel."
+    },
+    {
+      "title": "ExteriorItemManager and BookSpawnManager",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement ExteriorItemManager.cs matching shared/game-engine/rendering/ExteriorItemManager.ts and BookSpawnManager.ts. Spawn collectible items, readable books/documents, and interactive objects in the exterior world. Books use the TextIR data from SystemsIR for their content. Items must be pickupable (trigger collider + interaction prompt) and add to the player's inventory. Use the same seeded spawn positions as the IR generator for deterministic placement."
+    }
+  ]
+}

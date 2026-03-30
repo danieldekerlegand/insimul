@@ -114,6 +114,16 @@ const WATER_TYPE_CONFIGS: Record<WaterFeatureType, WaterTypeConfig> = {
     waveFrequency: 1.8,
     lodDistance: 150,
   },
+  bay: {
+    color: new Color3(0.1, 0.28, 0.5),
+    alpha: 0.78,
+    emissive: new Color3(0.03, 0.1, 0.2),
+    specularPower: 40,
+    animated: true,
+    waveAmplitude: 0.2,
+    waveFrequency: 1.2,
+    lodDistance: 300,
+  },
 };
 
 /** Tracks an animated water mesh for the render loop */
@@ -153,6 +163,7 @@ export class WaterRenderer {
       case 'marsh':
         return this.renderStillWater(feature);
       case 'ocean':
+      case 'bay':
         return this.renderOcean(feature);
       case 'waterfall':
         return this.renderWaterfall(feature);

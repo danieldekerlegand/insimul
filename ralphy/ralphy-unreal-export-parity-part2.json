@@ -1,0 +1,214 @@
+{
+  "tasks": [
+    {
+      "title": "CharacterController with third-person movement",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Implement AInsimulCharacterController matching shared/game-engine/rendering/CharacterController.ts. Third-person character with WASD/gamepad movement, sprint, jump, and collision. Load the player character model from bundled Quaternius assets (Vincent-frontFacing.glb or selected avatar). Support input mapping from DefaultInput.ini. Handle ground detection, slope limits, and step-up heights. Integrate with the CameraManager for camera-relative movement direction."
+    },
+    {
+      "title": "CameraManager with orbit and follow modes",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Implement UCameraManager matching shared/game-engine/rendering/CameraManager.ts. Support orbit camera around player with mouse/right-stick rotation, zoom with scroll wheel, and collision with buildings/terrain. Handle smooth transitions between exterior camera, interior camera (closer/lower), and dialogue camera (focus on NPC). Camera must avoid clipping through walls and terrain."
+    },
+    {
+      "title": "NPCModularAssembler with Quaternius character parts",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Implement UNPCModularAssembler matching shared/game-engine/rendering/NPCModularAssembler.ts and QuaterniusNPCLoader.ts. Assemble NPC characters from modular Quaternius parts: base body (5+ types by gender/build), hair (100+ styles with gender affinity), outfits (200+ pieces organized by gender/set). Use NPCModelManifest.ts selection logic: genre (fantasy/scifi/modern/generic) + gender + body type (average/athletic/heavy/slim) + role (guard/merchant/civilian). Fallback chain: role-specific -> body type -> genre+gender -> generic."
+    },
+    {
+      "title": "NPCAccessorySystem for visual variety",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Implement UNPCAccessorySystem matching shared/game-engine/rendering/NPCAccessorySystem.ts and NPCAppearanceGenerator.ts. Attach accessories (hats, glasses, jewelry, weapons, tools) to NPC skeletal meshes at appropriate sockets. Generate appearance variations deterministically from character seed so each NPC looks unique. Accessories should match the NPC's occupation and social status."
+    },
+    {
+      "title": "NPCAnimationController with state machine",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Implement UNPCAnimationController matching shared/game-engine/rendering/NPCAnimationController.ts and AnimationAssetManager.ts. Create an animation blueprint with states: idle, walk, run, talk, sit, work, eat, sleep, interact, combat. Blend between states smoothly. Load animation assets from bundled collection. Support occupation-specific work animations (blacksmith hammering, merchant gesturing, guard patrolling). Sync animation speed with movement speed."
+    },
+    {
+      "title": "NPCMovementController with pathfinding",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Implement UNPCMovementController matching shared/game-engine/rendering/NPCMovementController.ts, PathfindingSystem.ts, and NavigationSystem.ts. NPCs must navigate using Unreal's NavMesh system. Support patrol routes, wandering within radius, walking to specific buildings, and following roads. NPCs should avoid collisions with each other and the player. Movement speed varies by activity (strolling vs rushing to work). Integrate with NPCLocationCycler.ts for cycling between assigned locations."
+    },
+    {
+      "title": "NPCScheduleSystem with daily routines",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Implement UNPCScheduleSystem matching shared/game-engine/rendering/NPCScheduleSystem.ts, ScheduleExecutor.ts, and OccupationActivitySystem.ts. Each NPC follows a daily schedule generated from IR (wake/sleep times, work hours, eating, socializing). NPCs move between home, workplace, tavern, town square based on time of day. Schedule data comes from NPCIR.schedule. Sync with DayNightCycle. NPCs should visibly perform activities at each location (sitting at tables, working at stations, sleeping in beds)."
+    },
+    {
+      "title": "NPCSimulationLOD for performance scaling",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Implement UNPCSimulationLOD matching shared/game-engine/rendering/NPCSimulationLOD.ts. Scale NPC simulation detail based on distance from player: nearby NPCs get full animation/pathfinding/interaction, mid-range NPCs get simplified movement, distant NPCs become billboards or are culled entirely. Limit to MAX_NPCS (8) fully-simulated NPCs at once. This is critical for performance with large settlement populations."
+    },
+    {
+      "title": "NPCGreetingSystem and interaction prompts",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Implement UNPCGreetingSystem matching shared/game-engine/rendering/NPCGreetingSystem.ts, NPCInteractionPrompt.ts, and InteractionPromptSystem.ts. When the player approaches an NPC within range, show an interaction prompt (E to talk). NPCs greet the player with contextual lines based on relationship, time of day, and current activity. Display NPC name and occupation above their head. Use NPCTalkingIndicator.ts for speech bubble visual when NPC is speaking."
+    },
+    {
+      "title": "NPCActivityLabelSystem and talking indicators",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Implement UNPCActivityLabelSystem matching shared/game-engine/rendering/NPCActivityLabelSystem.ts and NPCTalkingIndicator.ts. Show floating labels above NPCs indicating their current activity (Working, Eating, Socializing, Resting, Shopping). Display speech bubble indicator when NPC is in conversation. Labels should billboard toward camera and fade with distance."
+    },
+    {
+      "title": "AmbientConversationSystem for NPC-NPC chat",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Implement UAmbientConversationSystem matching shared/game-engine/rendering/AmbientConversationSystem.ts and NPCAmbientConversationManager.ts. When two NPCs are near each other (e.g., at tavern, town square), they should engage in ambient conversations with speech bubbles. Use NPCSocializationController.ts logic for choosing conversation partners. Conversations affect NPC relationships via RelationshipManager."
+    },
+    {
+      "title": "BabylonChatPanel equivalent — dialogue UI",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement dialogue UI UMG widget matching shared/game-engine/rendering/BabylonChatPanel.ts. Full chat panel with: text input field for player messages, scrollable conversation history, NPC portrait/name display, typing indicator while waiting for LLM response. Support BabylonDialogueActions.ts action buttons (Ask about quest, Trade, Request help, Say goodbye). Panel slides in from bottom or side when conversation starts. Must handle multi-turn conversations with full history."
+    },
+    {
+      "title": "LLM dialogue integration via AI service",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement UInsimulAIService matching the in-app game's LLM conversation system (shared/game-engine/logic/LocalNpcConversation.ts). Send player messages to configured AI endpoint (Gemini API, local Ollama, or custom). Include NPC system prompt from dialogueContexts in SystemsIR (personality, occupation, knowledge, relationship with player, current truths). Stream responses for real-time text display. Support conversation memory across multiple interactions with the same NPC. Handle API key configuration in game settings."
+    },
+    {
+      "title": "LipSyncController for NPC speech",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement ULipSyncController matching shared/game-engine/rendering/LipSyncController.ts. Animate NPC face morph targets or bone-based jaw movement in sync with dialogue text display speed. Support the StreamingAudioPlayer.ts integration for TTS audio if available. Even without TTS, NPCs should have mouth movement animation while their dialogue text is being displayed."
+    },
+    {
+      "title": "NPCBusinessInteractionSystem for shops and services",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Implement UNPCBusinessInteractionSystem matching shared/game-engine/rendering/NPCBusinessInteractionSystem.ts and BabylonShopPanel.ts. When interacting with merchant NPCs, open a shop UI showing their inventory with buy/sell prices. Support business types from BusinessIR: blacksmith, tavern, market, general store, etc. Each business has appropriate items based on type. Include BabylonNoticeBoardPanel.ts equivalent for settlement notice boards with quests and announcements."
+    },
+    {
+      "title": "GameMenuSystem with all panels",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement full game menu UMG widget matching shared/game-engine/rendering/GameMenuSystem.ts. Pause menu with tabs/sections for: Resume, Inventory, Quest Journal, Map, Skills, Rules, Settings, Save/Load, Quit. ESC key toggles menu. Each tab opens the corresponding panel. Menu pauses game simulation. Match the UIIR configuration from the IR for which panels are enabled. Include GenreUIManager.ts logic to show/hide genre-specific panels."
+    },
+    {
+      "title": "BabylonInventory equivalent — inventory system",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement inventory UMG widget matching shared/game-engine/rendering/BabylonInventory.ts and logic/EquipmentManager.ts. Grid-based inventory with item icons, stack counts, item descriptions on hover. Support item categories: weapons, armor, consumables, quest items, books, crafting materials. Drag-and-drop for equipping. Equipment slots display on character paper doll. Use ItemThumbnailRenderer.ts approach for generating item preview images from 3D models."
+    },
+    {
+      "title": "Quest tracking and journal UI",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement quest UI matching shared/game-engine/rendering/BabylonQuestTracker.ts and QuestOfferPanel.ts. HUD quest tracker shows active quest objectives with progress. Full quest journal panel lists all quests (active, completed, failed) with descriptions and objectives. Quest offer panel appears when NPC offers a quest with accept/decline buttons. Integrate with QuestIndicatorManager.ts for floating quest markers (!) above NPC heads and QuestWaypointManager.ts for navigation waypoints to objectives."
+    },
+    {
+      "title": "QuestCompletionManager and notification system",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement UQuestCompletionManager matching shared/game-engine/rendering/QuestCompletionManager.ts, QuestNotificationManager.ts, and QuestNotificationSystem.ts. Detect quest objective completion, trigger completion events, award rewards. Show notification toasts for quest updates (new quest, objective complete, quest complete). Support QuestHotspotManager.ts for area-based quest triggers. Integrate with logic/QuestCompletionEngine.ts and QuestAutoCompletionDetector.ts."
+    },
+    {
+      "title": "CombatSystem with multiple combat modes",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Implement combat systems matching shared/game-engine/rendering/CombatSystem.ts, TurnBasedCombatSystem.ts, FightingCombatSystem.ts, and RangedCombatSystem.ts. Support the genre-appropriate combat mode from CombatIR: real-time action combat, turn-based RPG combat, or ranged combat. Include CombatUI.ts HUD elements (health bars, action buttons, targeting reticle). HealthBar.ts for both player and enemy health display. Combat should use the combat stats from CharacterIR."
+    },
+    {
+      "title": "ResourceSystem with gathering mechanics",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Implement UResourceSystem matching shared/game-engine/rendering/ResourceSystem.ts and the gathering sub-systems: logic/FishingSystem.ts, logic/MiningSystem.ts, logic/HerbalismSystem.ts. Player can gather resources from world objects (mine ore nodes, fish in water, pick herbs). Each system has its own mini-game or interaction pattern. Resources add to inventory and feed into the crafting system. Only enabled when ResourcesIR is present in the IR."
+    },
+    {
+      "title": "CraftingSystem and recipe UI",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Implement UCraftingSystem matching shared/game-engine/logic/CraftingSystem.ts and logic/RecipeCraftingSystem.ts. Recipe-based crafting using gathered resources and purchased materials. Crafting UI shows available recipes, required ingredients, and result preview. Support crafting stations at appropriate businesses (forge at blacksmith, kitchen at tavern, workbench at lumbermill). Crafted items add to inventory."
+    },
+    {
+      "title": "ExplorationDiscoverySystem with rewards",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement UExplorationDiscoverySystem matching shared/game-engine/rendering/ExplorationDiscoverySystem.ts. Track which areas the player has visited. Award discovery bonuses for finding new settlements, landmarks, hidden areas. Show discovery notifications. Integrate with logic/KnowledgeCollectionSystem.ts for collecting world lore. Support ContextualHintSystem.ts for guiding players toward undiscovered content."
+    },
+    {
+      "title": "ReputationManager and relationship tracking",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement UReputationManager matching shared/game-engine/rendering/ReputationManager.ts, logic/RelationshipManager.ts, and logic/RomanceSystem.ts. Track player reputation per settlement and faction. Track individual NPC relationships (friendship, trust, romance). Reputation affects shop prices, quest availability, NPC dialogue tone. Relationship changes based on conversation choices, quest completion, and player actions."
+    },
+    {
+      "title": "AnimalNPCSystem with ambient wildlife",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Implement UAnimalNPCSystem matching shared/game-engine/rendering/AnimalNPCSystem.ts and logic/AmbientLifeBehaviorSystem.ts. Spawn animal NPCs from IR animals data (cats, dogs, birds, horses, etc.) using bundled animal GLB models. Animals wander, flee from player if wild, follow if pets. Support the VehicleSystem.ts for rideable animals (horses, alpacas). Animals add ambient life to settlements."
+    },
+    {
+      "title": "AudioManager with spatial and ambient audio",
+      "completed": false,
+      "parallel_group": 8,
+      "description": "Implement UAudioManager matching shared/game-engine/rendering/AudioManager.ts, EnvironmentalAudioManager.ts, and logic/AmbientSoundSystem.ts. Play ambient background audio per worldType from audio manifest. Spatial audio for NPC conversations, animal sounds, water, forge hammering. Footstep sounds that change based on surface (stone, grass, wood, metal). Door sounds on building entry/exit. Support StreamingAudioPlayer.ts for TTS audio streaming."
+    },
+    {
+      "title": "BabylonPhotographySystem — screenshot capture",
+      "completed": false,
+      "parallel_group": 8,
+      "description": "Implement UPhotographySystem matching shared/game-engine/rendering/BabylonPhotographySystem.ts and BabylonPhotoBookPanel.ts. Photo mode: freeze time, free camera, apply filters, take screenshot. Photo book panel to review captured screenshots. Save photos to local storage. This is a key exploration feature in the in-app game."
+    },
+    {
+      "title": "PuzzleSystem and dungeon generation",
+      "completed": false,
+      "parallel_group": 8,
+      "description": "Implement UPuzzleSystem matching shared/game-engine/rendering/PuzzleSystem.ts, BabylonPuzzleUI.ts, and ProceduralDungeonGenerator.ts. Generate dungeons from IR dungeon data (rooms, corridors, enemies, loot). Puzzles appear in dungeons and certain quest locations with their own UI overlay. Support multiple puzzle types. Dungeon generation uses the seeded PRNG for deterministic layouts."
+    },
+    {
+      "title": "GameIntroSequence and narrative cutscenes",
+      "completed": false,
+      "parallel_group": 9,
+      "description": "Implement AGameIntroSequence matching shared/game-engine/rendering/GameIntroSequence.ts and NarrativeCutscenePanel.ts. Play intro cinematic sequence when starting a new game using NarrativeIR data. Support mid-game narrative cutscenes triggered by quest milestones. Cutscenes display text overlay with character portraits, background art, and optional voice narration. Include MainMenuScreen.ts equivalent for the main menu with New Game, Continue, Settings, Quit."
+    },
+    {
+      "title": "OnboardingManager and tutorial system",
+      "completed": false,
+      "parallel_group": 9,
+      "description": "Implement UOnboardingManager matching shared/game-engine/rendering/OnboardingLauncher.ts and logic/OnboardingManager.ts. Step-by-step tutorial guiding the player through basic controls (movement, camera, interaction, inventory, dialogue, combat). Highlight UI elements with arrows/glow. Tutorial steps from shared/onboarding/ definitions. Support logic/TutorialQuestSystem.ts for tutorial quests that teach game mechanics."
+    },
+    {
+      "title": "ActionQuickBar and player action system",
+      "completed": false,
+      "parallel_group": 9,
+      "description": "Implement UActionQuickBar matching shared/game-engine/rendering/ActionQuickBar.ts, BabylonRadialMenu.ts, and logic/PlayerActionTracker.ts. HUD hotbar with assignable action slots (1-9 keys). Radial menu (hold middle mouse) for quick access to common actions. Track player actions for quest completion detection. Support PlayerActionSystem.ts for executing actions (use item, cast spell, interact). Include logic/WorldObjectActionManager.ts for context-sensitive object interactions."
+    },
+    {
+      "title": "RuleEnforcer and truth sync",
+      "completed": false,
+      "parallel_group": 10,
+      "description": "Implement URuleEnforcer matching shared/game-engine/rendering/RuleEnforcer.ts and logic/GameTruthSync.ts. Evaluate world rules from SystemsIR.rules against current game state. Rules gate content, trigger events, and modify NPC behavior. Sync truths (world facts) as they change from player actions and quest progress. Support logic/ContentGatingManager.ts for locking/unlocking content based on rule evaluation. Include logic/TemporaryStateSystem.ts for time-limited status effects."
+    },
+    {
+      "title": "SaveIndicator and save/load system",
+      "completed": false,
+      "parallel_group": 10,
+      "description": "Implement USaveSystem matching shared/game-engine/rendering/SaveIndicator.ts and logic/RunManager.ts. Auto-save at configurable intervals with visual indicator. Manual save/load from game menu. Save game state: player position, inventory, quest progress, NPC relationships, reputation, discovered areas, time of day. Support logic/SaveConflictResolver.ts for handling save conflicts. PlaythroughMainMenu.ts and PlaythroughCompletionPanel.ts for managing multiple playthroughs."
+    },
+    {
+      "title": "SkillTreePanel and document reading",
+      "completed": false,
+      "parallel_group": 10,
+      "description": "Implement skill tree and document UMG widgets matching shared/game-engine/rendering/BabylonSkillTreePanel.ts, DocumentReadingPanel.ts, and BabylonRulesPanel.ts. Skill tree panel displays character skills with unlock progression. Document reading panel opens when player interacts with books/scrolls, showing TextIR content with pagination. Rules panel displays active world rules that affect gameplay. Support CompositionWritingUI.ts for player text composition where applicable."
+    },
+    {
+      "title": "VR support scaffolding",
+      "completed": false,
+      "parallel_group": 10,
+      "description": "Implement VR scaffolding matching the in-app game's VR systems: VRManager.ts, VRHandTrackingManager.ts, VRInteractionManager.ts, VRHUDManager.ts, VRChatPanel.ts, VRCombatAdapter.ts, VRUIPanel.ts, VRVocabularyLabels.ts, VRAccessibilityManager.ts, and logic/VRComfortSettings.ts. For Unreal, use OpenXR plugin. Create VR pawn with hand tracking, teleport/smooth locomotion, VR-adapted UI panels (world-space widgets), and VR interaction system. Accessibility settings for comfort (vignette, snap turn, seated mode)."
+    }
+  ]
+}

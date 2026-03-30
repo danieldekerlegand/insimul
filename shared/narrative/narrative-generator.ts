@@ -124,25 +124,43 @@ const CLUE_TEMPLATES = [
  * Resolve template variables in narrative text using current world data.
  * Variables use {{variable_name}} syntax with fallback defaults.
  */
+export interface NarrativeVariableContext {
+  writerName?: string;
+  settlementName?: string;
+  npcNames?: string[];
+  streetNames?: string[];
+  businessNames?: string[];
+  /** Main quest NPC role names (from ensureMainQuestRoles) */
+  editorName?: string;
+  patronName?: string;
+  neighborName?: string;
+  scholarName?: string;
+  confidantName?: string;
+}
+
 export function resolveNarrativeVariables(
   text: string,
-  context: {
-    writerName?: string;
-    settlementName?: string;
-    npcNames?: string[];
-    streetNames?: string[];
-    businessNames?: string[];
-  }
+  context: NarrativeVariableContext,
 ): string {
   return text
     .replace(/\{\{writer_name\|([^}]*)\}\}/g, (_, fallback) => context.writerName || fallback)
     .replace(/\{\{settlement_name\|([^}]*)\}\}/g, (_, fallback) => context.settlementName || fallback)
+    .replace(/\{\{editor_name\|([^}]*)\}\}/g, (_, fallback) => context.editorName || fallback)
+    .replace(/\{\{patron_name\|([^}]*)\}\}/g, (_, fallback) => context.patronName || fallback)
+    .replace(/\{\{neighbor_name\|([^}]*)\}\}/g, (_, fallback) => context.neighborName || fallback)
+    .replace(/\{\{scholar_name\|([^}]*)\}\}/g, (_, fallback) => context.scholarName || fallback)
+    .replace(/\{\{confidant_name\|([^}]*)\}\}/g, (_, fallback) => context.confidantName || fallback)
     .replace(/\{\{npc_name_(\d+)\|([^}]*)\}\}/g, (_, idx, fallback) => context.npcNames?.[parseInt(idx)] || fallback)
     .replace(/\{\{street_name\|([^}]*)\}\}/g, (_, fallback) => context.streetNames?.[0] || fallback)
     .replace(/\{\{business_name\|([^}]*)\}\}/g, (_, fallback) => context.businessNames?.[0] || fallback)
     // Simple variables without fallback
     .replace(/\{\{writer_name\}\}/g, context.writerName || 'the writer')
     .replace(/\{\{settlement_name\}\}/g, context.settlementName || 'the settlement')
+    .replace(/\{\{editor_name\}\}/g, context.editorName || 'the editor')
+    .replace(/\{\{patron_name\}\}/g, context.patronName || 'the patron')
+    .replace(/\{\{neighbor_name\}\}/g, context.neighborName || 'the neighbor')
+    .replace(/\{\{scholar_name\}\}/g, context.scholarName || 'the scholar')
+    .replace(/\{\{confidant_name\}\}/g, context.confidantName || 'the confidant')
     // Legacy {WRITER} and {SETTLEMENT} syntax for backward compat
     .replace(/\{WRITER\}/g, context.writerName || 'the writer')
     .replace(/\{SETTLEMENT\}/g, context.settlementName || 'the settlement');

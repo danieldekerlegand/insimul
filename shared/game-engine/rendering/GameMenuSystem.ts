@@ -265,11 +265,20 @@ export interface MenuJournalData {
   }>;
 }
 
+export interface ChapterClueGroup {
+  chapterId: string;
+  chapterTitle: string;
+  chapterNumber: number;
+  clues: Clue[];
+}
+
 export interface MenuClueData {
   clues: Clue[];
   clueCount: number;
   totalClueCount: number;
   connections: Array<[string, string]>;
+  /** Clues organized by narrative chapter for the journal view */
+  cluesByChapter?: ChapterClueGroup[];
 }
 
 export interface GameMenuCallbacks {
@@ -1770,6 +1779,11 @@ export class GameMenuSystem {
       this.addDivider(stack);
     }
 
+    // ─── Chapter grouping ────────────────────────────────────────
+    // If cluesByChapter is available, render chapter headers above each group
+    const chapterGroups = data.cluesByChapter;
+    const hasChapterGroups = chapterGroups && chapterGroups.length > 0;
+
     // ─── Clue cards ───────────────────────────────────────────────
     const categoryIcons: Record<string, string> = {
       witness_testimony: '🗣️',
@@ -1778,7 +1792,8 @@ export class GameMenuSystem {
       photo_evidence: '📸',
     };
 
-    for (const clue of filtered) {
+    // Render function for a single clue card (reused in both paths)
+    const renderClueCard = (clue: Clue) => {
       const card = this.makeCard(stack);
 
       // Header row: icon + category + followed-up toggle
@@ -1868,6 +1883,26 @@ export class GameMenuSystem {
         tagText.paddingBottom = "2px";
         card.addControl(tagText);
       }
+    };
+
+    // Render: chapter-grouped or flat
+    if (hasChapterGroups) {
+      // Ungrouped clues (no chapterId) first
+      const ungrouped = filtered.filter(c => !c.chapterId);
+      if (ungrouped.length > 0) {
+        this.addSubHeader(stack, "General Evidence");
+        for (const clue of ungrouped) renderClueCard(clue);
+      }
+      // Then by chapter
+      for (const group of chapterGroups!) {
+        const chapterClues = filtered.filter(c => c.chapterId === group.chapterId);
+        if (chapterClues.length === 0) continue;
+        this.addSubHeader(stack, `Ch.${group.chapterNumber}: ${group.chapterTitle}`);
+        for (const clue of chapterClues) renderClueCard(clue);
+      }
+    } else {
+      // Flat list (legacy / no chapter data)
+      for (const clue of filtered) renderClueCard(clue);
     }
   }
 

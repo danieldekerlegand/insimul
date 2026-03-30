@@ -869,7 +869,7 @@ export interface BiomeStyleData {
 
 // ─── Water Features ─────────────────────────────────────────────────────────
 
-export type WaterFeatureType = 'river' | 'lake' | 'ocean' | 'pond' | 'stream' | 'waterfall' | 'marsh' | 'canal';
+export type WaterFeatureType = 'river' | 'lake' | 'ocean' | 'pond' | 'stream' | 'waterfall' | 'marsh' | 'canal' | 'bay';
 
 export interface WaterFeatureStyleData {
   name: string;

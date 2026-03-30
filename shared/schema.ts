@@ -298,7 +298,11 @@ export const worlds = pgTable("worlds", {
   // When null/empty, modules are inferred from the genre bundle defaults
   enabledModules: jsonb("enabled_modules").$type<string[]>().default([]),
 
-  // Geographic dimensions — total world map size in game units
+  // Grid dimensions — creator-defined grid (each cell = 1600 game units)
+  gridWidth: integer("grid_width"),   // Number of grid columns
+  gridHeight: integer("grid_height"), // Number of grid rows
+
+  // Geographic dimensions — derived from grid (gridWidth × 1600, gridHeight × 1600)
   mapWidth: integer("map_width"),   // X extent of the world
   mapDepth: integer("map_depth"),   // Z extent of the world
   mapCenter: jsonb("map_center").$type<{ x: number; z: number }>().default({ x: 0, z: 0 }),
@@ -378,7 +382,13 @@ export const countries = pgTable("countries", {
   culturalValues: jsonb("cultural_values").$type<Record<string, any>>().default({}),
   laws: jsonb("laws").$type<any[]>().default([]),
   
-  // Geographic position and territory
+  // Grid placement — rectangular region on the world grid
+  gridWidth: integer("grid_width"),   // Country width in world-grid cells
+  gridHeight: integer("grid_height"), // Country height in world-grid cells
+  gridX: integer("grid_x"),           // Left column on the world grid
+  gridY: integer("grid_y"),           // Top row on the world grid
+
+  // Geographic position and territory — derived from grid placement
   position: jsonb("position").$type<{ x: number; z: number }>(),          // Center in world coordinates
   territoryPolygon: jsonb("territory_polygon").$type<{ x: number; z: number }[]>(), // Non-overlapping boundary
   territoryRadius: integer("territory_radius"),                             // Approximate radius for quick checks
@@ -475,7 +485,11 @@ export const settlements = pgTable("settlements", {
   previousStateIds: jsonb("previous_state_ids").$type<string[]>().default([]),
   annexationHistory: jsonb("annexation_history").$type<any[]>().default([]),
   
-  // World-space position — where this settlement sits on the world map
+  // Grid placement — position within the country's internal grid
+  countryGridX: integer("country_grid_x"),  // Column in country grid
+  countryGridY: integer("country_grid_y"),  // Row in country grid
+
+  // World-space position — derived from country position + grid cell
   worldPositionX: real("world_position_x"),
   worldPositionZ: real("world_position_z"),
   radius: integer("radius"),  // Generation radius (hamlet=50, village=80, town=150, city=250)
@@ -710,7 +724,7 @@ export const quests = pgTable("quests", {
   progress: jsonb("progress").$type<Record<string, any>>().default({}),
   
   // Quest status
-  status: text("status").default("active"), // active, completed, failed, abandoned
+  status: text("status").default("unavailable"), // unavailable, available, active, completed, failed, abandoned
   completionCriteria: jsonb("completion_criteria").$type<Record<string, any>>().default({}),
   
   // Rewards and XP
@@ -771,6 +785,9 @@ export const quests = pgTable("quests", {
   // Metadata
   conversationContext: text("conversation_context"), // Context from the conversation that triggered the quest
   tags: jsonb("tags").$type<string[]>().default([]),
+
+  // Main quest chapter this quest belongs to (e.g. 'ch1_assignment_abroad')
+  narrativeChapterId: text("narrative_chapter_id"),
 
   // Prolog content — single source of truth for quest logic
   content: text("quest_content"),
@@ -2246,6 +2263,9 @@ export const texts = pgTable("texts", {
   // Status and metadata
   status: text("status").default("draft"), // draft, published
   tags: jsonb("tags").$type<string[]>().default([]),
+
+  // Main quest chapter this text is linked to (e.g. 'ch1_assignment_abroad')
+  narrativeChapterId: text("narrative_chapter_id"),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

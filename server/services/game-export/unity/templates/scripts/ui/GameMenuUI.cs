@@ -28,6 +28,18 @@ namespace Insimul.UI
         }
 
         /// <summary>
+        /// Clues grouped by narrative chapter for the journal view.
+        /// </summary>
+        [System.Serializable]
+        public class ChapterClueGroup
+        {
+            public string chapterId;
+            public string chapterTitle;
+            public int chapterNumber;
+            public List<string> clueIds;
+        }
+
+        /// <summary>
         /// Guild quest progress data.
         /// </summary>
         [System.Serializable]
@@ -45,6 +57,7 @@ namespace Insimul.UI
         // Guild skill tree state
         private List<GuildQuestEntry> _guildQuestData = new();
         private List<NarrativeHistoryEntry> _narrativeHistory = new();
+        private List<ChapterClueGroup> _chapterClueGroups = new();
 
         private Slider _masterVolSlider;
         private Slider _musicVolSlider;
@@ -346,6 +359,14 @@ namespace Insimul.UI
         public void SetGuildQuestData(List<GuildQuestEntry> data)
         {
             _guildQuestData = data ?? new();
+        }
+
+        /// <summary>
+        /// Set chapter clue groups for chapter-organized clue rendering in the journal.
+        /// </summary>
+        public void SetChapterClueGroups(List<ChapterClueGroup> groups)
+        {
+            _chapterClueGroups = groups ?? new();
         }
 
         public void ResumeGame() => ToggleMenu();

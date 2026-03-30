@@ -507,6 +507,29 @@ export const MAIN_QUEST_CHAPTERS: MainQuestChapter[] = [
   },
 ];
 
+// ── Chapter ↔ Quest Chain Mapping ─────────────────────────────────────────
+
+/**
+ * Maps each narrative chapter ID to its corresponding Missing Writer
+ * quest chain order index. Quest 0 = Arrival Assessment (no chapter),
+ * Quest 7 = Departure Assessment (no chapter).
+ */
+export const CHAPTER_TO_CHAIN_QUEST_ORDER: Record<string, number> = {
+  ch1_assignment_abroad: 1,
+  ch2_following_the_trail: 2,
+  ch3_the_inner_circle: 3,
+  ch4_hidden_messages: 4,
+  ch5_the_truth_emerges: 5,
+  ch6_the_final_chapter: 6,
+};
+
+export const CHAIN_QUEST_ORDER_TO_CHAPTER: Record<number, string> = Object.fromEntries(
+  Object.entries(CHAPTER_TO_CHAIN_QUEST_ORDER).map(([k, v]) => [v, k]),
+);
+
+/** All chapter IDs in order */
+export const CHAPTER_IDS = MAIN_QUEST_CHAPTERS.map(ch => ch.id);
+
 // ── Utility functions ───────────────────────────────────────────────────────
 
 const CEFR_ORDER: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];

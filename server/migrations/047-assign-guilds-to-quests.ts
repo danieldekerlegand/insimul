@@ -53,6 +53,9 @@ function shouldSkipQuest(quest: any): { skip: boolean; reason?: string } {
   const tags: string[] = quest.tags || [];
   if (tags.includes('main-quest')) return { skip: true, reason: 'tagged main-quest' };
 
+  // Assessment quests (Arrival/Departure) are part of the main quest chain
+  if (quest.questType === 'assessment') return { skip: true, reason: 'assessment quest' };
+
   return { skip: false };
 }
 

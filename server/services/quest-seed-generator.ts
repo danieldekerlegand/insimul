@@ -1029,7 +1029,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       assignedTo,
       assignedBy: giver ? charName(giver) : null,
       assignedByCharacterId: giver?.id ?? null,
-      status: 'available',
+      status: 'unavailable',
       objectives,
       experienceReward: def.xp,
       rewards: { xp: def.xp, fluency: Math.round(def.xp / 5) },
@@ -1062,28 +1062,8 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
     const assessmentPosition = (locationPositions.size > 0 ? Array.from(locationPositions.values())[0] : null)
       ?? (settlementIdPositions.size > 0 ? Array.from(settlementIdPositions.values())[0] : null);
 
-    // Arrival Assessment
-    const arrivalData = buildArrivalAssessmentQuest({
-      worldId: world.id,
-      playerId: '',  // Will be assigned per-playthrough
-      targetLanguage,
-      cityName,
-    });
-    arrivalData.status = 'active'; // Immediately active when a player starts a new game
-    arrivalData.assignedTo = 'unassigned';
-    // Enrich arrival assessment objectives with position data
-    if (assessmentPosition && arrivalData.objectives) {
-      for (const obj of arrivalData.objectives as any[]) {
-        if (!obj.locationPosition) {
-          obj.locationPosition = { ...assessmentPosition };
-        }
-      }
-    }
-    if (assessmentPosition) {
-      (arrivalData as any).locationPosition = assessmentPosition;
-      (arrivalData as any).locationName = cityName;
-    }
-    quests.push(arrivalData as InsertQuest);
+    // Arrival Assessment — SKIP here; created by seedMainQuestChain() in quest-chain-templates.ts.
+    // Generating it here as well creates a duplicate.
 
     // Departure Assessment
     const departureVars = { targetLanguage, cityName };
@@ -1110,7 +1090,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       objectives: departureObjectives,
       experienceReward: 50,
       rewards: { xp: 50, fluency: 5, cefrAssessment: true },
-      status: 'available',
+      status: 'unavailable',
       tags: ['assessment', 'departure', 'non-skippable', 'non-abandonable'],
       ...(assessmentPosition ? { locationPosition: assessmentPosition, locationName: cityName } : {}),
     } as InsertQuest;

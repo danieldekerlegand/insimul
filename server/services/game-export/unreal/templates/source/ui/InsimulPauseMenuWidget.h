@@ -5,6 +5,27 @@
 #include "InsimulPauseMenuWidget.generated.h"
 
 /**
+ * Clues grouped by narrative chapter for the journal clue view.
+ */
+USTRUCT(BlueprintType)
+struct FChapterClueGroup
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "Insimul|Clues")
+    FString ChapterId;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Insimul|Clues")
+    FString ChapterTitle;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Insimul|Clues")
+    int32 ChapterNumber = 0;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Insimul|Clues")
+    TArray<FString> ClueIds;
+};
+
+/**
  * Pause Menu Widget — auto-generated from WorldIR pause menu configuration.
  * Provides Resume, Save Game, Load Game, Settings, and Quit to Main Menu.
  * Save/Load uses UInsimulSaveGame with multiple named slots.
@@ -54,4 +75,13 @@ private:
     UPROPERTY() class UTextBlock* SaveLoadTitle = nullptr;
 
     bool bCurrentlySaveMode = true;
+
+    /** Chapter clue groups for chapter-organized clue rendering in journal */
+    UPROPERTY()
+    TArray<FChapterClueGroup> ChapterClueGroups;
+
+public:
+    /** Set chapter clue groups for chapter-organized clue rendering. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PauseMenu")
+    void SetChapterClueGroups(const TArray<FChapterClueGroup>& Groups) { ChapterClueGroups = Groups; }
 };

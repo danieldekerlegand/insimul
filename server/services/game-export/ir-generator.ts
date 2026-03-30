@@ -110,6 +110,7 @@ import {
   generateStreetNetwork,
   chooseLayout,
   placeLots,
+  placeLotsAlongStreets,
   pruneUnusedStreets,
   type StreetNetwork,
 } from '../../generators/street-network-generator';
@@ -625,6 +626,31 @@ function generateLotPositions(
   }
 
   return positions;
+}
+
+// ─────────────────────────────────────────────
+// Synthetic bay shoreline for coastal settlements
+// ─────────────────────────────────────────────
+
+function generateBayShoreline(
+  centerX: number,
+  centerZ: number,
+  radius: number,
+  settlementZ: number,
+): Vec3[] {
+  const points: Vec3[] = [];
+  // Generate a U-shaped shoreline curving from west to east along the
+  // northern edge of the bay (closest to settlement)
+  const numPoints = 16;
+  for (let i = 0; i <= numPoints; i++) {
+    // Sweep from -PI to 0 (west to east across the top of the bay)
+    const angle = -Math.PI + (i / numPoints) * Math.PI;
+    const x = centerX + Math.cos(angle) * radius;
+    const z = centerZ + Math.sin(angle) * radius * 0.6;
+    // Clamp shoreline to not go north of the settlement edge
+    points.push({ x, y: 0, z: Math.max(z, settlementZ) });
+  }
+  return points;
 }
 
 // ─────────────────────────────────────────────
@@ -1613,7 +1639,6 @@ export async function generateWorldIR(
 
     const pop = s.population || 100;
     const buildingCount = Math.ceil(pop / 4);
-    const lotPositions = generateLotPositions(placed.position, buildingCount, seed, s.id);
     const lots = lotsBySettlement.get(s.id) || [];
     const allSettlementBusinesses = allBusinesses.filter((b: any) => b.settlementId === s.id);
 
@@ -1628,9 +1653,47 @@ export async function generateWorldIR(
       (b: any) => !b.businessType || eligible.has(b.businessType),
     );
 
-    // Map lots using persisted spatial data when available, falling back to generated positions
+    // ── 1. Generate street network FIRST so lot positions follow street layout ──
+    const sType = s.settlementType || 'town';
+    const rawStreetNetwork = generateStreetNetwork({
+      centerX: placed.position.x,
+      centerZ: placed.position.z,
+      settlementType: sType as any,
+      foundedYear: s.foundedYear || 1900,
+      seed: `${seed}_${s.id}`,
+      terrain: (s.terrain || undefined) as any,
+      population: pop,
+    });
+
+    // ── 2. Generate lot positions from street network ──
+    // Use grid-block placement for grid layouts, street-edge placement for others
+    const networkPattern = (rawStreetNetwork as any).pattern as string | undefined;
+    const isGridPattern = !networkPattern || networkPattern === 'grid';
+    const streetLotPlacements = isGridPattern
+      ? placeLots(rawStreetNetwork, buildingCount, `${seed}_${s.id}`, sType)
+      : placeLotsAlongStreets(rawStreetNetwork, buildingCount, `${seed}_${s.id}`, sType, networkPattern);
+
+    // Convert street-network lot placements to Vec3 positions with metadata.
+    // Use street-network positions first; fill any remaining slots with the old grid generator.
+    const streetLotPositions: Vec3[] = streetLotPlacements.map(lp => ({
+      x: lp.x, y: 0, z: lp.z,
+    }));
+    let lotPositions: Vec3[];
+    if (streetLotPositions.length >= buildingCount) {
+      lotPositions = streetLotPositions;
+    } else {
+      // Street network didn't produce enough — pad with old grid positions
+      const fallbackPositions = generateLotPositions(placed.position, buildingCount, seed, s.id);
+      lotPositions = [
+        ...streetLotPositions,
+        ...fallbackPositions.slice(streetLotPositions.length),
+      ];
+    }
+
+    // Map lots using persisted spatial data when available, falling back to street-network positions
     const lotIRs: LotIR[] = lots.map((lot, i) => {
       const hasPersistedPosition = lot.positionX != null && lot.positionZ != null;
+      const streetLot = streetLotPlacements[i];
       const position: Vec3 = hasPersistedPosition
         ? { x: lot.positionX!, y: lot.elevation || 0, z: lot.positionZ! }
         : lotPositions[i] || { x: placed.position.x, y: 0, z: placed.position.z };
@@ -1638,20 +1701,20 @@ export async function generateWorldIR(
       return {
         id: lot.id,
         address: lot.address || '',
-        houseNumber: lot.houseNumber || i + 1,
-        streetName: lot.streetName || 'Main Street',
+        houseNumber: streetLot?.houseNumber ?? lot.houseNumber ?? i + 1,
+        streetName: streetLot?.streetName ?? lot.streetName ?? 'Main Street',
         block: lot.block || null,
         districtName: lot.districtName || null,
         position,
-        facingAngle: lot.facingAngle || 0,
+        facingAngle: streetLot?.facingAngle ?? lot.facingAngle ?? 0,
         elevation: lot.elevation || 0,
         buildingType: lot.buildingType || null,
         buildingId: lot.buildingId || null,
-        lotWidth: lot.lotWidth ?? 12,
-        lotDepth: lot.lotDepth ?? 16,
-        streetEdgeId: lot.streetEdgeId || null,
+        lotWidth: streetLot?.lotWidth ?? lot.lotWidth ?? 12,
+        lotDepth: streetLot?.lotDepth ?? lot.lotDepth ?? 16,
+        streetEdgeId: streetLot?.streetId ?? lot.streetEdgeId ?? null,
         distanceAlongStreet: lot.distanceAlongStreet ?? 0,
-        side: lot.side === 'right' ? 'right' as const : 'left' as const,
+        side: (streetLot?.side ?? lot.side) === 'right' ? 'right' as const : 'left' as const,
         blockId: lot.blockId || null,
         neighboringLotIds: (lot.neighboringLotIds as string[]) || [],
         distanceFromDowntown: lot.distanceFromDowntown || 0,
@@ -1661,11 +1724,12 @@ export async function generateWorldIR(
     });
 
     // Generate buildings using lot data for placement when available
-    // Build a lookup from lot index to lotIR for position/rotation
-    for (let i = 0; i < Math.min(buildingCount, lotPositions.length); i++) {
+    const totalBuildingSlots = Math.max(buildingCount, lotPositions.length);
+    for (let i = 0; i < Math.min(buildingCount, totalBuildingSlots); i++) {
       const lotIR = lotIRs[i] || null;
+      const streetLot = streetLotPlacements[i];
       const pos = lotIR ? lotIR.position : lotPositions[i];
-      const rotation = lotIR ? lotIR.facingAngle : 0;
+      const rotation = lotIR ? lotIR.facingAngle : (streetLot?.facingAngle ?? 0);
       const business: any = settlementBusinesses[i] || null;
       const spec = getBuildingSpec(business?.businessType || null);
       const buildingId = business ? `bld_${business.id}` : `bld_${s.id}_${i}`;
@@ -1701,15 +1765,6 @@ export async function generateWorldIR(
         modelAssetKey: resolveBuildingModel(engine, collectionSnapshot, spec.buildingRole),
       });
     }
-
-    // Generate street network topology for this settlement
-    const rawStreetNetwork = generateStreetNetwork({
-      centerX: placed.position.x,
-      centerZ: placed.position.z,
-      settlementType: (s.settlementType as 'village' | 'town' | 'city') || 'town',
-      foundedYear: s.foundedYear || 1900,
-      seed: `${seed}_${s.id}`,
-    });
 
     // Prune streets that have no buildings nearby
     const lotStreetNames = lotIRs.map(l => l.streetName);
@@ -1819,6 +1874,54 @@ export async function generateWorldIR(
     transparency: wf.transparency ?? 0.3,
   }));
   console.log(`[Export] ✓ ${waterFeatureIRs.length} water feature(s) converted to IR`);
+
+  // Generate synthetic water bodies for coastal/landing settlements that lack one
+  for (const sIR of settlementIRs) {
+    const isCoastal = sIR.terrain === 'coast' || sIR.settlementType === 'landing';
+    if (!isCoastal) continue;
+    // Check if any water feature is already linked to this settlement
+    const hasWater = waterFeatureIRs.some(wf =>
+      wf.settlementId === sIR.id ||
+      (Math.abs(wf.position.x - sIR.position.x) < sIR.radius * 2 &&
+       Math.abs(wf.position.z - sIR.position.z) < sIR.radius * 2)
+    );
+    if (hasWater) continue;
+
+    // Place a bay/inlet on the south side of the settlement (positive Z)
+    const waterRadius = sIR.radius * 1.5;
+    const waterCenterX = sIR.position.x;
+    const waterCenterZ = sIR.position.z + sIR.radius + waterRadius * 0.4;
+    waterFeatureIRs.push({
+      id: `wf_${sIR.id}_bay`,
+      worldId: sIR.worldId,
+      type: 'bay',
+      subType: 'salt',
+      name: `${sIR.name} Bay`,
+      position: { x: waterCenterX, y: -1, z: waterCenterZ },
+      waterLevel: 0,
+      bounds: {
+        minX: waterCenterX - waterRadius,
+        maxX: waterCenterX + waterRadius,
+        minZ: waterCenterZ - waterRadius * 0.6,
+        maxZ: waterCenterZ + waterRadius,
+        centerX: waterCenterX,
+        centerZ: waterCenterZ,
+      },
+      depth: 3,
+      width: waterRadius * 2,
+      flowDirection: null,
+      flowSpeed: 0,
+      shorelinePoints: generateBayShoreline(waterCenterX, waterCenterZ, waterRadius, sIR.position.z),
+      settlementId: sIR.id,
+      biome: 'coastal',
+      isNavigable: true,
+      isDrinkable: false,
+      modelAssetKey: null,
+      color: { r: 0.15, g: 0.35, b: 0.55 },
+      transparency: 0.35,
+    });
+    console.log(`[Export] ✓ Generated synthetic bay for landing: ${sIR.name}`);
+  }
 
   // ── 3c. Foliage & vegetation scatter ──
   const foliageLayerIRs = generateFoliageLayers({

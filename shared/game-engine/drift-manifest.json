@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-30T14:33:32.801Z",
+  "lastUpdated": "2026-03-30T17:13:34.053Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "783631798986b4219f6aefbdb1408dcbd1272225395caa5c9621f393c10a0895",
+      "hash": "9de8c77c571100b2419983d040548a5d56d7a56043993a2b0a1a0d1cf1331da0",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "e82e3ed61a06f966c62a6474f9b0ffd202b9a84bf4cc109f05c8c9bfdd869aa5",
+      "hash": "76552cf3671bbdfb4aa0134d75e7995b541b55f82b4788aab22c2376f3fc1d58",
       "engineMappings": [
         {
           "engine": "unity",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "062265b9e5fb089f63808f9ca3311411f1511aac4b7b46364545bc812f845d96",
+      "hash": "9c86869460a1cdc5ac5ae5445f309d32b0feff2601160dad41d6696e2c486c63",
       "engineMappings": [
         {
           "engine": "babylon",

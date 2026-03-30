@@ -80,7 +80,7 @@ const GRID_SPACING: Record<string, number> = {
   dwelling: 20,
   roadhouse: 20,
   homestead: 25,
-  landing: 30,
+  landing: 55,
   forge: 30,
   chapel: 30,
   market: 40,
@@ -90,25 +90,49 @@ const GRID_SPACING: Record<string, number> = {
   city: 40,
 };
 
-const GRID_SIZE: Record<string, number> = {
-  dwelling: 1,
-  roadhouse: 1,
+/** Maximum grid size per settlement type (used when population is unknown). */
+const MAX_GRID_SIZE: Record<string, number> = {
+  dwelling: 2,
+  roadhouse: 2,
   homestead: 2,
-  landing: 2,
+  landing: 4,
   forge: 2,
   chapel: 2,
   market: 3,
-  hamlet: 3,
+  hamlet: 4,
   village: 4,
   town: 6,
   city: 8,
 };
 
+/**
+ * Compute grid size from population so small settlements get small grids.
+ * Estimates buildings needed (residences + businesses), derives the minimum
+ * number of blocks, and returns the grid side length.
+ */
+function computeGridSize(settlementType: string, population?: number): number {
+  const maxSize = MAX_GRID_SIZE[settlementType] ?? 5;
+  if (population == null || population <= 0) return maxSize;
+
+  // Estimate buildings: ~1 residence per 2.5 people + 1 business per 10
+  const residences = Math.ceil(population / 2.5);
+  const businesses = Math.max(1, Math.ceil(population / 10));
+  const buildings = residences + businesses;
+
+  // Each block holds ~6 lots (2 rows × 3 cols). Need blocks for buildings + 1 park.
+  const lotsPerBlock = 6;
+  const blocksNeeded = Math.ceil(buildings / lotsPerBlock) + 1;
+  // Grid side length: (gridSize-1)² ≥ blocksNeeded
+  const minSide = Math.ceil(Math.sqrt(blocksNeeded)) + 1;
+
+  return Math.max(2, Math.min(minSide, maxSize));
+}
+
 const STREET_WIDTH: Record<string, number> = {
   dwelling: 6,
   roadhouse: 6,
   homestead: 6,
-  landing: 7,
+  landing: 8,
   forge: 7,
   chapel: 7,
   market: 8,
@@ -305,7 +329,8 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
     const gen = new StreetGenerator();
 
     const sType = config.settlementType;
-    const radius = ((GRID_SIZE[sType] || 1) * (GRID_SPACING[sType] || 60)) / 2;
+    const dynSize = computeGridSize(sType, config.population);
+    const radius = (dynSize * (GRID_SPACING[sType] || 60)) / 2;
 
     const genConfig = {
       center: { x: config.centerX, z: config.centerZ },
@@ -356,7 +381,7 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
 function generateGridNetwork(config: StreetNetworkConfig): StreetNetwork {
   const rand = createSeededRandom(`${config.seed}_streets_grid`);
   const spacing = GRID_SPACING[config.settlementType] || 35;
-  const size = GRID_SIZE[config.settlementType] || 5;
+  const size = computeGridSize(config.settlementType, config.population);
   const width = STREET_WIDTH[config.settlementType] || 2.5;
   const names = getStreetNames(config.targetLanguage, config.grammarStreetNames);
 
@@ -451,7 +476,7 @@ function generateGridNetwork(config: StreetNetworkConfig): StreetNetwork {
 
 function generateOrganicNetwork(config: StreetNetworkConfig): StreetNetwork {
   const rand = createSeededRandom(`${config.seed}_streets_organic`);
-  const size = GRID_SIZE[config.settlementType] || 5;
+  const size = computeGridSize(config.settlementType, config.population);
   const spacing = GRID_SPACING[config.settlementType] || 35;
   const width = STREET_WIDTH[config.settlementType] || 2.5;
   const names = getStreetNames(config.targetLanguage, config.grammarStreetNames);
@@ -572,6 +597,71 @@ function generateOrganicNetwork(config: StreetNetworkConfig): StreetNetwork {
 }
 
 // ─────────────────────────────────────────────
+// Lot overlap detection (Separating Axis Theorem for 2D oriented rectangles)
+// ─────────────────────────────────────────────
+
+/**
+ * Test whether two oriented 2D rectangles overlap using SAT.
+ * Each lot is defined by center (x,z), half-extents (hw, hd), and rotation angle.
+ * A small padding is subtracted so lots that share an exact edge aren't rejected.
+ */
+function lotsOverlap(
+  x1: number, z1: number, w1: number, d1: number, a1: number,
+  x2: number, z2: number, w2: number, d2: number, a2: number,
+  padding: number = 0.5,
+): boolean {
+  const hw1 = w1 / 2 - padding, hd1 = d1 / 2 - padding;
+  const hw2 = w2 / 2 - padding, hd2 = d2 / 2 - padding;
+  if (hw1 <= 0 || hd1 <= 0 || hw2 <= 0 || hd2 <= 0) return false;
+
+  // Local axes for each rectangle
+  const cos1 = Math.cos(a1), sin1 = Math.sin(a1);
+  const cos2 = Math.cos(a2), sin2 = Math.sin(a2);
+
+  // 4 potential separating axes: 2 edge normals per rectangle
+  const axes = [
+    { x: cos1, z: sin1 },
+    { x: -sin1, z: cos1 },
+    { x: cos2, z: sin2 },
+    { x: -sin2, z: cos2 },
+  ];
+
+  const dx = x2 - x1, dz = z2 - z1;
+
+  for (const ax of axes) {
+    // Project center-to-center distance onto axis
+    const dist = Math.abs(dx * ax.x + dz * ax.z);
+    // Project half-extents of each rectangle onto axis
+    const proj1 = hw1 * Math.abs(cos1 * ax.x + sin1 * ax.z)
+                + hd1 * Math.abs(-sin1 * ax.x + cos1 * ax.z);
+    const proj2 = hw2 * Math.abs(cos2 * ax.x + sin2 * ax.z)
+                + hd2 * Math.abs(-sin2 * ax.x + cos2 * ax.z);
+    if (dist > proj1 + proj2) return false; // separating axis found
+  }
+  return true; // no separating axis → overlap
+}
+
+/**
+ * Remove overlapping lots from a placement array (keeps the first-placed lot).
+ * O(n²) but n is small (< 200 lots per settlement).
+ */
+function removeOverlappingLots(placements: LotPlacement[]): LotPlacement[] {
+  const kept: LotPlacement[] = [];
+  for (const p of placements) {
+    let overlaps = false;
+    for (const k of kept) {
+      if (lotsOverlap(p.x, p.z, p.lotWidth, p.lotDepth, p.facingAngle,
+                       k.x, k.z, k.lotWidth, k.lotDepth, k.facingAngle)) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (!overlaps) kept.push(p);
+  }
+  return kept;
+}
+
+// ─────────────────────────────────────────────
 // Lot placement along streets
 // ─────────────────────────────────────────────
 
@@ -598,8 +688,8 @@ export interface LotPlacement {
 
 // ─── Lot sizing by settlement type ────────────────────────────────────────────
 
-const TARGET_LOT_WIDTHS: Record<string, number> = { hamlet: 18, village: 15, town: 12, city: 10 };
-const MIN_LOT_DEPTHS: Record<string, number> = { hamlet: 30, village: 28, town: 24, city: 20 };
+const TARGET_LOT_WIDTHS: Record<string, number> = { landing: 10, hamlet: 18, village: 15, town: 12, city: 10 };
+const MIN_LOT_DEPTHS: Record<string, number> = { landing: 14, hamlet: 30, village: 28, town: 24, city: 20 };
 
 /**
  * Place lots by subdividing the rectangular blocks formed by the street grid.
@@ -777,7 +867,7 @@ export function placeLots(
     // NS-facing lots omitted: the 2-row EW layout perfectly tiles each block.
   }
 
-  return placements;
+  return removeOverlappingLots(placements);
 }
 
 /**
@@ -821,14 +911,12 @@ export function placeLotsAlongStreets(
   const centroidX = wpCount > 0 ? sumX / wpCount : 0;
   const centroidZ = wpCount > 0 ? sumZ / wpCount : 0;
 
-  // Track placed lot positions to prevent overlap
-  const placedPositions: { x: number; z: number; r: number }[] = [];
-  const lotHalfDiag = Math.sqrt(targetLotWidth ** 2 + lotDepth ** 2) / 2;
+  // Track placed lots for OBB overlap rejection
+  const placedLots: { x: number; z: number; w: number; d: number; a: number }[] = [];
 
-  function isTooClose(x: number, z: number): boolean {
-    for (const p of placedPositions) {
-      const d = Math.sqrt((x - p.x) ** 2 + (z - p.z) ** 2);
-      if (d < lotHalfDiag * 0.9) return true;
+  function isTooClose(x: number, z: number, w: number, d: number, a: number): boolean {
+    for (const p of placedLots) {
+      if (lotsOverlap(x, z, w, d, a, p.x, p.z, p.w, p.d, p.a)) return true;
     }
     return false;
   }
@@ -873,36 +961,42 @@ export function placeLotsAlongStreets(
         const lotZ = pos.z + perpZ * sideSign * offset;
 
         if (isWater && isWater(lotX, lotZ)) continue;
-        if (isTooClose(lotX, lotZ)) continue;
+
+        const lotAngle = streetAngle + (sideSign === 1 ? Math.PI : 0);
 
         // Check if this should be the park lot (near centroid, on a wide street)
         const distToCenter = Math.sqrt((lotX - centroidX) ** 2 + (lotZ - centroidZ) ** 2);
         if (!parkPlaced && distToCenter < targetLotWidth * 3 && (seg.width || 6) >= 6) {
+          const parkW = targetLotWidth * 2;
+          const parkD = lotDepth * 2;
+          if (isTooClose(lotX, lotZ, parkW, parkD, lotAngle)) continue;
           parkPlaced = true;
           placements.push({
             x: lotX, z: lotZ,
             streetId: seg.id, streetName: seg.name,
             houseNumber: 0,
             side,
-            facingAngle: streetAngle + (sideSign === 1 ? Math.PI : 0),
-            lotWidth: targetLotWidth * 2,
-            lotDepth: lotDepth * 2,
+            facingAngle: lotAngle,
+            lotWidth: parkW,
+            lotDepth: parkD,
             zone: 'park',
           });
-          placedPositions.push({ x: lotX, z: lotZ, r: lotHalfDiag * 2 });
+          placedLots.push({ x: lotX, z: lotZ, w: parkW, d: parkD, a: lotAngle });
           continue;
         }
+
+        if (isTooClose(lotX, lotZ, targetLotWidth, lotDepth, lotAngle)) continue;
 
         placements.push({
           x: lotX, z: lotZ,
           streetId: seg.id, streetName: seg.name,
           houseNumber: houseNum++,
           side,
-          facingAngle: streetAngle + (sideSign === 1 ? Math.PI : 0),
+          facingAngle: lotAngle,
           lotWidth: targetLotWidth,
           lotDepth,
         });
-        placedPositions.push({ x: lotX, z: lotZ, r: lotHalfDiag });
+        placedLots.push({ x: lotX, z: lotZ, w: targetLotWidth, d: lotDepth, a: lotAngle });
       }
     }
   }

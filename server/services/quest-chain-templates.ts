@@ -17,6 +17,8 @@ export interface ChainQuestDef {
   objectives: Array<Record<string, unknown>>;
   completionCriteria: Record<string, unknown>;
   tags: string[];
+  /** Links this quest to a narrative chapter (e.g. 'ch1_assignment_abroad') */
+  narrativeChapterId?: string;
 }
 
 export interface QuestChainTemplate {
@@ -296,6 +298,7 @@ const missingWriterMystery: QuestChainTemplate = {
       difficulty: 'beginner',
       targetLanguage: '',
       status: 'pending',
+      narrativeChapterId: 'ch1_assignment_abroad',
       experienceReward: 75,
       objectives: [
         { type: 'read_document', description: 'Read the missing person notice on the town board', target: 'notice_board', required: 1, current: 0, completed: false },
@@ -312,6 +315,7 @@ const missingWriterMystery: QuestChainTemplate = {
       difficulty: 'beginner',
       targetLanguage: '',
       status: 'pending',
+      narrativeChapterId: 'ch2_following_the_trail',
       experienceReward: 100,
       objectives: [
         { type: 'visit_location', description: "Visit the writer's residence", target: 'writer_home', required: 1, current: 0, completed: false },
@@ -328,6 +332,7 @@ const missingWriterMystery: QuestChainTemplate = {
       difficulty: 'intermediate',
       targetLanguage: '',
       status: 'pending',
+      narrativeChapterId: 'ch3_the_inner_circle',
       experienceReward: 150,
       objectives: [
         { type: 'talk_to_npc', description: "Talk to the writer's neighbor about their last days", target: 'witness_neighbor', required: 1, current: 0, completed: false },
@@ -345,6 +350,7 @@ const missingWriterMystery: QuestChainTemplate = {
       difficulty: 'intermediate',
       targetLanguage: '',
       status: 'pending',
+      narrativeChapterId: 'ch4_hidden_messages',
       experienceReward: 150,
       objectives: [
         { type: 'collect_item', description: "Find the writer's book at the library", target: 'writer_book_1', required: 1, current: 0, completed: false },
@@ -362,6 +368,7 @@ const missingWriterMystery: QuestChainTemplate = {
       difficulty: 'intermediate',
       targetLanguage: '',
       status: 'pending',
+      narrativeChapterId: 'ch5_the_truth_emerges',
       experienceReward: 175,
       objectives: [
         { type: 'visit_location', description: "Follow clues to the writer's secret spot", target: 'secret_location', required: 1, current: 0, completed: false },
@@ -379,6 +386,7 @@ const missingWriterMystery: QuestChainTemplate = {
       difficulty: 'advanced',
       targetLanguage: '',
       status: 'pending',
+      narrativeChapterId: 'ch6_the_final_chapter',
       experienceReward: 200,
       objectives: [
         { type: 'complete_conversation', description: 'Present your findings to the town gathering', target: 'town_gathering', required: 1, current: 0, completed: false },

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,6 +66,41 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
   const [counts, setCounts] = useState<Record<SettlementKey, number>>({ ...DEFAULT_COUNTS });
   const [guildAssignments, setGuildAssignments] = useState<Record<string, string[]>>({ ...DEFAULT_GUILD_ASSIGNMENTS });
 
+  // Grid placement
+  const [gridWidth, setGridWidth] = useState(1);
+  const [gridHeight, setGridHeight] = useState(1);
+  const [gridX, setGridX] = useState(0);
+  const [gridY, setGridY] = useState(0);
+  const [worldGridW, setWorldGridW] = useState<number | null>(null);
+  const [worldGridH, setWorldGridH] = useState<number | null>(null);
+  const [existingCountryPlacements, setExistingCountryPlacements] = useState<Array<{ gridX: number; gridY: number; gridWidth: number; gridHeight: number }>>([]);
+
+  // Fetch world grid info
+  useEffect(() => {
+    if (!open || !worldId) return;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    fetch(`/api/worlds/${worldId}`, { headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(world => {
+        if (world) {
+          setWorldGridW(world.gridWidth ?? null);
+          setWorldGridH(world.gridHeight ?? null);
+        }
+      })
+      .catch(() => {});
+    fetch(`/api/worlds/${worldId}/countries`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then((countries: any[]) => {
+        setExistingCountryPlacements(
+          countries
+            .filter((c: any) => c.gridX != null && c.gridY != null && c.gridWidth != null && c.gridHeight != null)
+            .map((c: any) => ({ gridX: c.gridX, gridY: c.gridY, gridWidth: c.gridWidth, gridHeight: c.gridHeight }))
+        );
+      })
+      .catch(() => {});
+  }, [open, worldId, token]);
+
   const setCount = (type: SettlementKey, delta: number) => {
     setCounts(prev => {
       const next = { ...prev, [type]: Math.max(0, Math.min(5, prev[type] + delta)) };
@@ -108,10 +143,17 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
+      const bodyData: any = { ...form };
+      if (worldGridW && worldGridH) {
+        bodyData.gridWidth = gridWidth;
+        bodyData.gridHeight = gridHeight;
+        bodyData.gridX = gridX;
+        bodyData.gridY = gridY;
+      }
       const res = await fetch(`/api/worlds/${worldId}/countries`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(form)
+        body: JSON.stringify(bodyData)
       });
       if (res.ok) {
         toast({ title: 'Country Created', description: `${form.name} has been created` });
@@ -257,6 +299,82 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
               </Select>
             </div>
           </div>
+            {/* Grid Placement — only shown when the world has grid dimensions */}
+            {worldGridW && worldGridH && (
+              <div className="space-y-3 border rounded-lg p-3">
+                <Label className="text-sm font-medium">Grid Placement</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Width (world cells)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={worldGridW}
+                      value={gridWidth}
+                      onChange={(e) => setGridWidth(Math.max(1, Math.min(worldGridW, parseInt(e.target.value) || 1)))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Height (world cells)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={worldGridH}
+                      value={gridHeight}
+                      onChange={(e) => setGridHeight(Math.max(1, Math.min(worldGridH, parseInt(e.target.value) || 1)))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Position X (column)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={worldGridW - gridWidth}
+                      value={gridX}
+                      onChange={(e) => setGridX(Math.max(0, Math.min(worldGridW - gridWidth, parseInt(e.target.value) || 0)))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Position Y (row)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={worldGridH - gridHeight}
+                      value={gridY}
+                      onChange={(e) => setGridY(Math.max(0, Math.min(worldGridH - gridHeight, parseInt(e.target.value) || 0)))}
+                    />
+                  </div>
+                </div>
+                {/* Mini grid preview */}
+                <div className="flex justify-center">
+                  <svg
+                    width={Math.min(200, worldGridW * 40)}
+                    height={Math.min(200, worldGridH * 40)}
+                    viewBox={`0 0 ${worldGridW} ${worldGridH}`}
+                    className="border rounded bg-muted/30"
+                  >
+                    {/* Grid lines */}
+                    {Array.from({ length: worldGridW + 1 }).map((_, i) => (
+                      <line key={`v${i}`} x1={i} y1={0} x2={i} y2={worldGridH} stroke="currentColor" strokeWidth={0.02} opacity={0.2} />
+                    ))}
+                    {Array.from({ length: worldGridH + 1 }).map((_, i) => (
+                      <line key={`h${i}`} x1={0} y1={i} x2={worldGridW} y2={i} stroke="currentColor" strokeWidth={0.02} opacity={0.2} />
+                    ))}
+                    {/* Existing countries */}
+                    {existingCountryPlacements.map((c, i) => (
+                      <rect key={`existing-${i}`} x={c.gridX} y={c.gridY} width={c.gridWidth} height={c.gridHeight}
+                        fill="hsl(var(--muted-foreground))" fillOpacity={0.2} stroke="hsl(var(--muted-foreground))" strokeWidth={0.04} />
+                    ))}
+                    {/* New country placement */}
+                    <rect x={gridX} y={gridY} width={gridWidth} height={gridHeight}
+                      fill="hsl(var(--primary))" fillOpacity={0.3} stroke="hsl(var(--primary))" strokeWidth={0.06} />
+                  </svg>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  {gridWidth}×{gridHeight} cells at ({gridX}, {gridY}) in {worldGridW}×{worldGridH} world grid
+                </p>
+              </div>
+            )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

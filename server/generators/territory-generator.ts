@@ -10,6 +10,13 @@
  */
 
 import { createNoise2D } from '../../shared/procedural/noise';
+import {
+  deriveWorldDimensions,
+  deriveCountryGeometry,
+  deriveSettlementWorldPosition,
+  countryInternalGridSize,
+  COUNTRY_CELL_SIZE,
+} from '../../shared/grid-constants';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,9 +37,13 @@ export interface WorldGeographyConfig {
   worldId: string;
   seed: string;
   scale: WorldScale | ScaleConfig;
+  /** When present, use grid-based layout instead of Voronoi */
+  worldGrid?: { width: number; height: number };
   countries: Array<{
     id: string;
     terrain: string;
+    /** Grid placement for this country (when using grid-based layout) */
+    gridPlacement?: { gridX: number; gridY: number; gridWidth: number; gridHeight: number };
     settlements: Array<{
       id: string;
       type: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
@@ -40,6 +51,8 @@ export interface WorldGeographyConfig {
       population: number;
       /** Optional: states this settlement belongs to */
       stateId?: string;
+      /** Grid placement within country (when using grid-based layout) */
+      gridPlacement?: { countryGridX: number; countryGridY: number };
     }>;
     states?: Array<{
       id: string;
@@ -120,6 +133,12 @@ function seededRandom(seed: string): () => number {
 // ── Main Generator ──────────────────────────────────────────────────────────
 
 export function generateWorldGeography(config: WorldGeographyConfig): WorldGeographyResult {
+  // ── Grid-based path ───────────────────────────────────────────────────────
+  if (config.worldGrid) {
+    return generateGridBasedGeography(config);
+  }
+
+  // ── Legacy Voronoi path ───────────────────────────────────────────────────
   const scaleConfig = typeof config.scale === 'string'
     ? SCALE_PRESETS[config.scale]
     : config.scale;
@@ -207,6 +226,104 @@ export function generateWorldGeography(config: WorldGeographyConfig): WorldGeogr
   };
 }
 
+// ── Grid-Based Geography ─────────────────────────────────────────────────────
+
+function generateGridBasedGeography(config: WorldGeographyConfig): WorldGeographyResult {
+  const worldGrid = config.worldGrid!;
+  const { mapWidth, mapDepth, mapCenter } = deriveWorldDimensions(worldGrid.width, worldGrid.height);
+
+  const countryResults = new Map<string, {
+    position: Vec2;
+    territoryPolygon: Vec2[];
+    territoryRadius: number;
+  }>();
+
+  const settlementPositions = new Map<string, {
+    worldPositionX: number;
+    worldPositionZ: number;
+    radius: number;
+  }>();
+
+  const allRoads: WorldGeographyResult['roads'] = [];
+
+  for (const country of config.countries) {
+    const gp = country.gridPlacement;
+    if (!gp) continue;
+
+    // Derive country geometry from grid placement
+    const geo = deriveCountryGeometry(
+      worldGrid.width, worldGrid.height,
+      gp.gridX, gp.gridY,
+      gp.gridWidth, gp.gridHeight,
+    );
+    countryResults.set(country.id, geo);
+
+    // Country internal grid = world cells × 4
+    const { countryGridCols, countryGridRows } = countryInternalGridSize(gp.gridWidth, gp.gridHeight);
+
+    // Place settlements within country grid
+    for (const settlement of country.settlements) {
+      const sp = settlement.gridPlacement;
+      if (!sp) continue;
+
+      const { worldPositionX, worldPositionZ } = deriveSettlementWorldPosition(
+        geo.position,
+        countryGridCols, countryGridRows,
+        sp.countryGridX, sp.countryGridY,
+      );
+
+      const radius = (BASE_RADIUS[settlement.type] ?? 150);
+      settlementPositions.set(settlement.id, { worldPositionX, worldPositionZ, radius });
+    }
+
+    // Generate roads between settlements in this country
+    const settlementIds = country.settlements
+      .filter(s => s.gridPlacement)
+      .map(s => s.id);
+    if (settlementIds.length > 1) {
+      const roads = generateInterSettlementRoads(
+        settlementIds, settlementPositions, config.seed + `-roads-${country.id}`,
+      );
+      allRoads.push(...roads);
+    }
+  }
+
+  // State subdivisions — for grid-based worlds, states inherit country territory
+  const stateResults = new Map<string, { position: Vec2; boundaryPolygon: Vec2[] }>();
+  for (const country of config.countries) {
+    if (!country.states || country.states.length === 0) continue;
+    const countryGeo = countryResults.get(country.id);
+    if (!countryGeo) continue;
+
+    // Simple case: one state = whole country territory
+    if (country.states.length === 1) {
+      stateResults.set(country.states[0].id, {
+        position: countryGeo.position,
+        boundaryPolygon: countryGeo.territoryPolygon,
+      });
+    } else {
+      // Multiple states: use existing Voronoi subdivision within the country rectangle
+      const stateSubdivisions = subdivideTerritory(
+        country.states, settlementPositions, countryGeo.territoryPolygon,
+        countryGeo.position, config.seed + `-states-${country.id}`,
+      );
+      Array.from(stateSubdivisions.entries()).forEach(([stateId, data]) => {
+        stateResults.set(stateId, data);
+      });
+    }
+  }
+
+  return {
+    mapWidth,
+    mapDepth,
+    mapCenter,
+    countries: countryResults,
+    settlements: settlementPositions,
+    states: stateResults,
+    roads: allRoads,
+  };
+}
+
 // ── Country Layout ──────────────────────────────────────────────────────────
 
 function layoutCountries(
@@ -262,11 +379,11 @@ function generateTerritories(
   const halfD = mapDepth / 2;
 
   if (centers.length === 1) {
-    // Single country: use the full map as territory with organic edges
+    // Single country: territory fills the entire world map
     const polygon = generateOrganicRect(
-      centers[0], halfW * 0.9, halfD * 0.9, noise, seed,
+      centers[0], halfW, halfD, noise, seed,
     );
-    const radius = Math.max(halfW, halfD) * 0.9;
+    const radius = Math.max(halfW, halfD);
     return [{ polygon, radius }];
   }
 

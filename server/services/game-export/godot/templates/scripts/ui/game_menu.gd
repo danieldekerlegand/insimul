@@ -12,6 +12,9 @@ var _active_tab := "main"
 var _guild_quest_data: Array[Dictionary] = []
 ## Narrative history entries for Story So Far — set via set_narrative_history()
 var _narrative_history: Array[Dictionary] = []
+## Clue chapter groups for chapter-organized clue rendering — set via set_chapter_clue_groups()
+## Each entry: { chapterId, chapterTitle, chapterNumber, clueIds }
+var _chapter_clue_groups: Array[Dictionary] = []
 
 func _ready() -> void:
 	if menu_panel:
@@ -40,6 +43,11 @@ func set_narrative_history(history: Array[Dictionary]) -> void:
 ## Each entry: { guildId, guildTier, status }
 func set_guild_quest_data(data: Array[Dictionary]) -> void:
 	_guild_quest_data = data
+
+## Set chapter clue groups for chapter-organized clue rendering in the journal.
+## Each entry: { chapterId, chapterTitle, chapterNumber, clueIds }
+func set_chapter_clue_groups(groups: Array[Dictionary]) -> void:
+	_chapter_clue_groups = groups
 
 func show_journal() -> void:
 	# Journal/Story So Far — placeholder for full journal UI

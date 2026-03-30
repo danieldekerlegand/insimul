@@ -50,16 +50,16 @@ export function selectStreetPattern(input: PatternSelectionInput): LayoutPattern
   return 'grid';
 }
 
-/** Grid dimensions by settlement type (matches street-network-generator.ts GRID_SIZE) */
+/** Maximum grid dimensions by settlement type (actual size is computed from population) */
 export const GRID_SIZE: Record<string, number> = {
   dwelling: 1,
   roadhouse: 1,
   homestead: 2,
-  landing: 2,
+  landing: 4,
   forge: 2,
   chapel: 2,
   market: 3,
-  hamlet: 3,
+  hamlet: 4,
   village: 4,
   town: 6,
   city: 8,

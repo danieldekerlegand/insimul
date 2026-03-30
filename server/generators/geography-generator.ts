@@ -965,18 +965,19 @@ export class GeographyGenerator {
     const streetById = new Map(streets.map(s => [s.id, s]));
 
     // Generate lot placements with world-space coordinates.
-    // Request Infinity so placeLots generates ALL available block slots,
-    // ensuring every building can get a unique placement.
+    // Only generate as many lot positions as there are buildings, plus a
+    // small buffer so every building is guaranteed a unique placement.
+    const lotTarget = buildings.length + 4; // +4 for park sub-lots
     let allPlacements: LotPlacement[] = [];
     if (streetNetwork) {
       const seed = `${config.worldId}_${config.settlementId}`;
       // Use grid-specific placement for grid pattern, edge-based for everything else
       const isGridPattern = !streetPattern || streetPattern === 'grid';
       if (isGridPattern) {
-        allPlacements = placeLots(streetNetwork, Infinity, seed, config.settlementType, isWater);
+        allPlacements = placeLots(streetNetwork, lotTarget, seed, config.settlementType, isWater);
       } else {
         allPlacements = placeLotsAlongStreets(
-          streetNetwork, Infinity, seed, config.settlementType, streetPattern, isWater,
+          streetNetwork, lotTarget, seed, config.settlementType, streetPattern, isWater,
         );
       }
     }
@@ -1486,9 +1487,16 @@ export class GeographyGenerator {
     const buildings: Location[] = [];
     let buildingIndex = 0;
 
+    // Cap building count to what the population actually needs:
+    // ~1 residence per 2.5 people + 1 business per 10 people.
+    const pop = config.population || 50;
+    const maxBuildings = Math.ceil(pop / 2.5) + Math.max(1, Math.ceil(pop / 10));
+
     for (const street of streets) {
+      if (buildings.length >= maxBuildings) break;
       const district = districts.find(d => d.id === street.parentId);
       for (let i = 0; i < buildingsPerStreet; i++) {
+        if (buildings.length >= maxBuildings) break;
         const offsetX = ((buildingIndex * 17 + 5) % 80) - 40;
         const offsetY = ((buildingIndex * 13 + 3) % 80) - 40;
         const isResidence = buildingIndex % 4 !== 0;

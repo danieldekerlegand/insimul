@@ -1493,11 +1493,27 @@ export class BabylonGame {
 
   private getClueMenuData(): MenuClueData | null {
     if (!this.clueStore) return null;
+
+    // Build chapter grouping from MAIN_QUEST_CHAPTERS
+    let cluesByChapter: MenuClueData['cluesByChapter'];
+    try {
+      const { MAIN_QUEST_CHAPTERS } = require('../../quest/main-quest-chapters');
+      if (MAIN_QUEST_CHAPTERS?.length > 0) {
+        cluesByChapter = MAIN_QUEST_CHAPTERS.map((ch: any) => ({
+          chapterId: ch.id,
+          chapterTitle: ch.title,
+          chapterNumber: ch.number,
+          clues: this.clueStore!.getCluesByChapter(ch.id),
+        })).filter((g: any) => g.clues.length > 0);
+      }
+    } catch { /* MAIN_QUEST_CHAPTERS not available */ }
+
     return {
       clues: this.clueStore.getClues(),
       clueCount: this.clueStore.getClueCount(),
       totalClueCount: this.clueStore.getTotalClueCount(),
       connections: this.clueStore.getConnections(),
+      cluesByChapter,
     };
   }
 
@@ -1656,6 +1672,9 @@ export class BabylonGame {
 
     this.scene = new Scene(this.engine);
     await this.setupScene(this.scene, this.canvas, this.worldTheme);
+
+    // Guard against dispose() being called during the async setupScene above
+    if (!this.scene) return;
 
     // Initialize day/night cycle (drives lighting + sky transitions from game time)
     this.dayNightCycle = new DayNightCycle({
@@ -1964,6 +1983,18 @@ export class BabylonGame {
       groundMaterial.diffuseColor = theme?.groundColor ?? new Color3(0.9, 0.6, 0.4);
       groundMaterial.specularColor = Color3.Black();
 
+      let settled = false;
+      const finalize = (mesh: Mesh) => {
+        if (settled) return;
+        settled = true;
+        mesh.material = groundMaterial;
+        mesh.checkCollisions = true;
+        mesh.isPickable = true;
+        mesh.receiveShadows = true;
+        mesh.metadata = { ...(mesh.metadata || {}), terrainSize: size };
+        resolve();
+      };
+
       const ground = MeshBuilder.CreateGroundFromHeightMap(
         "ground",
         GROUND_HEIGHTMAP_URL,
@@ -1973,18 +2004,19 @@ export class BabylonGame {
           minHeight: 0,
           maxHeight: 0, // Flat terrain — elevation disabled until placement/physics are fixed
           subdivisions: 64,
-          onReady: (mesh) => {
-            mesh.material = groundMaterial;
-            mesh.checkCollisions = true;
-            mesh.isPickable = true;
-            mesh.receiveShadows = true;
-            mesh.metadata = { ...(mesh.metadata || {}), terrainSize: size };
-            resolve();
-          }
+          onReady: (mesh) => finalize(mesh),
         },
         scene
       );
       ground.metadata = { ...(ground.metadata || {}), terrainSize: size };
+
+      // Fallback: if heightmap fails to load, resolve with a flat ground after timeout
+      setTimeout(() => {
+        if (!settled) {
+          console.warn('[BabylonGame] Heightmap load timed out — using flat ground');
+          finalize(ground);
+        }
+      }, 5000);
     });
   }
 
@@ -10547,6 +10579,41 @@ export class BabylonGame {
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+
+      // Smoothly face conversation partner
+      const dt = Math.min(this.scene.getEngine().getDeltaTime() / 1000, 0.1);
+      let faceTarget: Vector3 | null = null;
+
+      if (instance.isInConversation && this.conversationNPCId === characterId && this.playerMesh) {
+        // Player conversation — face the player
+        faceTarget = this.playerMesh.position;
+      } else if (characterId && this.ambientConversationManager?.isInConversation(characterId)) {
+        // Ambient NPC-NPC conversation — face the partner
+        const partner = this.ambientConversationManager.getConversationPartner(characterId);
+        if (partner) {
+          const partnerInstance = this.npcMeshes.get(partner.partnerId);
+          if (partnerInstance?.mesh) {
+            faceTarget = partnerInstance.mesh.position;
+          }
+        }
+      }
+
+      if (faceTarget && instance.mesh) {
+        const fdx = faceTarget.x - instance.mesh.position.x;
+        const fdz = faceTarget.z - instance.mesh.position.z;
+        const targetAngle = Math.atan2(fdx, fdz);
+        let angleDiff = targetAngle - instance.mesh.rotation.y;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        const turnSpeed = 5.0;
+        const step = turnSpeed * dt;
+        if (Math.abs(angleDiff) <= step) {
+          instance.mesh.rotation.y = targetAngle;
+        } else {
+          instance.mesh.rotation.y += Math.sign(angleDiff) * step;
+        }
+      }
+
       return;
     }
 
@@ -11021,6 +11088,7 @@ export class BabylonGame {
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+      this.playNPCAnimation(instance, 'idle');
       return;
     }
 
@@ -11054,8 +11122,36 @@ export class BabylonGame {
     // Only walk forward when roughly facing the target
     if (Math.abs(rotationDiff) < Math.PI / 3) {
       instance.controller.walk(true);
+      this.playNPCAnimation(instance, 'walk');
     } else {
       instance.controller.walk(false);
+      this.playNPCAnimation(instance, 'idle');
+    }
+  }
+
+  /**
+   * Play a named animation on an NPC instance by searching its animation groups.
+   * Stops all other animations and starts the matched one (looping).
+   */
+  private playNPCAnimation(instance: NPCInstance, animName: string): void {
+    if (!instance.animationGroups?.length) return;
+    const nameMap: Record<string, string[]> = {
+      walk: ['walk', 'Walk', 'walking'],
+      idle: ['idle', 'Idle', 'standing', 'breathe', 'Idle_Neutral'],
+      run: ['run', 'Run', 'running'],
+      talk: ['talk', 'Talk', 'talking', 'speak', 'gesture'],
+      listen: ['listen', 'Listen', 'listening', 'nod'],
+    };
+    const search = nameMap[animName] || [animName];
+    const group = instance.animationGroups.find((ag: any) =>
+      search.some((n: string) => ag.name?.toLowerCase().includes(n.toLowerCase()))
+    );
+    if (group && instance.currentAnimation !== group) {
+      for (const ag of instance.animationGroups) {
+        if (ag !== group) ag.stop();
+      }
+      group.start(true);
+      instance.currentAnimation = group;
     }
   }
 
@@ -11101,6 +11197,7 @@ export class BabylonGame {
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+      this.playNPCAnimation(instance, 'idle');
       instance.wanderWaitUntil = now + 4000 + Math.random() * 6000;
 
       if (this._wanderRaycastsThisTick < MAX_WANDER_RAYCASTS_PER_TICK) {

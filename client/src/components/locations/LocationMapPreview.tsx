@@ -34,7 +34,7 @@ interface LocationMapPreviewProps {
   worldId?: string;
   worldName?: string;
   /** World record with mapWidth/mapDepth for geographic coordinate rendering */
-  worldData?: { mapWidth?: number; mapDepth?: number; mapCenter?: { x: number; z: number } } | null;
+  worldData?: { mapWidth?: number; mapDepth?: number; mapCenter?: { x: number; z: number }; gridWidth?: number; gridHeight?: number } | null;
   onWorldClick?: () => void;
   onSettlementClick?: (settlement: any) => void;
   onCountryClick?: (country: any) => void;
@@ -376,12 +376,16 @@ export function LocationMapPreview({
     const fallbackCountryRadius = Math.max(countryCount * 8, 14);
     const fallbackSettlementSpread = fallbackCountryRadius * 0.55;
 
+    // For rectangular grids, the preview radius should frame the larger dimension
+    const wGridW = (worldData as any)?.gridWidth as number | undefined;
+    const wGridH = (worldData as any)?.gridHeight as number | undefined;
+    const worldAspect = (wGridW && wGridH) ? Math.max(wGridW, wGridH) / Math.min(wGridW, wGridH) : 1;
     refs.worldRadius = hasRealCoords
-      ? (PREVIEW_TARGET_SIZE / 2) * 1.2
+      ? (PREVIEW_TARGET_SIZE / 2) * 1.2 * worldAspect
       : fallbackCountryRadius + 12;
 
     // Large world ground — parchment/cartographic base
-    const groundSize = hasRealCoords ? PREVIEW_TARGET_SIZE * 1.3 : refs.worldRadius * 2.5;
+    const groundSize = hasRealCoords ? PREVIEW_TARGET_SIZE * 1.3 * worldAspect : refs.worldRadius * 2.5;
     const ground = BABYLON.MeshBuilder.CreateGround('ground', {
       width: groundSize,
       height: groundSize,
@@ -392,15 +396,38 @@ export function LocationMapPreview({
     ground.material = groundMat;
     tagMesh(ground, 'terrain');
 
-    // World boundary circle — subtle blue-grey, distinct from country borders
-    const worldBorderRadius = hasRealCoords
-      ? (PREVIEW_TARGET_SIZE / 2) * 1.1
-      : refs.worldRadius;
-    const worldBorder = drawBorderCircle(
-      scene, 'worldBorder', BABYLON.Vector3.Zero(), worldBorderRadius,
-      new BABYLON.Color3(0.45, 0.50, 0.55), 64, true,
-    );
-    tagMesh(worldBorder, 'districts');
+    // World boundary — rectangle when grid data present, circle otherwise
+    const wData = worldData as any;
+    const hasWorldGrid = !!(wData?.gridWidth && wData?.gridHeight);
+    if (hasWorldGrid && hasRealCoords) {
+      // Draw rectangular world border matching the grid
+      const WORLD_CELL = 1600;
+      const halfW = (wData.gridWidth * WORLD_CELL) / 2;
+      const halfD = (wData.gridHeight * WORLD_CELL) / 2;
+      const borderColor = new BABYLON.Color3(0.45, 0.50, 0.55);
+      const corners = [
+        toPreview(-halfW, -halfD),
+        toPreview(halfW, -halfD),
+        toPreview(halfW, halfD),
+        toPreview(-halfW, halfD),
+      ];
+      corners.forEach(c => { c.y = 0.03; });
+      corners.push(corners[0].clone());
+      const worldBorder = BABYLON.MeshBuilder.CreateLines('worldBorder', { points: corners }, scene);
+      worldBorder.color = borderColor;
+      worldBorder.isPickable = false;
+      tagMesh(worldBorder, 'districts');
+
+    } else {
+      const worldBorderRadius = hasRealCoords
+        ? (PREVIEW_TARGET_SIZE / 2) * 1.1
+        : refs.worldRadius;
+      const worldBorder = drawBorderCircle(
+        scene, 'worldBorder', BABYLON.Vector3.Zero(), worldBorderRadius,
+        new BABYLON.Color3(0.45, 0.50, 0.55), 64, true,
+      );
+      tagMesh(worldBorder, 'districts');
+    }
 
     // World name label (centered at top of map) — clickable to zoom back to world view
     {
@@ -423,6 +450,45 @@ export function LocationMapPreview({
         guiContainer.onPointerClickObservable.add(() => {
           if (onWorldClickRef.current) onWorldClickRef.current();
         });
+      }
+    }
+
+    // ── World grid overlay ──────────────────────────────────────────────────
+    // Draw grid lines when the world has grid dimensions
+    {
+      const wData = worldData as any;
+      const wGridW = wData?.gridWidth as number | undefined;
+      const wGridH = wData?.gridHeight as number | undefined;
+      if (hasRealCoords && wGridW && wGridH) {
+        const WORLD_CELL = 1600; // game units per world cell
+        const halfMapW = (wGridW * WORLD_CELL) / 2;
+        const halfMapD = (wGridH * WORLD_CELL) / 2;
+        const gridColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+
+        // Vertical lines
+        for (let col = 0; col <= wGridW; col++) {
+          const wx = -halfMapW + col * WORLD_CELL;
+          const p1 = toPreview(wx, -halfMapD);
+          const p2 = toPreview(wx, halfMapD);
+          p1.y = 0.02; p2.y = 0.02;
+          const line = BABYLON.MeshBuilder.CreateLines(`worldGridV_${col}`, { points: [p1, p2] }, scene);
+          line.color = gridColor;
+          line.alpha = 0.25;
+          line.isPickable = false;
+          tagMesh(line, 'districts');
+        }
+        // Horizontal lines
+        for (let row = 0; row <= wGridH; row++) {
+          const wz = -halfMapD + row * WORLD_CELL;
+          const p1 = toPreview(-halfMapW, wz);
+          const p2 = toPreview(halfMapW, wz);
+          p1.y = 0.02; p2.y = 0.02;
+          const line = BABYLON.MeshBuilder.CreateLines(`worldGridH_${row}`, { points: [p1, p2] }, scene);
+          line.color = gridColor;
+          line.alpha = 0.25;
+          line.isPickable = false;
+          tagMesh(line, 'districts');
+        }
       }
     }
 
@@ -462,6 +528,31 @@ export function LocationMapPreview({
         borderLine.color = countryBorderColor;
         borderLine.isPickable = false;
         tagMesh(borderLine, 'districts');
+
+        // Filled territory rectangle (for grid-based rectangular countries)
+        if (country.territoryPolygon.length === 4 && country.gridWidth != null) {
+          const rawPoly = toPreviewPoly(country.territoryPolygon);
+          // Build a simple ground plane matching the rectangle
+          const minX = Math.min(...rawPoly.map((p: BABYLON.Vector3) => p.x));
+          const maxX = Math.max(...rawPoly.map((p: BABYLON.Vector3) => p.x));
+          const minZ = Math.min(...rawPoly.map((p: BABYLON.Vector3) => p.z));
+          const maxZ = Math.max(...rawPoly.map((p: BABYLON.Vector3) => p.z));
+          const fillW = maxX - minX;
+          const fillH = maxZ - minZ;
+          const territoryFill = BABYLON.MeshBuilder.CreateGround(
+            `countryFill_${country.id}`,
+            { width: fillW, height: fillH },
+            scene,
+          );
+          territoryFill.position = new BABYLON.Vector3((minX + maxX) / 2, 0.015, (minZ + maxZ) / 2);
+          const fillMat = new BABYLON.StandardMaterial(`countryFillMat_${country.id}`, scene);
+          fillMat.diffuseColor = terrainCol.scale(0.85);
+          fillMat.specularColor = BABYLON.Color3.Black();
+          fillMat.alpha = 0.15;
+          territoryFill.material = fillMat;
+          territoryFill.isPickable = false;
+          tagMesh(territoryFill, 'districts');
+        }
       } else {
         const countryBorderRadius = hasRealCoords
           ? (country.territoryRadius ?? 800) * previewScale
@@ -784,6 +875,10 @@ export function LocationMapPreview({
 
     const settlementId = lots[0]?.settlementId;
     if (!settlementId) return;
+
+    // Filter lots to only the target settlement — the lots array may contain
+    // lots from multiple settlements (e.g. from a country-level fetch).
+    const settlementLots = lots.filter(l => l.settlementId === settlementId);
     if (refs.settlementLoaded.has(settlementId)) {
       // Already loaded — just make sure detail is visible and zoom to frame the whole settlement
       const detailNode = refs.settlementDetailNodes.get(settlementId);
@@ -840,7 +935,7 @@ export function LocationMapPreview({
         renderStreetNetworkAtNode(scene, gui, normalizedStreets, detailNode, clampedDetailSize);
       }
 
-      const { positions, streets: layoutStreets, scale: layoutScale } = computeSettlementLayout(lots, worldId, hasStoredStreets ? normalizedStreets : undefined, clampedDetailSize);
+      const { positions, streets: layoutStreets, scale: layoutScale } = computeSettlementLayout(settlementLots, worldId, hasStoredStreets ? normalizedStreets : undefined, clampedDetailSize);
 
       if (!hasStoredStreets) {
         renderStreetsAtNode(scene, gui, layoutStreets, detailNode);
@@ -881,7 +976,7 @@ export function LocationMapPreview({
       const resByLot = new Map<string, any>();
       residences.forEach(r => { if (r.lotId) resByLot.set(r.lotId, r); });
 
-      lots.forEach((lot, li) => {
+      settlementLots.forEach((lot, li) => {
         const pos = positions.get(lot.id);
         if (!pos) return;
         const lx = pos.x;
@@ -1684,15 +1779,42 @@ export function computeSettlementLayout(
       });
     }
 
-    // Place lots without positions nearby using a simple offset
-    lotsWithout.forEach((l, i) => {
-      const angle = (i / Math.max(lotsWithout.length, 1)) * Math.PI * 2;
-      positions.set(l.id, {
-        x: Math.cos(angle) * 14,
-        z: Math.sin(angle) * 14,
-        angle: 0,
-      });
-    });
+    // Place lots without positions in non-overlapping spots.
+    // Use a grid search to find empty cells that don't collide with positioned lots.
+    if (lotsWithout.length > 0) {
+      const lotW = (lotsWithout[0].lotWidth || 12) * scale;
+      const lotD = (lotsWithout[0].lotDepth || 16) * scale;
+      const cellSize = Math.max(lotW, lotD, 1);
+
+      // Collect occupied rectangles from already-positioned lots
+      const occupied: { x: number; z: number }[] = [];
+      positions.forEach(p => occupied.push({ x: p.x, z: p.z }));
+
+      // Spiral outward from center to find empty cells
+      let placed = 0;
+      const maxRing = Math.ceil(targetSize / cellSize) + 2;
+      for (let ring = 0; ring <= maxRing && placed < lotsWithout.length; ring++) {
+        for (let dx = -ring; dx <= ring && placed < lotsWithout.length; dx++) {
+          for (let dz = -ring; dz <= ring && placed < lotsWithout.length; dz++) {
+            if (Math.abs(dx) !== ring && Math.abs(dz) !== ring) continue; // only perimeter
+            const cx = dx * cellSize;
+            const cz = dz * cellSize;
+            // Check this cell doesn't overlap any occupied lot
+            let collides = false;
+            for (const o of occupied) {
+              if (Math.abs(cx - o.x) < cellSize * 0.9 && Math.abs(cz - o.z) < cellSize * 0.9) {
+                collides = true;
+                break;
+              }
+            }
+            if (collides) continue;
+            positions.set(lotsWithout[placed].id, { x: cx, z: cz, angle: 0 });
+            occupied.push({ x: cx, z: cz });
+            placed++;
+          }
+        }
+      }
+    }
 
     // Reconstruct street segments from lot street names for rendering
     // (only used when no stored streets are available)
@@ -1764,14 +1886,33 @@ export function computeSettlementLayout(
       });
     }
 
-    // Handle any lots that didn't get generated positions (e.g. filtered by spawn radius)
-    for (let i = result.lots.length; i < lots.length; i++) {
-      const angle = (i / lots.length) * Math.PI * 2;
-      positions.set(lots[i].id, {
-        x: Math.cos(angle) * (PREVIEW_SIZE / 2),
-        z: Math.sin(angle) * (PREVIEW_SIZE / 2),
-        angle: 0,
-      });
+    // Handle any lots that didn't get generated positions — find empty grid cells
+    if (result.lots.length < lots.length) {
+      const occupiedGen: { x: number; z: number }[] = [];
+      positions.forEach(p => occupiedGen.push({ x: p.x, z: p.z }));
+      const cellGen = PREVIEW_SIZE / Math.max(Math.ceil(Math.sqrt(lots.length)), 2);
+      let placedGen = 0;
+      const remaining = lots.length - result.lots.length;
+      const maxRingGen = Math.ceil(PREVIEW_SIZE / cellGen) + 2;
+      for (let ring = 0; ring <= maxRingGen && placedGen < remaining; ring++) {
+        for (let dx = -ring; dx <= ring && placedGen < remaining; dx++) {
+          for (let dz = -ring; dz <= ring && placedGen < remaining; dz++) {
+            if (Math.abs(dx) !== ring && Math.abs(dz) !== ring) continue;
+            const gx = dx * cellGen, gz = dz * cellGen;
+            let collides = false;
+            for (const o of occupiedGen) {
+              if (Math.abs(gx - o.x) < cellGen * 0.9 && Math.abs(gz - o.z) < cellGen * 0.9) {
+                collides = true;
+                break;
+              }
+            }
+            if (collides) continue;
+            positions.set(lots[result.lots.length + placedGen].id, { x: gx, z: gz, angle: 0 });
+            occupiedGen.push({ x: gx, z: gz });
+            placedGen++;
+          }
+        }
+      }
     }
 
     // Scale street segments to preview space
