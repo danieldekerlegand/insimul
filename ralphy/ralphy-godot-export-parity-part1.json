@@ -1,0 +1,160 @@
+{
+  "tasks": [
+    {
+      "title": "Asset bundling pipeline with full model catalog",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Update the Godot exporter to bundle ALL asset categories from client/public/assets/models/ into res://assets/models/. Include buildings (KayKit, Polyhaven, Sketchfab, Quaternius \u2014 230 models), furniture (186 Polyhaven models), props (926 models), structural (365 models), nature (18 models), containers, markers, vehicles (33 models), animals (12 models), interiors (17 pre-built GLB environments), and characters (100+ Quaternius variants). Godot natively imports GLTF/GLB. Generate comprehensive asset-manifest.json at res://data/ mapping each asset by category/role/id to its res:// path, matching shared/game-engine/quaternius-asset-manifest.ts and shared/game-engine/logic/NPCModelManifest.ts. Generate .import files for each asset."
+    },
+    {
+      "title": "Texture asset bundling with PBR materials",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Bundle all 792 textures (40 environment + 752 Polyhaven PBR sets) into res://assets/textures/. Generate .tres StandardMaterial3D resources for each PBR texture set (albedo, normal, roughness, metallic). Map texture IDs to the same roles used by TextureManager.ts in the in-app game (ground diffuse, ground normal, ground heightmap, wall textures, building materials). Register textures in asset manifest for runtime load() lookup."
+    },
+    {
+      "title": "Audio asset bundling with manifest",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Bundle all audio assets from client/public/assets/audio/ into res://assets/audio/. Import the audio manifest.json which maps audio by worldType (medieval-fantasy, sci-fi-space, cyberpunk, generic) and role (ambient, footstep, effects/interact, voices). Godot auto-imports WAV/OGG/MP3 as AudioStream resources. Create audio_manifest.gd autoload that loads the manifest JSON and provides lookup functions matching the categories used by AudioManager.ts and EnvironmentalAudioManager.ts."
+    },
+    {
+      "title": "WorldScaleManager GDScript implementation",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Implement world_scale_manager.gd matching shared/game-engine/rendering/WorldScaleManager.ts exactly. Must position countries, states, and settlements within world bounds using the same population-based settlement radius tiers. Terrain size scales from 512-2048 units based on settlement/country/state count. Use the same worldScaleFactor (0.6 compact to 1.7 expansive). Settlement collision avoidance with grid-based fallback. Output scaled territory data for all downstream generators. Godot uses Y-up like Babylon, so no coordinate conversion needed. Expose results as exported Dictionary for editor inspection."
+    },
+    {
+      "title": "TerrainRenderer with heightmap and biomes",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Implement terrain_generator.gd matching shared/game-engine/rendering/TerrainRenderer.ts. Create terrain using Godot's MeshInstance3D with ArrayMesh generated from IR heightmap (row-major [0,1] normalized) and slopeMap. Apply ground ShaderMaterial with biome zone splatmap blending (grass, dirt, stone, sand) based on GeographyIR elevation + moisture data. Use bundled textures for each biome layer. Implement LOD via multiple mesh detail levels with VisibilityNotifier3D or manual distance-based mesh swapping. Support ChunkManager spatial partitioning."
+    },
+    {
+      "title": "TerrainFoundationRenderer for building sites",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Implement terrain_foundation_renderer.gd matching shared/game-engine/rendering/TerrainFoundationRenderer.ts. Modify terrain mesh vertices to flatten areas under buildings before terrain ArrayMesh is committed. Support multiple foundation types (stone, wood, concrete) with appropriate StandardMaterial3D overlays on foundation MeshInstance3D objects. Foundations must be generated before buildings are placed so buildings sit level on terrain."
+    },
+    {
+      "title": "SettlementSceneManager with zone management",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Implement settlement_scene_manager.gd matching shared/game-engine/rendering/SettlementSceneManager.ts. Manage up to MAX_SETTLEMENTS_3D (16) visible settlements as Node3D children. Control settlement visibility based on player distance using _process distance checks. Track settlement zones and boundaries from GeographyIR settlements data. Implement the same settlement radius calculation based on population tiers used in the IR generator. Toggle visibility of settlement Node3D groups based on camera distance."
+    },
+    {
+      "title": "ChunkManager spatial partitioning and culling",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Implement chunk_manager.gd matching shared/game-engine/rendering/ChunkManager.ts. Divide the world into spatial chunks as Node3D containers. Load/unload chunks by toggling node visibility and processing based on player position. Manage which settlements, buildings, NPCs, and nature objects are active per chunk. Use VisibleOnScreenNotifier3D where appropriate. This is critical for performance \u2014 without chunk management, large worlds will be unplayable in Godot."
+    },
+    {
+      "title": "RoadGenerator with street network layout",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Implement road_generator.gd matching shared/game-engine/rendering/RoadGenerator.ts and shared/game-engine/logic/StreetNetworkLayout.ts. Generate road meshes from IR road waypoints with configurable ROAD_WIDTH (3 units). Create road geometry using SurfaceTool or ArrayMesh with UV-mapped road textures from bundled assets. Support the street pattern types defined in shared/street-pattern-selection.ts (grid, radial, organic, etc.). Roads must connect buildings and define the settlement street network that building placement uses for street-aligned placement."
+    },
+    {
+      "title": "TownSquareGenerator for settlement centers",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Implement town_square_generator.gd matching shared/game-engine/rendering/TownSquareGenerator.ts. Generate central gathering areas for settlements with appropriate ground materials (MeshInstance3D with stone/cobble StandardMaterial3D), decorative elements (fountains, benches, market stalls as loaded GLB scenes), and connection points to the street network. Town squares serve as landmarks and NPC gathering points."
+    },
+    {
+      "title": "ProceduralBuildingGenerator with asset-backed models",
+      "completed": true,
+      "parallel_group": 4,
+      "description": "Implement procedural_building_generator.gd matching shared/game-engine/rendering/ProceduralBuildingGenerator.ts. For each BuildingIR, check UnifiedBuildingTypeConfig.mode: if 'asset', load the corresponding GLTF scene from res://assets/models/buildings/ by assetId using load()/preload(); if 'procedural', generate building geometry using CSG nodes or ArrayMesh with style presets from building-preset-definitions.ts (material types: wood/stone/brick/metal/glass/concrete, architecture styles: Castle/Gothic/Victorian/Modern/Brutalist, roof styles: Gabled/Flat/Hip/Mansard). Apply color palettes per material type. Support LOT_SPACING (20 units)."
+    },
+    {
+      "title": "BuildingPlacementSystem with street alignment",
+      "completed": true,
+      "parallel_group": 4,
+      "description": "Implement building_placement_system.gd matching shared/game-engine/rendering/BuildingPlacementSystem.ts and StreetAlignedPlacement.ts. Place buildings along streets with proper facing direction (look_at road center). Handle building collision avoidance using PhysicsServer3D shape queries or AABB checks. Support BuildingScaleByZone.ts scaling logic (buildings scale based on zone: downtown larger, residential smaller). Integrate with terrain_foundation_renderer to flatten terrain under each building."
+    },
+    {
+      "title": "BuildingSignManager for business signage",
+      "completed": true,
+      "parallel_group": 4,
+      "description": "Implement building_sign_manager.gd matching shared/game-engine/rendering/BuildingSignManager.ts. Generate and place sign MeshInstance3D nodes on building facades showing business names from BusinessIR data. Signs must face the street. Use Label3D nodes for dynamic business name display with appropriate fonts. Signs should have backing geometry (MeshInstance3D with sign board mesh and StandardMaterial3D)."
+    },
+    {
+      "title": "BuildingCollisionSystem and entry detection",
+      "completed": true,
+      "parallel_group": 4,
+      "description": "Implement building_collision_system.gd matching shared/game-engine/rendering/BuildingCollisionSystem.ts and BuildingEntrySystem.ts. Add StaticBody3D with CollisionShape3D to all buildings. Place Area3D trigger zones at doorways to detect player (CharacterBody3D) entry via body_entered signal. Show door interaction prompt via interaction_prompt_system. Handle the transition between exterior and interior scenes when the player enters a building by toggling node visibility."
+    },
+    {
+      "title": "InteriorSceneManager with scene transitions",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Implement interior_scene_manager.gd matching shared/game-engine/rendering/InteriorSceneManager.ts. Manage loading/unloading interior scenes when the player enters/exits buildings. For buildings with InteriorTemplateConfig.mode='model', instantiate the pre-built interior GLTF from res://assets/models/interiors/ (church: silent_hill_3_cathedral.glb, residence: mansion_furnished.glb/modern_apartment_interior.glb/small_apartment_morning_version.glb, restaurant: 7 variants, shop: convenience_store_2.glb/one_stop.glb, tavern: british_pub.glb/food_bar.glb/old_bar.glb/silent_hill_old_bar_2.glb). For mode='procedural', invoke building_interior_generator. Hide exterior nodes while inside."
+    },
+    {
+      "title": "BuildingInteriorGenerator procedural interiors",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Implement building_interior_generator.gd matching shared/game-engine/rendering/BuildingInteriorGenerator.ts. Generate interior rooms using interior-templates.ts room types (Living Room, Kitchen, Bedroom, Tavern/Bar, Church/Sanctuary, Classroom, Office, Medical). Create room geometry with CSGBox3D or ArrayMesh for walls/floor/ceiling. Apply room dimensions, floor count, zone layouts. Use StandardMaterial3D with color palettes (wood, stone, brick, marble). Place furniture scenes per room function. Every building type must have a visitable interior."
+    },
+    {
+      "title": "InteriorLightingSystem with atmospheric effects",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Implement interior_lighting_system.gd matching shared/game-engine/rendering/InteriorLightingSystem.ts and InteriorAtmosphericEffects.ts. Support lighting presets from InteriorTemplateConfig: bright, dim, warm, cool, candlelit. Add OmniLight3D and SpotLight3D nodes positioned per room layout. Use emissive StandardMaterial3D for windows. Implement atmospheric effects with GPUParticles3D (dust particles, smoke) and SpotLight3D with light projector textures for light shafts through windows. Taverns: warm candlelit; churches: light shafts; shops: bright even."
+    },
+    {
+      "title": "InteriorDecorationGenerator and furniture loading",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Implement interior_decoration_generator.gd matching shared/game-engine/rendering/InteriorDecorationGenerator.ts and FurnitureModelLoader.ts. Load furniture GLTF scenes from the 186 bundled Polyhaven furniture assets via load(). Place furniture according to room templates (beds/tables/chairs/stools/shelves/cabinets/wardrobes/counters/forges/barrels/altars/pews/anvils/desks/safes/display cases). Support role-specific furniture sets (blacksmith: forge+anvil, merchant: counter+display, tavern: bar+stools+tables). Add Area3D interaction zones on usable furniture matching FurnitureInteractionManager.ts."
+    },
+    {
+      "title": "WaterRenderer with rivers and water bodies",
+      "completed": true,
+      "parallel_group": 6,
+      "description": "Implement water_renderer.gd matching shared/game-engine/rendering/WaterRenderer.ts and RiverGenerator.ts. Render water features from GeographyIR waterFeatures (lakes, ponds, rivers, ocean). Create MeshInstance3D water planes with custom ShaderMaterial (transparency, color tint, vertex wave displacement, Fresnel reflections, edge foam using depth texture). Generate river meshes following terrain contours using SurfaceTool. Water level must match the in-app game's water placement logic. Add Area3D for swim detection."
+    },
+    {
+      "title": "ProceduralNatureGenerator with biome-aware vegetation",
+      "completed": true,
+      "parallel_group": 6,
+      "description": "Implement procedural_nature_generator.gd matching shared/game-engine/rendering/ProceduralNatureGenerator.ts and logic/TerrainVegetationPlacer.ts. Place nature objects (trees, rocks, bushes, flowers) from bundled nature GLTF models based on biome zones and foliage layers from GeographyIR. Respect NatureLODConfig.ts for LOD distances. Use MultiMeshInstance3D for GPU instanced rendering of vegetation \u2014 critical for performance in Godot. Place vegetation using the same seeded PRNG as the IR generator for deterministic matching."
+    },
+    {
+      "title": "OutdoorFurnitureGenerator for settlement decoration",
+      "completed": true,
+      "parallel_group": 6,
+      "description": "Implement outdoor_furniture_generator.gd matching shared/game-engine/rendering/OutdoorFurnitureGenerator.ts. Place outdoor furniture and decorations in settlements: market stalls, benches, lamp posts, barrels, crates, planters, fences. Instantiate GLTF scenes from the 926 bundled prop models. Place items along streets and in public areas to make settlements feel lived-in. Use MultiMeshInstance3D for repeated props (lamp posts, barrels) for performance."
+    },
+    {
+      "title": "DayNightCycle with dynamic lighting",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "Implement day_night_cycle.gd matching shared/game-engine/rendering/DayNightCycle.ts and logic/GameTimeManager.ts. Rotate DirectionalLight3D (sun) through a full day cycle. Adjust WorldEnvironment (sky, ambient_light_color, fog) from ThemeIR using ProceduralSkyMaterial. Enable/disable OmniLight3D nodes (street lamps, building windows) based on time of day. Use lerp() for smooth color/intensity transitions. Sync with game time system so NPCs follow their schedules relative to the day/night cycle."
+    },
+    {
+      "title": "WeatherSystem with visual effects",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "Implement weather_system.gd matching shared/game-engine/rendering/WeatherSystem.ts. Support weather states: clear, cloudy, rain, snow, fog, storm. Use GPUParticles3D attached to camera for rain/snow (ParticleProcessMaterial with gravity and emission volume). Adjust WorldEnvironment fog_density, sky energy, and ambient light per weather state. Smooth transitions between states using Tween. Integrate with audio system for weather sounds. Use post-processing (Environment glow) for lightning flashes in storms."
+    },
+    {
+      "title": "Minimap and FullscreenMap UI",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "Implement minimap and fullscreen map as Control nodes matching shared/game-engine/rendering/BabylonMinimap.ts, MinimapTerrainRenderer.ts, and FullscreenMap.ts. Minimap: corner HUD TextureRect rendered by overhead SubViewport with orthographic Camera3D showing player icon, nearby NPC dots, buildings, quest markers, and settlement boundaries. Fullscreen map: CanvasLayer overlay showing the entire world with countries, states, settlements, roads using draw_* calls on a custom Control. Support zoom (mouse wheel), pan (drag), and quest waypoint markers from logic/QuestMinimapMarkers.ts."
+    },
+    {
+      "title": "ContainerSpawnSystem and quest object placement",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "Implement container_spawn_system.gd matching shared/game-engine/rendering/ContainerSpawnSystem.ts, ProceduralQuestObjects.ts, and QuestObjectManager.ts. Spawn container Node3D scenes (chests, barrels, crates) from IR containers data with loot tables. Spawn quest objects at IR-specified positions with Area3D triggers for interaction. Load bundled container and marker GLTF models. Containers must be interactable (body_entered signal) and display their contents via a container UI panel on CanvasLayer."
+    },
+    {
+      "title": "ExteriorItemManager and BookSpawnManager",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "Implement exterior_item_manager.gd matching shared/game-engine/rendering/ExteriorItemManager.ts and BookSpawnManager.ts. Spawn collectible items, readable books/documents, and interactive objects as Area3D nodes in the exterior world. Books use the TextIR data from SystemsIR for their content. Items must be pickupable (Area3D + interaction prompt) and add to the player's inventory. Use the same seeded spawn positions as the IR generator for deterministic placement."
+    }
+  ]
+}
