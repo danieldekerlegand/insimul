@@ -29,8 +29,8 @@ console.log('Loading env from:', envPath);
 dotenv.config({ path: envPath });
 
 import { storage } from '../db/storage.js';
-import { getDownloadUrl } from '../services/sketchfab-api.js';
-import { preprocessSketchfabAsset } from '../services/asset-downloader.js';
+import { getDownloadUrl } from '../services/assets/sketchfab-api.js';
+import { preprocessSketchfabAsset } from '../services/assets/asset-downloader.js';
 
 // ─── Curated Sketchfab building models ──────────────────────────────────────
 

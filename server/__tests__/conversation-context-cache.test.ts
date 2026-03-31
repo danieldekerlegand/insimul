@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   ConversationContextCache,
   type CachedMessage,
-} from '../services/conversation-context-cache';
+} from '../services/conversation/conversation-context-cache';
 
 describe('ConversationContextCache', () => {
   let cache: ConversationContextCache;

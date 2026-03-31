@@ -53,12 +53,12 @@ server/
 ### **2. character-interaction.ts**
 
 **Before**: `server/character-interaction.ts` (root)  
-**After**: `server/services/character-interaction.ts`
+**After**: `server/services/conversation/character-interaction.ts`
 
 **Reason**: Provides AI-powered character interaction service using Gemini. It's a service that wraps external APIs, not a core simulation component.
 
 **Imports Updated**:
-- `routes.ts` - All 5 imports updated to `./services/character-interaction.js`
+- `routes.ts` - All 5 imports updated to `./services/conversation/character-interaction.js`
 
 **Functions**:
 - `getCharacterResponse()` - Generate character dialogue
@@ -226,7 +226,7 @@ import { nameGenerator } from '../generators/name-generator.js';
 import { getCharacterResponse } from '../character-interaction.js';
 
 // New
-import { getCharacterResponse } from '../services/character-interaction.js';
+import { getCharacterResponse } from '../services/conversation/character-interaction.js';
 ```
 
 ### **tracery-service.ts**

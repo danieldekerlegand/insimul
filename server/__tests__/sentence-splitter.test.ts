@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractSentences } from '../services/sentence-splitter';
+import { extractSentences } from '../services/conversation/sentence-splitter';
 
 describe('extractSentences', () => {
   it('splits simple sentences on period + space', () => {

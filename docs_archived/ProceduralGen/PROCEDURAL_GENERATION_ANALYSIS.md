@@ -358,7 +358,7 @@ const grammar = await grammarGenerator.generateGrammar({
 **Fallback:** Uses Tracery if batch generation fails
 
 ### 7. **Character Response Generation**
-**File:** `services/character-interaction.ts`
+**File:** `services/conversation/character-interaction.ts`
 **Purpose:** Generate contextual character dialogue
 
 **Prompt:**
@@ -551,7 +551,7 @@ GET /api/generate/progress/:taskId
 
 ### **AI/LLM Integration**
 - `server/services/gemini-ai.ts` - Gemini wrapper for rules/actions
-- `server/services/character-interaction.ts` - Character dialogue
+- `server/services/conversation/character-interaction.ts` - Character dialogue
 - `server/config/gemini.ts` - API configuration
 
 ### **Routes**

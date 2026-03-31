@@ -13,7 +13,7 @@ import {
   type DirectionQuestConfig,
   type LocationInfo as DirectionLocationInfo,
   type Position,
-} from '@shared/navigation/direction-quest-generator';
+} from '../../../quests/quest-generator.js';
 
 export type FluencyTier = 'beginner' | 'intermediate' | 'advanced';
 

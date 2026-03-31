@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateReadingQuests, getReadingQuestClue } from '../services/reading-quest-generator';
+import { generateReadingQuests, getReadingQuestClue } from '../../shared/quests/reading-quest-generator.js';
 import type { Character, Text, World, InsertQuest } from '../../shared/schema';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────

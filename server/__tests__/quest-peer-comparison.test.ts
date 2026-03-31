@@ -4,7 +4,7 @@ import {
   computePlayerComparison,
   percentileOf,
   type ComparisonQuest,
-} from '../services/quest-peer-comparison';
+} from '../../shared/quests/quest-peer-comparison.js';
 
 function makeQuest(overrides: Partial<ComparisonQuest> = {}): ComparisonQuest {
   return {

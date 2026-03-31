@@ -131,8 +131,8 @@ async function buildExistingAssetMap(): Promise<Map<string, { id: string; filePa
 async function downloadPolyhaven(polyhavenId: string, assetType: string, tags: string[]): Promise<{ id: string; filePath: string } | null> {
   try {
     // Dynamically import the polyhaven API and downloader
-    const { getPolyhavenModelUrl } = await import('../services/polyhaven-api.js');
-    const { preprocessPolyhavenAsset } = await import('../services/asset-downloader.js');
+    const { getPolyhavenModelUrl } = await import('../services/assets/polyhaven-api.js');
+    const { preprocessPolyhavenAsset } = await import('../services/assets/asset-downloader.js');
 
     console.log(`    Fetching model URL for ${polyhavenId}...`);
     const modelInfo = await getPolyhavenModelUrl(polyhavenId, '1k');

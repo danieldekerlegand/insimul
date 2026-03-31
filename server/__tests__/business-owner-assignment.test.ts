@@ -45,9 +45,9 @@ vi.mock('../extensions/tott/town-events-system.js', () => ({
   adjustCommunityMorale: vi.fn(),
   scheduleFestival: vi.fn(),
 }));
-vi.mock('../services/visual-asset-generator.js', () => ({ visualAssetGenerator: {} }));
+vi.mock('../services/assets/visual-asset-generator.js', () => ({ visualAssetGenerator: {} }));
 vi.mock('./item-placement-generator.js', () => ({ placeItemsInWorld: vi.fn() }));
-vi.mock('../services/main-quest-npc-spawner.js', () => ({ spawnMainQuestNPCs: vi.fn() }));
+vi.mock('../../../shared/quests/main-quest-npc-spawner.js', () => ({ spawnMainQuestNPCs: vi.fn() }));
 vi.mock('./occupation-assignment.js', () => ({ assignDefaultOccupations: vi.fn() }));
 
 const { WorldGenerator } = await import('../generators/world-generator');

@@ -5,7 +5,7 @@ import {
   NpcExamEngine,
   LISTENING_EXAM_CONTEXTS,
   getCefrAdaptation,
-} from '../services/npc-exam-engine';
+} from '../services/conversation/npc-exam-engine';
 
 describe('createObjectRecognitionExam', () => {
   it('creates an exam with correct metadata', () => {

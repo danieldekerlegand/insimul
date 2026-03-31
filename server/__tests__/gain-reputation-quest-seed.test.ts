@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateSeedQuests } from '../services/quest-seed-generator';
+import { generateSeedQuests } from '../../shared/quests/quest-seed-generator.js';
 
 describe('gain_reputation quest seed', () => {
   const world = {

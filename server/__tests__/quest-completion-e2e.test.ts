@@ -25,7 +25,7 @@ import {
   failQuest,
   retryQuest,
   type QuestStorage,
-} from '../services/quest-lifecycle';
+} from '../../shared/quests/quest-lifecycle.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

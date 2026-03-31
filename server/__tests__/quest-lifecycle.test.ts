@@ -6,7 +6,7 @@ import {
   checkQuestExpiration,
   QuestLifecycleError,
   type QuestStorage,
-} from '../services/quest-lifecycle';
+} from '../../shared/quests/quest-lifecycle.js';
 
 function makeQuest(overrides: Record<string, any> = {}) {
   return {

@@ -26,7 +26,7 @@ export interface AgriculturalZone {
 
 export interface AgriculturalZoneConfig {
   settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
-  terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
+  terrain?: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
   mapSize: number; // from settlement map size
   centerX: number;
@@ -110,7 +110,7 @@ export class AgriculturalZoneGenerator {
    */
   generate(config: AgriculturalZoneConfig): AgriculturalZone[] {
     const rand = seededRandom(config.seed ?? Date.now());
-    const suitability = TERRAIN_SUITABILITY[config.terrain] || TERRAIN_SUITABILITY.plains;
+    const suitability = TERRAIN_SUITABILITY[config.terrain || 'plains'] || TERRAIN_SUITABILITY.plains;
     const zones: AgriculturalZone[] = [];
 
     const counts = this.getZoneCounts(config.settlementType, suitability);
@@ -203,17 +203,17 @@ export class AgriculturalZoneGenerator {
     // Assign type-specific properties
     switch (type) {
       case 'farmland': {
-        const crops = CROPS_BY_TERRAIN[config.terrain] || CROPS_BY_TERRAIN.plains;
+        const crops = CROPS_BY_TERRAIN[config.terrain || 'plains'] || CROPS_BY_TERRAIN.plains;
         zone.properties.crop = crops[Math.floor(rand() * crops.length)];
         break;
       }
       case 'orchard': {
-        const orchards = ORCHARD_TYPES_BY_TERRAIN[config.terrain] || ORCHARD_TYPES_BY_TERRAIN.plains;
+        const orchards = ORCHARD_TYPES_BY_TERRAIN[config.terrain || 'plains'] || ORCHARD_TYPES_BY_TERRAIN.plains;
         zone.properties.crop = orchards[Math.floor(rand() * orchards.length)];
         break;
       }
       case 'pasture': {
-        const livestock = LIVESTOCK_BY_TERRAIN[config.terrain] || LIVESTOCK_BY_TERRAIN.plains;
+        const livestock = LIVESTOCK_BY_TERRAIN[config.terrain || 'plains'] || LIVESTOCK_BY_TERRAIN.plains;
         zone.properties.livestock = livestock[Math.floor(rand() * livestock.length)];
         break;
       }

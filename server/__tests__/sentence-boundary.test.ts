@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findSentenceBoundary, SentenceBuffer } from '../services/sentence-boundary';
+import { findSentenceBoundary, SentenceBuffer } from '../services/conversation/sentence-boundary';
 
 describe('findSentenceBoundary', () => {
   it('returns 0 when no sentence boundary exists', () => {

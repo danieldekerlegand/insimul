@@ -641,4 +641,103 @@ export function registerConversationRoutes(app: Express): void {
       services: { llm: llmAvailable },
     });
   });
+
+  // ── Offline export endpoint ─────────────────────────────────────────
+  // Exports world data in the format expected by the Insimul Unreal plugin's
+  // FInsimulWorldExportLoader. Contains characters + pre-built dialogue contexts.
+
+  app.get('/api/conversation/export/:worldId', async (req: Request, res: Response) => {
+    const { worldId } = req.params;
+
+    try {
+      const stor = await import('../../db/storage.js').then(m => m.storage);
+
+      const [world, characters, languages] = await Promise.all([
+        stor.getWorld(worldId),
+        stor.getCharactersByWorld(worldId),
+        stor.getWorldLanguagesByWorld(worldId),
+      ]);
+
+      if (!world) {
+        return res.status(404).json({ error: `World ${worldId} not found` });
+      }
+
+      // Build dialogue contexts for each character
+      const dialogueContexts: Array<{
+        characterId: string;
+        characterName: string;
+        systemPrompt: string;
+        greeting: string;
+        voice: string;
+        truths: Array<{ title: string; content: string }>;
+      }> = [];
+
+      for (const char of characters) {
+        try {
+          const fullCtx = await buildContext(char.id, 'player', worldId, `export-${char.id}`);
+
+          // Determine voice from gender
+          const gender = (char.gender || '').toLowerCase();
+          const voice = gender === 'female' ? 'Kore' : 'Charon';
+
+          // Get truths for this character
+          let truths: Array<{ title: string; content: string }> = [];
+          try {
+            const charTruths = await stor.getTruthsByCharacter(char.id);
+            truths = charTruths.map((t: any) => ({
+              title: t.title || '',
+              content: t.content || '',
+            }));
+          } catch {
+            // Truths not available
+          }
+
+          dialogueContexts.push({
+            characterId: char.id,
+            characterName: `${char.firstName} ${char.lastName}`.trim(),
+            systemPrompt: fullCtx.conversationContext.systemPrompt,
+            greeting: `Hello, I'm ${char.firstName}.`,
+            voice,
+            truths,
+          });
+        } catch (err: any) {
+          console.warn(`[Export] Failed to build context for ${char.id}:`, err.message);
+        }
+      }
+
+      // Build character data
+      const exportedCharacters = characters.map((char) => {
+        const personality = (char.personality || {}) as Record<string, number>;
+        return {
+          characterId: char.id,
+          firstName: char.firstName,
+          lastName: char.lastName,
+          gender: char.gender || '',
+          occupation: char.occupation || '',
+          birthYear: char.birthYear || 0,
+          isAlive: char.isAlive !== false,
+          openness: personality.openness ?? 0,
+          conscientiousness: personality.conscientiousness ?? 0,
+          extroversion: personality.extroversion ?? 0,
+          agreeableness: personality.agreeableness ?? 0,
+          neuroticism: personality.neuroticism ?? 0,
+        };
+      });
+
+      const exportData = {
+        worldName: world.name,
+        worldId: world.id,
+        exportedAt: new Date().toISOString(),
+        characters: exportedCharacters,
+        dialogueContexts,
+      };
+
+      res.json(exportData);
+
+      console.log(`[Export] Exported world '${world.name}': ${exportedCharacters.length} characters, ${dialogueContexts.length} contexts`);
+    } catch (err: any) {
+      console.error('[Export] Failed:', err);
+      res.status(500).json({ error: err.message || 'Export failed' });
+    }
+  });
 }

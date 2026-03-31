@@ -6,7 +6,7 @@ import {
   getBusinessItems,
   type BusinessInfo,
   type ShoppingQuestOptions,
-} from '../services/shopping-quest-generator';
+} from '../../shared/quests/shopping-quest-generator.js';
 import type { Character, World } from '../../shared/schema';
 
 // ── Test fixtures ────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import {
   mergeWithCommon,
   getTemplateForWorldType,
   type TemplateAssetEntry,
-} from '../../server/services/asset-collection-templates';
+} from '../../server/services/assets/asset-collection-templates';
 import {
   BASE_ITEM_CATALOG,
   OBJECT_ROLE_TO_ASSET,

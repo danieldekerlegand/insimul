@@ -5,8 +5,11 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { narrativeArcManager } from '../services/narrative-arc-manager.js';
-import { listNarrativeArcTemplates } from '../services/narrative-arc-templates.js';
+import { NarrativeArcManager } from '../../shared/quests/narrative-arc-manager.js';
+import { listNarrativeArcTemplates } from '../../shared/quests/narrative-arc-templates.js';
+import { mongoQuestStorage } from '../db/mongo-quest-storage.js';
+
+const narrativeArcManager = new NarrativeArcManager(mongoQuestStorage);
 
 export function createNarrativeArcRoutes(): Router {
   const router = Router();

@@ -479,6 +479,8 @@ export interface InteriorTemplateConfig {
   floorTextureId?: string;
   ceilingTextureId?: string;
   furnitureSet?: string;
+  /** Map furniture type → asset file path. Overrides default models per type. */
+  furnitureAssets?: Record<string, string>;
   lightingPreset?: 'bright' | 'dim' | 'warm' | 'cool' | 'candlelit';
 }
 
@@ -698,6 +700,8 @@ export interface InteriorTemplateConfig {
   ceilingColor?: Color3;
   /** Furniture types to place, keyed by room function */
   furnitureSet?: Record<string, string[]>;
+  /** Map furniture type → asset file path. Overrides default models per type. */
+  furnitureAssets?: Record<string, string>;
   /** Lighting preset override */
   lighting?: InteriorLightingPreset;
   /** Override room dimensions */

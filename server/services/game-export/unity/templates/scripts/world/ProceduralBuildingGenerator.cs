@@ -58,6 +58,10 @@ namespace Insimul.World
             public Color shutterColor;
             public string wallTextureId;
             public string roofTextureId;
+            public string balconyTextureId;
+            public string ironworkTextureId;
+            public string porchTextureId;
+            public string shutterTextureId;
         }
 
         public struct BuildingTypeDefaults
@@ -257,15 +261,20 @@ namespace Insimul.World
             return STYLE_PRESETS["medieval_wood"];
         }
 
-        /// <summary>Convert a ProceduralStylePreset (from IR data) to a BuildingStylePreset.</summary>
-        public static BuildingStylePreset PresetToBuildingStyle(ProceduralStylePreset preset)
+        /// <summary>Convert a ProceduralStylePreset (from IR data) to a BuildingStylePreset.
+        /// When a seed is provided, it deterministically selects a baseColor from the palette.</summary>
+        public static BuildingStylePreset PresetToBuildingStyle(ProceduralStylePreset preset, int seed = 0)
         {
+            Color baseCol = Color.gray;
+            if (preset.baseColors != null && preset.baseColors.Length > 0)
+            {
+                int idx = seed != 0 ? Mathf.Abs(seed) % preset.baseColors.Length : 0;
+                baseCol = preset.baseColors[idx].ToColor();
+            }
             return new BuildingStylePreset
             {
                 name = preset.name,
-                baseColor = preset.baseColors != null && preset.baseColors.Length > 0
-                    ? preset.baseColors[0].ToColor()
-                    : Color.gray,
+                baseColor = baseCol,
                 roofColor = preset.roofColor.ToColor(),
                 windowColor = preset.windowColor.ToColor(),
                 doorColor = preset.doorColor.ToColor(),
@@ -277,7 +286,13 @@ namespace Insimul.World
                 porchDepth = preset.porchDepth > 0 ? preset.porchDepth : 3f,
                 porchSteps = preset.porchSteps > 0 ? preset.porchSteps : 3,
                 hasShutters = preset.hasShutters,
-                shutterColor = preset.shutterColor.ToColor()
+                shutterColor = preset.shutterColor.ToColor(),
+                wallTextureId = preset.wallTextureId,
+                roofTextureId = preset.roofTextureId,
+                balconyTextureId = preset.balconyTextureId,
+                ironworkTextureId = preset.ironworkTextureId,
+                porchTextureId = preset.porchTextureId,
+                shutterTextureId = preset.shutterTextureId
             };
         }
 
@@ -383,13 +398,43 @@ namespace Insimul.World
 
         #endregion
 
+        /// <summary>Per-role scale hints from asset metadata (overrides automatic unit detection).</summary>
+        private Dictionary<string, float> _roleScaleHints = new Dictionary<string, float>();
+
+        /// <summary>Optional TextureManager for on-demand texture resolution by asset ID.</summary>
+        private ITextureManager _textureManager;
+
+        /// <summary>Zone-based scale multipliers for building dimensions.
+        /// Commercial buildings are taller and wider; residential are standard scale.</summary>
+        public static readonly Dictionary<string, Vector3> ZONE_SCALE =
+            new Dictionary<string, Vector3>
+        {
+            { "commercial",  new Vector3(1.15f, 1.3f, 1.1f) },  // width, floors, depth
+            { "residential", new Vector3(1.0f, 1.0f, 1.0f) }
+        };
+
+        /// <summary>Get zone scale multipliers for the given zone type.</summary>
+        public static Vector3 GetZoneScale(string zoneType)
+        {
+            if (!string.IsNullOrEmpty(zoneType) && ZONE_SCALE.TryGetValue(zoneType, out var scale))
+                return scale;
+            return Vector3.one;
+        }
+
         /// <summary>Register a prefab model for a building role. Matching roles use this
         /// prefab instead of procedural geometry.</summary>
-        public void RegisterRoleModel(string role, GameObject prefab)
+        public void RegisterRoleModel(string role, GameObject prefab, float scaleHint = 0f)
         {
             if (string.IsNullOrEmpty(role) || prefab == null) return;
             _roleModelPrototypes[role] = prefab;
-            Debug.Log($"[Insimul] Registered role model: {role}");
+            if (scaleHint > 0f) _roleScaleHints[role] = scaleHint;
+            Debug.Log($"[Insimul] Registered role model: {role} (scaleHint={scaleHint})");
+        }
+
+        /// <summary>Set an optional TextureManager for on-demand texture resolution.</summary>
+        public void SetTextureManager(ITextureManager manager)
+        {
+            _textureManager = manager;
         }
 
         /// <summary>Override wall texture for procedural buildings.</summary>

@@ -25,15 +25,50 @@ namespace Insimul.UI
         [SerializeField] private GameObject _gesturePanel;
         [SerializeField] private Button[] _gestureButtons;
 
+        [Header("Voice")]
+        [SerializeField] private Button _voiceButton;
+
         private string _currentCharacterId;
         private TMP_Text _streamingMessageText;
         private bool _isStreaming;
+        private bool _isRecording;
+        private bool _isListeningMode;
+        private string _targetLanguage;
+        private string _aiProvider = "server";
+        private string _playthroughId;
         private List<GameObject> _messageObjects = new();
 
-        // Callbacks
+        // Callbacks — mirrors BabylonChatPanel.ts event surface
         public event System.Action<string> OnGesturePerformed;
+        public event System.Action OnClose;
+        public event System.Action<string, object> OnQuestAssigned;
+        public event System.Action<string, string, string> OnQuestBranched;
+        public event System.Action<string> OnActionSelect;
+        public event System.Action<string> OnVocabularyUsed;
+        public event System.Action<string[]> OnConversationTurn;
+        public event System.Action<string> OnNPCConversationStarted;
+        public event System.Action<string> OnNPCSpeechUpdate;
+        public event System.Action<string, object> OnQuestTurnedIn;
+        public event System.Action<float, float> OnFluencyGain;
+        public event System.Action<object> OnConversationSummary;
+        public event System.Action<int, int> OnDialogueRating;
+        public event System.Action<string, string, string> OnChatExchange;
+        public event System.Action OnTalkRequested;
+        public event System.Action<string, string> OnNpcConversationTurn;
+        public event System.Action<string, int> OnWritingSubmitted;
+        public event System.Action<object> OnListenAndRepeat;
+        public event System.Action<object[], object> OnConversationalAction;
+        public event System.Action<object> OnNewWordLearned;
+        public event System.Action<object> OnWordMastered;
+        public event System.Action<object> OnGrammarFeedbackExternal;
+
+        // Inventory context for NPC dialogue
+        private object[] _inventoryItems;
+        private int _playerGold;
 
         public bool IsOpen => _panel != null && _panel.activeSelf;
+        public bool IsRecording => _isRecording;
+        public bool IsListeningMode => _isListeningMode;
 
         private void Awake()
         {
@@ -65,12 +100,14 @@ namespace Insimul.UI
             }
         }
 
-        public void Close()
+        public void Close(bool userInitiated = false)
         {
             _panel.SetActive(false);
             _currentCharacterId = null;
             _isStreaming = false;
+            _isListeningMode = false;
             HideGesturePanel();
+            OnClose?.Invoke();
         }
 
         /// <summary>
@@ -79,6 +116,94 @@ namespace Insimul.UI
         public void PerformGesture(string gestureId)
         {
             OnGesturePerformed?.Invoke(gestureId);
+        }
+
+        /// <summary>Set the AI provider for dialogue (e.g. "server", "local").</summary>
+        public void SetAIProvider(string provider) { _aiProvider = provider; }
+        public string GetAIProvider() => _aiProvider;
+
+        /// <summary>Set the playthrough ID for conversation context.</summary>
+        public void SetPlaythroughId(string id) { _playthroughId = id; }
+
+        /// <summary>Set the target language for language-learning dialogue.</summary>
+        public void SetTargetLanguage(string lang) { _targetLanguage = lang; }
+
+        /// <summary>Set player inventory context for NPC dialogue awareness.</summary>
+        public void SetPlayerInventoryContext(object[] items, int gold)
+        {
+            _inventoryItems = items;
+            _playerGold = gold;
+        }
+
+        /// <summary>Add a system message to the chat panel.</summary>
+        public void AddSystemMessage(string text)
+        {
+            var obj = CreateMessageBubble(false);
+            var tmp = obj.GetComponentInChildren<TMP_Text>();
+            tmp.text = $"<i>{text}</i>";
+            tmp.color = new Color(0.7f, 0.7f, 0.8f);
+            ScrollToBottom();
+        }
+
+        /// <summary>Add an NPC message to the chat panel (public API).</summary>
+        public void AddNPCMessagePublic(string text)
+        {
+            AddNPCMessage(text);
+        }
+
+        /// <summary>Enter listening mode for voice-based conversation.</summary>
+        public void EnterListeningMode()
+        {
+            _isListeningMode = true;
+        }
+
+        /// <summary>Exit listening mode.</summary>
+        public void ExitListeningMode()
+        {
+            _isListeningMode = false;
+        }
+
+        /// <summary>Start push-to-talk voice recording.</summary>
+        public void StartPushToTalk()
+        {
+            _isRecording = true;
+        }
+
+        /// <summary>Stop push-to-talk voice recording.</summary>
+        public void StopPushToTalk()
+        {
+            _isRecording = false;
+        }
+
+        /// <summary>Set eavesdrop mode (observe NPC conversations without participating).</summary>
+        public void SetEavesdropMode(bool enabled) { }
+
+        /// <summary>Set quest topics for contextual dialogue.</summary>
+        public void SetQuestTopics(System.Collections.Generic.List<object> topics) { }
+
+        /// <summary>Set dialogue actions available to the player.</summary>
+        public void SetDialogueActions(object[] actions, float playerEnergy) { }
+
+        /// <summary>Update dialogue actions with current player energy.</summary>
+        public void UpdateDialogueActions(float playerEnergy) { }
+
+        /// <summary>Set quest offering context for NPC dialogue.</summary>
+        public void SetQuestOfferingContext(object context) { }
+
+        /// <summary>Set active quest context from this NPC.</summary>
+        public void SetActiveQuestFromNPC(object context) { }
+
+        /// <summary>Set quest guidance prompt for directed conversation.</summary>
+        public void SetQuestGuidancePrompt(string prompt) { }
+
+        /// <summary>Trigger quest guidance greeting from NPC.</summary>
+        public void TriggerQuestGuidanceGreeting() { }
+
+        /// <summary>Clean up resources.</summary>
+        public void Dispose()
+        {
+            ClearMessages();
+            if (_panel != null) Destroy(_panel);
         }
 
         private void ShowGesturePanel()

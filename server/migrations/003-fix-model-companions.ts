@@ -25,8 +25,8 @@ const __dirname = dirname(__filename);
 const envPath = path.resolve(__dirname, '../../.env');
 dotenv.config({ path: envPath });
 
-import { getPolyhavenModelUrl } from '../services/polyhaven-api.js';
-import { downloadFile } from '../services/asset-downloader.js';
+import { getPolyhavenModelUrl } from '../services/assets/polyhaven-api.js';
+import { downloadFile } from '../services/assets/asset-downloader.js';
 
 const MODELS_DIR = path.resolve(__dirname, '../../client/public/assets/polyhaven/models');
 

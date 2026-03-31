@@ -153,18 +153,19 @@ export function generateFoliageLayers(input: FoliageGeneratorInput): FoliageLaye
   const layers: FoliageLayerIR[] = [];
 
   for (const settlement of settlements) {
-    const biome = terrainToBiome(settlement.terrain);
+    const biome = terrainToBiome('plains');
     const biomeDensity = BIOME_DENSITY[biome] ?? 0.5;
     const targetCount = Math.round(MIN_INSTANCES + biomeDensity * (MAX_INSTANCES - MIN_INSTANCES));
 
     // Create seeded RNG for this settlement
     const rand = createSeededRandom(`${seed}_foliage_${settlement.id}`);
 
-    // Sample candidate positions via Poisson disk
+    // Sample candidate positions via Poisson disk (use default radius)
+    const defaultRadius = 200;
     const candidates = poissonDiskSample(
       settlement.position.x,
       settlement.position.z,
-      settlement.radius,
+      defaultRadius,
       targetCount,
       MIN_SPACING,
       rand,
@@ -183,7 +184,7 @@ export function generateFoliageLayers(input: FoliageGeneratorInput): FoliageLaye
     for (const candidate of candidates) {
       const elev = sampleGrid(heightmap, candidate.x, candidate.z, terrainSize, 0.3);
       const slope = sampleGrid(slopeMap, candidate.x, candidate.z, terrainSize, 0);
-      const moisture = estimateMoisture(settlement.terrain || 'plains', elev);
+      const moisture = estimateMoisture('plains', elev);
 
       const elevZone = getElevationZone(elev);
       const moistLevel = getMoistureLevel(moisture);

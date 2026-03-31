@@ -3,8 +3,8 @@ import {
   narrativeArcTemplates,
   getNarrativeArcTemplate,
   listNarrativeArcTemplates,
-} from '../services/narrative-arc-templates';
-import { NarrativeArcManager } from '../services/narrative-arc-manager';
+} from '../../shared/quests/narrative-arc-templates.js';
+import { NarrativeArcManager } from '../../shared/quests/narrative-arc-manager.js';
 import type {
   NarrativeArcTemplate,
   ArcQuestMetadata,

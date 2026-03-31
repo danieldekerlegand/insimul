@@ -320,6 +320,10 @@ export interface GameMenuCallbacks {
   onToggleFullscreen?: () => void;
   onToggleDebug?: () => void;
   onToggleVR?: () => void;
+  /** Current AI provider: 'auto' | 'browser' | 'server' */
+  getAIProvider?: () => string;
+  /** Change AI provider */
+  onSetAIProvider?: (provider: string) => void;
   onToggleModule?: (moduleId: string, enabled: boolean) => void;
   getSaveSlots?: () => Promise<Array<SaveSlotInfo | null>>;
   onSaveGame?: (slotIndex: number) => Promise<boolean>;
@@ -3338,6 +3342,87 @@ export class GameMenuSystem {
     }
 
     this.addDivider(stack);
+
+    // AI Provider setting
+    if (this.callbacks.onSetAIProvider) {
+      const aiTitle = new TextBlock();
+      aiTitle.text = "AI Conversation Provider";
+      aiTitle.color = COLORS.textPrimary;
+      aiTitle.fontSize = 15;
+      aiTitle.fontWeight = "bold";
+      aiTitle.height = "29px";
+      aiTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(aiTitle);
+
+      const aiDesc = new TextBlock();
+      aiDesc.text = "Choose how NPC conversations are generated.";
+      aiDesc.color = COLORS.textMuted;
+      aiDesc.fontSize = 11;
+      aiDesc.height = "18px";
+      aiDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(aiDesc);
+
+      const currentProvider = this.callbacks.getAIProvider?.() || 'auto';
+
+      const providerOptions: Array<{ id: string; label: string; desc: string }> = [
+        { id: 'auto', label: 'Auto', desc: 'Browser AI if available, server fallback' },
+        { id: 'browser', label: 'Browser (WebLLM)', desc: 'Runs locally via WebGPU — fastest, no server needed' },
+        { id: 'server', label: 'Server (Gemini)', desc: 'Uses Insimul server — higher quality, requires connection' },
+      ];
+
+      const aiCard = this.makeCard(stack);
+      for (const opt of providerOptions) {
+        const row = new StackPanel(`aiProvider_${opt.id}`);
+        row.isVertical = false;
+        row.width = 1;
+        row.height = "32px";
+        row.paddingBottom = "2px";
+        aiCard.addControl(row);
+
+        const isSelected = currentProvider === opt.id;
+
+        const radio = Button.CreateSimpleButton(`aiRadio_${opt.id}`, isSelected ? '◉' : '○');
+        radio.width = "28px";
+        radio.height = "28px";
+        radio.color = isSelected ? COLORS.accent : COLORS.textMuted;
+        radio.background = "transparent";
+        radio.thickness = 0;
+        radio.fontSize = 16;
+        row.addControl(radio);
+
+        const labelCol = new StackPanel(`aiLabel_${opt.id}`);
+        labelCol.isVertical = true;
+        labelCol.width = 1;
+        labelCol.height = "32px";
+        row.addControl(labelCol);
+
+        const labelText = new TextBlock();
+        labelText.text = opt.label;
+        labelText.color = isSelected ? COLORS.textPrimary : COLORS.textSecondary;
+        labelText.fontSize = 12;
+        labelText.fontWeight = isSelected ? "bold" : "normal";
+        labelText.height = "16px";
+        labelText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        labelCol.addControl(labelText);
+
+        const descText = new TextBlock();
+        descText.text = opt.desc;
+        descText.color = COLORS.textMuted;
+        descText.fontSize = 9;
+        descText.height = "14px";
+        descText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        labelCol.addControl(descText);
+
+        // Click handler on the whole row
+        row.onPointerClickObservable.add(() => {
+          this.callbacks.onSetAIProvider?.(opt.id);
+          // Re-render to update radio buttons
+          this.renderSystemTab();
+        });
+      }
+
+      this.addDivider(stack);
+    }
 
     // Keyboard shortcuts
     const shortcutsTitle = new TextBlock();

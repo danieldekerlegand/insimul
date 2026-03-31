@@ -436,9 +436,6 @@ export class PrologSyncService {
         if (state.stateType) {
           await this.prologManager.addFact(`state_type(${stateId}, ${this.sanitizeAtom(state.stateType)})`);
         }
-        if (state.terrain) {
-          await this.prologManager.addFact(`state_terrain(${stateId}, ${this.sanitizeAtom(state.terrain)})`);
-        }
         if (state.governorId) {
           await this.prologManager.addFact(`state_governor(${stateId}, ${this.sanitizeAtom(state.governorId)})`);
         }

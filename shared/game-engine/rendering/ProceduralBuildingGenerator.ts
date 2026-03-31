@@ -804,6 +804,28 @@ export class ProceduralBuildingGenerator {
 
     building.position.y = totalHeight / 2 + porchElevation;
 
+    // Fix UV orientation on side walls (left/right faces). CreateBox generates UVs
+    // where the texture appears rotated 90° on side faces compared to front/back.
+    // We identify side-face vertices by their normal direction (pointing along ±X)
+    // and swap their U,V coordinates so the texture orientation matches front/back.
+    const normals = building.getVerticesData('normal');
+    const uvs = building.getVerticesData('uv');
+    if (normals && uvs) {
+      for (let i = 0; i < normals.length / 3; i++) {
+        const nx = Math.abs(normals[i * 3]);     // X component of normal
+        // Side face vertices have normals pointing along ±X (nx ≈ 1)
+        if (nx > 0.9) {
+          const uIdx = i * 2;
+          const vIdx = i * 2 + 1;
+          const oldU = uvs[uIdx];
+          const oldV = uvs[vIdx];
+          uvs[uIdx] = oldV;
+          uvs[vIdx] = oldU;
+        }
+      }
+      building.setVerticesData('uv', uvs);
+    }
+
     // Resolve wall texture: prefer per-style preset texture, fall back to global
     const wallTexId = spec.style.wallTextureId;
     const resolvedWallTex = (wallTexId && this.presetTextures.get(wallTexId)) || this.wallTexture;

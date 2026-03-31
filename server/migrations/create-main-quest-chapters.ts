@@ -6,8 +6,9 @@ import { dirname } from 'path';
 dotenv.config({ path: path.resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 
 import { storage } from '../db/storage.js';
+import { mongoQuestStorage } from '../db/mongo-quest-storage.js';
 import { MAIN_QUEST_CHAPTERS } from '../../shared/quest/main-quest-chapters.js';
-import { createMainQuestRecord } from '../services/main-quest-records.js';
+import { createMainQuestRecord } from '../../shared/quests/main-quest-records.js';
 
 async function run() {
   const worldId = '69c7f646ffaa372a57a04123';
@@ -35,7 +36,7 @@ async function run() {
     const narrativeCtx = narrative?.chapters?.find((ch: any) => ch.chapterId === chapter.id);
     try {
       await createMainQuestRecord(
-        worldId, 'Player', chapter, 'French',
+        mongoQuestStorage, worldId, 'Player', chapter, 'French',
         narrativeCtx ? {
           introNarrative: resolveVars(narrativeCtx.introNarrative),
           outroNarrative: resolveVars(narrativeCtx.outroNarrative),

@@ -5,7 +5,7 @@ import {
   getEligibleNumberQuests,
   type BusinessInfo,
   type NumberQuestOptions,
-} from '../services/number-practice-quest-generator';
+} from '../../shared/quests/number-practice-quest-generator.js';
 import type { Character, World } from '../../shared/schema';
 
 // ── Test fixtures ────────────────────────────────────────────────────────────

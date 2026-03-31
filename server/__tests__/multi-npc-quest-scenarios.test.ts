@@ -24,14 +24,14 @@ import {
   generateMultiNpcQuests,
   resolveNpcRoles,
   type MultiNpcQuestOptions,
-} from '../services/multi-npc-quest-generator';
+} from '../../shared/quests/multi-npc-quest-generator.js';
 import {
   findRelevantQuests,
   buildQuestGuidance,
   getQuestParticipants,
 } from '../services/conversation/npc-quest-guidance';
 import type { Character, World, Quest } from '../../shared/schema';
-import type { BusinessInfo } from '../services/business-roleplay-quest-generator';
+import type { BusinessInfo } from '../../shared/quests/business-roleplay-quest-generator.js';
 
 // ── Test Fixtures ────────────────────────────────────────────────────────────
 

@@ -68,7 +68,7 @@ vi.mock('../extensions/tott/prolog-queries.js', () => ({
 // ────────────────────────────────────────────────────────────────────────────
 import * as PlaythroughOverlay from '../services/playthrough-overlay';
 import { InsimulSimulationEngine } from '../engines/unified-engine';
-import { MainQuestProgressionManager } from '../services/main-quest-progression';
+import { MainQuestProgressionManager } from '../../shared/quests/main-quest-progression.js';
 import { handleBusinessSuccession } from '../extensions/tott/building-commission-system';
 
 // Spy on overlay methods

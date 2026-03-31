@@ -24,7 +24,7 @@ export interface SettlementBoundary {
 
 export interface BoundaryConfig {
   seed: string;
-  terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
+  terrain?: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
   population: number;
   center?: Vec2;

@@ -3,22 +3,21 @@
   "Version": 1,
   "VersionName": "1.0.0",
   "FriendlyName": "Insimul",
-  "Description": "Insimul conversation service plugin — connects any NPC to the Insimul AI conversation engine with streaming text, audio, and lip sync.",
+  "Description": "Insimul AI conversation system for Unreal Engine. Enables streaming NPC conversations, TTS/STT, quest management, and crowd character integration.",
   "Category": "AI",
   "CreatedBy": "Insimul",
   "CreatedByURL": "",
   "DocsURL": "",
   "MarketplaceURL": "",
-  "CanContainContent": false,
+  "SupportURL": "",
+  "CanContainContent": true,
   "IsBetaVersion": true,
-  "IsExperimentalVersion": false,
   "Installed": true,
   "Modules": [
     {
-      "Name": "Insimul",
+      "Name": "InsimulRuntime",
       "Type": "Runtime",
       "LoadingPhase": "Default"
     }
-  ],
-  "Plugins": []
+  ]
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeLearningOutcomes } from '../services/quest-analytics';
+import { computeLearningOutcomes } from '../../shared/quests/quest-analytics.js';
 import type { Quest } from '../../shared/schema';
 
 let counter = 0;

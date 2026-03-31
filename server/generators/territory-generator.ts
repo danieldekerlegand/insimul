@@ -41,13 +41,13 @@ export interface WorldGeographyConfig {
   worldGrid?: { width: number; height: number };
   countries: Array<{
     id: string;
-    terrain: string;
+    terrain?: string;
     /** Grid placement for this country (when using grid-based layout) */
     gridPlacement?: { gridX: number; gridY: number; gridWidth: number; gridHeight: number };
     settlements: Array<{
       id: string;
       type: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
-      terrain: string;
+      terrain?: string;
       population: number;
       /** Optional: states this settlement belongs to */
       stateId?: string;

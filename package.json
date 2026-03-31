@@ -27,6 +27,7 @@
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
+    "@insimul/sdk": "file:packages/insimul-sdk-js",
     "@babylonjs/core": "^8.54.1",
     "@babylonjs/gui": "^8.54.1",
     "@babylonjs/inspector": "^8.56.1",
@@ -38,6 +39,7 @@
     "@grpc/proto-loader": "^0.8.0",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.31",
+    "@mlc-ai/web-llm": "^0.2.82",
     "@monaco-editor/react": "^4.7.0",
     "@neondatabase/serverless": "^0.10.4",
     "@radix-ui/react-accordion": "^1.2.12",

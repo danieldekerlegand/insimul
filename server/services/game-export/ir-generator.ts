@@ -473,7 +473,7 @@ export function generateAnimals(
     const counts = getAnimalCounts(settlement.population);
     const cx = settlement.position.x;
     const cz = settlement.position.z;
-    const r = settlement.radius;
+    const r = 200; // Default settlement radius
 
     const speciesList: { species: AnimalSpecies; count: number; wanderScale: number }[] = [
       { species: 'cat', count: counts.cats, wanderScale: 0.6 },
@@ -1096,7 +1096,7 @@ export function generateGatheringNodes(
 
       // Place nodes in a ring around the settlement (1x-3x radius out)
       const angle = Math.abs(rand()) * Math.PI * 2;
-      const dist = settlement.radius * (1 + Math.abs(rand()) * 2);
+      const dist = 200 * (1 + Math.abs(rand()) * 2);
       const x = Math.max(-half, Math.min(half, settlement.position.x + Math.cos(angle) * dist));
       const z = Math.max(-half, Math.min(half, settlement.position.z + Math.sin(angle) * dist));
 
@@ -1592,7 +1592,7 @@ export async function generateWorldIR(
         name: s.name,
         description: s.description || null,
         stateType: s.stateType || null,
-        terrain: s.terrain || null,
+        terrain: null,
         foundedYear: s.foundedYear || null,
         governorId: s.governorId || null,
         bounds: stateBoundsArr[i] || cIR.bounds,
@@ -1643,7 +1643,7 @@ export async function generateWorldIR(
     const allSettlementBusinesses = allBusinesses.filter((b: any) => b.settlementId === s.id);
 
     // Filter businesses to only eligible building types for this settlement
-    const terrainTag = (s.terrain || '').toLowerCase() as string;
+    const terrainTag = '' as string;
     const geography: GeographyTag[] = (['coast', 'river', 'mountains', 'forest'] as GeographyTag[])
       .filter(g => terrainTag === g || terrainTag.includes(g));
     const eligible = new Set(getEligibleBuildingTypes(
@@ -1661,7 +1661,7 @@ export async function generateWorldIR(
       settlementType: sType as any,
       foundedYear: s.foundedYear || 1900,
       seed: `${seed}_${s.id}`,
-      terrain: (s.terrain || undefined) as any,
+      streetPatternOverride: (s.streetPattern || undefined) as any,
       population: pop,
     });
 
@@ -1688,6 +1688,29 @@ export async function generateWorldIR(
         ...streetLotPositions,
         ...fallbackPositions.slice(streetLotPositions.length),
       ];
+    }
+
+    // Resolve topological lots to positions using the layout resolver
+    const hasTopology = lots.some((lot: any) => lot.blockCol != null && lot.blockRow != null);
+    if (hasTopology) {
+      const { resolveGridLotPosition } = await import('../../../shared/layout-resolver');
+      let maxCol = 0, maxRow = 0;
+      for (const lot of lots) {
+        if (lot.blockCol != null) maxCol = Math.max(maxCol, lot.blockCol);
+        if (lot.blockRow != null) maxRow = Math.max(maxRow, lot.blockRow);
+      }
+      const gridSize = Math.max(maxCol, maxRow) + 2;
+      const layoutConfig = { gridSize, settlementType: s.settlementType || 'hamlet', centerX: placed.position.x, centerZ: placed.position.z };
+      for (const lot of lots) {
+        if (lot.blockCol != null && lot.blockRow != null && lot.lotIndex != null) {
+          const pos = resolveGridLotPosition(lot.blockCol, lot.blockRow, lot.lotIndex, layoutConfig);
+          lot.positionX = pos.x;
+          lot.positionZ = pos.z;
+          lot.facingAngle = pos.facingAngle;
+          lot.lotWidth = pos.lotWidth;
+          lot.lotDepth = pos.lotDepth;
+        }
+      }
     }
 
     // Map lots using persisted spatial data when available, falling back to street-network positions
@@ -1819,7 +1842,7 @@ export async function generateWorldIR(
       name: s.name,
       description: s.description || null,
       settlementType: s.settlementType,
-      terrain: s.terrain || null,
+      terrain: null,
       population: pop,
       foundedYear: s.foundedYear || null,
       founderIds: (s.founderIds as string[]) || [],

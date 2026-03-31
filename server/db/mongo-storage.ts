@@ -366,7 +366,6 @@ const StateSchema = new Schema({
   description: { type: String, default: null },
   stateType: { type: String, default: 'province' },
   foundedYear: { type: Number, default: null },
-  terrain: { type: String, default: null },
   governorId: { type: String, default: null },
   localGovernmentType: { type: String, default: null },
   // Geographic position and boundary
@@ -385,8 +384,7 @@ const SettlementSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, default: null },
   settlementType: { type: String, required: true },
-  settlementSubtype: { type: String, default: 'standard' },
-  terrain: { type: String, default: null },
+  streetPattern: { type: String, default: null },
   population: { type: Number, default: 0 },
   foundedYear: { type: Number, default: null },
   founderIds: { type: Schema.Types.Mixed, default: null },
@@ -404,8 +402,6 @@ const SettlementSchema = new Schema({
   landmarks: { type: Schema.Types.Mixed, default: null },
   socialStructure: { type: Schema.Types.Mixed, default: null },
   economicData: { type: Schema.Types.Mixed, default: null },
-  genealogies: { type: Schema.Types.Mixed, default: null },
-  familyTrees: { type: Schema.Types.Mixed, default: null },
   unemployedCharacterIds: { type: Schema.Types.Mixed, default: null },
   vacantLotIds: { type: Schema.Types.Mixed, default: null },
   departedCharacterIds: { type: Schema.Types.Mixed, default: null },
@@ -420,11 +416,6 @@ const SettlementSchema = new Schema({
   // World-space position (derived from country grid)
   worldPositionX: { type: Number, default: null },
   worldPositionZ: { type: Number, default: null },
-  radius: { type: Number, default: null },
-  boundaryPolygon: { type: Schema.Types.Mixed, default: null },
-  elevation: { type: Number, default: 0 },
-  slopeProfile: { type: String, default: null },
-  elevationProfile: { type: Schema.Types.Mixed, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -912,20 +903,13 @@ const LocationSchema = new Schema({
   streetName: { type: String, default: null },
   block: { type: String, default: null },
   districtName: { type: String, default: null },
-  lotType: { type: String, default: 'buildable' }, // 'buildable', 'park', 'forest', 'cemetery', 'garden', 'agricultural', 'terrain', 'water'
-  positionX: { type: Number, default: null },
-  positionZ: { type: Number, default: null },
-  lotWidth: { type: Number, default: 12 },
-  lotDepth: { type: Number, default: 24 },
-  streetEdgeId: { type: String, default: null },
-  distanceAlongStreet: { type: Number, default: 0 },
+  lotType: { type: String, default: 'buildable' }, // 'buildable', 'park'
+  // Topological coordinates (grid layout)
+  blockCol: { type: Number, default: null },
+  blockRow: { type: Number, default: null },
+  lotIndex: { type: Number, default: null },
+  streetId: { type: String, default: null },
   side: { type: String, default: 'left' },
-  blockId: { type: String, default: null },
-  facingAngle: { type: Number, default: 0 },
-  elevation: { type: Number, default: 0 },
-  foundationType: { type: String, default: 'flat' },
-  neighboringLotIds: { type: [String], default: [] },
-  distanceFromDowntown: { type: Number, default: null },
   // Embedded building (null if vacant or park)
   building: { type: Schema.Types.Mixed, default: null },
   // Historical layering — previous buildings on this lot

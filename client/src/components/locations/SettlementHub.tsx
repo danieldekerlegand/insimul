@@ -67,8 +67,6 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   // Settlement detail data
   const [lots, setLots] = useState<any[]>([]);
-  const [businesses, setBusinesses] = useState<any[]>([]);
-  const [residences, setResidences] = useState<any[]>([]);
   const [residents, setResidents] = useState<Character[]>([]);
 
   // All characters (for CharacterDetailView)
@@ -185,9 +183,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   const selectBuilding = (type: 'business' | 'residence' | 'lot', data: any) => {
     // Find the associated lot
-    const lot = type === 'lot' ? data : lots.find(l => l.id === data.lotId);
-    const biz = type === 'business' ? data : (lot ? businesses.find(b => b.lotId === lot?.id) : null);
-    const res = type === 'residence' ? data : (lot ? residences.find(r => r.lotId === lot?.id) : null);
+    const lot = type === 'lot' ? data : lots.find(l => l.id === data.lotId || l.id === data.id);
+    const bldg = lot?.building;
+    const biz = bldg?.buildingCategory === 'business' ? { ...bldg, id: lot.id, lotId: lot.id, address: lot.address } : (type === 'business' ? data : null);
+    const res = bldg?.buildingCategory === 'residence' ? { ...lot, ...bldg, lotId: lot.id } : (type === 'residence' ? data : null);
 
     const buildingType = biz ? 'business' : res ? 'residence' : 'vacant';
     const businessType = biz?.businessType || (res ? 'residence_small' : undefined);
@@ -244,11 +243,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           ids = residents.filter((c: any) => c.isAlive !== false).map((c: any) => c.id);
           endpoint = '/api/characters/bulk-delete';
           refreshFn = () => { fetchAllCharacters(); if (selectedSettlement) fetchResidents(selectedSettlement.id); else setResidents([]); };
-        } else if (type === 'bulk_businesses') {
-          ids = businesses.map((b: any) => b.id);
-          endpoint = '/api/characters/bulk-delete'; // placeholder — delete individually below
         } else if (type === 'bulk_buildings') {
-          ids = residences.map((r: any) => r.id);
+          ids = lots.filter((l: any) => l.building).map((l: any) => l.id);
         } else if (type === 'bulk_lots') {
           ids = lots.map((l: any) => l.id);
         }
@@ -260,11 +256,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             toast({ title: `Deleted ${data.deleted} characters and their truths` });
             refreshFn();
           }
-        } else if (type === 'bulk_businesses' || type === 'bulk_buildings' || type === 'bulk_lots') {
-          // Delete individually via existing endpoints
-          const deleteEndpoint = type === 'bulk_businesses' ? '/api/businesses/'
-            : type === 'bulk_buildings' ? '/api/residences/'
-            : '/api/lots/';
+        } else if (type === 'bulk_buildings' || type === 'bulk_lots') {
+          const deleteEndpoint = '/api/lots/';
           let deleted = 0;
           for (const itemId of ids) {
             const res = await fetch(`${deleteEndpoint}${itemId}`, { method: 'DELETE', headers });
@@ -319,9 +312,9 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           fetchAllCharacters();
           if (selectedSettlement) fetchResidents(selectedSettlement.id);
         } else if (type === 'business') {
-          if (selectedSettlement) fetchBusinesses(selectedSettlement.id);
+          if (selectedSettlement) refreshLots(selectedSettlement.id);
         } else if (type === 'residence') {
-          if (selectedSettlement) fetchResidences(selectedSettlement.id);
+          if (selectedSettlement) refreshLots(selectedSettlement.id);
         }
       } else {
         const data = await res.json().catch(() => ({}));
@@ -472,18 +465,11 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     } catch { setLots([]); }
   };
 
-  const fetchBusinesses = async (id: string) => {
+  const refreshLots = async (id: string) => {
     try {
-      const res = await fetch(`/api/settlements/${id}/businesses`);
-      setBusinesses(res.ok ? await res.json() : []);
-    } catch { setBusinesses([]); }
-  };
-
-  const fetchResidences = async (id: string) => {
-    try {
-      const res = await fetch(`/api/settlements/${id}/residences`);
-      setResidences(res.ok ? await res.json() : []);
-    } catch { setResidences([]); }
+      const res = await fetch(`/api/settlements/${id}/lots`);
+      setLots(res.ok ? await res.json() : []);
+    } catch { setLots([]); }
   };
 
   const handleResidenceTypeChange = async (residenceId: string, newType: string) => {
@@ -497,7 +483,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       });
       if (res.ok) {
         const updated = await res.json();
-        setResidences(prev => prev.map(r => r.id === residenceId ? updated : r));
+        setLots(prev => prev.map(r => r.id === residenceId ? updated : r));
         if (selectedBuilding?.type === 'residence' && selectedBuilding.data.id === residenceId) {
           setSelectedBuilding({ ...selectedBuilding, data: updated });
         }
@@ -522,7 +508,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       });
       if (res.ok) {
         const updated = await res.json();
-        setBusinesses(prev => prev.map(b => b.id === businessId ? updated : b));
+        setLots(prev => prev.map(b => b.id === businessId ? updated : b));
         if (selectedBuilding?.type === 'business' && selectedBuilding.data.id === businessId) {
           setSelectedBuilding({ ...selectedBuilding, data: updated });
         }
@@ -622,20 +608,16 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   // Fetch lots, businesses, buildings for one or more settlements
   const fetchDataForSettlements = async (settlementIds: string[]) => {
     if (settlementIds.length === 0) {
-      setLots([]); setBusinesses([]); setResidences([]);
+      setLots([]);
       return;
     }
     try {
-      const [allLots, allBusinesses, allBuildings] = await Promise.all([
-        Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}/lots`).then(r => r.ok ? r.json() : []))),
-        Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}/businesses`).then(r => r.ok ? r.json() : []))),
-        Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}/residences`).then(r => r.ok ? r.json() : []))),
-      ]);
+      const allLots = await Promise.all(
+        settlementIds.map(id => fetch(`/api/settlements/${id}/lots`).then(r => r.ok ? r.json() : []))
+      );
       setLots(allLots.flat());
-      setBusinesses(allBusinesses.flat());
-      setResidences(allBuildings.flat());
     } catch {
-      setLots([]); setBusinesses([]); setResidences([]);
+      setLots([]);
     }
   };
 
@@ -943,7 +925,6 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           </div>
           <div className="flex gap-4 text-xs text-muted-foreground">
             <span>Residents: <strong className="text-foreground">{residents.filter((c: any) => c.isAlive !== false).length || selectedSettlement.population?.toLocaleString() || '—'}</strong></span>
-            <span>Terrain: <strong className="text-foreground">{selectedSettlement.terrain ?? '—'}</strong></span>
             <span>Founded: <strong className="text-foreground">{selectedSettlement.foundedYear ?? 'Unknown'}</strong></span>
           </div>
         </div>
@@ -986,8 +967,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           countries={countries}
           settlements={settlements}
           lots={lots}
-          businesses={businesses}
-          residences={residences}
+          businesses={lots.filter((l: any) => l.building?.buildingCategory === 'business').map((l: any) => ({ ...l.building, id: l.id, lotId: l.id, address: l.address, blockCol: l.blockCol, blockRow: l.blockRow, lotIndex: l.lotIndex }))}
+          residences={lots.filter((l: any) => l.building?.buildingCategory === 'residence').map((l: any) => ({ ...l, ...l.building, lotId: l.id }))}
           streets={selectedSettlement?.streets ?? []}
           waterFeatures={waterFeatures}
           selectedCountryId={selectedCountry?.id}
@@ -1021,7 +1002,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   );
 
   // Right panel section state
-  const [expandedSection, setExpandedSection] = useState<'people' | 'former' | 'businesses' | 'residences' | 'lots' | null>(null);
+  const [expandedSection, setExpandedSection] = useState<'people' | 'former' | 'buildings' | 'lots' | null>(null);
 
   // ─── Right panel ───────────────────────────────────────────────────────────
 
@@ -1033,9 +1014,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     const sections = [
       { id: 'people' as const, icon: Users, label: `Characters`, count: livingResidents.length, data: livingResidents },
       { id: 'former' as const, icon: Users, label: 'Deceased', count: formerResidents.length, data: formerResidents },
-      { id: 'businesses' as const, icon: Briefcase, label: 'Businesses', count: businesses.length, data: businesses },
-      { id: 'residences' as const, icon: Home, label: 'Buildings', count: residences.length, data: residences },
-      { id: 'lots' as const, icon: Home, label: 'Lots', count: lots.length, data: lots },
+      { id: 'buildings' as const, icon: Building2, label: 'Buildings', count: lots.filter((l: any) => l.building).length, data: lots.filter((l: any) => l.building) },
+      { id: 'lots' as const, icon: Home, label: 'Vacant Lots', count: lots.filter((l: any) => !l.building).length, data: lots.filter((l: any) => !l.building) },
     ];
 
     return (
@@ -1080,8 +1060,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                       const bulkTypeMap: Record<string, string> = {
                         people: 'bulk_characters',
                         former: 'bulk_characters',
-                        businesses: 'bulk_businesses',
-                        residences: 'bulk_buildings',
+                        buildings: 'bulk_buildings',
                         lots: 'bulk_lots',
                       };
                       const bulkType = bulkTypeMap[section.id];
@@ -1098,15 +1077,14 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 )}
-                {canEdit && (section.id === 'businesses' || section.id === 'residences' || section.id === 'lots') && (
+                {canEdit && (section.id === 'buildings' || section.id === 'lots') && (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-5 w-5 ml-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (section.id === 'businesses') setShowBusinessDialog(true);
-                      else if (section.id === 'residences') setShowResidenceDialog(true);
+                      if (section.id === 'buildings') setShowBusinessDialog(true);
                       else if (section.id === 'lots') setShowLotDialog(true);
                     }}
                   >
@@ -1153,78 +1131,50 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           )}
                         </div>
                       ))
-                    ) : section.id === 'businesses' ? (
-                      businesses.map(b => {
-                        const ownerName = b.ownerId ? characterNameMap.get(b.ownerId) : null;
-                        const employeeCount = b.employees?.length ?? 0;
+                    ) : section.id === 'buildings' ? (
+                      section.data.map((lot: any) => {
+                        const bldg = lot.building || {};
+                        const isBusiness = bldg.buildingCategory === 'business';
+                        const ownerName = bldg.ownerId ? characterNameMap.get(bldg.ownerId) : null;
+                        const residentIds: string[] = bldg.residentIds || [];
+                        const displayName = isBusiness
+                          ? (bldg.name || bldg.businessType || 'Unnamed Business')
+                          : (lot.address || 'Unnamed Residence');
                         return (
-                        <div key={b.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
-                          onClick={() => selectBuilding('business', b)}
+                        <div key={lot.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
+                          onClick={() => selectBuilding(isBusiness ? 'business' : 'residence', isBusiness ? { ...bldg, id: lot.id, address: lot.address } : { ...lot, ...bldg, ownerIds: bldg.ownerIds || [], residentIds })}
                         >
-                          <div className="w-5 h-5 rounded bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                            <Building2 className="w-3 h-3 text-orange-500" />
+                          <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${isBusiness ? 'bg-orange-500/20' : 'bg-blue-500/20'}`}>
+                            {isBusiness
+                              ? <Building2 className="w-3 h-3 text-orange-500" />
+                              : <Home className="w-3 h-3 text-blue-500" />
+                            }
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{b.name}</p>
+                            <p className="text-sm font-medium">{displayName}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-xs text-muted-foreground">{b.businessType}</span>
-                              {b.isOutOfBusiness && (
+                              {lot.address && isBusiness && (
+                                <span className="text-xs text-muted-foreground">{lot.address}</span>
+                              )}
+                              {isBusiness && (
+                                <span className="text-xs text-muted-foreground">{bldg.businessType}</span>
+                              )}
+                              {isBusiness && bldg.isOutOfBusiness && (
                                 <Badge variant="secondary" className="text-xs py-0 h-4">Closed</Badge>
                               )}
                             </div>
-                            {(ownerName || employeeCount > 0) && (
-                              <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
-                                {ownerName && <span>Owner: {ownerName}</span>}
-                                {ownerName && employeeCount > 0 && <span>·</span>}
-                                {employeeCount > 0 && (
-                                  <span>{employeeCount} employee{employeeCount !== 1 ? 's' : ''}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          {canEdit && (
-                            <button
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity shrink-0 mt-0.5"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'business', id: b.id, name: b.name }); }}
-                              title="Delete business"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                        );
-                      })
-                    ) : section.id === 'residences' ? (
-                      residences.map(r => {
-                        const ownerIds: string[] = r.ownerIds || [];
-                        const residentIds: string[] = r.residentIds || [];
-                        return (
-                        <div key={r.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
-                          onClick={() => selectBuilding('residence', r)}
-                        >
-                          <div className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                            <Home className="w-3 h-3 text-blue-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{r.address || 'Unnamed Residence'}</p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              {r.residenceType && (
-                                <span className="text-xs text-muted-foreground">{r.residenceType}</span>
-                              )}
-                            </div>
-                            {ownerIds.length > 0 && (
-                              <div className="mt-1">
-                                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">Owners: </span>
-                                <span className="text-[10px] text-muted-foreground">{ownerIds.map(id => getCharName(id)).join(', ')}</span>
+                            {ownerName && (
+                              <div className="mt-0.5 text-xs text-muted-foreground">
+                                Owner: {ownerName}
                               </div>
                             )}
                             {residentIds.length > 0 && (
                               <div className="mt-0.5">
                                 <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">Residents: </span>
-                                <span className="text-[10px] text-muted-foreground">{residentIds.map(id => getCharName(id)).join(', ')}</span>
+                                <span className="text-[10px] text-muted-foreground">{residentIds.map((id: string) => getCharName(id)).join(', ')}</span>
                               </div>
                             )}
-                            {ownerIds.length === 0 && residentIds.length === 0 && (
+                            {!isBusiness && residentIds.length === 0 && !(bldg.ownerIds?.length > 0) && (
                               <div className="mt-0.5">
                                 <span className="text-[10px] text-muted-foreground italic">Vacant</span>
                               </div>
@@ -1233,8 +1183,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           {canEdit && (
                             <button
                               className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity shrink-0 mt-0.5"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'residence', id: r.id, name: r.address || 'Unnamed Residence' }); }}
-                              title="Delete residence"
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: isBusiness ? 'business' : 'residence', id: lot.id, name: displayName }); }}
+                              title="Delete building"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -1325,7 +1275,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                 const res = await fetch(`/api/settlements/${selectedSettlement.id}/businesses`, {
                   method: 'POST', headers: h, body: JSON.stringify(data),
                 });
-                if (res.ok) { fetchBusinesses(selectedSettlement.id); toast({ title: 'Business created' }); }
+                if (res.ok) { refreshLots(selectedSettlement.id); toast({ title: 'Business created' }); }
                 else toast({ title: 'Failed to create business', variant: 'destructive' });
               } catch { toast({ title: 'Failed to create business', variant: 'destructive' }); }
             }}
@@ -1341,7 +1291,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                 const res = await fetch(`/api/settlements/${selectedSettlement.id}/residences`, {
                   method: 'POST', headers: h, body: JSON.stringify({ ...data, residenceType: data.residenceType.toLowerCase() }),
                 });
-                if (res.ok) { fetchResidences(selectedSettlement.id); toast({ title: 'Residence created' }); }
+                if (res.ok) { refreshLots(selectedSettlement.id); toast({ title: 'Residence created' }); }
                 else toast({ title: 'Failed to create residence', variant: 'destructive' });
               } catch { toast({ title: 'Failed to create residence', variant: 'destructive' }); }
             }}

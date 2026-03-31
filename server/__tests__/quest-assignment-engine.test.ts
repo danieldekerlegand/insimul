@@ -8,7 +8,7 @@ import {
   type WorldContext,
   type AssignmentOptions,
   type ScheduleContext,
-} from '../services/quest-assignment-engine';
+} from '../../shared/quests/quest-assignment-engine.js';
 
 // --- Test fixtures ---
 

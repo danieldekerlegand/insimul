@@ -5,14 +5,14 @@ import {
   selectBestArc,
   resolveBindings,
   type NarrativeBindings,
-} from '../services/main-quest-generator';
+} from '../../shared/quests/main-quest-generator.js';
 import {
   NARRATIVE_ARCS,
   getArcsForCefrLevel,
   getArcsByTheme,
   listNarrativeArcs,
-} from '../services/narrative-templates';
-import type { WorldStateContext } from '../services/world-state-context';
+} from '../../shared/quests/narrative-templates.js';
+import type { WorldStateContext } from '../../shared/quests/world-state-context.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 

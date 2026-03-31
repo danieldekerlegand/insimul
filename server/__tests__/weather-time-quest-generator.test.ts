@@ -7,7 +7,7 @@ import {
   getTemplatesForPeriod,
   type WeatherTimeContext,
   type WeatherTimeQuestOptions,
-} from '../services/weather-time-quest-generator';
+} from '../../shared/quests/weather-time-quest-generator.js';
 import { QUEST_TEMPLATES } from '../../shared/language/quest-templates';
 import { VALID_OBJECTIVE_TYPES } from '../../shared/quest-objective-types';
 

@@ -365,15 +365,15 @@ export class GenealogyGenerator {
       const spouse = await storage.getCharacter(parent.spouseId);
       if (!spouse) continue;
       
-      // Determine if couple has children based on age at time of childbirth
-      // (NOT age at currentYear — founders born 150+ years ago would always fail)
-      const childBirthYear = config.startYear + (generation * 25);
-      const parentAgeAtBirth = childBirthYear - (parent.birthYear || 0);
-      if (parentAgeAtBirth < 20 || parentAgeAtBirth > 50) continue;
+      // Base childbirth year on the parent's actual birth year (parent has
+      // children at age 22-30) rather than a fixed offset from founding year.
+      // This prevents late-born parents from being filtered out as "too young".
+      const parentBirthYear = parent.birthYear || config.startYear;
+      const parentAgeAtBirth = 22 + Math.floor(Math.random() * 9); // age 22-30
+      const birthYear = parentBirthYear + parentAgeAtBirth;
 
       // rollChildren handles fertility probability internally
       const numChildren = this.rollChildren(config.fertilityRate);
-      const birthYear = config.startYear + (generation * 25) + Math.floor(Math.random() * 10);
       
       const children = await this.createChildren(
         config,

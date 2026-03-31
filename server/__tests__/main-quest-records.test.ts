@@ -4,7 +4,7 @@ import {
   findMainQuestRecord,
   updateMainQuestObjectiveProgress,
   completeMainQuestRecord,
-} from '../services/main-quest-records';
+} from '../../shared/quests/main-quest-records.js';
 import { MAIN_QUEST_CHAPTERS } from '../../shared/quest/main-quest-chapters';
 import type { Quest, InsertQuest } from '../../shared/schema';
 

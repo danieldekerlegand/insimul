@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-30T17:13:34.053Z",
+  "lastUpdated": "2026-03-31T22:03:53.104Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -194,7 +194,7 @@
     {
       "path": "shared/game-engine/rendering/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "0db70cd4191088625b26cefccf2a63a3fcc9db0271b525c44d9a092eba2f0b76",
+      "hash": "f3a253fe2a4d56f03ac6e655ad9dddeafdd7ec496cc3ed229d137ee992a77e0c",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -571,7 +571,7 @@
     {
       "path": "shared/game-engine/rendering/BuildingInteriorGenerator.ts",
       "description": "Interior generation: multi-room layouts, role-specific furniture, entry/exit transitions.",
-      "hash": "a043eaaa1122d4d98ae59fa76ac2a534fdc9d4d030b4dadc0589da73fabd4287",
+      "hash": "45ebdb57cf3d128361d96a8a30db6dfeef3b7ef4242c6570936af37d6c579bae",
       "engineMappings": [
         {
           "engine": "unity",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "09627f4ee1ff1949915aa0c7775a3c072798aa35150266fba6cf0406066608ed",
+      "hash": "406fea48533afc75b11c75ea43b7547f1ab8d772728b0cfb92cb43b4f553e761",
       "engineMappings": [
         {
           "engine": "unity",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "76552cf3671bbdfb4aa0134d75e7995b541b55f82b4788aab22c2376f3fc1d58",
+      "hash": "e8263a5b8f2bbd4360c97bc64efc3ccf754a75a767177d5ec457199acacf103c",
       "engineMappings": [
         {
           "engine": "unity",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "9c86869460a1cdc5ac5ae5445f309d32b0feff2601160dad41d6696e2c486c63",
+      "hash": "c31e3125d26b10d1a5e6f57aa62858a6ae5de04ce8439c99f8a67331a1f9ebd3",
       "engineMappings": [
         {
           "engine": "babylon",

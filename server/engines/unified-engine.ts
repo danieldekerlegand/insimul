@@ -1,6 +1,6 @@
 import { type Rule, type Grammar, type Character, type World, type InsertTruth } from "@shared/schema";
 import { type IStorage } from "../db/storage";
-import { TraceryService } from "../services/tracery-service";
+import { TraceryService } from "../../shared/quests/tracery-service.js";
 import { getWorldTypeDefaults, type WorldTypeRates } from "./world-type-defaults.js";
 
 /**

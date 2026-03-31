@@ -50,6 +50,9 @@ function generateCharactersDT(ir: WorldIR): object[] {
       Extroversion: p.extroversion || 0,
       Agreeableness: p.agreeableness || 0,
       Neuroticism: p.neuroticism || 0,
+      MiddleName: c.middleName || '',
+      Suffix: c.suffix || '',
+      HomeResidenceId: c.homeResidenceId || '',
     };
   });
 }
@@ -93,6 +96,14 @@ function generateActionsDT(ir: WorldIR): object[] {
     Cooldown: a.cooldown,
     bIsActive: a.isActive,
     Tags: a.tags,
+    Content: a.content || '',
+    VerbPast: a.verbPast || '',
+    VerbPresent: a.verbPresent || '',
+    NarrativeTemplates: a.narrativeTemplates ? JSON.stringify(a.narrativeTemplates) : '',
+    CustomData: a.customData ? JSON.stringify(a.customData) : '',
+    TargetType: a.targetType || '',
+    bIsBase: a.isBase ?? false,
+    SourceFormat: a.sourceFormat || '',
   }));
 }
 
@@ -145,6 +156,15 @@ function generateQuestsDT(ir: WorldIR): object[] {
       Quantity: r.quantity,
       ItemName: r.name,
     })),
+    Content: q.content || '',
+    GameType: q.gameType || '',
+    QuestChainId: q.questChainId || '',
+    QuestChainOrder: q.questChainOrder ?? 0,
+    SkillRewards: q.skillRewards ? JSON.stringify(q.skillRewards) : '',
+    Unlocks: q.unlocks ? JSON.stringify(q.unlocks) : '',
+    FailureConditions: q.failureConditions ? JSON.stringify(q.failureConditions) : '',
+    CompletionCriteria: q.completionCriteria ? JSON.stringify(q.completionCriteria) : '',
+    Rewards: q.rewards ? JSON.stringify(q.rewards) : '',
   }));
 }
 
@@ -304,6 +324,41 @@ function generateBuildingsDT(ir: WorldIR): object[] {
     bHasBalcony: b.spec.hasBalcony,
     ModelAssetKey: b.modelAssetKey || '',
     BusinessId: b.businessId || '',
+    OccupantIds: b.occupantIds || [],
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Container DataTable
+// ─────────────────────────────────────────────
+
+function generateContainersDT(ir: WorldIR): object[] {
+  return (ir.entities.containers || []).map(c => ({
+    Name: c.id,
+    ContainerId: c.id,
+    ContainerType: c.containerType || 'chest',
+    Position: c.position ? vec3Obj(c.position) : { X: 0, Y: 0, Z: 0 },
+    BuildingId: c.buildingId || '',
+    Location: c.location || 'interior',
+    Items: c.items || [],
+    BusinessType: c.businessType || '',
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Quest Object DataTable
+// ─────────────────────────────────────────────
+
+function generateQuestObjectsDT(ir: WorldIR): object[] {
+  return (ir.entities.questObjects || []).map(q => ({
+    Name: q.id,
+    QuestObjectId: q.id,
+    QuestId: q.questId || '',
+    ObjectType: q.objectType || 'interact',
+    Position: q.position ? vec3Obj(q.position) : { X: 0, Y: 0, Z: 0 },
+    ModelAssetKey: q.modelAssetKey || '',
+    InteractionType: q.interactionType || 'collect',
+    Metadata: q.metadata ? JSON.stringify(q.metadata) : '',
   }));
 }
 
@@ -622,6 +677,8 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_WaterFeatures', data: generateWaterFeaturesDT(ir) },
     { name: 'DT_FoliageLayers', data: generateFoliageLayersDT(ir) },
     { name: 'DT_Buildings', data: generateBuildingsDT(ir) },
+    { name: 'DT_Containers', data: generateContainersDT(ir) },
+    { name: 'DT_QuestObjects', data: generateQuestObjectsDT(ir) },
     { name: 'DT_Lots', data: generateLotsDT(ir) },
     { name: 'DT_Grammars', data: generateGrammarsDT(ir) },
     { name: 'DT_Truths', data: generateTruthsDT(ir) },

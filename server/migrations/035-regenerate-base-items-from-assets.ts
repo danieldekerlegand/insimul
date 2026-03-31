@@ -20,7 +20,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import mongoose from 'mongoose';
-import { mapAssetToBaseItem } from '../services/asset-item-mapper.js';
+import { mapAssetToBaseItem } from '../services/assets/asset-item-mapper.js';
 
 export async function migrate() {
   const mongoUri = process.env.MONGO_URL || process.env.MONGODB_URI || process.env.DATABASE_URL;

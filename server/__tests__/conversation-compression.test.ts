@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { GeminiMessage } from '../services/conversation-compression';
+import type { GeminiMessage } from '../services/conversation/conversation-compression';
 
 // Mock the gemini config module
 vi.mock('../config/gemini.js', () => ({

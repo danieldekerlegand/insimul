@@ -43,12 +43,12 @@ export function LocationsTab({ worldId }: LocationsTabProps) {
   });
   
   const [stateForm, setStateForm] = useState({
-    name: '', description: '', stateType: 'province', terrain: 'plains', foundedYear: new Date().getFullYear()
+    name: '', description: '', stateType: 'province', foundedYear: new Date().getFullYear()
   });
-  
+
   const [settlementForm, setSettlementForm] = useState({
     name: '', description: '', settlementType: 'town' as 'village' | 'town' | 'city',
-    terrain: 'plains', population: 0, foundedYear: new Date().getFullYear()
+    population: 0, foundedYear: new Date().getFullYear()
   });
   
   const [lotForm, setLotForm] = useState({ address: '', districtName: '', x: 0, y: 0 });
@@ -138,7 +138,7 @@ export function LocationsTab({ worldId }: LocationsTabProps) {
       if (res.ok) {
         toast({ title: 'State Created', description: `${stateForm.name} has been created` });
         setShowStateDialog(false);
-        setStateForm({ name: '', description: '', stateType: 'province', terrain: 'plains', foundedYear: new Date().getFullYear() });
+        setStateForm({ name: '', description: '', stateType: 'province', foundedYear: new Date().getFullYear() });
         fetchStates(selectedCountry);
       } else {
         const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -162,7 +162,7 @@ export function LocationsTab({ worldId }: LocationsTabProps) {
       if (res.ok) {
         toast({ title: 'Settlement Created', description: `${settlementForm.name} has been created` });
         setShowSettlementDialog(false);
-        setSettlementForm({ name: '', description: '', settlementType: 'town', terrain: 'plains', population: 0, foundedYear: new Date().getFullYear() });
+        setSettlementForm({ name: '', description: '', settlementType: 'town', population: 0, foundedYear: new Date().getFullYear() });
         fetchSettlements();
       }
     } catch (error) { toast({ title: 'Error', description: 'Failed to create settlement', variant: 'destructive' }); }
@@ -263,7 +263,6 @@ export function LocationsTab({ worldId }: LocationsTabProps) {
                   <CardContent>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div><span className="text-muted-foreground">Type:</span> {state.stateType}</div>
-                      <div><span className="text-muted-foreground">Terrain:</span> {state.terrain || 'Not specified'}</div>
                       <div><span className="text-muted-foreground">Founded:</span> {state.foundedYear || 'Unknown'}</div>
                     </div>
                   </CardContent>
@@ -323,7 +322,6 @@ export function LocationsTab({ worldId }: LocationsTabProps) {
                   <CardContent>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div><span className="text-muted-foreground">Population:</span> {settlement.population?.toLocaleString() || 0}</div>
-                      <div><span className="text-muted-foreground">Terrain:</span> {settlement.terrain}</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -490,21 +488,6 @@ export function LocationsTab({ worldId }: LocationsTabProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Terrain</Label>
-                <Select value={stateForm.terrain} onValueChange={(v) => setStateForm({ ...stateForm, terrain: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="plains">Plains</SelectItem>
-                    <SelectItem value="hills">Hills</SelectItem>
-                    <SelectItem value="mountains">Mountains</SelectItem>
-                    <SelectItem value="coast">Coast</SelectItem>
-                    <SelectItem value="river">River</SelectItem>
-                    <SelectItem value="forest">Forest</SelectItem>
-                    <SelectItem value="desert">Desert</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
           <DialogFooter>
@@ -535,21 +518,6 @@ export function LocationsTab({ worldId }: LocationsTabProps) {
                     <SelectItem value="village">Village</SelectItem>
                     <SelectItem value="town">Town</SelectItem>
                     <SelectItem value="city">City</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Terrain</Label>
-                <Select value={settlementForm.terrain} onValueChange={(v) => setSettlementForm({ ...settlementForm, terrain: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="plains">Plains</SelectItem>
-                    <SelectItem value="hills">Hills</SelectItem>
-                    <SelectItem value="mountains">Mountains</SelectItem>
-                    <SelectItem value="coast">Coast</SelectItem>
-                    <SelectItem value="river">River</SelectItem>
-                    <SelectItem value="forest">Forest</SelectItem>
-                    <SelectItem value="desert">Desert</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

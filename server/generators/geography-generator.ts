@@ -14,15 +14,17 @@ import {
   generateStreetNetwork,
   placeLots,
   placeLotsAlongStreets,
+  placeLotsTopological,
   pruneUnusedStreets,
   type StreetNetwork,
   type StreetNetworkConfig,
   type LotPlacement,
+  type TopologicalLotPlacement,
 } from './street-network-generator';
 import { StreetGenerator } from './street-generator';
 import { validateBuildingAddresses } from './address-validator';
-import { generateSettlementBoundary } from './boundary-generator';
-import { inferSettlementSubtype, getSubtypeConfig } from './settlement-subtype';
+import { GRID_SIZE } from '../../shared/street-pattern-selection';
+import { generateNonGridLayout, type StreetDefinition } from '../../shared/layout-resolver';
 import type { StreetNode, StreetEdge } from '../../shared/game-engine/types';
 
 /**
@@ -86,14 +88,14 @@ export interface GeographyConfig {
   settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
   population: number;
   foundedYear: number;
-  terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
+  terrain?: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   countryId?: string;
   stateId?: string;
   /** Target language for localized street names (language-learning worlds) */
   targetLanguage?: string;
   /** World type for grammar-based name generation */
   worldType?: string;
-  /** User-selected street pattern override (bypasses terrain-based pattern selection) */
+  /** Explicit street pattern chosen by the user */
   streetPattern?: string;
 }
 
@@ -180,16 +182,31 @@ export class GeographyGenerator {
     this.businessNamesPool = this.locationNames.businesses;
     this.streetGenerator = new StreetGenerator();
 
+    // Terrain is not used in procedural generation — all settlements
+    // generate on flat terrain. Terrain will be a world-level concept
+    // surfaced in a future map editor.
+    config.terrain = 'plains';
+
     // Step 0a: Load grammar-based names if available
     await this.loadBusinessNames(config);
 
-    // Step 0: Infer settlement subtype
-    const settlementSubtype = inferSettlementSubtype(config);
-    const subtypeConfig = getSubtypeConfig(settlementSubtype);
-    console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}/${settlementSubtype}, pop: ${config.population})...`);
+    console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
 
-    const districts = this.generateDistricts(config);
-    const landmarks = this.generateLandmarks(config, districts);
+    // Size the grid to fit the actual population with minimal vacant lots.
+    // Housing: ~4 people per residence. Businesses: ~1 per 15 people.
+    // Add ~20% breathing room so the town doesn't look packed wall-to-wall.
+    const LOTS_PER_BLOCK = 6;
+    const residences = Math.ceil(config.population / 4);
+    const businesses = Math.max(1, Math.ceil(config.population / 15));
+    const lotsNeeded = residences + businesses;
+    const buildableBlocksNeeded = Math.ceil(lotsNeeded / LOTS_PER_BLOCK);
+    // Total blocks = buildable + 1 park. Grid has (gridSize-1)^2 total blocks.
+    // Find smallest gridSize where (gridSize-1)^2 >= buildableBlocksNeeded + 1
+    let gridSize = 2;
+    while ((gridSize - 1) * (gridSize - 1) < buildableBlocksNeeded + 1) {
+      gridSize++;
+    }
+    const streetPattern = config.streetPattern || 'grid';
 
     // Pre-load grammar-based street names if available
     let grammarStreetNames: string[] | undefined;
@@ -205,202 +222,135 @@ export class GeographyGenerator {
       } catch { /* use defaults */ }
     }
 
-    // Generate street network with actual polyline geometry
-    const mapSize = this.getMapSize(config.settlementType);
+    const defaultNames = this.getStreetNames(config.targetLanguage, grammarStreetNames);
+    let lotIds: string[];
+    let districts: Array<{ id: string; name: string; role: string }>;
+    let landmarks: Array<{ id: string; name: string; districtId: string; properties: Record<string, any> }>;
+    let storedStreets: any[];
 
-    // ── Generate water data BEFORE streets so we can avoid placing in water ──
-    const isWaterFn = this.buildWaterTestFunction(config, mapSize);
+    if (streetPattern === 'grid') {
+      // ── Grid layout ──────────────────────────────────────────────────
+      const nsStreets: Array<{ id: string; name: string; direction: 'NS'; gridIndex: number }> = [];
+      const ewStreets: Array<{ id: string; name: string; direction: 'EW'; gridIndex: number }> = [];
 
-    // Shift the settlement center away from water so the entire town sits on land.
-    // Coastline occupies ~25-30% of the map from one edge; push the center toward
-    // the opposite edge to maximize land margin.
-    const { centerX, centerZ } = this.computeSettlementCenter(config, mapSize);
-
-    const streetNetworkConfig: StreetNetworkConfig = {
-      centerX,
-      centerZ,
-      settlementType: config.settlementType,
-      foundedYear: config.foundedYear,
-      seed: `${config.worldId}_${config.settlementId}`,
-      targetLanguage: config.targetLanguage,
-      grammarStreetNames,
-      isWater: isWaterFn,
-      terrain: config.terrain,
-      population: config.population,
-      streetPatternOverride: config.streetPattern as any,
-    };
-    const streetNetwork = generateStreetNetwork(streetNetworkConfig);
-    if (streetNetwork.pattern) {
-      console.log(`   Street pattern: ${streetNetwork.pattern} (terrain: ${config.terrain}, type: ${config.settlementType})`);
-    }
-
-    // Convert street segments to Location objects for backward compatibility
-    const streets = streetNetwork.segments.map((seg, i) => ({
-      id: seg.id,
-      name: seg.name,
-      type: 'street' as const,
-      x: seg.waypoints[0]?.x || 0,
-      y: seg.waypoints[0]?.z || 0,
-      parentId: districts[i % districts.length]?.id,
-      properties: {
-        direction: seg.direction,
-        width: seg.width,
-        waypoints: seg.waypoints,
-        nodeIds: seg.nodeIds,
-      },
-    }));
-
-    const buildings = this.generateBuildings(config, districts, streets);
-
-    // Validate addresses and auto-fix duplicates
-    validateBuildingAddresses(buildings, streetNetwork, config.settlementId);
-
-    // Generate settlement boundary polygon
-    const boundary = generateSettlementBoundary({
-      seed: `${config.worldId}-${config.settlementId}`,
-      terrain: config.terrain,
-      settlementType: config.settlementType,
-      population: config.population,
-    });
-
-    // Generate agricultural zones around the settlement
-    const agriGen = new AgriculturalZoneGenerator();
-    const agriculturalZones = agriGen.generate({
-      settlementType: config.settlementType,
-      terrain: config.terrain,
-      foundedYear: config.foundedYear,
-      mapSize,
-      centerX: mapSize / 2,
-      centerY: mapSize / 2,
-    });
-
-    // Generate river crossing points for river-terrain settlements
-    if (config.terrain === 'river') {
-      const crossingGen = new CrossingGenerator({
-        seed: config.settlementName.length * 31 + config.foundedYear,
-        mapSize: this.getMapSize(config.settlementType),
-        foundedYear: config.foundedYear,
-      });
-      const { rivers, crossings } = crossingGen.generate(streets);
-
-      for (const crossing of crossings) {
-        landmarks.push({
-          id: crossing.id,
-          name: crossing.name,
-          type: 'landmark',
-          x: crossing.x,
-          y: crossing.y,
-          properties: {
-            crossingType: crossing.type,
-            riverName: crossing.riverName,
-            streetName: crossing.streetName,
-            riverWidth: crossing.riverWidth,
-            ...crossing.properties,
-          },
+      for (let i = 0; i < gridSize; i++) {
+        nsStreets.push({
+          id: `street_ns_${i}`,
+          name: defaultNames[i % defaultNames.length] || `${i + 1}st St`,
+          direction: 'NS',
+          gridIndex: i,
+        });
+        ewStreets.push({
+          id: `street_ew_${i}`,
+          name: defaultNames[(gridSize + i) % defaultNames.length] || `${String.fromCharCode(65 + i)} Ave`,
+          direction: 'EW',
+          gridIndex: i,
         });
       }
 
-      // Store river data on the settlement for downstream consumers
-      (config as any)._rivers = rivers;
-    }
+      const lotPlacements = placeLotsTopological(gridSize, { ns: nsStreets, ew: ewStreets });
+      const numBlockCols = gridSize - 1;
+      districts = this.generateTopologicalDistricts(config.settlementType, numBlockCols);
+      landmarks = this.generateTopologicalLandmarks(config, districts);
+      storedStreets = [...nsStreets, ...ewStreets].map(s => ({ id: s.id, name: s.name, direction: s.direction, gridIndex: s.gridIndex }));
 
-    // Generate harbor and dock infrastructure for coastal settlements
-    let harborZones: HarborZone[] | undefined;
-    if (config.terrain === 'coast') {
-      // Reuse coastline data generated earlier for water avoidance
-      const coastline: CoastlineData = (config as any)._coastlineData ?? generateCoastline({
-        seed: config.settlementName.length * 37 + config.foundedYear,
-        mapSize,
-        waterSide: 'north',
-        minBays: 1,
-        maxBays: 3,
-      });
+      console.log(`   Street pattern: grid (${gridSize}×${gridSize}, ${lotPlacements.length} lots)`);
 
-      const harborResult = generateHarborAndDocks({
-        seed: config.settlementName.length * 41 + config.foundedYear,
-        coastline,
+      lotIds = await this.persistTopologicalLots(config, lotPlacements, districts);
+    } else {
+      // ── Non-grid layout (linear, radial, organic, waterfront, hillside) ─
+      const layoutConfig = {
+        totalLots: lotsNeeded,
         settlementType: config.settlementType,
-        foundedYear: config.foundedYear,
+        centerX: 0,
+        centerZ: 0,
+      };
+      const layout = generateNonGridLayout(streetPattern, layoutConfig);
+
+      // Assign grammar names to streets
+      for (let i = 0; i < layout.streets.length; i++) {
+        if (defaultNames[i]) {
+          layout.streets[i].name = defaultNames[i];
+        }
+      }
+
+      districts = this.generateTopologicalDistricts(config.settlementType, Math.max(1, Math.ceil(layout.streets.length / 3)));
+      landmarks = this.generateTopologicalLandmarks(config, districts);
+      storedStreets = layout.streets.map(s => ({
+        id: s.id,
+        name: s.name,
+        waypoints: s.waypoints,
+        isMain: s.isMain || false,
+      }));
+
+      console.log(`   Street pattern: ${streetPattern} (${layout.streets.length} streets, ${layout.lots.length} lots)`);
+
+      // Persist lots with street-based topology
+      const lotDocs: any[] = layout.lots.map((lot, i) => {
+        const districtIndex = lot.streetIndex % districts.length;
+        const houseNum = i + 1;
+        return {
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          address: `${houseNum} ${lot.streetName}`,
+          houseNumber: houseNum,
+          streetName: lot.streetName,
+          streetId: lot.streetId,
+          streetIndex: lot.streetIndex,
+          lotSequence: lot.lotSequence,
+          side: lot.side,
+          districtName: districts[districtIndex]?.name || null,
+          lotType: 'buildable',
+          building: null,
+        };
       });
 
-      harborZones = harborResult.zones;
-
-      // Add harbor structures as landmarks
-      for (const structure of harborResult.allStructures) {
-        landmarks.push({
-          id: structure.id,
-          name: structure.name,
-          type: 'landmark',
-          x: structure.x,
-          y: structure.z,
-          width: structure.width,
-          height: structure.depth,
-          properties: {
-            harborStructureType: structure.type,
-            material: structure.properties.material,
-            condition: structure.properties.condition,
-            capacity: structure.properties.capacity,
-            builtYear: structure.properties.builtYear,
-            rotation: structure.rotation,
-          },
+      // Add park lots (first street, center)
+      const parkSubLots = [
+        { lotType: 'park', name: 'Town Square' },
+        { lotType: 'park', name: 'Town Square' },
+        { lotType: 'forest', name: 'Grove' },
+        { lotType: 'forest', name: 'Grove' },
+        { lotType: 'cemetery', name: 'Cemetery' },
+        { lotType: 'cemetery', name: 'Cemetery' },
+      ];
+      for (const sub of parkSubLots) {
+        lotDocs.push({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          address: sub.name,
+          streetName: layout.streets[0]?.name || 'Main Street',
+          streetId: layout.streets[0]?.id || 'street_main',
+          districtName: districts[0]?.name || null,
+          lotType: sub.lotType,
+          building: null,
+          name: sub.name,
         });
       }
+
+      const created = await storage.createLotsInBulk(lotDocs);
+      lotIds = created.map((l: any) => (l._id || l.id).toString());
+      console.log(`   📍 Persisted ${lotIds.length} lots`);
     }
 
-    // Prune streets that have no buildings nearby
-    const buildingStreetNames = buildings
-      .map(b => b.properties?.streetName as string)
-      .filter(Boolean);
-    const buildingPositions = buildings.map(b => ({ x: b.x, z: b.y }));
-    const prunedNetwork = pruneUnusedStreets(streetNetwork, buildingStreetNames, buildingPositions);
-    // Replace segments/nodes in the network so downstream consumers see pruned data
-    streetNetwork.segments = prunedNetwork.segments;
-    streetNetwork.nodes = prunedNetwork.nodes;
-    // Rebuild the streets Location array to match pruned segments
-    streets.length = 0;
-    for (let i = 0; i < prunedNetwork.segments.length; i++) {
-      const seg = prunedNetwork.segments[i];
-      streets.push({
-        id: seg.id,
-        name: seg.name,
-        type: 'street' as const,
-        x: seg.waypoints[0]?.x || 0,
-        y: seg.waypoints[0]?.z || 0,
-        parentId: districts[i % districts.length]?.id,
-        properties: {
-          direction: seg.direction,
-          width: seg.width,
-          waypoints: seg.waypoints,
-          nodeIds: seg.nodeIds,
-        },
-      });
-    }
-
-    // Update settlement with geography metadata including street network and boundary
-    const streetPattern = (streetNetwork as any).pattern as string | undefined;
+    // Update settlement with geography
     await storage.updateSettlement(config.settlementId, {
-      districts,
-      streets: streetNetwork.segments.map(seg => ({
-        id: seg.id,
-        name: seg.name,
-        direction: seg.direction,
-        waypoints: seg.waypoints,
-        nodeIds: seg.nodeIds,
-        width: seg.width,
-      })),
-      landmarks,
-      boundaryPolygon: boundary.polygon,
-      settlementSubtype,
+      districts: districts.map(d => ({ id: d.id, name: d.name, role: d.role })),
+      streets: storedStreets,
+      landmarks: landmarks.map(l => ({ id: l.id, name: l.name, districtId: l.districtId, properties: l.properties })),
       ...(streetPattern ? { streetPattern } : {}),
     } as any);
 
-    // Persist lots, residences, and businesses as proper database records
-    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings, streetNetwork, isWaterFn, streetPattern);
+    console.log(`✅ Generated ${districts.length} districts, ${storedStreets.length} streets, ${lotIds.length} lots persisted`);
 
-    const harborMsg = harborZones ? `, ${harborZones.length} harbor zones` : '';
-    console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones${harborMsg}`);
+    // Return empty/compatible arrays for legacy fields
+    const legacyStreets: Location[] = [];
+    const buildings: Location[] = [];
+    const agriculturalZones: any[] = [];
+    const streetNetwork: StreetNetwork = { nodes: [], segments: [] };
+    const harborZones: HarborZone[] | undefined = undefined;
 
-    return { districts, streets, buildings, landmarks, lotIds, agriculturalZones, streetNetwork, harborZones };
+    return { districts: districts as any, streets: legacyStreets, buildings, landmarks: landmarks as any, lotIds, agriculturalZones, streetNetwork, harborZones };
   }
 
   /**
@@ -1421,6 +1371,116 @@ export class GeographyGenerator {
       case 'city': return 15;
       default: return 5;
     }
+  }
+
+  // ─── Topological generation helpers ──────────────────────────────────────
+
+  private getStreetNames(targetLanguage?: string, grammarNames?: string[]): string[] {
+    if (grammarNames && grammarNames.length > 0) return grammarNames;
+    // French defaults (matching the existing generation style)
+    return [
+      'Grande Rue', "Rue de l'Église", 'Rue du Moulin', 'Rue Principale',
+      'Rue du Marché', 'Rue des Artisans', 'Rue de la Fontaine', 'Rue du Château',
+      'Rue des Fleurs', 'Rue de la Paix', 'Avenue des Chênes', 'Rue du Pont',
+      'Rue Saint-Jacques', 'Rue de la Liberté', 'Rue Victor Hugo', 'Rue du Commerce',
+    ];
+  }
+
+  private generateTopologicalDistricts(settlementType: string, numBlockCols: number): Array<{ id: string; name: string; role: string }> {
+    const roleList = DISTRICT_ROLES[settlementType] || DISTRICT_ROLES.town;
+    const numDistricts = Math.min(roleList.length, Math.max(1, Math.floor(numBlockCols * numBlockCols / 4)));
+
+    return Array.from({ length: numDistricts }, (_, i) => ({
+      id: `district-${i}`,
+      name: ROLE_NAMES[roleList[i % roleList.length]]?.[0] || `District ${i + 1}`,
+      role: roleList[i % roleList.length],
+    }));
+  }
+
+  private generateTopologicalLandmarks(config: GeographyConfig, districts: Array<{ id: string; name: string }>): Array<{ id: string; name: string; districtId: string; properties: Record<string, any> }> {
+    const landmarkNames = ['Town Square', 'Central Park', 'Old Mill', 'Clock Tower', 'Memorial Garden', 'Fountain Plaza'];
+    const count = Math.min(landmarkNames.length, Math.max(1, Math.ceil(districts.length * 1.5)));
+
+    return Array.from({ length: count }, (_, i) => ({
+      id: `landmark-${i}`,
+      name: landmarkNames[i] || `Landmark ${i + 1}`,
+      districtId: districts[i % districts.length]?.id || 'district-0',
+      properties: {
+        historical: i % 2 === 0,
+        established: config.foundedYear + i * 23,
+      },
+    }));
+  }
+
+  private async persistTopologicalLots(
+    config: GeographyConfig,
+    placements: TopologicalLotPlacement[],
+    districts: Array<{ id: string; name: string; role: string }>,
+  ): Promise<string[]> {
+    const lotDocs: any[] = [];
+
+    // Park sub-lot types: 6 lots matching the block's 2×3 layout
+    // Top row: Town Square, Town Square, Grove
+    // Bottom row: Grove, Cemetery, Cemetery
+    const parkSubLots = [
+      { lotType: 'park', name: 'Town Square' },
+      { lotType: 'park', name: 'Town Square' },
+      { lotType: 'forest', name: 'Grove' },
+      { lotType: 'forest', name: 'Grove' },
+      { lotType: 'cemetery', name: 'Cemetery' },
+      { lotType: 'cemetery', name: 'Cemetery' },
+    ];
+
+    for (const p of placements) {
+      const districtIndex = (p.blockCol + p.blockRow) % districts.length;
+      const district = districts[districtIndex];
+
+      if (p.zone === 'park') {
+        // Split the park block into 6 sub-lots (2 town square, 2 grove, 2 cemetery)
+        for (let si = 0; si < parkSubLots.length; si++) {
+          const sub = parkSubLots[si];
+          lotDocs.push({
+            worldId: config.worldId,
+            settlementId: config.settlementId,
+            address: sub.name,
+            streetName: p.streetName,
+            streetId: p.streetId,
+            blockCol: p.blockCol,
+            blockRow: p.blockRow,
+            lotIndex: si,
+            districtName: district?.name || null,
+            lotType: sub.lotType,
+            side: p.side,
+            building: null,
+            name: sub.name,
+          });
+        }
+      } else {
+        const address = p.houseNumber > 0 ? `${p.houseNumber} ${p.streetName}` : undefined;
+        lotDocs.push({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          address,
+          houseNumber: p.houseNumber > 0 ? p.houseNumber : null,
+          streetName: p.streetName,
+          streetId: p.streetId,
+          blockCol: p.blockCol,
+          blockRow: p.blockRow,
+          lotIndex: p.lotIndex,
+          districtName: district?.name || null,
+          lotType: 'buildable',
+          side: p.side,
+          building: null, // Vacant — businesses and residences assigned in later pipeline phases
+        });
+      }
+    }
+
+    if (lotDocs.length === 0) return [];
+
+    const created = await storage.createLotsInBulk(lotDocs);
+    const ids = created.map((l: any) => (l._id || l.id).toString());
+    console.log(`   📍 Persisted ${ids.length} topological lots`);
+    return ids;
   }
 
   /**

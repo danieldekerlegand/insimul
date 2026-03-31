@@ -25,11 +25,12 @@ import { shouldAttendCollege, enrollInCollege, selectMajor } from '../extensions
 import { excavateDrama, generateStorySummary } from '../extensions/tott/drama-recognition-system.js';
 import { initializeCharacterAppearance } from '../extensions/tott/appearance-system.js';
 // GenAI Visual Asset Generation Integration
-import { visualAssetGenerator } from '../services/visual-asset-generator.js';
+import { visualAssetGenerator } from '../services/assets/visual-asset-generator.js';
 // Item placement
 import { placeItemsInWorld } from './item-placement-generator.js';
 // Main quest NPC spawning
-import { spawnMainQuestNPCs } from '../services/main-quest-npc-spawner.js';
+import { spawnMainQuestNPCs } from '../../shared/quests/main-quest-npc-spawner.js';
+import { mongoQuestStorage } from '../db/mongo-quest-storage.js';
 // Text document seeding
 import { seedTextsForWorld } from '../services/text-seed-generator.js';
 import { assignDefaultOccupations } from './occupation-assignment.js';
@@ -71,7 +72,7 @@ export interface SettlementPipelineConfig {
   settlementId: string;
   foundedYear: number;
   currentYear: number;
-  terrain: string;
+  terrain?: string;
   settlementType: string;
   worldType?: string;
   // Genealogy params
@@ -112,7 +113,7 @@ export interface WorldGenerationConfig {
   settlementName: string;
   settlementDescription?: string;
   settlementType: 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
-  terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
+  terrain?: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
   currentYear: number;
   numFoundingFamilies: number;
@@ -177,7 +178,7 @@ export class WorldGenerator {
   }> {
     console.log(`🌍 Generating world: ${config.worldName}...`);
     console.log(`   Settlement: ${config.settlementName} (${config.settlementType})`);
-    console.log(`   Terrain: ${config.terrain}, Period: ${config.foundedYear} - ${config.currentYear}`);
+    console.log(`   Period: ${config.foundedYear} - ${config.currentYear}`);
     
     // Create world (abstract universe)
     const worldData: InsertWorld = {
@@ -425,13 +426,7 @@ export class WorldGenerator {
       families = genealogyResult.families.length;
       generationsCreated = genealogyResult.generations;
 
-      // Store family trees on settlement
-      const familyTrees = genealogyResult.families.map((f: any) => ({
-        surname: f.surname,
-        founderId: f.founders.father.id,
-        generations: Object.fromEntries(f.generations)
-      }));
-      await storage.updateSettlement(config.settlementId, { familyTrees, currentGeneration: generationsCreated });
+      await storage.updateSettlement(config.settlementId, { currentGeneration: generationsCreated });
     }
 
     // ── Phase 2: Geography ─────────────────────────────────────────────
@@ -555,7 +550,7 @@ export class WorldGenerator {
     // ── Phase 4.8: Main quest NPCs ─────────────────────────────────────
     if (livingCount > 0) {
       try {
-        const mqResult = await spawnMainQuestNPCs(config.worldId, targetLanguage, config.settlementId);
+        const mqResult = await spawnMainQuestNPCs(mongoQuestStorage, config.worldId, targetLanguage, config.settlementId);
         if (mqResult.created > 0) {
           progress('npcs', `Spawned ${mqResult.created} main quest NPCs`);
         }
@@ -567,7 +562,7 @@ export class WorldGenerator {
     // ── Phase 4.85: Generate main quest chapter records ─────────────────
     try {
       const { MAIN_QUEST_CHAPTERS } = await import('../../shared/quest/main-quest-chapters.js');
-      const { createMainQuestRecord } = await import('../services/main-quest-records.js');
+      const { createMainQuestRecord } = await import('../services/quests/main-quest-records.js');
 
       // Load narrative truth for chapter context
       const allTruths = await storage.getTruthsByWorld(config.worldId);
@@ -582,6 +577,7 @@ export class WorldGenerator {
         const narrativeCtx = narrativeData?.chapters?.find((ch: any) => ch.chapterId === chapter.id);
         try {
           await createMainQuestRecord(
+            mongoQuestStorage,
             config.worldId,
             'Player',
             chapter,
@@ -1113,9 +1109,9 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
       settlementType: settlement.settlementType as any,
       population: characters.length || this.estimatePopulation(settlement.settlementType),
       foundedYear: config.foundedYear || settlement.foundedYear || 1900,
-      terrain: settlement.terrain as any,
       countryId: settlement.countryId ?? undefined,
       stateId: settlement.stateId ?? undefined,
+      streetPattern: settlement.streetPattern || undefined,
       targetLanguage,
       worldType: world?.worldType || undefined,
     });
@@ -1131,9 +1127,10 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
     worldId: string;
     settlementId: string;
     currentYear: number;
-    terrain: string;
+    terrain?: string;
     worldType?: string;
     settlementType?: string;
+    guilds?: string[];
   }): Promise<{ businesses: number; employed: number; occupations: number; housed: number }> {
     const characters = await storage.getCharactersByWorld(config.worldId);
     const population = characters.filter(c => c.isAlive).length;
@@ -1206,7 +1203,7 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
     settlementId: string;
     population: number;
     currentYear: number;
-    terrain: string;
+    terrain?: string;
     settlementType?: string;
     guilds?: string[];
   }): Promise<Business[]> {
@@ -1274,28 +1271,44 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
       }
     }
 
-    // Phase 2: Create new businesses for types that couldn't be placed on lots
-    // foundBusiness → storage.createBusiness creates a lot with an embedded business building
-    for (const businessType of remainingPlan) {
-      const founder = availableFounders.pop();
-      if (founder) {
-        try {
-          const business = await foundBusiness({
-            worldId: config.worldId,
-            settlementId: config.settlementId,
-            founderId: founder.id,
-            name: this.generateBusinessName(businessType, founder),
-            businessType: businessType,
-            currentYear: config.currentYear,
-            currentTimestep: 0,
-            initialVacancies: this.getVacanciesForBusinessType(businessType)
-          });
+    // Phase 2: Place overflow businesses on vacant lots (lots with no building).
+    // This avoids creating orphaned location records with no address/position.
+    if (remainingPlan.length > 0) {
+      const allLots = await storage.getLotsBySettlement(config.settlementId);
+      const vacantLots = allLots.filter((lot: any) => !lot.building && lot.address);
 
-          resultBusinesses.push(business);
-          await storage.updateCharacter(founder.id, { occupation: `Owner (${businessType})` });
-          console.log(`   ✓ Founded ${business.name}`);
-        } catch (error) {
-          console.error(`   ✗ Failed to found ${businessType}:`, error);
+      for (const businessType of remainingPlan) {
+        const founder = availableFounders.pop();
+        if (!founder) break;
+
+        const vacantLot = vacantLots.shift();
+        if (vacantLot) {
+          // Place the business on an existing vacant lot (inherits address/position)
+          try {
+            const name = this.generateBusinessName(businessType, founder);
+            const business = await storage.createBusiness({
+              lotId: vacantLot.id,
+              worldId: config.worldId,
+              settlementId: config.settlementId,
+              name,
+              businessType,
+              ownerId: founder.id,
+              founderId: founder.id,
+              foundedYear: config.currentYear,
+              isOutOfBusiness: false,
+              vacancies: this.getVacanciesForBusinessType(businessType),
+            });
+            resultBusinesses.push(business);
+            await storage.updateCharacter(founder.id, { occupation: `Owner (${businessType})` });
+            console.log(`   ✓ Founded ${name} at ${vacantLot.address}`);
+          } catch (error) {
+            console.error(`   ✗ Failed to place ${businessType} on vacant lot:`, error);
+            availableFounders.push(founder);
+          }
+        } else {
+          // No vacant lots available — skip this business rather than creating an orphan
+          console.log(`   ⚠️ No vacant lot for ${businessType}, skipping`);
+          availableFounders.push(founder);
         }
       }
     }
@@ -1351,7 +1364,7 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
    */
   private determineBusinessMix(
     population: number,
-    terrain: string,
+    terrain: string | undefined,
     year: number,
     settlementType?: string,
     guilds?: string[],
@@ -1708,44 +1721,37 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
       return;
     }
 
-    // Generate overflow residences if there aren't enough for all characters
+    // Convert vacant lots into residences if we don't have enough housing
     if (residences.length === 0 || this.totalCapacity(residences) < livingCharacters.length) {
+      const allLots = await storage.getLotsBySettlement(config.settlementId);
+      const vacantLots = allLots.filter((l: any) => !l.building && l.address && l.lotType !== 'park');
       const needed = livingCharacters.length - this.totalCapacity(residences);
-      const housesNeeded = Math.ceil(needed / 4); // cottages hold 4
-      console.log(`   Generating ${housesNeeded} additional cottage(s) to house ${needed} overflow character(s)`);
+      const housesNeeded = Math.ceil(needed / 4); // each residence holds ~4
+      const lotsToConvert = vacantLots.slice(0, housesNeeded);
 
-      const lots = await storage.getLotsBySettlement(config.settlementId);
-      // Find an existing residential lot or use the first available lot
-      const residentialLot = lots.find((l: any) => l.zoning === 'residential') || lots[0];
-      const baseLotId = residentialLot?.id || config.settlementId;
-      const baseAddress = residentialLot?.address || 'Main Street';
-
-      const newResidences: any[] = [];
-      for (let i = 0; i < housesNeeded; i++) {
-        // Create a lot for each overflow residence
-        const houseNum = residences.length + i + 1;
-        const streetName = residentialLot?.streetName || 'Main Street';
-        const lot = await storage.createLot({
-          worldId: config.worldId,
-          settlementId: config.settlementId,
-          address: `${houseNum} ${streetName}`,
-          streetName,
-          houseNumber: houseNum,
-          zoning: 'residential',
-        });
-        newResidences.push({
-          worldId: config.worldId,
-          settlementId: config.settlementId,
-          lotId: lot.id,
-          address: lot.address,
-          residenceType: 'cottage',
-          ownerIds: [],
-          residentIds: [],
-        });
-      }
-      if (newResidences.length > 0) {
-        const created = await (storage as any).createResidencesInBulk(newResidences);
-        residences = [...residences, ...created];
+      if (lotsToConvert.length > 0) {
+        console.log(`   Converting ${lotsToConvert.length} vacant lots into residences`);
+        for (const lot of lotsToConvert) {
+          const updated = await storage.updateLot(lot.id, {
+            building: {
+              buildingCategory: 'residence',
+              residenceType: 'house',
+              residentIds: [],
+              ownerIds: [],
+            },
+          });
+          if (updated) {
+            residences.push({
+              id: lot.id,
+              lotId: lot.id,
+              address: lot.address,
+              residenceType: 'house',
+              ownerIds: [],
+              residentIds: [],
+              remaining: 4,
+            });
+          }
+        }
       }
     }
 

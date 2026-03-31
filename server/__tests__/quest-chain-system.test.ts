@@ -3,11 +3,11 @@ import {
   questChainTemplates,
   getChainTemplate,
   listChainTemplates,
-} from '../services/quest-chain-templates';
+} from '../../shared/quests/quest-chain-templates.js';
 import {
   encodeChainMeta,
   extractChainMeta,
-} from '../services/quest-chain-manager';
+} from '../../shared/quests/quest-chain-manager.js';
 
 // ── Template Tests ────────────────────────────────────────────────────────────
 

@@ -1448,13 +1448,13 @@ export class StreetGenerator {
 
   /**
    * Select the appropriate street pattern based on settlement attributes.
-   * Priority order: coast -> waterfront; river -> linear; mountains+steep -> hillside;
-   * city+large pop -> grid; city+capital -> radial; village -> organic;
-   * older settlements (foundedYear < 1800) -> organic; newer -> grid
+   * Terrain-based hints (coast, river, mountains) are derived from layout
+   * pattern by the geography generator.
    */
   selectStreetPattern(config: GeographyConfig): StreetPatternType {
     const { terrain, settlementType, population, foundedYear } = config;
 
+    // Terrain hints derived from layout pattern
     if (terrain === 'coast') return 'waterfront';
     if (terrain === 'river') return 'linear';
     if (terrain === 'mountains') return 'hillside';

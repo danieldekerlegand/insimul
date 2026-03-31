@@ -66,11 +66,9 @@ export interface StreetNetworkConfig {
    * street nodes, segments, and lots that overlap water are pruned.
    */
   isWater?: (x: number, z: number) => boolean;
-  /** Terrain type for terrain-aware street pattern selection */
-  terrain?: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   /** Population — used for pattern selection (city ≥10k → grid, city <10k → radial) */
   population?: number;
-  /** User-selected street pattern — bypasses terrain-based pattern selection when provided */
+  /** Explicit street pattern (primary input). When omitted, falls back to settlementType/foundedYear heuristic. */
   streetPatternOverride?: 'grid' | 'linear' | 'waterfront' | 'hillside' | 'organic' | 'radial';
 }
 
@@ -108,26 +106,13 @@ const MAX_GRID_SIZE: Record<string, number> = {
 };
 
 /**
- * Compute grid size from population so small settlements get small grids.
- * Estimates buildings needed (residences + businesses), derives the minimum
- * number of blocks, and returns the grid side length.
+ * Return grid size for a settlement type.
+ * The grid is always the full size for the type — the number of lots
+ * that get filled depends on population, but the street grid itself
+ * is fixed by type.
  */
-function computeGridSize(settlementType: string, population?: number): number {
-  const maxSize = MAX_GRID_SIZE[settlementType] ?? 5;
-  if (population == null || population <= 0) return maxSize;
-
-  // Estimate buildings: ~1 residence per 2.5 people + 1 business per 10
-  const residences = Math.ceil(population / 2.5);
-  const businesses = Math.max(1, Math.ceil(population / 10));
-  const buildings = residences + businesses;
-
-  // Each block holds ~6 lots (2 rows × 3 cols). Need blocks for buildings + 1 park.
-  const lotsPerBlock = 6;
-  const blocksNeeded = Math.ceil(buildings / lotsPerBlock) + 1;
-  // Grid side length: (gridSize-1)² ≥ blocksNeeded
-  const minSide = Math.ceil(Math.sqrt(blocksNeeded)) + 1;
-
-  return Math.max(2, Math.min(minSide, maxSize));
+function computeGridSize(settlementType: string, _population?: number): number {
+  return MAX_GRID_SIZE[settlementType] ?? 5;
 }
 
 const STREET_WIDTH: Record<string, number> = {
@@ -281,12 +266,11 @@ function getStreetNames(targetLanguage?: string, grammarNames?: string[]): Stree
 export type StreetPatternType = 'organic' | 'grid' | 'radial' | 'linear' | 'hillside' | 'waterfront';
 
 /**
- * Select street pattern based on terrain, settlement type, and founding era.
+ * Select street pattern based on settlement type and founding era.
  * Delegates to shared/street-pattern-selection.ts for consistency with client.
  */
 export function selectStreetPattern(config: StreetNetworkConfig): StreetPatternType {
   return sharedSelectPattern({
-    terrain: config.terrain ?? 'plains',
     settlementType: config.settlementType,
     foundedYear: config.foundedYear,
     population: config.population,
@@ -308,15 +292,14 @@ export function chooseLayout(
 /**
  * Generate a street network for a settlement.
  *
- * When `terrain` is set in config, selects from 6 terrain-aware patterns
- * (grid, organic, linear, waterfront, hillside, radial). Otherwise falls
- * back to grid/organic based on founding year.
+ * Uses the explicit `streetPatternOverride` when provided, otherwise
+ * falls back to `selectStreetPattern` heuristic based on settlement
+ * type and founding year.
  *
  * Returns the network and the pattern name used.
  */
 export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwork & { pattern?: string } {
-  // Use user-selected pattern override, or fall back to terrain-based selection
-  if (config.streetPatternOverride || config.terrain) {
+  {
     const pattern = config.streetPatternOverride || selectStreetPattern(config);
 
     // Grid and organic are handled by the existing generators
@@ -348,10 +331,10 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
       settlementType: config.settlementType as 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city',
       population: config.population ?? 500,
       foundedYear: config.foundedYear,
-      terrain: config.terrain as 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert',
+      terrain: 'plains' as const,
     };
 
-    const { network: edgeNetwork } = gen.generate(genConfig, geographyConfig);
+    const { network: edgeNetwork } = gen.generate(genConfig, geographyConfig as any);
 
     // Assign names before conversion
     gen.assignStreetNames(edgeNetwork, config.seed);
@@ -362,18 +345,6 @@ export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwor
 
     return { ...converted, pattern };
   }
-
-  // Legacy path: no terrain, use founding year to pick grid vs organic
-  const layout = chooseLayout(
-    config.settlementType,
-    config.foundedYear,
-    config.layoutOverride,
-  );
-
-  if (layout === 'grid') {
-    return { ...generateGridNetwork(config), pattern: 'grid' };
-  }
-  return { ...generateOrganicNetwork(config), pattern: 'organic' };
 }
 
 // ─────────────────────────────────────────────
@@ -664,7 +635,98 @@ function removeOverlappingLots(placements: LotPlacement[]): LotPlacement[] {
 }
 
 // ─────────────────────────────────────────────
-// Lot placement along streets
+// ─────────────────────────────────────────────
+// Topological lot placement (no x/y coordinates)
+// ─────────────────────────────────────────────
+
+export interface TopologicalLotPlacement {
+  /** Block column index (0-based, left to right) */
+  blockCol: number;
+  /** Block row index (0-based, top to bottom) */
+  blockRow: number;
+  /** Lot index within the block (0..LOTS_PER_BLOCK-1). Row 0 = top, Row 1 = bottom. */
+  lotIndex: number;
+  /** Street this lot faces */
+  streetId: string;
+  streetName: string;
+  /** House number */
+  houseNumber: number;
+  /** Which side of the street ('left' or 'right') */
+  side: 'left' | 'right';
+  /** Zone classification — 'park' lots are green space, not buildings */
+  zone?: 'commercial' | 'residential' | 'park';
+}
+
+/**
+ * Generate topological lot placements for a grid layout.
+ * No x/y coordinates — just block indices and lot indices.
+ * Use shared/layout-resolver.ts to derive positions at render time.
+ */
+export function placeLotsTopological(
+  gridSize: number,
+  streetNames: { ns: Array<{ id: string; name: string }>; ew: Array<{ id: string; name: string }> },
+): TopologicalLotPlacement[] {
+  const placements: TopologicalLotPlacement[] = [];
+  const numBlockCols = gridSize - 1;
+  const numBlockRows = gridSize - 1;
+  const parkCol = Math.floor(numBlockCols / 2);
+  const parkRow = Math.floor(numBlockRows / 2);
+  const LOTS_COLS = 3;
+
+  let houseNum = 1;
+
+  for (let col = 0; col < numBlockCols; col++) {
+    for (let row = 0; row < numBlockRows; row++) {
+      // Park block
+      if (col === parkCol && row === parkRow) {
+        placements.push({
+          blockCol: col,
+          blockRow: row,
+          lotIndex: 0,
+          streetId: streetNames.ew[row]?.id || `street_ew_${row}`,
+          streetName: streetNames.ew[row]?.name || `Street ${row}`,
+          houseNumber: 0,
+          side: 'right',
+          zone: 'park',
+        });
+        continue;
+      }
+
+      // Top row lots (face the top EW street)
+      const topStreet = streetNames.ew[row];
+      for (let lc = 0; lc < LOTS_COLS; lc++) {
+        placements.push({
+          blockCol: col,
+          blockRow: row,
+          lotIndex: lc, // 0, 1, 2 = top row
+          streetId: topStreet?.id || `street_ew_${row}`,
+          streetName: topStreet?.name || `Street ${row}`,
+          houseNumber: houseNum++,
+          side: 'right',
+        });
+      }
+
+      // Bottom row lots (face the bottom EW street)
+      const bottomStreet = streetNames.ew[row + 1];
+      for (let lc = 0; lc < LOTS_COLS; lc++) {
+        placements.push({
+          blockCol: col,
+          blockRow: row,
+          lotIndex: LOTS_COLS + lc, // 3, 4, 5 = bottom row
+          streetId: bottomStreet?.id || `street_ew_${row + 1}`,
+          streetName: bottomStreet?.name || `Street ${row + 1}`,
+          houseNumber: houseNum++,
+          side: 'left',
+        });
+      }
+    }
+  }
+
+  return placements;
+}
+
+// ─────────────────────────────────────────────
+// Legacy lot placement (with x/y coordinates)
 // ─────────────────────────────────────────────
 
 export interface LotPlacement {

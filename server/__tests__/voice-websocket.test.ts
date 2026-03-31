@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import http from 'http';
 import WebSocket from 'ws';
-import { VoiceChatManager } from '../services/voice-websocket.js';
+import { VoiceChatManager } from '../services/conversation/voice-websocket.js';
 
 type ServerMessage = {
   type: string;

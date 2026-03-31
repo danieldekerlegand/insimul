@@ -6,7 +6,7 @@ import {
   meetsLanguageRequirement,
   type CraftingQuestOptions,
   type CraftableItemInfo,
-} from '../services/crafting-quest-generator';
+} from '../../shared/quests/crafting-quest-generator.js';
 import type { Character, World } from '../../shared/schema';
 
 // ── Test fixtures ────────────────────────────────────────────────────────────

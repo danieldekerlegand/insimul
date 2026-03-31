@@ -29,8 +29,8 @@ dotenv.config({ path: envPath });
 console.log('MONGO_URL loaded:', process.env.MONGO_URL ? 'Yes' : 'No (using default)');
 
 import { storage } from '../db/storage.js';
-import { getPolyhavenModelUrl, getPolyhavenAssetFiles } from '../services/polyhaven-api.js';
-import { preprocessPolyhavenAsset } from '../services/asset-downloader.js';
+import { getPolyhavenModelUrl, getPolyhavenAssetFiles } from '../services/assets/polyhaven-api.js';
+import { preprocessPolyhavenAsset } from '../services/assets/asset-downloader.js';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 

@@ -3,8 +3,8 @@ import {
   countActiveQuests,
   checkAndReplenishQuests,
   type DepletionConfig,
-} from '../services/quest-depletion-monitor';
-import type { WorldContext } from '../services/quest-assignment-engine';
+} from '../../shared/quests/quest-depletion-monitor.js';
+import type { WorldContext } from '../../shared/quests/quest-assignment-engine.js';
 import type { Quest, InsertQuest } from '../../shared/schema';
 
 // --- Fixtures ---

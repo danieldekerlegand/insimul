@@ -119,7 +119,7 @@ The Gemini integration is **not removed** — it remains the default cloud provi
 - [x] `server/services/quest-generator.ts` — uses provider `generate()`
 - [x] `server/services/grammar-generator.ts` — uses provider `generate()`
 - [x] `server/services/gemini-ai.ts` — uses provider `generate()`
-- [x] `server/services/character-interaction.ts` — uses provider `generate()`
+- [x] `server/services/conversation/character-interaction.ts` — uses provider `generate()`
 - [x] `server/services/streaming-chat.ts` — uses provider `generateStream()` + `textToSpeech()`
 - [x] `server/services/item-translation.ts` — uses provider `generate()`
 - [x] `server/services/language-service.ts` — uses provider `generate()`

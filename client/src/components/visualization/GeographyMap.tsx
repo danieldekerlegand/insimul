@@ -16,15 +16,13 @@ const WORLD_PAD = 40;     // outer padding
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
 
-const TERRAIN_FILL: Record<string, string> = {
-  plains:    '#bbf7d0',
-  mountains: '#e2e8f0',
-  forest:    '#86efac',
-  desert:    '#fef08a',
-  coastal:   '#bae6fd',
-  tundra:    '#dbeafe',
-  swamp:     '#a7f3d0',
-  jungle:    '#6ee7b7',
+const LAYOUT_FILL: Record<string, string> = {
+  grid:       '#bbf7d0',
+  organic:    '#86efac',
+  linear:     '#bae6fd',
+  waterfront: '#93c5fd',
+  hillside:   '#e2e8f0',
+  radial:     '#fef08a',
 };
 
 const TYPE_STROKE: Record<string, string> = {
@@ -39,8 +37,8 @@ const TYPE_RADIUS: Record<string, number> = {
   village: 9,
 };
 
-function terrainFill(terrain: string | null): string {
-  return TERRAIN_FILL[terrain?.toLowerCase() ?? ''] ?? '#e5e7eb';
+function layoutFill(streetPattern: string | null): string {
+  return LAYOUT_FILL[streetPattern?.toLowerCase() ?? ''] ?? '#e5e7eb';
 }
 
 function typeStroke(type: string | null): string {
@@ -308,7 +306,7 @@ export function GeographyMap({ settlements = [], countries = [] }: GeographyMapP
                         {/* Main circle */}
                         <circle
                           r={r}
-                          fill={terrainFill(s.terrain)}
+                          fill={layoutFill(s.streetPattern)}
                           stroke={typeStroke(s.settlementType)}
                           strokeWidth={2}
                         />
@@ -377,11 +375,11 @@ export function GeographyMap({ settlements = [], countries = [] }: GeographyMapP
             ))}
           </div>
           <div className="border-t pt-2 space-y-1.5">
-            <p className="text-xs text-muted-foreground">Terrain fill</p>
-            {Object.entries(TERRAIN_FILL).slice(0, 4).map(([terrain, color]) => (
-              <div key={terrain} className="flex items-center gap-2 text-xs">
+            <p className="text-xs text-muted-foreground">Layout fill</p>
+            {Object.entries(LAYOUT_FILL).map(([layout, color]) => (
+              <div key={layout} className="flex items-center gap-2 text-xs">
                 <div className="w-3 h-3 rounded-full border border-gray-300" style={{ background: color }} />
-                <span className="capitalize">{terrain}</span>
+                <span className="capitalize">{layout}</span>
               </div>
             ))}
           </div>
@@ -397,7 +395,7 @@ export function GeographyMap({ settlements = [], countries = [] }: GeographyMapP
                   variant="secondary"
                   className="mt-1 text-xs"
                   style={{
-                    background: terrainFill(selectedSettlement.terrain),
+                    background: layoutFill(selectedSettlement.streetPattern),
                     color: typeStroke(selectedSettlement.settlementType),
                     border: `1px solid ${typeStroke(selectedSettlement.settlementType)}40`,
                   }}
@@ -422,7 +420,7 @@ export function GeographyMap({ settlements = [], countries = [] }: GeographyMapP
             <div className="space-y-1.5 text-xs">
               {[
                 ['Population', selectedSettlement.population?.toLocaleString() ?? '—'],
-                ['Terrain', selectedSettlement.terrain ?? '—'],
+                ['Layout', selectedSettlement.streetPattern ?? '—'],
                 ['Founded', selectedSettlement.foundedYear ?? 'Unknown'],
                 ['Generation', selectedSettlement.currentGeneration ?? '—'],
               ].map(([label, value]) => (

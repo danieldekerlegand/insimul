@@ -1,245 +1,262 @@
 /**
- * InsimulClient — Main SDK entry point for connecting to the Insimul
- * conversation service. Uses HTTP/SSE transport for broad browser compatibility.
+ * InsimulClient — unified conversation client with pluggable providers.
+ *
+ * Orchestrates chat (LLM), TTS, and STT across server, browser, and local backends.
+ * Consumers configure their preferred mix at construction time:
+ *
+ *   const client = new InsimulClient({
+ *     chat: 'browser',   // WebLLM in-browser
+ *     tts: 'browser',    // Kokoro WASM
+ *     stt: 'none',       // disabled
+ *   });
+ *
+ *   client.on({ onTextChunk, onAudioChunk, onComplete });
+ *   client.setCharacter(npcId, worldId);
+ *   await client.sendText("Hello!");
  */
 
 import type {
   InsimulClientOptions,
-  ConversationOptions,
   InsimulEventCallbacks,
-  TextChunk,
-  AudioChunkOutput,
-  FacialData,
-  ActionTrigger,
-  SSEEvent,
+  ConversationState,
+  SendTextOptions,
   HealthCheckResponse,
+  ChatProviderType,
+  TTSProviderType,
+  STTProviderType,
 } from './types.js';
-import { AudioEncoding, ConversationState } from './types.js';
+import type { ChatProvider } from './providers/chat/types.js';
+import type { TTSProvider } from './providers/tts/types.js';
+import type { STTProvider } from './providers/stt/types.js';
+import { detectBestChatProvider, detectBestTTSProvider, detectBestSTTProvider } from './detect.js';
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Provider factories ──────────────────────────────────────────────────
 
-function generateSessionId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let id = 'sdk_';
-  for (let i = 0; i < 16; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
+async function createChatProvider(type: ChatProviderType, options: InsimulClientOptions): Promise<ChatProvider> {
+  switch (type) {
+    case 'server': {
+      const { ServerChatProvider } = await import('./providers/chat/server-chat-provider.js');
+      return new ServerChatProvider({
+        serverUrl: options.serverUrl || 'http://localhost:8080',
+        apiKey: options.apiKey,
+        worldId: options.worldId,
+        preferWebSocket: options.preferWebSocket ?? true,
+        languageCode: options.languageCode,
+      });
+    }
+    case 'browser': {
+      const { BrowserChatProvider } = await import('./providers/chat/browser-chat-provider.js');
+      return new BrowserChatProvider({
+        llmModel: options.llmModel,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        onLoadProgress: options.onLoadProgress,
+      });
+    }
+    case 'local': {
+      const { LocalChatProvider } = await import('./providers/chat/local-chat-provider.js');
+      return new LocalChatProvider();
+    }
   }
-  return id;
 }
 
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+async function createTTSProvider(type: TTSProviderType, _options: InsimulClientOptions): Promise<TTSProvider> {
+  switch (type) {
+    case 'server': {
+      const { ServerTTSProvider } = await import('./providers/tts/server-tts-provider.js');
+      return new ServerTTSProvider();
+    }
+    case 'browser': {
+      const { BrowserTTSProvider } = await import('./providers/tts/browser-tts-provider.js');
+      return new BrowserTTSProvider();
+    }
+    case 'local': {
+      const { LocalTTSProvider } = await import('./providers/tts/local-tts-provider.js');
+      return new LocalTTSProvider();
+    }
+    case 'none': {
+      const { NoneTTSProvider } = await import('./providers/tts/none-tts-provider.js');
+      return new NoneTTSProvider();
+    }
   }
-  return bytes;
 }
 
-// ── InsimulClient ──────────────────────────────────────────────────────────
+async function createSTTProvider(type: STTProviderType, options: InsimulClientOptions): Promise<STTProvider> {
+  switch (type) {
+    case 'server': {
+      const { ServerSTTProvider } = await import('./providers/stt/server-stt-provider.js');
+      return new ServerSTTProvider(options.serverUrl || 'http://localhost:8080', options.apiKey);
+    }
+    case 'browser': {
+      const { BrowserSTTProvider } = await import('./providers/stt/browser-stt-provider.js');
+      return new BrowserSTTProvider();
+    }
+    case 'local': {
+      const { LocalSTTProvider } = await import('./providers/stt/local-stt-provider.js');
+      return new LocalSTTProvider();
+    }
+    case 'none': {
+      const { NoneSTTProvider } = await import('./providers/stt/none-stt-provider.js');
+      return new NoneSTTProvider();
+    }
+  }
+}
+
+// ── InsimulClient ────────────────────────────────────────────────────────
 
 export class InsimulClient {
-  private serverUrl: string;
-  private apiKey: string | undefined;
-  private worldId: string;
-  private languageCode: string;
-
-  private sessionId: string | null = null;
+  private chatProvider!: ChatProvider;
+  private ttsProvider!: TTSProvider;
+  private sttProvider!: STTProvider;
   private callbacks: InsimulEventCallbacks = {};
-  private abortController: AbortController | null = null;
-  private state: ConversationState = ConversationState.CONVERSATION_STATE_UNSPECIFIED;
+  private state: ConversationState = 'idle';
+  private options: InsimulClientOptions;
+  private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
-  constructor(options: InsimulClientOptions) {
-    // Strip trailing slash
-    this.serverUrl = options.serverUrl.replace(/\/+$/, '');
-    this.apiKey = options.apiKey;
-    this.worldId = options.worldId;
-    this.languageCode = options.languageCode ?? 'en';
+  // Resolved provider types
+  private chatType: ChatProviderType;
+  private ttsType: TTSProviderType;
+  private sttType: STTProviderType;
+
+  constructor(options: InsimulClientOptions = {}) {
+    this.options = options;
+
+    // Resolve provider types
+    this.chatType = typeof options.chat === 'string'
+      ? options.chat
+      : (options.chat && 'type' in options.chat) ? options.chat.type as ChatProviderType : detectBestChatProvider();
+
+    this.ttsType = typeof options.tts === 'string'
+      ? options.tts
+      : (options.tts && 'type' in options.tts) ? options.tts.type as TTSProviderType : detectBestTTSProvider(this.chatType);
+
+    this.sttType = typeof options.stt === 'string'
+      ? options.stt
+      : (options.stt && 'type' in options.stt) ? options.stt.type as STTProviderType : detectBestSTTProvider(this.chatType);
+
+    // Use provided provider instances directly if given
+    if (options.chat && typeof options.chat === 'object' && 'type' in options.chat) {
+      this.chatProvider = options.chat as ChatProvider;
+    }
+    if (options.tts && typeof options.tts === 'object' && 'type' in options.tts) {
+      this.ttsProvider = options.tts as TTSProvider;
+    }
+    if (options.stt && typeof options.stt === 'object' && 'type' in options.stt) {
+      this.sttProvider = options.stt as STTProvider;
+    }
+
+    console.log(`[InsimulClient] Providers: chat=${this.chatType}, tts=${this.ttsType}, stt=${this.sttType}`);
   }
 
-  // ── Event Callbacks ────────────────────────────────────────────────────
+  // ── Provider access ───────────────────────────────────────────────────
 
-  /** Register event callbacks for conversation events */
-  public on(callbacks: InsimulEventCallbacks): void {
+  getChatProvider(): ChatProvider { return this.chatProvider; }
+  getTTSProvider(): TTSProvider { return this.ttsProvider; }
+  getSTTProvider(): STTProvider { return this.sttProvider; }
+  getChatType(): ChatProviderType { return this.chatType; }
+  getTTSType(): TTSProviderType { return this.ttsType; }
+  getSTTType(): STTProviderType { return this.sttType; }
+
+  // ── Callbacks ─────────────────────────────────────────────────────────
+
+  on(callbacks: InsimulEventCallbacks): void {
     this.callbacks = { ...this.callbacks, ...callbacks };
+    if (this.initialized) this.wireProviderCallbacks();
   }
 
-  /** Get the current session ID (null if no active conversation) */
-  public getSessionId(): string | null {
-    return this.sessionId;
-  }
-
-  /** Get the current conversation state */
-  public getState(): ConversationState {
-    return this.state;
-  }
-
-  // ── Conversation Lifecycle ─────────────────────────────────────────────
-
-  /**
-   * Start a new conversation or resume an existing one.
-   * Returns the session ID for this conversation.
-   */
-  public startConversation(options: ConversationOptions): string {
-    // End any existing conversation
-    if (this.sessionId && this.abortController) {
-      this.abortController.abort();
-    }
-
-    this.sessionId = options.sessionId ?? generateSessionId();
-    this.setState(ConversationState.STARTED);
-    return this.sessionId;
-  }
-
-  /**
-   * Send a text message to the NPC. Responses stream back via callbacks.
-   */
-  public async sendText(
-    text: string,
-    characterId: string,
-    options?: { languageCode?: string },
-  ): Promise<void> {
-    if (!this.sessionId) {
-      throw new Error('No active conversation. Call startConversation() first.');
-    }
-
-    this.setState(ConversationState.ACTIVE);
-
-    // Abort any in-flight request
-    this.abortController?.abort();
-    this.abortController = new AbortController();
-
-    const body = {
-      sessionId: this.sessionId,
-      characterId,
-      worldId: this.worldId,
-      text,
-      languageCode: options?.languageCode ?? this.languageCode,
-    };
-
-    try {
-      const response = await fetch(`${this.serverUrl}/api/conversation/stream`, {
-        method: 'POST',
-        headers: this.buildHeaders(),
-        body: JSON.stringify(body),
-        signal: this.abortController.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
-      }
-
-      await this.consumeSSEStream(response);
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return; // Intentional abort
-      }
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.callbacks.onError?.(error);
-    }
-  }
-
-  /**
-   * Send an audio chunk (recorded speech) to the NPC.
-   * The server transcribes it via STT, then streams the NPC response back.
-   */
-  public async sendAudio(
-    audioData: Blob,
-    characterId: string,
-    options?: { languageCode?: string },
-  ): Promise<void> {
-    if (!this.sessionId) {
-      throw new Error('No active conversation. Call startConversation() first.');
-    }
-
-    this.setState(ConversationState.ACTIVE);
-
-    this.abortController?.abort();
-    this.abortController = new AbortController();
-
-    const formData = new FormData();
-    formData.append('audio', audioData, 'recording.webm');
-    formData.append('sessionId', this.sessionId);
-    formData.append('characterId', characterId);
-    formData.append('worldId', this.worldId);
-    formData.append('languageCode', options?.languageCode ?? this.languageCode);
-
-    try {
-      const headers: Record<string, string> = {};
-      if (this.apiKey) {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
-      }
-
-      const response = await fetch(`${this.serverUrl}/api/conversation/stream-audio`, {
-        method: 'POST',
-        headers,
-        body: formData,
-        signal: this.abortController.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
-      }
-
-      await this.consumeSSEStream(response);
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return;
-      }
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.callbacks.onError?.(error);
-    }
-  }
-
-  /**
-   * End the current conversation and clean up.
-   */
-  public async endConversation(): Promise<void> {
-    if (!this.sessionId) return;
-
-    this.abortController?.abort();
-    this.abortController = null;
-
-    try {
-      await fetch(`${this.serverUrl}/api/conversation/end`, {
-        method: 'POST',
-        headers: this.buildHeaders(),
-        body: JSON.stringify({ sessionId: this.sessionId }),
-      });
-    } catch {
-      // Best-effort cleanup
-    }
-
-    this.setState(ConversationState.ENDED);
-    this.sessionId = null;
-  }
-
-  // ── Health Check ───────────────────────────────────────────────────────
-
-  /** Check if the conversation service is available */
-  public async healthCheck(): Promise<HealthCheckResponse> {
-    const response = await fetch(`${this.serverUrl}/api/conversation/health`, {
-      headers: this.buildHeaders(),
+  private wireProviderCallbacks(): void {
+    this.chatProvider.setCallbacks({
+      onTextChunk: (text, isFinal) => this.callbacks.onTextChunk?.(text, isFinal),
+      onAudioChunk: (chunk) => this.callbacks.onAudioChunk?.(chunk),
+      onFacialData: (data) => this.callbacks.onFacialData?.(data),
+      onActionTrigger: (action) => this.callbacks.onActionTrigger?.(action),
+      onMetadata: (type, content) => this.callbacks.onMetadata?.(type, content),
+      onComplete: (fullText) => {
+        // If TTS is not server-streamed and not disabled, synthesize after text completes
+        if (this.ttsType !== 'server' && this.ttsType !== 'none' && fullText) {
+          this.ttsProvider.synthesize(fullText).catch(err => {
+            console.warn('[InsimulClient] TTS failed:', err);
+          });
+        }
+        this.callbacks.onComplete?.(fullText);
+      },
+      onStateChange: (state) => this.setState(state as ConversationState),
+      onError: (err) => this.callbacks.onError?.(err),
     });
 
-    if (!response.ok) {
-      throw new Error(`Health check failed: ${response.status}`);
-    }
+    this.ttsProvider.setCallbacks({
+      onAudioChunk: (chunk) => this.callbacks.onAudioChunk?.(chunk),
+      onStart: () => this.setState('speaking'),
+      onComplete: () => {
+        if (this.state === 'speaking') this.setState('idle');
+      },
+      onError: (err) => this.callbacks.onError?.(err),
+    });
 
-    return response.json() as Promise<HealthCheckResponse>;
+    this.sttProvider.setCallbacks({
+      onTranscript: (text, isFinal) => this.callbacks.onTranscript?.(text, isFinal),
+      onError: (err) => this.callbacks.onError?.(err),
+    });
   }
 
-  // ── Internal ───────────────────────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────
 
-  private buildHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (this.apiKey) {
-      headers['Authorization'] = `Bearer ${this.apiKey}`;
-    }
-    return headers;
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = (async () => {
+      // Create providers that weren't passed as instances
+      if (!this.chatProvider) {
+        this.chatProvider = await createChatProvider(this.chatType, this.options);
+      }
+      if (!this.ttsProvider) {
+        this.ttsProvider = await createTTSProvider(this.ttsType, this.options);
+      }
+      if (!this.sttProvider) {
+        this.sttProvider = await createSTTProvider(this.sttType, this.options);
+      }
+
+      // Wire callbacks
+      this.wireProviderCallbacks();
+
+      // Initialize all providers
+      await Promise.all([
+        this.chatProvider.initialize(),
+        this.ttsProvider.initialize(),
+        this.sttProvider.initialize(),
+      ]);
+
+      this.initialized = true;
+      this.initPromise = null;
+    })();
+
+    return this.initPromise;
   }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) await this.initialize();
+  }
+
+  setCharacter(characterId: string, worldId: string): void {
+    if (this.chatProvider) {
+      this.chatProvider.setCharacter(characterId, worldId);
+    }
+
+    if (this.options.systemPromptBuilder && this.chatProvider) {
+      this.chatProvider.setSystemPrompt(this.options.systemPromptBuilder(characterId, worldId));
+    }
+  }
+
+  /** Set TTS voice for the current character */
+  setVoice(options: { gender?: string; language?: string; voiceId?: string }): void {
+    if (this.ttsProvider) {
+      this.ttsProvider.setVoice(options);
+    }
+  }
+
+  getState(): ConversationState { return this.state; }
 
   private setState(state: ConversationState): void {
     if (this.state !== state) {
@@ -248,90 +265,76 @@ export class InsimulClient {
     }
   }
 
-  /**
-   * Consume an SSE response stream and dispatch events to callbacks.
-   */
-  private async consumeSSEStream(response: Response): Promise<void> {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('Response body is not readable');
+  // ── Messaging ─────────────────────────────────────────────────────────
+
+  async sendText(text: string, options?: SendTextOptions): Promise<string> {
+    await this.ensureInitialized();
+    return this.chatProvider.sendText(text, options?.languageCode || this.options.languageCode);
+  }
+
+  async sendAudio(audioBlob: Blob, options?: SendTextOptions): Promise<string> {
+    await this.ensureInitialized();
+
+    // Server handles STT+LLM+TTS in one pipeline
+    if (this.chatType === 'server') {
+      return this.chatProvider.sendAudio(audioBlob, options?.languageCode || this.options.languageCode);
     }
 
-    const decoder = new TextDecoder();
-    let buffer = '';
+    // For browser/local: STT first, then sendText
+    this.setState('listening');
+    const transcript = await this.sttProvider.transcribe(audioBlob, options?.languageCode || this.options.languageCode);
+    this.callbacks.onTranscript?.(transcript, true);
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    if (!transcript) {
+      this.setState('idle');
+      return '';
+    }
 
-        buffer += decoder.decode(value, { stream: true });
+    return this.sendText(transcript, options);
+  }
 
-        // Parse SSE lines
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? ''; // Keep incomplete line in buffer
+  abort(): void {
+    this.chatProvider?.abort();
+    this.ttsProvider?.abort();
+    this.sttProvider?.abort();
+    this.setState('idle');
+  }
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+  async dispose(): Promise<void> {
+    this.abort();
+    await Promise.all([
+      this.chatProvider?.dispose(),
+      this.ttsProvider?.dispose(),
+      this.sttProvider?.dispose(),
+    ]);
+    this.initialized = false;
+  }
 
-          const data = trimmed.slice(6); // Remove "data: " prefix
+  // ── Utility ───────────────────────────────────────────────────────────
 
-          if (data === '[DONE]') {
-            return;
-          }
-
-          try {
-            const event = JSON.parse(data) as SSEEvent;
-            this.dispatchEvent(event);
-          } catch {
-            // Skip malformed JSON lines
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
+  async isAvailable(): Promise<boolean> {
+    if (this.chatProvider) return this.chatProvider.isSupported();
+    // Before initialization, check based on type
+    switch (this.chatType) {
+      case 'browser': return typeof navigator !== 'undefined' && !!(navigator as any).gpu;
+      case 'local': return typeof window !== 'undefined' && !!(window as any).electronAPI?.aiAvailable;
+      case 'server': return true;
     }
   }
 
-  private dispatchEvent(event: SSEEvent): void {
-    switch (event.type) {
-      case 'text': {
-        const chunk: TextChunk = {
-          text: event.text,
-          isFinal: event.isFinal,
-        };
-        this.callbacks.onTextChunk?.(chunk);
-        break;
-      }
-      case 'audio': {
-        const audioChunk: AudioChunkOutput = {
-          data: base64ToUint8Array(event.data),
-          encoding: event.encoding ?? AudioEncoding.MP3,
-          sampleRate: event.sampleRate,
-          durationMs: event.durationMs,
-        };
-        this.callbacks.onAudioChunk?.(audioChunk);
-        break;
-      }
-      case 'facial': {
-        const facialData: FacialData = { visemes: event.visemes };
-        this.callbacks.onVisemeData?.(facialData);
-        break;
-      }
-      case 'transcript': {
-        // Transcript events are informational (STT result)
-        // Dispatch as a text chunk with isFinal=true for simplicity
-        this.callbacks.onTextChunk?.({
-          text: event.text,
-          isFinal: true,
-        });
-        break;
-      }
-      case 'error': {
-        this.callbacks.onError?.(new Error(event.message));
-        break;
-      }
+  async healthCheck(): Promise<HealthCheckResponse> {
+    if (this.chatType !== 'server') {
+      return { healthy: this.chatProvider?.isReady() ?? false, version: '2.0.0' };
+    }
+    try {
+      const serverUrl = this.options.serverUrl || 'http://localhost:8080';
+      const res = await fetch(`${serverUrl}/api/conversation/health`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) return await res.json();
+      return { healthy: false, version: '0.0.0' };
+    } catch {
+      return { healthy: false, version: '0.0.0' };
     }
   }
 }

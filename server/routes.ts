@@ -11,16 +11,22 @@ import { createNarrativeArcRoutes } from './routes/narrative-arc-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import * as PlaythroughOverlay from './services/playthrough-overlay';
+import { setDefaultLLMProvider } from '../shared/quests/quest-generator.js';
+import { setPrologProvider } from '../shared/quests/mystery-quest-generator.js';
+import { createLLMProvider } from './services/llm-provider.js';
+
+// Wire up shared quest system with server-side providers
+setDefaultLLMProvider(createLLMProvider({ provider: 'gemini' }));
+setPrologProvider(prologAutoSync);
 import * as Mercantile from './services/mercantile';
 import * as SpendingSinks from './services/spending-sinks';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
 import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
 import { nameGenerator } from './generators/name-generator.js';
-import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
+import { isGeminiConfigured, GEMINI_MODELS } from './config/gemini.js';
 import { getTTSProvider, getSTTProvider, getNativeAudioProvider, getContentProvider } from './services/providers/index.js';
 import { generateText, generateTextBatch, generatedTextToInsertText, buildStarterSetParams, type TextGenerationParams, type TextCategory, type CefrLevel } from './services/text-generator.js';
-import { conversationContextCache, ConversationContextCache } from './services/conversation-context-cache.js';
 import {
   generateLanguage,
   getLanguageById,
@@ -46,7 +52,6 @@ import {
   insertTextSchema,
   insertContainerSchema,
   insertVisualAssetSchema,
-  insertTextSchema,
   insertCharacterTemplateSchema,
   type InsertRule,
   type Rule
@@ -1755,8 +1760,9 @@ app.get("/api/rules", async (req, res) => {
       
       // Seed the main quest chain (missing writer mystery) for new worlds
       try {
-        const { seedMainQuestChain } = await import('./services/main-quest-chain-seeder.js');
-        await seedMainQuestChain(world.id, world.targetLanguage || '');
+        const { seedMainQuestChain } = await import('../shared/quests/main-quest-chain-seeder.js');
+        const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+        await seedMainQuestChain(mongoQuestStorage, world.id, world.targetLanguage || '');
       } catch (seedError) {
         console.warn('[World Create] Failed to seed main quest chain:', seedError);
         // Non-fatal: world is still usable without the quest chain
@@ -4429,8 +4435,8 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         settlementId,
         foundedYear: req.body.foundedYear || settlement.foundedYear || 1850,
         currentYear,
-        terrain: settlement.terrain || 'plains',
         settlementType: settlement.settlementType || 'town',
+        streetPattern: settlement.streetPattern || undefined,
         worldType: req.body.worldType,
         numFoundingFamilies: req.body.numFoundingFamilies || 10,
         generations: req.body.generations || 4,
@@ -4438,6 +4444,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         fertilityRate: req.body.fertilityRate,
         deathRate: req.body.deathRate,
         targetPopulation: req.body.targetPopulation,
+        guilds: req.body.guilds,
         generateGenealogy: req.body.generateGenealogy !== false,
         generateGeography: req.body.generateGeography !== false,
         generateTruths: req.body.generateTruths !== false,
@@ -4466,7 +4473,6 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           worldId: settlement.worldId,
           settlementId,
           currentYear,
-          terrain: settlement.terrain || 'plains',
           worldType: req.body.worldType,
         });
       }
@@ -4525,7 +4531,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
 
       // Resolve per-country configs: new format (countries array) or flat legacy fields
       const countryConfigs: Array<{
-        terrain: string;
+        terrain?: string;
         foundedYear: number;
         generateStates: boolean;
         numStatesPerCountry: number;
@@ -4551,7 +4557,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         settlementLayouts?: Record<string, string>;
       }> = config.countries && Array.isArray(config.countries) && config.countries.length > 0
         ? config.countries.map((c: any) => ({
-            terrain: c.terrain || 'plains',
+            terrain: c.terrain || undefined,
             foundedYear: c.foundedYear || 1850,
             generateStates: c.generateStates !== false,
             numStatesPerCountry: c.numStatesPerCountry || 1,
@@ -4573,7 +4579,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             settlementLayouts: c.settlementLayouts,
           }))
         : Array(config.numCountries || 1).fill(null).map(() => ({
-            terrain: config.terrain || 'plains',
+            terrain: config.terrain || undefined,
             foundedYear: config.foundedYear || 1850,
             generateStates: config.generateStates !== false,
             numStatesPerCountry: config.numStatesPerCountry || 1,
@@ -4604,7 +4610,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         const world = await storage.getWorld(config.worldId);
 
         // Build settlement plan across ALL countries
-        const settlementPlan: Array<{ type: string; numFamilies: number; childrenPerFamily: number }> = [];
+        const settlementPlan: Array<{ type: string; numFamilies: number; childrenPerFamily: number; guilds?: string[]; streetPattern?: string }> = [];
         // Track which settlements belong to which country (for later assignment)
         const countrySettlementRanges: Array<{ start: number; end: number; statesCount: number }> = [];
 
@@ -4669,7 +4675,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             numCountries: numCountriesTotal,
             numStatesPerCountry: totalStatesForNames > 0 ? Math.ceil(totalStatesForNames / numCountriesTotal) : 0,
             governmentType: config.governmentType || 'monarchy',
-            settlements: settlementPlan
+            settlements: settlementPlan as any
           });
 
           console.log(`✅ Generated names complete!`);
@@ -4710,7 +4716,6 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   countryId: country.id,
                   name: stateName,
                   stateType: 'province',
-                  terrain: cc.terrain || 'plains'
                 });
                 stateId = state.id;
                 numStates++;
@@ -4729,7 +4734,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   stateId: stateId,
                   name: settlementName,
                   settlementType: plan.type,
-                  terrain: cc.terrain || 'plains',
+                  streetPattern: (plan as any).streetPattern || undefined,
                   population: 0,
                   foundedYear: cc.foundedYear
                 });
@@ -4754,7 +4759,6 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   settlementId: settlement.id,
                   countryId: country.id,
                   type: plan.type,
-                  terrain: cc.terrain || 'plains',
                   foundedYear: cc.foundedYear,
                   numFoundingFamilies: typeFamilies,
                   generations: typeGenerations,
@@ -4784,11 +4788,11 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
               const countryStates = allStates.filter(s => (s as any).countryId === country.id);
               return {
                 id: country.id,
-                terrain: countryConfigs[ci]?.terrain || 'plains',
+                terrain: countryConfigs[ci]?.terrain,
                 settlements: countrySettlements.map(s => ({
                   id: s.id,
                   type: (s.settlementType || 'town') as 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city',
-                  terrain: (s.terrain || countryConfigs[ci]?.terrain || 'plains'),
+                  terrain: (countryConfigs[ci]?.terrain || undefined),
                   population: s.population || 50,
                   stateId: s.stateId || undefined,
                 })),
@@ -4979,7 +4983,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
               worldName: world.name || 'Unknown World',
               worldDescription: world.description || undefined,
               settlementType: 'city',
-              terrain: cc.terrain || 'plains'
+              terrain: cc.terrain
             });
             if (generatedName && generatedName.length > 0) {
               countryName = generatedName;
@@ -5014,7 +5018,6 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
               countryId: country.id,
               name: stateName,
               stateType: 'province',
-              terrain: cc.terrain || 'plains'
             });
             stateId = state.id;
             numStates++;
@@ -5042,6 +5045,9 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             return { foundingFamilies, generations };
           };
 
+          // Track per-type index for guild/layout lookups
+          const typeIndices: Record<string, number> = {};
+
           // Helper to create settlements with batch name generation
           const createSettlements = async (type: string, count: number) => {
             if (count === 0) return;
@@ -5063,7 +5069,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   countryGovernment: country.governmentType || undefined,
                   countryEconomy: country.economicSystem || undefined,
                   settlementType: type,
-                  terrain: cc.terrain || 'plains'
+                  terrain: cc.terrain
                 }));
                 settlementNames = await nameGenerator.generateSettlementNamesBatch(contexts);
                 console.log(`   🏙️  Generated ${settlementNames.length} ${type} names in batch`);
@@ -5080,13 +5086,20 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             }
 
             for (let k = 0; k < count; k++) {
+              // Look up per-settlement guild assignments and layout overrides
+              const idx = typeIndices[type] || 0;
+              typeIndices[type] = idx + 1;
+              const key = `${type}_${idx}`;
+              const streetPattern = cc.settlementLayouts?.[key] || undefined;
+              const guilds = cc.guildAssignments?.[key] || undefined;
+
               const settlement = await storage.createSettlement({
                 worldId: config.worldId,
                 countryId: country.id,
                 stateId: stateId,
                 name: settlementNames[k],
                 settlementType: type,
-                terrain: cc.terrain || 'plains',
+                streetPattern,
                 population: 0,
                 foundedYear: cc.foundedYear,
                 generationConfig: {
@@ -5124,8 +5137,8 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   worldId: config.worldId,
                   settlementId: settlement.id,
                   currentYear,
-                  terrain: cc.terrain || 'plains',
                   worldType: config.worldType,
+                  guilds,
                 });
               }
             }
@@ -5239,7 +5252,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 countryEconomy: country?.economicSystem || undefined,
                 stateName: state?.name || undefined,
                 settlementType: type,
-                terrain: config.terrain || 'plains'
+                terrain: config.terrain
               }));
               settlementNames = await nameGenerator.generateSettlementNamesBatch(contexts);
               console.log(`   🏙️  Batch generated ${settlementNames.length} ${type} names`);
@@ -5264,7 +5277,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
               stateId: targetStateId,
               name: settlementName,
               settlementType: type,
-              terrain: config.terrain || 'plains',
+              terrain: config.terrain,
               population: 0,
               foundedYear: config.foundedYear || 1850,
               generationConfig: {
@@ -5931,7 +5944,7 @@ Make the action names thematic and immersive.`;
         progressTracker.updateProgress(taskId, 'quests', 'Generating quest storylines...', 92);
         try {
           // Seed one quest per canonical objective type using real world data
-          const { generateSeedQuests } = await import('./services/quest-seed-generator.js');
+          const { generateSeedQuests } = await import('../shared/quests/quest-seed-generator.js');
           const characters = await storage.getCharactersByWorld(worldId);
           const settlements = await storage.getSettlementsByWorld(worldId);
 
@@ -6724,7 +6737,7 @@ Return ONLY valid JSON array.`;
       }
 
       // Strip ALL non-spoken content — markers, markdown, translations
-      const { cleanForSpeech } = await import('./services/streaming-chat.js');
+      const { cleanForSpeech } = await import('./services/conversation/streaming-chat.js');
       const cleanText = cleanForSpeech(textToConvert);
 
       const tts = getTTSProvider();
@@ -7067,7 +7080,7 @@ Return ONLY valid JSON array.`;
 
       // Handle streaming mode with per-sentence TTS
       if (stream && !audioInput) {
-        const { streamChatWithTTS } = await import('./services/streaming-chat.js');
+        const { streamChatWithTTS } = await import('./services/conversation/streaming-chat.js');
         const inferredGender = gender !== 'neutral' ? gender : (voice === 'Kore' || voice === 'Aoede' ? 'female' : 'male');
         return streamChatWithTTS(res, {
           systemPrompt,
@@ -7128,7 +7141,7 @@ Return ONLY valid JSON array.`;
       }
 
       // Compress conversation history if it's too long
-      const { compressConversationHistory } = await import('./services/conversation-compression.js');
+      const { compressConversationHistory } = await import('./services/conversation/conversation-compression.js');
       const compressedHistory = await compressConversationHistory(historyMessages);
 
       // Build the full conversation contents for the new SDK
@@ -7152,7 +7165,7 @@ Return ONLY valid JSON array.`;
 
       // ── SSE streaming path (with sentence boundary detection) ──
       if (stream) {
-        const { SentenceBuffer } = await import('./services/sentence-boundary.js');
+        const { SentenceBuffer } = await import('./services/conversation/sentence-boundary.js');
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
@@ -7504,7 +7517,7 @@ Respond with this JSON structure:
 
   app.post("/api/character/getResponse", async (req, res) => {
     try {
-      const { getCharacterResponse } = await import("./services/character-interaction.js");
+      const { getCharacterResponse } = await import("./services/conversation/character-interaction.js");
       const { userQuery, charID } = req.body;
 
       if (!userQuery || !charID) {
@@ -7602,7 +7615,7 @@ Respond with this JSON structure:
 
   app.post("/api/character/getActions", async (req, res) => {
     try {
-      const { getCharacterActions } = await import("./services/character-interaction.js");
+      const { getCharacterActions } = await import("./services/conversation/character-interaction.js");
       const { charID } = req.body;
 
       if (!charID) {
@@ -7618,7 +7631,7 @@ Respond with this JSON structure:
 
   app.post("/api/character/getActionResponse", async (req, res) => {
     try {
-      const { getActionResponse } = await import("./services/character-interaction.js");
+      const { getActionResponse } = await import("./services/conversation/character-interaction.js");
       const { charID, action, context } = req.body;
 
       if (!charID || !action) {
@@ -7634,7 +7647,7 @@ Respond with this JSON structure:
 
   app.post("/api/character/narrative/list-sections", async (req, res) => {
     try {
-      const { listNarrativeSections } = await import("./services/character-interaction.js");
+      const { listNarrativeSections } = await import("./services/conversation/character-interaction.js");
       const sections = listNarrativeSections();
       res.json(sections);
     } catch (error) {
@@ -7644,7 +7657,7 @@ Respond with this JSON structure:
 
   app.post("/api/character/narrative/list-triggers", async (req, res) => {
     try {
-      const { listNarrativeTriggers } = await import("./services/character-interaction.js");
+      const { listNarrativeTriggers } = await import("./services/conversation/character-interaction.js");
       const triggers = listNarrativeTriggers();
       res.json(triggers);
     } catch (error) {
@@ -9048,7 +9061,7 @@ Respond with this JSON structure:
   app.get("/api/worlds/:worldId/3d-config", async (req, res) => {
     try {
       const { worldId } = req.params;
-      const { getWorld3DConfigForWorld } = await import('./services/asset-collection-resolver.js');
+      const { getWorld3DConfigForWorld } = await import('./services/assets/asset-collection-resolver.js');
       const config = await getWorld3DConfigForWorld(worldId);
       res.json(config);
     } catch (error: any) {
@@ -9060,7 +9073,7 @@ Respond with this JSON structure:
   app.patch("/api/worlds/:worldId/3d-config", async (req, res) => {
     try {
       const { worldId } = req.params;
-      const { updateWorld3DConfig } = await import('./services/asset-collection-resolver.js');
+      const { updateWorld3DConfig } = await import('./services/assets/asset-collection-resolver.js');
       const config = await updateWorld3DConfig(worldId, req.body);
       res.json(config);
     } catch (error: any) {
@@ -9329,7 +9342,7 @@ Respond with this JSON structure:
   app.get("/api/worlds/:worldId/guilds", async (req, res) => {
     try {
       const { GUILD_DEFINITIONS, getAllGuildIds } = require('../shared/guild-definitions');
-      const { GuildQuestManager } = require('./services/guild-quest-manager');
+      const { GuildQuestManager } = require('../shared/quests/guild-quest-manager');
       const manager = new GuildQuestManager();
 
       const allQuests = await storage.getQuestsByWorld(req.params.worldId);
@@ -9351,7 +9364,7 @@ Respond with this JSON structure:
   // Receive the next quest from a guild master (unavailable → available)
   app.post("/api/worlds/:worldId/guilds/:guildId/receive-quest", async (req, res) => {
     try {
-      const { GuildQuestManager } = require('./services/guild-quest-manager');
+      const { GuildQuestManager } = require('../shared/quests/guild-quest-manager');
       const manager = new GuildQuestManager();
 
       const allQuests = await storage.getQuestsByWorld(req.params.worldId);
@@ -9649,7 +9662,7 @@ Respond with this JSON structure:
             storage.getQuestsByWorld(worldId),
           ]);
 
-          const { checkAndReplenishQuests } = await import('./services/quest-depletion-monitor.js');
+          const { checkAndReplenishQuests } = await import('../shared/quests/quest-depletion-monitor.js');
           depletionResult = await checkAndReplenishQuests(
             worldQuests,
             { world, characters, settlements, existingQuests: worldQuests },
@@ -9663,7 +9676,9 @@ Respond with this JSON structure:
       // Check if this completes a quest chain
       let chainCompletion = null;
       if (quest.questChainId) {
-        const { questChainManager } = await import('./services/quest-chain-manager.js');
+        const { QuestChainManager } = await import('../shared/quests/quest-chain-manager.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const questChainManager = new QuestChainManager(mongoQuestStorage);
         const result = await questChainManager.checkChainCompletion(quest);
         if (result.isComplete) {
           chainCompletion = {
@@ -9875,7 +9890,7 @@ Respond with this JSON structure:
       const resetHourUTC = req.query.resetHourUTC ? parseInt(req.query.resetHourUTC as string, 10) : undefined;
       const quests = await storage.getQuestsByWorld(worldId);
 
-      const { getRecurringQuestStatus } = await import('./services/daily-quest-manager.js');
+      const { getRecurringQuestStatus } = await import('../shared/quests/daily-quest-manager.js');
       const status = await getRecurringQuestStatus(
         quests,
         playerName,
@@ -9912,7 +9927,7 @@ Respond with this JSON structure:
         storage.getQuestsByWorld(worldId),
       ]);
 
-      const { generateRecurringQuests } = await import('./services/daily-quest-manager.js');
+      const { generateRecurringQuests } = await import('../shared/quests/daily-quest-manager.js');
       const created = await generateRecurringQuests(
         { world, characters, settlements, existingQuests },
         playerName,
@@ -9948,7 +9963,7 @@ Respond with this JSON structure:
         return res.status(400).json({ error: "Quest is already completed for this period" });
       }
 
-      const { buildRecurringCompletionUpdate } = await import('./services/daily-quest-manager.js');
+      const { buildRecurringCompletionUpdate } = await import('../shared/quests/daily-quest-manager.js');
       const { calculateQuestBonus } = await import('../shared/quest-bonus-calculator.js');
       const { getTotalHintsUsed } = await import('../shared/quest-hints.js');
 
@@ -10058,7 +10073,7 @@ Respond with this JSON structure:
   // Abandon a quest
   app.patch("/api/worlds/:worldId/quests/:questId/abandon", async (req, res) => {
     try {
-      const { abandonQuest, QuestLifecycleError } = await import('./services/quest-lifecycle.js');
+      const { abandonQuest, QuestLifecycleError } = await import('../shared/quests/quest-lifecycle.js');
       const result = await abandonQuest(storage, req.params.questId, req.params.worldId, req.body.reason);
       res.json(result);
     } catch (error: any) {
@@ -10073,7 +10088,7 @@ Respond with this JSON structure:
   // Fail a quest
   app.patch("/api/worlds/:worldId/quests/:questId/fail", async (req, res) => {
     try {
-      const { failQuest } = await import('./services/quest-lifecycle.js');
+      const { failQuest } = await import('../shared/quests/quest-lifecycle.js');
       const reason = req.body.reason || 'Quest failed';
       const result = await failQuest(storage, req.params.questId, req.params.worldId, reason);
       res.json(result);
@@ -10089,7 +10104,7 @@ Respond with this JSON structure:
   // Retry a failed or abandoned quest
   app.post("/api/worlds/:worldId/quests/:questId/retry", async (req, res) => {
     try {
-      const { retryQuest } = await import('./services/quest-lifecycle.js');
+      const { retryQuest } = await import('../shared/quests/quest-lifecycle.js');
       const result = await retryQuest(storage, req.params.questId, req.params.worldId);
       res.json(result);
     } catch (error: any) {
@@ -10104,7 +10119,7 @@ Respond with this JSON structure:
   // Check quest expiration
   app.post("/api/worlds/:worldId/quests/:questId/check-expiration", async (req, res) => {
     try {
-      const { checkQuestExpiration } = await import('./services/quest-lifecycle.js');
+      const { checkQuestExpiration } = await import('../shared/quests/quest-lifecycle.js');
       const result = await checkQuestExpiration(storage, req.params.questId, req.params.worldId);
       if (result) {
         res.json({ expired: true, ...result });
@@ -10572,7 +10587,7 @@ Respond with this JSON structure:
 
       if (mode === 'seed') {
         // Seed mode: generate one quest per canonical objective type
-        const { generateSeedQuests } = await import('./services/quest-seed-generator.js');
+        const { generateSeedQuests } = await import('../shared/quests/quest-seed-generator.js');
         const [characters, settlements] = await Promise.all([
           storage.getCharactersByWorld(worldId),
           storage.getSettlementsByWorld(worldId),
@@ -10589,7 +10604,7 @@ Respond with this JSON structure:
         }
       } else {
         // AI generation mode (default) — gather rich world state for context-aware generation
-        const { generateQuestsForWorld } = await import('./services/quest-generator.js');
+        const { generateQuestsForWorld } = await import('../shared/quests/quest-generator.js');
         const { buildWorldStateContext } = await import('./services/world-state-context.js');
 
         const [aiCharacters, aiSettlements, aiBusinesses, aiItems, aiExistingQuests] = await Promise.all([
@@ -10654,7 +10669,7 @@ Respond with this JSON structure:
       }
 
       // Regenerate using seed quest generator
-      const { generateSeedQuests } = await import('./services/quest-seed-generator.js');
+      const { generateSeedQuests } = await import('../shared/quests/quest-seed-generator.js');
       const [characters, settlements] = await Promise.all([
         storage.getCharactersByWorld(worldId),
         storage.getSettlementsByWorld(worldId),
@@ -11153,7 +11168,7 @@ Make the action names thematic and immersive.`;
         return res.status(404).json({ error: "World not found" });
       }
 
-      const { generateBusinessRoleplayQuests } = await import('./services/business-roleplay-quest-generator.js');
+      const { generateBusinessRoleplayQuests } = await import('../shared/quests/business-roleplay-quest-generator.js');
 
       const [businesses, characters] = await Promise.all([
         storage.getBusinessesByWorld(worldId),
@@ -11197,7 +11212,7 @@ Make the action names thematic and immersive.`;
         return res.status(404).json({ error: "World not found" });
       }
 
-      const { generateEmergencyQuests } = await import('./services/emergency-quest-generator.js');
+      const { generateEmergencyQuests } = await import('../shared/quests/emergency-quest-generator.js');
 
       const [businesses, characters, items] = await Promise.all([
         storage.getBusinessesByWorld(worldId),
@@ -11253,7 +11268,7 @@ Make the action names thematic and immersive.`;
         storage.getQuestsByWorld(worldId),
       ]);
 
-      const { assignQuests } = await import('./services/quest-assignment-engine.js');
+      const { assignQuests } = await import('../shared/quests/quest-assignment-engine.js');
 
       const assigned = assignQuests(
         { world, characters, settlements, existingQuests },
@@ -11365,8 +11380,9 @@ Make the action names thematic and immersive.`;
         return res.status(404).json({ error: "World not found" });
       }
 
-      const { generateMysteryQuest } = await import('./services/mystery-quest-generator.js');
-      const mystery = await generateMysteryQuest(worldId, { victimId, crimeType });
+      const { generateMysteryQuest } = await import('../shared/quests/mystery-quest-generator.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const mystery = await generateMysteryQuest(mongoQuestStorage, worldId, { victimId, crimeType });
 
       if (!mystery) {
         return res.status(422).json({
@@ -11434,7 +11450,7 @@ Make the action names thematic and immersive.`;
         storage.getGameTextsByWorld(worldId),
       ]);
 
-      const { generateReadingQuests } = await import('./services/reading-quest-generator.js');
+      const { generateReadingQuests } = await import('../shared/quests/reading-quest-generator.js');
       const quests = generateReadingQuests({
         world,
         characters,
@@ -11474,10 +11490,13 @@ Make the action names thematic and immersive.`;
       const { worldId, playerId } = req.params;
       const cefrLevel = (req.query.cefrLevel as string) || null;
       const playthroughId = req.query.playthroughId as string | undefined;
-      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const { MainQuestProgressionManager } = await import('../shared/quests/main-quest-progression.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const PlaythroughOverlay = await import('./services/playthrough-overlay.js');
+      const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
       // Lazily ensure the active chapter has a proper quest record
       await mainQuestProgressionManager.ensureActiveChapterHasQuestRecord(worldId, playerId, playthroughId);
-      const { buildInvestigationBoard } = await import('./services/investigation-board-builder.js');
+      const { buildInvestigationBoard } = await import('../shared/quests/investigation-board-builder.js');
       const summary = await mainQuestProgressionManager.getJournalSummary(
         worldId,
         playerId,
@@ -11533,7 +11552,10 @@ Make the action names thematic and immersive.`;
       if (!questType) {
         return res.status(400).json({ error: "questType is required" });
       }
-      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const { MainQuestProgressionManager } = await import('../shared/quests/main-quest-progression.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const PlaythroughOverlay = await import('./services/playthrough-overlay.js');
+      const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
       const result = await mainQuestProgressionManager.recordQuestCompletion(
         worldId,
         playerId,
@@ -11556,7 +11578,10 @@ Make the action names thematic and immersive.`;
       if (!cefrLevel) {
         return res.status(400).json({ error: "cefrLevel is required" });
       }
-      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const { MainQuestProgressionManager } = await import('../shared/quests/main-quest-progression.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const PlaythroughOverlay = await import('./services/playthrough-overlay.js');
+      const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
       const chapter = await mainQuestProgressionManager.tryUnlockNextChapter(
         worldId,
         playerId,
@@ -11573,7 +11598,10 @@ Make the action names thematic and immersive.`;
   app.get("/api/worlds/:worldId/main-quest/:playerId/narrative-beats", async (req, res) => {
     try {
       const { worldId, playerId } = req.params;
-      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const { MainQuestProgressionManager } = await import('../shared/quests/main-quest-progression.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const PlaythroughOverlay = await import('./services/playthrough-overlay.js');
+      const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
       const beats = await mainQuestProgressionManager.getPendingNarrativeBeats(worldId, playerId);
       res.json({ beats });
     } catch (error) {
@@ -11585,7 +11613,10 @@ Make the action names thematic and immersive.`;
   app.post("/api/worlds/:worldId/main-quest/:playerId/narrative-beats/:beatId/deliver", async (req, res) => {
     try {
       const { worldId, playerId, beatId } = req.params;
-      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const { MainQuestProgressionManager } = await import('../shared/quests/main-quest-progression.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const PlaythroughOverlay = await import('./services/playthrough-overlay.js');
+      const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
       const delivered = await mainQuestProgressionManager.markNarrativeBeatDelivered(worldId, playerId, beatId);
       res.json({ delivered });
     } catch (error) {
@@ -11598,8 +11629,9 @@ Make the action names thematic and immersive.`;
   app.get("/api/worlds/:worldId/main-quest-npcs", async (req, res) => {
     try {
       const { worldId } = req.params;
-      const { getMainQuestNPCs } = await import('./services/main-quest-npc-spawner.js');
-      const npcMap = await getMainQuestNPCs(worldId);
+      const { getMainQuestNPCs } = await import('../shared/quests/main-quest-npc-spawner.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const npcMap = await getMainQuestNPCs(mongoQuestStorage, worldId);
       const npcs = Array.from(npcMap.entries()).map(([role, character]) => ({
         role,
         characterId: character.id,
@@ -11619,8 +11651,9 @@ Make the action names thematic and immersive.`;
     try {
       const { worldId } = req.params;
       const { targetLanguage } = req.body;
-      const { spawnMainQuestNPCs } = await import('./services/main-quest-npc-spawner.js');
-      const result = await spawnMainQuestNPCs(worldId, targetLanguage);
+      const { spawnMainQuestNPCs } = await import('../shared/quests/main-quest-npc-spawner.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const result = await spawnMainQuestNPCs(mongoQuestStorage, worldId, targetLanguage);
       res.json(result);
     } catch (error) {
       console.error('[MainQuestNPCs] Spawn error:', error);
@@ -11632,8 +11665,9 @@ Make the action names thematic and immersive.`;
   app.get("/api/worlds/:worldId/portfolio/:playerName", async (req, res) => {
     try {
       const { worldId, playerName } = req.params;
-      const { getPlayerPortfolio } = await import('./services/quest-portfolio.js');
-      const portfolio = await getPlayerPortfolio(worldId, playerName);
+      const { getPlayerPortfolio } = await import('../shared/quests/quest-portfolio.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const portfolio = await getPlayerPortfolio(mongoQuestStorage, worldId, playerName);
       res.json(portfolio);
     } catch (error) {
       console.error('[Portfolio] Error fetching portfolio:', error);
@@ -11653,8 +11687,10 @@ Make the action names thematic and immersive.`;
       }
 
       // Import quest generator and chain manager
-      const { generateQuestsForWorld } = await import('./services/quest-generator.js');
-      const { questChainManager } = await import('./services/quest-chain-manager.js');
+      const { generateQuestsForWorld } = await import('../shared/quests/quest-generator.js');
+      const { QuestChainManager } = await import('../shared/quests/quest-chain-manager.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const questChainManager = new QuestChainManager(mongoQuestStorage);
 
       // Generate quests for the chain
       const generatedQuests = await generateQuestsForWorld(world, questCount, {
@@ -11684,7 +11720,9 @@ Make the action names thematic and immersive.`;
   app.get("/api/worlds/:worldId/quest-chains", async (req, res) => {
     try {
       const { worldId } = req.params;
-      const { questChainManager } = await import('./services/quest-chain-manager.js');
+      const { QuestChainManager } = await import('../shared/quests/quest-chain-manager.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const questChainManager = new QuestChainManager(mongoQuestStorage);
 
       const chains = await questChainManager.getQuestChains(worldId);
       res.json({ chains });
@@ -11703,7 +11741,9 @@ Make the action names thematic and immersive.`;
         return res.status(400).json({ error: "worldId query parameter required" });
       }
 
-      const { questChainManager } = await import('./services/quest-chain-manager.js');
+      const { QuestChainManager } = await import('../shared/quests/quest-chain-manager.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const questChainManager = new QuestChainManager(mongoQuestStorage);
       const progress = await questChainManager.getChainProgress(
         chainId,
         worldId as string,
@@ -11732,7 +11772,9 @@ Make the action names thematic and immersive.`;
         return res.status(404).json({ error: "World not found" });
       }
 
-      const { questChainManager } = await import('./services/quest-chain-manager.js');
+      const { QuestChainManager } = await import('../shared/quests/quest-chain-manager.js');
+      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+      const questChainManager = new QuestChainManager(mongoQuestStorage);
       const chain = await questChainManager.createFromTemplate(
         templateId,
         worldId,
@@ -11755,7 +11797,7 @@ Make the action names thematic and immersive.`;
   // List available quest chain templates
   app.get("/api/quest-chain-templates", async (_req, res) => {
     try {
-      const { listChainTemplates } = await import('./services/quest-chain-templates.js');
+      const { listChainTemplates } = await import('../shared/quests/quest-chain-templates.js');
       res.json({ templates: listChainTemplates() });
     } catch (error) {
       console.error('[Quest Chain Templates] Error:', error);
@@ -12401,8 +12443,8 @@ Make the action names thematic and immersive.`;
   // ============= VISUAL ASSETS & IMAGE GENERATION =============
 
   // Import visual asset generator
-  const { visualAssetGenerator } = await import('./services/visual-asset-generator.js');
-  const { imageGenerator } = await import('./services/image-generation.js');
+  const { visualAssetGenerator } = await import('./services/assets/visual-asset-generator.js');
+  const { imageGenerator } = await import('./services/assets/image-generation.js');
 
   // Get all visual assets (across all worlds and collections)
   app.get("/api/assets", async (req, res) => {
@@ -13520,7 +13562,7 @@ Make the action names thematic and immersive.`;
   // ============= POLYHAVEN INTEGRATION =============
 
   // Import Polyhaven API service
-  const polyhavenApi = await import('./services/polyhaven-api.js');
+  const polyhavenApi = await import('./services/assets/polyhaven-api.js');
 
   // Query Polyhaven assets
   app.get("/api/polyhaven/assets", async (req, res) => {
@@ -13608,7 +13650,7 @@ Make the action names thematic and immersive.`;
       const modelInfo = await polyhavenApi.getPolyhavenModelUrl(polyhavenAssetId, resolution);
 
       // 2. Download the asset to local storage
-      const earlyDownloader = await import('./services/asset-downloader.js');
+      const earlyDownloader = await import('./services/assets/asset-downloader.js');
       const downloadResult = await earlyDownloader.preprocessPolyhavenAsset(
         modelInfo.url,
         assetType,
@@ -13672,7 +13714,7 @@ Make the action names thematic and immersive.`;
   // List available asset collection templates
   app.get("/api/asset-collection-templates", async (_req, res) => {
     try {
-      const { listTemplates } = await import('./services/asset-collection-templates.js');
+      const { listTemplates } = await import('./services/assets/asset-collection-templates.js');
       res.json(listTemplates());
     } catch (error: any) {
       console.error("Failed to list templates:", error);
@@ -13695,13 +13737,13 @@ Make the action names thematic and immersive.`;
         return res.status(404).json({ error: "Collection not found" });
       }
 
-      const { getTemplateForWorldType } = await import('./services/asset-collection-templates.js');
+      const { getTemplateForWorldType } = await import('./services/assets/asset-collection-templates.js');
       const template = getTemplateForWorldType(worldType);
       if (!template) {
         return res.status(404).json({ error: `No template found for world type: ${worldType}` });
       }
 
-      const templateDownloader = await import('./services/asset-downloader.js');
+      const templateDownloader = await import('./services/assets/asset-downloader.js');
       const results: Array<{
         polyhavenId: string;
         slotKey: string;
@@ -13813,7 +13855,7 @@ Make the action names thematic and immersive.`;
         return res.status(400).json({ error: "worldType is required" });
       }
 
-      const { getTemplateForWorldType } = await import('./services/asset-collection-templates.js');
+      const { getTemplateForWorldType } = await import('./services/assets/asset-collection-templates.js');
       const template = getTemplateForWorldType(worldType);
       if (!template) {
         return res.status(404).json({ error: `No template found for world type: ${worldType}` });
@@ -13832,7 +13874,7 @@ Make the action names thematic and immersive.`;
       });
 
       // Now populate it — reuse the populate endpoint logic inline
-      const templateDownloader = await import('./services/asset-downloader.js');
+      const templateDownloader = await import('./services/assets/asset-downloader.js');
       const results: Array<{ polyhavenId: string; success: boolean; error?: string }> = [];
       const slotUpdates: Record<string, Record<string, string>> = {};
       const newAssetIds: string[] = [];
@@ -13900,7 +13942,7 @@ Make the action names thematic and immersive.`;
 
   // ============= SKETCHFAB INTEGRATION =============
 
-  const sketchfabApi = await import('./services/sketchfab-api.js');
+  const sketchfabApi = await import('./services/assets/sketchfab-api.js');
 
   // Check Sketchfab integration status
   app.get("/api/sketchfab/status", async (_req, res) => {
@@ -13995,7 +14037,7 @@ Make the action names thematic and immersive.`;
       const downloadInfo = await sketchfabApi.getDownloadUrl(sketchfabUid);
 
       // 2. Download and extract
-      const sketchfabDownloader = await import('./services/asset-downloader.js');
+      const sketchfabDownloader = await import('./services/assets/asset-downloader.js');
       const downloadResult = await sketchfabDownloader.preprocessSketchfabAsset(
         downloadInfo.gltfUrl,
         assetType,
@@ -14053,7 +14095,7 @@ Make the action names thematic and immersive.`;
 
   // ============= ASSET SCRAPER =============
 
-  const assetScraper = await import('./services/asset-scraper.js');
+  const assetScraper = await import('./services/assets/asset-scraper.js');
 
   // Scrape Polyhaven and Sketchfab for prop/furniture/container 3D assets
   app.get("/api/asset-scraper/scrape", async (req, res) => {
@@ -14124,7 +14166,7 @@ Make the action names thematic and immersive.`;
 
   // Import Freesound API service
   const freesoundApi = await import('./services/freesound-api.js');
-  const assetDownloader = await import('./services/asset-downloader.js');
+  const assetDownloader = await import('./services/assets/asset-downloader.js');
 
   // Search Freesound for audio assets
   app.get("/api/freesound/search", async (req, res) => {
@@ -14259,7 +14301,7 @@ Make the action names thematic and immersive.`;
   // ============= ASSET EXPORT & DOWNLOAD =============
 
   // Import export service
-  const assetExport = await import('./services/asset-export.js');
+  const assetExport = await import('./services/assets/asset-export.js');
 
   // Export assets as ZIP
   app.post("/api/assets/export", async (req, res) => {
@@ -14387,7 +14429,7 @@ Make the action names thematic and immersive.`;
   // ============= IMAGE UPSCALING & ENHANCEMENT =============
 
   // Import upscaling service
-  const imageUpscaling = await import('./services/image-upscaling.js');
+  const imageUpscaling = await import('./services/assets/image-upscaling.js');
 
   // Upscale an image
   app.post("/api/assets/:id/upscale", async (req, res) => {

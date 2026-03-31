@@ -173,11 +173,6 @@ async function printDatabaseSummary(): Promise<void> {
     for (const world of worlds.slice(0, 3)) {
       console.log(`\\n   🌍 ${world.name}`);
       console.log(`      ID: ${world.id}`);
-      
-      const characters = await storage.getCharactersByWorld(world.id);
-      const rules = await storage.getRulesByWorld(world.id);
-      console.log(`      Characters: ${characters.length}`);
-      console.log(`      Rules: ${rules.length}`);
     }
   } catch (error) {
     console.error('Could not retrieve database summary:', error);
@@ -405,11 +400,29 @@ async function shutdown(signal: string): Promise<void> {
 
   // Close voice chat WebSocket server
   try {
-    const { voiceChatManager } = await import('./services/voice-websocket.js');
+    const { voiceChatManager } = await import('./services/conversation/voice-websocket.js');
     await voiceChatManager.close();
     console.log('✅ Voice chat WebSocket server closed');
   } catch (error) {
     console.error('Error closing voice chat WebSocket server:', error);
+  }
+
+  // Stop gRPC conversation server
+  try {
+    const { stopGrpcServer } = await import('./services/conversation/grpc-server.js');
+    await stopGrpcServer();
+    console.log('✅ gRPC conversation server stopped');
+  } catch (error) {
+    console.error('Error stopping gRPC conversation server:', error);
+  }
+
+  // Stop WebSocket conversation bridge
+  try {
+    const { stopWSBridge } = await import('./services/conversation/ws-bridge.js');
+    await stopWSBridge();
+    console.log('✅ WebSocket conversation bridge stopped');
+  } catch (error) {
+    console.error('Error stopping WebSocket conversation bridge:', error);
   }
 
   if (httpServer && httpServer.listening) {
@@ -477,7 +490,7 @@ process.on('unhandledRejection', async (reason, promise) => {
     }
 
     // Attach WebSocket server for real-time voice chat
-    const { voiceChatManager } = await import('./services/voice-websocket.js');
+    const { voiceChatManager } = await import('./services/conversation/voice-websocket.js');
     voiceChatManager.attach(server);
     console.log('✅ Voice chat WebSocket server attached on /ws/voice');
 
@@ -587,9 +600,9 @@ process.on('unhandledRejection', async (reason, promise) => {
       .then(({ startGrpcServer }) => startGrpcServer())
       .catch((err) => console.warn('[gRPC] Conversation server failed to start:', err.message));
 
-    // Start WebSocket conversation bridge (non-blocking — failure doesn't prevent HTTP startup)
+    // Attach WebSocket conversation bridge to the HTTP server (shares origin with the app)
     import('./services/conversation/ws-bridge.js')
-      .then(({ startWSBridge }) => startWSBridge())
+      .then(({ startWSBridge }) => startWSBridge({ httpServer: server }))
       .catch((err) => console.warn('[WS-Bridge] Conversation WebSocket bridge failed to start:', err.message));
 
     // Start server

@@ -18,7 +18,7 @@ import {
 } from '../../shared/language/emergency-quest-seeds';
 import { instantiateSeed } from '../../shared/language/quest-seed-library';
 import { VALID_OBJECTIVE_TYPES } from '../../shared/quest-objective-types';
-import { generateEmergencyQuests, type BusinessInfo } from '../services/emergency-quest-generator';
+import { generateEmergencyQuests, type BusinessInfo } from '../../shared/quests/emergency-quest-generator.js';
 import { computeSkillRewards } from '../../shared/language/quest-skill-rewards';
 import type { Character, World } from '../../shared/schema';
 

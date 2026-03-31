@@ -23,7 +23,7 @@ vi.mock('../db/storage', () => ({
   },
 }));
 
-import { spawnMainQuestNPCs, getMainQuestNPCs } from '../services/main-quest-npc-spawner';
+import { spawnMainQuestNPCs, getMainQuestNPCs } from '../../shared/quests/main-quest-npc-spawner.js';
 import { MAIN_QUEST_NPC_DEFINITIONS } from '../../shared/quest/main-quest-npcs';
 
 beforeEach(() => {

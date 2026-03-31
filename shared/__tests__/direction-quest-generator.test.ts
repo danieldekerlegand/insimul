@@ -9,7 +9,7 @@ import {
   type Position,
   type LocationInfo,
   type DirectionQuestConfig,
-} from '../navigation/direction-quest-generator';
+} from '../quests/quest-generator.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

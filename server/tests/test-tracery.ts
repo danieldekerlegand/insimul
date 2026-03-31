@@ -4,7 +4,7 @@
  * This script tests the TraceryService to ensure grammar expansion works correctly.
  */
 
-import { TraceryService } from '../services/tracery-service';
+import { TraceryService } from '../../shared/quests/tracery-service.js';
 import { seedGrammars } from '../seed/seed-grammars';
 
 console.log('=== Tracery Integration Test ===\n');

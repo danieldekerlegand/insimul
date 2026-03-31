@@ -4,10 +4,10 @@ import {
   selectWeightedCategories,
   selectDifficulty,
   generateAdaptiveQuests,
-} from '../services/adaptive-quest-generator';
+} from '../../shared/quests/adaptive-quest-generator.js';
 import { buildLearningProfile, type QuestRecord, type AssessmentRecord } from '../../shared/language/learning-profile';
 import type { PlayerProficiency } from '../../shared/language/utils';
-import type { WorldContext } from '../services/quest-assignment-engine';
+import type { WorldContext } from '../../shared/quests/quest-assignment-engine.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 

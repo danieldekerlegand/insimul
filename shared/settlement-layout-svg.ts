@@ -47,7 +47,7 @@ export function generateSettlementLayout(
   foundedYear: number = 1900,
   population?: number,
 ): SettlementLayoutData {
-  const pattern = selectStreetPattern({ terrain, settlementType, foundedYear, population });
+  const pattern = selectStreetPattern({ settlementType, foundedYear, population });
 
   const W = width;
   const H = height;

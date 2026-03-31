@@ -8,16 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, Sparkles, Users } from 'lucide-react';
+import { ALL_GUILDS } from '@/components/CountryConfigPanel';
 import {
   SettlementLayoutPreview,
-  selectPattern,
   computeGenealogy,
   estimatePopulation,
   POPULATION_BY_TYPE,
+  PATTERN_LABELS,
   type SettlementType,
   type GenerationParams,
 } from '@/components/SettlementLayoutPreview';
+import { type LayoutPattern } from '@shared/street-pattern-selection';
 
 interface SettlementDialogProps {
   open: boolean;
@@ -34,23 +37,24 @@ export function SettlementDialog({ open, onOpenChange, worldId, countryId, state
   const DEFAULT_FOUNDED_YEARS: Record<SettlementType, number> = {
     dwelling: new Date().getFullYear() - 10,
     roadhouse: new Date().getFullYear() - 15,
-    landing: new Date().getFullYear() - 30,
-    forge: new Date().getFullYear() - 40,
-    chapel: new Date().getFullYear() - 80,
-    homestead: new Date().getFullYear() - 60,
-    market: new Date().getFullYear() - 100,
-    hamlet: new Date().getFullYear() - 150,
-    village: new Date().getFullYear() - 200,
-    town: new Date().getFullYear() - 250,
-    city: new Date().getFullYear() - 400,
+    landing: new Date().getFullYear() - 25,
+    forge: new Date().getFullYear() - 30,
+    chapel: new Date().getFullYear() - 50,
+    homestead: new Date().getFullYear() - 40,
+    market: new Date().getFullYear() - 60,
+    hamlet: new Date().getFullYear() - 75,
+    village: new Date().getFullYear() - 100,
+    town: new Date().getFullYear() - 125,
+    city: new Date().getFullYear() - 150,
   };
   const [form, setForm] = useState({
     name: '',
     description: '',
     settlementType: 'hamlet' as SettlementType,
-    terrain: 'plains',
+    layout: 'grid' as LayoutPattern,
     foundedYear: DEFAULT_FOUNDED_YEARS['hamlet'],
   });
+  const [guilds, setGuilds] = useState<string[]>(ALL_GUILDS.map(g => g.id));
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
 
@@ -94,7 +98,11 @@ export function SettlementDialog({ open, onOpenChange, worldId, countryId, state
         method: 'POST',
         headers: headers(),
         body: JSON.stringify({
-          ...form,
+          name: form.name,
+          description: form.description,
+          settlementType: form.settlementType,
+          streetPattern: form.layout,
+          foundedYear: form.foundedYear,
           population: targetPopulation,
           worldId,
           countryId,
@@ -125,6 +133,7 @@ export function SettlementDialog({ open, onOpenChange, worldId, countryId, state
           deathRate: genParams.deathRate,
           immigrationRate: genParams.immigrationRate,
           targetPopulation: targetPopulation,
+          guilds: guilds.length > 0 ? guilds : undefined,
         })
       });
 
@@ -139,8 +148,9 @@ export function SettlementDialog({ open, onOpenChange, worldId, countryId, state
         toast({ title: 'Generation Error', description: err.error || 'Generation had issues', variant: 'destructive' });
       }
 
-      setForm({ name: '', description: '', settlementType: 'hamlet', terrain: 'plains', foundedYear: DEFAULT_FOUNDED_YEARS['hamlet'] });
+      setForm({ name: '', description: '', settlementType: 'hamlet', layout: 'grid', foundedYear: DEFAULT_FOUNDED_YEARS['hamlet'] });
       setGenParams(computeGenealogy('hamlet', DEFAULT_FOUNDED_YEARS['hamlet']));
+      setGuilds(ALL_GUILDS.map(g => g.id));
       setIsGenerating(false);
       setGenerationStatus('');
       onSuccess();
@@ -193,17 +203,13 @@ export function SettlementDialog({ open, onOpenChange, worldId, countryId, state
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Terrain</Label>
-              <Select value={form.terrain} onValueChange={(v) => setForm({ ...form, terrain: v })} disabled={isGenerating}>
+              <Label>Layout</Label>
+              <Select value={form.layout} onValueChange={(v) => setForm({ ...form, layout: v as LayoutPattern })} disabled={isGenerating}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="plains">Plains</SelectItem>
-                  <SelectItem value="hills">Hills</SelectItem>
-                  <SelectItem value="mountains">Mountains</SelectItem>
-                  <SelectItem value="coast">Coast</SelectItem>
-                  <SelectItem value="river">River</SelectItem>
-                  <SelectItem value="forest">Forest</SelectItem>
-                  <SelectItem value="desert">Desert</SelectItem>
+                  {(Object.keys(PATTERN_LABELS) as LayoutPattern[]).map(p => (
+                    <SelectItem key={p} value={p}>{PATTERN_LABELS[p]}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -349,10 +355,41 @@ export function SettlementDialog({ open, onOpenChange, worldId, countryId, state
             </div>
 
             <SettlementLayoutPreview
-              pattern={selectPattern(form.terrain, form.settlementType, form.foundedYear)}
+              pattern={form.layout}
               settlementType={form.settlementType}
-              terrain={form.terrain}
+              population={popEstimate.living}
             />
+          </div>
+
+          {/* Guild assignment */}
+          <div className="space-y-2">
+            <Label className="text-xs font-medium">Guilds</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {guilds.map(gid => {
+                const g = ALL_GUILDS.find(x => x.id === gid);
+                return (
+                  <Badge key={gid} variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20"
+                    onClick={() => setGuilds(prev => prev.filter(id => id !== gid))}>
+                    {g?.label || gid} &times;
+                  </Badge>
+                );
+              })}
+              {ALL_GUILDS.filter(g => !guilds.includes(g.id)).length > 0 && (
+                <select className="h-6 text-xs bg-muted border rounded px-1"
+                  value=""
+                  disabled={isGenerating}
+                  onChange={e => {
+                    if (!e.target.value) return;
+                    setGuilds(prev => [...prev, e.target.value]);
+                    e.target.value = '';
+                  }}>
+                  <option value="">+ guild</option>
+                  {ALL_GUILDS.filter(g => !guilds.includes(g.id)).map(g => (
+                    <option key={g.id} value={g.id}>{g.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
         </div>
         <DialogFooter>

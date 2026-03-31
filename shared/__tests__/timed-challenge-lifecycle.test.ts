@@ -4,7 +4,7 @@ import {
   completeTimedChallenge,
   checkTimedChallengeExpiration,
   type QuestStorage,
-} from '../../server/services/quest-lifecycle';
+} from '../quests/quest-lifecycle.js';
 import type { Quest, InsertQuest } from '../schema';
 
 // ── In-memory quest storage for testing ─────────────────────────────────────

@@ -13,7 +13,7 @@ import {
   isDepartureEligible,
   generateReportCard,
   DEPARTURE_QUEST_THRESHOLD,
-} from '../services/assessment-quest-bridge';
+} from '../../shared/quests/assessment-quest-bridge.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

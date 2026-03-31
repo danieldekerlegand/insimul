@@ -6,7 +6,7 @@ import {
   getFetchItemCategories,
   getFetchVocabularyCategories,
   type FetchQuestOptions,
-} from '../services/fetch-quest-generator';
+} from '../../shared/quests/fetch-quest-generator.js';
 import type { Character, Settlement, World } from '../../shared/schema';
 
 // ── Test fixtures ────────────────────────────────────────────────────────────

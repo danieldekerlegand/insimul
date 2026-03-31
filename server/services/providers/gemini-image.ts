@@ -15,13 +15,13 @@ class ImageProviderAdapter implements IImageGenerationProvider {
   constructor(readonly name: string, private providerKey: GenerationProvider) {}
 
   async isAvailable(): Promise<boolean> {
-    const { imageGenerator } = await import('../image-generation.js');
+    const { imageGenerator } = await import('../assets/image-generation.js');
     const available = await imageGenerator.getAvailableProviders();
     return available.includes(this.providerKey);
   }
 
   async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
-    const { imageGenerator } = await import('../image-generation.js');
+    const { imageGenerator } = await import('../assets/image-generation.js');
     return imageGenerator.generateImage(this.providerKey, request);
   }
 }

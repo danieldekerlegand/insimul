@@ -18,6 +18,8 @@ import type { IVisemeGenerator } from './viseme/viseme-generator.js';
 import type { VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
 import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
+import { initiateConversation } from './npc-conversation-engine.js';
+import type { NpcConversationOptions } from './npc-conversation-engine.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -502,11 +504,102 @@ function createHandlers(options: GrpcServerOptions) {
   return {
     ConversationStream: handleConversationStream,
     HealthCheck: handleHealthCheck,
-    // NpcToNpcStream will be implemented in US-007
-    NpcToNpcStream: (call: grpc.ServerWritableStream<any, any>) => {
-      call.write({
-        conversationMeta: { sessionId: '', state: 'ENDED' },
-      });
+    NpcToNpcStream: async (call: grpc.ServerWritableStream<any, any>) => {
+      const request = call.request;
+      const { npc1Id, npc2Id, worldId, topic, languageCode } = request;
+
+      try {
+        // Signal conversation started
+        const sessionId = `npc-npc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        call.write({
+          conversationMeta: { sessionId, state: 'STARTED' },
+        });
+
+        const npcOptions: NpcConversationOptions & { llmProvider?: IStreamingLLMProvider } = {
+          topic: topic || undefined,
+          languageCode: languageCode || 'en',
+          llmProvider: llmProvider,
+        };
+
+        const result = await initiateConversation(npc1Id, npc2Id, worldId, npcOptions);
+
+        // Stream each exchange as a text chunk, with optional TTS
+        for (const exchange of result.exchanges) {
+          // Send speaker name + text as a text chunk
+          call.write({
+            textChunk: {
+              text: `${exchange.speakerName}: ${exchange.text}`,
+              isFinal: false,
+              languageCode: result.languageUsed,
+              sessionId,
+            },
+          });
+
+          // Synthesize TTS for each exchange if provider is available
+          if (ttsProvider && enableAudioResponse) {
+            const voice = getVoiceForSession(sessionId, exchange.speakerId);
+            try {
+              const audioChunks = ttsProvider.synthesize(exchange.text, voice, {
+                languageCode: result.languageUsed || undefined,
+              });
+              for await (const chunk of audioChunks) {
+                // Viseme data
+                if (visemeGen && visemeQuality !== 'disabled') {
+                  const facialData = visemeGen.generateVisemes(
+                    exchange.text, chunk.durationMs, visemeQuality,
+                  );
+                  if (facialData.visemes.length > 0) {
+                    call.write({ facialData });
+                  }
+                }
+
+                call.write({
+                  audioChunk: {
+                    data: chunk.data,
+                    encoding: chunk.encoding,
+                    sampleRate: chunk.sampleRate,
+                    durationMs: chunk.durationMs,
+                  },
+                });
+              }
+            } catch (err: any) {
+              console.error('[gRPC] NpcToNpc TTS error:', err.message);
+            }
+          }
+        }
+
+        // Send final text marker
+        call.write({
+          textChunk: { text: '', isFinal: true, languageCode: result.languageUsed, sessionId },
+        });
+
+        // Send action trigger with relationship delta metadata
+        call.write({
+          actionTrigger: {
+            actionType: 'relationship_delta',
+            targetId: worldId,
+            parameters: {
+              npc1Id,
+              npc2Id,
+              topic: result.topic,
+              friendshipChange: String(result.relationshipDelta.friendshipChange),
+              trustChange: String(result.relationshipDelta.trustChange),
+              romanceSpark: String(result.relationshipDelta.romanceSpark),
+              durationMs: String(result.durationMs),
+            },
+          },
+        });
+
+        call.write({
+          conversationMeta: { sessionId, state: 'ENDED' },
+        });
+      } catch (err: any) {
+        console.error('[gRPC] NpcToNpcStream error:', err.message);
+        call.write({
+          conversationMeta: { sessionId: '', state: 'ENDED' },
+        });
+      }
+
       call.end();
     },
   };

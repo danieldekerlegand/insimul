@@ -9,7 +9,11 @@
  */
 
 import { storage } from '../db/storage.js';
-import { mainQuestProgressionManager } from './main-quest-progression.js';
+import { MainQuestProgressionManager } from '../../shared/quests/main-quest-progression.js';
+import { mongoQuestStorage } from '../db/mongo-quest-storage.js';
+import * as PlaythroughOverlay from './playthrough-overlay.js';
+
+const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
 import type { Playthrough, PlayTrace } from '@shared/schema.js';
 import type { MainQuestState } from '@shared/quest/main-quest-chapters.js';
 

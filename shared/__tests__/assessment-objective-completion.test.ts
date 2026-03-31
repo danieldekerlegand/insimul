@@ -18,7 +18,7 @@ import {
   isArrivalAssessmentQuest,
   getArrivalPhaseIds,
   PHASE_OBJECTIVE_CONFIG,
-} from '../services/assessment-quest-bridge-shared';
+} from '../services/quests/assessment-quest-bridge-shared';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -5,6 +5,26 @@ extends CanvasLayer
 
 signal dialogue_closed
 signal gesture_performed(gesture_id: String)
+signal quest_assigned(quest_data: Dictionary)
+signal quest_branched(quest_id: String, choice_id: String, target_stage_id: String)
+signal action_selected(action_id: String)
+signal vocabulary_used(word: String)
+signal conversation_turn(keywords: Array)
+signal npc_conversation_started(npc_id: String)
+signal npc_speech_update(text: String)
+signal quest_turned_in(quest_id: String, rewards: Dictionary)
+signal fluency_gain(fluency: float, gain: float)
+signal conversation_summary(result: Dictionary)
+signal dialogue_rating(message_index: int, rating: int)
+signal chat_exchange(npc_id: String, player_message: String, npc_response: String)
+signal talk_requested
+signal npc_conversation_turn(npc_id: String, topic_tag: String)
+signal writing_submitted(text: String, word_count: int)
+signal listen_and_repeat(result: Dictionary)
+signal conversational_action(actions: Array, turn_state: Dictionary)
+signal new_word_learned(entry: Dictionary)
+signal word_mastered(entry: Dictionary)
+signal grammar_feedback(feedback: Dictionary)
 
 const TYPEWRITER_SPEED := 30.0  # characters per second
 const MAX_RESPONSE_BUTTONS := 4
@@ -12,12 +32,19 @@ const MAX_RESPONSE_BUTTONS := 4
 var _current_character_id := ""
 var _is_open := false
 var _is_typing := false
+var _is_recording := false
+var _is_listening_mode := false
+var _target_language: String = ""
+var _ai_provider := "server"
+var _playthrough_id := ""
 var _typewriter_elapsed := 0.0
 var _typewriter_full_text := ""
 var _typewriter_visible_chars := 0
 var _pending_responses: Array = []
 var _language_mode := false
 var _gesture_container: HBoxContainer
+var _inventory_items: Array = []
+var _player_gold := 0
 
 # Root UI nodes
 var _panel: PanelContainer
@@ -122,6 +149,93 @@ func hide_language_content() -> void:
 
 func is_open() -> bool:
 	return _is_open
+
+func is_recording() -> bool:
+	return _is_recording
+
+func is_listening_mode() -> bool:
+	return _is_listening_mode
+
+## Set the AI provider for dialogue (e.g. "server", "local").
+func set_ai_provider(provider: String) -> void:
+	_ai_provider = provider
+
+func get_ai_provider() -> String:
+	return _ai_provider
+
+## Set the playthrough ID for conversation context.
+func set_playthrough_id(id: String) -> void:
+	_playthrough_id = id
+
+## Set the target language for language-learning dialogue.
+func set_target_language(lang: String) -> void:
+	_target_language = lang
+
+## Set player inventory context for NPC dialogue awareness.
+func set_player_inventory_context(items: Array, gold: int) -> void:
+	_inventory_items = items
+	_player_gold = gold
+
+## Add a system message to the dialogue panel.
+func add_system_message(text: String) -> void:
+	_clear_responses()
+	_dialogue_text.text = "[color=#aaaacc][i]%s[/i][/color]" % text
+
+## Add an NPC message externally.
+func add_npc_message(text: String) -> void:
+	_start_typewriter(text)
+
+## Enter listening mode for voice-based conversation.
+func enter_listening_mode() -> void:
+	_is_listening_mode = true
+
+## Exit listening mode.
+func exit_listening_mode() -> void:
+	_is_listening_mode = false
+
+## Start push-to-talk voice recording.
+func start_push_to_talk() -> void:
+	_is_recording = true
+
+## Stop push-to-talk voice recording.
+func stop_push_to_talk() -> void:
+	_is_recording = false
+
+## Set eavesdrop mode (observe NPC conversations without participating).
+func set_eavesdrop_mode(enabled: bool) -> void:
+	pass
+
+## Set quest topics for contextual dialogue.
+func set_quest_topics(topics: Array) -> void:
+	pass
+
+## Set dialogue actions available to the player.
+func set_dialogue_actions(actions: Array, player_energy: float) -> void:
+	show_responses(actions)
+
+## Update dialogue actions with current player energy.
+func update_dialogue_actions(player_energy: float) -> void:
+	pass
+
+## Set quest offering context for NPC dialogue.
+func set_quest_offering_context(context) -> void:
+	pass
+
+## Set active quest context from this NPC.
+func set_active_quest_from_npc(context) -> void:
+	pass
+
+## Set quest guidance prompt for directed conversation.
+func set_quest_guidance_prompt(prompt) -> void:
+	pass
+
+## Trigger quest guidance greeting from NPC.
+func trigger_quest_guidance_greeting() -> void:
+	pass
+
+## Clean up resources.
+func dispose() -> void:
+	close_dialogue()
 
 # ─── Typewriter ───────────────────────────────────────
 

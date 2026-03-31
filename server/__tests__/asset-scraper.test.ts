@@ -25,7 +25,7 @@ import {
   getAssetDownloadInfo,
   type ScrapedAsset,
   type AssetCategory,
-} from '../services/asset-scraper.js';
+} from '../services/assets/asset-scraper.js';
 
 import { queryPolyhavenAssets, getPolyhavenModelUrl } from '../services/polyhaven-api.js';
 import { searchModels, isConfigured } from '../services/sketchfab-api.js';

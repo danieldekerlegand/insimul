@@ -39,7 +39,7 @@ vi.mock('../services/llm-provider.js', async (importOriginal) => {
   };
 });
 
-import { generateQuestForType, generateQuestsForWorld, generateQuestFromDialogue } from '../services/quest-generator.js';
+import { generateQuestForType, generateQuestsForWorld, generateQuestFromDialogue } from '../../shared/quests/quest-generator.js';
 
 const VALID_QUEST = {
   title: 'Market Explorer',

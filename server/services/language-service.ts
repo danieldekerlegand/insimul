@@ -2,7 +2,7 @@ import { storage } from "../db/storage";
 import type { ILLMProvider } from "./llm-provider.js";
 import { getDefaultLLMProvider, GeminiProvider } from "./llm-provider.js";
 import { GEMINI_MODELS } from "../config/gemini.js";
-import { conversationContextCache, ConversationContextCache } from "./conversation-context-cache.js";
+import { conversationContextCache, ConversationContextCache } from "./conversation/conversation-context-cache.js";
 import type {
   WorldLanguage,
   InsertWorldLanguage,
@@ -621,7 +621,7 @@ export async function sendLanguageChatMessage(
     };
   }
 
-  const { compressTextHistory } = await import('./conversation-compression.js');
+  const { compressTextHistory } = await import('./conversation/conversation-compression.js');
   const historyText = await compressTextHistory(history, language.name);
 
   const systemPrompt =

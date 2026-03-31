@@ -7,7 +7,7 @@ import {
   getSideQuestsByMechanic,
   getOccupationMechanics,
   type SideQuestOptions,
-} from '../services/side-quest-generator';
+} from '../../shared/quests/side-quest-generator.js';
 import type { Character, Settlement, World } from '../../shared/schema';
 
 // ── Test fixtures ────────────────────────────────────────────────────────────

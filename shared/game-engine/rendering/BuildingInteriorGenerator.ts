@@ -391,20 +391,10 @@ export class BuildingInteriorGenerator {
       this.buildUpperFloor(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType, config);
     }
 
-    // Generate furniture for each room zone
+    // Procedural furniture, decorations, and room labels are intentionally
+    // skipped — interiors are populated with asset models and containers
+    // by the InteriorItemManager and ContainerSpawnSystem instead.
     const beds: BedAssignment[] = [];
-    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate, residentCount, beds, wealthTier);
-    furniture.push(...roomFurniture);
-
-    // Generate decorative props (rugs, wall hangings, candles, etc.)
-    const decorations = this.decorationGenerator.generateDecorations(
-      buildingId, position, rooms, dims.height, buildingType, businessType,
-    );
-    furniture.push(...decorations);
-
-    // Generate floating room labels above doorways
-    const labelMeshes = this.generateRoomLabels(buildingId, position, rooms, dims.height);
-    furniture.push(...labelMeshes);
 
     // Apply lighting preset if configured (support both object and string preset name)
     const lightingConfig = config?.lighting
@@ -736,10 +726,10 @@ export class BuildingInteriorGenerator {
     roomPointLight.range = Math.max(width, depth) * 1.5;
     roomPointLight.parent = parent;
 
-    // Floor
+    // Floor — subdivisions ensure texture tiles evenly across the full area
     const floor = MeshBuilder.CreateGround(
       `${prefix}_floor`,
-      { width, height: depth },
+      { width, height: depth, subdivisions: 4 },
       this.scene
     );
     floor.parent = parent;
@@ -2568,6 +2558,8 @@ export class BuildingInteriorGenerator {
         if (cloned) {
           cloned.uScale = surfaceWidth * UV_TILES_PER_METER;
           cloned.vScale = surfaceHeight * UV_TILES_PER_METER;
+          cloned.wrapU = Texture.WRAP_ADDRESSMODE;
+          cloned.wrapV = Texture.WRAP_ADDRESSMODE;
           material.diffuseTexture = cloned;
           material.diffuseColor = new Color3(1, 1, 1);
           return;
@@ -2581,6 +2573,8 @@ export class BuildingInteriorGenerator {
     if (procTexture) {
       procTexture.uScale = surfaceWidth * UV_TILES_PER_METER;
       procTexture.vScale = surfaceHeight * UV_TILES_PER_METER;
+      procTexture.wrapU = Texture.WRAP_ADDRESSMODE;
+      procTexture.wrapV = Texture.WRAP_ADDRESSMODE;
       material.diffuseTexture = procTexture;
       material.diffuseColor = new Color3(1, 1, 1);
     }

@@ -5,7 +5,7 @@ import {
   bindQuestToWorldEntities,
   getCurrentTimeOfDay,
   type WorldStateContext,
-} from '../services/world-state-context';
+} from '../../shared/quests/world-state-context.js';
 
 // --- Test fixtures ---
 

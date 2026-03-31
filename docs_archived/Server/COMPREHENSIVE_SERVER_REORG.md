@@ -164,7 +164,7 @@ import { progressTracker } from './progress-tracker.js';
 
 // After (from routes.ts)
 import { generateRule } from './services/gemini-ai.js';
-import { getCharacterResponse } from './services/character-interaction.js';
+import { getCharacterResponse } from './services/conversation/character-interaction.js';
 import { TraceryService } from './services/tracery-service';
 import { textToSpeech } from './services/tts-stt.js';
 import { progressTracker } from './utils/progress-tracker.js';

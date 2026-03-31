@@ -9,6 +9,8 @@ import {
 } from '@shared/game-engine/rendering/StreetAlignedPlacement';
 import { getBuildingDefaults, DEFAULT_BUILDING_DIMENSIONS } from '../../../../shared/game-engine/building-defaults';
 import { generateSettlementLayout } from '@shared/settlement-layout-svg';
+import { resolveGridLotPosition, resolveGridStreet, resolveStreetLotPosition, GRID_SPACING, STREET_WIDTHS } from '@shared/layout-resolver';
+import { GRID_SIZE } from '@shared/street-pattern-selection';
 import type { MapLayer } from './MapLayersPanel';
 
 export type ViewLevel = 'world' | 'country' | 'settlement';
@@ -1729,8 +1731,149 @@ export function computeSettlementLayout(
 
   if (lots.length === 0) return { positions, streets, scale: layoutScale };
 
-  // Check if lots have position data from the database
+  // Check if lots have topological data (new system) or legacy position data
+  const hasGridTopology = lots.some(l => l.blockCol != null && l.blockRow != null);
+  const hasStreetTopology = lots.some(l => l.streetIndex != null && l.lotSequence != null);
   const hasPositions = lots.some(l => l.positionX != null && l.positionZ != null);
+
+  if (hasStreetTopology && !hasGridTopology) {
+    // Non-grid topological layout — resolve positions from street waypoints
+    const streetMap = new Map<string, any>();
+    if (storedStreets) {
+      for (const s of storedStreets) {
+        if (s.id && s.waypoints?.length >= 2) streetMap.set(s.id, s);
+      }
+    }
+
+    const layoutConfig = { totalLots: lots.length, settlementType: 'hamlet' };
+    for (const l of lots) {
+      if (l.streetIndex != null && l.lotSequence != null && l.streetId) {
+        const street = streetMap.get(l.streetId);
+        if (street) {
+          const lotsOnStreet = lots.filter((ol: any) => ol.streetId === l.streetId && ol.side === l.side).length;
+          const pos = resolveStreetLotPosition(street, l.lotSequence, lotsOnStreet, l.side || 'left', layoutConfig);
+          positions.set(l.id, { x: pos.x, z: pos.z, angle: pos.facingAngle });
+        }
+      }
+    }
+
+    // Use stored street waypoints for rendering
+    if (storedStreets) {
+      for (const s of storedStreets) {
+        if (s.waypoints?.length >= 2) {
+          streets.push({
+            id: s.id,
+            from: new BABYLON.Vector3(s.waypoints[0].x, 0, s.waypoints[0].z),
+            to: new BABYLON.Vector3(s.waypoints[s.waypoints.length - 1].x, 0, s.waypoints[s.waypoints.length - 1].z),
+            isMainStreet: (s as any).isMain || false,
+            streetName: s.name,
+          });
+        }
+      }
+    }
+
+    // Scale to fit
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    positions.forEach(p => {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+    });
+    for (const s of streets) {
+      minX = Math.min(minX, s.from.x, s.to.x); maxX = Math.max(maxX, s.from.x, s.to.x);
+      minZ = Math.min(minZ, s.from.z, s.to.z); maxZ = Math.max(maxZ, s.from.z, s.to.z);
+    }
+    const maxRange = Math.max(maxX - minX, maxZ - minZ) || 1;
+    const scale = targetSize / maxRange;
+    layoutScale = scale;
+    const cx = (minX + maxX) / 2;
+    const cz = (minZ + maxZ) / 2;
+
+    const newPositions = new Map<string, { x: number; z: number; angle: number }>();
+    positions.forEach((p, id) => {
+      newPositions.set(id, { x: (p.x - cx) * scale, z: (p.z - cz) * scale, angle: p.angle });
+    });
+    positions.clear();
+    newPositions.forEach((p, id) => positions.set(id, p));
+    streets = streets.map(s => ({
+      ...s,
+      from: new BABYLON.Vector3((s.from.x - cx) * scale, 0, (s.from.z - cz) * scale),
+      to: new BABYLON.Vector3((s.to.x - cx) * scale, 0, (s.to.z - cz) * scale),
+    }));
+
+    return { positions, streets, scale: layoutScale };
+  }
+
+  if (hasGridTopology) {
+    // New topological layout — compute positions from grid indices using layout resolver
+    // Derive grid size from max block indices (+2 because gridSize = numBlockCols + 1)
+    let maxCol = 0, maxRow = 0;
+    for (const l of lots) {
+      if (l.blockCol != null) maxCol = Math.max(maxCol, l.blockCol);
+      if (l.blockRow != null) maxRow = Math.max(maxRow, l.blockRow);
+    }
+    const gridSize = Math.max(maxCol, maxRow) + 2;
+    const settlementType = 'hamlet'; // used only for spacing lookup
+    const config = { gridSize, settlementType, centerX: 0, centerZ: 0 };
+
+    // Compute lot positions
+    for (const l of lots) {
+      if (l.blockCol == null || l.blockRow == null || l.lotIndex == null) continue;
+      const pos = resolveGridLotPosition(l.blockCol, l.blockRow, l.lotIndex, config);
+      positions.set(l.id, { x: pos.x, z: pos.z, angle: pos.facingAngle });
+    }
+
+    // Compute street lines
+    for (let i = 0; i < gridSize; i++) {
+      const ns = resolveGridStreet(i, 'NS', config);
+      streets.push({
+        id: `street_ns_${i}`,
+        from: new BABYLON.Vector3(ns.x1, 0, ns.z1),
+        to: new BABYLON.Vector3(ns.x2, 0, ns.z2),
+        isMainStreet: i === 0 || i === gridSize - 1,
+        streetName: `NS ${i}`,
+      });
+      const ew = resolveGridStreet(i, 'EW', config);
+      streets.push({
+        id: `street_ew_${i}`,
+        from: new BABYLON.Vector3(ew.x1, 0, ew.z1),
+        to: new BABYLON.Vector3(ew.x2, 0, ew.z2),
+        isMainStreet: i === 0 || i === gridSize - 1,
+        streetName: `EW ${i}`,
+      });
+    }
+
+    // Scale to fit preview
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    positions.forEach(p => {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+    });
+    for (const s of streets) {
+      minX = Math.min(minX, s.from.x, s.to.x); maxX = Math.max(maxX, s.from.x, s.to.x);
+      minZ = Math.min(minZ, s.from.z, s.to.z); maxZ = Math.max(maxZ, s.from.z, s.to.z);
+    }
+    const maxRange = Math.max(maxX - minX, maxZ - minZ) || 1;
+    const scale = targetSize / maxRange;
+    layoutScale = scale;
+    const cx = (minX + maxX) / 2;
+    const cz = (minZ + maxZ) / 2;
+
+    // Re-center and scale all positions
+    const newPositions = new Map<string, { x: number; z: number; angle: number }>();
+    positions.forEach((p, id) => {
+      newPositions.set(id, { x: (p.x - cx) * scale, z: (p.z - cz) * scale, angle: p.angle });
+    });
+    positions.clear();
+    newPositions.forEach((p, id) => positions.set(id, p));
+
+    streets = streets.map(s => ({
+      ...s,
+      from: new BABYLON.Vector3((s.from.x - cx) * scale, 0, (s.from.z - cz) * scale),
+      to: new BABYLON.Vector3((s.to.x - cx) * scale, 0, (s.to.z - cz) * scale),
+    }));
+
+    return { positions, streets, scale: layoutScale };
+  }
 
   if (hasPositions) {
     // Use actual positions from database — these match the 3D game.

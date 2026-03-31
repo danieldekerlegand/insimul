@@ -151,7 +151,7 @@ import { NPCInitiatedConversationController } from "@shared/game-engine/renderin
 import { NPCSocializationController } from "@shared/game-engine/rendering/NPCSocializationController";
 import type { SocializableNPC, ConversationResult } from "@shared/game-engine/rendering/NPCSocializationController";
 import { generateLocalNpcConversation } from "@shared/game-engine/logic/LocalNpcConversation";
-import { LocalAIClient } from "@/components/3DGame/LocalAIClient";
+import { isElectronAI } from "@insimul/sdk";
 import { BuildingInteriorGenerator, InteriorLayout } from "@shared/game-engine/rendering/BuildingInteriorGenerator";
 import { InteriorSceneManager, getInteriorModelPath } from "@shared/game-engine/rendering/InteriorSceneManager";
 import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITURE_SIZE_MAP, type OutdoorFurnitureType } from "@shared/game-engine/rendering/OutdoorFurnitureGenerator";
@@ -727,6 +727,9 @@ export class BabylonGame {
   private interiorCamera: ArcRotateCamera | null = null;
   private interiorPlayerMesh: Mesh | null = null;
   private interiorPlayerController: CharacterController | null = null;
+  private interiorNPCClones: Mesh[] = [];
+  private playerModelRootUrl: string = '';
+  private playerModelFileName: string = '';
   private savedOverworldPosition: Vector3 | null = null;
   private savedOverworldRotationY: number = 0;
   private savedOverworldCameraAlpha: number = 0;
@@ -2602,6 +2605,8 @@ export class BabylonGame {
       onToggleFullscreen: () => this.handleToggleFullscreen(),
       onToggleDebug: () => this.handleToggleDebug(),
       onToggleVR: () => this.handleToggleVR(),
+      getAIProvider: () => this.chatPanel?.getAIProvider() || 'auto',
+      onSetAIProvider: (provider: string) => this.chatPanel?.setAIProvider(provider),
       getSaveSlots: () => this.getSaveSlots(),
       onSaveGame: (slotIndex: number) => this.handleSaveGame(slotIndex),
       onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
@@ -3985,7 +3990,7 @@ export class BabylonGame {
       },
       onStartConversation: async (npc1Id: string, npc2Id: string, topic?: string): Promise<ConversationResult | null> => {
         // Try local AI first (Electron offline mode)
-        if (LocalAIClient.isAvailable()) {
+        if (isElectronAI()) {
           const npc1Data = this.npcMeshes.get(npc1Id)?.characterData;
           const npc2Data = this.npcMeshes.get(npc2Id)?.characterData;
           if (npc1Data && npc2Data) {
@@ -5011,12 +5016,98 @@ export class BabylonGame {
           }
         }
 
-        // Check if DB lots have world-space positions
+        // Check if DB lots have topological data (new system) or legacy positions
+        const lotsHaveGridTopology = lots.some((l: any) => l.blockCol != null && l.blockRow != null);
+        const lotsHaveStreetTopology = lots.some((l: any) => l.streetIndex != null && l.lotSequence != null);
+        const lotsHaveTopology = lotsHaveGridTopology || lotsHaveStreetTopology;
         const lotsHavePositions = lots.some((l: any) => l.positionX != null && l.positionZ != null);
+
+        // Resolve street-based topological lots (non-grid patterns)
+        if (lotsHaveStreetTopology && !lotsHavePositions) {
+          try {
+            const { resolveStreetLotPosition } = await import('../../layout-resolver');
+            const storedStreets: any[] = Array.isArray(settlement.streets) ? settlement.streets : [];
+            const layoutConfig = { totalLots: lots.length, settlementType: settlement.settlementType || 'hamlet', centerX: 0, centerZ: 0 };
+
+            for (const l of lots) {
+              if (l.streetIndex != null && l.lotSequence != null && l.streetId) {
+                const street = storedStreets.find((s: any) => s.id === l.streetId);
+                if (street?.waypoints?.length >= 2) {
+                  const lotsOnStreet = lots.filter((ol: any) => ol.streetId === l.streetId && ol.side === l.side).length;
+                  const pos = resolveStreetLotPosition(street, l.lotSequence, lotsOnStreet, l.side || 'left', layoutConfig);
+                  l.positionX = pos.x;
+                  l.positionZ = pos.z;
+                  l.facingAngle = pos.facingAngle;
+                  l.lotWidth = pos.lotWidth;
+                  l.lotDepth = pos.lotDepth;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[BabylonGame] Failed to resolve street-based lots:', e);
+          }
+        }
+
+        // Resolve grid-based topological lots
+        if (lotsHaveGridTopology && !lotsHavePositions) {
+          try {
+            const { resolveGridLotPosition, resolveGridParkPosition, GRID_SPACING } = await import('../../layout-resolver');
+            const { GRID_SIZE } = await import('../../street-pattern-selection');
+
+            // Derive grid size from max block indices
+            let maxCol = 0, maxRow = 0;
+            for (const l of lots) {
+              if (l.blockCol != null) maxCol = Math.max(maxCol, l.blockCol);
+              if (l.blockRow != null) maxRow = Math.max(maxRow, l.blockRow);
+            }
+            const gridSize = Math.max(maxCol, maxRow) + 2;
+            const settlementType = settlement.settlementType || 'hamlet';
+            const config = { gridSize, settlementType, centerX: 0, centerZ: 0 };
+
+            for (const l of lots) {
+              if (l.blockCol != null && l.blockRow != null && l.lotIndex != null) {
+                {
+                  const pos = resolveGridLotPosition(l.blockCol, l.blockRow, l.lotIndex, config);
+                  l.positionX = pos.x;
+                  l.positionZ = pos.z;
+                  l.facingAngle = pos.facingAngle;
+                  l.lotWidth = pos.lotWidth;
+                  l.lotDepth = pos.lotDepth;
+                }
+              }
+            }
+
+            // Also generate street waypoints from topology for the road renderer
+            if (!settlement.streets?.some((s: any) => s.waypoints?.length > 0)) {
+              const { resolveGridStreet } = await import('../../layout-resolver');
+              const topoStreets: any[] = [];
+              for (let i = 0; i < gridSize; i++) {
+                const ns = resolveGridStreet(i, 'NS', config);
+                topoStreets.push({
+                  id: `street_ns_${i}`, name: `NS ${i}`, direction: 'NS',
+                  waypoints: [{ x: ns.x1, z: ns.z1 }, { x: ns.x2, z: ns.z2 }],
+                  width: ns.width,
+                });
+                const ew = resolveGridStreet(i, 'EW', config);
+                topoStreets.push({
+                  id: `street_ew_${i}`, name: `EW ${i}`, direction: 'EW',
+                  waypoints: [{ x: ew.x1, z: ew.z1 }, { x: ew.x2, z: ew.z2 }],
+                  width: ew.width,
+                });
+              }
+              settlement.streets = topoStreets;
+            }
+          } catch (e) {
+            console.warn('[BabylonGame] Failed to resolve topological lots:', e);
+          }
+        }
+
+        // Re-evaluate after topology resolution (lots may now have positionX/Z)
+        const lotsNowHavePositions = lots.some((l: any) => l.positionX != null && l.positionZ != null);
 
         // Fallback: generate positions client-side only when DB has none
         let fallbackLotPositions: { position: Vector3; facingAngle: number; zone: string }[] = [];
-        if (!lotsHavePositions) {
+        if (!lotsNowHavePositions) {
           const lotStreetNames = Array.from(new Set(lots.map((l: any) => l.streetName).filter(Boolean)));
           const storedStreets: any[] = Array.isArray(settlement.streets) ? settlement.streets : [];
           const getWaypoints = (s: any): { x: number; z: number }[] | null => {
@@ -5145,7 +5236,7 @@ export class BabylonGame {
         const settlementBuildingSpecs: { position: Vector3; rotation: number; depth: number; width: number }[] = [];
 
         // First, spawn businesses at their lots
-        console.log(`[BuildingPlacement] Settlement ${settlement.name}: businesses=${businesses.length}, lots=${lots.length}, lotsHavePos=${lotsHavePositions}, lotOffset=(${lotOffsetX.toFixed(1)}, ${lotOffsetZ.toFixed(1)}), settlementPos=(${scaledSettlement.position.x.toFixed(1)}, ${scaledSettlement.position.z.toFixed(1)})`);
+        console.log(`[BuildingPlacement] Settlement ${settlement.name}: businesses=${businesses.length}, lots=${lots.length}, lotsHavePos=${lotsNowHavePositions}, topology=${lotsHaveTopology}, lotOffset=(${lotOffsetX.toFixed(1)}, ${lotOffsetZ.toFixed(1)}), settlementPos=(${scaledSettlement.position.x.toFixed(1)}, ${scaledSettlement.position.z.toFixed(1)})`);
         for (const business of businesses) {
           const lotInfo = resolveBuildingPosition(business);
           if (businesses.indexOf(business) === 0) {
@@ -7564,6 +7655,10 @@ export class BabylonGame {
         }
       }
 
+      // Store URLs for reuse when loading interior player model
+      this.playerModelRootUrl = playerRootUrl;
+      this.playerModelFileName = playerFileName;
+
       const result = await SceneLoader.ImportMeshAsync("", playerRootUrl, playerFileName, this.scene);
 
       const playerMeshRaw = this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh);
@@ -8783,38 +8878,63 @@ export class BabylonGame {
     // Create 3rd-person camera + player mesh for interior — same controls as overworld
     let spawnPos = new Vector3(0, 0, 0);
 
-    // Create a capsule avatar for the interior (same mesh type as fallback player)
-    const interiorAvatar = MeshBuilder.CreateCapsule('interior_player', { height: 2, radius: 0.4 }, interiorScene);
+    // Load the actual player model into the interior scene — identical setup to overworld loadPlayer()
+    let interiorAvatar: Mesh;
+    let interiorImportResult: { animationGroups: any[]; skeletons: any[] } = { animationGroups: [], skeletons: [] };
+    try {
+      const result = await SceneLoader.ImportMeshAsync(
+        "", this.playerModelRootUrl, this.playerModelFileName, interiorScene
+      );
+      const raw = this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh);
+      const skeleton = result.skeletons[0];
+      interiorAvatar = this.preparePlayerMesh(raw, skeleton);
+      interiorImportResult = result;
+
+      const playerScale = this.world3DConfig?.modelScaling?.['playerModels.default'];
+      interiorAvatar.scaling = playerScale
+        ? new Vector3(playerScale.x, playerScale.y, playerScale.z)
+        : new Vector3(1, 1, 1);
+      interiorAvatar.checkCollisions = true;
+      interiorAvatar.ellipsoid = new Vector3(0.5, 1, 0.5);
+      interiorAvatar.ellipsoidOffset = new Vector3(0, 1, 0);
+      interiorAvatar.setEnabled(true);
+      interiorAvatar.visibility = 1;
+      interiorAvatar.getChildMeshes().forEach(child => {
+        child.setEnabled(true);
+        child.visibility = 1;
+      });
+    } catch (err) {
+      console.warn('[Interior] Failed to load player model, using capsule fallback:', err);
+      interiorAvatar = MeshBuilder.CreateCapsule('interior_player', { height: 2, radius: 0.4 }, interiorScene);
+      const avatarMat = new StandardMaterial('interior_player_mat', interiorScene);
+      avatarMat.diffuseColor = new Color3(0.4, 0.5, 0.7);
+      avatarMat.emissiveColor = new Color3(0.1, 0.15, 0.2);
+      interiorAvatar.material = avatarMat;
+      interiorAvatar.checkCollisions = true;
+      interiorAvatar.ellipsoid = new Vector3(0.5, 1, 0.5);
+      interiorAvatar.ellipsoidOffset = new Vector3(0, 1, 0);
+    }
     interiorAvatar.position = new Vector3(spawnPos.x, spawnPos.y + 1, spawnPos.z);
-    interiorAvatar.checkCollisions = true;
-    interiorAvatar.ellipsoid = new Vector3(0.5, 1, 0.5);
-    interiorAvatar.ellipsoidOffset = new Vector3(0, 1, 0);
-    interiorAvatar.isVisible = true;
-    // Give the interior player a subtle material so it's visible
-    const avatarMat = new StandardMaterial('interior_player_mat', interiorScene);
-    avatarMat.diffuseColor = new Color3(0.4, 0.5, 0.7);
-    avatarMat.emissiveColor = new Color3(0.1, 0.15, 0.2);
-    interiorAvatar.material = avatarMat;
     this.interiorPlayerMesh = interiorAvatar;
 
-    // Create ArcRotateCamera — same setup as overworld 3rd-person
+    // Camera + CharacterController — identical to overworld setup in loadPlayer()
     const intCam = new ArcRotateCamera(
       'interior_camera',
-      -Math.PI / 2,   // alpha — behind player
-      Math.PI / 3,    // beta — above player
-      8,              // radius — slightly closer than overworld (10) for tighter spaces
+      -Math.PI / 2,
+      Math.PI / 3,
+      6,              // Closer than overworld (10) for tight interior spaces
       interiorAvatar.position.add(new Vector3(0, 1.6, 0)),
       interiorScene
     );
     intCam.attachControl(this.engine!.getRenderingCanvas(), true);
     intCam.minZ = 0.1;
-    intCam.lowerRadiusLimit = 3;   // Allow closer zoom for tight interiors
-    intCam.upperRadiusLimit = 12;
+    intCam.lowerRadiusLimit = 2;    // Allow zooming in close to avoid walls
+    intCam.upperRadiusLimit = 8;    // Cap zoom-out to stay within rooms
+    intCam.upperBetaLimit = Math.PI / 2.2; // Prevent camera going below floor
     intCam.wheelDeltaPercentage = 0.01;
     this.interiorCamera = intCam;
     interiorScene.activeCamera = intCam;
 
-    // Create CharacterController — identical config to overworld player
     const intController = new CharacterController(interiorAvatar, intCam, interiorScene, undefined, true);
     intController.setCameraTarget(new Vector3(0, 1.6, 0));
     intController.setNoFirstPerson(true);
@@ -8826,8 +8946,45 @@ export class BabylonGame {
     intController.setRightSpeed(2);
     intController.setJumpSpeed(6);
     intController.setTurnSpeed(60);
+    // Interior-specific: make walls between camera and player transparent,
+    // and pull the camera closer to avoid clipping through geometry
     intController.setCameraElasticity(true);
     intController.makeObstructionInvisible(true);
+
+    // Wire animations — identical to overworld
+    if (interiorImportResult.animationGroups && interiorImportResult.animationGroups.length > 0) {
+      const agByName: Record<string, any> = {};
+      for (const ag of interiorImportResult.animationGroups) {
+        agByName[ag.name] = ag;
+        ag.stop();
+      }
+      const agMap: Record<string, any> = {};
+      if (agByName['idle']) agMap['idle'] = agByName['idle'];
+      if (agByName['walk']) agMap['walk'] = agByName['walk'];
+      if (agByName['run']) agMap['run'] = agByName['run'];
+      if (agByName['turnLeft']) agMap['turnLeft'] = agByName['turnLeft'];
+      if (agByName['turnRight']) agMap['turnRight'] = agByName['turnRight'];
+      if (agByName['walkBack']) agMap['walkBack'] = agByName['walkBack'];
+      if (agByName['idleJump']) agMap['idleJump'] = agByName['idleJump'];
+      if (agByName['runJump']) agMap['runJump'] = agByName['runJump'];
+      if (agByName['fall']) agMap['fall'] = agByName['fall'];
+      if (agByName['slideBack']) agMap['slideBack'] = agByName['slideBack'];
+      if (agByName['strafeLeft']) agMap['strafeLeft'] = agByName['strafeLeft'];
+      if (agByName['strafeRight']) agMap['strafeRight'] = agByName['strafeRight'];
+      intController.setAnimationGroups(agMap);
+    } else {
+      intController.setIdleAnim("idle", 1, true);
+      intController.setWalkAnim("walk", 1, true);
+      intController.setRunAnim("run", 1.2, true);
+      intController.setTurnLeftAnim("turnLeft", 0.5, true);
+      intController.setTurnRightAnim("turnRight", 0.5, true);
+      intController.setWalkBackAnim("walkBack", 0.5, true);
+      intController.setIdleJumpAnim("idleJump", 0.5, false);
+      intController.setRunJumpAnim("runJump", 0.6, false);
+      intController.setFallAnim("fall", 2, false);
+      intController.setSlideBackAnim("slideBack", 1, false);
+    }
+
     intController.start();
     this.interiorPlayerController = intController;
 
@@ -8858,26 +9015,51 @@ export class BabylonGame {
     intCam.target = interiorAvatar.position.add(new Vector3(0, 1.6, 0));
     intController.resetPhysicsState();
 
-    // Debug NPC capsule for height reference (1.8m tall standing on floor)
-    const debugNPC = MeshBuilder.CreateCapsule('interior_debug_npc', {
-      height: 1.8,
-      radius: 0.3,
-    }, interiorScene);
-    debugNPC.position = new Vector3(spawnPos.x + 2, spawnPos.y + 0.9, spawnPos.z + 3);
-    const debugMat = new StandardMaterial('debug_npc_mat', interiorScene);
-    debugMat.diffuseColor = new Color3(0.2, 0.6, 0.9);
-    debugMat.emissiveColor = new Color3(0.1, 0.3, 0.45);
-    debugNPC.material = debugMat;
-
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
     this.currentBuildingBusinessType = businessType;
 
-    // Register placed interior NPCs
-    if (this.businessBehaviorSystem && this.interiorNPCManager && businessType) {
-      this.businessBehaviorSystem.clearAll();
-      for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
-        this.businessBehaviorSystem.registerNPC(placed.npcId, placed.role, businessType);
+    // Populate interior with NPCs — load the same models into the interior scene
+    this.interiorNPCClones = [];
+    if (this.interiorNPCManager && this.activeInterior) {
+      const metadata = {
+        buildingType,
+        businessType,
+      };
+      this.interiorNPCManager.populateInterior(
+        buildingId,
+        this.activeInterior,
+        metadata,
+        this.npcMeshes as any,
+      );
+
+      // Load each placed NPC's model into the interior scene (same as overworld)
+      const loadPromises = this.interiorNPCManager.getPlacedNPCs().map(async (placed) => {
+        try {
+          const npcInstance = this.npcMeshes.get(placed.npcId);
+          const character = npcInstance?.characterData || placed.characterData;
+          if (!character) return;
+          const npcMesh = await this.loadNPCForInterior(
+            character,
+            interiorScene,
+            placed.interiorPosition,
+            placed.mesh.rotation,
+          );
+          if (npcMesh) {
+            this.interiorNPCClones.push(npcMesh);
+          }
+        } catch (err) {
+          console.warn(`[Interior] Failed to load NPC ${placed.npcId}:`, err);
+        }
+      });
+      await Promise.all(loadPromises);
+
+      // Register placed NPCs with business behavior system
+      if (this.businessBehaviorSystem && businessType) {
+        this.businessBehaviorSystem.clearAll();
+        for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+          this.businessBehaviorSystem.registerNPC(placed.npcId, placed.role, businessType);
+        }
       }
     }
 
@@ -8973,6 +9155,115 @@ export class BabylonGame {
     await this.performFadeTransition(false);
   }
 
+  /**
+   * Load an NPC model into the interior scene using the same resolution chain
+   * as the overworld loadNPC() — Quaternius → world override → diverse → default.
+   */
+  private async loadNPCForInterior(
+    character: any,
+    interiorScene: Scene,
+    position: Vector3,
+    rotation: Vector3,
+  ): Promise<Mesh | null> {
+    const role = this.getRoleForCharacter(character);
+    let root: Mesh | null = null;
+
+    // Helper to split an asset path into rootUrl + file for SceneLoader
+    const splitPath = (path: string): [string, string] => {
+      const lastSlash = path.lastIndexOf('/');
+      return [path.substring(0, lastSlash + 1), path.substring(lastSlash + 1)];
+    };
+
+    // Primary path: Quaternius character models
+    if (!root && this.quaterniusNPCLoader?.hasAssets()) {
+      try {
+        const quatGender = normalizeToQuaterniusGender(character.gender);
+        const savedAppearance = character.generationConfig?.quaterniusAppearance;
+        const config = selectQuaterniusConfig(character.id, quatGender, role, savedAppearance);
+
+        const [bodyRoot, bodyFile] = splitPath(config.body.path);
+        const bodyResult = await SceneLoader.ImportMeshAsync('', bodyRoot, bodyFile, interiorScene);
+        const bodyMesh = (bodyResult.meshes.find(m => m.name === '__root__') || bodyResult.meshes[0]) as Mesh;
+        if (bodyMesh) {
+          // Reparent sibling meshes under root
+          for (const m of bodyResult.meshes) {
+            if (m !== bodyMesh && !m.parent) m.parent = bodyMesh;
+          }
+
+          // Load outfit and hair for non-complete models
+          if (!isCompleteCharacterModel(config.body.id)) {
+            if (config.outfit?.path) {
+              try {
+                const [oRoot, oFile] = splitPath(config.outfit.path);
+                const oResult = await SceneLoader.ImportMeshAsync('', oRoot, oFile, interiorScene);
+                const oMesh = oResult.meshes[0] as Mesh;
+                if (oMesh) {
+                  oMesh.parent = bodyMesh;
+                  oMesh.position = Vector3.Zero();
+                }
+              } catch { /* outfit load failed */ }
+            }
+            if (config.hair?.path) {
+              try {
+                const [hRoot, hFile] = splitPath(config.hair.path);
+                const hResult = await SceneLoader.ImportMeshAsync('', hRoot, hFile, interiorScene);
+                const hMesh = hResult.meshes[0] as Mesh;
+                if (hMesh) {
+                  hMesh.parent = bodyMesh;
+                  hMesh.position = Vector3.Zero();
+                }
+              } catch { /* hair load failed */ }
+            }
+          }
+
+          root = bodyMesh;
+        }
+      } catch { /* Quaternius failed — fall through */ }
+    }
+
+    // Fallback: world-level NPC override
+    if (!root) {
+      try {
+        const modelInfo = this.resolveNPCModelUrl(role, character);
+        if (modelInfo) {
+          const result = await SceneLoader.ImportMeshAsync('', modelInfo.rootUrl, modelInfo.file, interiorScene);
+          root = (result.meshes.find(m => m.name === '__root__') || result.meshes[0]) as Mesh;
+        }
+      } catch { /* world override failed */ }
+    }
+
+    // Fallback: diverse NPC model
+    if (!root) {
+      try {
+        const diverseModel = resolveNPCModelFromCharacter(character, role, this.config.worldType);
+        const result = await SceneLoader.ImportMeshAsync('', diverseModel.rootUrl, diverseModel.file, interiorScene);
+        root = (result.meshes.find(m => m.name === '__root__') || result.meshes[0]) as Mesh;
+      } catch { /* diverse model failed */ }
+    }
+
+    // Final fallback: default NPC model
+    if (!root) {
+      try {
+        const result = await SceneLoader.ImportMeshAsync('', '', NPC_MODEL_URL, interiorScene);
+        root = (result.meshes.find(m => m.name === '__root__') || result.meshes[0]) as Mesh;
+      } catch { /* default failed */ }
+    }
+
+    if (!root) return null;
+
+    root.name = `interior_npc_${character.id}`;
+    root.position = position.clone();
+    root.rotation = rotation.clone();
+    root.setEnabled(true);
+    root.visibility = 1;
+    root.getChildMeshes().forEach(child => {
+      child.setEnabled(true);
+      child.visibility = 1;
+    });
+
+    return root;
+  }
+
   /** Generate a procedural interior and return the spawn position. */
   private generateProceduralInterior(
     buildingId: string,
@@ -9039,6 +9330,13 @@ export class BabylonGame {
 
     // Fade to black
     await this.performFadeTransition(true);
+
+    // Dispose interior NPC clones and restore overworld NPC positions
+    for (const clone of this.interiorNPCClones) {
+      clone.dispose(false, true);
+    }
+    this.interiorNPCClones = [];
+    this.interiorNPCManager?.clearInterior();
 
     // Clean up interior scene resources
     if (this.interiorSceneManager) {
@@ -10908,35 +11206,6 @@ export class BabylonGame {
   /**
    * Play an animation on an NPC by searching its animation groups for a matching name.
    */
-  private playNPCAnimation(instance: NPCInstance, animation: string): void {
-    if (!instance.animationGroups?.length) return;
-
-    const searchNames: Record<string, string[]> = {
-      idle: ['idle', 'Idle', 'standing', 'breathe'],
-      walk: ['walk', 'Walk', 'walking'],
-      run: ['run', 'Run', 'running'],
-      talk: ['talk', 'Talk', 'talking', 'speak', 'gesture'],
-      listen: ['listen', 'Listen', 'listening', 'nod'],
-      work: ['work', 'Work', 'working', 'work_standing'],
-      sit: ['sit', 'Sit', 'sitting', 'seated'],
-      eat: ['eat', 'Eat', 'eating', 'drink'],
-      wave: ['wave', 'Wave', 'waving', 'greet'],
-      sleep: ['sleep', 'Sleep', 'sleeping', 'lying'],
-    };
-
-    const names = searchNames[animation] || [animation];
-    const group = instance.animationGroups.find((ag: any) =>
-      names.some((n: string) => ag.name?.toLowerCase().includes(n.toLowerCase()))
-    );
-
-    if (group) {
-      for (const ag of instance.animationGroups) {
-        if (ag !== group) ag.stop();
-      }
-      group.start(true);
-    }
-  }
-
   /**
    * Play an animation from an ActionResult's animation data on an entity.
    * Searches the entity's animation groups for the clip name (exact or fuzzy match).
@@ -11136,11 +11405,16 @@ export class BabylonGame {
   private playNPCAnimation(instance: NPCInstance, animName: string): void {
     if (!instance.animationGroups?.length) return;
     const nameMap: Record<string, string[]> = {
-      walk: ['walk', 'Walk', 'walking'],
       idle: ['idle', 'Idle', 'standing', 'breathe', 'Idle_Neutral'],
+      walk: ['walk', 'Walk', 'walking'],
       run: ['run', 'Run', 'running'],
       talk: ['talk', 'Talk', 'talking', 'speak', 'gesture'],
       listen: ['listen', 'Listen', 'listening', 'nod'],
+      work: ['work', 'Work', 'working', 'work_standing'],
+      sit: ['sit', 'Sit', 'sitting', 'seated'],
+      eat: ['eat', 'Eat', 'eating', 'drink'],
+      wave: ['wave', 'Wave', 'waving', 'greet'],
+      sleep: ['sleep', 'Sleep', 'sleeping', 'lying'],
     };
     const search = nameMap[animName] || [animName];
     const group = instance.animationGroups.find((ag: any) =>
@@ -12081,7 +12355,7 @@ export class BabylonGame {
       // Try local AI first, then fall back to server
       let utterances: Array<{ speaker: string; text: string; gender?: string }> | null = null;
 
-      if (LocalAIClient.isAvailable()) {
+      if (isElectronAI()) {
         const npc1Data = this.npcMeshes.get(npc1Id)?.characterData;
         const npc2Data = this.npcMeshes.get(npc2Id)?.characterData;
         if (npc1Data && npc2Data) {

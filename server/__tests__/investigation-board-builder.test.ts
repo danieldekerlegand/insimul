@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildInvestigationBoard } from '../services/investigation-board-builder';
+import { buildInvestigationBoard } from '../../shared/quests/investigation-board-builder.js';
 import {
   MAIN_QUEST_CHAPTERS,
   createInitialMainQuestState,

@@ -3,7 +3,7 @@ import {
   generateFullNarrative,
   resolveNarrativeBindings,
   listFullNarrativeTemplates,
-} from '../services/comprehensive-quest-generator';
+} from '../../shared/quests/comprehensive-quest-generator.js';
 import {
   THE_STRANGERS_JOURNEY,
   FULL_NARRATIVE_TEMPLATES,
@@ -11,8 +11,8 @@ import {
   getSubQuestCount,
   getAllVocabularyDomains,
   getChaptersForCefrLevel,
-} from '../services/full-narrative-template';
-import type { WorldStateContext } from '../services/world-state-context';
+} from '../../shared/quests/full-narrative-template.js';
+import type { WorldStateContext } from '../../shared/quests/world-state-context.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 

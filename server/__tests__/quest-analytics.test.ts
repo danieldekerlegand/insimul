@@ -3,7 +3,7 @@ import {
   computeQuestAnalytics,
   computeLearningOutcomes,
   computeObjectiveAnalytics,
-} from '../services/quest-analytics';
+} from '../../shared/quests/quest-analytics.js';
 import type { Quest } from '../../shared/schema';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────

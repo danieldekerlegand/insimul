@@ -8,18 +8,29 @@
 /**
  * Menu tab identifiers matching GameMenuSystem.ts tabs.
  */
+/**
+ * Menu tab identifiers matching GameMenuSystem.ts MenuTab type.
+ */
 UENUM(BlueprintType)
 enum class EMenuTab : uint8
 {
-    Resume       UMETA(DisplayName = "Resume"),
-    Inventory    UMETA(DisplayName = "Inventory"),
-    QuestJournal UMETA(DisplayName = "Quest Journal"),
-    Map          UMETA(DisplayName = "Map"),
-    Skills       UMETA(DisplayName = "Skills"),
-    Rules        UMETA(DisplayName = "Rules"),
-    Settings     UMETA(DisplayName = "Settings"),
-    SaveLoad     UMETA(DisplayName = "Save/Load"),
-    Quit         UMETA(DisplayName = "Quit"),
+    Character      UMETA(DisplayName = "Character"),
+    Rest           UMETA(DisplayName = "Rest"),
+    Journal        UMETA(DisplayName = "Journal"),
+    Clues          UMETA(DisplayName = "Clues"),
+    Quests         UMETA(DisplayName = "Quests"),
+    Inventory      UMETA(DisplayName = "Inventory"),
+    Crafting       UMETA(DisplayName = "Crafting"),
+    Map            UMETA(DisplayName = "Map"),
+    Photos         UMETA(DisplayName = "Photos"),
+    Vocabulary     UMETA(DisplayName = "Vocabulary"),
+    Skills         UMETA(DisplayName = "Skills"),
+    Notices        UMETA(DisplayName = "Notices"),
+    Contacts       UMETA(DisplayName = "Contacts"),
+    Notifications  UMETA(DisplayName = "Notifications"),
+    Settings       UMETA(DisplayName = "Settings"),
+    SaveLoad       UMETA(DisplayName = "Save/Load"),
+    Quit           UMETA(DisplayName = "Quit"),
 };
 
 /**
@@ -88,6 +99,22 @@ public:
     /** Set genre-specific UI configuration to show/hide panels */
     UFUNCTION(BlueprintCallable, Category = "Insimul|Menu")
     void SetGenreConfig(const FGenreUIConfig& Config);
+
+    /** Set the target language for language-learning features */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Menu")
+    void SetTargetLanguage(const FString& Language);
+
+    /** Update time display data */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Menu")
+    void UpdateTime(const FString& TimeString, int32 Day, const FString& TimeOfDay);
+
+    /** Quick-save the current game state */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Menu")
+    void QuickSave();
+
+    /** Quick-load the last saved game state */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Menu")
+    void QuickLoad();
 
     /** Whether opening the menu pauses the game */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Insimul|Menu")

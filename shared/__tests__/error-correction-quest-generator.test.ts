@@ -6,7 +6,7 @@ import {
   ERROR_CORRECTION_TEMPLATES,
   type ErrorPattern,
   type ErrorCorrectionQuest,
-} from '../../server/services/error-correction-quest-generator';
+} from '../quests/error-correction-quest-generator.js';
 import type { LanguageProgress, GrammarPattern, VocabularyEntry } from '../language/progress';
 import { QUEST_TEMPLATES, getTemplatesByCategory } from '../language/quest-templates';
 

@@ -6,7 +6,7 @@
  */
 
 import { storage } from '../db/storage.js';
-import { visualAssetGenerator } from './visual-asset-generator.js';
+import { visualAssetGenerator } from './assets/visual-asset-generator.js';
 import type { GenerationJob, GenerationProvider } from '@shared/schema';
 
 export class JobQueueManager {

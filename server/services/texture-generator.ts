@@ -6,7 +6,7 @@
  */
 
 import { storage } from '../db/storage.js';
-import { imageGenerator, type ImageGenerationParams } from './image-generation.js';
+import { imageGenerator, type ImageGenerationParams } from './assets/image-generation.js';
 import { nanoid } from 'nanoid';
 import type { GenerationProvider, AssetType } from '@shared/schema';
 

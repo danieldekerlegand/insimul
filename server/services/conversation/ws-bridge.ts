@@ -26,6 +26,7 @@ import type { ITTSProvider, VoiceProfile } from './tts/tts-provider.js';
 import { splitAtSentenceBoundaries, assignVoiceProfile } from './tts/tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
+import { initiateConversation } from './npc-conversation-engine.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -322,6 +323,98 @@ async function processAudioBuffer(
   }, options);
 }
 
+// ── NPC-to-NPC conversations ─────────────────────────────────────────
+
+async function handleNpcToNpc(
+  ws: WebSocket,
+  msg: {
+    npc1Id: string;
+    npc2Id: string;
+    worldId: string;
+    topic?: string;
+    languageCode?: string;
+  },
+  options: WSBridgeOptions,
+): Promise<void> {
+  const { npc1Id, npc2Id, worldId, topic, languageCode = 'en' } = msg;
+
+  const sessionId = `npc-npc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  sendJSON(ws, { type: 'meta', sessionId, state: 'STARTED' });
+
+  try {
+    let llmProvider: IStreamingLLMProvider | undefined;
+    try {
+      llmProvider = options.llmProvider ?? getProvider();
+    } catch {
+      // LLM not available — engine will use fallback templates
+    }
+
+    const result = await initiateConversation(npc1Id, npc2Id, worldId, {
+      topic: topic || undefined,
+      languageCode,
+      llmProvider,
+    });
+
+    // Stream each exchange
+    for (const exchange of result.exchanges) {
+      sendJSON(ws, {
+        type: 'npc_exchange',
+        sessionId,
+        speakerId: exchange.speakerId,
+        speakerName: exchange.speakerName,
+        text: exchange.text,
+        timestamp: exchange.timestamp,
+      });
+
+      // Optional TTS per exchange
+      let ttsProvider: ITTSProvider | null = options.ttsProvider ?? null;
+      if (!ttsProvider) {
+        try {
+          const ttsModule = await import('./tts/tts-provider.js');
+          ttsProvider = ttsModule.getTTSProvider?.() ?? null;
+        } catch { /* TTS not available */ }
+      }
+
+      if (ttsProvider) {
+        const voice = assignVoiceProfile({});
+        try {
+          const audioChunks = ttsProvider.synthesize(exchange.text, voice, { languageCode });
+          for await (const chunk of audioChunks) {
+            sendBinary(ws, chunk.data instanceof Uint8Array ? chunk.data : new Uint8Array(chunk.data));
+            sendJSON(ws, {
+              type: 'audio_meta',
+              sessionId,
+              speakerId: exchange.speakerId,
+              encoding: chunk.encoding,
+              sampleRate: chunk.sampleRate,
+              durationMs: chunk.durationMs,
+            });
+          }
+        } catch (err: any) {
+          console.error('[WS-Bridge] NpcToNpc TTS error:', err.message);
+        }
+      }
+    }
+
+    // Send relationship delta
+    sendJSON(ws, {
+      type: 'relationship_delta',
+      sessionId,
+      npc1Id,
+      npc2Id,
+      topic: result.topic,
+      ...result.relationshipDelta,
+      durationMs: result.durationMs,
+    });
+
+    sendJSON(ws, { type: 'meta', sessionId, state: 'ENDED' });
+  } catch (err: any) {
+    console.error('[WS-Bridge] NpcToNpc error:', err.message);
+    sendJSON(ws, { type: 'error', message: err.message || 'NPC conversation failed' });
+    sendJSON(ws, { type: 'meta', sessionId, state: 'ENDED' });
+  }
+}
+
 // ── System commands ───────────────────────────────────────────────────
 
 function handleSystemCommand(
@@ -400,6 +493,9 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
           await processAudioBuffer(ws, sessionId, characterId, worldId, languageCode || 'en', options);
         } else if (message.systemCommand) {
           handleSystemCommand(ws, message.systemCommand);
+        } else if (message.npcToNpc) {
+          const { npc1Id, npc2Id, worldId, topic, languageCode } = message.npcToNpc;
+          await handleNpcToNpc(ws, { npc1Id, npc2Id, worldId, topic, languageCode }, options);
         } else if (message.resumeSession) {
           // Reconnection: client provides previous sessionId to resume
           const { sessionId } = message.resumeSession;

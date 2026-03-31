@@ -11,6 +11,7 @@ import { buildWorldLanguageContext } from '@shared/language/language-utils';
 import { parseGrammarFeedbackBlock } from '@shared/language/language-progress';
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
 import { processRecordedAudio } from '@/lib/audio-utils';
+import { InsimulClient } from '@insimul/sdk';
 
 export interface Character {
   id: string;
@@ -55,6 +56,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingSendRef = useRef(false);
+  const insimulClientRef = useRef<InsimulClient | null>(null);
 
   // Determine speech recognition language from world context
   const sttLang = worldLangContext?.targetLanguage
@@ -92,6 +94,17 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
   useEffect(() => {
     if (open && character) {
+      // Initialize InsimulClient for streaming
+      if (!insimulClientRef.current) {
+        insimulClientRef.current = new InsimulClient({
+          chat: 'server',
+          tts: 'server',
+          stt: 'none',
+          worldId: character.worldId,
+        });
+      }
+      insimulClientRef.current.setCharacter(character.id, character.worldId);
+
       // Fetch world language context
       if (character.worldId) {
         Promise.all([
@@ -120,6 +133,9 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
         audioRef.current = null;
       }
       setIsSpeaking(false);
+
+      // End the conversation session
+      insimulClientRef.current?.dispose();
     }
   }, [open, character, truths]);
 
@@ -141,6 +157,17 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
   };
 
   const sendMessageToGemini = async (userMessage: string): Promise<string> => {
+    // Try ConversationClient first (WebSocket streaming)
+    const client = insimulClientRef.current;
+    if (client) {
+      try {
+        return await client.sendText(userMessage, { languageCode: 'en' });
+      } catch {
+        // Fall through to HTTP fallback
+      }
+    }
+
+    // HTTP fallback
     const response = await fetch('/api/gemini/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -161,13 +188,43 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
   };
 
   /**
-   * Stream a response from Gemini via SSE. Calls onChunk with each text chunk
-   * and returns the full raw response for post-processing.
+   * Stream a response via ConversationClient (WebSocket → gRPC pipeline).
+   * Falls back to direct SSE if WebSocket is unavailable.
+   * Calls onChunk with each text chunk and returns the full response.
    */
   const sendMessageStreaming = async (
     userMessage: string,
     onChunk: (chunk: string) => void
   ): Promise<string> => {
+    const client = insimulClientRef.current;
+    if (client) {
+      // Set up streaming callbacks for this request
+      let fullText = '';
+      client.on({
+        onTextChunk: (text: string, isFinal: boolean) => {
+          if (text) {
+            fullText += text;
+            onChunk(text);
+          }
+        },
+        onComplete: () => {
+          // Response finished
+        },
+        onError: (err: Error) => {
+          console.error('[CharacterChat] Streaming error:', err);
+        },
+      });
+
+      try {
+        const result = await client.sendText(userMessage, { languageCode: 'en' });
+        return result || fullText;
+      } catch (err) {
+        console.warn('[CharacterChat] InsimulClient failed, using SSE fallback:', err);
+        // Fall through to SSE fallback below
+      }
+    }
+
+    // SSE fallback (direct HTTP)
     const response = await fetch('/api/gemini/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -203,7 +260,6 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      // Keep the last potentially incomplete line in the buffer
       buffer = lines.pop() || '';
 
       for (const line of lines) {
@@ -223,7 +279,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
             throw new Error(event.error);
           }
         } catch (e) {
-          if (e instanceof SyntaxError) continue; // skip malformed JSON
+          if (e instanceof SyntaxError) continue;
           throw e;
         }
       }

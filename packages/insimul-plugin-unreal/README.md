@@ -1,180 +1,234 @@
-# Insimul Unreal Engine Plugin
+# Insimul Plugin for Unreal Engine
 
-Connect any NPC in your Unreal Engine project to the Insimul AI conversation service with streaming text, voice, and lip sync.
-
-## Requirements
-
-- Unreal Engine 5.3+
-- C++ project (or Blueprints-only with plugin enabled)
-
-## Installation
-
-1. Copy the `insimul-plugin-unreal` folder into your project's `Plugins/` directory:
-   ```
-   YourProject/
-     Plugins/
-       insimul-plugin-unreal/
-         Insimul.uplugin
-         Source/
-   ```
-2. Regenerate project files (right-click `.uproject` → Generate Visual Studio/Xcode project files)
-3. Build your project
-
-## Configuration
-
-Add your Insimul server settings to `Config/DefaultGame.ini`:
-
-```ini
-[/Script/Insimul.InsimulSubsystem]
-ServerUrl=https://your-insimul-server.com
-ApiKey=your-api-key-here
-WorldId=your-world-id
-LanguageCode=en
-```
-
-Or set them at runtime via Blueprint or C++:
-
-```cpp
-UInsimulSubsystem* Insimul = GetGameInstance()->GetSubsystem<UInsimulSubsystem>();
-FInsimulConfig Config;
-Config.ServerUrl = TEXT("https://your-insimul-server.com");
-Config.ApiKey = TEXT("your-api-key");
-Config.WorldId = TEXT("your-world-id");
-Insimul->SetConfig(Config);
-```
+Streaming AI NPC conversations with TTS audio, quest management, and crowd character integration. Supports online (Insimul server), offline (local LLM), and browser-based (WebLLM) execution modes.
 
 ## Quick Start
 
-### 1. Add Components to an NPC Actor
+1. Copy this `Insimul/` folder into your project's `Plugins/` directory
+2. Add to your `.uproject`:
+   ```json
+   { "Name": "Insimul", "Enabled": true }
+   ```
+3. Add `"InsimulRuntime"` to your module's `PublicDependencyModuleNames` in `.Build.cs`
+4. Add to `Config/DefaultGame.ini`:
+   ```ini
+   [/Script/InsimulRuntime.InsimulSettings]
+   ServerURL=http://localhost:8080
+   DefaultWorldID=your-world-id
+   bPreferWebSocket=true
+   ```
+5. Create a Blueprint child of `InsimulDialogueWidget` for your dialogue UI
+6. Create a Blueprint child of `InsimulAICharacter` with `DialogueWidgetClass` set
+7. Place an `InsimulSpawner` in your level
 
-Add these components to any NPC Blueprint or C++ Actor:
+## Configuration
 
-| Component | Purpose |
-|-----------|---------|
-| `InsimulChatbotComponent` | Manages conversation lifecycle and streams text/audio/viseme responses |
-| `InsimulAudioStreamer` | Plays back TTS audio chunks through an AudioComponent |
-| `InsimulFaceSync` | Applies viseme data to SkeletalMesh morph targets for lip sync |
+All settings are in **Project Settings > Plugins > Insimul** (stored in `Config/DefaultGame.ini`).
 
-For the player character, optionally add:
+### Online Settings
 
-| Component | Purpose |
-|-----------|---------|
-| `InsimulAudioCaptureComponent` | Captures microphone input for voice conversations |
+| Setting | Description | Default |
+| --- | --- | --- |
+| `ServerURL` | Insimul server base URL | `http://localhost:8080` |
+| `DefaultWorldID` | World ID for character loading and conversations | `default-world` |
+| `APIKey` | Optional authentication key | *(empty)* |
+| `bPreferWebSocket` | Use WebSocket streaming (recommended) | `true` |
 
-### 2. Set the Character ID
+### Offline Settings
 
-In the Details panel of `InsimulChatbotComponent`, set the **Character ID** to the Insimul character this NPC represents.
+| Setting | Description | Default |
+| --- | --- | --- |
+| `bOfflineMode` | Enable offline mode (local LLM, no server) | `false` |
+| `OfflineLLMServerURL` | Local LLM endpoint | `http://localhost:11434/api/generate` |
+| `OfflineLLMModel` | Model name (for Ollama) | `mistral` |
+| `OfflineWorldDataPath` | Path to exported JSON (relative to `Content/`) | `InsimulData/world_export.json` |
+| `OfflineMaxTokens` | Max response tokens | `256` |
+| `OfflineTemperature` | LLM creativity (0.0–2.0) | `0.7` |
+| `OfflineVoiceModel` | Piper voice model name (Runtime TTS plugin) | `en_US-amy-medium` |
+| `OfflineSpeakerIndex` | Speaker index in multi-speaker models | `0` |
 
-### 3. Start a Conversation (Blueprint)
+### World ID Resolution
 
-1. Call `StartConversation` on the `InsimulChatbotComponent`
-2. Call `SendText` with the player's message
-3. Bind to the `OnTextChunk` event to display streaming text
-4. Bind to the `OnAudioChunk` event → forward chunks to `InsimulAudioStreamer.EnqueueChunk`
-5. Bind to the `OnFacialData` event → forward to `InsimulFaceSync.ApplyVisemes`
-6. Call `EndConversation` when done
+The world ID determines which characters are loaded and which world context is used for conversations. It resolves in this order:
 
-### 4. Start a Conversation (C++)
+1. **Per-component**: `InsimulConversationComponent.Config.WorldID` (if set explicitly on the component)
+2. **Per-spawner**: `InsimulSpawner.WorldID` (copied into each spawned NPC's component)
+3. **Global default**: `UInsimulSettings::DefaultWorldID` (from `DefaultGame.ini`)
 
-```cpp
-// In your interaction logic:
-UInsimulChatbotComponent* Chat = NPC->FindComponentByClass<UInsimulChatbotComponent>();
-Chat->CharacterId = TEXT("npc-baker-001");
+To use a specific world, either:
+- Set `DefaultWorldID` in `DefaultGame.ini` for a project-wide default
+- Set `WorldID` on individual `InsimulSpawner` actors for per-level control
+- Set `Config.WorldID` on a specific `InsimulConversationComponent` for per-NPC control
 
-// Bind events
-Chat->OnTextChunk.AddDynamic(this, &AMyPlayerController::OnNPCTextReceived);
-Chat->OnAudioChunk.AddDynamic(this, &AMyPlayerController::OnNPCAudioReceived);
-Chat->OnFacialData.AddDynamic(this, &AMyPlayerController::OnNPCFacialData);
+## Execution Modes
 
-// Start and send
-Chat->StartConversation();
-Chat->SendText(TEXT("Hello, what bread do you have today?"));
+### Online (Insimul Server)
+
+Requires a running Insimul server. Conversations stream via WebSocket (`/ws/conversation`) with REST fallback. The server handles LLM inference (Gemini), TTS, STT, and viseme generation.
+
+```ini
+[/Script/InsimulRuntime.InsimulSettings]
+ServerURL=http://localhost:8080
+DefaultWorldID=your-world-id
+bPreferWebSocket=true
 ```
 
-## Components Reference
+Characters are fetched from the server at `GET /api/worlds/{worldId}/characters`.
 
-### UInsimulSubsystem
+### Offline (Local LLM)
 
-`UGameInstanceSubsystem` — automatically created, persists across level loads. Manages the shared HTTP client and server configuration.
+Uses exported world data + a local LLM server (Ollama or llama.cpp). No server connection needed at runtime.
 
-**Key Functions:**
-- `SetConfig(FInsimulConfig)` — Update server connection settings
-- `GetHttpClient()` — Access the shared HTTP transport client
-- `CreateSessionId()` — Generate a unique conversation session ID
+**Setup:**
 
-### UInsimulChatbotComponent
+1. Export world data while server is running:
+   ```bash
+   curl http://localhost:8080/api/conversation/export/YOUR_WORLD_ID > Content/InsimulData/world_export.json
+   ```
+2. Install Ollama and pull a model:
+   ```bash
+   brew install ollama
+   ollama pull mistral
+   ```
+3. Configure:
+   ```ini
+   [/Script/InsimulRuntime.InsimulSettings]
+   bOfflineMode=true
+   OfflineLLMServerURL=http://localhost:11434/api/generate
+   OfflineLLMModel=mistral
+   OfflineWorldDataPath=InsimulData/world_export.json
+   ```
 
-`UActorComponent` — attach to any NPC for AI conversation.
+The offline provider builds prompts from the exported `dialogueContexts` (pre-built system prompts with personality, relationships, and knowledge) and calls the local LLM.
 
-**Properties (Details Panel):**
-- `CharacterId` — Insimul character ID for this NPC
-- `LanguageCode` — Language override (empty = use default)
+For offline TTS, install the **Runtime Text To Speech** plugin from Fab (Piper/Kokoro ONNX voices).
 
-**Blueprint Functions:**
-- `StartConversation(SessionId)` — Start or resume a conversation
-- `SendText(Text)` — Send player text input
-- `SendAudio(AudioData)` — Send recorded audio input
-- `EndConversation()` — End and clean up
+### Supported LLM Server Formats
 
-**Blueprint Events:**
-- `OnTextChunk` — Streaming text tokens
-- `OnAudioChunk` — TTS audio chunks
-- `OnFacialData` — Viseme data for lip sync
-- `OnActionTrigger` — Server-triggered game actions
-- `OnTranscript` — STT transcription result
-- `OnStateChange` — Conversation state changes
-- `OnError` — Error messages
+| URL Pattern | Format | Example |
+| --- | --- | --- |
+| Contains `/api/generate` | Ollama | `http://localhost:11434/api/generate` |
+| Contains `/api/chat` | Ollama chat | `http://localhost:11434/api/chat` |
+| Anything else | llama.cpp | `http://localhost:8081/completion` |
 
-### UInsimulAudioStreamer
+## Key Classes
 
-`UActorComponent` — streaming TTS playback via AudioComponent.
+### Components
 
-**Properties:**
-- `PreBufferChunks` — Chunks to buffer before playback starts (default: 3)
-- `VolumeMultiplier` — Speech volume (default: 1.0)
-- `bSpatialAudio` — Enable 3D spatial audio (default: true)
-- `MaxAudibleDistance` — Max hearing distance in world units
+| Class | Description |
+| --- | --- |
+| `UInsimulConversationComponent` | Core conversation driver. Attach to any actor. Routes through online (WebSocket/REST) or offline (local LLM) based on settings. Handles NPC-NPC proximity conversations. Delegates: `OnConversationStarted`, `OnUtteranceReceived`, `OnConversationEnded`, `OnAudioChunkReceived`. |
+| `UInsimulCharacterMappingComponent` | Maps an Unreal actor to an Insimul character ID. Auto-assigned by the crowd integration subsystem. |
+| `UInsimulDebugComponent` | Debug visualization for Insimul characters. |
 
-**Functions:**
-- `EnqueueChunk(AudioChunk)` — Add audio chunk to playback queue
-- `StopPlayback()` — Stop and clear queue
+### Actors
 
-### UInsimulFaceSync
+| Class | Description |
+| --- | --- |
+| `AInsimulAICharacter` | NPC character with `InsimulConversationComponent`, `InteractionSphere` (200u `USphereComponent`), `SpeechAudioComponent` (`UAudioComponent`). Creates dialogue widget on player interaction. Plays TTS audio via `USoundWaveProcedural`. |
+| `AInsimulSpawner` | Spawns NPCs at configured or server-fetched locations. Properties: `WorldID`, `bAutoSpawnAI`, `bFetchCharactersFromServer`, `AICharacterClass`, `CharacterSpawnData`. |
+| `AInsimulLevelScriptActor` | Level script spawn hook for simple setups. |
 
-`UActorComponent` — applies viseme data to SkeletalMesh morph targets.
+### Widgets
 
-**Properties:**
-- `BlendSpeed` — Interpolation speed (default: 12.0)
-- `TargetMeshComponentName` — Specific mesh to target (empty = auto-find)
-- `VisemeToMorphTarget` — Map of viseme names → morph target names
+| Class | Description |
+| --- | --- |
+| `UInsimulDialogueWidget` | Abstract base for player dialogue UI. Blueprint-implementable events: `BP_AddUtterance(Speaker, Text)`, `BP_ClearHistory()`. Functions: `SubmitPlayerMessage(Message)`, `CloseDialogue()`. |
+| `UInsimulQuestWidget` | Quest list display widget with auto-refresh. |
 
-**Functions:**
-- `ApplyVisemes(FacialData)` — Apply viseme weights
-- `ResetVisemes()` — Reset all morph targets to zero
+### Subsystems
 
-Supports the 15 Oculus OVR visemes: `sil`, `PP`, `FF`, `TH`, `DD`, `kk`, `CH`, `SS`, `nn`, `RR`, `aa`, `E`, `ih`, `oh`, `ou`.
+| Class | Description |
+| --- | --- |
+| `UInsimulCharacterMappingSubsystem` | World subsystem. Manages character ID pool. Auto-loads from server (online) or JSON file (offline) at startup. `LoadInsimulCharacters(ServerURL)` / `LoadInsimulCharactersFromFile(FilePath)`. |
+| `UInsimulCrowdIntegration` | GameInstance subsystem. Auto-adds `InsimulCharacterMappingComponent` to spawned crowd actors. `EnableAutomaticMapping(bool)`. |
+| `UInsimulQuestManager` | GameInstance subsystem. Quest tracking and UI management. |
 
-### UInsimulAudioCaptureComponent
+### Networking
 
-`UActorComponent` — microphone capture for voice input.
+| Class | Description |
+| --- | --- |
+| `FInsimulWSClient` | WebSocket client for `/ws/conversation`. Streaming text, audio, visemes. |
+| `FInsimulRestClient` | REST HTTP fallback for conversation lifecycle, TTS, STT, character CRUD. |
+| `FInsimulOfflineProvider` | Local LLM client (Ollama/llama.cpp). Same delegate interface as `FInsimulWSClient`. |
 
-**Functions:**
-- `StartCapture()` — Begin recording from default microphone
-- `StopCapture()` — Stop recording and return audio buffer
-- `IsCapturing()` — Check recording state
+### Data
 
-## Architecture
+| Class | Description |
+| --- | --- |
+| `UInsimulSettings` | Config singleton (`UInsimulSettings::Get()`). Online + offline settings. |
+| `FInsimulExportedWorld` | Exported world data: characters + dialogue contexts. |
+| `FInsimulDialogueContext` | Per-character: system prompt, greeting, voice, truths. |
+| `FInsimulWorldExportLoader` | Loads world data from JSON (single-file or split-file layout). |
 
-The plugin uses HTTP/SSE transport (not native gRPC) for maximum compatibility. The flow is:
+## World Export JSON Format
 
+The plugin reads world data in this format (produced by `GET /api/conversation/export/{worldId}`):
+
+```json
+{
+  "worldName": "My World",
+  "worldId": "my-world-id",
+  "characters": [
+    {
+      "characterId": "npc_001",
+      "firstName": "Elena",
+      "lastName": "Torres",
+      "gender": "female",
+      "occupation": "Merchant",
+      "birthYear": 1988,
+      "isAlive": true,
+      "openness": 0.7,
+      "conscientiousness": 0.8,
+      "extroversion": 0.9,
+      "agreeableness": 0.7,
+      "neuroticism": 0.2
+    }
+  ],
+  "dialogueContexts": [
+    {
+      "characterId": "npc_001",
+      "characterName": "Elena Torres",
+      "systemPrompt": "You are Elena Torres, a merchant...",
+      "greeting": "Hello! See anything you like?",
+      "voice": "Kore",
+      "truths": [
+        {"title": "Craft", "content": "Elena makes handmade jewelry."}
+      ]
+    }
+  ]
+}
 ```
-Player Input → InsimulChatbotComponent → HTTP POST → Insimul Server
-                                                         ↓
-InsimulFaceSync ← InsimulAudioStreamer ← SSE Stream ← Server Response
-```
 
-All HTTP requests run asynchronously via UE's HTTP module — no game thread blocking.
+The `characters` array provides data for the spawner and character mapping. The `dialogueContexts` array provides pre-built prompts for the offline provider. In online mode, the server builds prompts dynamically.
 
-## License
+## Conversation Component Settings
 
-Copyright Insimul. All Rights Reserved.
+Per-component overrides on `InsimulConversationComponent.Config`:
+
+| Property | Description | Default |
+| --- | --- | --- |
+| `APIBaseUrl` | Server URL override | From `UInsimulSettings::ServerURL` |
+| `WorldID` | World ID override | From `UInsimulSettings::DefaultWorldID` |
+| `CharacterID` | This NPC's Insimul character ID | *(empty — set by spawner)* |
+| `PlayerCharacterID` | Player's character ID | `"player"` |
+| `ConversationCheckInterval` | NPC-NPC proximity check interval (seconds) | `5.0` |
+| `ConversationRadius` | NPC-NPC conversation trigger distance (units) | `300.0` |
+
+## Interaction
+
+`AInsimulAICharacter` has a `USphereComponent` (`InteractionSphere`, 200 unit radius) that fires `OnPlayerInteract` when a player pawn overlaps. Call `HandlePlayerInteract(Pawn)` to open the dialogue widget and start a conversation.
+
+For games with their own interaction system, bind your interaction event to call `HandlePlayerInteract(Pawn)` on the NPC.
+
+## Server Endpoints
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/ws/conversation` | WebSocket | Streaming conversations (text + audio + visemes) |
+| `/api/conversations/start` | POST | Start conversation (REST fallback) |
+| `/api/conversations/{id}/continue` | POST | Get next utterance (REST fallback) |
+| `/api/conversations/{id}/end` | POST | End conversation |
+| `/api/worlds/{worldId}/characters` | GET | Fetch characters for spawner |
+| `/api/conversation/export/{worldId}` | GET | Export world data for offline mode |
+| `/health` | GET | Server health check |

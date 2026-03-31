@@ -328,7 +328,6 @@ export function HierarchicalLocationsTab({ worldId }: HierarchicalLocationsTabPr
                   <CardContent>
                     <div className="flex gap-4 text-sm">
                       <span className="px-2 py-1 bg-primary/10 rounded text-primary font-medium">{state.stateType}</span>
-                      <span className="text-muted-foreground">{state.terrain}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -371,7 +370,6 @@ export function HierarchicalLocationsTab({ worldId }: HierarchicalLocationsTabPr
                   <CardContent>
                     <div className="flex gap-4 text-sm text-muted-foreground">
                       <span>Pop: {settlement.population?.toLocaleString() || 0}</span>
-                      <span>{settlement.terrain}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -401,10 +399,6 @@ export function HierarchicalLocationsTab({ worldId }: HierarchicalLocationsTabPr
                 <div>
                   <span className="text-sm text-muted-foreground">Type</span>
                   <p className="font-semibold">{selectedState.stateType}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">Terrain</span>
-                  <p className="font-semibold">{selectedState.terrain}</p>
                 </div>
                 <div>
                   <span className="text-sm text-muted-foreground">Founded</span>
@@ -474,10 +468,6 @@ export function HierarchicalLocationsTab({ worldId }: HierarchicalLocationsTabPr
                 <div>
                   <span className="text-sm text-muted-foreground">Population</span>
                   <p className="font-semibold text-lg">{selectedSettlement.population?.toLocaleString() || 0}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">Terrain</span>
-                  <p className="font-semibold">{selectedSettlement.terrain}</p>
                 </div>
                 <div>
                   <span className="text-sm text-muted-foreground">Founded</span>

@@ -26,7 +26,7 @@ export const terrainOccupations: Record<string, OccupationVocation[]> = {
 /**
  * Pick a default occupation for an unemployed adult based on terrain and personality.
  */
-export function pickDefaultOccupation(character: Character, terrain: string): string {
+export function pickDefaultOccupation(character: Character, terrain?: string): string {
   const personality = character.personality as {
     openness: number; conscientiousness: number;
     extroversion: number; agreeableness: number; neuroticism: number;
@@ -42,7 +42,7 @@ export function pickDefaultOccupation(character: Character, terrain: string): st
     }
   }
 
-  const pool = terrainOccupations[terrain] || terrainOccupations.plains;
+  const pool = terrainOccupations[terrain || 'plains'] || terrainOccupations.plains;
   return pickRandom(pool);
 }
 
@@ -63,7 +63,7 @@ export function getDefaultOccupationForAge(age: number): string | null {
 export async function assignDefaultOccupations(config: {
   worldId: string;
   currentYear: number;
-  terrain: string;
+  terrain?: string;
 }): Promise<number> {
   const characters = await storage.getCharactersByWorld(config.worldId);
   const unassigned = characters.filter(c => c.isAlive && !c.occupation);

@@ -1119,7 +1119,7 @@ export function createTelemetryRoutes(storage: any): Router {
   router.get('/worlds/:worldId/quest-peer-stats', async (req: Request, res: Response) => {
     try {
       const { worldId } = req.params;
-      const { computePeerStats } = await import('../services/quest-peer-comparison');
+      const { computePeerStats } = await import('../../shared/quests/quest-peer-comparison');
       const quests = await storage.getQuestsByWorld(worldId);
       const stats = computePeerStats(quests);
       res.json(stats);
@@ -1133,7 +1133,7 @@ export function createTelemetryRoutes(storage: any): Router {
   router.get('/worlds/:worldId/quest-peer-comparison/:playerName', async (req: Request, res: Response) => {
     try {
       const { worldId, playerName } = req.params;
-      const { computePlayerComparison } = await import('../services/quest-peer-comparison');
+      const { computePlayerComparison } = await import('../../shared/quests/quest-peer-comparison');
       const quests = await storage.getQuestsByWorld(worldId);
       const comparison = computePlayerComparison(quests, playerName);
       res.json(comparison);

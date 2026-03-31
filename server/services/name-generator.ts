@@ -3,7 +3,7 @@
  * Fast, offline name generation using Tracery grammars
  */
 
-import { TraceryService } from './tracery-service.js';
+import { TraceryService } from '../../shared/quests/tracery-service.js';
 import type { IStorage } from '../db/storage.js';
 
 export interface NameGenerationOptions {

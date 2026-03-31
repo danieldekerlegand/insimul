@@ -51,8 +51,9 @@ async function main() {
   console.log('Connected to MongoDB\n');
 
   // Dynamic imports after DB is connected (storage auto-connects)
+  const { mongoQuestStorage } = await import('../db/mongo-quest-storage.js');
+  const { seedMainQuestChain, hasMainQuestChain } = await import('../../shared/quests/main-quest-chain-seeder.js');
   const { storage } = await import('../db/storage.js');
-  const { seedMainQuestChain, hasMainQuestChain } = await import('../services/main-quest-chain-seeder.js');
 
   const worlds = await storage.getWorlds();
   console.log(`Found ${worlds.length} worlds\n`);
@@ -64,7 +65,7 @@ async function main() {
     const targetLanguage = world.targetLanguage || 'french';
 
     if (DRY_RUN) {
-      const exists = await hasMainQuestChain(world.id);
+      const exists = await hasMainQuestChain(mongoQuestStorage, world.id);
       if (exists) {
         console.log(`  [SKIP] World "${world.name}" (${world.id}) — already has main quest chain`);
         skipped++;
@@ -75,7 +76,7 @@ async function main() {
       continue;
     }
 
-    const chain = await seedMainQuestChain(world.id, targetLanguage);
+    const chain = await seedMainQuestChain(mongoQuestStorage, world.id, targetLanguage);
     if (chain) {
       console.log(`  [SEEDED] World "${world.name}" (${world.id}) — ${chain.quests.length} quests`);
       seeded++;

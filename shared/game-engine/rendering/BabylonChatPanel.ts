@@ -21,13 +21,13 @@ import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLangu
 import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "../logic/LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
-import { ConversationClient } from '@/components/3DGame/ConversationClient';
-import type { ConversationState } from '@/components/3DGame/ConversationClient';
+import { InsimulClient } from '@insimul/sdk';
+import type { ConversationState } from '@insimul/sdk';
 import type { IDataSource as DataSource } from '@shared/game-engine/data-source';
 import { ConversationalActionDetector, type ConversationalAction, type NpcConversationTurnState, type DetectorContext } from "../logic/ConversationalActionDetector";
 import { ListenAndRepeatController, type RepeatAttemptResult } from "./ListenAndRepeatController";
 import type { ListenAndRepeatPhrase } from "../logic/actions/ListenAndRepeatAction";
-import { LocalAIClient } from '@/components/3DGame/LocalAIClient';
+import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/sdk';
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
 import { LipSyncController } from "./LipSyncController";
@@ -138,8 +138,11 @@ export class BabylonChatPanel {
   private isRecording = false;
   private isSpeaking = false;
 
-  // gRPC streaming conversation service
-  private conversationClient: ConversationClient | null = null;
+  // AI provider setting: 'auto' | 'browser' | 'server'
+  private _aiProvider: string = 'auto';
+
+  // Unified Insimul SDK client (replaces ConversationClient + BrowserAIClient + LocalAIClient)
+  private insimulClient: InsimulClient | null = null;
   private streamingAudioPlayer: StreamingAudioPlayer | null = null;
   private lipSyncController: LipSyncController | null = null;
   private _grpcAvailable: boolean | null = null; // null = unchecked
@@ -396,16 +399,43 @@ export class BabylonChatPanel {
     this.streamingAudioPlayer?.dispose();
     this.lipSyncController?.dispose();
 
-    // Create conversation client (reuses session across same character)
-    if (!this.conversationClient) {
-      this.conversationClient = new ConversationClient({
-        localAI: LocalAIClient.isAvailable() ? new LocalAIClient() : undefined,
+    // Resolve chat provider type from AI provider setting
+    const chatType: ChatProviderType = this._aiProvider === 'browser' ? 'browser'
+      : this._aiProvider === 'server' ? 'server'
+      : 'server'; // 'auto' defaults to server; InsimulClient auto-detects internally
+
+    // Create InsimulClient (reuses session across same character)
+    if (!this.insimulClient) {
+      this.insimulClient = new InsimulClient({
+        chat: this._aiProvider === 'auto' ? undefined : chatType, // undefined = auto-detect
+        tts: this._aiProvider === 'browser' ? 'browser' : undefined,
+        stt: 'none',
+        serverUrl: '', // empty = same origin
+        llmModel: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
+        onLoadProgress: (pct: number, status: string) => {
+          console.log(`[ChatPanel] AI loading: ${status} (${Math.round(pct * 100)}%)`);
+        },
+        systemPromptBuilder: this.buildSystemPrompt.bind(this),
       });
-      if (this._dataSource) {
-        this.conversationClient.setDataSource(this._dataSource);
-      }
+
+      // Initialize async — don't block chat panel creation
+      this.insimulClient.initialize().then(() => {
+        this._grpcAvailable = true;
+        console.log(`[ChatPanel] InsimulClient ready (chat=${this.insimulClient?.getChatType()}, tts=${this.insimulClient?.getTTSType()})`);
+      }).catch((err: any) => {
+        console.warn('[ChatPanel] InsimulClient init failed:', err.message);
+        this._grpcAvailable = false;
+      });
     }
-    this.conversationClient.setCharacter(character.id, character.worldId);
+
+    this.insimulClient.setCharacter(character.id, character.worldId);
+
+    // Set TTS voice to match character gender + target language
+    const gender = (character.gender || 'male').toLowerCase();
+    const lang = this.world?.targetLanguage
+      ? getLanguageBCP47(this.world.targetLanguage)
+      : 'en';
+    this.insimulClient.setVoice({ gender, language: lang });
 
     // Set up streaming audio player
     this.streamingAudioPlayer = new StreamingAudioPlayer({
@@ -420,7 +450,6 @@ export class BabylonChatPanel {
           this.talkingIndicator.show(this.character.id, this.npcMesh);
         }
         this.updateConversationStateIndicator('speaking');
-        // Pause mic so we don't pick up NPC TTS audio
         this.handsFreeController?.pause();
       },
       onComplete: () => {
@@ -429,7 +458,6 @@ export class BabylonChatPanel {
           this.talkingIndicator.hide(this.character.id);
         }
         this.updateConversationStateIndicator('idle');
-        // Resume mic after NPC finishes speaking
         this.handsFreeController?.resume();
       },
     });
@@ -440,35 +468,35 @@ export class BabylonChatPanel {
       this.lipSyncController.setAudioPlayer(this.streamingAudioPlayer);
     }
 
-    // Wire conversation client callbacks
-    this.conversationClient.setCallbacks({
+    // Wire InsimulClient callbacks
+    this.insimulClient.on({
       onTextChunk: (_text: string, _isFinal: boolean) => {
         // Text handled directly in sendMessageViaGrpc
       },
-      onAudioChunk: (chunk) => {
+      onAudioChunk: (chunk: AudioChunkOutput) => {
         if (this.streamingAudioPlayer) {
           this.streamingAudioPlayer.pushChunk(chunk as StreamingAudioChunk);
         }
       },
-      onFacialData: (data) => {
+      onFacialData: (data: FacialData) => {
         if (this.lipSyncController) {
           this.lipSyncController.pushFacialData(data);
         }
       },
-      onStateChange: (state) => {
+      onStateChange: (state: ConversationState) => {
         this._conversationState = state;
         this.updateConversationStateIndicator(state);
       },
-      onError: (err) => {
-        console.error('[ChatPanel] Conversation client error:', err);
+      onError: (err: Error) => {
+        console.error('[ChatPanel] InsimulClient error:', err);
       },
     });
 
     // Check availability asynchronously (cache result)
     if (this._grpcAvailable === null) {
-      this.conversationClient.isAvailable().then((available) => {
+      this.insimulClient.isAvailable().then((available: boolean) => {
         this._grpcAvailable = available;
-        console.log('[ChatPanel] Conversation streaming service:', available ? 'available' : 'unavailable (fallback to Gemini)');
+        console.log('[ChatPanel] Conversation service:', available ? 'available' : 'unavailable (fallback to Gemini)');
       });
     }
   }
@@ -530,7 +558,7 @@ export class BabylonChatPanel {
     // Stop streaming audio and lip sync
     this.streamingAudioPlayer?.stop();
     this.lipSyncController?.stop();
-    this.conversationClient?.abort();
+    this.insimulClient?.abort();
     this.updateConversationStateIndicator('idle');
 
     // Only call onClose if user-initiated
@@ -1505,7 +1533,7 @@ export class BabylonChatPanel {
       this._receivedStreamingAudio = false;
 
       // Route through gRPC or Gemini — same as sendMessage
-      if (this._grpcAvailable && this.conversationClient) {
+      if (this._grpcAvailable && this.insimulClient) {
         responseText = await this.sendMessageViaGrpc(cue, placeholderMsg);
       } else {
         responseText = await this.sendMessageViaGemini(cue, placeholderMsg);
@@ -1601,7 +1629,7 @@ export class BabylonChatPanel {
       this._receivedStreamingAudio = false;
 
       // Try gRPC streaming service first, fall back to direct Gemini API
-      if (this._grpcAvailable && this.conversationClient) {
+      if (this._grpcAvailable && this.insimulClient) {
         responseText = await this.sendMessageViaGrpc(userMessage, placeholderMsg);
       } else {
         responseText = await this.sendMessageViaGemini(userMessage, placeholderMsg);
@@ -1653,45 +1681,40 @@ export class BabylonChatPanel {
     // from also doing a fallback TTS call (which would cause duplicate speech).
     this._receivedStreamingAudio = true;
 
-    // Override the text chunk callback for this specific request
-    const prevCallbacks = { ...this.conversationClient!['callbacks'] };
-    this.conversationClient!.setCallbacks({
-      ...prevCallbacks,
+    // Wire callbacks for this specific request
+    this.insimulClient!.on({
       onTextChunk: (text: string, _isFinal: boolean) => {
         accumulatedText += text;
         placeholderMsg.content = accumulatedText;
         this.updateLastMessageText(accumulatedText);
         this.onNPCSpeechUpdate?.(accumulatedText);
       },
-      onAudioChunk: (chunk) => {
+      onAudioChunk: (chunk: AudioChunkOutput) => {
         this._receivedStreamingAudio = true;
         if (this.streamingAudioPlayer) {
           this.streamingAudioPlayer.pushChunk(chunk as StreamingAudioChunk);
         }
       },
-      onFacialData: (data) => {
+      onFacialData: (data: FacialData) => {
         if (this.lipSyncController) {
           this.lipSyncController.pushFacialData(data);
         }
       },
-      onStateChange: (state) => {
+      onStateChange: (state: ConversationState) => {
         this._conversationState = state;
         this.updateConversationStateIndicator(state);
       },
       onComplete: () => {
-        // Signal end of audio stream
         this.streamingAudioPlayer?.finish();
         if (this.lipSyncController) {
           this.lipSyncController.start();
         }
       },
-      onMetadata: (type, content) => {
-        // Metadata extraction now happens via a separate background request.
-        // Log any unexpected inline metadata from the streaming response.
-        console.log(`[ChatPanel] Unexpected metadata in stream: ${type}`, content.substring(0, 80));
+      onMetadata: (type: string, content: string) => {
+        console.log(`[ChatPanel] Metadata in stream: ${type}`, content.substring(0, 80));
       },
-      onError: (err) => {
-        console.error('[ChatPanel] gRPC streaming error:', err);
+      onError: (err: Error) => {
+        console.error('[ChatPanel] Streaming error:', err);
       },
     });
 
@@ -1700,12 +1723,12 @@ export class BabylonChatPanel {
       : 'en';
 
     try {
-      const fullText = await this.conversationClient!.sendText(userMessage, langCode);
+      const fullText = await this.insimulClient!.sendText(userMessage, { languageCode: langCode });
       return fullText || accumulatedText;
     } catch (err) {
-      console.warn('[ChatPanel] gRPC failed, falling back to Gemini:', err);
-      // Mark gRPC as unavailable for this session and fall back
+      console.warn('[ChatPanel] Streaming service failed, falling back to Gemini:', err);
       this._grpcAvailable = false;
+      setTimeout(() => { this._grpcAvailable = null; }, 30_000);
       return this.sendMessageViaGemini(userMessage, placeholderMsg);
     }
   }
@@ -2676,7 +2699,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
 
     // Set up streaming text accumulation
     let accumulatedText = '';
-    this.conversationClient!.setCallbacks({
+    this.insimulClient!.on({
       onTextChunk: (text: string) => {
         accumulatedText += text;
         placeholderMsg.content = accumulatedText;
@@ -2685,13 +2708,13 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
         }
         this.onNPCSpeechUpdate?.(accumulatedText);
       },
-      onAudioChunk: (chunk) => {
+      onAudioChunk: (chunk: AudioChunkOutput) => {
         this.streamingAudioPlayer?.pushChunk(chunk as StreamingAudioChunk);
       },
-      onFacialData: (data) => {
+      onFacialData: (data: FacialData) => {
         this.lipSyncController?.pushFacialData(data);
       },
-      onStateChange: (state) => {
+      onStateChange: (state: ConversationState) => {
         this._conversationState = state;
         this.updateConversationStateIndicator(state);
       },
@@ -2699,8 +2722,8 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
         this.streamingAudioPlayer?.finish();
         this.lipSyncController?.start();
       },
-      onError: (err) => {
-        console.error('[ChatPanel] gRPC audio error:', err);
+      onError: (err: Error) => {
+        console.error('[ChatPanel] Audio streaming error:', err);
       },
     });
 
@@ -2709,26 +2732,24 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
         ? getLanguageBCP47(this.worldLanguageContext.learningTargetLanguage.name)
         : 'en';
 
-      // The server will handle STT and send transcript + response
-      // First show "thinking" state
       this.updateConversationStateIndicator('thinking');
       if (this.inputText) {
         this.inputText.text = "NPC is thinking...";
         this.inputText.color = "#ffd93d";
       }
 
-      // Add placeholder for streaming response
       this.messages.push(placeholderMsg);
       this.updateMessagesDisplay();
 
-      const fullText = await this.conversationClient!.sendAudio(audioBlob, langCode);
+      const fullText = await this.insimulClient!.sendAudio(audioBlob, { languageCode: langCode });
       const responseText = fullText || accumulatedText;
 
       // Process response (quests, grammar, etc.)
       await this.processAssistantResponse('', responseText, placeholderMsg);
     } catch (err) {
-      console.warn('[ChatPanel] gRPC audio failed, falling back to Gemini:', err);
+      console.warn('[ChatPanel] Streaming audio failed, falling back to Gemini:', err);
       this._grpcAvailable = false;
+      setTimeout(() => { this._grpcAvailable = null; }, 30_000);
       // Remove the placeholder if it was added
       const idx = this.messages.indexOf(placeholderMsg);
       if (idx >= 0) this.messages.splice(idx, 1);
@@ -3136,6 +3157,34 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
 
   public setDataSource(ds: DataSource): void {
     this._dataSource = ds;
+  }
+
+  /** Get the current AI provider setting */
+  public getAIProvider(): string {
+    return this._aiProvider;
+  }
+
+  /**
+   * Set the AI provider: 'auto' | 'browser' | 'server'
+   * - 'auto': Use browser AI if WebGPU available, else server
+   * - 'browser': Force browser-only (WebLLM + Kokoro TTS)
+   * - 'server': Force server-only (WebSocket/Gemini)
+   */
+  public setAIProvider(provider: string): void {
+    this._aiProvider = provider;
+    console.log(`[ChatPanel] AI provider set to: ${provider}`);
+
+    // Dispose current client and recreate with new provider
+    if (this.insimulClient) {
+      this.insimulClient.dispose();
+      this.insimulClient = null;
+    }
+    this._grpcAvailable = null;
+
+    // Re-initialize with the new provider if we have a character
+    if (this.character) {
+      this.initConversationClient(this.character, this.npcMesh || undefined);
+    }
   }
 
   public setPlaythroughId(id: string) {
@@ -4270,8 +4319,8 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     this.streamingAudioPlayer = null;
     this.lipSyncController?.dispose();
     this.lipSyncController = null;
-    this.conversationClient?.dispose();
-    this.conversationClient = null;
+    this.insimulClient?.dispose();
+    this.insimulClient = null;
     if (this.voiceWSClient) {
       this.voiceWSClient.destroy();
       this.voiceWSClient = null;

@@ -19,7 +19,7 @@ interface StateDialogProps {
 export function StateDialog({ open, onOpenChange, worldId, countryId, countryName, onSuccess }: StateDialogProps) {
   const { toast } = useToast();
   const [form, setForm] = useState({
-    name: '', description: '', stateType: 'province', terrain: 'plains', foundedYear: new Date().getFullYear()
+    name: '', description: '', stateType: 'province', foundedYear: new Date().getFullYear()
   });
 
   const handleSubmit = async () => {
@@ -35,7 +35,7 @@ export function StateDialog({ open, onOpenChange, worldId, countryId, countryNam
       });
       if (res.ok) {
         toast({ title: 'State Created', description: `${form.name} has been created` });
-        setForm({ name: '', description: '', stateType: 'province', terrain: 'plains', foundedYear: new Date().getFullYear() });
+        setForm({ name: '', description: '', stateType: 'province', foundedYear: new Date().getFullYear() });
         onSuccess();
       } else {
         const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -78,21 +78,6 @@ export function StateDialog({ open, onOpenChange, worldId, countryId, countryNam
                   <SelectItem value="region">Region</SelectItem>
                   <SelectItem value="duchy">Duchy</SelectItem>
                   <SelectItem value="county">County</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Terrain</Label>
-              <Select value={form.terrain} onValueChange={(v) => setForm({ ...form, terrain: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="plains">Plains</SelectItem>
-                  <SelectItem value="hills">Hills</SelectItem>
-                  <SelectItem value="mountains">Mountains</SelectItem>
-                  <SelectItem value="coast">Coast</SelectItem>
-                  <SelectItem value="river">River</SelectItem>
-                  <SelectItem value="forest">Forest</SelectItem>
-                  <SelectItem value="desert">Desert</SelectItem>
                 </SelectContent>
               </Select>
             </div>

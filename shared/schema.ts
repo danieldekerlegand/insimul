@@ -416,7 +416,6 @@ export const states = pgTable("states", {
   // State characteristics
   stateType: text("state_type").default("province"), // province, state, territory, region, duchy, county
   foundedYear: integer("founded_year"),
-  terrain: text("terrain"), // plains, hills, mountains, coast, river, forest, desert
   
   // Governance
   governorId: varchar("governor_id"), // Character ID of the governor/ruler
@@ -446,9 +445,7 @@ export const settlements = pgTable("settlements", {
   
   // Settlement type and characteristics
   settlementType: text("settlement_type").notNull(), // city, town, village
-  settlementSubtype: text("settlement_subtype").default("standard"), // port_city, mountain_village, etc.
   streetPattern: text("street_pattern"), // grid, organic, linear, waterfront, hillside, radial
-  terrain: text("terrain"), // plains, hills, mountains, coast, river, forest, desert
   
   // Demographics and founding
   population: integer("population").default(0),
@@ -470,9 +467,6 @@ export const settlements = pgTable("settlements", {
   socialStructure: jsonb("social_structure").$type<Record<string, any>>().default({}),
   economicData: jsonb("economic_data").$type<Record<string, any>>().default({}),
   
-  // Genealogy tracking for this settlement
-  genealogies: jsonb("genealogies").$type<Record<string, any>>().default({}),
-  familyTrees: jsonb("family_trees").$type<Record<string, any>>().default({}),
   
   // TotT-specific tracking
   unemployedCharacterIds: jsonb("unemployed_character_ids").$type<string[]>().default([]),
@@ -492,14 +486,6 @@ export const settlements = pgTable("settlements", {
   // World-space position — derived from country position + grid cell
   worldPositionX: real("world_position_x"),
   worldPositionZ: real("world_position_z"),
-  radius: integer("radius"),  // Generation radius (hamlet=50, village=80, town=150, city=250)
-
-  // Settlement boundary (terrain-aware polygon, in local coordinates relative to worldPosition)
-  boundaryPolygon: jsonb("boundary_polygon").$type<{ x: number; z: number }[]>().default([]),
-
-  // Terrain data
-  elevation: integer("elevation").default(0),
-  slopeProfile: text("slope_profile"), // flat, gentle, moderate, steep, terraced
 
   // Generation config specific to this settlement
   generationConfig: jsonb("generation_config").$type<Record<string, any>>().default({}),

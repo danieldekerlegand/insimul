@@ -26,8 +26,8 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { storage } from '../db/storage.js';
-import { queryPolyhavenAssets, getPolyhavenModelUrl } from '../services/polyhaven-api.js';
-import { preprocessPolyhavenAsset } from '../services/asset-downloader.js';
+import { queryPolyhavenAssets, getPolyhavenModelUrl } from '../services/assets/polyhaven-api.js';
+import { preprocessPolyhavenAsset } from '../services/assets/asset-downloader.js';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

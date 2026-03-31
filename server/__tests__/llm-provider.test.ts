@@ -386,7 +386,7 @@ const FAKE_CHAR_ID = '000000000000000000000001';
 describe('character-interaction service with provider interface', () => {
   it('getCharacterResponse uses injected provider', async () => {
     const mock = new MockLLMProvider({ responseText: 'Hello traveler!' });
-    const { getCharacterResponse } = await import('../services/character-interaction.js');
+    const { getCharacterResponse } = await import('../services/conversation/character-interaction.js');
 
     const result = await getCharacterResponse('hi', FAKE_CHAR_ID, mock);
     expect(result.response).toBe('Hello traveler!');
@@ -395,7 +395,7 @@ describe('character-interaction service with provider interface', () => {
 
   it('getCharacterResponse returns fallback when provider not configured', async () => {
     const mock = new MockLLMProvider({ configured: false });
-    const { getCharacterResponse } = await import('../services/character-interaction.js');
+    const { getCharacterResponse } = await import('../services/conversation/character-interaction.js');
 
     const result = await getCharacterResponse('hi', FAKE_CHAR_ID, mock);
     expect(result.response).toContain('not configured');
@@ -404,7 +404,7 @@ describe('character-interaction service with provider interface', () => {
 
   it('getActionResponse uses injected provider', async () => {
     const mock = new MockLLMProvider({ responseText: 'The warrior charges forward.' });
-    const { getActionResponse } = await import('../services/character-interaction.js');
+    const { getActionResponse } = await import('../services/conversation/character-interaction.js');
 
     const result = await getActionResponse(FAKE_CHAR_ID, 'attack', 'in battle', mock);
     expect(result).toBe('The warrior charges forward.');
@@ -412,21 +412,21 @@ describe('character-interaction service with provider interface', () => {
 
   it('getActionResponse returns fallback when provider not configured', async () => {
     const mock = new MockLLMProvider({ configured: false });
-    const { getActionResponse } = await import('../services/character-interaction.js');
+    const { getActionResponse } = await import('../services/conversation/character-interaction.js');
 
     const result = await getActionResponse(FAKE_CHAR_ID, 'attack', undefined, mock);
     expect(result).toBe('The character performs the action.');
   });
 
   it('listNarrativeSections returns static data', async () => {
-    const { listNarrativeSections } = await import('../services/character-interaction.js');
+    const { listNarrativeSections } = await import('../services/conversation/character-interaction.js');
     const sections = listNarrativeSections();
     expect(sections.length).toBe(6);
     expect(sections[0].section).toBe('Introduction');
   });
 
   it('listNarrativeTriggers returns static data', async () => {
-    const { listNarrativeTriggers } = await import('../services/character-interaction.js');
+    const { listNarrativeTriggers } = await import('../services/conversation/character-interaction.js');
     const triggers = listNarrativeTriggers();
     expect(triggers.length).toBe(7);
     expect(triggers[0].trigger).toBe('Scene Start');

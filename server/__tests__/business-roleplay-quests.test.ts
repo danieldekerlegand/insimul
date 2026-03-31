@@ -18,7 +18,7 @@ import {
 } from '../../shared/language/business-roleplay-seeds';
 import { instantiateSeed } from '../../shared/language/quest-seed-library';
 import { VALID_OBJECTIVE_TYPES } from '../../shared/quest-objective-types';
-import { generateBusinessRoleplayQuests, type BusinessInfo } from '../services/business-roleplay-quest-generator';
+import { generateBusinessRoleplayQuests, type BusinessInfo } from '../../shared/quests/business-roleplay-quest-generator.js';
 import type { Character, World } from '../../shared/schema';
 
 // ── Test Fixtures ────────────────────────────────────────────────────────────

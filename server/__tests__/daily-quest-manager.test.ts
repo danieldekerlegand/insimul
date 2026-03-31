@@ -8,7 +8,7 @@ import {
   buildRecurringCompletionUpdate,
   getRecurringQuestStatus,
   generateRecurringQuests,
-} from '../services/daily-quest-manager';
+} from '../../shared/quests/daily-quest-manager.js';
 import type { Quest, InsertQuest } from '../../shared/schema';
 
 // --- Fixtures ---

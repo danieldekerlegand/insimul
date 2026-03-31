@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MainQuestProgressionManager } from '../services/main-quest-progression';
+import { MainQuestProgressionManager } from '../../shared/quests/main-quest-progression.js';
 import {
   MAIN_QUEST_CHAPTERS,
   createInitialMainQuestState,

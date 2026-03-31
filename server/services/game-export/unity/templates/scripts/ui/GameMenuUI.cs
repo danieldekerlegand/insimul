@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -7,15 +8,158 @@ namespace Insimul.UI
 {
     /// <summary>
     /// In-game pause menu toggled with Escape.
-    /// Provides Resume, Settings (inline), Main Menu, and Quit options.
+    /// Mirrors GameMenuSystem.ts with tabs for Character, Journal, Quests,
+    /// Inventory, Crafting, Map, Photos, Vocabulary, Skills, Notices, Contacts, and System.
     /// </summary>
     public class GameMenuUI : MonoBehaviour
     {
         private const string SCENE_MAIN_MENU = "MainMenu";
 
-        /// <summary>
-        /// Narrative history entries for Story So Far recap.
-        /// </summary>
+        /// <summary>Available menu tabs matching GameMenuSystem.ts MenuTab type.</summary>
+        public enum MenuTab
+        {
+            Character, Rest, Journal, Clues, Quests, Inventory, Crafting,
+            Map, Photos, Vocabulary, Skills, Notices, Contacts, Notifications, System
+        }
+
+        // ─── Data Structures (mirrors GameMenuSystem.ts interfaces) ───
+
+        [System.Serializable]
+        public class MenuPlayerData
+        {
+            public string name;
+            public float energy;
+            public float maxEnergy;
+            public string status;
+            public int gold;
+            public int level;
+        }
+
+        [System.Serializable]
+        public class MenuReputationData
+        {
+            public string settlementName;
+            public float score;
+            public string standing;
+            public bool isBanned;
+            public int violationCount;
+            public float outstandingFines;
+        }
+
+        [System.Serializable]
+        public class MenuQuestObjective
+        {
+            public string type;
+            public string description;
+            public bool completed;
+            public int current;
+            public int required;
+            public string target;
+        }
+
+        [System.Serializable]
+        public class MenuQuestData
+        {
+            public string id;
+            public string title;
+            public string description;
+            public string status;
+            public string questType;
+            public string difficulty;
+            public MenuQuestObjective[] objectives;
+            public int experienceReward;
+            public string assignedBy;
+            public string targetLanguage;
+            public string[] tags;
+        }
+
+        [System.Serializable]
+        public class MenuInventoryItem
+        {
+            public string id;
+            public string name;
+            public string description;
+            public string type;
+            public int quantity;
+            public string icon;
+        }
+
+        [System.Serializable]
+        public class MenuRuleData
+        {
+            public string id;
+            public string name;
+            public string description;
+            public string ruleType;
+            public string category;
+            public int priority;
+            public bool isActive;
+            public bool isBase;
+        }
+
+        [System.Serializable]
+        public class MenuWorldData
+        {
+            public string worldName;
+            public int countries;
+            public int settlements;
+            public int characters;
+            public int rules;
+            public int baseRules;
+            public int actions;
+            public int baseActions;
+            public int quests;
+            public string[] enabledModules;
+            public string gameType;
+        }
+
+        [System.Serializable]
+        public class MenuNPCData
+        {
+            public string id;
+            public string name;
+            public string occupation;
+            public string disposition;
+            public bool questGiver;
+            public string role;
+            public float distance;
+        }
+
+        [System.Serializable]
+        public class MenuContactData
+        {
+            public string id;
+            public string name;
+            public string occupation;
+            public string disposition;
+            public string role;
+            public bool questGiver;
+            public int conversationCount;
+            public long lastSpokenTimestamp;
+        }
+
+        [System.Serializable]
+        public class MenuSettlementData
+        {
+            public string id;
+            public string name;
+            public string type;
+            public int population;
+            public int businesses;
+            public int residences;
+            public int lots;
+            public int buildingCount;
+            public string terrain;
+        }
+
+        [System.Serializable]
+        public class MenuMapData
+        {
+            public MenuSettlementData[] settlements;
+            public Vector3 playerPosition;
+            public float worldSize;
+        }
+
         [System.Serializable]
         public class NarrativeHistoryEntry
         {
@@ -27,9 +171,6 @@ namespace Insimul.UI
             public string mysteryDetails;
         }
 
-        /// <summary>
-        /// Clues grouped by narrative chapter for the journal view.
-        /// </summary>
         [System.Serializable]
         public class ChapterClueGroup
         {
@@ -39,9 +180,6 @@ namespace Insimul.UI
             public List<string> clueIds;
         }
 
-        /// <summary>
-        /// Guild quest progress data.
-        /// </summary>
         [System.Serializable]
         public class GuildQuestEntry
         {
@@ -50,14 +188,37 @@ namespace Insimul.UI
             public string status;
         }
 
+        [System.Serializable]
+        public class SaveSlotInfo
+        {
+            public int slotIndex;
+            public string savedAt;
+            public string gameTime;
+            public string zoneName;
+            public int playerGold;
+            public float playerHealth;
+            public float playerEnergy;
+            public int inventoryCount;
+            public int questCount;
+            public int playerLevel;
+        }
+
+        // ─── Callbacks ───
+        public event System.Action OnMenuOpened;
+        public event System.Action OnMenuClosed;
+
         private GameObject _menuPanel;
         private GameObject _settingsPanel;
         private bool _isOpen;
+        private MenuTab _activeTab = MenuTab.System;
+        private string _targetLanguage;
 
-        // Guild skill tree state
+        // Data state
         private List<GuildQuestEntry> _guildQuestData = new();
         private List<NarrativeHistoryEntry> _narrativeHistory = new();
         private List<ChapterClueGroup> _chapterClueGroups = new();
+
+        public bool IsOpen => _isOpen;
 
         private Slider _masterVolSlider;
         private Slider _musicVolSlider;
@@ -92,7 +253,33 @@ namespace Insimul.UI
             Time.timeScale = _isOpen ? 0f : 1f;
             Cursor.lockState = _isOpen ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = _isOpen;
+            if (_isOpen) OnMenuOpened?.Invoke(); else OnMenuClosed?.Invoke();
         }
+
+        /// <summary>Open the menu to a specific tab.</summary>
+        public void Open(MenuTab tab = MenuTab.System)
+        {
+            _activeTab = tab;
+            if (!_isOpen) ToggleMenu();
+        }
+
+        /// <summary>Close the menu.</summary>
+        public void Close()
+        {
+            if (_isOpen) ToggleMenu();
+        }
+
+        /// <summary>Set the target language for language-learning features.</summary>
+        public void SetTargetLanguage(string language) { _targetLanguage = language; }
+
+        /// <summary>Update time display data.</summary>
+        public void UpdateTime(string timeString, int day, string timeOfDay) { }
+
+        /// <summary>Quick-save the current game state.</summary>
+        public void QuickSave() { }
+
+        /// <summary>Quick-load the last saved game state.</summary>
+        public void QuickLoad() { }
 
         // ─── Panel Creation ───
 

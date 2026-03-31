@@ -6,7 +6,7 @@ import {
   isArrivalAssessmentQuest,
   getArrivalPhaseIds,
   type AssessmentQuestObjective,
-} from '../services/assessment-quest-bridge-shared';
+} from '../services/quests/assessment-quest-bridge-shared';
 
 describe('buildArrivalAssessmentQuest', () => {
   const config = {

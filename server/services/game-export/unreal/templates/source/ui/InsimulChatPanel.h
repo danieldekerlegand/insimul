@@ -32,13 +32,23 @@ struct FDialogueMessage
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerMessageSent, const FString&, Message);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnChatPanelClosed);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGesturePerformed, const FString&, GestureId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionSelected, const FString&, ActionId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVocabularyUsed, const FString&, Word);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNPCConversationStarted, const FString&, NPCId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNPCSpeechUpdate, const FString&, Text);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFluencyGain, float, Fluency, float, Gain);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnChatExchange, const FString&, NPCId, const FString&, PlayerMessage, const FString&, NPCResponse);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTalkRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNpcConversationTurn, const FString&, NPCId, const FString&, TopicTag);
 
 /**
  * Chat panel widget for NPC dialogue interactions.
  *
  * Provides a scrollable conversation history, text input for the player,
  * NPC portrait and name display, typing indicator, and contextual action
- * buttons (quest, trade, help, goodbye). Matches BabylonChatPanel.ts.
+ * buttons. Matches BabylonChatPanel.ts event surface.
  */
 UCLASS()
 class INSIMULEXPORT_API UInsimulChatPanel : public UUserWidget
@@ -78,13 +88,119 @@ public:
     UFUNCTION(BlueprintPure, Category = "Insimul|Chat")
     bool IsPanelVisible() const { return bPanelVisible; }
 
+    /** Whether voice recording is active */
+    UFUNCTION(BlueprintPure, Category = "Insimul|Chat")
+    bool IsRecording() const { return bIsRecording; }
+
+    /** Whether listening mode is active */
+    UFUNCTION(BlueprintPure, Category = "Insimul|Chat")
+    bool IsListeningMode() const { return bIsListeningMode; }
+
     /** Get the full message history */
     UFUNCTION(BlueprintPure, Category = "Insimul|Chat")
     const TArray<FDialogueMessage>& GetMessageHistory() const { return MessageHistory; }
 
+    /** Set the AI provider for dialogue */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetAIProvider(const FString& Provider);
+
+    /** Get the current AI provider */
+    UFUNCTION(BlueprintPure, Category = "Insimul|Chat")
+    FString GetAIProvider() const { return AIProvider; }
+
+    /** Set the playthrough ID for conversation context */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetPlaythroughId(const FString& Id);
+
+    /** Set the target language for language-learning dialogue */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetTargetLanguage(const FString& Language);
+
+    /** Set player inventory context for NPC dialogue awareness */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetPlayerInventoryContext(const TArray<FString>& Items, int32 Gold);
+
+    /** Add a system message to the chat panel */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void AddSystemMessage(const FString& Text);
+
+    /** Enter listening mode for voice-based conversation */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void EnterListeningMode();
+
+    /** Exit listening mode */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void ExitListeningMode();
+
+    /** Start push-to-talk voice recording */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void StartPushToTalk();
+
+    /** Stop push-to-talk voice recording */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void StopPushToTalk();
+
+    /** Perform a non-verbal gesture during conversation */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void PerformGesture(const FString& GestureId);
+
+    /** Set eavesdrop mode */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetEavesdropMode(bool bEnabled);
+
+    /** Set dialogue actions available to the player */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetDialogueActions(const TArray<FString>& ActionIds, float PlayerEnergy);
+
+    /** Clean up resources */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void Dispose();
+
+    // ─── Delegates ───
+
     /** Fired when the player sends a message */
     UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
     FOnPlayerMessageSent OnPlayerMessageSent;
+
+    /** Fired when the chat panel is closed */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnChatPanelClosed OnChatPanelClosed;
+
+    /** Fired when a gesture is performed */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnGesturePerformed OnGesturePerformed;
+
+    /** Fired when a dialogue action is selected */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnActionSelected OnActionSelected;
+
+    /** Fired when vocabulary is used in conversation */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnVocabularyUsed OnVocabularyUsed;
+
+    /** Fired when an NPC conversation starts */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnNPCConversationStarted OnNPCConversationStarted;
+
+    /** Fired when NPC speech text updates (streaming) */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnNPCSpeechUpdate OnNPCSpeechUpdate;
+
+    /** Fired when fluency changes */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnFluencyGain OnFluencyGain;
+
+    /** Fired when a chat exchange completes (player + NPC response) */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnChatExchange OnChatExchange;
+
+    /** Fired when a talk action is requested */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnTalkRequested OnTalkRequested;
+
+    /** Fired on each NPC conversation turn */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnNpcConversationTurn OnNpcConversationTurn;
 
 protected:
     virtual void NativeConstruct() override;
@@ -142,6 +258,21 @@ private:
 
     UPROPERTY()
     bool bTypingIndicatorVisible = false;
+
+    UPROPERTY()
+    bool bIsRecording = false;
+
+    UPROPERTY()
+    bool bIsListeningMode = false;
+
+    UPROPERTY()
+    FString AIProvider = TEXT("server");
+
+    UPROPERTY()
+    FString PlaythroughId;
+
+    UPROPERTY()
+    FString TargetLanguage;
 
     /** Timer handle for typing indicator animation */
     FTimerHandle TypingAnimTimerHandle;

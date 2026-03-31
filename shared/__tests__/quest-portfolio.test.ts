@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPortfolioSummary, buildLearningJournal } from '../../server/services/quest-portfolio';
+import { buildPortfolioSummary, buildLearningJournal } from '../quests/quest-portfolio.js';
 import type { Quest } from '../schema';
 
 function makeQuest(overrides: Partial<Quest> = {}): Quest {
