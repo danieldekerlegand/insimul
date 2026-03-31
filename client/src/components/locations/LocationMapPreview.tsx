@@ -845,11 +845,7 @@ export function LocationMapPreview({
         : 18;
       if (pos) animateCameraTo(camera, scene, pos.clone(), countryViewRadius, Math.PI / 5);
     } else if (viewLevel === 'settlement') {
-      // Find the selected settlement from the settlements prop
-      const selected = settlements.find(s =>
-        (selectedCountryId && s.countryId === selectedCountryId) || !selectedCountryId
-      );
-      // We check lots to know if we have a specific settlement loaded
+      // Determine target settlement from loaded lots
       if (lots.length > 0) {
         const settlementId = lots[0]?.settlementId;
         if (settlementId) {
@@ -861,7 +857,7 @@ export function LocationMapPreview({
         }
       }
     }
-  }, [viewLevel, selectedCountryId]);
+  }, [viewLevel, selectedCountryId, lots]);
 
   // ── Load settlement detail when lots/businesses arrive ─────────────────────
   useEffect(() => {

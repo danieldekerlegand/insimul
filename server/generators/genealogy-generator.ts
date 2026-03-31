@@ -110,7 +110,10 @@ export class GenealogyGenerator {
     generations: number;
   }> {
     console.log(`🌳 Generating genealogy for ${config.numFoundingFamilies} families over ${config.generationsToGenerate} generations...`);
-    
+
+    // Reset state from any prior generation to prevent cross-settlement contamination
+    this.reset();
+
     // Validate that settlementId is provided
     if (!config.settlementId) {
       throw new Error('settlementId is required for character generation to prevent orphaned characters');

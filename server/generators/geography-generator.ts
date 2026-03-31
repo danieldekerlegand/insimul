@@ -93,6 +93,8 @@ export interface GeographyConfig {
   targetLanguage?: string;
   /** World type for grammar-based name generation */
   worldType?: string;
+  /** User-selected street pattern override (bypasses terrain-based pattern selection) */
+  streetPattern?: string;
 }
 
 /** District role types for terrain-influenced placement */
@@ -174,6 +176,10 @@ export class GeographyGenerator {
     agriculturalZones: AgriculturalZone[];
     harborZones?: HarborZone[];
   }> {
+    // Reset mutable state from any prior generation
+    this.businessNamesPool = this.locationNames.businesses;
+    this.streetGenerator = new StreetGenerator();
+
     // Step 0a: Load grammar-based names if available
     await this.loadBusinessNames(config);
 
@@ -221,6 +227,7 @@ export class GeographyGenerator {
       isWater: isWaterFn,
       terrain: config.terrain,
       population: config.population,
+      streetPatternOverride: config.streetPattern as any,
     };
     const streetNetwork = generateStreetNetwork(streetNetworkConfig);
     if (streetNetwork.pattern) {

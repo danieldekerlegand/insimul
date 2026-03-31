@@ -98,6 +98,9 @@ export interface SettlementPipelineConfig {
   // Guild assignment: list of guild business types to place in this settlement
   // e.g. ['GuildDiplomates', 'GuildConteurs']. Overrides the default guild-per-type binding.
   guilds?: string[];
+  // Street layout pattern override (user-selected in creation dialog)
+  // e.g. 'grid', 'organic', 'linear', 'waterfront', 'hillside', 'radial'
+  streetPattern?: string;
   // Progress callback (optional, for UI updates)
   onProgress?: (phase: string, message: string) => void;
 }
@@ -447,6 +450,7 @@ export class WorldGenerator {
         stateId: settlement.stateId ?? undefined,
         targetLanguage,
         worldType: config.worldType || world?.worldType || undefined,
+        streetPattern: config.streetPattern,
       });
       districts = geographyResult.districts.length;
       buildings = geographyResult.buildings.length;

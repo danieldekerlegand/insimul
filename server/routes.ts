@@ -4546,6 +4546,9 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         // Guild assignments: maps settlement type+index to guild list
         // e.g. { "hamlet_0": ["GuildConteurs", "GuildArtisans", "GuildExplorateurs"], "landing_0": ["GuildDiplomates"] }
         guildAssignments?: Record<string, string[]>;
+        // Layout overrides: maps settlement type+index to street pattern
+        // e.g. { "village_0": "grid", "hamlet_0": "organic" }
+        settlementLayouts?: Record<string, string>;
       }> = config.countries && Array.isArray(config.countries) && config.countries.length > 0
         ? config.countries.map((c: any) => ({
             terrain: c.terrain || 'plains',
@@ -4567,6 +4570,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             fertilityRate: c.fertilityRate || 0.6,
             deathRate: c.deathRate || 0.3,
             guildAssignments: c.guildAssignments,
+            settlementLayouts: c.settlementLayouts,
           }))
         : Array(config.numCountries || 1).fill(null).map(() => ({
             terrain: config.terrain || 'plains',
@@ -4616,10 +4620,13 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           const startIdx = settlementPlan.length;
           for (let j = 0; j < statesCount; j++) {
             const ga = cc.guildAssignments || {};
+            const sl = cc.settlementLayouts || {};
             const pushWithGuilds = (type: string, count: number) => {
               for (let k = 0; k < count; k++) {
-                const guilds = ga[`${type}_${k}`] || undefined;
-                settlementPlan.push({ type, numFamilies: computeGenealogySS(type, cc.foundedYear), childrenPerFamily: 2, guilds });
+                const key = `${type}_${k}`;
+                const guilds = ga[key] || undefined;
+                const streetPattern = sl[key] || undefined;
+                settlementPlan.push({ type, numFamilies: computeGenealogySS(type, cc.foundedYear), childrenPerFamily: 2, guilds, streetPattern });
               }
             };
             pushWithGuilds('city', cc.numCitiesPerState || 0);
@@ -4631,6 +4638,8 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             pushWithGuilds('forge', cc.numForgesPerState || 0);
             pushWithGuilds('chapel', cc.numChapelsPerState || 0);
             pushWithGuilds('market', cc.numMarketsPerState || 0);
+            pushWithGuilds('dwelling', (cc as any).numDwellingsPerState || 0);
+            pushWithGuilds('roadhouse', (cc as any).numRoadhousesPerState || 0);
           }
           countrySettlementRanges.push({ start: startIdx, end: settlementPlan.length, statesCount });
         }
@@ -4754,6 +4763,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                   deathRate: cc.deathRate || 0.3,
                   targetPopulation: POPULATION_BY_TYPE_SS[plan.type] || 50,
                   guilds: plan.guilds,
+                  streetPattern: plan.streetPattern,
                 });
 
                 settlementIdx++;
@@ -4769,16 +4779,16 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
             const allStates = await storage.getStatesByWorld(config.worldId);
 
             // Build the territory generation input
-            const territoryCountries = allCountries.map(country => {
+            const territoryCountries = allCountries.map((country, ci) => {
               const countrySettlements = allSettlements.filter(s => s.countryId === country.id);
               const countryStates = allStates.filter(s => (s as any).countryId === country.id);
               return {
                 id: country.id,
-                terrain: countryConfigs[0]?.terrain || 'plains',
+                terrain: countryConfigs[ci]?.terrain || 'plains',
                 settlements: countrySettlements.map(s => ({
                   id: s.id,
                   type: (s.settlementType || 'town') as 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city',
-                  terrain: (s.terrain || countryConfigs[0]?.terrain || 'plains'),
+                  terrain: (s.terrain || countryConfigs[ci]?.terrain || 'plains'),
                   population: s.population || 50,
                   stateId: s.stateId || undefined,
                 })),
@@ -4880,11 +4890,12 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           // Run the full unified pipeline for each settlement
           {
             const currentYear = new Date().getFullYear();
-            const generator = new WorldGenerator();
             const pendingSettlements = (config as any)._pendingSettlements || [];
 
             for (const ps of pendingSettlements) {
               console.log(`\n🏘️  Running full pipeline for settlement ${ps.settlementId}...`);
+              // Fresh generator per settlement to avoid shared state (name pools, business names, etc.)
+              const generator = new WorldGenerator();
               const result = await generator.generateSettlement({
                 worldId: config.worldId,
                 countryId: ps.countryId,
@@ -4901,6 +4912,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 deathRate: ps.deathRate,
                 targetPopulation: ps.targetPopulation,
                 guilds: ps.guilds,
+                streetPattern: ps.streetPattern,
                 generateGenealogy: config.generateGenealogy,
                 generateGeography: config.generateGeography,
               });
@@ -5016,6 +5028,8 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           const numForges = cc.numForgesPerState || 0;
           const numChapels = cc.numChapelsPerState || 0;
           const numMarkets = cc.numMarketsPerState || 0;
+          const numDwellings = (cc as any).numDwellingsPerState || 0;
+          const numRoadhouses = (cc as any).numRoadhousesPerState || 0;
 
           // Compute per-settlement-type genealogy from founding year
           const BASE_FAMILIES: Record<string, number> = { dwelling: 1, roadhouse: 1, landing: 1, forge: 1, chapel: 1, homestead: 1, market: 3, hamlet: 3, village: 4, town: 15, city: 50 };
@@ -5125,6 +5139,8 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
           await createSettlements('forge', numForges);
           await createSettlements('chapel', numChapels);
           await createSettlements('market', numMarkets);
+          await createSettlements('dwelling', numDwellings);
+          await createSettlements('roadhouse', numRoadhouses);
         }
       }
 

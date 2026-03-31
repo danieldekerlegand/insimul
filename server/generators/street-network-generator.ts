@@ -70,6 +70,8 @@ export interface StreetNetworkConfig {
   terrain?: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   /** Population — used for pattern selection (city ≥10k → grid, city <10k → radial) */
   population?: number;
+  /** User-selected street pattern — bypasses terrain-based pattern selection when provided */
+  streetPatternOverride?: 'grid' | 'linear' | 'waterfront' | 'hillside' | 'organic' | 'radial';
 }
 
 // ─────────────────────────────────────────────
@@ -313,9 +315,9 @@ export function chooseLayout(
  * Returns the network and the pattern name used.
  */
 export function generateStreetNetwork(config: StreetNetworkConfig): StreetNetwork & { pattern?: string } {
-  // If terrain is provided, use terrain-aware pattern selection
-  if (config.terrain) {
-    const pattern = selectStreetPattern(config);
+  // Use user-selected pattern override, or fall back to terrain-based selection
+  if (config.streetPatternOverride || config.terrain) {
+    const pattern = config.streetPatternOverride || selectStreetPattern(config);
 
     // Grid and organic are handled by the existing generators
     if (pattern === 'grid') {

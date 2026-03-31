@@ -12,12 +12,20 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Globe, Plus, Sparkles, FileText, Map, Cpu, ChevronDown, Trash2 } from "lucide-react";
+import { Globe, Plus, Minus, Sparkles, FileText, Map, Cpu, ChevronDown, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertWorldSchema, type InsertWorld } from "@shared/schema";
 import { z } from "zod";
 import { getDefaultModulesForGenre } from "@shared/feature-modules/genre-bundles";
+import {
+  SettlementLayoutPreview,
+  computeGenealogy,
+  POPULATION_BY_TYPE,
+  PATTERN_LABELS,
+  type SettlementType,
+} from '@/components/SettlementLayoutPreview';
+import { type LayoutPattern } from '@shared/street-pattern-selection';
 
 const createWorldFormSchema = insertWorldSchema.extend({
   name: z.string().min(1, "World name is required"),
@@ -78,45 +86,6 @@ export const LANGUAGES = [
 
 // --- Per-Country Configuration ---
 
-type SettlementType = 'dwelling' | 'roadhouse' | 'homestead' | 'landing' | 'forge' | 'chapel' | 'market' | 'hamlet' | 'village' | 'town' | 'city';
-
-const POPULATION_BY_TYPE: Record<SettlementType, number> = {
-  dwelling: 3,
-  roadhouse: 3,
-  landing: 10,
-  forge: 10,
-  chapel: 10,
-  homestead: 10,
-  market: 30,
-  hamlet: 50,
-  village: 100,
-  town: 1000,
-  city: 5000,
-};
-
-const BASE_FAMILIES: Record<SettlementType, number> = {
-  dwelling: 1,
-  roadhouse: 1,
-  landing: 1,
-  forge: 1,
-  chapel: 1,
-  homestead: 1,
-  market: 3,
-  hamlet: 3,
-  village: 4,
-  town: 15,
-  city: 50,
-};
-
-const YEARS_PER_GENERATION = 25;
-
-function computeGenealogy(type: SettlementType, foundedYear: number): { foundingFamilies: number; generations: number } {
-  const currentYear = new Date().getFullYear();
-  const yearsOld = Math.max(0, currentYear - foundedYear);
-  const generations = Math.max(1, Math.min(6, Math.floor(yearsOld / YEARS_PER_GENERATION)));
-  return { foundingFamilies: BASE_FAMILIES[type], generations };
-}
-
 const ALL_GUILDS = [
   { id: 'GuildDiplomates', label: 'Diplomates' },
   { id: 'GuildArtisans', label: 'Artisans' },
@@ -125,39 +94,46 @@ const ALL_GUILDS = [
   { id: 'GuildConteurs', label: 'Conteurs' },
 ];
 
+const SETTLEMENT_TYPE_META: Record<SettlementType, { icon: string; businesses: string }> = {
+  dwelling:  { icon: '🛖', businesses: 'Hut' },
+  roadhouse: { icon: '🏚️', businesses: 'Inn' },
+  homestead: { icon: '🏡', businesses: 'Farm' },
+  landing:   { icon: '⚓', businesses: 'Harbor, FishMarket' },
+  forge:     { icon: '🔨', businesses: 'Blacksmith, Carpenter' },
+  chapel:    { icon: '⛪', businesses: 'Church, School' },
+  market:    { icon: '🏪', businesses: 'Shop, Grocery, Tavern' },
+  hamlet:    { icon: '🏘️', businesses: 'Farm, Grocery, Restaurant' },
+  village:   { icon: '🏘️', businesses: 'Multiple shops, School, Church' },
+  town:      { icon: '🏙️', businesses: 'Full economy, Government' },
+  city:      { icon: '🌆', businesses: 'Districts, Industry, Trade' },
+};
+
+interface SettlementEntry {
+  type: SettlementType;
+  layout: LayoutPattern;
+  guilds: string[];
+}
+
+/** Map layout pattern to a terrain hint for server-side water features & district placement */
+const LAYOUT_TO_TERRAIN: Record<LayoutPattern, string> = {
+  grid: 'plains',
+  organic: 'forest',
+  linear: 'river',
+  waterfront: 'coast',
+  hillside: 'hills',
+  radial: 'plains',
+};
+
 interface CountryConfig {
-  terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   foundedYear: number;
-  numLandings: number;
-  numForges: number;
-  numChapels: number;
-  numMarkets: number;
-  numHamlets: number;
-  numHomesteads: number;
-  numVillages: number;
-  numTowns: number;
-  numCities: number;
-  // Maps "type_index" -> guild IDs, e.g. { "hamlet_0": ["GuildConteurs", "GuildArtisans"] }
-  guildAssignments: Record<string, string[]>;
+  settlements: SettlementEntry[];
 }
 
 const DEFAULT_COUNTRY_CONFIG: CountryConfig = {
-  terrain: 'plains',
   foundedYear: 1850,
-  numLandings: 1,
-  numForges: 0,
-  numChapels: 0,
-  numMarkets: 0,
-  numHamlets: 1,
-  numHomesteads: 3,
-  numVillages: 0,
-  numTowns: 0,
-  numCities: 0,
-  guildAssignments: {
-    'hamlet_0': ['GuildConteurs', 'GuildArtisans', 'GuildExplorateurs'],
-    'landing_0': ['GuildDiplomates'],
-    'homestead_0': ['GuildMarchands'],
-  },
+  settlements: [
+    { type: 'village', layout: 'grid', guilds: ['GuildConteurs', 'GuildArtisans', 'GuildExplorateurs', 'GuildDiplomates', 'GuildMarchands'] },
+  ],
 };
 
 // --- Country Config Panel ---
@@ -175,135 +151,135 @@ function CountryConfigPanel({
 }) {
   const update = (partial: Partial<CountryConfig>) => onChange({ ...config, ...partial });
 
-  // Show a summary of computed population
-  const totalSettlements = config.numLandings + config.numForges + config.numChapels + config.numMarkets + config.numHamlets + config.numHomesteads + config.numVillages + config.numTowns + config.numCities;
-  const estimatedPop =
-    config.numLandings * POPULATION_BY_TYPE.landing +
-    config.numForges * POPULATION_BY_TYPE.forge +
-    config.numChapels * POPULATION_BY_TYPE.chapel +
-    config.numMarkets * POPULATION_BY_TYPE.market +
-    config.numHamlets * POPULATION_BY_TYPE.hamlet +
-    config.numHomesteads * POPULATION_BY_TYPE.homestead +
-    config.numVillages * POPULATION_BY_TYPE.village +
-    config.numTowns * POPULATION_BY_TYPE.town +
-    config.numCities * POPULATION_BY_TYPE.city;
+  const totalSettlements = config.settlements.length;
+  const estimatedPop = config.settlements.reduce((sum, s) => sum + POPULATION_BY_TYPE[s.type], 0);
+
+  const assignedGuilds = new Set(config.settlements.flatMap(s => s.guilds));
+  const unassignedGuilds = ALL_GUILDS.filter(g => !assignedGuilds.has(g.id));
+
+  const addSettlement = () => {
+    update({ settlements: [...config.settlements, { type: 'homestead', layout: 'organic', guilds: [] }] });
+  };
+
+  const removeSettlement = (index: number) => {
+    update({ settlements: config.settlements.filter((_, i) => i !== index) });
+  };
+
+  const updateSettlement = (index: number, partial: Partial<SettlementEntry>) => {
+    const next = config.settlements.map((s, i) => i === index ? { ...s, ...partial } : s);
+    update({ settlements: next });
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="grid grid-cols-2 gap-4 flex-1">
-          <div className="space-y-2">
-            <Label className="text-xs">Terrain</Label>
-            <Select value={config.terrain} onValueChange={(v: any) => update({ terrain: v })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="coast">Coast</SelectItem>
-                <SelectItem value="desert">Desert</SelectItem>
-                <SelectItem value="forest">Forest</SelectItem>
-                <SelectItem value="hills">Hills</SelectItem>
-                <SelectItem value="mountains">Mountains</SelectItem>
-                <SelectItem value="plains">Plains</SelectItem>
-                <SelectItem value="river">River</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs">Founded Year</Label>
-            <Input
-              type="number"
-              value={config.foundedYear}
-              onChange={(e) => update({ foundedYear: parseInt(e.target.value) || 1850 })}
-            />
-          </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-2 flex-1">
+          <Label className="text-xs">Founded Year</Label>
+          <Input
+            type="number"
+            value={config.foundedYear}
+            onChange={(e) => update({ foundedYear: parseInt(e.target.value) || 1850 })}
+          />
         </div>
         {canRemove && (
-          <Button type="button" variant="ghost" size="icon" className="ml-2 mt-5 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+          <Button type="button" variant="ghost" size="icon" className="mt-5 text-muted-foreground hover:text-destructive" onClick={onRemove}>
             <Trash2 className="w-4 h-4" />
           </Button>
         )}
       </div>
 
-      {/* Generation Preview + Guild Assignment */}
+      {/* Settlements */}
       <div className="space-y-3">
-        <Label className="text-xs font-medium">Settlements & Guild Assignment</Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-medium">Settlements</Label>
+          <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={addSettlement}>
+            <Plus className="w-3 h-3" /> Add Settlement
+          </Button>
+        </div>
         <div className="space-y-1.5">
-          {(() => {
-            const settlements: { type: string; index: number; key: string; count: number; pop: number; businesses: string; icon: string }[] = [];
-            const typeConfigs: { type: string; count: number; pop: number; businesses: string; icon: string }[] = [
-              { type: 'landing', count: config.numLandings, pop: POPULATION_BY_TYPE.landing, businesses: 'Harbor, FishMarket', icon: '⚓' },
-              { type: 'forge', count: config.numForges, pop: POPULATION_BY_TYPE.forge, businesses: 'Blacksmith, Carpenter', icon: '🔨' },
-              { type: 'chapel', count: config.numChapels, pop: POPULATION_BY_TYPE.chapel, businesses: 'Church, School', icon: '⛪' },
-              { type: 'market', count: config.numMarkets, pop: POPULATION_BY_TYPE.market, businesses: 'Shop, Grocery, Tavern', icon: '🏪' },
-              { type: 'hamlet', count: config.numHamlets, pop: POPULATION_BY_TYPE.hamlet, businesses: 'Farm, Grocery, Restaurant', icon: '🏘️' },
-              { type: 'homestead', count: config.numHomesteads, pop: POPULATION_BY_TYPE.homestead, businesses: 'Farm', icon: '🏡' },
-            ];
-            for (const tc of typeConfigs) {
-              for (let i = 0; i < tc.count; i++) {
-                settlements.push({ ...tc, index: i, key: `${tc.type}_${i}` });
-              }
-            }
-            const assignedGuilds = new Set(Object.values(config.guildAssignments).flat());
-            const unassignedGuilds = ALL_GUILDS.filter(g => !assignedGuilds.has(g.id));
-
+          {config.settlements.map((s, idx) => {
+            const meta = SETTLEMENT_TYPE_META[s.type];
             return (
-              <>
-                {settlements.map(s => {
-                  const guilds = config.guildAssignments[s.key] || [];
-                  return (
-                    <div key={s.key} className="px-3 py-2 rounded-md bg-muted/30 border border-border text-xs space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{s.icon}</span>
-                        <div className="flex-1">
-                          <div className="font-medium capitalize">{s.type}{s.count > 1 ? ` #${s.index + 1}` : ''}</div>
-                          <div className="text-muted-foreground">{s.businesses}</div>
-                        </div>
-                        <span className="text-muted-foreground">~{s.pop}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1 ml-7">
-                        {guilds.map(gid => {
-                          const g = ALL_GUILDS.find(x => x.id === gid);
-                          return (
-                            <Badge key={gid} variant="secondary" className="text-[9px] cursor-pointer hover:bg-destructive/20"
-                              onClick={() => {
-                                const next = { ...config.guildAssignments };
-                                next[s.key] = (next[s.key] || []).filter(id => id !== gid);
-                                if (next[s.key].length === 0) delete next[s.key];
-                                update({ guildAssignments: next });
-                              }}>
-                              {g?.label || gid} ×
-                            </Badge>
-                          );
-                        })}
-                        {ALL_GUILDS.filter(g => !guilds.includes(g.id)).length > 0 && (
-                          <select className="h-5 text-[9px] bg-muted border rounded px-1"
-                            value=""
-                            onChange={e => {
-                              if (!e.target.value) return;
-                              const next = { ...config.guildAssignments };
-                              next[s.key] = [...(next[s.key] || []), e.target.value];
-                              update({ guildAssignments: next });
-                              e.target.value = '';
-                            }}>
-                            <option value="">+ guild</option>
-                            {ALL_GUILDS.filter(g => !guilds.includes(g.id)).map(g => (
-                              <option key={g.id} value={g.id}>{g.label}</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {unassignedGuilds.length > 0 && (
-                  <p className="text-[10px] text-amber-500">
-                    Unassigned guilds: {unassignedGuilds.map(g => g.label).join(', ')}
-                  </p>
-                )}
-              </>
+              <div key={idx} className="px-3 py-2 rounded-md bg-muted/30 border border-border text-xs space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{meta.icon}</span>
+                  <Select value={s.type} onValueChange={(v: string) => updateSettlement(idx, { type: v as SettlementType })}>
+                    <SelectTrigger className="h-7 text-xs w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(SETTLEMENT_TYPE_META) as SettlementType[]).map(t => (
+                        <SelectItem key={t} value={t}>
+                          <span className="capitalize">{t}</span>
+                          <span className="text-muted-foreground ml-1">~{POPULATION_BY_TYPE[t]}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={s.layout} onValueChange={(v: string) => updateSettlement(idx, { layout: v as LayoutPattern })}>
+                    <SelectTrigger className="h-7 text-xs w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(PATTERN_LABELS) as LayoutPattern[]).map(p => (
+                        <SelectItem key={p} value={p}>{PATTERN_LABELS[p]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground ml-auto">~{POPULATION_BY_TYPE[s.type]}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeSettlement(idx)}
+                    disabled={totalSettlements <= 1}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </Button>
+                </div>
+                {/* Guild assignment */}
+                <div className="flex flex-wrap gap-1 ml-7">
+                  {s.guilds.map(gid => {
+                    const g = ALL_GUILDS.find(x => x.id === gid);
+                    return (
+                      <Badge key={gid} variant="secondary" className="text-[9px] cursor-pointer hover:bg-destructive/20"
+                        onClick={() => {
+                          updateSettlement(idx, { guilds: s.guilds.filter(id => id !== gid) });
+                        }}>
+                        {g?.label || gid} ×
+                      </Badge>
+                    );
+                  })}
+                  {ALL_GUILDS.filter(g => !s.guilds.includes(g.id)).length > 0 && (
+                    <select className="h-5 text-[9px] bg-muted border rounded px-1"
+                      value=""
+                      onChange={e => {
+                        if (!e.target.value) return;
+                        updateSettlement(idx, { guilds: [...s.guilds, e.target.value] });
+                        e.target.value = '';
+                      }}>
+                      <option value="">+ guild</option>
+                      {ALL_GUILDS.filter(g => !s.guilds.includes(g.id)).map(g => (
+                        <option key={g.id} value={g.id}>{g.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {/* Layout preview */}
+                <SettlementLayoutPreview
+                  pattern={s.layout}
+                  settlementType={s.type}
+                  terrain={LAYOUT_TO_TERRAIN[s.layout]}
+                />
+              </div>
             );
-          })()}
+          })}
+          {unassignedGuilds.length > 0 && (
+            <p className="text-[10px] text-amber-500">
+              Unassigned guilds: {unassignedGuilds.map(g => g.label).join(', ')}
+            </p>
+          )}
         </div>
         {totalSettlements > 0 && (
           <p className="text-xs text-muted-foreground">
@@ -413,37 +389,58 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
       // Convert simplified country configs to server-compatible format
       // Compute genealogy per settlement type using the same logic as SettlementDialog
       const serverCountries = countryConfigs.map((cc) => {
-        // Use the largest settlement type's genealogy as the country-level default
-        const settlementTypes: SettlementType[] = [];
-        if (cc.numCities > 0) settlementTypes.push('city');
-        if (cc.numTowns > 0) settlementTypes.push('town');
-        if (cc.numVillages > 0) settlementTypes.push('village');
-        if (cc.numHamlets > 0) settlementTypes.push('hamlet');
-        if (cc.numMarkets > 0) settlementTypes.push('market');
-        if (cc.numHomesteads > 0 || cc.numLandings > 0 || cc.numForges > 0 || cc.numChapels > 0) settlementTypes.push('homestead');
-        const primaryType = settlementTypes[0] || 'market';
-        const { foundingFamilies, generations } = computeGenealogy(primaryType, cc.foundedYear);
+        // Count settlement types from the dynamic list
+        const counts: Record<string, number> = {};
+        for (const s of cc.settlements) {
+          counts[s.type] = (counts[s.type] || 0) + 1;
+        }
+
+        // Build guild assignments and layout overrides keyed by "type_index"
+        const guildAssignments: Record<string, string[]> = {};
+        const settlementLayouts: Record<string, string> = {};
+        const typeIndices: Record<string, number> = {};
+        for (const s of cc.settlements) {
+          const idx = typeIndices[s.type] || 0;
+          typeIndices[s.type] = idx + 1;
+          const key = `${s.type}_${idx}`;
+          if (s.guilds.length > 0) {
+            guildAssignments[key] = s.guilds;
+          }
+          settlementLayouts[key] = s.layout;
+        }
+
+        // Use the largest settlement type for genealogy defaults
+        const typeOrder: SettlementType[] = ['city', 'town', 'village', 'hamlet', 'market', 'homestead', 'landing', 'forge', 'chapel', 'roadhouse', 'dwelling'];
+        const primaryType = typeOrder.find(t => (counts[t] || 0) > 0) || 'market';
+        const { foundingFamilies, generations } = computeGenealogy(primaryType as SettlementType, cc.foundedYear);
+
+        // Derive a terrain from the first settlement's layout (used for world map features)
+        const firstLayout = cc.settlements[0]?.layout || 'grid';
+        const terrain = LAYOUT_TO_TERRAIN[firstLayout as LayoutPattern] || 'plains';
 
         return {
-          terrain: cc.terrain,
+          terrain,
           foundedYear: cc.foundedYear,
           generateStates: true,
           numStatesPerCountry: 1,
-          numLandingsPerState: cc.numLandings,
-          numForgesPerState: cc.numForges,
-          numChapelsPerState: cc.numChapels,
-          numMarketsPerState: cc.numMarkets,
-          numHamletsPerState: cc.numHamlets,
-          numHomesteadsPerState: cc.numHomesteads,
-          numVillagesPerState: cc.numVillages,
-          numTownsPerState: cc.numTowns,
-          numCitiesPerState: cc.numCities,
+          numDwellingsPerState: counts['dwelling'] || 0,
+          numRoadhousesPerState: counts['roadhouse'] || 0,
+          numLandingsPerState: counts['landing'] || 0,
+          numForgesPerState: counts['forge'] || 0,
+          numChapelsPerState: counts['chapel'] || 0,
+          numMarketsPerState: counts['market'] || 0,
+          numHamletsPerState: counts['hamlet'] || 0,
+          numHomesteadsPerState: counts['homestead'] || 0,
+          numVillagesPerState: counts['village'] || 0,
+          numTownsPerState: counts['town'] || 0,
+          numCitiesPerState: counts['city'] || 0,
           numFoundingFamilies: foundingFamilies,
           generations,
           marriageRate: 0.7,
           fertilityRate: 0.6,
           deathRate: 0.3,
-          guildAssignments: Object.keys(cc.guildAssignments).length > 0 ? cc.guildAssignments : undefined,
+          guildAssignments: Object.keys(guildAssignments).length > 0 ? guildAssignments : undefined,
+          settlementLayouts: Object.keys(settlementLayouts).length > 0 ? settlementLayouts : undefined,
         };
       });
 
@@ -829,8 +826,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                         <AccordionTrigger className="text-sm py-3">
                           Country {i + 1}
                           <span className="text-xs text-muted-foreground ml-2 font-normal">
-                            {config.terrain} &middot; {config.foundedYear} &middot;{' '}
-                            {config.numCities}C/{config.numTowns}T/{config.numVillages}V/{config.numHamlets}H
+                            {config.foundedYear} &middot;{' '}
+                            {config.settlements.length} settlement{config.settlements.length !== 1 ? 's' : ''}
                           </span>
                         </AccordionTrigger>
                         <AccordionContent>

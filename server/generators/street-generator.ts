@@ -1480,11 +1480,15 @@ export class StreetGenerator {
           shorelinePoints: this.generateDefaultShoreline(config),
         });
         break;
-      case 'linear':
+      case 'linear': {
+        // Derive a seed-based axis angle so each settlement gets a unique orientation
+        const linearRng = seededRandom(config.seed + '_linear_axis');
+        const angle = linearRng() * Math.PI; // 0 to π radians
         network = this.generateLinear({
           ...config,
-          axis: { x: 1, z: 0 },
+          axis: { x: Math.cos(angle), z: Math.sin(angle) },
         });
+      }
         break;
       case 'hillside':
         network = this.generateHillside(config, heightmap ?? this.generateFlatHeightmap());
