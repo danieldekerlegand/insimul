@@ -3908,6 +3908,41 @@ export class BabylonGame {
       this.updateQuestIndicators();
     });
 
+    // Item used → use_item objectives (via generic event matcher)
+    this.eventBus.on('item_used', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.handleGameEvent({ type: 'item_used', itemName: event.itemName, itemId: event.itemId });
+      this.updateQuestIndicators();
+    });
+
+    // Item equipped → equip_item objectives (via generic event matcher)
+    this.eventBus.on('item_equipped', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.handleGameEvent({ type: 'item_equipped', itemName: event.itemName, itemId: event.itemId, slot: event.slot });
+      this.updateQuestIndicators();
+    });
+
+    // Item dropped → drop_item objectives (via generic event matcher)
+    this.eventBus.on('item_dropped', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.handleGameEvent({ type: 'item_dropped', itemName: event.itemName, itemId: event.itemId });
+      this.updateQuestIndicators();
+    });
+
+    // Item purchased → buy_item objectives (via generic event matcher)
+    this.eventBus.on('item_purchased', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.handleGameEvent({ type: 'item_purchased', itemName: event.itemName, itemId: event.itemId, merchantId: event.merchantId });
+      this.updateQuestIndicators();
+    });
+
+    // Item crafted → craft_item objectives (via generic event matcher)
+    this.eventBus.on('item_crafted', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.handleGameEvent({ type: 'item_crafted', itemName: event.itemName, itemId: event.itemId });
+      this.updateQuestIndicators();
+    });
+
     // Location visited → visit_location + discover_location objectives
     this.eventBus.on('location_visited', (event: any) => {
       const engine = this.questObjectManager?.getCompletionEngine();
@@ -13556,7 +13591,7 @@ export class BabylonGame {
 
   private handleUseItem(item: InventoryItem): void {
     // Document items: open the reading panel
-    if (item.type === 'document' || item.type === 'collectible' && item.category === 'document') {
+    if (item.type === 'document' || (item.type === 'collectible' && item.category === 'document')) {
       const textId = (item as any).textId;
       if (textId) {
         this.openDocumentReader(textId);
@@ -13672,6 +13707,7 @@ export class BabylonGame {
       itemName: item.name,
       slot,
     });
+    this.eventBus.emit({ type: 'action_executed', actionName: 'unequip_item', actorId: 'player', targetId: item.id, itemName: item.name, itemType: item.type, category: 'items', result: 'success' });
 
     const entity = this.combatSystem?.getEntity('player');
     this.guiManager?.showToast({
