@@ -42,6 +42,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFluencyGain, float, Fluency, flo
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnChatExchange, const FString&, NPCId, const FString&, PlayerMessage, const FString&, NPCResponse);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTalkRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNpcConversationTurn, const FString&, NPCId, const FString&, TopicTag);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNPCRelationshipChanged, const FString&, NPCId, float, NewStrength);
 
 /**
  * Chat panel widget for NPC dialogue interactions.
@@ -144,6 +145,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
     void PerformGesture(const FString& GestureId);
 
+    /** Set the quest bridge for conversation goal evaluation. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetQuestBridge(UObject* Bridge);
+
+    /** Set the game event bus for emitting grammar, translation, and friendship events. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetGameEventBus(UObject* EventBus);
+
+    /** Set pronunciation quest active state — guards listen-and-repeat behind this flag. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void SetPronunciationQuestActive(bool bActive);
+
+    /** Whether pronunciation quest is active. */
+    UFUNCTION(BlueprintPure, Category = "Insimul|Chat")
+    bool IsPronunciationQuestActive() const { return bPronunciationQuestActive; }
+
     /** Set eavesdrop mode */
     UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
     void SetEavesdropMode(bool bEnabled);
@@ -201,6 +218,10 @@ public:
     /** Fired on each NPC conversation turn */
     UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
     FOnNpcConversationTurn OnNpcConversationTurn;
+
+    /** Fired when NPC relationship strength changes (conversation count based). */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|Chat")
+    FOnNPCRelationshipChanged OnNPCRelationshipChanged;
 
 protected:
     virtual void NativeConstruct() override;
@@ -273,6 +294,25 @@ private:
 
     UPROPERTY()
     FString TargetLanguage;
+
+    /** Quest bridge for conversation goal evaluation (implements IConversationQuestBridge interface). */
+    UPROPERTY()
+    TObjectPtr<UObject> QuestBridge;
+
+    /** Game event bus for emitting grammar, translation, and friendship events. */
+    UPROPERTY()
+    TObjectPtr<UObject> GameEventBus;
+
+    /** Whether pronunciation quest is active — guards listen-and-repeat feature. */
+    UPROPERTY()
+    bool bPronunciationQuestActive = false;
+
+    /** Per-NPC conversation counts for friendship/rapport tracking. */
+    TMap<FString, int32> NPCConversationCounts;
+
+    /** Current NPC character ID for active conversation. */
+    UPROPERTY()
+    FString CurrentNPCId;
 
     /** Timer handle for typing indicator animation */
     FTimerHandle TypingAnimTimerHandle;

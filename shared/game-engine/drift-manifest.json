@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-01T06:56:55.681Z",
+  "lastUpdated": "2026-04-01T09:46:50.483Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -194,7 +194,7 @@
     {
       "path": "shared/game-engine/rendering/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "f3a253fe2a4d56f03ac6e655ad9dddeafdd7ec496cc3ed229d137ee992a77e0c",
+      "hash": "a25cc92147c32bc37e1734c5453a54c94a943e151f0098d5fa46aac48313f3b2",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -571,7 +571,7 @@
     {
       "path": "shared/game-engine/rendering/BuildingInteriorGenerator.ts",
       "description": "Interior generation: multi-room layouts, role-specific furniture, entry/exit transitions.",
-      "hash": "8678662229df8f504cb67a57bb13f9fa0af9197f5294191bef264d230ce1a9b9",
+      "hash": "72b04ca789a5ea0ca3346bd4ad66c9c0a398552495429df1667b7b64de0eebef",
       "engineMappings": [
         {
           "engine": "unity",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "46d027b70bb5d0b35b81529165d1177f71362ed98b0d7e938350a6c636d53c42",
+      "hash": "83db8066f9423c0c7ec4e2c3975ad65b4dcd16b075d2588afcc4b264ff288e61",
       "engineMappings": [
         {
           "engine": "unity",

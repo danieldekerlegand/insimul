@@ -88,22 +88,31 @@ export class BuildingSignManager {
   }
 
   /**
-   * Create a bilingual sign above a building mesh
+   * Create a bilingual sign above a building's front door.
+   * The sign is mounted flat against the front face, not as a floating billboard.
    */
   public createBuildingSign(buildingMesh: AbstractMesh, data: BuildingSignData): Mesh | null {
     const tier = this.getFluencyTier();
     const signText = this.formatSignText(data, tier);
 
-    // Calculate label position above building
+    // Building dimensions from metadata or bounding box
     const bounds = buildingMesh.getBoundingInfo();
     const meshHeight = bounds
       ? (bounds.boundingBox.maximumWorld.y - bounds.boundingBox.minimumWorld.y)
       : 4;
-    const labelY = meshHeight + 1.2;
+    const meshDepth = bounds
+      ? (bounds.boundingBox.maximumWorld.z - bounds.boundingBox.minimumWorld.z)
+      : 4;
+    // Door top is at ~2.2 units above ground; sign sits just above it.
+    // Building origin is at vertical center, so ground = -meshHeight/2.
+    const doorTopY = -meshHeight / 2 + 2.5;
+    const signY = doorTopY + 0.6;
+    // Front face of building (door is on +Z face)
+    const frontZ = meshDepth / 2 + 0.05;
 
-    // Texture dimensions
-    const texW = 512;
-    const texH = tier === 'beginner' ? 128 : 96;
+    // Texture dimensions — larger for a real storefront sign
+    const texW = 1024;
+    const texH = tier === 'beginner' ? 256 : 192;
 
     const texture = new DynamicTexture(
       `sign_tex_${data.buildingId}`,
@@ -115,12 +124,12 @@ export class BuildingSignManager {
     const colors = SIGN_COLORS[data.buildingType] || SIGN_COLORS.business;
     this.renderSignTexture(texture, signText, colors, texW, texH, tier);
 
-    // Billboard plane
-    const planeW = 3.2;
+    // Sign plane — mounted flat on the building front, not a billboard
+    const planeW = 3.5;
     const planeH = planeW * (texH / texW);
     const plane = MeshBuilder.CreatePlane(
       `building_sign_${data.buildingId}`,
-      { width: planeW, height: planeH },
+      { width: planeW, height: planeH, sideOrientation: Mesh.DOUBLESIDE },
       this.scene
     );
 
@@ -132,9 +141,10 @@ export class BuildingSignManager {
     mat.useAlphaFromDiffuseTexture = true;
     plane.material = mat;
 
-    plane.position = new Vector3(0, labelY, 0);
+    // Position above the door on the front face, facing outward (+Z)
+    plane.position = new Vector3(0, signY, frontZ);
     plane.parent = buildingMesh;
-    plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
+    // No billboard mode — sign stays flat against the building wall
     plane.isPickable = true;
 
     // Click to add word to vocabulary
@@ -187,23 +197,23 @@ export class BuildingSignManager {
     this.roundRect(ctx, 4, 4, w - 8, h - 8, 10);
     ctx.stroke();
 
-    // Primary text (target language)
+    // Primary text (target language) — large, legible storefront lettering
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'center';
 
     if (text.secondary) {
-      // Two-line: target language big, English smaller
-      ctx.font = 'bold 30px serif';
+      // Two-line: target language big, English smaller beneath
+      ctx.font = 'bold 64px serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(text.primary, w / 2, h / 2 - 14, w - 24);
+      ctx.fillText(text.primary, w / 2, h / 2 - 28, w - 48);
 
-      ctx.font = '20px sans-serif';
+      ctx.font = '36px sans-serif';
       ctx.fillStyle = 'rgba(200, 200, 200, 0.7)';
-      ctx.fillText(`(${text.secondary})`, w / 2, h / 2 + 18, w - 24);
+      ctx.fillText(`(${text.secondary})`, w / 2, h / 2 + 36, w - 48);
     } else {
-      ctx.font = 'bold 30px serif';
+      ctx.font = 'bold 64px serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(text.primary, w / 2, h / 2, w - 24);
+      ctx.fillText(text.primary, w / 2, h / 2, w - 48);
     }
 
     texture.update();

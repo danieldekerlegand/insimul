@@ -25,6 +25,8 @@ signal conversational_action(actions: Array, turn_state: Dictionary)
 signal new_word_learned(entry: Dictionary)
 signal word_mastered(entry: Dictionary)
 signal grammar_feedback(feedback: Dictionary)
+signal translation_attempt(data: Dictionary)
+signal npc_relationship_changed(npc_id: String, new_strength: float)
 
 const TYPEWRITER_SPEED := 30.0  # characters per second
 const MAX_RESPONSE_BUTTONS := 4
@@ -48,6 +50,15 @@ var _player_gold := 0
 
 # Quest bridge for conversation goal evaluation (ConversationQuestBridge reference)
 var _quest_bridge = null
+
+# Per-NPC conversation counter for friendship/rapport tracking
+var _npc_conversation_counts: Dictionary = {}
+
+# Pronunciation quest gating — only offer Listen & Repeat when active
+var _pronunciation_quest_active := false
+
+# Game event bus for emitting quest-tracking events
+var _game_event_bus: Node = null
 
 # Root UI nodes
 var _panel: PanelContainer
@@ -99,6 +110,19 @@ func open_dialogue(character_id: String) -> void:
 	_dialogue_text.text = ""
 	if _gesture_container:
 		_gesture_container.visible = true
+
+	# Track per-NPC conversation count for friendship/rapport objectives
+	var npc_count: int = _npc_conversation_counts.get(character_id, 0) + 1
+	_npc_conversation_counts[character_id] = npc_count
+	var new_strength: float = minf(float(npc_count) / 5.0, 1.0)
+	npc_relationship_changed.emit(character_id, new_strength)
+	# Also emit through game event bus if available
+	if _game_event_bus and _game_event_bus.has_method("emit_event"):
+		_game_event_bus.emit_event({
+			"type": "npc_relationship_changed",
+			"npcId": character_id,
+			"newStrength": new_strength,
+		})
 
 	# Load NPC context from AIService
 	var ai := get_node_or_null("/root/AIService")
@@ -185,8 +209,19 @@ func set_player_inventory_context(items: Array, gold: int) -> void:
 func set_quest_bridge(bridge) -> void:
 	_quest_bridge = bridge
 
+## Set the pronunciation quest active flag.
+## When true, Listen & Repeat will be offered during conversations.
+## Called by the game when the active quest changes.
+func set_pronunciation_quest_active(active: bool) -> void:
+	_pronunciation_quest_active = active
+
+## Set the game event bus for emitting quest-tracking events (grammar, translation, friendship).
+func set_game_event_bus(bus: Node) -> void:
+	_game_event_bus = bus
+
 ## Request metadata via InsimulClient SDK instead of HTTP POST to /api/conversation/metadata.
 ## Processes goal evaluations through the quest bridge when available.
+## Emits grammar_feedback and translation_attempt signals/events through game event bus.
 func _request_metadata_via_sdk(player_message: String, npc_response: String) -> void:
 	if _target_language == "":
 		return
@@ -212,6 +247,31 @@ func _request_metadata_via_sdk(player_message: String, npc_response: String) -> 
 				var goal_evals = metadata.get("goalEvaluations", [])
 				if goal_evals.size() > 0 and _quest_bridge and _quest_bridge.has_method("process_evaluations"):
 					_quest_bridge.process_evaluations(goal_evals, _current_character_id, player_message)
+
+				# Emit grammar_feedback for quest objective tracking
+				var grammar = metadata.get("grammarFeedback", {})
+				if not grammar.is_empty():
+					var feedback_data := { "status": grammar.get("status", ""), "corrections": grammar.get("corrections", []) }
+					grammar_feedback.emit(feedback_data)
+					if _game_event_bus and _game_event_bus.has_method("emit_event"):
+						_game_event_bus.emit_event({
+							"type": "grammar_feedback",
+							"status": grammar.get("status", ""),
+							"correctCount": 1 if grammar.get("status", "") == "correct" else 0,
+						})
+
+				# Emit translation_attempt for each vocab hint (target-language word used)
+				var vocab_hints: Array = metadata.get("vocabHints", [])
+				for hint in vocab_hints:
+					var word: String = hint.get("word", hint.get("term", ""))
+					var attempt_data := { "correct": true, "word": word }
+					translation_attempt.emit(attempt_data)
+					if _game_event_bus and _game_event_bus.has_method("emit_event"):
+						_game_event_bus.emit_event({
+							"type": "translation_attempt",
+							"correct": true,
+							"word": word,
+						})
 		)
 
 ## Add a system message to the dialogue panel.
@@ -377,7 +437,10 @@ func _set_portrait(npc_name: String) -> void:
 
 # ─── Language learning ────────────────────────────────
 
+## Only offer Listen & Repeat when the player has an active pronunciation quest.
 func _on_listen_pressed() -> void:
+	if not _pronunciation_quest_active:
+		return
 	var ds := get_node_or_null("/root/DialogueSystem")
 	if ds and ds.has_signal("audio_requested"):
 		ds.emit_signal("audio_requested", _current_character_id, _typewriter_full_text)

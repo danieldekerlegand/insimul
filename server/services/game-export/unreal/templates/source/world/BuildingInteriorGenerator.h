@@ -163,6 +163,13 @@ public:
     void GenerateRoom(const FRoomConfig& RoomCfg);
 
     /**
+     * Pre-load furniture asset models from the interior template config.
+     * Call before GenerateInterior() for asset-based furniture placement.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Interior")
+    void LoadFurnitureAssets(const FInteriorConfig& Config);
+
+    /**
      * Place furniture appropriate to the room function.
      * @param RoomId    Identifier of the room to furnish.
      * @param Function  Functional type determining which furniture set to use.
@@ -177,6 +184,19 @@ public:
     /** Get the default room layout for a building role. */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Interior")
     static TArray<ERoomFunction> GetDefaultRoomLayout(const FString& BuildingRole, int32 FloorCount);
+
+    /**
+     * Set the callback invoked when the player clicks an exit door (front entrance).
+     * Mirrors the onExitCallback metadata from TypeScript BuildingInteriorGenerator.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Interior")
+    void SetExitDoorCallback(const FString& BuildingId);
+
+    /** Delegate fired when the player clicks an exit door. */
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnExitDoorClicked, const FString&, BuildingId);
+
+    UPROPERTY(BlueprintAssignable, Category = "Interior")
+    FOnExitDoorClicked OnExitDoorClicked;
 
     /** Get palette colors for a given interior palette type. */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Interior")
@@ -199,6 +219,13 @@ private:
 
     /** Current interior configuration. */
     FInteriorConfig CurrentConfig;
+
+    /** Cached furniture asset templates keyed by asset path. */
+    UPROPERTY()
+    TMap<FString, UStaticMesh*> FurnitureAssetCache;
+
+    /** Building IDs with exit door callbacks registered. */
+    TSet<FString> ExitDoorBuildings;
 
     /** Create wall geometry for a room. */
     void CreateWalls(USceneComponent* Parent, const FRoomConfig& RoomCfg);

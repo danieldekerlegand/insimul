@@ -131,7 +131,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Building")
     void GenerateBuilding(FVector Position, float Rotation, int32 Floors,
                           float Width, float Depth, const FString& BuildingRole,
-                          const FFoundationData& Foundation = FFoundationData());
+                          const FFoundationData& Foundation = FFoundationData(),
+                          const FString& BuildingId = FString());
 
     /** Register a prefab model mesh for a building role. When GenerateBuilding is called
      *  with a matching role, this mesh is instanced instead of procedural geometry.
@@ -211,6 +212,9 @@ private:
     TMap<FString, UTexture2D*> PresetTextures;
 
     UMaterialInstanceDynamic* GetSharedMaterial(const FString& Key, UMaterialInterface* Parent, FLinearColor Color);
+
+    /** Hash a building ID string for deterministic variation (e.g., texture alternation). */
+    static int32 HashBuildingId(const FString& BuildingId);
 
     /** Resolve a texture by ID: checks PresetTextures first, then global fallback. */
     UTexture2D* ResolveTexture(const FString& TextureId, UTexture2D* GlobalFallback) const;

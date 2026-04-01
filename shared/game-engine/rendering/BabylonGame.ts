@@ -1442,7 +1442,9 @@ export class BabylonGame {
   private async tryShowGameIntro(): Promise<void> {
     if (!this.cutscenePanel || !this.dataSource) return;
 
-    // Check if intro was already shown (stored in playthrough saveData)
+    // Check if intro was already shown (stored in save file state or legacy playthrough)
+    const gameState = await this.dataSource.loadGameState(this.config.worldId, this.config.playthroughId || '', 0);
+    if (gameState?.introShown) return;
     const playthrough = this.worldData?.playthrough || (this.worldData as any)?.activePlaythrough;
     const saveData = playthrough?.saveData as Record<string, any> | undefined;
     if (saveData?.introShown) return;
@@ -1487,13 +1489,14 @@ export class BabylonGame {
         this.cutscenePanel.show(resolvedPages);
 
         // Mark intro as shown so it doesn't replay
-        if (playthrough?.id) {
-          try {
-            await this.dataSource.updatePlaythrough?.(playthrough.id, {
-              saveData: { ...(saveData || {}), introShown: true },
-            });
-          } catch {}
-        }
+        try {
+          await this.dataSource.saveGameState(
+            this.config.worldId,
+            this.config.playthroughId || '',
+            0,
+            { ...gameState, introShown: true },
+          );
+        } catch {}
       }
     } catch (err) {
       console.warn('[BabylonGame] Failed to show game intro:', err);
@@ -2722,6 +2725,9 @@ export class BabylonGame {
       questBridge.setEventBus((this as any).eventBus);
     }
     this.chatPanel.setQuestBridge(questBridge);
+    if ((this as any).eventBus) {
+      this.chatPanel.setGameEventBus((this as any).eventBus);
+    }
 
     // Keep NPC indicator positioned below minimap + notifications
     this.guiManager.onHudLayoutChanged((npcIndicatorTop: number) => {
@@ -5369,6 +5375,30 @@ export class BabylonGame {
                 });
               }
               settlement.streets = topoStreets;
+
+              // Register resolved streets with NPC schedule system for sidewalk pathfinding
+              const streetNetwork = {
+                nodes: [] as any[],
+                segments: topoStreets.map((s: any) => ({
+                  id: s.id,
+                  name: s.name,
+                  direction: s.direction === 'NS' ? 'NS' as const : 'EW' as const,
+                  nodeIds: [`${s.id}_start`, `${s.id}_end`],
+                  waypoints: s.waypoints,
+                  width: s.width || 8,
+                })),
+              };
+              // Build nodes from waypoint endpoints
+              for (const seg of streetNetwork.segments) {
+                if (seg.waypoints.length >= 2) {
+                  streetNetwork.nodes.push(
+                    { id: seg.nodeIds[0], x: seg.waypoints[0].x, z: seg.waypoints[0].z, intersectionOf: [seg.id] },
+                    { id: seg.nodeIds[1], x: seg.waypoints[seg.waypoints.length - 1].x, z: seg.waypoints[seg.waypoints.length - 1].z, intersectionOf: [seg.id] },
+                  );
+                }
+              }
+              this.npcScheduleSystem.addStreetNetwork(streetNetwork as any, (x: number, z: number) => this.projectToGround(x, z).y);
+              console.log(`[Topology] Registered ${streetNetwork.segments.length} streets with NPC schedule system`);
             }
           } catch (e) {
             console.warn('[BabylonGame] Failed to resolve topological lots:', e);
@@ -8877,6 +8907,37 @@ export class BabylonGame {
     return false;
   }
 
+  /** Get the primary settlement center position. */
+  private _getSettlementCenter(): { x: number; z: number } | null {
+    if (!this.settlements || this.settlements.length === 0) return null;
+    const s = this.settlements[0];
+    const pos = s.position as any;
+    if (pos?.x != null && pos?.z != null) return { x: pos.x, z: pos.z };
+    // Fallback: use the average of building positions
+    if (this.buildingFootprints.length > 0) {
+      let sumX = 0, sumZ = 0;
+      for (const b of this.buildingFootprints) { sumX += b.cx; sumZ += b.cz; }
+      return { x: sumX / this.buildingFootprints.length, z: sumZ / this.buildingFootprints.length };
+    }
+    return { x: 0, z: 0 };
+  }
+
+  /** Get the effective settlement radius (or estimate from building spread). */
+  private _getSettlementRadius(): number {
+    const s = this.settlements?.[0];
+    if (s?.radius) return s.radius as number;
+    if (s?.populationRadius) return s.populationRadius as number;
+    // Estimate from building footprints
+    const center = this._getSettlementCenter();
+    if (!center || this.buildingFootprints.length === 0) return 100;
+    let maxDist = 0;
+    for (const b of this.buildingFootprints) {
+      const dist = Math.sqrt(Math.pow(b.cx - center.x, 2) + Math.pow(b.cz - center.z, 2));
+      if (dist > maxDist) maxDist = dist;
+    }
+    return maxDist + 20; // Add some margin beyond the furthest building
+  }
+
   /** Generate a spawn candidate near a center point, validated against buildings. */
   private findSafeSpawnNear(center: Vector3, spread: number, minOffset: number, maxAttempts = 20): Vector3 {
     // Try random positions, starting close and expanding outward
@@ -9422,7 +9483,7 @@ export class BabylonGame {
     const label = businessType || buildingType || 'Building';
     this.guiManager?.showToast({
       title: `Entered ${label}`,
-      description: 'Press E to exit',
+      description: 'Click the door or press E to exit',
       duration: 2500,
     });
 
@@ -9575,6 +9636,19 @@ export class BabylonGame {
       buildingId, buildingType, businessType, doorWorldPos
     );
     this.activeInterior = interior;
+
+    // Wire all exit-capable doors (front entrance + exit door frames) → exit building
+    const exitCallback = () => this.exitBuilding();
+    if (interior.frontDoor?.metadata) {
+      interior.frontDoor.metadata.onExitCallback = exitCallback;
+    }
+    // Also wire the exit_door frame (invisible clickable box at doorway)
+    for (const child of interior.roomMesh.getChildMeshes(false)) {
+      if (child.metadata?.interiorExit) {
+        child.metadata.onExitCallback = exitCallback;
+      }
+    }
+
     // Spawn a few paces inside the room (door is at -Z wall, room center is at position)
     const spawnPos = interior.doorPosition.clone();
     spawnPos.y = interior.position.y; // Floor level
@@ -11124,6 +11198,49 @@ export class BabylonGame {
       if (!instance.mesh || !instance.controller) continue;
       if (!instance.mesh.isEnabled()) continue; // Skip hidden NPCs
 
+      // NPCs in conversation ALWAYS face their partner (bypass throttle/distance)
+      const convCharId = instance.characterData?.id;
+      if (instance.isInConversation ||
+          (convCharId && this.ambientConversationManager?.isInConversation(convCharId))) {
+        instance.controller.walk(false);
+        instance.controller.turnLeft(false);
+        instance.controller.turnRight(false);
+
+        // Determine face target
+        let faceTarget: Vector3 | null = null;
+        if (instance.isInConversation && this.conversationNPCId === convCharId && this.playerMesh) {
+          faceTarget = this.playerMesh.position;
+        } else if (convCharId && this.ambientConversationManager?.isInConversation(convCharId)) {
+          const partner = this.ambientConversationManager.getConversationPartner(convCharId);
+          if (partner) {
+            const partnerInst = this.npcMeshes.get(partner.partnerId);
+            if (partnerInst?.mesh) faceTarget = partnerInst.mesh.position;
+          }
+        }
+
+        if (faceTarget && instance.mesh) {
+          const fdx = faceTarget.x - instance.mesh.position.x;
+          const fdz = faceTarget.z - instance.mesh.position.z;
+          const targetAngle = Math.atan2(fdx, fdz);
+          const dt = Math.min(this.scene!.getEngine().getDeltaTime() / 1000, 0.1);
+          let angleDiff = targetAngle - instance.mesh.rotation.y;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          const turnSpeed = 5.0;
+          const step = turnSpeed * dt;
+          if (Math.abs(angleDiff) <= step) {
+            instance.mesh.rotation.y = targetAngle;
+          } else {
+            instance.mesh.rotation.y += Math.sign(angleDiff) * step;
+          }
+        }
+
+        // Play talk/idle animation
+        const isTalking = convCharId && this.npcTalkingIndicator?.isShowing?.(convCharId);
+        this.playNPCAnimation(instance, isTalking ? 'talk' : 'idle');
+        continue; // Skip normal AI behavior
+      }
+
       // Beyond skip-AI distance: no wandering, just idle
       if (dist > BabylonGame.NPC_SKIP_AI_DISTANCE) {
         instance.controller.walk(false);
@@ -11179,6 +11296,11 @@ export class BabylonGame {
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+
+      // Play talk animation during conversation
+      const isNpcTalking = characterId
+        && this.npcTalkingIndicator?.isShowing?.(characterId);
+      this.playNPCAnimation(instance, isNpcTalking ? 'talk' : 'idle');
 
       // Smoothly face conversation partner
       const dt = Math.min(this.scene.getEngine().getDeltaTime() / 1000, 0.1);
@@ -11731,8 +11853,8 @@ export class BabylonGame {
       for (const ag of instance.animationGroups) {
         ag.stop();
       }
-      // Slow down walk/run to match NPC movement speed
-      const speed = (animName === 'walk') ? 0.7 : (animName === 'run') ? 0.9 : 1.0;
+      // Scale animation speed to match NPC movement speed
+      const speed = (animName === 'walk') ? 1.2 : (animName === 'run') ? 1.0 : 1.0;
       group.start(true, speed, group.from, group.to, false);
       instance.currentAnimation = group;
     }
@@ -11743,10 +11865,33 @@ export class BabylonGame {
    */
   private updateNPCRandomWander(instance: NPCInstance, now: number): void {
     if (!instance.mesh || !instance.controller) return;
-    const homePos = instance.homePosition || instance.mesh.position;
+    // Use home position, or settlement center as fallback (never (0,0,0))
+    const settlementCenter = this._getSettlementCenter();
+    const homePos = instance.homePosition
+      || (settlementCenter ? new Vector3(settlementCenter.x, 0, settlementCenter.z) : null)
+      || instance.mesh.position;
     const currentPos = instance.mesh.position;
     const wanderRadius = 8;
-    const halfTerrain = (this.terrainSize || 512) / 2 - 5;
+    const settlementRadius = this._getSettlementRadius();
+
+    // If NPC is already too far from settlement, redirect them back
+    if (settlementCenter) {
+      const distFromCenter = Math.sqrt(
+        Math.pow(currentPos.x - settlementCenter.x, 2) +
+        Math.pow(currentPos.z - settlementCenter.z, 2),
+      );
+      if (distFromCenter > settlementRadius * 1.2) {
+        // NPC is out of bounds — send them back toward the settlement center
+        const returnTarget = new Vector3(
+          settlementCenter.x + (Math.random() - 0.5) * 20,
+          currentPos.y,
+          settlementCenter.z + (Math.random() - 0.5) * 20,
+        );
+        instance.wanderTarget = this.projectToGround(returnTarget.x, returnTarget.z) ?? returnTarget;
+        this.moveNPCToward(instance, instance.wanderTarget);
+        return;
+      }
+    }
 
     // Stuck detection — turn away from wall before abandoning target
     if (instance.wanderTarget && instance.lastWanderPosition) {
@@ -11788,8 +11933,17 @@ export class BabylonGame {
         const distance = Math.random() * wanderRadius;
         let tx = homePos.x + Math.cos(angle) * distance;
         let tz = homePos.z + Math.sin(angle) * distance;
-        tx = Math.max(-halfTerrain, Math.min(halfTerrain, tx));
-        tz = Math.max(-halfTerrain, Math.min(halfTerrain, tz));
+        // Clamp to settlement bounds
+        if (settlementCenter) {
+          const dx = tx - settlementCenter.x;
+          const dz = tz - settlementCenter.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist > settlementRadius) {
+            const scale = settlementRadius / dist;
+            tx = settlementCenter.x + dx * scale;
+            tz = settlementCenter.z + dz * scale;
+          }
+        }
         // Reject wander targets inside buildings
         if (!this.isPointInsideAnyBuilding(tx, tz)) {
           instance.wanderTarget = this.projectToGround(tx, tz);
@@ -11800,8 +11954,17 @@ export class BabylonGame {
         const distance = Math.random() * wanderRadius;
         let tx = homePos.x + Math.cos(angle) * distance;
         let tz = homePos.z + Math.sin(angle) * distance;
-        tx = Math.max(-halfTerrain, Math.min(halfTerrain, tx));
-        tz = Math.max(-halfTerrain, Math.min(halfTerrain, tz));
+        // Clamp to settlement bounds
+        if (settlementCenter) {
+          const dx = tx - settlementCenter.x;
+          const dz = tz - settlementCenter.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist > settlementRadius) {
+            const scale = settlementRadius / dist;
+            tx = settlementCenter.x + dx * scale;
+            tz = settlementCenter.z + dz * scale;
+          }
+        }
         // Reject wander targets inside buildings
         if (!this.isPointInsideAnyBuilding(tx, tz)) {
           instance.wanderTarget = new Vector3(tx, currentPos.y, tz);

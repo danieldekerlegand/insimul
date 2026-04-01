@@ -399,9 +399,19 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	if resolved_wall_tex == null:
 		resolved_wall_tex = _wall_texture
 
-	var wall_tex_key := wall_tex_id if wall_tex_id != "" else ("global" if resolved_wall_tex != null else "notex")
-	if resolved_wall_tex != null:
-		var wall_mat := _get_shared_material("wall_%s_%s_%s" % [style.get("name", ""), mat_type, wall_tex_key], Color.WHITE, mat_type)
+	# Alternate between textured and solid-color buildings using building ID hash.
+	# ~2/3 get the texture, ~1/3 get solid color for visual variety.
+	var use_texture := resolved_wall_tex != null
+	var building_id: String = role  # Use role as proxy for building ID in procedural context
+	if resolved_wall_tex != null and building_id != "":
+		var id_hash := building_id.hash()
+		use_texture = (absi(id_hash) % 3) != 0  # ~2/3 textured, ~1/3 solid color
+
+	var wall_tex_key := ("global" if wall_tex_id == "" else wall_tex_id) if use_texture else "notex"
+	if use_texture and resolved_wall_tex != null:
+		# Tint base color toward white by 0.7 lerp when textured
+		var tinted_color := base_color.lerp(Color.WHITE, 0.7)
+		var wall_mat := _get_shared_material("wall_%s_%s_%s" % [style.get("name", ""), mat_type, wall_tex_key], tinted_color, mat_type)
 		wall_mat.albedo_texture = resolved_wall_tex
 		building.material_override = wall_mat
 	else:
@@ -716,7 +726,20 @@ func _add_windows(building: MeshInstance3D, width: float, depth: float,
 	var window_height := 1.2
 	var window_depth := 0.08
 	var window_color: Color = style.get("window_color", Color(0.7, 0.8, 0.9))
-	var window_mat := _get_shared_material("window", window_color)
+
+	# Window material with glass-like specular, metallic, and transparency
+	var window_mat := StandardMaterial3D.new()
+	window_mat.albedo_color = window_color
+	window_mat.metallic_specular = 0.5
+	window_mat.metallic = 0.2
+	window_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	window_mat.albedo_color.a = 0.7
+	window_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	# Dark backing material for behind window glass
+	var backing_mat := StandardMaterial3D.new()
+	backing_mat.albedo_color = Color(0.05, 0.05, 0.08)
+	backing_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	var do_shutters: bool = style.get("has_shutters", false)
 	var shutter_col: Color = style.get("shutter_color", Color(0.3, 0.3, 0.3))
@@ -735,19 +758,38 @@ func _add_windows(building: MeshInstance3D, width: float, depth: float,
 	var back_z := -depth / 2.0
 
 	for face in ["front", "back"]:
-		var face_z: float = front_z + window_depth / 2.0 if face == "front" else back_z - window_depth / 2.0
 		var shutter_z: float = front_z + 0.04 if face == "front" else back_z - 0.04
+		var z_sign: float = 1.0 if face == "front" else -1.0
 
 		for floor_i in range(floors):
 			var wy := ground_y + floor_height * floor_i + floor_height * 0.6
 			for wi in range(num_windows):
 				var wx := -width / 2.0 + spacing * (wi + 1)
+
+				# Skip ground-floor front windows that overlap the door (centered at x=0)
+				if face == "front" and floor_i == 0 and absf(wx) < 1.2:
+					continue
+
+				# Window Z offset: glass pane sits at depth/2 + 0.12
+				var win_z: float = z_sign * (depth / 2.0 + 0.12)
+
+				# Dark interior backing behind the glass at depth/2 + 0.02
+				var backing := MeshInstance3D.new()
+				var backing_box := BoxMesh.new()
+				backing_box.size = Vector3(window_width, window_height, 0.02)
+				backing.mesh = backing_box
+				backing.name = "WindowBack_%s_F%d_%d" % [face, floor_i, wi]
+				backing.position = Vector3(wx, wy, z_sign * (depth / 2.0 + 0.02))
+				backing.material_override = backing_mat
+				building.add_child(backing)
+
+				# Glass pane
 				var win := MeshInstance3D.new()
 				var win_box := BoxMesh.new()
 				win_box.size = Vector3(window_width, window_height, window_depth)
 				win.mesh = win_box
 				win.name = "Window_%s_F%d_%d" % [face, floor_i, wi]
-				win.position = Vector3(wx, wy, face_z)
+				win.position = Vector3(wx, wy, win_z)
 				win.material_override = window_mat
 				building.add_child(win)
 

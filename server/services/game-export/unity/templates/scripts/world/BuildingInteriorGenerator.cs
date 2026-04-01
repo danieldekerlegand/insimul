@@ -26,9 +26,12 @@ namespace Insimul.World
         private Dictionary<string, Material> _materialCache = new Dictionary<string, Material>();
         private Transform _interiorsRoot;
 
+        /// <summary>Loaded furniture asset templates keyed by furniture type name.</summary>
+        private Dictionary<string, GameObject> _furnitureTemplates = new Dictionary<string, GameObject>();
+
         // ── Interior Style Definition ────────────────────────────────────
 
-        private struct InteriorStyle
+        internal struct InteriorStyle
         {
             public Color floorColor;
             public Color wallColor;
@@ -60,6 +63,96 @@ namespace Insimul.World
             }
         }
 
+        // ── Furniture Asset Loading ──────────────────────────────────────
+
+        /// <summary>
+        /// Pre-loads furniture asset models from the config's furnitureAssets mapping.
+        /// Disposes any previously loaded templates before loading new ones.
+        /// If style is provided, only loads assets relevant to that style's furnitureSet.
+        /// Falls back to Resources.Load when Addressables are unavailable.
+        /// </summary>
+        public void LoadFurnitureAssets(InteriorStyle? style = null)
+        {
+            // Dispose previous templates
+            foreach (var kvp in _furnitureTemplates)
+            {
+                if (kvp.Value != null)
+                    Destroy(kvp.Value);
+            }
+            _furnitureTemplates.Clear();
+
+            // Determine which asset mappings to load
+            Dictionary<string, string> assetMap = null;
+            if (style.HasValue && style.Value.furnitureAssets != null)
+            {
+                assetMap = style.Value.furnitureAssets;
+            }
+
+            if (assetMap == null || assetMap.Count == 0)
+            {
+                Debug.Log("[Insimul] No furniture assets to load — using procedural primitives.");
+                return;
+            }
+
+            foreach (var kvp in assetMap)
+            {
+                string furnitureType = kvp.Key;
+                string assetPath = kvp.Value;
+
+                // Try loading via Resources (Addressables would use Addressables.LoadAssetAsync)
+                var prefab = Resources.Load<GameObject>(assetPath);
+                if (prefab != null)
+                {
+                    // Instantiate a hidden template copy for cloning
+                    var template = Instantiate(prefab);
+                    template.name = $"FurnitureTemplate_{furnitureType}";
+                    template.SetActive(false);
+                    template.transform.SetParent(_interiorsRoot);
+                    _furnitureTemplates[furnitureType] = template;
+                }
+                else
+                {
+                    Debug.LogWarning($"[Insimul] Failed to load furniture asset '{assetPath}' for type '{furnitureType}'");
+                }
+            }
+
+            Debug.Log($"[Insimul] Loaded {_furnitureTemplates.Count} furniture asset template(s).");
+        }
+
+        /// <summary>
+        /// Clones a furniture template and scales it to the target dimensions.
+        /// Scale factors are computed as target / original template dimensions.
+        /// Returns null if no template exists for the given type.
+        /// </summary>
+        private GameObject CloneFromTemplate(string furnitureType, Vector3 targetSize, Transform parent, Vector3 localPos)
+        {
+            if (!_furnitureTemplates.TryGetValue(furnitureType, out var template) || template == null)
+                return null;
+
+            var clone = Instantiate(template, parent);
+            clone.SetActive(true);
+            clone.name = furnitureType;
+            clone.transform.localPosition = localPos;
+
+            // Compute scale ratio from template's original bounds to target dimensions
+            var templateRenderer = template.GetComponentInChildren<Renderer>();
+            if (templateRenderer != null)
+            {
+                Vector3 originalSize = templateRenderer.bounds.size;
+                float sx = originalSize.x > 0.001f ? targetSize.x / originalSize.x : 1f;
+                float sy = originalSize.y > 0.001f ? targetSize.y / originalSize.y : 1f;
+                float sz = originalSize.z > 0.001f ? targetSize.z / originalSize.z : 1f;
+                clone.transform.localScale = new Vector3(sx, sy, sz);
+            }
+            else
+            {
+                clone.transform.localScale = Vector3.one;
+            }
+
+            clone.isStatic = true;
+            return clone;
+        }
+
         // ── Single Interior Generation ───────────────────────────────────
 
         private void GenerateSingleInterior(InsimulBuildingData building, int index)
@@ -78,12 +171,15 @@ namespace Insimul.World
 
             InteriorStyle style = GetStyleForRole(building.buildingRole);
 
+            // Pre-load furniture asset models for this style (disposes previous templates)
+            LoadFurnitureAssets(style);
+
             // Surfaces
             CreateFloor(root.transform, width, depth, style.floorColor);
             CreateCeiling(root.transform, width, depth, height, style.wallColor);
             CreateWalls(root.transform, width, depth, height, style.wallColor);
 
-            // Furniture
+            // Furniture — placed for each room/area within the interior
             PlaceFurniture(root.transform, width, depth, style.furnitureSet);
 
             // Lighting
@@ -569,6 +665,10 @@ namespace Insimul.World
         public Vector3 targetPosition;
         public bool isEntrance;
 
+        /// <summary>Optional callback invoked when the player exits through this trigger.
+        /// Set by the interior generator to allow custom exit behavior.</summary>
+        public System.Action onExitCallback;
+
         private void OnTriggerEnter(Collider other)
         {
             if (!other.CompareTag("Player")) return;
@@ -586,6 +686,20 @@ namespace Insimul.World
             }
 
             ToggleInteriorLighting(isEntrance);
+
+            // Invoke exit callback for exit triggers (e.g. UI transitions, state cleanup)
+            if (!isEntrance && onExitCallback != null)
+                onExitCallback.Invoke();
+        }
+
+        /// <summary>Click/interaction handler — allows direct click on the door trigger
+        /// to exit (useful for touch or point-and-click input).</summary>
+        private void OnMouseDown()
+        {
+            if (!isEntrance && onExitCallback != null)
+            {
+                onExitCallback.Invoke();
+            }
         }
 
         private void ToggleInteriorLighting(bool enteringInterior)

@@ -830,21 +830,30 @@ export class ProceduralBuildingGenerator {
     const wallTexId = spec.style.wallTextureId;
     const resolvedWallTex = (wallTexId && this.presetTextures.get(wallTexId)) || this.wallTexture;
 
-    // Cache key includes texture ID so different textures never share a cached material
-    const texKeyPart = wallTexId || (resolvedWallTex ? 'global' : 'notex');
+    // Alternate between textured and solid-color buildings using building ID as seed.
+    // This gives variety — some buildings show the texture, others show palette colors.
+    let useTexture = !!resolvedWallTex;
+    if (resolvedWallTex && spec.id) {
+      let hash = 0;
+      for (let i = 0; i < spec.id.length; i++) hash = ((hash << 5) - hash + spec.id.charCodeAt(i)) | 0;
+      useTexture = (Math.abs(hash) % 3) !== 0; // ~2/3 textured, ~1/3 solid color
+    }
+
+    const texKeyPart = useTexture ? (wallTexId || 'global') : `color_${spec.style.baseColor.toHexString()}`;
     const matKey = `wall_${spec.style.name}_${spec.style.materialType}_${texKeyPart}`;
     const material = this.getSharedMaterial(matKey, () => {
       const m = new StandardMaterial(matKey, this.scene);
       m.diffuseColor = spec.style.baseColor;
       m.specularColor = new Color3(0.1, 0.1, 0.1);
 
-      if (resolvedWallTex) {
+      if (useTexture && resolvedWallTex) {
         const wallTex = resolvedWallTex.clone();
         if (wallTex) {
           wallTex.uScale = 2;
           wallTex.vScale = 2;
           m.diffuseTexture = wallTex;
-          m.diffuseColor = new Color3(1, 1, 1);
+          // Tint the texture slightly with the base color instead of pure white
+          m.diffuseColor = Color3.Lerp(spec.style.baseColor, new Color3(1, 1, 1), 0.7);
           // Fallback to solid color if texture fails to load
           wallTex.onLoadObservable.addOnce(() => {
             if (!wallTex.isReady && !m.isDisposed) {
@@ -1118,7 +1127,10 @@ export class ProceduralBuildingGenerator {
       const m = new StandardMaterial(windowMatKey, this.scene);
       m.diffuseColor = spec.style.windowColor;
       m.emissiveColor = spec.style.windowColor.scale(0.3);
+      m.specularColor = new Color3(0.4, 0.4, 0.5); // Glass reflection
       m.alpha = 0.7;
+      m.backFaceCulling = false;
+      m.zOffset = -2; // Render in front of wall to avoid z-fighting
       return m;
     });
 
@@ -1159,8 +1171,31 @@ export class ProceduralBuildingGenerator {
       ] as const) {
         for (let i = 0; i < windowsPerFloor; i++) {
           const x = -spec.width / 2 + (i + 1) * (spec.width / (windowsPerFloor + 1));
-          const z = (zSign as number) * (spec.depth / 2 + 0.05);
 
+          // Skip ground-floor front windows that overlap the door (centered at x=0)
+          if (side === 'front' && floor === 0 && Math.abs(x) < 1.2) continue;
+
+          const z = (zSign as number) * (spec.depth / 2 + 0.12);
+
+          // Dark interior backing behind the glass
+          const backing = MeshBuilder.CreatePlane(
+            `windowback_${side}_${spec.id}_f${floor}_${i}`,
+            { width: windowWidth, height: windowHeight },
+            this.scene
+          );
+          backing.position = new Vector3(x, y, (zSign as number) * (spec.depth / 2 + 0.02));
+          backing.rotation.y = rotY as number;
+          backing.parent = building;
+          const backMatKey = `window_backing`;
+          backing.material = this.getSharedMaterial(backMatKey, () => {
+            const m = new StandardMaterial(backMatKey, this.scene);
+            m.diffuseColor = new Color3(0.05, 0.05, 0.08);
+            m.specularColor = Color3.Black();
+            m.backFaceCulling = false;
+            return m;
+          });
+
+          // Glass pane in front
           const win = MeshBuilder.CreatePlane(
             `window_${side}_${spec.id}_f${floor}_${i}`,
             { width: windowWidth, height: windowHeight },

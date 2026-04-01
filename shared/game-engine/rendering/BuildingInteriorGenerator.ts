@@ -872,8 +872,19 @@ export class BuildingInteriorGenerator {
     doorFrame.metadata = {
       interiorExit: true,
       buildingId,
-      interiorId: `interior_${buildingId}`
+      interiorId: `interior_${buildingId}`,
+      onExitCallback: null as (() => void) | null,
     };
+
+    // ActionManager so clicks work in the interior scene (separate from overworld pointer handler)
+    doorFrame.actionManager = new ActionManager(this.scene);
+    doorFrame.actionManager.registerAction(
+      new ExecuteCodeAction(ActionManager.OnPickTrigger, () => {
+        if (doorFrame.metadata?.onExitCallback) {
+          doorFrame.metadata.onExitCallback();
+        }
+      })
+    );
 
     // Invisible collision walls — thick boxes that reliably block FreeCamera ellipsoid.
     // Visual wall planes are too thin for collision detection; these sit behind them.

@@ -216,6 +216,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const [addSettlementCountryId, setAddSettlementCountryId] = useState<string | null>(null);
   const [showLotDialog, setShowLotDialog] = useState(false);
   const [showBusinessDialog, setShowBusinessDialog] = useState(false);
+  const [showRandomizeConfirm, setShowRandomizeConfirm] = useState(false);
   const [showResidenceDialog, setShowResidenceDialog] = useState(false);
 
   // Delete confirmation
@@ -497,6 +498,36 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     }
   };
 
+  const handleRandomizeResidences = async () => {
+    console.log('[SettlementHub] handleRandomizeResidences called, selectedSettlement:', selectedSettlement?.id, selectedSettlement?.name);
+    if (!selectedSettlement) {
+      toast({ title: 'No settlement selected', variant: 'destructive' });
+      return;
+    }
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      console.log('[SettlementHub] Calling randomize-residences API...');
+      const res = await fetch(`/api/settlements/${selectedSettlement.id}/randomize-residences`, {
+        method: 'POST',
+        headers,
+      });
+      console.log('[SettlementHub] Response status:', res.status);
+      if (res.ok) {
+        const result = await res.json();
+        console.log('[SettlementHub] Randomize result:', result);
+        toast({ title: 'Residences randomized', description: `Updated ${result.updated} of ${result.total} residences` });
+        refreshLots(selectedSettlement.id);
+      } else {
+        const errBody = await res.text();
+        console.error('[SettlementHub] Randomize failed:', res.status, errBody);
+        toast({ title: 'Error', description: 'Failed to randomize residences', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to randomize residences', variant: 'destructive' });
+    }
+  };
+
   const handleBusinessTypeChange = async (businessId: string, newType: string) => {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -523,25 +554,44 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   };
 
   const fetchResidents = async (settlementId?: string, countryId?: string) => {
-    // Ensure allCharacters is loaded
-    let chars = allCharacters;
-    if (chars.length === 0) {
-      try {
-        const res = await fetch(`/api/worlds/${worldId}/characters`);
-        if (res.ok) { chars = await res.json(); setAllCharacters(chars); }
-      } catch { setResidents([]); return; }
-    }
-
-    if (settlementId) {
-      // Settlement level: filter to this settlement
-      setResidents(chars.filter((c: any) => c.settlementId === settlementId || c.currentLocation === settlementId));
-    } else if (countryId) {
-      // Country level: filter to settlements in this country
-      const countrySettlementIds = new Set(settlements.filter(s => s.countryId === countryId).map(s => s.id));
-      setResidents(chars.filter((c: any) => countrySettlementIds.has(c.currentLocation)));
-    } else {
-      // World level: show all characters
-      setResidents(chars);
+    try {
+      if (settlementId) {
+        // Settlement level: fetch characters directly for this settlement
+        console.log(`[SettlementHub] Fetching residents for settlement ${settlementId}`);
+        const res = await fetch(`/api/settlements/${settlementId}/characters`);
+        if (res.ok) {
+          const chars = await res.json();
+          setResidents(chars);
+          setAllCharacters(prev => {
+            const existing = new Set(prev.map(c => c.id));
+            const newChars = chars.filter((c: any) => !existing.has(c.id));
+            return newChars.length > 0 ? [...prev, ...newChars] : prev;
+          });
+        } else {
+          setResidents([]);
+        }
+      } else if (countryId) {
+        // Country level: fetch per settlement and merge
+        const countrySettlements = settlements.filter(s => s.countryId === countryId);
+        const allChars: any[] = [];
+        for (const s of countrySettlements) {
+          const res = await fetch(`/api/settlements/${s.id}/characters`);
+          if (res.ok) allChars.push(...await res.json());
+        }
+        setResidents(allChars);
+      } else {
+        // World level: fetch paginated
+        const res = await fetch(`/api/worlds/${worldId}/characters?limit=200`);
+        if (res.ok) {
+          const chars = await res.json();
+          setResidents(chars);
+          setAllCharacters(chars);
+        } else {
+          setResidents([]);
+        }
+      }
+    } catch {
+      setResidents([]);
     }
   };
 
@@ -1080,6 +1130,20 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 )}
+                {canEdit && section.id === 'buildings' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 ml-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowRandomizeConfirm(true);
+                    }}
+                    title="Randomize residence types"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </Button>
+                )}
                 {canEdit && (section.id === 'buildings' || section.id === 'lots') && (
                   <Button
                     variant="ghost"
@@ -1156,11 +1220,17 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium">{displayName}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              {lot.address && isBusiness && (
+                              {isBusiness && lot.address && (
                                 <span className="text-xs text-muted-foreground">{lot.address}</span>
                               )}
                               {isBusiness && (
                                 <span className="text-xs text-muted-foreground">{bldg.businessType}</span>
+                              )}
+                              {!isBusiness && bldg.residenceType && (
+                                <span className="text-xs text-muted-foreground capitalize">{bldg.residenceType}</span>
+                              )}
+                              {!isBusiness && lot.districtName && (
+                                <span className="text-xs text-muted-foreground">{lot.districtName}</span>
                               )}
                               {isBusiness && bldg.isOutOfBusiness && (
                                 <Badge variant="secondary" className="text-xs py-0 h-4">Closed</Badge>
@@ -1196,7 +1266,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                         );
                       })
                     ) : (
-                      lots.map(l => {
+                      (section.data as any[]).map(l => {
                         const bldg = l.building;
                         const lt = l.lotType;
                         const specialTypes: Record<string, { label: string; color: string }> = {
@@ -1634,6 +1704,29 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Randomize residences confirmation */}
+      <AlertDialog open={showRandomizeConfirm} onOpenChange={setShowRandomizeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Randomize residence types?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reassign residence types (cottage, house, townhouse, mansion) based on each household's economic status.
+              Businesses will not be affected. You'll need to delete your save and restart the game to see the changes in 3D.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowRandomizeConfirm(false);
+              // Delay to let dialog close before making the API call
+              setTimeout(() => handleRandomizeResidences(), 100);
+            }}>
+              Randomize
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

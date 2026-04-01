@@ -1,12 +1,17 @@
 extends Node3D
-## Procedural building generator.
+## Procedural building generator (interior variant).
 ## Add to the "world_generator" group.
 ##
 ## When buildings have a modelAssetKey, the matching bundled GLTF/GLB is loaded
 ## at runtime via load(). Otherwise a procedural BoxMesh is used as fallback.
 
+signal exit_door_clicked(building_id: String)
+
 @export var base_color := Color({{BASE_COLOR_R}}, {{BASE_COLOR_G}}, {{BASE_COLOR_B}})
 @export var roof_color := Color({{ROOF_COLOR_R}}, {{ROOF_COLOR_G}}, {{ROOF_COLOR_B}})
+
+## Pre-loaded furniture scene templates keyed by furniture type.
+var _furniture_templates: Dictionary = {}
 
 func _ready() -> void:
 	add_to_group("world_generator")
@@ -46,6 +51,116 @@ func generate_from_data(world_data: Dictionary) -> void:
 		procedural_count += 1
 
 	print("[Insimul] BuildingGenerator: %d from assets, %d procedural" % [loaded_count, procedural_count])
+
+## Pre-load furniture scene assets from a config dictionary.
+## Config should have a "furnitureAssets" key mapping type names to resource paths.
+## e.g. { "furnitureAssets": { "chair": "res://assets/furniture/chair.tscn", ... } }
+func load_furniture_assets(config: Dictionary) -> void:
+	# Dispose previous templates
+	for key in _furniture_templates:
+		var node: Node = _furniture_templates[key]
+		if is_instance_valid(node):
+			node.queue_free()
+	_furniture_templates.clear()
+
+	var assets: Dictionary = config.get("furnitureAssets", {})
+	for furniture_type in assets:
+		var path: String = assets[furniture_type]
+		var scene := load(path) as PackedScene
+		if scene:
+			_furniture_templates[furniture_type] = scene
+			print("[Insimul] Loaded furniture template: %s from %s" % [furniture_type, path])
+		else:
+			push_warning("[Insimul] Failed to load furniture asset: %s" % path)
+
+## Clone a furniture template PackedScene and scale the instance to target dimensions.
+## Returns null if the template type is not loaded.
+func _clone_furniture(furniture_type: String, target_size: Vector3) -> Node3D:
+	if not _furniture_templates.has(furniture_type):
+		return null
+	var scene: PackedScene = _furniture_templates[furniture_type]
+	var instance := scene.instantiate() as Node3D
+	if instance == null:
+		return null
+
+	# Compute scale factor from the instance's AABB to fit target dimensions
+	var aabb := AABB()
+	if instance is MeshInstance3D:
+		aabb = (instance as MeshInstance3D).get_aabb()
+	else:
+		# Traverse children to find mesh bounds
+		for child in instance.get_children():
+			if child is MeshInstance3D:
+				var child_aabb := (child as MeshInstance3D).get_aabb()
+				if aabb.size == Vector3.ZERO:
+					aabb = child_aabb
+				else:
+					aabb = aabb.merge(child_aabb)
+
+	if aabb.size.length() > 0.001:
+		var sx: float = target_size.x / maxf(aabb.size.x, 0.001)
+		var sy: float = target_size.y / maxf(aabb.size.y, 0.001)
+		var sz: float = target_size.z / maxf(aabb.size.z, 0.001)
+		var uniform_scale := minf(sx, minf(sy, sz))
+		instance.scale = Vector3(uniform_scale, uniform_scale, uniform_scale)
+
+	return instance
+
+## Place furniture in a room from a room spec dictionary.
+## room_spec should have keys: position (Vector3), size (Vector3), furniture (Array of dicts).
+## Each furniture dict: { "type": String, "position": Vector3, "size": Vector3 }
+func _place_furniture_in_room(parent: Node3D, room_spec: Dictionary) -> void:
+	var furniture_list: Array = room_spec.get("furniture", [])
+	for item in furniture_list:
+		var ftype: String = item.get("type", "")
+		var fpos_dict: Dictionary = item.get("position", {})
+		var fpos := Vector3(fpos_dict.get("x", 0), fpos_dict.get("y", 0), fpos_dict.get("z", 0))
+		var fsize_dict: Dictionary = item.get("size", {})
+		var fsize := Vector3(fsize_dict.get("x", 1), fsize_dict.get("y", 1), fsize_dict.get("z", 1))
+
+		var furniture_node := _clone_furniture(ftype, fsize)
+		if furniture_node:
+			furniture_node.position = fpos
+			furniture_node.name = "Furniture_%s" % ftype
+			parent.add_child(furniture_node)
+
+## Create an exit door with click/interaction detection using Area3D.
+## Emits exit_door_clicked signal when the player interacts with the door.
+func _create_exit_door(parent: Node3D, building_id: String, door_pos: Vector3,
+		door_width: float, door_height: float) -> void:
+	var door := MeshInstance3D.new()
+	var door_box := BoxMesh.new()
+	door_box.size = Vector3(door_width, door_height, 0.3)
+	door.mesh = door_box
+	door.name = "ExitDoor"
+	door.position = door_pos
+
+	var door_mat := StandardMaterial3D.new()
+	door_mat.albedo_color = Color(0.45, 0.3, 0.15)
+	door_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	door_mat.albedo_color.a = 0.7
+	door.material_override = door_mat
+	parent.add_child(door)
+
+	# Area3D for click/interaction detection
+	var area := Area3D.new()
+	area.name = "ExitDoorArea"
+	area.set_meta("interiorExit", true)
+	area.set_meta("buildingId", building_id)
+	var area_col := CollisionShape3D.new()
+	var area_shape := BoxShape3D.new()
+	area_shape.size = Vector3(door_width + 0.5, door_height, 1.0)
+	area_col.shape = area_shape
+	area.add_child(area_col)
+	area.position = door_pos
+	area.input_event.connect(
+		func(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				exit_door_clicked.emit(building_id)
+	)
+	# Enable input ray picking on the area
+	area.input_ray_pickable = true
+	parent.add_child(area)
 
 func _generate_building_procedural(pos: Vector3, rot: float, floors: int, width: float, depth: float, role: String) -> void:
 	var floor_height := 3.0
@@ -89,6 +204,25 @@ func _generate_building_procedural(pos: Vector3, rot: float, floors: int, width:
 	roof_mat.albedo_color = roof_color
 	roof.material_override = roof_mat
 	building.add_child(roof)
+
+	# Exit door with interaction area at front of building
+	var door_width := 1.2
+	var door_height := 2.2
+	var ground_y := -total_height / 2.0
+	var front_z := depth / 2.0
+	_create_exit_door(building, "building_%s" % role,
+		Vector3(0, ground_y + door_height / 2.0, front_z),
+		door_width, door_height)
+
+	# Place furniture in each room (if templates are loaded)
+	if _furniture_templates.size() > 0:
+		for floor_i in range(floors):
+			var room_spec := {
+				"position": { "x": 0, "y": floor_height * floor_i, "z": 0 },
+				"size": { "x": width - 1.0, "y": floor_height, "z": depth - 1.0 },
+				"furniture": []  # Populated by world data or config
+			}
+			_place_furniture_in_room(building, room_spec)
 
 	add_child(building)
 

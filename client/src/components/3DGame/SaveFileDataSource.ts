@@ -91,19 +91,9 @@ export class SaveFileDataSource implements DataSource {
     if (this.dirty) this.persistToServer().catch(console.error);
   }
 
-  /** Record a playtrace entry. Only significant actions get traced. */
-  trace(action: string, description: string, details: Record<string, any> = {}) {
-    // Only trace significant gameplay actions, not routine state updates
-    const significant = ['quest_created', 'quest_completed', 'quest_branched', 'item_transferred',
-      'conversation', 'game_started', 'reputation_adjusted'];
-    if (!significant.includes(action)) return;
-
-    this.playtraces.push({
-      timestamp: new Date().toISOString(),
-      action,
-      description,
-      details,
-    });
+  /** Record a playtrace entry. Disabled for now — was bloating the DB. */
+  trace(_action: string, _description: string, _details: Record<string, any> = {}) {
+    // Playtraces disabled — re-enable when we have a proper analytics pipeline
   }
 
   /** Persist current state + conversations + playtraces to the server */
@@ -126,15 +116,7 @@ export class SaveFileDataSource implements DataSource {
         }),
       });
 
-      // Append new playtraces
-      if (this.playtraces.length > 0) {
-        await fetch(`${this.baseUrl}/api/saves/${this.saveId}/playtraces`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.authToken}` },
-          body: JSON.stringify({ traces: this.playtraces }),
-        });
-        this.playtraces = [];
-      }
+      // Playtraces disabled — skip flush
 
       this.dirty = false;
       console.log('[SaveFileDS] Saved to server');
@@ -165,7 +147,15 @@ export class SaveFileDataSource implements DataSource {
   async loadCountries(_worldId: string) { return this.snapshot.countries; }
   async loadStates(_worldId: string) { return []; }
   async loadBaseResources(_worldId: string) { return {}; }
-  async loadConfig3D(_worldId: string) { return null; }
+  async loadConfig3D(worldId: string) {
+    // 3D config (asset collection with textures, models) is static — fetch from API
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/3d-config`, {
+        headers: this.getHeaders(),
+      });
+      return res.ok ? await res.json() : null;
+    } catch { return null; }
+  }
   async loadTruths(_worldId: string, _playthroughId?: string) { return []; }
   async loadGeography(_worldId: string) { return null; }
   async loadAIConfig(_worldId: string) { return null; }
@@ -173,9 +163,25 @@ export class SaveFileDataSource implements DataSource {
   async loadPrologContent(_worldId: string) { return null; }
   async loadWorldItems(_worldId: string) { return []; }
   async loadTexts(_worldId: string) { return []; }
-  async getLanguages(_worldId: string) { return []; }
+  async getLanguages(worldId: string) {
+    // Fetch world languages from API (static reference data)
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/languages`, {
+        headers: this.getHeaders(),
+      });
+      return res.ok ? await res.json() : [];
+    } catch { return []; }
+  }
   async loadGenerationJobs(_worldId: string): Promise<GenerationJobSummary[]> { return []; }
-  async loadAssets(_worldId: string) { return []; }
+  async loadAssets(worldId: string) {
+    // Assets are static reference data (textures, models) — fetch from API
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/assets`, {
+        headers: this.getHeaders(),
+      });
+      return res.ok ? await res.json() : [];
+    } catch { return []; }
+  }
   async loadCharacter(characterId: string) {
     return this.snapshot.characters.find(c => c.id === characterId) || null;
   }
@@ -536,7 +542,16 @@ export class SaveFileDataSource implements DataSource {
     } catch { return null; }
   }
 
-  async resolveAssetById(_assetId: string): Promise<VisualAsset | null> { return null; }
-  resolveAssetUrl(_assetId: string): string | null { return null; }
+  async resolveAssetById(assetId: string): Promise<VisualAsset | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/assets/${assetId}`, {
+        headers: this.getHeaders(),
+      });
+      return res.ok ? await res.json() : null;
+    } catch { return null; }
+  }
+  resolveAssetUrl(assetId: string): string | null {
+    return assetId ? `${this.baseUrl}/api/assets/${assetId}` : null;
+  }
   async getPortfolio(_worldId: string, _playerName: string) { return null; }
 }

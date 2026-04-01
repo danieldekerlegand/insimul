@@ -83,8 +83,8 @@ export class BabylonGesturePanel {
     this.container.color = PANEL_BORDER;
     this.container.thickness = 1;
     this.container.cornerRadius = 6;
-    this.container.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    this.container.paddingBottom = '4px';
+    this.container.paddingBottom = '2px';
+    this.container.paddingTop = '2px';
     this.container.paddingLeft = '6px';
     this.container.paddingRight = '6px';
 

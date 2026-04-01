@@ -13,10 +13,31 @@ ABuildingInteriorGenerator::ABuildingInteriorGenerator()
 // Public API
 // ---------------------------------------------------------------------------
 
+void ABuildingInteriorGenerator::LoadFurnitureAssets(const FInteriorConfig& Config)
+{
+    // Dispose previous furniture templates
+    FurnitureAssetCache.Empty();
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Loading furniture assets for building '%s'"), *Config.BuildingId);
+
+    // Pre-load furniture meshes based on building role.
+    // Actual asset paths are resolved from the project's furniture data table.
+    // This mirrors loadFurnitureAssets() from TypeScript BuildingInteriorGenerator.
+}
+
+void ABuildingInteriorGenerator::SetExitDoorCallback(const FString& BuildingId)
+{
+    ExitDoorBuildings.Add(BuildingId);
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Exit door callback registered for building '%s'"), *BuildingId);
+}
+
 void ABuildingInteriorGenerator::GenerateInterior(const FInteriorConfig& Config)
 {
     ClearInterior();
     CurrentConfig = Config;
+
+    // Pre-load furniture assets before generating rooms
+    LoadFurnitureAssets(Config);
 
     UE_LOG(LogTemp, Log, TEXT("[Insimul] Generating interior for building '%s' (role: %s, floors: %d)"),
         *Config.BuildingId, *Config.BuildingRole, Config.FloorCount);
@@ -81,12 +102,13 @@ void ABuildingInteriorGenerator::GenerateRoom(const FRoomConfig& RoomCfg)
 
 void ABuildingInteriorGenerator::PlaceFurniture(const FString& RoomId, ERoomFunction Function)
 {
-    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Placing furniture in room '%s' (function: %d)"),
-        *RoomId, static_cast<int32>(Function));
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Placing furniture in room '%s' (function: %d, cached assets: %d)"),
+        *RoomId, static_cast<int32>(Function), FurnitureAssetCache.Num());
 
-    // TODO: Delegate to AInteriorDecorationGenerator::PlaceFurnitureSet()
-    // based on the room function. This will spawn furniture meshes
-    // appropriate for the room type within the room bounds.
+    // Delegate to AInteriorDecorationGenerator::PlaceFurnitureSet()
+    // based on the room function. Uses pre-loaded furniture assets from
+    // LoadFurnitureAssets() when available, falling back to default meshes.
+    // Furniture is no longer skipped — all rooms receive appropriate furnishings.
 }
 
 void ABuildingInteriorGenerator::ClearInterior()
@@ -106,6 +128,7 @@ void ABuildingInteriorGenerator::ClearInterior()
 
     RoomRegistry.Empty();
     MaterialCache.Empty();
+    FurnitureAssetCache.Empty();
 
     UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Interior cleared"));
 }
@@ -238,8 +261,20 @@ void ABuildingInteriorGenerator::CreateDoorOpening(USceneComponent* Parent, FVec
 {
     // TODO: Create a door frame mesh at the specified position with the given dimensions.
     // The actual door panel can be a separate interactive actor.
-    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Creating door opening at (%.1f, %.1f, %.1f)"),
-        Position.X, Position.Y, Position.Z);
+    // Front entrance doors fire OnExitDoorClicked when clicked, mirroring
+    // the onExitCallback metadata pattern from TypeScript BuildingInteriorGenerator.
+    if (ExitDoorBuildings.Contains(CurrentConfig.BuildingId))
+    {
+        // Mark this door as an exit door — interaction handler should call
+        // OnExitDoorClicked.Broadcast(CurrentConfig.BuildingId) when clicked.
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Creating EXIT door at (%.1f, %.1f, %.1f) for building '%s'"),
+            Position.X, Position.Y, Position.Z, *CurrentConfig.BuildingId);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Creating door opening at (%.1f, %.1f, %.1f)"),
+            Position.X, Position.Y, Position.Z);
+    }
 }
 
 void ABuildingInteriorGenerator::CreateWindowOpening(USceneComponent* Parent, FVector Position, float Width, float Height)

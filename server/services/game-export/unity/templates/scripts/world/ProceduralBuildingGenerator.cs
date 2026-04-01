@@ -538,6 +538,11 @@ namespace Insimul.World
             // Calculate porch elevation — raises building on a foundation when porch is enabled
             float porchElevation = style.hasPorch ? 1.0f : 0f;
 
+            // Hash the building role/name to decide wall treatment:
+            // ~2/3 of buildings get a texture, ~1/3 get solid color
+            int buildingHash = (role ?? "").GetHashCode();
+            bool useTextureWall = Mathf.Abs(buildingHash) % 3 != 0; // ~2/3 textured
+
             // Base
             var building = GameObject.CreatePrimitive(PrimitiveType.Cube);
             building.name = $"Building_{role}";
@@ -547,20 +552,26 @@ namespace Insimul.World
             building.transform.rotation = Quaternion.Euler(0, rotation, 0);
             building.transform.SetParent(transform);
 
-            // Resolve wall texture: prefer per-preset texture, fall back to global, then solid color
+            // Resolve wall texture: prefer per-preset texture, fall back to global, then solid color.
+            // When textured, tint with a lerp toward white instead of pure white so the
+            // base color still shows through.
             var renderer = building.GetComponent<Renderer>();
             if (renderer != null)
             {
                 Texture2D resolvedWallTex = null;
-                if (!string.IsNullOrEmpty(style.wallTextureId) && _presetTextures.ContainsKey(style.wallTextureId))
-                    resolvedWallTex = _presetTextures[style.wallTextureId];
-                if (resolvedWallTex == null)
-                    resolvedWallTex = _wallTexture;
+                if (useTextureWall)
+                {
+                    if (!string.IsNullOrEmpty(style.wallTextureId) && _presetTextures.ContainsKey(style.wallTextureId))
+                        resolvedWallTex = _presetTextures[style.wallTextureId];
+                    if (resolvedWallTex == null)
+                        resolvedWallTex = _wallTexture;
+                }
 
                 string wallTexKey = style.wallTextureId ?? (resolvedWallTex != null ? "global" : "notex");
                 if (resolvedWallTex != null)
                 {
-                    var wallMat = GetSharedMaterial($"wall_{style.name}_{style.materialType}_{wallTexKey}", Color.white);
+                    Color tintColor = Color.Lerp(style.baseColor, Color.white, 0.7f);
+                    var wallMat = GetSharedMaterial($"wall_{style.name}_{style.materialType}_{wallTexKey}", tintColor);
                     wallMat.mainTexture = resolvedWallTex;
                     renderer.sharedMaterial = wallMat;
                 }
@@ -748,7 +759,17 @@ namespace Insimul.World
             float floorHeight = 3f;
             float windowSize = 0.8f;
             float windowDepth = 0.05f;
+
+            // Window material: specular glass with depth ordering and two-sided rendering
             var windowMat = GetSharedMaterial("window", style.windowColor);
+            windowMat.SetFloat("_Glossiness", 0.85f);
+            windowMat.SetFloat("_Metallic", 0.3f);
+            windowMat.renderQueue = 2450; // ensure proper depth sorting for transparent-ish panes
+            windowMat.SetInt("_Cull", 0); // Cull Off — two-sided rendering
+
+            // Dark backing material for window depth effect
+            var windowBackingColor = new Color(0.05f, 0.05f, 0.08f);
+            var windowBackingMat = GetSharedMaterial("window_backing", windowBackingColor);
 
             for (int floor = 0; floor < floors; floor++)
             {
@@ -759,14 +780,28 @@ namespace Insimul.World
                 {
                     float xOffset = -width / 2f + (width / (windowCount + 1)) * (w + 1);
 
-                    // Front-facing window
+                    // Skip ground-floor front windows that overlap the door
+                    if (floor == 0 && Mathf.Abs(xOffset) < 1.2f)
+                        continue;
+
+                    // Front-facing window (z offset pushed out to depth/2 + 0.12)
                     var window = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     window.name = $"Window_F{floor}_{w}";
                     window.transform.localScale = new Vector3(windowSize, windowSize * 1.4f, windowDepth);
-                    window.transform.localPosition = new Vector3(xOffset, windowY, depth / 2f + windowDepth / 2f);
+                    window.transform.localPosition = new Vector3(xOffset, windowY, depth / 2f + 0.12f);
                     window.transform.SetParent(building.transform, false);
                     window.GetComponent<Renderer>().sharedMaterial = windowMat;
                     window.isStatic = true;
+
+                    // Dark backing plane behind the glass pane for interior depth
+                    var backing = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    backing.name = $"WindowBacking_F{floor}_{w}";
+                    backing.transform.localScale = new Vector3(windowSize, windowSize * 1.4f, 0.02f);
+                    backing.transform.localPosition = new Vector3(xOffset, windowY, depth / 2f + 0.02f);
+                    backing.transform.SetParent(building.transform, false);
+                    backing.GetComponent<Renderer>().sharedMaterial = windowBackingMat;
+                    Object.Destroy(backing.GetComponent<Collider>());
+                    backing.isStatic = true;
 
                     // Shutters
                     if (style.hasShutters)
@@ -782,7 +817,7 @@ namespace Insimul.World
                         leftShutter.transform.localScale = new Vector3(shutterWidth, shutterHeight, windowDepth);
                         leftShutter.transform.localPosition = new Vector3(
                             xOffset - windowSize / 2f - shutterWidth / 2f,
-                            windowY, depth / 2f + windowDepth / 2f);
+                            windowY, depth / 2f + 0.12f);
                         leftShutter.transform.SetParent(building.transform, false);
                         leftShutter.GetComponent<Renderer>().sharedMaterial = shutterMat;
                         leftShutter.isStatic = true;
@@ -793,7 +828,7 @@ namespace Insimul.World
                         rightShutter.transform.localScale = new Vector3(shutterWidth, shutterHeight, windowDepth);
                         rightShutter.transform.localPosition = new Vector3(
                             xOffset + windowSize / 2f + shutterWidth / 2f,
-                            windowY, depth / 2f + windowDepth / 2f);
+                            windowY, depth / 2f + 0.12f);
                         rightShutter.transform.SetParent(building.transform, false);
                         rightShutter.GetComponent<Renderer>().sharedMaterial = shutterMat;
                         rightShutter.isStatic = true;

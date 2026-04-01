@@ -2329,9 +2329,15 @@ export class MongoStorage implements IStorage {
     return docs.map(docToCharacter);
   }
 
-  async getCharactersBySettlement(settlementId: string): Promise<Character[]> {
+  async getCharactersBySettlement(settlementId: string, options?: { limit?: number; offset?: number; lean?: boolean }): Promise<Character[]> {
     await this.connect();
-    const docs = await CharacterModel.find({ currentLocation: settlementId });
+    let query = CharacterModel.find({ currentLocation: settlementId });
+    if (options?.lean) {
+      query = query.select('firstName lastName gender birthYear isAlive occupation personality spouseId currentLocation') as any;
+    }
+    if (options?.offset) query = query.skip(options.offset);
+    if (options?.limit) query = query.limit(options.limit);
+    const docs = await query;
     return docs.map(docToCharacter);
   }
 

@@ -1354,11 +1354,21 @@ app.get("/api/rules", async (req, res) => {
   // Characters
   app.get("/api/worlds/:worldId/characters", async (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 100;
+      const limit = parseInt(req.query.limit as string) || 0; // 0 = all
       const offset = parseInt(req.query.offset as string) || 0;
       const aliveOnly = req.query.alive === 'true';
-      const characters = await storage.getCharactersByWorld(req.params.worldId, { limit, offset, aliveOnly });
-      res.json(characters);
+      // Batch fetch to avoid MongoDB free-tier timeouts
+      const BATCH = 50;
+      const allChars: any[] = [];
+      let batchOffset = offset;
+      const maxChars = limit || 10000;
+      while (allChars.length < maxChars) {
+        const batch = await storage.getCharactersByWorld(req.params.worldId, { lean: true, limit: BATCH, offset: batchOffset, aliveOnly });
+        allChars.push(...batch);
+        if (batch.length < BATCH) break;
+        batchOffset += BATCH;
+      }
+      res.json(limit ? allChars.slice(0, limit) : allChars);
     } catch (error) {
       console.error("Failed to fetch characters:", error);
       res.status(500).json({ error: "Failed to fetch characters", details: (error as Error).message });
@@ -2399,9 +2409,19 @@ app.get("/api/rules", async (req, res) => {
   // Settlement characters
   app.get("/api/settlements/:settlementId/characters", async (req, res) => {
     try {
-      const characters = await storage.getCharactersBySettlement(req.params.settlementId);
-      res.json(characters);
+      // Batch fetch to avoid MongoDB free-tier timeouts
+      const BATCH = 50;
+      const allChars: any[] = [];
+      let offset = 0;
+      while (true) {
+        const batch = await storage.getCharactersBySettlement(req.params.settlementId, { lean: true, limit: BATCH, offset });
+        allChars.push(...batch);
+        if (batch.length < BATCH) break;
+        offset += BATCH;
+      }
+      res.json(allChars);
     } catch (error) {
+      console.error('Failed to fetch settlement characters:', error);
       res.status(500).json({ error: "Failed to fetch settlement characters" });
     }
   });
@@ -2413,6 +2433,101 @@ app.get("/api/rules", async (req, res) => {
       res.json(lots);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch lots" });
+    }
+  });
+
+  // Randomize residence types based on occupant economic status
+  app.post("/api/settlements/:settlementId/randomize-residences", async (req, res) => {
+    try {
+      const { settlementId } = req.params;
+      console.log(`[randomize-residences] Starting for settlement ${settlementId}`);
+      const lots = await storage.getLotsBySettlement(settlementId);
+      console.log(`[randomize-residences] Found ${lots.length} total lots`);
+      const residenceLots = lots.filter((l: any) => l.building?.buildingCategory === 'residence');
+      console.log(`[randomize-residences] Found ${residenceLots.length} residence lots`);
+
+      if (residenceLots.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      // Get characters in batches to avoid MongoDB free-tier timeout
+      const characterMap = new Map<string, any>();
+      const BATCH = 50;
+      let charOffset = 0;
+      while (true) {
+        const batch = await storage.getCharactersBySettlement(settlementId, { lean: true, limit: BATCH, offset: charOffset });
+        for (const c of batch) characterMap.set(c.id, c);
+        console.log(`[randomize-residences] Characters batch: ${batch.length} fetched, ${characterMap.size} total`);
+        if (batch.length < BATCH) break;
+        charOffset += BATCH;
+      }
+
+      // Residence type tiers by economic status
+      const wealthyTypes = ['mansion', 'townhouse'];
+      const middleTypes = ['house', 'townhouse', 'house'];
+      const modestTypes = ['cottage', 'house', 'cottage'];
+
+      let updated = 0;
+      const bulkOps: Array<{ id: string; building: any }> = [];
+      for (const lot of residenceLots) {
+        const residentIds: string[] = lot.building?.residentIds || [];
+        const ownerIds: string[] = lot.building?.ownerIds || [];
+        const allOccupantIds = [...new Set([...residentIds, ...ownerIds])];
+
+        // Determine economic tier from occupants' occupations
+        let tier: 'wealthy' | 'middle' | 'modest' = 'modest';
+        for (const id of allOccupantIds) {
+          const char = characterMap.get(id);
+          if (!char) continue;
+          const occ = (char.occupation || '').toLowerCase();
+          if (occ.includes('owner') || occ.includes('mayor') || occ.includes('merchant') || occ.includes('banker') || occ.includes('lawyer') || occ.includes('doctor')) {
+            tier = 'wealthy';
+            break;
+          }
+          if (occ.includes('teacher') || occ.includes('clerk') || occ.includes('artisan') || occ.includes('carpenter') ||
+              occ.includes('baker') || occ.includes('tailor') || occ.includes('smith') || occ.includes('brewer') ||
+              occ.includes('shopkeeper') || occ.includes('innkeeper')) {
+            tier = 'middle';
+          }
+        }
+        // Unoccupied residences get random tier
+        if (allOccupantIds.length === 0) {
+          const r = Math.random();
+          tier = r < 0.15 ? 'wealthy' : r < 0.5 ? 'middle' : 'modest';
+        }
+
+        // Pick residence type randomly based on tier
+        const types = tier === 'wealthy' ? wealthyTypes : tier === 'middle' ? middleTypes : modestTypes;
+        const resType = types[Math.floor(Math.random() * types.length)];
+
+        if (resType !== lot.building?.residenceType) {
+          bulkOps.push({
+            id: lot.id,
+            building: { ...lot.building, residenceType: resType },
+          });
+          console.log(`   ✓ ${lot.address}: ${lot.building?.residenceType} → ${resType} (${tier})`);
+        }
+      }
+
+      // Apply all updates in one bulk write
+      const mongoose = await import('mongoose');
+      const db = mongoose.default.connection.db!;
+      const locationColl = db.collection('locations');
+      if (bulkOps.length > 0) {
+        const ops = bulkOps.map(op => ({
+          updateOne: {
+            filter: { _id: new mongoose.default.Types.ObjectId(op.id) },
+            update: { $set: { building: op.building, updatedAt: new Date() } },
+          },
+        }));
+        const result = await locationColl.bulkWrite(ops);
+        updated = result.modifiedCount;
+      }
+
+      res.json({ updated, total: residenceLots.length });
+    } catch (error) {
+      console.error('Failed to randomize residences:', error);
+      res.status(500).json({ error: 'Failed to randomize residences' });
     }
   });
 

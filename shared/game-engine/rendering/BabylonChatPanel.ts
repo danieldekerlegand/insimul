@@ -84,6 +84,7 @@ export class BabylonChatPanel {
   private _advancedTexture: AdvancedDynamicTexture;
   private scene: Scene;
   private chatContainer: Rectangle | null = null;
+  private mainLayout: StackPanel | null = null;
   private messagesScrollViewer: ScrollViewer | null = null;
   private messagesStack: StackPanel | null = null;
   private inputText: InputText | null = null;
@@ -140,12 +141,16 @@ export class BabylonChatPanel {
   private isSpeaking = false;
 
   // AI provider setting: 'auto' | 'browser' | 'server'
-  private _aiProvider: string = 'auto';
+  private _aiProvider: string = 'server';
 
   // Unified Insimul SDK client (replaces ConversationClient + BrowserAIClient + LocalAIClient)
   private insimulClient: InsimulClient | null = null;
   // Quest bridge — evaluates conversation objectives via metadata response
   private questBridge: ConversationQuestBridge | null = null;
+  // Event bus for emitting quest-tracking events (grammar, translation, friendship)
+  private _gameEventBus: any = null;
+  // Per-NPC conversation counter for friendship tracking
+  private _npcConversationCounts: Map<string, number> = new Map();
   private streamingAudioPlayer: StreamingAudioPlayer | null = null;
   private lipSyncController: LipSyncController | null = null;
   private _grpcAvailable: boolean | null = null; // null = unchecked
@@ -328,6 +333,17 @@ export class BabylonChatPanel {
       this.onNPCConversationStarted(character.id);
     }
 
+    // Track per-NPC conversation count for friendship/rapport objectives
+    const npcCount = (this._npcConversationCounts.get(character.id) || 0) + 1;
+    this._npcConversationCounts.set(character.id, npcCount);
+    if (this._gameEventBus) {
+      (this._gameEventBus as any).emit({
+        type: 'npc_relationship_changed',
+        npcId: character.id,
+        newStrength: Math.min(npcCount / 5, 1), // normalize: 5 conversations = max rapport
+      });
+    }
+
     // Fetch world data for context
     this.fetchWorldData(character.worldId);
 
@@ -396,15 +412,13 @@ export class BabylonChatPanel {
     this.lipSyncController?.dispose();
 
     // Resolve chat provider type from AI provider setting
-    const chatType: ChatProviderType = this._aiProvider === 'browser' ? 'browser'
-      : this._aiProvider === 'server' ? 'server'
-      : 'server'; // 'auto' defaults to server; InsimulClient auto-detects internally
+    const chatType: ChatProviderType = this._aiProvider === 'browser' ? 'browser' : 'server';
 
     // Create InsimulClient (reuses session across same character)
     if (!this.insimulClient) {
       this.insimulClient = new InsimulClient({
-        chat: this._aiProvider === 'auto' ? undefined : chatType, // undefined = auto-detect
-        tts: this._aiProvider === 'browser' ? 'browser' : undefined,
+        chat: chatType,
+        tts: this._aiProvider === 'browser' ? 'browser' : 'server',
         stt: 'none',
         serverUrl: '', // empty = same origin
         llmModel: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
@@ -725,11 +739,12 @@ export class BabylonChatPanel {
     this._advancedTexture.addControl(this.chatContainer);
 
     // Use a vertical StackPanel layout instead of absolute pixel positioning
-    const mainLayout = new StackPanel("chatMainLayout");
-    mainLayout.width = "100%";
-    mainLayout.height = "100%";
-    mainLayout.isVertical = true;
-    this.chatContainer.addControl(mainLayout);
+    this.mainLayout = new StackPanel("chatMainLayout");
+    this.mainLayout.width = "100%";
+    this.mainLayout.height = "100%";
+    this.mainLayout.isVertical = true;
+    this.chatContainer.addControl(this.mainLayout);
+    const mainLayout = this.mainLayout;
 
     // Header with character name
     const header = new Rectangle("chatHeader");
@@ -1782,6 +1797,10 @@ export class BabylonChatPanel {
     if (!this.listenAndRepeatController || !this.character) return;
     if (this.listenAndRepeatController.isActive) return;
 
+    // Only offer Listen & Repeat when the player has an active pronunciation quest
+    // (e.g., quest with objectives of type 'pronunciation_check' or 'listen_and_repeat')
+    if (!this._hasActivePronunciationQuest()) return;
+
     const phrases = this.listenAndRepeatController.detectPhrases(
       npcResponse,
       this.character.id,
@@ -1802,6 +1821,16 @@ export class BabylonChatPanel {
 
     // Add a listen & repeat button to the messages area
     this.addListenAndRepeatButton(phrase);
+  }
+
+  /** Check if the player has an active quest with pronunciation objectives. */
+  private _hasActivePronunciationQuest(): boolean {
+    return !!(this as any)._pronunciationQuestActive;
+  }
+
+  /** Called by BabylonGame when the active quest changes — enables/disables listen & repeat. */
+  public setPronunciationQuestActive(active: boolean): void {
+    (this as any)._pronunciationQuestActive = active;
   }
 
   /**
@@ -1942,6 +1971,10 @@ export class BabylonChatPanel {
             }
           } else if (feedback.status === 'correct') {
             this.displayGrammarFeedback('Great grammar!', true);
+            // Emit grammar_feedback for quest objective tracking
+            if (this._gameEventBus) {
+              (this._gameEventBus as any).emit({ type: 'grammar_feedback', status: 'correct', correctCount: 1 });
+            }
           }
         }
 
@@ -1950,6 +1983,17 @@ export class BabylonChatPanel {
           console.log('[VocabHints]', metadata.vocabHints);
           this.hoverTranslation.addVocabHints(metadata.vocabHints as VocabHint[]);
           this.rebuildMessagesWithTranslations();
+
+          // Emit translation_attempt for each target-language word used (for quest objectives)
+          if (this._gameEventBus) {
+            for (const hint of metadata.vocabHints) {
+              (this._gameEventBus as any).emit({
+                type: 'translation_attempt',
+                correct: true,
+                word: (hint as any).word || (hint as any).term,
+              });
+            }
+          }
         }
       })
       .catch((err: any) => {
@@ -2153,10 +2197,12 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     return new Promise<void>((resolve) => {
       const utterance = new SpeechSynthesisUtterance(cleanText);
 
-      // Dynamically detect the character's dominant language for TTS
-      const fluencies = extractLanguageFluencies(this.truths);
-      const dominantLang = fluencies[0]?.language || 'English';
-      const langCode = getLanguageBCP47(dominantLang);
+      // Use the world's target language for TTS (not the NPC's fluency)
+      const targetLang = this._targetLanguage
+        || this.world?.targetLanguage
+        || extractLanguageFluencies(this.truths)[0]?.language
+        || 'English';
+      const langCode = getLanguageBCP47(targetLang);
       utterance.lang = langCode;
       utterance.rate = 0.9;
 
@@ -2742,6 +2788,11 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   /** Set the quest bridge for conversation goal evaluation. */
   public setQuestBridge(bridge: ConversationQuestBridge): void {
     this.questBridge = bridge;
+  }
+
+  /** Set the game event bus for emitting grammar, translation, and friendship events. */
+  public setGameEventBus(bus: any): void {
+    this._gameEventBus = bus;
   }
 
   /** Get the current InsimulClient instance (for registration in global registry). */
@@ -3675,18 +3726,21 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    * Creates it lazily on first call.
    */
   private showGesturePanel(): void {
-    if (!this.chatContainer || !this.onGesturePerformed) return;
+    if (!this.mainLayout || !this.chatContainer || !this.onGesturePerformed) return;
 
     if (!this.gesturePanel) {
       this.gesturePanel = new BabylonGesturePanel();
     }
 
     this.gesturePanel?.show(
-      this.chatContainer!,
+      this.mainLayout!,
       (gestureId: string) => {
         this.onGesturePerformed?.(gestureId);
       },
     );
+
+    // Increase chat container height to accommodate the gesture row (48px)
+    this.chatContainer.height = '398px';
   }
 
   /**

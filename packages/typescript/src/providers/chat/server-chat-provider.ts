@@ -135,6 +135,12 @@ export class ServerChatProvider implements ChatProvider {
 
   private getWSUrl(): string {
     const base = this.config.serverUrl;
+    // Empty serverUrl = same origin — derive WS URL from window.location
+    if (!base && typeof window !== 'undefined') {
+      const loc = window.location;
+      const protocol = loc.protocol === 'https:' ? 'wss' : 'ws';
+      return `${protocol}://${loc.host}/ws/conversation`;
+    }
     const protocol = base.startsWith('https') ? 'wss' : 'ws';
     const host = base.replace(/^https?:\/\//, '');
     return `${protocol}://${host}/ws/conversation`;
@@ -286,20 +292,32 @@ export class ServerChatProvider implements ChatProvider {
     this.abortController = new AbortController();
     this.callbacks.onStateChange?.('thinking');
 
+    const body = {
+      sessionId: this.sessionId, characterId: this.characterId,
+      worldId: this.worldId, text, languageCode: lang,
+      systemPrompt: this.systemPrompt || undefined,
+    };
+
+    // Warn if required fields are missing — setCharacter() may not have been called
+    if (!this.characterId || !this.worldId) {
+      console.error('[ServerChat] Missing characterId or worldId — call setCharacter() before sendText()', {
+        characterId: this.characterId, worldId: this.worldId, sessionId: this.sessionId,
+      });
+    }
+
+    console.log('[ServerChat] SSE request:', { sessionId: body.sessionId, characterId: body.characterId, worldId: body.worldId, textLen: text.length });
+
     const response = await fetch(`${this.config.serverUrl}/api/conversation/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(this.config.apiKey ? { 'Authorization': `Bearer ${this.config.apiKey}` } : {}),
       },
-      body: JSON.stringify({
-        sessionId: this.sessionId, characterId: this.characterId,
-        worldId: this.worldId, text, languageCode: lang,
-      }),
+      body: JSON.stringify(body),
       signal: this.abortController.signal,
     });
 
-    if (!response.ok) throw new Error(`Server returned ${response.status}`);
+    if (!response.ok) throw new Error(`Server returned ${response.status}: ${await response.text().catch(() => '')}`);
     return this.consumeSSEStream(response);
   }
 

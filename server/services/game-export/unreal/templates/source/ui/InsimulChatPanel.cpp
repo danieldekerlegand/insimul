@@ -89,6 +89,8 @@ void UInsimulChatPanel::ClearHistory()
 
 void UInsimulChatPanel::SetNPCInfo(const FString& Name, UTexture2D* Portrait)
 {
+    CurrentNPCId = Name; // Use name as ID for NPC conversation tracking
+
     if (NPCNameText)
     {
         NPCNameText->SetText(FText::FromString(Name));
@@ -143,10 +145,40 @@ void UInsimulChatPanel::HideTypingIndicator()
     }
 }
 
+void UInsimulChatPanel::SetQuestBridge(UObject* Bridge)
+{
+    QuestBridge = Bridge;
+}
+
+void UInsimulChatPanel::SetGameEventBus(UObject* EventBus)
+{
+    GameEventBus = EventBus;
+}
+
+void UInsimulChatPanel::SetPronunciationQuestActive(bool bActive)
+{
+    bPronunciationQuestActive = bActive;
+    UE_LOG(LogTemp, Log, TEXT("[InsimulChatPanel] Pronunciation quest active: %s"), bActive ? TEXT("true") : TEXT("false"));
+}
+
 void UInsimulChatPanel::ShowPanel()
 {
     bPanelVisible = true;
     SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+    // Track per-NPC conversation count for friendship/rapport objectives
+    if (!CurrentNPCId.IsEmpty())
+    {
+        int32& Count = NPCConversationCounts.FindOrAdd(CurrentNPCId, 0);
+        Count++;
+
+        // Normalize: 5 conversations = max rapport (1.0)
+        const float NewStrength = FMath::Min(static_cast<float>(Count) / 5.0f, 1.0f);
+        OnNPCRelationshipChanged.Broadcast(CurrentNPCId, NewStrength);
+
+        UE_LOG(LogTemp, Verbose, TEXT("[InsimulChatPanel] NPC '%s' conversation count: %d, rapport: %.2f"),
+            *CurrentNPCId, Count, NewStrength);
+    }
 
     // Play fade-in animation if available
     if (UWidgetAnimation* FadeIn = nullptr; false)

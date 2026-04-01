@@ -83,9 +83,19 @@ namespace Insimul.UI
         public event System.Action<object> OnNewWordLearned;
         public event System.Action<object> OnWordMastered;
         public event System.Action<object> OnGrammarFeedbackExternal;
+        public event System.Action<string, float> OnNPCRelationshipChanged;
 
         // Quest bridge for conversation goal evaluation
         private IConversationQuestBridge _questBridge;
+
+        // Game event bus for emitting grammar, translation, and friendship events
+        private object _gameEventBus;
+
+        // Per-NPC conversation counts for friendship/rapport tracking
+        private Dictionary<string, int> _npcConversationCounts = new();
+
+        // Whether pronunciation quest is active — guards listen-and-repeat feature
+        private bool _pronunciationQuestActive;
 
         // Inventory context for NPC dialogue
         private object[] _inventoryItems;
@@ -118,6 +128,14 @@ namespace Insimul.UI
             _inputField.ActivateInputField();
             ShowGesturePanel();
 
+            // Track per-NPC conversation count for friendship/rapport objectives
+            if (!_npcConversationCounts.ContainsKey(characterId))
+                _npcConversationCounts[characterId] = 0;
+            _npcConversationCounts[characterId]++;
+            int npcCount = _npcConversationCounts[characterId];
+            float newStrength = Mathf.Min(npcCount / 5f, 1f); // 5 conversations = max rapport
+            OnNPCRelationshipChanged?.Invoke(characterId, newStrength);
+
             // Show greeting
             if (ctx != null && !string.IsNullOrEmpty(ctx.greeting))
             {
@@ -145,6 +163,15 @@ namespace Insimul.UI
 
         /// <summary>Set the quest bridge for conversation goal evaluation.</summary>
         public void SetQuestBridge(IConversationQuestBridge bridge) { _questBridge = bridge; }
+
+        /// <summary>Set the game event bus for emitting grammar, translation, and friendship events.</summary>
+        public void SetGameEventBus(object bus) { _gameEventBus = bus; }
+
+        /// <summary>Set pronunciation quest active state. Guards listen-and-repeat behind this flag.</summary>
+        public void SetPronunciationQuestActive(bool active) { _pronunciationQuestActive = active; }
+
+        /// <summary>Whether the pronunciation quest is currently active.</summary>
+        public bool IsPronunciationQuestActive() => _pronunciationQuestActive;
 
         /// <summary>Set the AI provider for dialogue (e.g. "server", "local").</summary>
         public void SetAIProvider(string provider) { _aiProvider = provider; }

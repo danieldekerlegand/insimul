@@ -1731,11 +1731,17 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
 
       if (lotsToConvert.length > 0) {
         console.log(`   Converting ${lotsToConvert.length} vacant lots into residences`);
-        for (const lot of lotsToConvert) {
+        // Vary residence types for visual variety
+        const residenceTypes = ['house', 'house', 'cottage', 'townhouse', 'cottage', 'house', 'townhouse', 'mansion'];
+        const capacityByType: Record<string, number> = { house: 4, cottage: 2, townhouse: 3, mansion: 6, apartment: 8 };
+        for (let i = 0; i < lotsToConvert.length; i++) {
+          const lot = lotsToConvert[i];
+          const resType = residenceTypes[i % residenceTypes.length];
+          const capacity = capacityByType[resType] || 4;
           const updated = await storage.updateLot(lot.id, {
             building: {
               buildingCategory: 'residence',
-              residenceType: 'house',
+              residenceType: resType,
               residentIds: [],
               ownerIds: [],
             },
@@ -1745,10 +1751,10 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
               id: lot.id,
               lotId: lot.id,
               address: lot.address,
-              residenceType: 'house',
+              residenceType: resType,
               ownerIds: [],
               residentIds: [],
-              remaining: 4,
+              remaining: capacity,
             });
           }
         }

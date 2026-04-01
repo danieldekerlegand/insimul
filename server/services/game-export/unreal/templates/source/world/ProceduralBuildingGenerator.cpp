@@ -63,6 +63,16 @@ UTexture2D* AProceduralBuildingGenerator::ResolveTexture(const FString& TextureI
     return GlobalFallback;
 }
 
+int32 AProceduralBuildingGenerator::HashBuildingId(const FString& BuildingId)
+{
+    int32 Hash = 0;
+    for (int32 i = 0; i < BuildingId.Len(); ++i)
+    {
+        Hash = ((Hash << 5) - Hash + static_cast<int32>(BuildingId[i]));
+    }
+    return Hash;
+}
+
 const TMap<FString, FBuildingStylePreset>& AProceduralBuildingGenerator::GetStylePresets()
 {
     static TMap<FString, FBuildingStylePreset> Presets;
@@ -269,7 +279,7 @@ FBuildingStylePreset AProceduralBuildingGenerator::GetStyleForWorld(
 
 void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rotation,
     int32 Floors, float Width, float Depth, const FString& BuildingRole,
-    const FFoundationData& Foundation)
+    const FFoundationData& Foundation, const FString& BuildingId)
 {
     UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate building %s at %s (%dx%.0fx%.0f, foundation=%s)"),
         *BuildingRole, *Position.ToString(), Floors, Width, Depth, *Foundation.Type);
@@ -385,6 +395,111 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
             Child->SetRelativeLocation(Loc);
         }
         UE_LOG(LogTemp, Log, TEXT("[Insimul] Porch setback=%.2f applied"), Setback);
+    }
+
+    // ── Wall material with texture alternation ──
+    // Hash building ID to decide textured vs solid-color (~2/3 textured, ~1/3 solid)
+    UTexture2D* ResolvedWallTex = ResolveTexture(CurrentStyle.WallTextureId, WallTextureOverride);
+    bool bUseTexture = (ResolvedWallTex != nullptr);
+    if (ResolvedWallTex && !BuildingId.IsEmpty())
+    {
+        int32 Hash = HashBuildingId(BuildingId);
+        bUseTexture = (FMath::Abs(Hash) % 3) != 0; // ~2/3 textured, ~1/3 solid color
+    }
+
+    FString TexKeyPart = bUseTexture
+        ? (CurrentStyle.WallTextureId.IsEmpty() ? TEXT("global") : CurrentStyle.WallTextureId)
+        : FString::Printf(TEXT("color_%s"), *BaseColor.ToString());
+    FString WallMatKey = FString::Printf(TEXT("wall_%s_%s_%s"),
+        *CurrentStyle.Name, *CurrentStyle.MaterialType, *TexKeyPart);
+
+    FLinearColor WallDiffuse = BaseColor;
+    if (bUseTexture && ResolvedWallTex)
+    {
+        // Tint the texture slightly with the base color instead of pure white
+        WallDiffuse = FMath::Lerp(BaseColor, FLinearColor::White, 0.7f);
+    }
+
+    UMaterialInstanceDynamic* WallMat = GetSharedMaterial(WallMatKey, nullptr, WallDiffuse);
+    if (bUseTexture && ResolvedWallTex && WallMat)
+    {
+        WallMat->SetTextureParameterValue(TEXT("BaseTexture"), ResolvedWallTex);
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Wall material: key=%s textured=%d"), *WallMatKey, bUseTexture);
+
+    // ── Window creation ──
+    const float FloorHeight = 4.0f;
+    const float TotalHeight = Floors * FloorHeight;
+    const float WindowWidth = 1.5f;
+    const float WindowHeight = 2.0f;
+    const int32 WindowsPerFloor = FMath::FloorToInt(Width / 3.0f);
+
+    // Window glass material with specular reflection
+    FString WindowMatKey = FString::Printf(TEXT("window_%s"), *CurrentStyle.Name);
+    UMaterialInstanceDynamic* WindowMat = GetSharedMaterial(WindowMatKey, nullptr, CurrentStyle.WindowColor);
+    if (WindowMat)
+    {
+        WindowMat->SetVectorParameterValue(TEXT("EmissiveColor"),
+            FLinearColor(CurrentStyle.WindowColor.R * 0.3f, CurrentStyle.WindowColor.G * 0.3f,
+                         CurrentStyle.WindowColor.B * 0.3f, 1.f));
+        // Glass specular reflection
+        WindowMat->SetVectorParameterValue(TEXT("SpecularColor"),
+            FLinearColor(0.4f, 0.4f, 0.5f, 1.f));
+        // Two-sided rendering (equivalent of backFaceCulling = false in Babylon.js)
+        WindowMat->TwoSided = true;
+        // Depth bias to avoid z-fighting against wall surface (equivalent of zOffset = -2)
+        WindowMat->SetScalarParameterValue(TEXT("DepthBias"), -2.0f);
+    }
+
+    // Dark interior backing material behind glass panes
+    FString BackingMatKey = TEXT("window_backing");
+    UMaterialInstanceDynamic* BackingMat = GetSharedMaterial(BackingMatKey, nullptr,
+        FLinearColor(0.05f, 0.05f, 0.08f));
+    if (BackingMat)
+    {
+        BackingMat->SetVectorParameterValue(TEXT("SpecularColor"), FLinearColor::Black);
+        BackingMat->TwoSided = true;
+    }
+
+    // Place windows on front and back faces for each floor
+    for (int32 Floor = 0; Floor < Floors; ++Floor)
+    {
+        const float Y = -TotalHeight / 2.0f + Floor * FloorHeight + FloorHeight / 2.0f;
+
+        // Front (zSign=+1) and back (zSign=-1) faces
+        for (int32 SideIdx = 0; SideIdx < 2; ++SideIdx)
+        {
+            const float ZSign = (SideIdx == 0) ? 1.0f : -1.0f;
+            const bool bIsFront = (SideIdx == 0);
+
+            for (int32 i = 0; i < WindowsPerFloor; ++i)
+            {
+                const float X = -Width / 2.0f + (i + 1) * (Width / (WindowsPerFloor + 1));
+
+                // Skip ground-floor front windows that overlap the door (centered at x=0)
+                if (bIsFront && Floor == 0 && FMath::Abs(X) < 1.2f) continue;
+
+                // Glass pane Z position (offset from wall to avoid z-fighting)
+                const float GlassZ = ZSign * (Depth / 2.0f + 0.12f);
+
+                // Dark interior backing plane just behind the glass
+                const float BackingZ = ZSign * (Depth / 2.0f + 0.02f);
+                UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Window backing: floor=%d side=%s i=%d pos=(%.2f, %.2f, %.2f)"),
+                    Floor, bIsFront ? TEXT("front") : TEXT("back"), i, X, Y, BackingZ);
+
+                // Glass pane
+                UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Window glass: floor=%d side=%s i=%d pos=(%.2f, %.2f, %.2f) size=%.1fx%.1f"),
+                    Floor, bIsFront ? TEXT("front") : TEXT("back"), i, X, Y, GlassZ, WindowWidth, WindowHeight);
+
+                // Add shutters if style calls for them
+                if (CurrentStyle.bHasShutters)
+                {
+                    AddShutters(GetRootComponent(), FVector(X, Y, GlassZ),
+                                WindowWidth, WindowHeight, CurrentStyle.ShutterColor, nullptr);
+                }
+            }
+        }
     }
 
     // Use RoofStyle enum for roof selection instead of just architecture style string
