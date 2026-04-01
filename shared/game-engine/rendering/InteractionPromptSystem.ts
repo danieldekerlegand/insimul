@@ -28,7 +28,7 @@ import type { QuestIndicatorType } from './QuestIndicatorManager';
 
 // ── Public types ──────────────────────────────────────────────────────────
 
-export type FurnitureInteractionType = 'seat' | 'bed' | 'bookshelf' | 'workstation';
+export type FurnitureInteractionType = 'seat' | 'bed' | 'bookshelf' | 'workstation' | 'crafting_station';
 
 export type InteractableType =
   | 'npc'
@@ -39,7 +39,8 @@ export type InteractableType =
   | 'notice_board'
   | 'furniture'
   | 'action_hotspot'
-  | 'container';
+  | 'container'
+  | 'crafting_station';
 
 export interface InteractableTarget {
   type: InteractableType;
@@ -61,6 +62,8 @@ export interface InteractableTarget {
   containerType?: string;
   /** Whether this object can be picked up by the player */
   possessable?: boolean;
+  /** For crafting station interactions */
+  craftingStationType?: string;
 }
 
 export interface RegisteredNPC {
@@ -128,6 +131,7 @@ export class InteractionPromptSystem {
   private furnitureMeshes = new Map<AbstractMesh, { furnitureType: FurnitureInteractionType; subType: string; buildingId?: string }>();
   private actionHotspotMeshes = new Map<AbstractMesh, { actionType: string; promptText: string; buildingId?: string }>();
   private containerMeshes = new Map<AbstractMesh, { containerId: string; containerType: string; name: string; isLocked?: boolean }>();
+  private craftingStationMeshes = new Map<AbstractMesh, { stationType: string; promptText: string; buildingId?: string }>();
 
   // Callbacks
   private getConversationPartner: GetConversationPartnerFn | null = null;
@@ -239,6 +243,18 @@ export class InteractionPromptSystem {
 
   clearContainers(): void {
     this.containerMeshes.clear();
+  }
+
+  registerCraftingStation(mesh: AbstractMesh, stationType: string, promptText: string, buildingId?: string): void {
+    this.craftingStationMeshes.set(mesh, { stationType, promptText, buildingId });
+  }
+
+  unregisterCraftingStation(mesh: AbstractMesh): void {
+    this.craftingStationMeshes.delete(mesh);
+  }
+
+  clearCraftingStations(): void {
+    this.craftingStationMeshes.clear();
   }
 
   // ── Query ─────────────────────────────────────────────────────────────
@@ -498,6 +514,26 @@ export class InteractionPromptSystem {
       if (dot >= COS_CONE) {
         bestDist = dist;
         best = this.buildContainerTarget(mesh, info);
+      }
+    });
+
+    // Crafting stations — use player position
+    this.craftingStationMeshes.forEach((info, mesh) => {
+      if (!mesh || (mesh as Mesh).isDisposed?.()) return;
+      const toTarget = mesh.absolutePosition.subtract(playerPos);
+      const dist = toTarget.length();
+      if (dist > MAX_FURNITURE_DISTANCE || dist >= bestDist) return;
+      const dot = Vector3.Dot(toTarget.normalize(), playerFwdNorm);
+      if (dot >= COS_CONE) {
+        bestDist = dist;
+        best = {
+          type: 'crafting_station',
+          id: `crafting_${info.stationType}`,
+          name: info.stationType,
+          mesh,
+          promptText: info.promptText,
+          craftingStationType: info.stationType,
+        };
       }
     });
 
@@ -1007,5 +1043,6 @@ export class InteractionPromptSystem {
     this.furnitureMeshes.clear();
     this.actionHotspotMeshes.clear();
     this.containerMeshes.clear();
+    this.craftingStationMeshes.clear();
   }
 }

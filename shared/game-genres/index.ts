@@ -360,9 +360,9 @@ export const GENRE_REGISTRY: GenreRegistry = {
     defaultWorldType: 'historical',
     features: {
       ...defaultFeatures,
-      inventory: false,
+      inventory: true,
       combat: false,
-      crafting: false,
+      crafting: true,
     },
     questTypes: ['language-learning'],
     difficultyLevels: ['beginner', 'intermediate', 'advanced'],

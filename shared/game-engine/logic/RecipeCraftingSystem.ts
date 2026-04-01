@@ -439,6 +439,13 @@ export class RecipeCraftingSystem {
     return true;
   }
 
+  /**
+   * Expose ingredient count for UI (delegates to callbacks).
+   */
+  getInventoryCountForIngredient(itemId: string): number {
+    return this.callbacks.getInventoryCount(itemId);
+  }
+
   // ── Crafting ───────────────────────────────────────────────────────────
 
   getIsCrafting(): boolean {
