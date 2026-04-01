@@ -401,3 +401,23 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
   - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
 ---
+
+## 2026-04-01 - Audit: Item Usage and Placement
+- **Audit findings:**
+  - Container spawning (ContainerSpawnSystem) works correctly: exterior containers spawn near buildings, interior containers from furniture meshes, loot is context-sensitive per business type, quest items injected at 30% chance
+  - Container interaction pipeline works: clicking mesh triggers `__open_container__` action → `handleContainerInteraction()` → `openContainerPanel()` shows BabylonContainerPanel with Take/Examine/Place buttons
+  - Item use/equip/consume handlers (`handleUseItem`, `handleEquipItem`, `handleUnequipItem`, `handleDropItem`) all emit correct events and apply effects
+  - **CRITICAL GAP FOUND**: `item_used`, `item_equipped`, `item_dropped`, `item_purchased`, `item_crafted` events were emitted on GameEventBus but never forwarded to `QuestCompletionEngine.handleGameEvent()` — meaning `use_item`, `equip_item`, `drop_item`, `buy_item`, and `craft_item` quest objectives via the generic matcher could never complete
+- **Fixes applied:**
+  1. Wired 5 missing event bridges in BabylonGame.ts (lines ~3910-3945): item_used, item_equipped, item_dropped, item_purchased, item_crafted → QuestCompletionEngine.handleGameEvent()
+  2. Fixed operator precedence bug in `handleUseItem`: `item.type === 'document' || item.type === 'collectible' && item.category === 'document'` → added parens around the `&&` clause
+  3. Added missing `action_executed` event emission in `handleUnequipItem` for consistency with `handleEquipItem`
+- Files changed:
+  - `shared/game-engine/rendering/BabylonGame.ts` — 3 fixes (event bridges, operator precedence, unequip event)
+  - `shared/__tests__/item-event-bridges.test.ts` — new test file (11 tests: use_item, equip_item, drop_item, buy_item, craft_item via generic matcher, edge cases)
+- **Learnings for future iterations:**
+  - `QuestCompletionEngine` has TWO event processing paths: `trackEvent()` with a manual switch statement, and `handleGameEvent()` using the generic `QUEST_ACTION_MAPPINGS` from `quest-action-mapping.ts`. New event types should use `handleGameEvent()` (the generic matcher) to avoid duplicating logic
+  - The `quest-action-mapping.ts` catalog had correct mappings for use_item/equip_item/drop_item/buy_item but they were dead code until wired
+  - Vitest test files must be in `shared/__tests__/` (not `shared/game-engine/rendering/__tests__/`) per vitest.config.ts include patterns
+  - Pre-existing typecheck errors (828) are known — grep for your specific files to verify no new errors
+---
