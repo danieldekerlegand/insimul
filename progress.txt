@@ -2,6 +2,36 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## 2026-04-01 - Audit: Conversation Action Registration → Quest Objective Completion
+- Created comprehensive audit test suite: `shared/__tests__/ConversationActionQuestCompletion.test.ts` (51 tests)
+- Verified all 5 conversational action types map to correct objective types:
+  - asked_about_topic → asked_about_topic
+  - used_target_language → used_target_language + arrival_writing
+  - answered_question → answered_question
+  - requested_information → requested_information + ask_for_directions
+  - made_introduction → made_introduction + introduce_self
+- Verified arrival_initiate_conversation auto-completes on any conversational action
+- Verified NPC filtering (objectives with npcId skip non-matching NPCs)
+- Verified topic matching for asked_about_topic objectives with targetWords
+- Verified requiredCount thresholds (incremental progress, default 1)
+- Verified conversation_turn_counted → arrival_conversation completion (meaningful turns threshold)
+- Verified LLM evaluation path: conversation_goal_evaluated with confidence >= 0.7 completes objectives
+- Verified ConversationQuestBridge: getObjectivesForEvaluation filters by type/NPC/completion/quest status, limits to 5
+- Verified ConversationQuestBridge: processEvaluations fires trackEvent + GameEventBus emit
+- Verified end-to-end: ConversationalActionDetector → QuestCompletionEngine for all 5 action types + turn counting
+- Verified multiple objectives from single message (e.g., introduction + initiate_conversation)
+- Verified dependency ordering blocks locked conversation objectives
+- All 51 tests passing, 0 typecheck errors
+- Files changed:
+  - `shared/__tests__/ConversationActionQuestCompletion.test.ts` — new audit test file
+- **Learnings for future iterations:**
+  - ConversationalActionDetector produces actions; BabylonGame dispatches them as `conversational_action` events to QuestCompletionEngine
+  - Two parallel paths for conversation quest completion: (1) pattern-based via ConversationalActionDetector, (2) LLM-based via ConversationQuestBridge
+  - LLM path uses confidence threshold of 0.7 — both in ConversationQuestBridge.processEvaluations and QuestCompletionEngine.trackConversationGoalResult
+  - arrival_initiate_conversation is a special auto-complete: fires on ANY conversational action (proves conversation was started)
+  - Test files must go in `shared/__tests__/` (not `shared/game-engine/rendering/__tests__/`) to match vitest include patterns
+---
+
 ## 2026-03-29 - US-001
 - Cleaned whitespace in action converter: removed 3 unconditional blank line pushes (lines 104, 133, 159) that caused double/triple blanks when prereqs, triggers, effects, and side effects were all empty
 - Added post-processing regex to collapse consecutive blank lines (`\n{3,}` → `\n\n`) and trim trailing blanks
