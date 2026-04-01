@@ -401,3 +401,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
   - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
 ---
+
+## 2026-04-01 - Audit: NPC Conversation Initiation
+- Audited NPCInitiatedConversationController end-to-end: approach evaluation, greeting, player acceptance, cooldowns
+- **Bug fix**: Toast said "[G to talk]" but actual key is Enter — changed to "[Enter to talk]"
+- **Bug fix**: `getGameHour` was hardcoded to `12` in both NPC approach controller and ambient conversation manager — wired to `gameTimeManager.hour` so time-of-day affects approach probability and greetings
+- **Feature**: Wired `getEnvironment` callback so context-aware greetings now fire based on weather (via `weatherSystem.weatherType`) and time period (via `gameTimeManager.timeOfDay`)
+- Added 23 audit tests covering: end-to-end approach flow, personality-driven probability, context-aware greetings, frequency tuning/cooldowns, guard conditions, event emission, NPC lifecycle
+- Files changed:
+  - `shared/game-engine/rendering/BabylonGame.ts` — fixed "[G to talk]" → "[Enter to talk]", wired getGameHour to gameTimeManager.hour (2 places), added getEnvironment callback with weather + time
+  - `shared/__tests__/NPCConversationInitiationAudit.test.ts` — new file (23 tests)
+- **Audit findings summary:**
+  - NPCInitiatedConversationController is well-designed and fully functional: personality-driven probability, proximity detection, greeting generation, cooldowns, and event emission all work correctly
+  - Three bugs fixed: keybinding mismatch, hardcoded game hour (×2), missing environment context
+  - Remaining TODOs: `hasActiveQuestForPlayer` and `playerIsNew` in getEnvironment are stubbed to false — need wiring to quest system and playthrough state
+  - AmbientConversationSystem (NPC-to-NPC conversations) is initialized and paused during player conversations
+- **Learnings for future iterations:**
+  - Tests in `shared/` must go under `shared/__tests__/` (not `shared/game-engine/rendering/__tests__/`) due to vitest include pattern
+  - gameTimeManager exposes `.hour` (0-23) and `.timeOfDay` ('dawn'|'morning'|'midday'|'afternoon'|'evening'|'night')
+  - weatherSystem exposes `.weatherType` ('clear'|'cloudy'|'overcast'|'rain'|'storm')
+  - 828 pre-existing typecheck errors in the codebase — verify only your changed files
+---
