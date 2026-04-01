@@ -936,6 +936,76 @@ describe('GuildQuestManager', () => {
     const t1bId = manager.receiveNextQuest('marchands', quests);
     expect(t1bId).toBe('marchands-t1b');
   });
+
+  // ── Guild Master NPC Assignment ──────────────────────────────────────────
+
+  const mockCharacters = [
+    { id: 'npc-merchant-1', name: 'Jean le Marchand', occupation: 'Merchant' },
+    { id: 'npc-blacksmith-1', name: 'Pierre le Forgeron', occupation: 'Blacksmith' },
+    { id: 'npc-librarian-1', name: 'Marie la Bibliothécaire', occupation: 'Librarian' },
+    { id: 'npc-cartographer-1', name: 'Luc le Cartographe', occupation: 'Cartographer' },
+    { id: 'npc-diplomat-1', name: 'Anne la Diplomate', occupation: 'Diplomat' },
+    { id: 'npc-farmer-1', name: 'Claude le Fermier', occupation: 'Farmer' },
+  ];
+
+  it('findGuildMasterNpc finds NPC by guild master occupation', () => {
+    const result = manager.findGuildMasterNpc('marchands', mockCharacters);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe('npc-merchant-1');
+    expect(result!.name).toBe('Jean le Marchand');
+  });
+
+  it('findGuildMasterNpc returns null for missing occupation', () => {
+    const noMerchant = mockCharacters.filter(c => c.occupation !== 'Merchant');
+    const result = manager.findGuildMasterNpc('marchands', noMerchant);
+    expect(result).toBeNull();
+  });
+
+  it('findGuildMasterNpc matches occupation case-insensitively', () => {
+    const chars = [{ id: 'npc-1', name: 'Test', occupation: 'merchant' }];
+    const result = manager.findGuildMasterNpc('marchands', chars);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe('npc-1');
+  });
+
+  it('findGuildMasterNpc works for all 5 guilds', () => {
+    const guildToExpectedNpc: Record<string, string> = {
+      marchands: 'npc-merchant-1',
+      artisans: 'npc-blacksmith-1',
+      conteurs: 'npc-librarian-1',
+      explorateurs: 'npc-cartographer-1',
+      diplomates: 'npc-diplomat-1',
+    };
+    for (const [guildId, expectedNpcId] of Object.entries(guildToExpectedNpc)) {
+      const result = manager.findGuildMasterNpc(guildId as GuildId, mockCharacters);
+      expect(result).not.toBeNull();
+      expect(result!.id).toBe(expectedNpcId);
+    }
+  });
+
+  it('receiveNextQuest assigns guild master when characters provided', () => {
+    const quests = makeGuildQuests('marchands');
+    const questId = manager.receiveNextQuest('marchands', quests, mockCharacters);
+    expect(questId).toBe('marchands-join');
+    expect(quests[0].status).toBe('available');
+    expect(quests[0].assignedBy).toBe('Jean le Marchand');
+    expect(quests[0].assignedByCharacterId).toBe('npc-merchant-1');
+  });
+
+  it('receiveNextQuest works without characters (backward compat)', () => {
+    const quests = makeGuildQuests('artisans');
+    const questId = manager.receiveNextQuest('artisans', quests);
+    expect(questId).toBe('artisans-join');
+    expect(quests[0].status).toBe('available');
+    expect(quests[0].assignedBy).toBeUndefined();
+  });
+
+  it('findGuildMasterNpc constructs name from firstName/lastName', () => {
+    const chars = [{ id: 'npc-2', firstName: 'Henri', lastName: 'Dupont', occupation: 'Merchant' }];
+    const result = manager.findGuildMasterNpc('marchands', chars);
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe('Henri Dupont');
+  });
 });
 
 // ── 5. Guild Definitions Integrity ──────────────────────────────────────────
