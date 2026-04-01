@@ -9738,11 +9738,20 @@ Respond with this JSON structure:
         }
       }
 
+      // Grant item rewards to player inventory (stored in playerProgress.saveData.inventory)
+      const { grantItemRewards, findQuestsToUnlock, applyChainBonusXP } =
+        await import('../shared/quests/quest-completion-rewards.js');
+      let itemRewardsGranted: Array<{ itemId: string; quantity: number; name: string }> = [];
+      const questItemRewards = quest.itemRewards as Array<{ itemId: string; quantity: number; name: string }> | null;
+      if (questItemRewards && questItemRewards.length > 0) {
+        itemRewardsGranted = questItemRewards;
+      }
+
       // Persist XP and gold to playerProgress (use bonus-calculated totals)
       const xpAwarded = bonus.grandTotalXP;
       const goldAwarded = bonus.totalMoney;
       const userId = (req as any).user?.id;
-      if (userId && (xpAwarded > 0 || goldAwarded > 0)) {
+      if (userId && (xpAwarded > 0 || goldAwarded > 0 || itemRewardsGranted.length > 0)) {
         const playerProg = await storage.getPlayerProgressByUser(userId, worldId);
         if (playerProg) {
           const updates: Record<string, any> = {};
@@ -9754,6 +9763,14 @@ Respond with this JSON structure:
           }
           if (goldAwarded > 0) {
             updates.gold = (playerProg.gold ?? 0) + goldAwarded;
+          }
+          // Persist item rewards to saveData.inventory
+          if (itemRewardsGranted.length > 0) {
+            const currentSaveData = (playerProg.saveData ?? {}) as Record<string, any>;
+            const currentInventory: Array<{ itemId: string; quantity: number; name: string }> =
+              currentSaveData.inventory ?? [];
+            grantItemRewards(currentInventory, itemRewardsGranted);
+            updates.saveData = { ...currentSaveData, inventory: currentInventory };
           }
           await storage.updatePlayerProgress(playerProg.id, updates);
         }
@@ -9780,6 +9797,13 @@ Respond with this JSON structure:
             }
           }
         }
+      }
+
+      // Auto-unlock quests whose prerequisites are now fully met
+      const allWorldQuests = await storage.getQuestsByWorld(worldId);
+      const questsUnlocked = findQuestsToUnlock(questId, allWorldQuests as any);
+      for (const unlockedId of questsUnlocked) {
+        await storage.updateQuest(unlockedId, { status: 'available' });
       }
 
       // Check depletion and auto-generate if needed
@@ -9809,8 +9833,8 @@ Respond with this JSON structure:
       let chainCompletion = null;
       if (quest.questChainId) {
         const { QuestChainManager } = await import('../shared/quests/quest-chain-manager.js');
-      const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
-      const questChainManager = new QuestChainManager(mongoQuestStorage);
+        const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
+        const questChainManager = new QuestChainManager(mongoQuestStorage);
         const result = await questChainManager.checkChainCompletion(quest);
         if (result.isComplete) {
           chainCompletion = {
@@ -9819,6 +9843,19 @@ Respond with this JSON structure:
             achievement: result.achievement,
             totalQuests: result.totalQuests,
           };
+          // Apply chain completion bonus XP to player total
+          const chainXPResult = applyChainBonusXP(0, result.bonusXP);
+          if (chainXPResult && userId) {
+            const playerProg = await storage.getPlayerProgressByUser(userId, worldId);
+            if (playerProg) {
+              const { getLevelForXP } = await import('../shared/language/language-gamification.js');
+              const newXP = (playerProg.experience ?? 0) + result.bonusXP;
+              await storage.updatePlayerProgress(playerProg.id, {
+                experience: newXP,
+                level: getLevelForXP(newXP),
+              });
+            }
+          }
         }
       }
 
@@ -9840,6 +9877,8 @@ Respond with this JSON structure:
         },
         chainCompletion,
         skillRewards: skillRewardsApplied,
+        itemRewards: itemRewardsGranted.length > 0 ? itemRewardsGranted : undefined,
+        questsUnlocked: questsUnlocked.length > 0 ? questsUnlocked : undefined,
         vocabCategoryUnlocks: vocabCategoryUnlocks.length > 0 ? vocabCategoryUnlocks : undefined,
         depletion: depletionResult
           ? {
