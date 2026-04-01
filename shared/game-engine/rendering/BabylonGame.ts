@@ -93,6 +93,7 @@ import { TurnBasedCombatSystem } from "@shared/game-engine/rendering/TurnBasedCo
 import { GenreUIManager, GenreUIConfig } from "@shared/game-engine/rendering/GenreUIManager";
 import { ResourceSystem } from "@shared/game-engine/rendering/ResourceSystem";
 import { CraftingSystem } from "@shared/game-engine/logic/CraftingSystem";
+import { RecipeCraftingSystem, CRAFTING_STATIONS, type CraftingStationType } from "@shared/game-engine/logic/RecipeCraftingSystem";
 import { BuildingPlacementSystem } from "@shared/game-engine/rendering/BuildingPlacementSystem";
 import { SurvivalNeedsSystem } from "@shared/game-engine/systems/SurvivalNeedsSystem";
 import { RunManager } from "@shared/game-engine/logic/RunManager";
@@ -550,6 +551,7 @@ export class BabylonGame {
   private genreUI: GenreUIManager | null = null;
   private resourceSystem: ResourceSystem | null = null;
   private craftingSystem: CraftingSystem | null = null;
+  private recipeCraftingSystem: RecipeCraftingSystem | null = null;
   private buildingSystem: BuildingPlacementSystem | null = null;
   private survivalNeeds: SurvivalNeedsSystem | null = null;
   private runManager: RunManager | null = null;
@@ -2648,26 +2650,58 @@ export class BabylonGame {
       onTimePauseToggle: () => this.handleTimePauseToggle(),
       // Crafting
       getCraftingRecipes: () => {
-        if (!this.craftingSystem) return [];
-        return this.craftingSystem.getAllRecipes().map(recipe => {
-          const ingredientEntries = Object.entries(recipe.ingredients as Record<string, number>);
-          return {
-            id: recipe.id,
-            name: recipe.name,
-            category: recipe.category,
-            ingredients: ingredientEntries.map(([name, required]) => ({
-              name,
-              required,
-              available: this.resourceSystem?.getResourceAmount(name as any) ?? 0,
-            })),
-            canCraft: this.craftingSystem?.canCraft(recipe.id) ?? false,
-            outputName: recipe.name,
-            outputQuantity: recipe.outputQuantity ?? 1,
-          };
-        });
+        const results: Array<{
+          id: string; name: string; category: string;
+          ingredients: Array<{ name: string; required: number; available: number }>;
+          canCraft: boolean; outputName: string; outputQuantity: number;
+        }> = [];
+
+        // Resource-based recipes (CraftingSystem)
+        if (this.craftingSystem) {
+          for (const recipe of this.craftingSystem.getAllRecipes()) {
+            const ingredientEntries = Object.entries(recipe.ingredients as Record<string, number>);
+            results.push({
+              id: recipe.id,
+              name: recipe.name,
+              category: recipe.category,
+              ingredients: ingredientEntries.map(([name, required]) => ({
+                name,
+                required,
+                available: this.resourceSystem?.getResourceAmount(name as any) ?? 0,
+              })),
+              canCraft: this.craftingSystem?.canCraft(recipe.id) ?? false,
+              outputName: recipe.name,
+              outputQuantity: recipe.outputQuantity ?? 1,
+            });
+          }
+        }
+
+        // Recipe-based recipes (RecipeCraftingSystem — station/ingredient crafting)
+        if (this.recipeCraftingSystem) {
+          for (const recipe of this.recipeCraftingSystem.getAllRecipes()) {
+            results.push({
+              id: recipe.id,
+              name: `${recipe.nameFr} (${recipe.nameEn})`,
+              category: recipe.station,
+              ingredients: recipe.ingredients.map(ing => ({
+                name: `${ing.nameFr} (${ing.nameEn})`,
+                required: ing.quantity,
+                available: this.recipeCraftingSystem?.getInventoryCountForIngredient(ing.itemId) ?? 0,
+              })),
+              canCraft: this.recipeCraftingSystem?.canCraft(recipe.id) ?? false,
+              outputName: `${recipe.nameFr} (${recipe.nameEn})`,
+              outputQuantity: recipe.resultQuantity,
+            });
+          }
+        }
+
+        return results;
       },
       onCraftItem: (recipeId: string) => {
-        if (this.craftingSystem) {
+        // Try recipe crafting first, then resource crafting
+        if (this.recipeCraftingSystem?.getRecipe(recipeId)) {
+          this.recipeCraftingSystem.startCraft(recipeId);
+        } else if (this.craftingSystem) {
           this.craftingSystem.startCraft(recipeId);
         }
       },
@@ -9449,6 +9483,42 @@ export class BabylonGame {
       }
     }
 
+    // Register crafting stations based on business type and furniture meshes
+    if (this.activeInterior && this.interactionPrompt && this.recipeCraftingSystem) {
+      this.interactionPrompt.clearCraftingStations();
+      for (const mesh of this.activeInterior.furniture) {
+        // Check mesh name/metadata for crafting station via RecipeCraftingSystem.detectStation
+        const stationType = RecipeCraftingSystem.detectStation(
+          mesh.name,
+          mesh.metadata as Record<string, unknown> | undefined,
+        );
+        if (stationType) {
+          const prompt = RecipeCraftingSystem.getStationPrompt(stationType);
+          this.interactionPrompt.registerCraftingStation(mesh, stationType, prompt, buildingId);
+          for (const child of mesh.getChildMeshes()) {
+            this.interactionPrompt.registerCraftingStation(child, stationType, prompt, buildingId);
+          }
+        }
+      }
+      // Also check building type itself — if it matches a known crafting station building,
+      // register the first workstation-like furniture as a crafting station
+      if (businessType) {
+        for (const station of CRAFTING_STATIONS) {
+          if (station.buildingTypes.some(bt => bt.toLowerCase() === businessType.toLowerCase())) {
+            // Find a workstation furniture mesh to attach the crafting station to
+            for (const mesh of this.activeInterior.furniture) {
+              const meta = mesh.metadata;
+              if (meta?.isFurniture && (meta.furnitureType === 'workstation' || meta.furnitureSubType === 'counter' || meta.furnitureSubType === 'table')) {
+                const prompt = RecipeCraftingSystem.getStationPrompt(station.type);
+                this.interactionPrompt.registerCraftingStation(mesh, station.type, prompt, buildingId);
+                break; // One station per building
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Register container meshes for interaction
     if (this.activeInterior && this.containerSpawnSystem && this.interactionPrompt) {
       this.interactionPrompt.clearContainers();
@@ -9782,6 +9852,7 @@ export class BabylonGame {
     this.interactionPrompt?.clearFurniture();
     this.interactionPrompt?.clearActionHotspots();
     this.interactionPrompt?.clearContainers();
+    this.interactionPrompt?.clearCraftingStations();
     this.containerPanel?.hide();
 
     // Clear business behavior tracking
@@ -10612,6 +10683,9 @@ export class BabylonGame {
         // Unified world-space interaction prompt
         this.interactionPrompt?.update();
       }
+
+      // Update recipe crafting progress
+      this.recipeCraftingSystem?.update(dt);
 
       // Door trigger check removed — player exits by pressing E.
 
@@ -12566,6 +12640,12 @@ export class BabylonGame {
 
       // ── Physical actions ───────────────────────────────────────────
       default: {
+        // Crafting station actions
+        if (action.id.startsWith('__craft_at_') && this.recipeCraftingSystem) {
+          const stationType = action.id.replace('__craft_at_', '').replace('__', '') as CraftingStationType;
+          this.handleOpenCraftingPanel(stationType);
+          break;
+        }
         if (action.id.startsWith('__physical_') && this.playerActionSystem) {
           const actionType = action.id.replace('__physical_', '').replace('__', '');
           const definition = this.playerActionSystem.getDefinition(
@@ -13082,6 +13162,61 @@ export class BabylonGame {
     } catch (e) {
       // Non-critical — NPC will work without quest guidance
     }
+  }
+
+  // ─── Crafting Station Handlers ──────────────────────────────────────────
+
+  private handleOpenCraftingPanel(stationType: CraftingStationType): void {
+    if (!this.recipeCraftingSystem) return;
+
+    const recipes = this.recipeCraftingSystem.getAvailableRecipes(stationType);
+    const allRecipes = this.recipeCraftingSystem.getRecipesForStation(stationType);
+
+    if (allRecipes.length === 0) {
+      this.guiManager?.showToast({
+        title: 'No Recipes',
+        description: 'No recipes available for this station.',
+        duration: 2000,
+      });
+      return;
+    }
+
+    if (recipes.length === 0) {
+      // Show what recipes exist but can't be crafted (missing ingredients)
+      const recipeNames = allRecipes.map(r => `${r.nameFr} (${r.nameEn})`).join(', ');
+      this.guiManager?.showToast({
+        title: 'Missing Ingredients',
+        description: `Recipes: ${recipeNames} — gather the required ingredients first.`,
+        duration: 4000,
+      });
+      return;
+    }
+
+    // If single recipe, start it directly
+    if (recipes.length === 1) {
+      this.recipeCraftingSystem.startCraft(recipes[0].id);
+      return;
+    }
+
+    // Multiple available recipes — use contextual action menu to let player choose
+    const actions = recipes.map(recipe => ({
+      id: `__recipe_${recipe.id}__`,
+      icon: recipe.station === 'kitchen_stove' ? '🍳' : recipe.station === 'alchemy_table' ? '⚗️' : '🔨',
+      label: recipe.nameFr,
+      labelTranslation: recipe.nameEn,
+      canPerform: true,
+      category: 'physical' as const,
+    }));
+
+    this.contextualActionMenu?.show(
+      actions,
+      { title: 'Recipes', titleIcon: '📜' },
+      (action) => {
+        const recipeId = action.id.replace('__recipe_', '').replace('__', '');
+        this.recipeCraftingSystem?.startCraft(recipeId);
+      },
+      () => { /* menu closed */ },
+    );
   }
 
   // ─── Shop / Mercantile Handlers ──────────────────────────────────────────
@@ -15973,6 +16108,8 @@ export class BabylonGame {
     this.resourceSystem = null;
     this.craftingSystem?.dispose();
     this.craftingSystem = null;
+    this.recipeCraftingSystem?.dispose();
+    this.recipeCraftingSystem = null;
     this.buildingSystem?.dispose();
     this.buildingSystem = null;
     this.survivalNeeds?.dispose();
@@ -16021,6 +16158,49 @@ export class BabylonGame {
           duration: 3000,
         });
       });
+    }
+
+    // Recipe crafting system (station-based crafting with language vocabulary)
+    if (features.crafting) {
+      this.recipeCraftingSystem = new RecipeCraftingSystem({
+        showToast: (opts) => this.guiManager?.showToast(opts),
+        addInventoryItem: (itemName, quantity) => {
+          const displayName = itemName.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          const item: InventoryItem = {
+            id: `craft_${itemName}_${Date.now()}`,
+            name: displayName,
+            description: 'Crafted item',
+            type: 'material',
+            quantity,
+            value: 10,
+            sellValue: 5,
+            weight: 1,
+            tradeable: true,
+          };
+          this.handleItemAcquired(item, 'craft');
+        },
+        removeInventoryItem: (itemName, quantity) => {
+          const items = this.inventory?.getAllItems() ?? [];
+          const match = items.find((item: InventoryItem) =>
+            item.id.includes(itemName) ||
+            item.name.toLowerCase().replace(/\s+/g, '_') === itemName.toLowerCase()
+          );
+          if (match && (match.quantity ?? 1) >= quantity) {
+            this.inventory?.removeItem(match.id, quantity);
+            return true;
+          }
+          return false;
+        },
+        getInventoryCount: (itemName) => {
+          const items = this.inventory?.getAllItems() ?? [];
+          const match = items.find((item: InventoryItem) =>
+            item.id.includes(itemName) ||
+            item.name.toLowerCase().replace(/\s+/g, '_') === itemName.toLowerCase()
+          );
+          return match?.quantity ?? 0;
+        },
+      });
+      this.recipeCraftingSystem.setEventBus(this.eventBus);
     }
 
     // Building system
@@ -16260,6 +16440,8 @@ export class BabylonGame {
     this.buildingSystem = null;
     this.craftingSystem?.dispose();
     this.craftingSystem = null;
+    this.recipeCraftingSystem?.dispose();
+    this.recipeCraftingSystem = null;
     this.runManager?.dispose();
     this.runManager = null;
     this.dungeonGenerator?.dispose();

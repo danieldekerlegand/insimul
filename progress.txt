@@ -401,3 +401,35 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
   - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
 ---
+
+## 2026-04-01 - Crafting System E2E Audit & Fix
+- **Problem**: RecipeCraftingSystem was fully implemented but never wired into the game — players could not actually craft items
+- **Root causes found**:
+  1. `language-learning` genre had `crafting: false` and `inventory: false`
+  2. RecipeCraftingSystem was never instantiated in BabylonGame (only resource-based CraftingSystem was)
+  3. No crafting station detection or interaction handling existed
+  4. No `crafting_station` type in InteractionPromptSystem or ContextualActionResolver
+- **Fixes applied**:
+  - Enabled `crafting: true` + `inventory: true` for language-learning genre
+  - Wired RecipeCraftingSystem into BabylonGame: initialization, callbacks, update loop, dispose
+  - Added `getInventoryCountForIngredient()` to RecipeCraftingSystem for UI querying
+  - Extended getCraftingRecipes/onCraftItem to include recipe-based crafting alongside resource-based
+  - Added `crafting_station` to InteractableType + FurnitureInteractionType
+  - Added craftingStationMeshes registration/detection in InteractionPromptSystem
+  - Added `resolveCraftingStationActions()` in ContextualActionResolver with French labels
+  - Added `handleOpenCraftingPanel()` in BabylonGame — shows recipe menu via contextual action system
+  - Auto-detects crafting stations in building interiors via mesh name and building type
+- Files changed:
+  - `shared/game-genres/index.ts` — enabled crafting+inventory for language-learning
+  - `shared/game-engine/logic/RecipeCraftingSystem.ts` — added getInventoryCountForIngredient()
+  - `shared/game-engine/rendering/BabylonGame.ts` — import + field + init + update + dispose + station detection + crafting panel handler
+  - `shared/game-engine/rendering/InteractionPromptSystem.ts` — crafting_station type + mesh registry + detection
+  - `shared/game-engine/rendering/actions/ContextualActionResolver.ts` — crafting station action resolver
+  - `shared/__tests__/crafting-e2e.test.ts` — 30 E2E tests covering full pipeline
+- **Learnings for future iterations:**
+  - `canCraft()` has a difficulty gate: recipe.difficulty must be <= skill.level + 2 — easy to miss when testing
+  - RecipeCraftingSystem uses callback pattern (not direct inventory reference) for loose coupling
+  - Building interior furniture registration happens in the enter-building handler around line ~9450 of BabylonGame
+  - The ContextualActionResolver switch is the single source of truth for action resolution per InteractableType
+  - Pre-existing typecheck errors in BabylonGame are widespread (playthroughMeta, DataSource types) — unrelated to changes
+---

@@ -119,6 +119,8 @@ export function resolveActions(
       return resolvePhysicalActions(target, context);
     case 'container':
       return resolveContainerActions(target);
+    case 'crafting_station':
+      return resolveCraftingStationActions(target);
     default:
       return [];
   }
@@ -145,6 +147,8 @@ export function resolveMenuOptions(target: InteractableTarget): { title: string;
       return { title: 'Actions', titleIcon: '💪' };
     case 'container':
       return { title: target.name || 'Container', titleIcon: '📦' };
+    case 'crafting_station':
+      return { title: target.name || 'Crafting Station', titleIcon: '🔨' };
     default:
       return { title: 'Interact' };
   }
@@ -350,4 +354,23 @@ function resolveContainerActions(target: InteractableTarget): ContextualAction[]
   });
 
   return actions;
+}
+
+function resolveCraftingStationActions(target: InteractableTarget): ContextualAction[] {
+  const stationType = target.craftingStationType ?? 'workbench';
+  const labels: Record<string, { label: string; labelTranslation: string; icon: string }> = {
+    kitchen_stove: { label: 'Cuisiner', labelTranslation: 'Cook', icon: '🍳' },
+    alchemy_table: { label: 'Préparer', labelTranslation: 'Brew', icon: '⚗️' },
+    workbench: { label: 'Fabriquer', labelTranslation: 'Craft', icon: '🔨' },
+  };
+  const info = labels[stationType] ?? labels.workbench;
+
+  return [{
+    id: `__craft_at_${stationType}__`,
+    icon: info.icon,
+    label: info.label,
+    labelTranslation: info.labelTranslation,
+    canPerform: true,
+    category: 'physical',
+  }];
 }
