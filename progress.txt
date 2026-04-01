@@ -577,3 +577,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - weatherSystem exposes `.weatherType` ('clear'|'cloudy'|'overcast'|'rain'|'storm')
   - 828 pre-existing typecheck errors in the codebase — verify only your changed files
 ---
+
+## 2026-04-01 - Audit: Action Hotspots
+- **Audit finding**: ActionHotspotGenerator (shared/game-engine/logic/ActionHotspotGenerator.ts) was fully implemented with 14 hotspot rules and vocabulary data, but NEVER called — completely dead code
+- **Interior hotspots**: Already working — BabylonGame.ts registers action hotspots on interior furniture via PlayerActionSystem.getHotspotsForBusiness() when player enters buildings (line 9435)
+- **Outdoor hotspots**: Missing entirely — no fishing/mining/herbalism/chopping spots generated in the open world
+- **Fix**: Created ActionHotspotIntegration module (shared/game-engine/logic/ActionHotspotIntegration.ts) that:
+  - Collects WorldLocation[] from buildingData (buildings with businessType/position)
+  - Clusters nature meshes (trees→forest, rocks→quarry) to avoid per-tree hotspots
+  - Calls ActionHotspotGenerator.generate() and creates visible marker meshes
+  - Registers markers with InteractionPromptSystem for player interaction
+- Wired into BabylonGame.ts generateProceduralWorld() after nature post-spawn cleanup
+- Skips interior-only action types (cooking, crafting, reading, praying, sweeping, painting) to avoid duplicates
+- Added cleanup in disposeWorld() for outdoor hotspot meshes
+- Files changed:
+  - `shared/game-engine/logic/ActionHotspotIntegration.ts` — new module (collectBuildingLocations, collectNatureLocations, generateWorldHotspots, getHotspotPromptText)
+  - `shared/game-engine/rendering/BabylonGame.ts` — import integration module, generate outdoor hotspots after nature, dispose hotspot meshes
+  - `shared/__tests__/action-hotspot-integration.test.ts` — 19 tests covering building collection, nature clustering, e2e generation, prompt text
+- **Event pipeline verified**: physical_action_completed → QuestCompletionEngine.trackPhysicalAction() already wired (BabylonGame.ts line 3743)
+- **Learnings for future iterations:**
+  - ProceduralNatureGenerator exposes getTreeMeshes() and getRockMeshes() for accessing generated nature elements
+  - buildingData Map stores position, metadata (businessType, buildingType, etc.) for all placed buildings
+  - Nature clustering with 15m radius groups nearby trees/rocks to generate 1 hotspot per grove/outcrop instead of per-mesh
+  - Interior hotspot types (cooking, crafting, etc.) are registered separately via furniture matching — don't duplicate outdoors
+  - Vitest include patterns: shared/__tests__/**/*.test.ts — tests must be placed there to be discovered
+---
