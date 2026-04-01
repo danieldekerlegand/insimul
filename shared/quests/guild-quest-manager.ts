@@ -17,7 +17,7 @@
  */
 
 import type { GuildId, GuildTier } from '../guild-definitions';
-import { getAllGuildIds } from '../guild-definitions';
+import { getAllGuildIds, getGuildDefinition } from '../guild-definitions';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,16 +58,50 @@ export class GuildQuestManager {
   }
 
   /**
+   * Find an NPC who serves as the guild master for a given guild.
+   * Matches by occupation (case-insensitive) against the guild's guildMasterOccupation.
+   * Returns { name, id } or null if no matching NPC exists.
+   */
+  findGuildMasterNpc(
+    guildId: GuildId,
+    characters: Array<{ id?: string; name?: string; firstName?: string; lastName?: string; occupation?: string | null }>,
+  ): { name: string; id: string } | null {
+    const def = getGuildDefinition(guildId);
+    if (!def) return null;
+
+    const targetOccupation = def.guildMasterOccupation.toLowerCase();
+    const match = characters.find(c =>
+      c.occupation && c.occupation.toLowerCase() === targetOccupation
+    );
+    if (!match) return null;
+
+    const name = match.name || [match.firstName, match.lastName].filter(Boolean).join(' ') || 'Guild Master';
+    return { name, id: match.id || '' };
+  }
+
+  /**
    * Receive a quest from a guild master: moves it from unavailable → available.
+   * If characters are provided, assigns the guild master NPC to the quest.
    * Returns the quest ID if successful, null if nothing to receive.
    */
   receiveNextQuest(
     guildId: GuildId,
     allQuests: any[],
+    characters?: Array<{ id?: string; name?: string; firstName?: string; lastName?: string; occupation?: string | null }>,
   ): string | null {
     const next = this.getNextQuestForGuild(guildId, allQuests);
     if (!next) return null;
     next.status = 'available';
+
+    // Assign guild master NPC if characters are provided
+    if (characters) {
+      const guildMaster = this.findGuildMasterNpc(guildId, characters);
+      if (guildMaster) {
+        next.assignedBy = guildMaster.name;
+        next.assignedByCharacterId = guildMaster.id;
+      }
+    }
+
     return next.id;
   }
 

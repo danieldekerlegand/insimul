@@ -190,7 +190,7 @@ async function run() {
           targetLanguage,
           guildId,
           guildTier: template.guildTier,
-          status: 'available',
+          status: template.guildTier === 0 ? 'available' : 'unavailable',
           objectives: template.objectives.map((obj, i) => ({
             id: `${questId}_obj_${i}`,
             type: obj.type,

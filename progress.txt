@@ -2,6 +2,34 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## 2026-04-01 - Audit: Guild Quest Assignment
+- **Audit findings**: Guild quest system had 3 bugs preventing players from getting quests from guild masters:
+  1. Migration 048 set all guild quest statuses to 'available' — only Tier 0 should be; rest should be 'unavailable' until received from guild master
+  2. No guild master NPC was ever linked to guild quests (`assignedByCharacterId` never set)
+  3. `GameQuestManager.receiveGuildQuest()` called `GuildQuestManager.receiveNextQuest()` with wrong argument order and extra `playerName` param
+- **Fixes applied**:
+  - Added `findGuildMasterNpc()` to `GuildQuestManager` — matches NPC by occupation against guild's `guildMasterOccupation` (case-insensitive)
+  - Updated `receiveNextQuest()` to accept optional `characters` array and assign guild master NPC to quest
+  - Fixed `receive-quest` server endpoint to fetch characters and pass them to `receiveNextQuest()`
+  - Fixed `GameQuestManager.receiveGuildQuest()` argument order and removed invalid `playerName` param
+  - Fixed `GameQuestManager.getGuildProgress()` to not pass extra `playerName` arg
+  - Fixed migration 048 to use `'unavailable'` status for non-tier-0 quests
+  - Created migration 054 to fix existing guild quest data (status + guild master assignment)
+- **Tests added**: 8 new tests for guild master NPC lookup and assignment
+- Files changed:
+  - `shared/quests/guild-quest-manager.ts` — added `findGuildMasterNpc()`, updated `receiveNextQuest()` signature
+  - `shared/game-engine/logic/GameQuestManager.ts` — fixed argument order in `receiveGuildQuest()` and `getGuildProgress()`
+  - `server/routes.ts` — updated receive-quest endpoint to fetch characters and persist guild master assignment
+  - `server/migrations/048-seed-guild-quests.ts` — fixed initial quest status for non-tier-0 quests
+  - `server/migrations/054-fix-guild-quest-status-and-masters.ts` — new migration to fix existing data
+  - `shared/__tests__/quest-e2e-smoke.test.ts` — 8 new tests for guild master assignment
+- **Learnings for future iterations:**
+  - Guild master NPCs are identified by occupation matching against `guildMasterOccupation` in guild definitions
+  - `GameQuestManager` (client-side) wraps `GuildQuestManager` (shared) — always verify argument order matches
+  - Migration 048 had a subtle bug: all quests were 'available' making the receive-from-guild-master flow unnecessary
+  - NPC quest guidance system uses `assignedByCharacterId` to detect quest givers — without it, guild masters won't guide conversations
+---
+
 ## 2026-03-29 - US-001
 - Cleaned whitespace in action converter: removed 3 unconditional blank line pushes (lines 104, 133, 159) that caused double/triple blanks when prereqs, triggers, effects, and side effects were all empty
 - Added post-processing regex to collapse consecutive blank lines (`\n{3,}` → `\n\n`) and trim trailing blanks

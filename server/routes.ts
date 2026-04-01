@@ -9490,14 +9490,23 @@ Respond with this JSON structure:
       const { GuildQuestManager } = require('../shared/quests/guild-quest-manager');
       const manager = new GuildQuestManager();
 
-      const allQuests = await storage.getQuestsByWorld(req.params.worldId);
-      const questId = manager.receiveNextQuest(req.params.guildId, allQuests);
+      const [allQuests, characters] = await Promise.all([
+        storage.getQuestsByWorld(req.params.worldId),
+        storage.getCharactersByWorld(req.params.worldId),
+      ]);
+      const questId = manager.receiveNextQuest(req.params.guildId, allQuests, characters);
 
       if (!questId) {
         return res.json({ received: false, reason: 'No quest available — complete your current guild quest first.' });
       }
 
-      await storage.updateQuest(questId, { status: 'available' });
+      // Find the updated quest data from allQuests (receiveNextQuest mutates it)
+      const mutated = allQuests.find((q: any) => q.id === questId);
+      const updateData: any = { status: 'available' };
+      if (mutated?.assignedBy) updateData.assignedBy = mutated.assignedBy;
+      if (mutated?.assignedByCharacterId) updateData.assignedByCharacterId = mutated.assignedByCharacterId;
+
+      await storage.updateQuest(questId, updateData);
       const quest = await storage.getQuest(questId);
       res.json({ received: true, quest });
     } catch (error) {

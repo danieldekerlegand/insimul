@@ -458,17 +458,19 @@ export class GameQuestManager {
 
   // ── Guild Quests ──────────────────────────────────────────────────────────
 
-  /** Receive the next quest from a guild. */
-  async receiveGuildQuest(guildId: string): Promise<Quest | null> {
+  /** Receive the next quest from a guild, assigning the guild master NPC. */
+  async receiveGuildQuest(guildId: string, characters?: Array<{ id?: string; name?: string; firstName?: string; lastName?: string; occupation?: string | null }>): Promise<Quest | null> {
     const quests = await this.storage.getQuestsByWorld(this.worldId);
-    const result = this.guildManager.receiveNextQuest(quests, guildId, this.playerName);
-    return result ?? null;
+    const questId = this.guildManager.receiveNextQuest(guildId as any, quests, characters);
+    if (!questId) return null;
+    const quest = quests.find(q => q.id === questId);
+    return quest ?? null;
   }
 
   /** Get guild progress for all guilds. */
   async getGuildProgress(): Promise<Map<string, any>> {
     const quests = await this.storage.getQuestsByWorld(this.worldId);
-    return this.guildManager.getAllGuildProgress(quests, this.playerName);
+    return this.guildManager.getAllGuildProgress(quests);
   }
 
   // ── NPC Guidance ──────────────────────────────────────────────────────────
