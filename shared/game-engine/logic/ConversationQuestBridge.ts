@@ -15,11 +15,18 @@
 
 import type { GameEventBus } from './GameEventBus';
 
+/**
+ * Minimum confidence threshold for accepting LLM conversation goal evaluations.
+ * Used by both ConversationQuestBridge and QuestCompletionEngine to gate objective completion.
+ */
+export const MIN_CONVERSATION_GOAL_CONFIDENCE = 0.7;
+
 // We reference QuestCompletionEngine by its trackEvent method signature
 // to avoid circular dependency issues
 interface QuestTracker {
   trackEvent(event: { type: string; [key: string]: any }): void;
   getConversationGoalObjectives(questId?: string): Array<{ questId: string; objective: any }>;
+  isObjectiveLocked?(quest: any, objective: any): boolean;
   quests?: Array<{ id: string; status?: string; objectives?: any[] }>;
 }
 
@@ -78,6 +85,9 @@ export class ConversationQuestBridge {
         if (obj.completed) continue;
         if (!conversationTypes.includes(obj.type)) continue;
 
+        // Skip locked objectives (dependsOn / order constraints)
+        if (this.questTracker?.isObjectiveLocked?.(quest, obj)) continue;
+
         // Filter by NPC if objective targets a specific one
         if (obj.npcId && currentNpcId && obj.npcId !== currentNpcId &&
             obj.npcId !== '{npcId}' && obj.npcId !== '{npcId_0}' && obj.npcId !== '{npcId_1}' && obj.npcId !== '{npcId_2}') {
@@ -111,11 +121,11 @@ export class ConversationQuestBridge {
     npcId?: string,
     playerMessage?: string,
   ): void {
-    if (!evaluations || evaluations.length === 0) return;
+    if (!Array.isArray(evaluations) || evaluations.length === 0) return;
 
     for (const evaluation of evaluations) {
       // Only process if confident
-      if (!evaluation.goalMet || evaluation.confidence < 0.7) {
+      if (!evaluation.goalMet || evaluation.confidence < MIN_CONVERSATION_GOAL_CONFIDENCE) {
         continue;
       }
 
