@@ -26,7 +26,8 @@ public class InsimulExport : ModuleRules
             "GameplayTasks",
             "Json",
             "JsonUtilities",
-            "HTTP"
+            "HTTP",
+            "InsimulRuntime"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[]

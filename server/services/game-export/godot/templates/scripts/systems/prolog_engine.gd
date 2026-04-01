@@ -12,6 +12,7 @@ extends Node
 ## personality/emotional state updates, and relationship tracking.
 
 signal quest_completed(quest_id: String)
+signal objective_completed(quest_id: String, objective_index: int)
 
 ## Raw Prolog source text loaded from the server export.
 var _kb_content: String = ""
@@ -24,6 +25,12 @@ var _initialized: bool = false
 
 ## IDs of quests currently being tracked for auto-completion.
 var _active_quest_ids: Array[String] = []
+
+## Tracking for objective and quest completion.
+var _completed_objectives: Dictionary = {}  # "questId:idx" -> true
+var _completed_quests: Dictionary = {}  # "questId" -> true
+var _on_objective_completed: Callable = Callable()
+var _on_quest_completed: Callable = Callable()
 
 # ---------------------------------------------------------------------------
 # Initialization
@@ -784,6 +791,66 @@ func _handle_game_event(event: Dictionary) -> void:
 			_retract_pattern("quest_progress(player, %s" % dqid)
 			_assert_internal("quest_progress(player, %s, %s)" % [dqid, str(event.get("steps_completed", 0))])
 			_assert_internal("direction_step_done(player, %s, %s)" % [dqid, str(event.get("step_index", 0))])
+		"conversational_action_completed":
+			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
+			var action: String = _sanitize(str(event.get("action", "")))
+			var qid: String = _sanitize(str(event.get("quest_id", "")))
+			_assert_internal("conversational_action(player, %s, %s, %s)" % [npc_id, action, qid])
+		"text_found":
+			_assert_internal("text_found(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+		"text_read":
+			_assert_internal("text_read(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+		"sign_read":
+			_assert_internal("sign_read(player, %s)" % _sanitize(str(event.get("sign_id", ""))))
+		"object_examined":
+			_assert_internal("object_examined(player, %s)" % _sanitize(str(event.get("object_name", ""))))
+		"object_identified":
+			_assert_internal("object_identified(player, %s)" % _sanitize(str(event.get("object_name", ""))))
+		"object_pointed_and_named":
+			_assert_internal("object_pointed_named(player, %s)" % _sanitize(str(event.get("object_name", ""))))
+		"writing_submitted":
+			_assert_internal("response_written(player, %s)" % str(event.get("word_count", 0)))
+		"photo_taken":
+			_assert_internal("photo_taken(player, %s)" % _sanitize(str(event.get("subject_name", ""))))
+		"food_ordered":
+			_assert_internal("food_ordered(player, %s)" % _sanitize(str(event.get("item_name", ""))))
+		"price_haggled":
+			_assert_internal("price_haggled(player, %s)" % _sanitize(str(event.get("item_name", ""))))
+		"gift_given":
+			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
+			var item_name: String = _sanitize(str(event.get("item_name", "")))
+			_assert_internal("gift_given(player, %s, %s)" % [npc_id, item_name])
+		"translation_attempt":
+			var correct: bool = event.get("correct", false)
+			if correct:
+				_assert_internal("translation_completed(player, correct)")
+		"pronunciation_attempt":
+			var phrase: String = _sanitize(str(event.get("phrase", "")))
+			var score: int = int(event.get("score", 0))
+			var timestamp: String = str(event.get("timestamp", 0))
+			_assert_internal("pronunciation_score(player, %s, %s, %s)" % [phrase, str(score), timestamp])
+			if event.get("passed", false):
+				_assert_internal("pronunciation_passed(player, %s)" % phrase)
+		"reading_completed":
+			_assert_internal("text_read(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+		"questions_answered":
+			_assert_internal("comprehension_done(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+		"conversation_turn", "conversation_turn_counted":
+			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
+			var total: int = int(event.get("total", event.get("turn_count", 0)))
+			_retract_pattern("npc_conversation_turns(player, %s" % npc_id)
+			_assert_internal("npc_conversation_turns(player, %s, %s)" % [npc_id, str(total)])
+		"physical_action_completed":
+			_assert_internal("physical_action_done(player, %s)" % _sanitize(str(event.get("action_type", ""))))
+		"npc_exam_completed":
+			var exam_id: String = _sanitize(str(event.get("exam_id", "")))
+			var score: int = int(event.get("score", 0))
+			var max_points: int = int(event.get("max_points", 0))
+			var cefr_level: String = _sanitize(str(event.get("cefr_level", "")))
+			var timestamp: String = str(event.get("timestamp", 0))
+			_assert_internal("assessment_result(player, %s, %s, %s, %s, %s)" % [exam_id, str(score), str(max_points), cefr_level, timestamp])
+			_retract_pattern("player_cefr_level(player,")
+			_assert_internal("player_cefr_level(player, %s)" % cefr_level)
 		_:
 			return  # No re-evaluation for unhandled events
 	_reevaluate_quests()
@@ -793,20 +860,110 @@ func _handle_game_event(event: Dictionary) -> void:
 # Quest tracking
 # ---------------------------------------------------------------------------
 
+## Set callback for objective completion events.
+func set_on_objective_completed(callback: Callable) -> void:
+	_on_objective_completed = callback
+
+
+## Set callback for quest completion events.
+func set_on_quest_completed(callback: Callable) -> void:
+	_on_quest_completed = callback
+
+
 ## Register active quest IDs for automatic re-evaluation.
 func set_active_quests(quest_ids: Array[String]) -> void:
 	_active_quest_ids = quest_ids
+	# Clear stale tracking for quests no longer active
+	var stale_keys: Array = []
+	for key in _completed_objectives:
+		var quest_id: String = str(key).split(":")[0]
+		if quest_id not in quest_ids:
+			stale_keys.append(key)
+	for key in stale_keys:
+		_completed_objectives.erase(key)
 
 
 ## Re-evaluate all active quests; emit quest_completed for any now complete.
 func _reevaluate_quests() -> void:
-	var newly_completed: Array[String] = []
-	for qid in _active_quest_ids:
-		if is_quest_complete(qid, "player"):
-			newly_completed.append(qid)
-	for qid in newly_completed:
-		_active_quest_ids.erase(qid)
-		quest_completed.emit(qid)
+	for quest_id in _active_quest_ids:
+		if _completed_quests.has(quest_id):
+			continue
+
+		# Check individual objectives
+		if _on_objective_completed.is_valid():
+			_check_objective_completion(quest_id)
+
+		# Check whole-quest completion
+		if is_quest_complete(quest_id, "player") and not _completed_quests.has(quest_id):
+			_completed_quests[quest_id] = true
+			quest_completed.emit(quest_id)
+			if _on_quest_completed.is_valid():
+				_on_quest_completed.call(quest_id)
+
+
+## Check individual objective completion within a quest.
+func _check_objective_completion(quest_id: String) -> void:
+	var sanitized_id: String = _sanitize(quest_id)
+	var prefix: String = "quest_objective(%s," % sanitized_id
+	var objective_facts: Array[String] = _find_facts(prefix)
+
+	for fact in objective_facts:
+		var parts: PackedStringArray = fact.split(",")
+		if parts.size() < 2:
+			continue
+		var idx_str: String = parts[1].strip_edges().rstrip(")")
+		var idx: int = idx_str.to_int()
+
+		var key: String = "%s:%d" % [quest_id, idx]
+		if _completed_objectives.has(key):
+			continue
+
+		var complete_pattern: String = "objective_complete(player, %s, %d)" % [sanitized_id, idx]
+		if _has_fact(complete_pattern):
+			_completed_objectives[key] = true
+			_on_objective_completed.call(quest_id, idx)
+			objective_completed.emit(quest_id, idx)
+
+
+## Reconcile quest and objective completion state. Returns a dictionary with
+## "completed_quests" and "completed_objectives" arrays.
+func reconcile() -> Dictionary:
+	var result: Dictionary = {"completed_quests": [], "completed_objectives": []}
+	if not _initialized:
+		return result
+
+	for quest_id in _active_quest_ids:
+		var sanitized_id: String = _sanitize(quest_id)
+
+		# Check objectives
+		var objective_facts: Array[String] = _find_facts("quest_objective(%s," % sanitized_id)
+		for fact in objective_facts:
+			var parts: PackedStringArray = fact.split(",")
+			if parts.size() < 2:
+				continue
+			var idx: int = parts[1].strip_edges().rstrip(")").to_int()
+			if _has_fact("objective_complete(player, %s, %d)" % [sanitized_id, idx]):
+				result["completed_objectives"].append({"quest_id": quest_id, "objective_index": idx})
+
+		if is_quest_complete(quest_id, "player"):
+			result["completed_quests"].append(quest_id)
+
+	return result
+
+
+## Get bonus rewards for a quest.
+func get_bonus_rewards(quest_id: String) -> Array:
+	if not _initialized:
+		return []
+
+	var facts: Array[String] = _find_facts("quest_bonus_reward(player, %s," % _sanitize(quest_id))
+	var results: Array = []
+	for fact in facts:
+		var parts: PackedStringArray = fact.split(",")
+		if parts.size() >= 4:
+			results.append({"type": parts[2].strip_edges(), "value": parts[3].strip_edges().rstrip(")").to_int()})
+	return results
+
 
 # ---------------------------------------------------------------------------
 # Cleanup
@@ -822,6 +979,10 @@ func dispose() -> void:
 	_facts.clear()
 	_active_quest_ids.clear()
 	_item_quantities.clear()
+	_completed_objectives.clear()
+	_completed_quests.clear()
+	_on_objective_completed = Callable()
+	_on_quest_completed = Callable()
 	_initialized = false
 	print("[Insimul] PrologEngine disposed")
 
@@ -838,6 +999,15 @@ func _assert_internal(fact: String) -> void:
 func _has_fact(fact: String) -> bool:
 	var clean: String = fact.strip_edges().trim_suffix(".")
 	return clean in _facts
+
+
+## Find all facts whose text starts with the given prefix.
+func _find_facts(prefix: String) -> Array[String]:
+	var results: Array[String] = []
+	for fact in _facts:
+		if fact.begins_with(prefix):
+			results.append(fact)
+	return results
 
 
 ## Remove all facts whose text starts with the given prefix.

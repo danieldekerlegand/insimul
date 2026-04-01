@@ -268,6 +268,14 @@ export class ListenAndRepeatController {
       feedback: result.feedback,
     });
 
+    // Emit pronunciation_attempt for Prolog quest tracking
+    this.callbacks.emitEvent({
+      type: 'pronunciation_attempt',
+      phrase: result.phrase.targetPhrase,
+      score: result.score,
+      passed: result.passed,
+    });
+
     // Emit action_executed for general action tracking
     this.callbacks.emitEvent({
       type: 'action_executed',

@@ -6,6 +6,28 @@ using Insimul.Services;
 
 namespace Insimul.UI
 {
+    /// <summary>
+    /// Interface for bridging conversation metadata to quest objective evaluation.
+    /// Mirrors ConversationQuestBridge from the shared game engine.
+    /// </summary>
+    public interface IConversationQuestBridge
+    {
+        /// <summary>Get active quest objectives to include in metadata requests.</summary>
+        object[] GetObjectivesForEvaluation(string currentNpcId);
+
+        /// <summary>Process goal evaluations from metadata response.</summary>
+        void ProcessEvaluations(object[] goalEvaluations, string npcId, string playerMessage);
+    }
+
+    /// <summary>
+    /// Metadata response from InsimulClient SDK.
+    /// </summary>
+    public class ConversationMetadata
+    {
+        public object[] goalEvaluations;
+        public object grammarFeedback;
+    }
+
     public class ChatPanel : MonoBehaviour
     {
         [Header("References")]
@@ -62,6 +84,9 @@ namespace Insimul.UI
         public event System.Action<object> OnWordMastered;
         public event System.Action<object> OnGrammarFeedbackExternal;
 
+        // Quest bridge for conversation goal evaluation
+        private IConversationQuestBridge _questBridge;
+
         // Inventory context for NPC dialogue
         private object[] _inventoryItems;
         private int _playerGold;
@@ -117,6 +142,9 @@ namespace Insimul.UI
         {
             OnGesturePerformed?.Invoke(gestureId);
         }
+
+        /// <summary>Set the quest bridge for conversation goal evaluation.</summary>
+        public void SetQuestBridge(IConversationQuestBridge bridge) { _questBridge = bridge; }
 
         /// <summary>Set the AI provider for dialogue (e.g. "server", "local").</summary>
         public void SetAIProvider(string provider) { _aiProvider = provider; }
@@ -231,6 +259,12 @@ namespace Insimul.UI
             _streamingMessageText = msgObj.GetComponentInChildren<TMP_Text>();
             _streamingMessageText.text = "";
 
+            // Route through InsimulClient SDK — no Gemini fallback.
+            // Legacy Gemini direct-fetch methods removed; all conversation routing
+            // now goes through InsimulClient (WebSocket with SSE fallback handled by SDK).
+            string playerMessage = text;
+            string fullResponse = "";
+
             InsimulAIService.Instance?.SendMessage(
                 _currentCharacterId,
                 text,
@@ -238,6 +272,7 @@ namespace Insimul.UI
                 {
                     if (_streamingMessageText != null)
                         _streamingMessageText.text += chunk;
+                    fullResponse += chunk;
                     ScrollToBottom();
                 },
                 onComplete: _ =>
@@ -245,12 +280,18 @@ namespace Insimul.UI
                     _isStreaming = false;
                     _streamingMessageText = null;
                     _inputField.ActivateInputField();
+
+                    // Request metadata via SDK (fire-and-forget) instead of HTTP POST
+                    RequestMetadataViaSDK(playerMessage, fullResponse);
+
+                    // Fire conversational action event
+                    OnConversationalAction?.Invoke(null, null);
                 },
                 onError: error =>
                 {
                     _isStreaming = false;
                     if (_streamingMessageText != null)
-                        _streamingMessageText.text = $"[Error: {error}]";
+                        _streamingMessageText.text = "Sorry, I cannot respond right now.";
                     _streamingMessageText = null;
                     Debug.LogError($"[ChatPanel] AI error: {error}");
                 }
@@ -322,6 +363,36 @@ namespace Insimul.UI
                 if (obj != null) Destroy(obj);
             }
             _messageObjects.Clear();
+        }
+
+        /// <summary>
+        /// Request metadata via InsimulClient SDK instead of direct HTTP POST to /api/conversation/metadata.
+        /// Processes goal evaluations through the quest bridge when available.
+        /// </summary>
+        private void RequestMetadataViaSDK(string playerMessage, string npcResponse)
+        {
+            if (string.IsNullOrEmpty(_targetLanguage)) return;
+
+            // Include active quest objectives for conversation goal evaluation
+            object[] activeObjectives = _questBridge?.GetObjectivesForEvaluation(_currentCharacterId);
+
+            InsimulAIService.Instance?.RequestMetadata(
+                playerMessage,
+                npcResponse,
+                _targetLanguage,
+                activeObjectives,
+                onResult: metadata =>
+                {
+                    if (metadata == null) return;
+
+                    // Process conversation goal evaluations — complete quest objectives
+                    var goalEvaluations = metadata.goalEvaluations;
+                    if (goalEvaluations != null && goalEvaluations.Length > 0 && _questBridge != null)
+                    {
+                        _questBridge.ProcessEvaluations(goalEvaluations, _currentCharacterId, playerMessage);
+                    }
+                }
+            );
         }
 
         private void ScrollToBottom()

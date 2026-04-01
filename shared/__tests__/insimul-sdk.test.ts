@@ -1,5 +1,5 @@
 /**
- * Unit tests for @insimul/sdk
+ * Unit tests for @insimul/typescript
  *
  * Tests the InsimulClient, StreamingAudioPlayer, and MicCapture classes.
  */
@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   InsimulClient,
   ConversationState,
-} from '../../packages/insimul-sdk-js/src/index.js';
+} from '../../packages/typescript/src/index.js';
 
 // ── Mock fetch for SSE testing ──────────────────────────────────────────────
 
@@ -295,7 +295,7 @@ describe('InsimulClient', () => {
 
 describe('SDK exports', () => {
   it('should export all expected types and classes', async () => {
-    const sdk = await import('../../packages/insimul-sdk-js/src/index.js');
+    const sdk = await import('../../packages/typescript/src/index.js');
 
     // Classes
     expect(sdk.InsimulClient).toBeDefined();

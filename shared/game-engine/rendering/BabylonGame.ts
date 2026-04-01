@@ -141,6 +141,13 @@ import {
   clearDebugHighlight,
   buildDebugLabel,
 } from "@shared/game-engine/rendering/DebugLabelUtils";
+import {
+  queryEntityFacts,
+  showPrologDebugPanel,
+  hidePrologDebugPanel,
+  disposePrologDebugPanel,
+} from "@shared/game-engine/rendering/PrologDebugger";
+import { GameQuestManager } from "@shared/game-engine/logic/GameQuestManager";
 import { VRAccessibilityManager } from "@shared/game-engine/rendering/VRAccessibilityManager";
 import { NPCTalkingIndicator } from "@shared/game-engine/rendering/NPCTalkingIndicator";
 import { NPCAmbientConversationManager } from "@shared/game-engine/rendering/NPCAmbientConversationManager";
@@ -151,7 +158,9 @@ import { NPCInitiatedConversationController } from "@shared/game-engine/renderin
 import { NPCSocializationController } from "@shared/game-engine/rendering/NPCSocializationController";
 import type { SocializableNPC, ConversationResult } from "@shared/game-engine/rendering/NPCSocializationController";
 import { generateLocalNpcConversation } from "@shared/game-engine/logic/LocalNpcConversation";
-import { isElectronAI } from "@insimul/sdk";
+import { isElectronAI } from "@insimul/typescript";
+import { setInsimulClient } from "@shared/game-engine/InsimulClientRegistry";
+import { ConversationQuestBridge } from "@shared/game-engine/logic/ConversationQuestBridge";
 import { BuildingInteriorGenerator, InteriorLayout } from "@shared/game-engine/rendering/BuildingInteriorGenerator";
 import { InteriorSceneManager, getInteriorModelPath } from "@shared/game-engine/rendering/InteriorSceneManager";
 import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITURE_SIZE_MAP, type OutdoorFurnitureType } from "@shared/game-engine/rendering/OutdoorFurnitureGenerator";
@@ -526,6 +535,8 @@ export class BabylonGame {
   private photoBookPanel: BabylonPhotoBookPanel | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
   private prologEngine: GamePrologEngine | null = null;
+  private _prologReconcileTimer: ReturnType<typeof setInterval> | null = null;
+  private gameQuestManager: GameQuestManager | null = null;
   private eventBus: GameEventBus = new GameEventBus();
   private gameTimeManager: GameTimeManager = new GameTimeManager();
   private weatherSystem: WeatherSystem | null = null;
@@ -2513,9 +2524,7 @@ export class BabylonGame {
       },
       fetchServerTexts: async () => {
         try {
-          const resp = await fetch(`/api/worlds/${this.config.worldId}/texts`);
-          if (!resp.ok) return [];
-          const texts = await resp.json();
+          const texts = await this.dataSource.loadTexts(this.config.worldId);
           if (!Array.isArray(texts)) return [];
           return texts.map((t: any) => this.serverTextToNoticeArticle(t));
         } catch {
@@ -2700,6 +2709,19 @@ export class BabylonGame {
     this.chatPanel.setDataSource(this.dataSource);
     // Initialize chat panel UI (hidden until player talks to an NPC)
     this.chatPanel.initialize();
+    // Register InsimulClient globally for other systems (TTS, translation, NPC sim)
+    const insimulClient = this.chatPanel.getInsimulClient();
+    if (insimulClient) setInsimulClient(insimulClient);
+
+    // Wire conversation quest bridge — evaluates quest objectives from metadata responses
+    const questBridge = new ConversationQuestBridge();
+    if ((this as any).questCompletionEngine) {
+      questBridge.setQuestTracker((this as any).questCompletionEngine);
+    }
+    if ((this as any).eventBus) {
+      questBridge.setEventBus((this as any).eventBus);
+    }
+    this.chatPanel.setQuestBridge(questBridge);
 
     // Keep NPC indicator positioned below minimap + notifications
     this.guiManager.onHudLayoutChanged((npcIndicatorTop: number) => {
@@ -3064,7 +3086,8 @@ export class BabylonGame {
 
     // Initialize quest indicator manager
     this.questIndicatorManager = new QuestIndicatorManager(scene);
-    // Delegate completion checks to QuestCompletionEngine (single source of truth)
+    // QuestCompletionEngine provides fast UI checks; GamePrologEngine is the
+    // authoritative source that syncs objective completions back into QCE.
     this.questIndicatorManager.setQuestCompletionChecker((questId: string) => {
       const engine = this.questObjectManager?.getCompletionEngine();
       return engine?.isQuestComplete(questId) ?? false;
@@ -3471,6 +3494,7 @@ export class BabylonGame {
 
     // Set world ID for server XP sync
     this.gamificationTracker.setWorldId(this.config.worldId);
+    this.gamificationTracker.setDataSource(this.dataSource);
 
     // Wire achievement detection to gameplay events via event bus
     this.gamificationTracker.subscribeToEventBus(this.eventBus);
@@ -3495,6 +3519,23 @@ export class BabylonGame {
     );
     this.questAutoCompletionDetector.start();
 
+    // Initialize client-side quest generation manager
+    // Uses QuestStorageProvider from DataSource if available, otherwise deferred
+    const questStorageProvider = (this.dataSource as any)?.getQuestStorageProvider?.();
+    if (questStorageProvider) {
+      this.gameQuestManager = new GameQuestManager({
+        storage: questStorageProvider,
+        eventBus: this.eventBus,
+        prologEngine: this.prologEngine,
+        worldId: this.config.worldId,
+        playerName: this.config.playerName || 'Player',
+        playerCharacterId: this.config.playerCharacterId,
+        targetLanguage: (this.worldData as any)?.targetLanguage || 'French',
+      });
+      // Wire into QuestCompletionManager for local completion flow
+      this.questCompletionManager?.setQuestManager(this.gameQuestManager);
+    }
+
     // Initialize rule enforcer
     this.ruleEnforcer = new RuleEnforcer(scene);
     this.ruleEnforcer.setOnViolation((violation: RuleViolation) => {
@@ -3509,6 +3550,23 @@ export class BabylonGame {
     // Initialize Prolog engine and connect to event bus
     this.prologEngine = new GamePrologEngine();
     this.prologEngine.subscribeToEventBus(this.eventBus);
+
+    // Prolog objective completion → sync to QuestCompletionEngine for UI updates
+    this.prologEngine.setOnObjectiveCompleted((questId, objectiveIndex) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      if (!engine) return;
+
+      const quest = engine.getQuests().find((q: any) => q.id === questId);
+      if (!quest?.objectives) return;
+
+      const objective = quest.objectives[objectiveIndex];
+      if (!objective || objective.completed) return;
+
+      // Prolog says this objective is done — mark it in QuestCompletionEngine
+      engine.completeObjective(questId, objective.id);
+    });
+
+    // Prolog quest completion → persist, apply rewards, check bonuses (authoritative)
     this.prologEngine.setOnQuestCompleted(async (questId) => {
       if (this.questCompletionManager) {
         const questData = this.quests.find(q => q.id === questId);
@@ -3517,6 +3575,16 @@ export class BabylonGame {
             status: 'completed',
             completedAt: new Date().toISOString(),
           });
+
+          // Check for conditional bonus rewards from Prolog
+          let bonusXP = 0;
+          try {
+            const bonuses = await this.prologEngine!.getBonusRewards(questId);
+            for (const bonus of bonuses) {
+              if (bonus.type.includes('xp')) bonusXP += bonus.value;
+            }
+          } catch { /* bonus rewards are best-effort */ }
+
           const goldReward = questData.rewards?.gold ?? questData.rewards?.goldReward ?? 0;
           await this.questCompletionManager.completeQuest({
             id: questData.id,
@@ -3524,7 +3592,7 @@ export class BabylonGame {
             title: questData.title,
             questType: questData.questType,
             difficulty: questData.difficulty,
-            experienceReward: questData.experienceReward || 0,
+            experienceReward: (questData.experienceReward || 0) + bonusXP,
             goldReward,
             itemRewards: questData.itemRewards,
             skillRewards: questData.skillRewards,
@@ -3544,6 +3612,28 @@ export class BabylonGame {
     // Subscribe to quest-relevant events to refresh NPC indicators
     this.eventBus.on('quest_failed', () => this.updateQuestIndicators());
     this.eventBus.on('quest_abandoned', () => this.updateQuestIndicators());
+
+    // Periodic Prolog reconciliation — ensure Prolog's view is synced to QCE.
+    // Runs every 30 seconds to catch any completions the event-driven path missed.
+    this._prologReconcileTimer = setInterval(async () => {
+      if (!this.prologEngine) return;
+      try {
+        const { completedQuests, completedObjectives } = await this.prologEngine.reconcile();
+        const engine = this.questObjectManager?.getCompletionEngine();
+        if (!engine) return;
+
+        for (const { questId, objectiveIndex } of completedObjectives) {
+          const quest = engine.getQuests().find((q: any) => q.id === questId);
+          if (!quest?.objectives?.[objectiveIndex]) continue;
+          const obj = quest.objectives[objectiveIndex];
+          if (!obj.completed) {
+            engine.completeObjective(questId, obj.id);
+          }
+        }
+      } catch {
+        // Reconciliation is best-effort
+      }
+    }, 30_000);
 
     // Initialize quest reward integration (vocabulary, knowledge, skill unlocks)
     this.questRewardIntegration = new QuestRewardIntegration();
@@ -3740,15 +3830,176 @@ export class BabylonGame {
     this.eventBus.on('npc_talked', (event: any) => {
       const engine = this.questObjectManager?.getCompletionEngine();
       engine?.trackEvent({ type: 'npc_talked', npcId: event.npcId, questId: event.questId });
+      // Also fire npc_conversation to complete talk_to_npc objectives
+      engine?.trackEvent({ type: 'npc_conversation', npcId: event.npcId, questId: event.questId });
     });
     this.eventBus.on('conversation_assessment_completed', (event: any) => {
       const engine = this.questObjectManager?.getCompletionEngine();
       engine?.trackEvent({ type: 'conversation_assessment_completed', npcId: event.npcId, turnCount: event.turnCount, questId: event.questId });
     });
 
+    // ── Missing event bridges (conversation, vocabulary, commerce, social) ──
+
+    // Conversation turn → complete_conversation + conversation objectives
+    this.eventBus.on('conversation_turn', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'conversation_turn', keywords: event.keywords || [], questId: event.questId });
+    });
+
+    // Conversation turn counted → complete_conversation objectives (with turn count)
+    this.eventBus.on('conversation_turn_counted', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'conversation_turn_counted', npcId: event.npcId, totalTurns: event.totalTurns, meaningfulTurns: event.meaningfulTurns, questId: event.questId });
+    });
+
+    // NPC conversation turn (topic-tagged) → conversation objectives
+    this.eventBus.on('npc_conversation_turn' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'npc_conversation_turn', npcId: event.npcId, topicTag: event.topicTag, questId: event.questId });
+    });
+
+    // Vocabulary usage → use_vocabulary + vocabulary objectives
+    this.eventBus.on('vocabulary_used' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'vocabulary_usage', word: event.word, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Translation attempt → translation_challenge objectives
+    this.eventBus.on('translation_attempt' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'translation_attempt', isCorrect: event.correct ?? event.isCorrect ?? false, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Pronunciation attempt → pronunciation_check + listen_and_repeat objectives
+    this.eventBus.on('pronunciation_attempt', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'pronunciation_attempt', passed: event.passed ?? (event.score >= 60), score: event.score, phrase: event.phrase, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Grammar feedback → grammar objectives (count correct patterns)
+    this.eventBus.on('grammar_feedback' as any, (event: any) => {
+      if (event.status === 'correct' || event.correctCount > 0) {
+        const engine = this.questObjectManager?.getCompletionEngine();
+        engine?.trackEvent({ type: 'grammar_demonstrated', patternCount: event.correctCount ?? 1, questId: event.questId });
+        this.updateQuestIndicators();
+      }
+    });
+
+    // Item crafted → craft_item objectives
+    this.eventBus.on('item_collected', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'collect_item_by_name', itemName: event.itemName, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Item delivered → deliver_item objectives
+    this.eventBus.on('item_delivered', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'item_delivery', npcId: event.npcId, playerItemNames: [event.itemName], questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Location visited → visit_location + discover_location objectives
+    this.eventBus.on('location_visited', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'location_discovery', locationId: event.locationId, locationName: event.locationName || event.locationId, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+    this.eventBus.on('location_discovered', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'location_discovery', locationId: event.locationId, locationName: event.locationName || event.locationId, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Food ordered → order_food objectives
+    this.eventBus.on('food_ordered' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'food_ordered', itemName: event.itemName, merchantId: event.merchantId || '', businessType: event.businessType || '', questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Price haggled → haggle_price objectives
+    this.eventBus.on('price_haggled' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'price_haggled', itemName: event.itemName, merchantId: event.merchantId || '', typedWord: event.typedWord || '', questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Gift given → give_gift objectives
+    this.eventBus.on('gift_given' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'gift_given', npcId: event.npcId, itemName: event.itemName, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Relationship changed → build_friendship objectives
+    this.eventBus.on('npc_relationship_changed' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'friendship_changed', npcId: event.npcId, relationshipStrength: event.newStrength ?? event.strength ?? 0 });
+      this.updateQuestIndicators();
+    });
+
+    // Escort completed → escort_npc objectives
+    this.eventBus.on('escort_completed', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'arrival', npcOrItemId: event.npcId, destinationReached: true, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Enemy defeated → defeat_enemies objectives
+    this.eventBus.on('enemy_defeated' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'enemy_defeat', enemyType: event.enemyType || event.type || '', questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Direction step completed → follow_directions objectives
+    this.eventBus.on('direction_step_completed' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'direction_step_completed', questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Reputation changed → gain_reputation objectives
+    this.eventBus.on('reputation_changed' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'reputation_gain', factionId: event.settlementId || event.factionId || '', amount: event.delta ?? event.amount ?? 0, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Photo taken → photograph objectives (already bridged above but ensure QCE gets it)
+    this.eventBus.on('photo_taken', (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'photo_taken', subjectName: event.subjectName, subjectCategory: event.subjectCategory, subjectActivity: event.subjectActivity, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+
+    // Conversational action completed (from ConversationQuestBridge) → QCE
+    this.eventBus.on('conversational_action_completed' as any, (event: any) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'conversational_action', action: event.action, npcId: event.npcId, questId: event.questId });
+    });
+
     this.eventBus.on('assessment_completed', (event) => {
       this.gamificationTracker?.onAssessmentCompleted();
       this.guiManager.clearHighlightedNpc();
+
+      // Mark the assessment quest objective as complete
+      const engine = this.questObjectManager?.getCompletionEngine();
+      if (engine) {
+        // Find the complete_assessment objective and complete it
+        for (const quest of engine.getQuests()) {
+          for (const obj of quest.objectives || []) {
+            if (obj.type === 'complete_assessment' && !obj.completed) {
+              engine.completeObjective(quest.id, obj.id!);
+              console.log(`[Assessment] Quest objective completed: ${quest.id} / ${obj.id}`);
+            }
+          }
+        }
+      }
       // Track CEFR level for main quest gating
       if (event.cefrLevel) {
         this.playerCefrLevel = event.cefrLevel;
@@ -4280,6 +4531,21 @@ export class BabylonGame {
       this.quests = quests;
       // Register all quests with QuestCompletionEngine so objective tracking works
       this.registerQuestsWithCompletionEngine(quests);
+
+      // Distribute radiant quests to NPCs (staggered, max 5 at a time)
+      if (this.gameQuestManager) {
+        this.gameQuestManager.distributeRadiantQuests(5).then(count => {
+          if (count > 0) {
+            console.log(`[BabylonGame] Distributed ${count} radiant quests to NPCs`);
+            // Reload quests to pick up the status/assignment changes
+            this.dataSource.loadQuests(this.config.worldId).then(updated => {
+              this.quests = updated;
+              this.updateQuestIndicators();
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+
       // Sync active quest to HUD panel (with full objectives for task tracker)
       this.syncActiveQuestToHud();
       // Load quests into the quest tracker panel
@@ -4561,9 +4827,16 @@ export class BabylonGame {
       return asset || null;
     };
 
+    const MODEL_EXTENSIONS = /\.(gltf|glb|obj|babylon|stl|fbx)$/i;
+
     const loadModelTemplate = async (asset: VisualAsset | null): Promise<Mesh | null> => {
       if (!asset) return null;
       if (!asset.filePath) return null;
+      // Skip non-model files (textures, images, etc.)
+      if (!MODEL_EXTENSIONS.test(asset.filePath)) {
+        console.warn(`[applyWorld3DConfig] Skipping non-model asset ${asset.id} (${asset.filePath})`);
+        return null;
+      }
 
       try {
         let rootUrl: string;
@@ -7510,6 +7783,7 @@ export class BabylonGame {
       this.config.worldId,
       playerId,
       authToken,
+      this.dataSource,
     );
     if (!firstPlay) {
       return;
@@ -7538,6 +7812,8 @@ export class BabylonGame {
         authToken,
         targetLanguage: targetLang,
         guiManager: this.guiManager!,
+        dataSource: this.dataSource,
+        prologEngine: this.prologEngine,
       });
 
       this.onboardingActive = false;
@@ -8147,7 +8423,7 @@ export class BabylonGame {
         // Pass null as camera - NPCs don't need camera control
         controller = new CharacterController(root, null as any, this.scene);
         controller.setFaceForward(false);
-        controller.setMode(0);
+        controller.setMode(1); // Mode 1 = AnimationGroup mode (GLB/GLTF)
         controller.setStepOffset(0.75);
         controller.setSlopeLimit(15, 75);
         
@@ -8162,25 +8438,16 @@ export class BabylonGame {
           return this.scene?.animationGroups?.find((ag: any) => ag.name === name) ?? null;
         };
 
-        const idleAG = findAG("Idle") || findAG("Idle_Neutral") || findAG("idle");
-        const walkAG = findAG("Walk") || findAG("walk");
-        const runAG = findAG("Run") || findAG("run");
-        const turnLeftAG = findAG("Run_Left") || findAG("turnLeft");
-        const turnRightAG = findAG("Run_Right") || findAG("turnRight");
-        const walkBackAG = findAG("Run_Back") || findAG("walkBack");
-
-        if (idleAG) controller.setIdleAnim(idleAG, 1, true);
-        if (walkAG) controller.setWalkAnim(walkAG, 1, true);
-        if (runAG) controller.setRunAnim(runAG, 1.2, true);
-        if (turnLeftAG) controller.setTurnLeftAnim(turnLeftAG, 0.5, true);
-        if (turnRightAG) controller.setTurnRightAnim(turnRightAG, 0.5, true);
-        if (walkBackAG) controller.setWalkBackAnim(walkBackAG, 0.5, true);
+        // Don't set animations on the CharacterController for NPCs.
+        // We handle NPC animations directly via playNPCAnimation() to avoid
+        // the controller overriding our animation state every frame.
+        // The controller only handles movement physics (walk speed, turning).
         
         // Disable keyboard control - NPCs are controlled programmatically
         controller.enableKeyBoard(false);
 
-        // NPC walk speed: natural walking pace (default is 3, player speed)
-        controller.setWalkSpeed(2.0);
+        // NPC walk speed: natural walking pace
+        controller.setWalkSpeed(1.2);
         // Faster turn speed for NPCs so they don't circle around targets (default ~22.5 deg/s)
         controller.setTurnSpeed(180);
 
@@ -8189,6 +8456,13 @@ export class BabylonGame {
         
       } catch (controllerError) {
         console.error(`Failed to create NPC controller for ${character.id}:`, controllerError);
+      }
+
+      // Log animation groups for first NPC to debug animation issues
+      const npcCount = ((this as any)._npcAnimLogCount || 0) + 1;
+      (this as any)._npcAnimLogCount = npcCount;
+      if (npcCount <= 5) {
+        console.log(`[NPC Animations] #${npcCount} ${character.firstName} ${character.lastName}: ${animationGroups.length} groups [${animationGroups.map((ag: any) => ag.name).join(', ')}]`);
       }
 
       const npcInstance: NPCInstance = {
@@ -9003,11 +9277,11 @@ export class BabylonGame {
         console.log(`[Interior] Asset interior loaded: ${meshCount} meshes`);
       } catch (err) {
         console.warn('[Interior] Failed to load asset interior, falling back to procedural:', err);
-        spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
+        spawnPos = await this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
       }
     } else {
       console.log(`[Interior] Using procedural interior for ${businessType || buildingType}`);
-      spawnPos = this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
+      spawnPos = await this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
     }
 
     // Position the interior player avatar at the spawn point (feet on floor)
@@ -9265,15 +9539,38 @@ export class BabylonGame {
   }
 
   /** Generate a procedural interior and return the spawn position. */
-  private generateProceduralInterior(
+  private async generateProceduralInterior(
     buildingId: string,
     buildingType: string,
     businessType?: string,
     doorWorldPos?: Vector3
-  ): Vector3 {
+  ): Promise<Vector3> {
     if (!this.interiorGenerator) {
       return new Vector3(0, 1.6, 0);
     }
+
+    // Pre-load furniture assets from the building's interior config (if any).
+    // Resolve asset IDs to file paths using the world asset list.
+    const btConfigs = this.world3DConfig?.buildingTypeConfigs;
+    const btConfig = btConfigs?.[businessType || ''] || btConfigs?.[buildingType || ''];
+    const interiorConfig = btConfig?.interiorConfig;
+    if (interiorConfig?.furnitureAssets && this.worldAssets) {
+      const resolved: Record<string, string> = {};
+      for (const [type, assetId] of Object.entries(interiorConfig.furnitureAssets)) {
+        const asset = this.worldAssets.find(a => a.id === assetId);
+        if (asset?.filePath) {
+          resolved[type] = asset.filePath.startsWith('/') ? asset.filePath : '/' + asset.filePath;
+        }
+      }
+      // Pass resolved paths to the generator
+      await this.interiorGenerator.loadFurnitureAssets({
+        ...interiorConfig,
+        furnitureAssets: Object.keys(resolved).length > 0 ? resolved : undefined,
+      });
+    } else {
+      await this.interiorGenerator.loadFurnitureAssets(interiorConfig);
+    }
+
     const interior = this.interiorGenerator.generateInterior(
       buildingId, buildingType, businessType, doorWorldPos
     );
@@ -9500,6 +9797,8 @@ export class BabylonGame {
       // Track location visit/discovery for quest objectives
       this.questObjectManager?.trackLocationVisit(zone.id, zone.name || zone.id);
       this.eventBus.emit({ type: 'settlement_entered', settlementId: zone.id, settlementName: zone.name || zone.id });
+      this.eventBus.emit({ type: 'location_visited', locationId: zone.id, locationName: zone.name || zone.id } as any);
+      this.eventBus.emit({ type: 'location_discovered', locationId: zone.id, locationName: zone.name || zone.id } as any);
       this.reputationManager?.setCurrentSettlement(zone.id, zone.name || zone.id);
 
       // Hide NPCs not in this settlement (skip NPCs in active conversation)
@@ -9953,12 +10252,10 @@ export class BabylonGame {
     }
   }
 
-  /** Fetch server texts and cache for book spawning. */
+  /** Fetch world texts and cache for book spawning. */
   private async fetchWorldTextsForBooks(): Promise<void> {
     try {
-      const resp = await fetch(`/api/worlds/${this.config.worldId}/texts`);
-      if (!resp.ok) return;
-      const texts = await resp.json();
+      const texts = await this.dataSource.loadTexts(this.config.worldId);
       if (!Array.isArray(texts)) return;
       this.worldTextCache = texts.map((t: any) => ({
         id: t.id,
@@ -10491,6 +10788,11 @@ export class BabylonGame {
 
     // Drain and apply pending actions
     const actions = this.scheduleExecutor.drainPendingActions();
+    if (actions.size > 0 && !(this as any)._loggedScheduleActions) {
+      (this as any)._loggedScheduleActions = true;
+      const sample = Array.from(actions.entries()).slice(0, 3);
+      console.log(`[Schedule] ${actions.size} actions:`, sample.map(([id, a]) => `${this.npcMeshes.get(id)?.characterData?.firstName}: ${a?.type}`));
+    }
     if (actions.size === 0) return;
 
     for (const [npcId, action] of Array.from(actions.entries())) {
@@ -11402,29 +11704,36 @@ export class BabylonGame {
    * Play a named animation on an NPC instance by searching its animation groups.
    * Stops all other animations and starts the matched one (looping).
    */
+  /**
+   * Play a named animation on an NPC instance by searching its animation groups.
+   * Stops all other animations and starts the matched one (looping).
+   */
   private playNPCAnimation(instance: NPCInstance, animName: string): void {
     if (!instance.animationGroups?.length) return;
+    // Use exact Quaternius animation names
     const nameMap: Record<string, string[]> = {
-      idle: ['idle', 'Idle', 'standing', 'breathe', 'Idle_Neutral'],
-      walk: ['walk', 'Walk', 'walking'],
-      run: ['run', 'Run', 'running'],
-      talk: ['talk', 'Talk', 'talking', 'speak', 'gesture'],
-      listen: ['listen', 'Listen', 'listening', 'nod'],
-      work: ['work', 'Work', 'working', 'work_standing'],
-      sit: ['sit', 'Sit', 'sitting', 'seated'],
-      eat: ['eat', 'Eat', 'eating', 'drink'],
-      wave: ['wave', 'Wave', 'waving', 'greet'],
-      sleep: ['sleep', 'Sleep', 'sleeping', 'lying'],
+      idle: ['Idle_Neutral', 'Idle'],
+      walk: ['Walk'],
+      run: ['Run'],
+      talk: ['Interact', 'Wave'],
+      listen: ['Idle_Neutral'],
+      work: ['Interact'],
+      sit: ['Idle_Neutral'],
+      eat: ['Interact'],
+      wave: ['Wave'],
+      sleep: ['Idle_Neutral'],
     };
     const search = nameMap[animName] || [animName];
     const group = instance.animationGroups.find((ag: any) =>
-      search.some((n: string) => ag.name?.toLowerCase().includes(n.toLowerCase()))
+      search.some((n: string) => ag.name === n)
     );
     if (group && instance.currentAnimation !== group) {
       for (const ag of instance.animationGroups) {
-        if (ag !== group) ag.stop();
+        ag.stop();
       }
-      group.start(true);
+      // Slow down walk/run to match NPC movement speed
+      const speed = (animName === 'walk') ? 0.7 : (animName === 'run') ? 0.9 : 1.0;
+      group.start(true, speed, group.from, group.to, false);
       instance.currentAnimation = group;
     }
   }
@@ -12545,17 +12854,7 @@ export class BabylonGame {
       rewards: offer.rewards,
     };
 
-    const response = await fetch(`/api/worlds/${worldId}/quests`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(questData),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Quest creation failed: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.dataSource.createDynamicQuest(worldId, questData);
   }
 
   /**
@@ -12607,7 +12906,10 @@ export class BabylonGame {
    */
   private async fetchQuestGuidance(npcId: string, worldId: string): Promise<void> {
     try {
-      const guidance = await this.dataSource.getNpcQuestGuidance(worldId, npcId);
+      // Prefer local quest guidance via GameQuestManager (no server call)
+      const guidance = this.gameQuestManager
+        ? await this.gameQuestManager.getNpcQuestGuidance(npcId)
+        : await this.dataSource.getNpcQuestGuidance(worldId, npcId);
       if (guidance?.hasGuidance && guidance.systemPromptAddition) {
         this.chatPanel?.setQuestGuidancePrompt(guidance.systemPromptAddition);
         // If the conversation just started and hasn't had an NPC greeting yet,
@@ -14013,6 +14315,17 @@ export class BabylonGame {
     } else {
       this.disableDebugHover();
     }
+
+    // Toggle Prolog debug panel
+    if (enabling && this.prologEngine) {
+      const canvas = this.scene.getEngine().getRenderingCanvas();
+      const container = canvas?.parentElement;
+      if (container) {
+        showPrologDebugPanel(container, this.prologEngine);
+      }
+    } else {
+      hidePrologDebugPanel();
+    }
   }
 
   private static readonly TIME_SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8, 16];
@@ -14085,6 +14398,16 @@ export class BabylonGame {
 
       showDebugHoverTooltip(x, y, label);
       applyDebugHighlight(mesh);
+
+      // Asynchronously enrich tooltip with Prolog facts
+      if (this.prologEngine && mesh.metadata) {
+        const currentMesh = mesh; // capture for async closure
+        queryEntityFacts(this.prologEngine, mesh.metadata).then(prologLabel => {
+          if (prologLabel && currentMesh === (pickInfo?.pickedMesh ?? null)) {
+            showDebugHoverTooltip(x, y, label + '\n' + prologLabel);
+          }
+        }).catch(() => { /* Prolog query failed — tooltip stays as-is */ });
+      }
     });
   }
 
@@ -14325,6 +14648,38 @@ export class BabylonGame {
         this.playActionAnimation('player', result.animation);
       }
 
+      // Emit action-specific events for quest tracking
+      // The action's emitsEvent field (from activity-types.ts) tells us what event to fire
+      if (result.success) {
+        const emitsEvent = actionDefinition?.emitsEvent || actionDefinition?.emits;
+        if (emitsEvent) {
+          this.eventBus.emit({
+            type: emitsEvent,
+            npcId: npcId || '',
+            itemName: result.effects?.find((e: any) => e.type === 'item')?.value?.itemId || actionId,
+            itemId: actionId,
+            quantity: 1,
+            merchantId: npcId || '',
+            merchantName: targetName,
+            businessType: '',
+            locationId: actionId,
+            locationName: actionName,
+          } as any);
+        }
+
+        // Also emit specific events based on known action patterns
+        if (actionId.includes('collect') || actionId.includes('gather') || actionId.includes('pick')) {
+          const itemName = result.effects?.find((e: any) => e.type === 'item')?.value?.itemId || actionId;
+          this.eventBus.emit({ type: 'item_collected', itemId: actionId, itemName, quantity: 1 } as any);
+        }
+        if (actionId === 'order_food' || actionId.includes('order_')) {
+          this.eventBus.emit({ type: 'food_ordered', itemId: actionId, itemName: actionName, quantity: 1, merchantId: npcId || '', merchantName: targetName, businessType: 'food' } as any);
+        }
+        if (actionId === 'haggle_price' || actionId.includes('haggle') || actionId.includes('negotiate')) {
+          this.eventBus.emit({ type: 'price_haggled', itemId: actionId, itemName: actionName, merchantId: npcId || '', merchantName: targetName, typedWord: '', targetWord: '' } as any);
+        }
+      }
+
       // Record action in Prolog knowledge base (for quest tracking & NPC memory)
       if (result.success && this.prologEngine) {
         this.prologEngine.recordPlayerAction('player', npcId, actionId).catch(() => {});
@@ -14522,7 +14877,8 @@ export class BabylonGame {
       this.config.authToken,
       this.eventBus,
     );
-    // Load existing reputations from server
+    this.reputationManager.setDataSource(this.dataSource);
+    // Load existing reputations
     this.reputationManager.loadAll();
     // Listen for reputation changes and show floating notifications
     this.reputationManager.onReputationChange((change) => {
@@ -14991,6 +15347,14 @@ export class BabylonGame {
 
     // Activate hotspots whose objectives are "up next" (not blocked)
     this.refreshQuestHotspotStates();
+
+    // Register active quest IDs with the Prolog engine so it evaluates them
+    if (this.prologEngine) {
+      const activeIds = quests
+        .filter(q => q.status === 'active' || q.status === 'in_progress')
+        .map(q => q.id);
+      this.prologEngine.setActiveQuests(activeIds);
+    }
   }
 
   /**
@@ -15044,12 +15408,7 @@ export class BabylonGame {
         });
       }
 
-      // Assert phase_score/3 Prolog predicate so assessment_complete/1 can evaluate
-      if (this.prologEngine) {
-        const questAtom = 'arrival_encounter';
-        const phaseAtom = phaseId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-        await this.prologEngine.assertFact(`phase_score(${questAtom}, ${phaseAtom}, ${score})`).catch(() => {});
-      }
+      // Note: phase_score Prolog facts are now asserted by AssessmentEngine directly.
 
       // Persist updated objectives and progress to server
       const progress = { ...quest.progress, percentComplete: computeProgress(updated) };
@@ -15969,6 +16328,13 @@ export class BabylonGame {
     this.ruleEnforcer?.dispose();
     this.reputationManager?.dispose();
     this.reputationManager = null;
+    if (this._prologReconcileTimer) {
+      clearInterval(this._prologReconcileTimer);
+      this._prologReconcileTimer = null;
+    }
+    this.gameQuestManager?.dispose();
+    this.gameQuestManager = null;
+    disposePrologDebugPanel();
     this.prologEngine?.dispose();
     this.prologEngine = null;
     this.dayNightCycle?.dispose();

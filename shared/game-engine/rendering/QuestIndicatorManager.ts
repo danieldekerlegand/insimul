@@ -340,7 +340,7 @@ export class QuestIndicatorManager {
     switch (type) {
       case 'available':
         return {
-          symbol: '!',
+          symbol: '?',
           bgColor: 'rgba(255, 215, 0, 0.9)', // Gold
           borderColor: '#b8860b',
           textColor: '#000000'

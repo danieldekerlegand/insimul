@@ -47,8 +47,13 @@ export class GamePrologEngine {
   private eventBusRef: GameEventBus | null = null;
   private activeQuestIds: string[] = [];
   private onQuestCompleted?: (questId: string) => void;
+  private onObjectiveCompleted?: (questId: string, objectiveIndex: number) => void;
   /** Track per-item quantities so has_item/3 stays accurate. */
   private itemQuantities = new Map<string, number>();
+  /** Track which objectives Prolog has already marked complete (avoid duplicate callbacks). */
+  private completedObjectives = new Set<string>();
+  /** Track which quests Prolog has already marked complete. */
+  private completedQuests = new Set<string>();
 
   constructor() {
     this.engine = new TauPrologEngine();
@@ -62,10 +67,25 @@ export class GamePrologEngine {
   }
 
   /**
+   * Set callback for when Prolog determines an individual objective is complete.
+   * This enables syncing Prolog's authoritative evaluation back to the UI layer.
+   */
+  setOnObjectiveCompleted(callback: (questId: string, objectiveIndex: number) => void): void {
+    this.onObjectiveCompleted = callback;
+  }
+
+  /**
    * Register active quest IDs for re-evaluation.
    */
   setActiveQuests(questIds: string[]): void {
     this.activeQuestIds = questIds;
+    // Clear completion tracking for quests no longer active
+    for (const key of this.completedObjectives) {
+      const questId = key.split(':')[0];
+      if (!questIds.includes(questId)) {
+        this.completedObjectives.delete(key);
+      }
+    }
   }
 
   /**
@@ -114,6 +134,13 @@ export class GamePrologEngine {
       case 'npc_talked':
         await this.engine.assertFact(
           `talked_to(player, ${this.sanitize(event.npcId)}, ${event.turnCount})`
+        );
+        break;
+      case 'conversational_action_completed':
+        // Asserted when the LLM confirms a player's conversation achieved a quest objective.
+        // conversational_action(player, NpcId, Action, QuestId).
+        await this.engine.assertFact(
+          `conversational_action(player, ${this.sanitize((event as any).npcId)}, ${this.sanitize((event as any).action)}, ${this.sanitize((event as any).questId)})`
         );
         break;
       case 'item_delivered':
@@ -334,6 +361,130 @@ export class GamePrologEngine {
         );
         break;
       }
+      // ── Language learning events ────────────────────────────────────────
+      case 'text_found': {
+        const textId = this.sanitize(event.textId || event.textName || '');
+        await this.engine.assertFact(`text_found(player, ${textId})`);
+        break;
+      }
+      case 'text_read': {
+        const textId = this.sanitize(event.textId || '');
+        await this.engine.assertFact(`text_read(player, ${textId})`);
+        break;
+      }
+      case 'sign_read': {
+        const signId = this.sanitize(event.signId || '');
+        await this.engine.assertFact(`sign_read(player, ${signId})`);
+        break;
+      }
+      case 'object_examined': {
+        const objName = this.sanitize(event.objectName || '');
+        await this.engine.assertFact(`object_examined(player, ${objName})`);
+        break;
+      }
+      case 'object_identified': {
+        const objName = this.sanitize(event.objectName || '');
+        await this.engine.assertFact(`object_identified(player, ${objName})`);
+        break;
+      }
+      case 'object_pointed_and_named': {
+        const objName = this.sanitize(event.objectName || '');
+        await this.engine.assertFact(`object_pointed_named(player, ${objName})`);
+        break;
+      }
+      case 'writing_submitted': {
+        const wordCount = (event as any).wordCount || 0;
+        await this.engine.assertFact(`response_written(player, ${wordCount})`);
+        break;
+      }
+      case 'photo_taken': {
+        const subject = this.sanitize((event as any).subjectName || '');
+        await this.engine.assertFact(`photo_taken(player, ${subject})`);
+        break;
+      }
+      case 'food_ordered': {
+        const item = this.sanitize((event as any).itemName || '');
+        await this.engine.assertFact(`food_ordered(player, ${item})`);
+        break;
+      }
+      case 'price_haggled': {
+        const item = this.sanitize((event as any).itemName || '');
+        await this.engine.assertFact(`price_haggled(player, ${item})`);
+        break;
+      }
+      case 'gift_given': {
+        const npc = this.sanitize((event as any).npcId || '');
+        const item = this.sanitize((event as any).itemName || '');
+        await this.engine.assertFact(`gift_given(player, ${npc}, ${item})`);
+        break;
+      }
+      case 'translation_attempt': {
+        if ((event as any).isCorrect) {
+          await this.engine.assertFact(`translation_completed(player, correct)`);
+        }
+        break;
+      }
+      case 'pronunciation_attempt': {
+        const phrase = this.sanitize((event as any).phrase || 'unknown');
+        const score = Math.round((event as any).score ?? 0);
+        const timestamp = Math.floor(Date.now() / 1000);
+        // Store the full score for analytics and quest evaluation
+        await this.engine.assertFact(
+          `pronunciation_score(player, ${phrase}, ${score}, ${timestamp})`
+        );
+        if ((event as any).passed) {
+          await this.engine.assertFact(`pronunciation_passed(player, ${phrase})`);
+        }
+        break;
+      }
+      case 'reading_completed': {
+        const textId = this.sanitize((event as any).textId || '');
+        await this.engine.assertFact(`text_read(player, ${textId})`);
+        break;
+      }
+      case 'questions_answered': {
+        const textId = this.sanitize((event as any).textId || '');
+        await this.engine.assertFact(`comprehension_done(player, ${textId})`);
+        break;
+      }
+      case 'conversation_turn': {
+        // Track aggregate conversation turns for quest progress
+        const npcId = this.sanitize((event as any).npcId || 'unknown');
+        const total = (event as any).totalTurns || 1;
+        try {
+          await this.engine.retractFact(`npc_conversation_turns(player, ${npcId}, _)`);
+        } catch { /* may not exist */ }
+        await this.engine.assertFact(`npc_conversation_turns(player, ${npcId}, ${total})`);
+        break;
+      }
+      case 'conversation_turn_counted': {
+        const npcId = this.sanitize((event as any).npcId || 'unknown');
+        const total = (event as any).totalTurns || 1;
+        try {
+          await this.engine.retractFact(`npc_conversation_turns(player, ${npcId}, _)`);
+        } catch { /* may not exist */ }
+        await this.engine.assertFact(`npc_conversation_turns(player, ${npcId}, ${total})`);
+        break;
+      }
+      case 'physical_action_completed': {
+        const actionType = this.sanitize((event as any).actionType || '');
+        await this.engine.assertFact(`physical_action_done(player, ${actionType})`);
+        break;
+      }
+      case 'npc_exam_completed': {
+        const examId = this.sanitize((event as any).examId || '');
+        const score = (event as any).totalScore ?? 0;
+        const maxPoints = (event as any).totalMaxPoints ?? 0;
+        const cefrLevel = this.sanitize((event as any).cefrLevel || 'a1');
+        const timestamp = Math.floor(Date.now() / 1000);
+        await this.engine.assertFact(
+          `assessment_result(player, ${examId}, ${score}, ${maxPoints}, ${cefrLevel}, ${timestamp})`
+        );
+        await this.engine.assertFact(
+          `player_cefr_level(player, ${cefrLevel})`
+        );
+        break;
+      }
       default:
         return; // No re-evaluation needed for unhandled events
     }
@@ -343,13 +494,55 @@ export class GamePrologEngine {
   }
 
   /**
-   * Re-evaluate all active quests to see if any are now complete.
+   * Re-evaluate all active quests — check individual objectives first,
+   * then check whole-quest completion. Prolog is the authority.
    */
   private async reevaluateQuests(): Promise<void> {
     for (const questId of this.activeQuestIds) {
+      if (this.completedQuests.has(questId)) continue;
+
+      // Check individual objective completion
+      if (this.onObjectiveCompleted) {
+        await this.checkObjectiveCompletion(questId);
+      }
+
+      // Check whole-quest completion
       const complete = await this.isQuestComplete(questId, 'player');
-      if (complete && this.onQuestCompleted) {
-        this.onQuestCompleted(questId);
+      if (complete && !this.completedQuests.has(questId)) {
+        this.completedQuests.add(questId);
+        this.onQuestCompleted?.(questId);
+      }
+    }
+  }
+
+  /**
+   * Check each objective of a quest for completion via Prolog.
+   * Fires onObjectiveCompleted for each newly completed objective.
+   */
+  private async checkObjectiveCompletion(questId: string): Promise<void> {
+    const sanitizedId = this.sanitize(questId);
+
+    // Query for how many objectives this quest has
+    const objectives = await this.engine.query(
+      `quest_objective(${sanitizedId}, Idx, _)`,
+      50,
+    );
+
+    for (const result of objectives) {
+      const idx = parseInt(result.Idx, 10);
+      if (isNaN(idx)) continue;
+
+      const key = `${questId}:${idx}`;
+      if (this.completedObjectives.has(key)) continue;
+
+      // Check if this specific objective is complete
+      const complete = await this.engine.queryOnce(
+        `objective_complete(player, ${sanitizedId}, ${idx})`,
+      );
+
+      if (complete) {
+        this.completedObjectives.add(key);
+        this.onObjectiveCompleted!(questId, idx);
       }
     }
   }
@@ -641,6 +834,70 @@ export class GamePrologEngine {
       return !!result;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Reconcile Prolog's view of quest state with an external system.
+   * Returns lists of quests/objectives that Prolog considers complete
+   * but may not be reflected in the UI yet.
+   */
+  async reconcile(): Promise<{
+    completedQuests: string[];
+    completedObjectives: Array<{ questId: string; objectiveIndex: number }>;
+  }> {
+    const completedQuests: string[] = [];
+    const completedObjectives: Array<{ questId: string; objectiveIndex: number }> = [];
+
+    if (!this.initialized) return { completedQuests, completedObjectives };
+
+    for (const questId of this.activeQuestIds) {
+      const sanitizedId = this.sanitize(questId);
+
+      // Check objectives
+      try {
+        const objectives = await this.engine.query(
+          `quest_objective(${sanitizedId}, Idx, _)`, 50,
+        );
+        for (const result of objectives) {
+          const idx = parseInt(result.Idx, 10);
+          if (isNaN(idx)) continue;
+          const complete = await this.engine.queryOnce(
+            `objective_complete(player, ${sanitizedId}, ${idx})`,
+          );
+          if (complete) {
+            completedObjectives.push({ questId, objectiveIndex: idx });
+          }
+        }
+      } catch { /* query may fail if no objectives */ }
+
+      // Check quest-level
+      try {
+        const complete = await this.isQuestComplete(questId, 'player');
+        if (complete) completedQuests.push(questId);
+      } catch { /* continue */ }
+    }
+
+    return { completedQuests, completedObjectives };
+  }
+
+  /**
+   * Get conditional bonus rewards earned for a completed quest.
+   * Queries quest_bonus_reward/4 from Prolog rules.
+   */
+  async getBonusRewards(questId: string): Promise<Array<{ type: string; value: number }>> {
+    if (!this.initialized) return [];
+
+    try {
+      const results = await this.engine.query(
+        `quest_bonus_reward(player, ${this.sanitize(questId)}, Type, Value)`, 10,
+      );
+      return results.map(r => ({
+        type: String(r.Type),
+        value: parseInt(String(r.Value), 10) || 0,
+      }));
+    } catch {
+      return [];
     }
   }
 

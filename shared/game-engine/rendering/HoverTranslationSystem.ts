@@ -41,6 +41,8 @@ export class HoverTranslationSystem {
   /** In-flight API requests to avoid duplicate fetches */
   private _pendingRequests: Map<string, Promise<TranslationResult | null>> = new Map();
   private _targetLanguage: string | null = null;
+  /** Injectable translate function — set from BabylonChatPanel to route through SDK */
+  private _translateFn: ((word: string, targetLanguage: string) => Promise<{ word: string; translation: string; context?: string } | null>) | null = null;
   /** Current CEFR level for adaptive behavior */
   private _cefrLevel: CEFRLevel = 'A1';
   /** Track word encounter counts for hint frequency */
@@ -52,6 +54,11 @@ export class HoverTranslationSystem {
 
   setTargetLanguage(lang: string): void {
     this._targetLanguage = lang;
+  }
+
+  /** Set a custom translate function (e.g., from InsimulClient.translateWord). */
+  setTranslateFn(fn: (word: string, targetLanguage: string) => Promise<{ word: string; translation: string; context?: string } | null>): void {
+    this._translateFn = fn;
   }
 
   getTargetLanguage(): string | null {
@@ -229,18 +236,25 @@ export class HoverTranslationSystem {
 
   private async _fetchFromAPI(originalWord: string, normalized: string): Promise<TranslationResult | null> {
     try {
-      const res = await fetch('/api/conversation/translate-word', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          word: originalWord,
-          targetLanguage: this._targetLanguage,
-        }),
-      });
+      let data: any;
 
-      if (!res.ok) return null;
-
-      const data = await res.json();
+      if (this._translateFn && this._targetLanguage) {
+        // Use injectable SDK translate function
+        data = await this._translateFn(originalWord, this._targetLanguage);
+        if (!data) return null;
+      } else {
+        // Direct fetch fallback
+        const res = await fetch('/api/conversation/translate-word', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            word: originalWord,
+            targetLanguage: this._targetLanguage,
+          }),
+        });
+        if (!res.ok) return null;
+        data = await res.json();
+      }
       if (data.translation) {
         const hint: VocabHint = {
           word: originalWord,

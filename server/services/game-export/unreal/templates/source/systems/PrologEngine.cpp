@@ -26,6 +26,8 @@ void UPrologEngine::Deinitialize()
     Rules.Empty();
     ActiveQuestIds.Empty();
     ItemQuantities.Empty();
+    CompletedObjectives.Empty();
+    CompletedQuests.Empty();
     bInitialized = false;
     FactCount = 0;
     RuleCount = 0;
@@ -848,6 +850,22 @@ void UPrologEngine::SubscribeToEventBus(UEventBus* EventBus)
 void UPrologEngine::SetActiveQuests(const TArray<FString>& QuestIds)
 {
     ActiveQuestIds = QuestIds;
+
+    // Clear completion tracking for quests no longer active
+    TArray<FString> KeysToRemove;
+    for (const FString& Key : CompletedObjectives)
+    {
+        FString QuestPart;
+        Key.Split(TEXT(":"), &QuestPart, nullptr);
+        if (!QuestIds.Contains(QuestPart))
+        {
+            KeysToRemove.Add(Key);
+        }
+    }
+    for (const FString& Key : KeysToRemove)
+    {
+        CompletedObjectives.Remove(Key);
+    }
 }
 
 void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
@@ -1020,10 +1038,91 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
             RetractPattern(TEXT("quest_active"), TEXT("player"), Sanitize(Event.QuestId));
             break;
         case EInsimulEventType::DirectionStepCompleted:
-            RetractPattern(TEXT("quest_progress"), TEXT("player"), Sanitize(Event.QuestId), TEXT("_"));
+            RetractPattern(TEXT("quest_progress"), TEXT("player"), Sanitize(Event.QuestId));
             AssertFact(FString::Printf(TEXT("quest_progress(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepsCompleted));
             AssertFact(FString::Printf(TEXT("direction_step_done(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepIndex));
             break;
+        case EInsimulEventType::ConversationalActionCompleted:
+            AssertFact(FString::Printf(TEXT("conversational_action(player, %s, %s, %s)"),
+                *Sanitize(Event.NPCId), *Sanitize(Event.ActionType), *Sanitize(Event.QuestId)));
+            break;
+        // Language learning events
+        case EInsimulEventType::TextFound:
+            AssertFact(FString::Printf(TEXT("text_found(player, %s)"), *Sanitize(Event.TextId)));
+            break;
+        case EInsimulEventType::TextRead:
+            AssertFact(FString::Printf(TEXT("text_read(player, %s)"), *Sanitize(Event.TextId)));
+            break;
+        case EInsimulEventType::SignRead:
+            AssertFact(FString::Printf(TEXT("sign_read(player, %s)"), *Sanitize(Event.SignId)));
+            break;
+        case EInsimulEventType::ObjectExamined:
+            AssertFact(FString::Printf(TEXT("object_examined(player, %s)"), *Sanitize(Event.ObjectName)));
+            break;
+        case EInsimulEventType::ObjectIdentified:
+            AssertFact(FString::Printf(TEXT("object_identified(player, %s)"), *Sanitize(Event.ObjectName)));
+            break;
+        case EInsimulEventType::ObjectPointedAndNamed:
+            AssertFact(FString::Printf(TEXT("object_pointed_named(player, %s)"), *Sanitize(Event.ObjectName)));
+            break;
+        case EInsimulEventType::WritingSubmitted:
+            AssertFact(FString::Printf(TEXT("response_written(player, %d)"), Event.WordCount));
+            break;
+        case EInsimulEventType::PhotoTaken:
+            AssertFact(FString::Printf(TEXT("photo_taken(player, %s)"), *Sanitize(Event.SubjectName)));
+            break;
+        case EInsimulEventType::FoodOrdered:
+            AssertFact(FString::Printf(TEXT("food_ordered(player, %s)"), *Sanitize(Event.ItemName)));
+            break;
+        case EInsimulEventType::PriceHaggled:
+            AssertFact(FString::Printf(TEXT("price_haggled(player, %s)"), *Sanitize(Event.ItemName)));
+            break;
+        case EInsimulEventType::GiftGiven:
+            AssertFact(FString::Printf(TEXT("gift_given(player, %s, %s)"), *Sanitize(Event.NPCId), *Sanitize(Event.ItemName)));
+            break;
+        case EInsimulEventType::TranslationAttempt:
+            if (Event.bCorrect)
+            {
+                AssertFact(TEXT("translation_completed(player, correct)"));
+            }
+            break;
+        case EInsimulEventType::PronunciationAttempt:
+        {
+            FString Phrase = Sanitize(Event.Phrase);
+            int32 Timestamp = FMath::FloorToInt(FDateTime::UtcNow().ToUnixTimestamp());
+            AssertFact(FString::Printf(TEXT("pronunciation_score(player, %s, %d, %d)"), *Phrase, static_cast<int32>(Event.Score), Timestamp));
+            if (Event.bPassed)
+            {
+                AssertFact(FString::Printf(TEXT("pronunciation_passed(player, %s)"), *Phrase));
+            }
+            break;
+        }
+        case EInsimulEventType::ReadingCompleted:
+            AssertFact(FString::Printf(TEXT("text_read(player, %s)"), *Sanitize(Event.TextId)));
+            break;
+        case EInsimulEventType::QuestionsAnswered:
+            AssertFact(FString::Printf(TEXT("comprehension_done(player, %s)"), *Sanitize(Event.TextId)));
+            break;
+        case EInsimulEventType::ConversationTurn:
+        case EInsimulEventType::ConversationTurnCounted:
+        {
+            FString NId = Sanitize(Event.NPCId);
+            RetractPattern(TEXT("npc_conversation_turns"), TEXT("player"), NId);
+            AssertFact(FString::Printf(TEXT("npc_conversation_turns(player, %s, %d)"), *NId, Event.TotalTurns));
+            break;
+        }
+        case EInsimulEventType::PhysicalActionCompleted:
+            AssertFact(FString::Printf(TEXT("physical_action_done(player, %s)"), *Sanitize(Event.ActionType)));
+            break;
+        case EInsimulEventType::NpcExamCompleted:
+        {
+            FString ExamId = Sanitize(Event.ExamId);
+            int32 Timestamp = FMath::FloorToInt(FDateTime::UtcNow().ToUnixTimestamp());
+            AssertFact(FString::Printf(TEXT("assessment_result(player, %s, %d, %d, %s, %d)"),
+                *ExamId, Event.TotalScoreInt, Event.TotalMaxPointsInt, *Sanitize(Event.CefrLevel), Timestamp));
+            AssertFact(FString::Printf(TEXT("player_cefr_level(player, %s)"), *Sanitize(Event.CefrLevel)));
+            break;
+        }
         default:
             return; // No re-evaluation needed
     }
@@ -1036,9 +1135,15 @@ void UPrologEngine::ReevaluateQuests()
 {
     for (const FString& QuestId : ActiveQuestIds)
     {
-        if (IsQuestComplete(QuestId, TEXT("player")))
+        if (CompletedQuests.Contains(QuestId)) continue;
+
+        // Check individual objective completion
+        CheckObjectiveCompletion(QuestId);
+
+        // Check whole-quest completion
+        if (IsQuestComplete(QuestId, TEXT("player")) && !CompletedQuests.Contains(QuestId))
         {
-            // Fire quest completed event
+            CompletedQuests.Add(QuestId);
             FInsimulGameEvent CompletedEvent;
             CompletedEvent.EventType = EInsimulEventType::QuestCompleted;
             CompletedEvent.QuestId = QuestId;
@@ -1146,6 +1251,109 @@ bool UPrologEngine::CanPerformRomanceAction(const FString& NPCId, const FString&
     if (!bHasRomanceRules) return true;
 
     return HasFact(Pattern);
+}
+
+void UPrologEngine::CheckObjectiveCompletion(const FString& QuestId)
+{
+    FString SanitizedId = Sanitize(QuestId);
+
+    // Find quest_objective facts for this quest
+    FString Prefix = FString::Printf(TEXT("quest_objective(%s,"), *SanitizedId);
+    TArray<FString> ObjectiveFacts = FindFacts(Prefix);
+
+    for (const FString& Fact : ObjectiveFacts)
+    {
+        // Extract objective index (second argument)
+        int32 FirstComma = INDEX_NONE;
+        int32 SecondComma = INDEX_NONE;
+        Fact.FindChar(TEXT(','), FirstComma);
+        if (FirstComma != INDEX_NONE)
+        {
+            int32 SearchStart = FirstComma + 1;
+            SecondComma = Fact.Find(TEXT(","), ESearchCase::CaseSensitive, ESearchDir::FromStart, SearchStart);
+            if (SecondComma == INDEX_NONE)
+            {
+                Fact.FindLastChar(TEXT(')'), SecondComma);
+            }
+        }
+
+        if (FirstComma == INDEX_NONE || SecondComma == INDEX_NONE) continue;
+
+        FString IdxStr = Fact.Mid(FirstComma + 1, SecondComma - FirstComma - 1).TrimStartAndEnd();
+        int32 Idx = FCString::Atoi(*IdxStr);
+
+        FString Key = FString::Printf(TEXT("%s:%d"), *QuestId, Idx);
+        if (CompletedObjectives.Contains(Key)) continue;
+
+        // Check if this objective is complete
+        FString CompletePattern = FString::Printf(TEXT("objective_complete(player, %s, %d)"), *SanitizedId, Idx);
+        if (HasFact(CompletePattern))
+        {
+            CompletedObjectives.Add(Key);
+            OnObjectiveCompleted.Broadcast(QuestId, Idx);
+        }
+    }
+}
+
+void UPrologEngine::Reconcile(TArray<FString>& OutCompletedQuests, TArray<FString>& OutCompletedObjectiveKeys)
+{
+    OutCompletedQuests.Empty();
+    OutCompletedObjectiveKeys.Empty();
+
+    if (!bInitialized) return;
+
+    for (const FString& QuestId : ActiveQuestIds)
+    {
+        FString SanitizedId = Sanitize(QuestId);
+
+        // Check objectives
+        FString Prefix = FString::Printf(TEXT("quest_objective(%s,"), *SanitizedId);
+        TArray<FString> ObjectiveFacts = FindFacts(Prefix);
+        for (const FString& Fact : ObjectiveFacts)
+        {
+            int32 FirstComma = INDEX_NONE;
+            int32 SecondComma = INDEX_NONE;
+            Fact.FindChar(TEXT(','), FirstComma);
+            if (FirstComma != INDEX_NONE)
+            {
+                int32 SearchStart = FirstComma + 1;
+                SecondComma = Fact.Find(TEXT(","), ESearchCase::CaseSensitive, ESearchDir::FromStart, SearchStart);
+                if (SecondComma == INDEX_NONE) Fact.FindLastChar(TEXT(')'), SecondComma);
+            }
+            if (FirstComma == INDEX_NONE || SecondComma == INDEX_NONE) continue;
+
+            FString IdxStr = Fact.Mid(FirstComma + 1, SecondComma - FirstComma - 1).TrimStartAndEnd();
+            int32 Idx = FCString::Atoi(*IdxStr);
+
+            FString CompletePattern = FString::Printf(TEXT("objective_complete(player, %s, %d)"), *SanitizedId, Idx);
+            if (HasFact(CompletePattern))
+            {
+                OutCompletedObjectiveKeys.Add(FString::Printf(TEXT("%s:%d"), *QuestId, Idx));
+            }
+        }
+
+        // Check quest-level
+        if (IsQuestComplete(QuestId, TEXT("player")))
+        {
+            OutCompletedQuests.Add(QuestId);
+        }
+    }
+}
+
+TArray<FString> UPrologEngine::GetBonusRewards(const FString& QuestId)
+{
+    if (!bInitialized) return {};
+
+    FString Prefix = FString::Printf(TEXT("quest_bonus_reward(player, %s,"), *Sanitize(QuestId));
+    TArray<FString> MatchingFacts = FindFacts(Prefix);
+
+    TArray<FString> Results;
+    for (const FString& Fact : MatchingFacts)
+    {
+        // Return raw facts — Blueprint parsing can extract Type and Value
+        Results.Add(Fact);
+    }
+    return Results;
 }
 
 // ── Private Helpers ─────────────────────────────────────────────────────────

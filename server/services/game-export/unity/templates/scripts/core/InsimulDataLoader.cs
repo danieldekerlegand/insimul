@@ -755,6 +755,38 @@ namespace Insimul.Core
             // No-op in exported mode
         }
 
+        // ── Quest management ─────────────────────────────────────────────
+
+        public static string CreateDynamicQuest(string worldId, string questDataJson)
+        {
+            string questId = "dynamic_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string questDir = System.IO.Path.Combine(Application.persistentDataPath, "quests");
+            System.IO.Directory.CreateDirectory(questDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(questDir, questId + ".json"), questDataJson);
+            Debug.Log($"[Insimul] Created dynamic quest: {questId}");
+            return JsonUtility.ToJson(new QuestCreateResult { id = questId, status = "active" });
+        }
+
+        public static string BranchQuest(string worldId, string questId, string choiceId, string targetStageId = null)
+        {
+            Debug.Log($"[Insimul] BranchQuest: {questId}, choice: {choiceId}");
+            return "{\"success\":true}";
+        }
+
+        public static string AdjustReputation(string playthroughId, string entityType, string entityId, int amount, string reason)
+        {
+            Debug.Log($"[Insimul] AdjustReputation: {entityType}/{entityId} by {amount} ({reason})");
+            return "{\"success\":true}";
+        }
+
+        // Helper class for CreateDynamicQuest return
+        [Serializable]
+        private class QuestCreateResult
+        {
+            public string id;
+            public string status;
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static T[] LoadFilteredArray<T>(string resourcePath, string settlementId) where T : class

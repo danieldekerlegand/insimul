@@ -1,3 +1,16 @@
+/**
+ * LEGACY Playthrough Routes
+ *
+ * These routes manage the old playthrough/delta/conversation collections.
+ * The game now uses the unified save file system (see save-file-routes.ts).
+ *
+ * These routes are KEPT for:
+ * - Editor UI: playthrough analytics, conversation history viewer
+ * - Backward compatibility: existing playthroughs created before the save file system
+ *
+ * Game-runtime endpoints (reputation, relationships, quest progress, traces)
+ * are DEPRECATED — the game writes to the save file's currentState instead.
+ */
 import type { Express } from "express";
 import { storage } from '../db/storage';
 import { AuthService } from "../services/auth-service";

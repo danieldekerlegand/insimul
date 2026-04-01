@@ -10,7 +10,6 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import crypto from 'crypto';
 
 // Simple in-memory rate limiter for API key requests (100 req/min per key)
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
@@ -546,70 +545,33 @@ export function createTelemetryRoutes(storage: any): Router {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // ============= API KEYS (US-6.02) =============
+  // ============= API KEYS (per-user, stored on user account) =============
 
-  // POST /api/worlds/:worldId/api-keys — generate key
-  router.post('/worlds/:worldId/api-keys', async (req: Request, res: Response) => {
+  // GET /api/user/api-key — get current user's API key
+  router.get('/user/api-key', async (req: Request, res: Response) => {
     try {
-      const { worldId } = req.params;
-      const { ownerId, permissions, expiresAt } = req.body;
-
-      if (!ownerId) {
-        return res.status(400).json({ message: 'Missing required field: ownerId' });
-      }
-
-      const key = 'insimul_' + crypto.randomBytes(32).toString('hex');
-
-      const apiKey = await storage.createApiKey({
-        key,
-        worldId,
-        ownerId,
-        permissions: permissions || ['telemetry:write'],
-        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-      });
-
-      res.status(201).json(apiKey);
+      const userId = (req as any).userId;
+      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+      const apiKey = await storage.getUserApiKey(userId);
+      if (!apiKey) return res.status(404).json({ message: 'User not found' });
+      res.json({ apiKey });
     } catch (error) {
-      console.error('Create API key error:', error);
-      res.status(500).json({ message: 'Failed to create API key' });
+      console.error('Get API key error:', error);
+      res.status(500).json({ message: 'Failed to get API key' });
     }
   });
 
-  // DELETE /api/worlds/:worldId/api-keys/:keyId — revoke key
-  router.delete('/worlds/:worldId/api-keys/:keyId', async (req: Request, res: Response) => {
+  // POST /api/user/api-key/regenerate — regenerate current user's API key
+  router.post('/user/api-key/regenerate', async (req: Request, res: Response) => {
     try {
-      const { keyId } = req.params;
-
-      const revoked = await storage.revokeApiKey(keyId);
-      if (!revoked) {
-        return res.status(404).json({ message: 'API key not found or already revoked' });
-      }
-
-      res.json({ revoked: true });
+      const userId = (req as any).userId;
+      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+      const apiKey = await storage.regenerateUserApiKey(userId);
+      if (!apiKey) return res.status(404).json({ message: 'User not found' });
+      res.json({ apiKey });
     } catch (error) {
-      console.error('Revoke API key error:', error);
-      res.status(500).json({ message: 'Failed to revoke API key' });
-    }
-  });
-
-  // GET /api/worlds/:worldId/api-keys — list keys
-  router.get('/worlds/:worldId/api-keys', async (req: Request, res: Response) => {
-    try {
-      const { worldId } = req.params;
-      const keys = await storage.getApiKeysByWorld(worldId);
-
-      // Mask the key values for security — only show prefix + last 8 chars
-      const masked = keys.map((k: any) => ({
-        ...k,
-        key: k.key
-          ? k.key.substring(0, 8) + '...' + k.key.substring(k.key.length - 8)
-          : undefined,
-      }));
-
-      res.json(masked);
-    } catch (error) {
-      console.error('Get API keys error:', error);
-      res.status(500).json({ message: 'Failed to get API keys' });
+      console.error('Regenerate API key error:', error);
+      res.status(500).json({ message: 'Failed to regenerate API key' });
     }
   });
 

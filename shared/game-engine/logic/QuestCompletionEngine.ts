@@ -88,6 +88,9 @@ export interface CompletionObjective {
   translationsCompleted?: number;
   translationsCorrect?: number;
 
+  // build_friendship
+  requiredStrength?: number;
+
   // navigate_language
   navigationWaypoints?: { instruction: string; targetPosition?: any }[];
   waypointsReached?: number;
@@ -226,7 +229,13 @@ export type CompletionEvent =
   | { type: 'activity_observed'; npcId: string; npcName: string; activity: string; durationSeconds: number; questId?: string }
   | { type: 'activity_photographed'; npcId: string; npcName: string; activity: string; questId?: string }
   | { type: 'conversation_goal_evaluated'; questId: string; objectiveId: string; goalMet: boolean; confidence: number; extractedInfo: string }
-  | { type: 'eavesdrop'; npcId1: string; npcId2: string; topic: string; languageUsed: string; questId?: string };
+  | { type: 'eavesdrop'; npcId1: string; npcId2: string; topic: string; languageUsed: string; questId?: string }
+  | { type: 'assessment_completed_event'; assessmentType: string; cefrLevel?: string; totalScore?: number; questId?: string }
+  | { type: 'grammar_demonstrated'; patternCount: number; questId?: string }
+  | { type: 'item_purchased'; itemName: string; merchantId: string; questId?: string }
+  | { type: 'item_sold'; itemName: string; questId?: string }
+  | { type: 'listen_and_repeat_passed'; passed: boolean; phrase: string; questId?: string }
+  | { type: 'friendship_changed'; npcId: string; relationshipStrength: number; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -423,6 +432,26 @@ export class QuestCompletionEngine {
       case 'eavesdrop':
         this.trackEavesdrop(event.npcId1, event.npcId2, event.topic, event.languageUsed, event.questId);
         break;
+      case 'assessment_completed_event':
+        this.forEachObjective(event.questId, 'complete_assessment', (quest, obj) => {
+          this.completeObjective(quest.id, obj.id);
+        });
+        break;
+      case 'grammar_demonstrated':
+        this.trackGrammarDemonstrated(event.patternCount, event.questId);
+        break;
+      case 'item_purchased':
+        this.trackItemPurchased(event.itemName, event.merchantId, event.questId);
+        break;
+      case 'item_sold':
+        this.trackItemSold(event.itemName, event.questId);
+        break;
+      case 'listen_and_repeat_passed':
+        this.trackListenAndRepeat(event.passed, event.phrase, event.questId);
+        break;
+      case 'friendship_changed':
+        this.trackFriendshipBuilt(event.npcId, event.relationshipStrength, event.questId);
+        break;
     }
   }
 
@@ -525,7 +554,7 @@ export class QuestCompletionEngine {
   // ── Type-specific tracking methods ──────────────────────────────────────
 
   trackNPCConversation(npcId: string, questId?: string): void {
-    this.forEachObjective(questId, 'talk_to_npc', (quest, obj) => {
+    this.forEachObjective(questId, ['talk_to_npc', 'introduce_self', 'ask_for_directions'], (quest, obj) => {
       if (obj.npcId === npcId) {
         this.completeObjective(quest.id, obj.id);
       }
@@ -553,10 +582,11 @@ export class QuestCompletionEngine {
     });
   }
 
+  // Also track against 'vocabulary' objective type (alias used in some quests)
   trackVocabularyUsage(word: string, questId?: string): void {
     const lowerWord = word.toLowerCase();
 
-    this.forEachObjective(questId, ['use_vocabulary', 'collect_vocabulary'], (quest, obj) => {
+    this.forEachObjective(questId, ['use_vocabulary', 'collect_vocabulary', 'vocabulary'], (quest, obj) => {
       if (obj.targetWords && obj.targetWords.length > 0) {
         if (!obj.targetWords.includes(lowerWord)) return;
       }
@@ -574,10 +604,60 @@ export class QuestCompletionEngine {
   }
 
   trackConversationTurn(keywords: string[], questId?: string): void {
-    this.forEachObjective(questId, 'complete_conversation', (quest, obj) => {
+    // Track against both 'complete_conversation' and 'conversation' objective types
+    this.forEachObjective(questId, ['complete_conversation', 'conversation'], (quest, obj) => {
       obj.currentCount = (obj.currentCount || 0) + 1;
 
       if (obj.currentCount >= (obj.requiredCount || 5)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  // ── Missing objective type handlers (added for full quest coverage) ────
+
+  trackGrammarDemonstrated(patternCount: number, questId?: string): void {
+    this.forEachObjective(questId, 'grammar', (quest, obj) => {
+      obj.currentCount = (obj.currentCount || 0) + patternCount;
+      if (obj.currentCount >= (obj.requiredCount || 2)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackItemPurchased(itemName: string, merchantId: string, questId?: string): void {
+    this.forEachObjective(questId, 'buy_item', (quest, obj) => {
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackItemSold(itemName: string, questId?: string): void {
+    this.forEachObjective(questId, 'sell_item', (quest, obj) => {
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackListenAndRepeat(passed: boolean, phrase: string, questId?: string): void {
+    this.forEachObjective(questId, 'listen_and_repeat', (quest, obj) => {
+      if (!passed) return;
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 3)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackFriendshipBuilt(npcId: string, relationshipStrength: number, questId?: string): void {
+    this.forEachObjective(questId, 'build_friendship', (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+      const threshold = obj.requiredStrength ?? 0.5;
+      if (relationshipStrength >= threshold) {
         this.completeObjective(quest.id, obj.id);
       }
     });
@@ -1084,7 +1164,7 @@ export class QuestCompletionEngine {
   }
 
   trackTextRead(textId: string, questId?: string): void {
-    this.forEachObjective(questId, 'read_text', (quest, obj) => {
+    this.forEachObjective(questId, ['read_text', 'read_document'], (quest, obj) => {
       if (obj.textId && obj.textId !== textId) return;
 
       obj.textsRead = obj.textsRead || [];

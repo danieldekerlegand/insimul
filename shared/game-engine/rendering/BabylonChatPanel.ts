@@ -21,13 +21,14 @@ import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLangu
 import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "../logic/LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
-import { InsimulClient } from '@insimul/sdk';
-import type { ConversationState } from '@insimul/sdk';
+import { InsimulClient } from '@insimul/typescript';
+import type { ConversationQuestBridge } from '@shared/game-engine/logic/ConversationQuestBridge';
+import type { ConversationState } from '@insimul/typescript';
 import type { IDataSource as DataSource } from '@shared/game-engine/data-source';
 import { ConversationalActionDetector, type ConversationalAction, type NpcConversationTurnState, type DetectorContext } from "../logic/ConversationalActionDetector";
 import { ListenAndRepeatController, type RepeatAttemptResult } from "./ListenAndRepeatController";
 import type { ListenAndRepeatPhrase } from "../logic/actions/ListenAndRepeatAction";
-import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/sdk';
+import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/typescript';
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
 import { LipSyncController } from "./LipSyncController";
@@ -143,6 +144,8 @@ export class BabylonChatPanel {
 
   // Unified Insimul SDK client (replaces ConversationClient + BrowserAIClient + LocalAIClient)
   private insimulClient: InsimulClient | null = null;
+  // Quest bridge — evaluates conversation objectives via metadata response
+  private questBridge: ConversationQuestBridge | null = null;
   private streamingAudioPlayer: StreamingAudioPlayer | null = null;
   private lipSyncController: LipSyncController | null = null;
   private _grpcAvailable: boolean | null = null; // null = unchecked
@@ -368,17 +371,10 @@ export class BabylonChatPanel {
 
   private async fetchWorldData(worldId: string) {
     try {
-      const [worldRes, langRes] = await Promise.all([
-        fetch(`/api/worlds/${worldId}`),
-        fetch(`/api/worlds/${worldId}/languages`),
-      ]);
-
-      if (worldRes.ok) {
-        this.world = await worldRes.json();
-      }
-
-      if (langRes.ok) {
-        const languages = await langRes.json();
+      if (!this._dataSource) throw new Error('No dataSource set — save file not loaded');
+      this.world = await this._dataSource.loadWorld(worldId);
+      const languages = await this._dataSource.getLanguages(worldId);
+      if (languages?.length > 0) {
         this.worldLanguageContext = buildWorldLanguageContext(
           languages,
           this.world?.gameType || this.world?.worldType,
@@ -596,6 +592,10 @@ export class BabylonChatPanel {
       || this.world?.targetLanguage;
     if (learningLang && learningLang !== 'English') {
       this.hoverTranslation.setTargetLanguage(learningLang);
+      // Wire hover-to-translate through SDK
+      if (this.insimulClient) {
+        this.hoverTranslation.setTranslateFn((word, lang) => this.insimulClient!.translateWord(word, lang));
+      }
       if (this.persistentLanguageTracker) {
         this.languageTracker = this.persistentLanguageTracker;
       } else {
@@ -1532,12 +1532,8 @@ export class BabylonChatPanel {
       let responseText: string;
       this._receivedStreamingAudio = false;
 
-      // Route through gRPC or Gemini — same as sendMessage
-      if (this._grpcAvailable && this.insimulClient) {
-        responseText = await this.sendMessageViaGrpc(cue, placeholderMsg);
-      } else {
-        responseText = await this.sendMessageViaGemini(cue, placeholderMsg);
-      }
+      // Route through InsimulClient (handles WebSocket → SSE fallback internally)
+      responseText = await this.sendMessageViaGrpc(cue, placeholderMsg);
 
       // Hide loading indicator
       if (this.loadingIndicator) {
@@ -1628,12 +1624,8 @@ export class BabylonChatPanel {
       let responseText: string;
       this._receivedStreamingAudio = false;
 
-      // Try gRPC streaming service first, fall back to direct Gemini API
-      if (this._grpcAvailable && this.insimulClient) {
-        responseText = await this.sendMessageViaGrpc(userMessage, placeholderMsg);
-      } else {
-        responseText = await this.sendMessageViaGemini(userMessage, placeholderMsg);
-      }
+      // Route through InsimulClient (handles WebSocket → SSE fallback internally)
+      responseText = await this.sendMessageViaGrpc(userMessage, placeholderMsg);
 
       // Hide loading indicator
       if (this.loadingIndicator) {
@@ -1725,27 +1717,12 @@ export class BabylonChatPanel {
     try {
       const fullText = await this.insimulClient!.sendText(userMessage, { languageCode: langCode });
       return fullText || accumulatedText;
-    } catch (err) {
-      console.warn('[ChatPanel] Streaming service failed, falling back to Gemini:', err);
-      this._grpcAvailable = false;
-      setTimeout(() => { this._grpcAvailable = null; }, 30_000);
-      return this.sendMessageViaGemini(userMessage, placeholderMsg);
+    } catch (err: any) {
+      console.error('[ChatPanel] Conversation failed:', err?.message || err);
+      placeholderMsg.content = 'Sorry, I cannot respond right now.';
+      this.updateLastMessageText(placeholderMsg.content);
+      return placeholderMsg.content;
     }
-  }
-
-  /**
-   * Send message via direct Gemini API (legacy/fallback path).
-   */
-  private async sendMessageViaGemini(
-    userMessage: string,
-    placeholderMsg: Message,
-  ): Promise<string> {
-    const aiResponse = await this.sendToGeminiStreaming(userMessage, (partialText: string) => {
-      placeholderMsg.content = partialText;
-      this.updateLastMessageText(partialText);
-      this.onNPCSpeechUpdate?.(partialText);
-    });
-    return aiResponse.text;
   }
 
   /**
@@ -1783,14 +1760,10 @@ export class BabylonChatPanel {
     // Track vocabulary usage for quests
     this.trackQuestProgress(userMessage, cleanedResponse);
 
-    // Play audio: if streaming audio was received (gRPC), it's already playing.
-    // Otherwise fall back to queued audio from SSE, or legacy single-shot TTS.
+    // Play audio: if streaming audio was received via SDK, it's already playing.
+    // Otherwise fall back to single-shot TTS.
     if (!this._receivedStreamingAudio) {
-      if (this.audioQueue.length > 0) {
-        await this.playAudioQueue();
-      } else {
-        await this.textToSpeech(cleanedResponse);
-      }
+      await this.textToSpeech(cleanedResponse);
     }
 
     // Fire background metadata extraction (vocab hints, grammar feedback)
@@ -1921,20 +1894,32 @@ export class BabylonChatPanel {
                                this.world?.worldType === 'educational';
     if (!isLanguageLearning) return;
 
-    // Fire and forget — don't await
-    fetch('/api/conversation/metadata', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playerMessage,
-        npcResponse,
-        targetLanguage,
-        playerProficiency: this.languageTracker?.getFluency?.() ?? 'beginner',
-      }),
+    // Fire and forget — request metadata via SDK
+    if (!this.insimulClient) return;
+
+    // Include active quest objectives for conversation goal evaluation
+    const activeObjectives = this.questBridge
+      ? this.questBridge.getObjectivesForEvaluation(this.character?.id)
+      : undefined;
+
+    this.insimulClient.requestMetadata({
+      playerMessage,
+      npcResponse,
+      targetLanguage,
+      playerProficiency: String(this.languageTracker?.getFluency?.() ?? 'beginner'),
+      activeObjectives,
     })
-      .then(res => res.ok ? res.json() : null)
-      .then(metadata => {
+      .then((metadata: any) => {
         if (!metadata) return;
+
+        // Process conversation goal evaluations — complete quest objectives
+        if (metadata.goalEvaluations?.length > 0 && this.questBridge) {
+          this.questBridge.processEvaluations(
+            metadata.goalEvaluations,
+            this.character?.id,
+            playerMessage,
+          );
+        }
 
         // Process grammar feedback
         if (metadata.grammarFeedback && this.languageTracker) {
@@ -1964,11 +1949,10 @@ export class BabylonChatPanel {
         if (metadata.vocabHints?.length > 0) {
           console.log('[VocabHints]', metadata.vocabHints);
           this.hoverTranslation.addVocabHints(metadata.vocabHints as VocabHint[]);
-          // Rebuild NPC messages with interactive word hover
           this.rebuildMessagesWithTranslations();
         }
       })
-      .catch(err => {
+      .catch((err: any) => {
         console.warn('[ChatPanel] Background metadata extraction failed:', err);
       });
   }
@@ -2043,348 +2027,8 @@ export class BabylonChatPanel {
     }
   }
 
-  /**
-   * Stream a chat response from Gemini via SSE.
-   * Calls onChunk with the accumulated text as each token arrives.
-   */
-  private async sendToGeminiStreaming(
-    userMessage: string,
-    onChunk: (partialText: string) => void
-  ): Promise<{text: string, audio?: string, cleanedResponse?: string, grammarFeedback?: any}> {
-    if (!this.character) throw new Error('No character selected');
-
-    const systemPrompt = this.buildSystemPrompt();
-    const conversationHistory = this.messages
-      .filter(m => m.content) // skip empty placeholder
-      .map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      }));
-
-    // Ensure the last entry is the user message
-    if (!conversationHistory.length || conversationHistory[conversationHistory.length - 1].parts[0].text !== userMessage) {
-      conversationHistory.push({ role: 'user', parts: [{ text: userMessage }] });
-    }
-
-    const response = await fetch('/api/gemini/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemPrompt,
-        messages: conversationHistory,
-        temperature: 0.8,
-        maxTokens: 2048,
-        returnAudio: true,
-        voice: this._lockedVoice,
-        gender: this._lockedGender,
-        targetLanguage: this.world?.targetLanguage,
-        stream: true
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get response from AI');
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let fullText = '';
-    let doneData: any = null;
-    // Reset audio queue for this response
-    this.audioQueue = [];
-    this.expectedSentenceCount = -1;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6);
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data);
-          // Handle the final done event with cleaned response and grammar metadata
-          if (parsed.done) {
-            doneData = parsed;
-            if (parsed.cleanedResponse) {
-              onChunk(parsed.cleanedResponse);
-            }
-            if (parsed.audio) {
-              const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
-              const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-              this.audioQueue.push({ index: this.audioQueue.length, blob: audioBlob });
-              if (!this.isPlayingQueue) {
-                this.playAudioQueue();
-              }
-            }
-            continue;
-          }
-          // Handle per-sentence audio from streaming TTS (sentenceIndex present, no done flag)
-          if (parsed.audio && parsed.sentenceIndex !== undefined && !parsed.done) {
-            const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
-            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-            this.audioQueue.push({ index: parsed.sentenceIndex, blob: audioBlob });
-            if (!this.isPlayingQueue) {
-              this.playAudioQueue();
-            }
-          }
-          // Handle totalSentences signal — lets the audio queue know when to stop waiting
-          if (parsed.totalSentences !== undefined) {
-            this.expectedSentenceCount = parsed.totalSentences;
-          }
-          // Handle audioSkipped — mark that a sentence failed TTS so the queue doesn't stall
-          if (parsed.audioSkipped && parsed.sentenceIndex !== undefined) {
-            this.audioQueue.push({ index: parsed.sentenceIndex, blob: new Blob([], { type: 'audio/mp3' }), skipped: true });
-          }
-          if (parsed.text) {
-            fullText += parsed.text;
-            // Strip all marker blocks and formatting before displaying
-            const displayText = fullText
-              // Complete marker blocks
-              .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
-              .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
-              .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
-              .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
-              // Partial/incomplete marker blocks mid-stream
-              .replace(/\*\*(GRAMMAR_FEEDBACK|QUEST_ASSIGN|VOCAB_HINTS|EVAL)\*\*[\s\S]*$/g, '')
-              // Orphaned closing markers
-              .replace(/\*\*(END_GRAMMAR|END_QUEST|END_VOCAB|END_EVAL)\*\*/g, '')
-              .trim();
-            onChunk(displayText);
-          }
-          if (parsed.error) {
-            console.error('[ChatPanel] Stream error:', parsed.error);
-          }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
-    }
-
-    return {
-      text: fullText,
-      cleanedResponse: doneData?.cleanedResponse,
-      grammarFeedback: doneData?.grammarFeedback,
-      audio: doneData?.audio,
-    };
-  }
-
-  /**
-   * Play queued sentence audio blobs in order.
-   * Audio chunks arrive asynchronously from parallel TTS;
-   * this drains them sequentially so sentences play in order.
-   */
-  private async playAudioQueue(): Promise<void> {
-    if (this.isPlayingQueue) return;
-    this.isPlayingQueue = true;
-    let nextIndex = 0;
-    let waitCycles = 0;
-    const MAX_WAIT_CYCLES = 100; // 10 seconds max wait for a missing chunk
-
-    while (true) {
-      // Stop if we know the total and have played them all
-      if (this.expectedSentenceCount >= 0 && nextIndex >= this.expectedSentenceCount) break;
-      // Stop if stream is done and no more chunks are expected
-      if (!this.isProcessing && this.expectedSentenceCount < 0 && !this.audioQueue.find(e => e.index >= nextIndex)) break;
-
-      const entry = this.audioQueue.find(e => e.index === nextIndex);
-      if (entry) {
-        // Skip empty/failed TTS chunks
-        if (!entry.skipped && entry.blob.size > 0) {
-          await this.playAudio(entry.blob);
-        }
-        nextIndex++;
-        waitCycles = 0;
-      } else {
-        waitCycles++;
-        if (waitCycles >= MAX_WAIT_CYCLES) {
-          console.warn(`[ChatPanel] Audio queue timed out waiting for chunk ${nextIndex}, skipping`);
-          nextIndex++;
-          waitCycles = 0;
-        }
-        await new Promise(r => setTimeout(r, 100));
-      }
-    }
-    this.audioQueue = [];
-    this.isPlayingQueue = false;
-    this.expectedSentenceCount = -1;
-  }
-
-  private async streamAudioResponse(audioBlob: Blob, responseText: TextBlock): Promise<void> {
-    if (!this.character) throw new Error('No character selected');
-
-    // Convert blob to base64
-    const fileReader = new FileReader();
-    await new Promise((resolve, reject) => {
-      fileReader.onload = resolve;
-      fileReader.onerror = reject;
-      fileReader.readAsDataURL(audioBlob);
-    });
-    const base64Audio = fileReader.result as string;
-    
-    const systemPrompt = this.buildSystemPrompt();
-    const conversationHistory = this.messages.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }]
-    }));
-
-    const response = await fetch('/api/gemini/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemPrompt,
-        messages: conversationHistory,
-        audioInput: base64Audio,
-        temperature: 0.8,
-        maxTokens: 2048,
-        returnAudio: true,
-        voice: this._lockedVoice,
-        gender: this._lockedGender,
-        targetLanguage: this.world?.targetLanguage,
-        stream: true // Enable streaming
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get response from AI');
-    }
-
-    const streamReader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let fullText = "";
-    let audioBuffer = "";
-
-    while (true) {
-      const { done, value } = await streamReader!.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.text) {
-              fullText += parsed.text;
-              responseText.text = fullText;
-              // Force GUI update
-              this._advancedTexture.markAsDirty();
-            }
-            if (parsed.audio) {
-              audioBuffer += parsed.audio;
-            }
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
-      }
-    }
-
-    // Play accumulated audio if available
-    if (audioBuffer) {
-      const audioBytes = Uint8Array.from(atob(audioBuffer), c => c.charCodeAt(0));
-      const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-      await this.playAudio(audioBlob);
-    }
-  }
-
-  private async sendAudioToGemini(audioBlob: Blob): Promise<{text: string, audio?: string, userTranscript?: string}> {
-    if (!this.character) throw new Error('No character selected');
-
-    // Convert blob to base64
-    const fileReader2 = new FileReader();
-    await new Promise((resolve, reject) => {
-      fileReader2.onload = resolve;
-      fileReader2.onerror = reject;
-      fileReader2.readAsDataURL(audioBlob);
-    });
-    const base64Audio = fileReader2.result as string;
-    
-    const systemPrompt = this.buildSystemPrompt();
-    const conversationHistory = this.messages.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }]
-    }));
-
-    const response = await fetch('/api/gemini/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemPrompt,
-        messages: conversationHistory,
-        audioInput: base64Audio, // Send audio directly
-        temperature: 0.8,
-        maxTokens: 2048,
-        returnAudio: true, // Request audio in the response
-        voice: this._lockedVoice,
-        gender: this._lockedGender,
-        targetLanguage: this.world?.targetLanguage,
-        stream: false // Set to true for streaming responses
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get response from AI');
-    }
-
-    const data = await response.json();
-    return {
-      text: data.response,
-      audio: data.audio, // Base64 encoded audio
-      userTranscript: data.userTranscript // Transcript of user's audio
-    };
-  }
-
-  private async sendToGemini(userMessage: string): Promise<{text: string, audio?: string}> {
-    if (!this.character) throw new Error('No character selected');
-
-    const systemPrompt = this.buildSystemPrompt();
-    const conversationHistory = this.messages.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }]
-    }));
-
-    conversationHistory.push({
-      role: 'user',
-      parts: [{ text: userMessage }]
-    });
-
-    const response = await fetch('/api/gemini/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemPrompt,
-        messages: conversationHistory,
-        temperature: 0.8,
-        maxTokens: 2048,
-        returnAudio: true, // Request audio in the response
-        voice: this._lockedVoice,
-        gender: this._lockedGender,
-        targetLanguage: this.world?.targetLanguage
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get response from AI');
-    }
-
-    const data = await response.json();
-    return {
-      text: data.response,
-      audio: data.audio // Base64 encoded audio
-    };
-  }
+  // Legacy Gemini direct-fetch methods removed — all conversation routing now goes
+  // through InsimulClient (WebSocket → SSE fallback, handled by @insimul/typescript).
 
   private _cachedSystemPrompt: string | null = null;
   private _systemPromptCharId: string | null = null;
@@ -2481,25 +2125,20 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     const cleanText = this.cleanTextForSpeech(text);
     if (!cleanText) return;
     try {
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: cleanText,
+      // Use SDK for TTS (routes through server or local provider)
+      if (this.insimulClient) {
+        const audioBuffer = await this.insimulClient.synthesizeSpeech(cleanText, {
           voice: this._lockedVoice,
           gender: this._lockedGender,
-          targetLanguage: this.world?.targetLanguage,
-          emotionalTone: this.character?.emotionalTone
-        })
-      });
-
-      if (response.ok) {
-        const audioBlob = await response.blob();
-        await this.playAudio(audioBlob);
-      } else {
-        // Fallback to browser TTS
-        await this.browserTextToSpeech(cleanText);
+        });
+        if (audioBuffer) {
+          const audioBlob = new Blob([audioBuffer], { type: 'audio/mp3' });
+          await this.playAudio(audioBlob);
+          return;
+        }
       }
+      // Fallback to browser TTS
+      await this.browserTextToSpeech(cleanText);
     } catch (error) {
       console.error('TTS error:', error);
       await this.browserTextToSpeech(cleanText);
@@ -2747,58 +2386,9 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       // Process response (quests, grammar, etc.)
       await this.processAssistantResponse('', responseText, placeholderMsg);
     } catch (err) {
-      console.warn('[ChatPanel] Streaming audio failed, falling back to Gemini:', err);
-      this._grpcAvailable = false;
-      setTimeout(() => { this._grpcAvailable = null; }, 30_000);
-      // Remove the placeholder if it was added
+      console.error('[ChatPanel] Audio conversation failed:', err);
       const idx = this.messages.indexOf(placeholderMsg);
       if (idx >= 0) this.messages.splice(idx, 1);
-      await this.handleAudioViaGemini(audioBlob);
-    }
-  }
-
-  /**
-   * Handle audio input via legacy Gemini API path (fallback).
-   */
-  private async handleAudioViaGemini(audioBlob: Blob): Promise<void> {
-    let userTranscript: string;
-    try {
-      userTranscript = await this.speechToText(audioBlob);
-    } catch {
-      throw new Error('Failed to transcribe audio');
-    }
-
-    // Show user message
-    this.messages.push({
-      role: 'user',
-      content: userTranscript,
-      timestamp: new Date()
-    });
-    this.updateMessagesDisplay();
-
-    if (this.inputText) {
-      this.inputText.text = "NPC is thinking...";
-      this.inputText.color = "#ffd93d";
-    }
-
-    const textResponse = await this.sendToGemini(userTranscript);
-
-    // Add AI response
-    this.messages.push({
-      role: 'assistant',
-      content: textResponse.text,
-      timestamp: new Date()
-    });
-    this.updateMessagesDisplay();
-    this.onNPCSpeechUpdate?.(textResponse.text);
-
-    // Play audio
-    if (textResponse.audio) {
-      const audioBytes = Uint8Array.from(atob(textResponse.audio), c => c.charCodeAt(0));
-      const responseBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-      await this.playAudio(responseBlob);
-    } else {
-      await this.textToSpeech(textResponse.text);
     }
   }
 
@@ -2830,23 +2420,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
         break;
     }
     this._advancedTexture.markAsDirty();
-  }
-
-  private async speechToText(audioBlob: Blob): Promise<string> {
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
-
-    const response = await fetch('/api/stt', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to convert speech to text');
-    }
-
-    const data = await response.json();
-    return data.text;
   }
 
   private stopRecording() {
@@ -2982,6 +2555,12 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
 
   /** Server-side STT for pronunciation scoring (needs full audio for accuracy). */
   private async serverSpeechToText(audioBlob: Blob): Promise<string> {
+    // Route through SDK (handles server or local STT provider)
+    if (this.insimulClient) {
+      const transcript = await this.insimulClient.transcribeSpeech(audioBlob);
+      if (transcript) return transcript;
+    }
+    // Direct fetch fallback
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
     const response = await fetch('/api/stt', { method: 'POST', body: formData });
@@ -3160,6 +2739,16 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   }
 
   /** Get the current AI provider setting */
+  /** Set the quest bridge for conversation goal evaluation. */
+  public setQuestBridge(bridge: ConversationQuestBridge): void {
+    this.questBridge = bridge;
+  }
+
+  /** Get the current InsimulClient instance (for registration in global registry). */
+  public getInsimulClient(): InsimulClient | null {
+    return this.insimulClient;
+  }
+
   public getAIProvider(): string {
     return this._aiProvider;
   }
@@ -3619,10 +3208,8 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    */
   private async checkQuestTurnIn(npcId: string, worldId: string) {
     try {
-      const response = await fetch(`/api/worlds/${worldId}/quests`);
-      if (!response.ok) return;
-
-      const quests = await response.json();
+      if (!this._dataSource) return;
+      const quests = await this._dataSource.loadQuests(worldId);
       
       // Find quests assigned by this NPC that are ready to turn in
       // A quest is ready when status is 'active' but all objectives are complete
@@ -3856,15 +3443,12 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
           rewards: rewardsMatch ? rewardsMatch[1].trim() : undefined,
         };
 
-        // Create the quest via API
-        const createResponse = await fetch(`/api/worlds/${this.character.worldId}/quests`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(questData)
-        });
+        // Create the quest via DataSource (writes to save file, not world template)
+        const createdQuest = this._dataSource
+          ? await this._dataSource.createDynamicQuest(this.character.worldId, questData)
+          : null;
 
-        if (createResponse.ok) {
-          const createdQuest = await createResponse.json();
+        if (createdQuest) {
           console.log('[BabylonChatPanel] Quest created:', createdQuest);
 
           // Notify quest assigned callback
@@ -4029,20 +3613,11 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
 
         // Call the branch endpoint
         try {
-          const resp = await fetch(
-            `/api/worlds/${this.character!.worldId}/quests/${questId}/branch`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                choiceId: choice.choiceId,
-                targetStageId: choice.targetStageId,
-              }),
-            },
-          );
+          const result = this._dataSource
+            ? await this._dataSource.branchQuest(this.character!.worldId, questId, choice.choiceId, choice.targetStageId)
+            : null;
 
-          if (resp.ok) {
-            const result = await resp.json();
+          if (result) {
             console.log('[BabylonChatPanel] Quest branched:', result);
 
             if (choice.consequence) {
@@ -4056,7 +3631,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
 
             this.onQuestBranched?.(questId, choice.choiceId, choice.targetStageId);
           } else {
-            console.error('[BabylonChatPanel] Branch failed:', await resp.text());
+            console.error('[BabylonChatPanel] Branch failed: no dataSource');
           }
         } catch (error) {
           console.error('[BabylonChatPanel] Branch request error:', error);

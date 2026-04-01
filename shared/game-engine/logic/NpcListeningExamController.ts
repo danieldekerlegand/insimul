@@ -315,24 +315,11 @@ export class NpcListeningExamController {
     config: NpcListeningExamConfig,
     template: ContentTemplate,
   ): Promise<{ passage?: string; questions?: Array<{ id: string; questionText: string; maxPoints: number }> }> {
-    const res = await fetch('/api/assessments/generate-content', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(config.authToken ? { Authorization: `Bearer ${config.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        phaseType: 'listening',
-        targetLanguage: config.targetLanguage,
-        cityName: config.cityName ?? 'the city',
-        contentTemplate: template,
-      }),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Content generation failed: ${res.status}`);
-    }
-    return await res.json();
+    // TODO: Listening exam content generation should be folded into the quest/Prolog system.
+    // quest_language(listening_exam, french) triggers the quest flow which generates content
+    // as part of the NPC conversation. Results stored as Prolog facts.
+    console.warn('[NpcListeningExam] Content generation stubbed — TODO: integrate via quest_language predicates');
+    throw new Error('Listening exam content generation pending quest/Prolog integration');
   }
 
   private async generateTTS(
@@ -340,20 +327,21 @@ export class NpcListeningExamController {
     targetLanguage: string,
     authToken?: string,
   ): Promise<string> {
-    const res = await fetch('/api/assessments/tts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify({ text: passage, targetLanguage }),
-    });
-
-    if (!res.ok) {
-      throw new Error(`TTS generation failed: ${res.status}`);
-    }
-    const data = await res.json();
-    return data.audioDataUrl;
+    // TODO: Assessment TTS should route through @insimul/typescript SDK's synthesizeSpeech().
+    // When folded into quests, TTS is part of the NPC conversation flow.
+    console.warn('[NpcListeningExam] TTS stubbed — TODO: route through SDK or quest conversation');
+    try {
+      const { getInsimulClient } = await import('@shared/game-engine/InsimulClientRegistry');
+      const client = getInsimulClient();
+      if (client) {
+        const buffer = await client.synthesizeSpeech(passage);
+        if (buffer) {
+          const blob = new Blob([buffer], { type: 'audio/mp3' });
+          return URL.createObjectURL(blob);
+        }
+      }
+    } catch { /* SDK not available */ }
+    throw new Error('TTS unavailable — SDK or quest system not initialized');
   }
 
   // ── Private: Listening Phase ────────────────────────────────────────────
@@ -445,24 +433,18 @@ export class NpcListeningExamController {
     questionScores?: Array<{ questionId: string; score: number; maxScore: number; rationale: string }>;
     overallRationale: string;
   }> {
-    const res = await fetch('/api/assessments/score-phase', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        phaseType: 'listening',
-        targetLanguage,
-        passage,
-        questions: questions.map(q => ({ id: q.id, text: q.questionText, maxPoints: q.maxPoints })),
-        answers,
-      }),
+    // TODO: Listening exam scoring should be folded into the quest/Prolog system.
+    // Results stored as Prolog facts: listening_score(PlayerID, ExamID, Score, MaxScore).
+    console.warn('[NpcListeningExam] Scoring stubbed — TODO: integrate via quest_language Prolog predicates');
+    // Return a basic heuristic score based on answer presence
+    let totalScore = 0;
+    const maxScore = questions.reduce((sum, q) => sum + q.maxPoints, 0);
+    const questionScores = questions.map(q => {
+      const answer = answers[q.id] || '';
+      const score = answer.trim().length > 0 ? Math.round(q.maxPoints * 0.5) : 0;
+      totalScore += score;
+      return { questionId: q.id, score, maxScore: q.maxPoints, rationale: 'Heuristic scoring — pending Prolog integration' };
     });
-
-    if (!res.ok) {
-      throw new Error(`Scoring failed: ${res.status}`);
-    }
-    return await res.json();
+    return { totalScore, maxScore, questionScores, overallRationale: 'Scoring pending quest/Prolog integration' };
   }
 }

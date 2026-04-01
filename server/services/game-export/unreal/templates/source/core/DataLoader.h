@@ -215,6 +215,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString CompleteQuest(const FString& QuestId);
 
+    /** Create a dynamic quest at runtime */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString CreateDynamicQuest(const FString& WorldId, const FString& QuestDataJson);
+
+    /** Branch a quest based on player choice */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString BranchQuest(const FString& WorldId, const FString& QuestId, const FString& ChoiceId, const FString& TargetStageId = TEXT(""));
+
+    /** Adjust reputation for an entity */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString AdjustReputation(const FString& PlaythroughId, const FString& EntityType, const FString& EntityId, int32 Amount, const FString& Reason);
+
     /**
      * Get quest guidance context for an NPC. Scans active quests for objectives
      * targeting this NPC and returns a system prompt addition.

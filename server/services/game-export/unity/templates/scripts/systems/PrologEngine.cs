@@ -49,6 +49,10 @@ namespace Insimul.Systems
         private readonly List<string> _activeQuestIds = new();
         private readonly Dictionary<string, int> _itemQuantities = new();
 
+        private Action<string, int> onObjectiveCompleted;
+        private HashSet<string> completedObjectives = new HashSet<string>();
+        private HashSet<string> completedQuests = new HashSet<string>();
+
         /// <summary>Fired when Prolog determines a quest is complete.</summary>
         public event Action<string> OnQuestCompleted;
 
@@ -57,6 +61,11 @@ namespace Insimul.Systems
 
         private Action _eventBusUnsubscribe;
         private GameEventBus _eventBusRef;
+
+        public void SetOnObjectiveCompleted(Action<string, int> callback)
+        {
+            onObjectiveCompleted = callback;
+        }
 
         // ── Initialization ────────────────────────────────────────────────────
 
@@ -450,6 +459,12 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
             _activeQuestIds.Clear();
             if (questIds != null)
                 _activeQuestIds.AddRange(questIds);
+
+            // Clear completion tracking for quests no longer active
+            completedObjectives.RemoveWhere(key => {
+                var questId = key.Split(':')[0];
+                return !_activeQuestIds.Contains(questId);
+            });
         }
 
         // ── Rule Queries ──────────────────────────────────────────────────────
@@ -885,6 +900,70 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                     AssertFact($"quest_abandoned(player, {Sanitize(e.questId)})");
                     RetractPattern("quest_active", "player", Sanitize(e.questId));
                     break;
+                case ConversationalActionCompletedEvent e:
+                    AssertFact($"conversational_action(player, {Sanitize(e.npcId)}, {Sanitize(e.action)}, {Sanitize(e.questId)})");
+                    break;
+                case TextFoundEvent e:
+                    AssertFact($"text_found(player, {Sanitize(e.textId)})");
+                    break;
+                case TextReadEvent e:
+                    AssertFact($"text_read(player, {Sanitize(e.textId)})");
+                    break;
+                case SignReadEvent e:
+                    AssertFact($"sign_read(player, {Sanitize(e.signId)})");
+                    break;
+                case ObjectExaminedEvent e:
+                    AssertFact($"object_examined(player, {Sanitize(e.objectName)})");
+                    break;
+                case ObjectIdentifiedEvent e:
+                    AssertFact($"object_identified(player, {Sanitize(e.objectName)})");
+                    break;
+                case ObjectPointedAndNamedEvent e:
+                    AssertFact($"object_pointed_named(player, {Sanitize(e.objectName)})");
+                    break;
+                case WritingSubmittedEvent e:
+                    AssertFact($"response_written(player, {e.wordCount})");
+                    break;
+                case PhotoTakenEvent e:
+                    AssertFact($"photo_taken(player, {Sanitize(e.subjectName)})");
+                    break;
+                case FoodOrderedEvent e:
+                    AssertFact($"food_ordered(player, {Sanitize(e.itemName)})");
+                    break;
+                case PriceHaggledEvent e:
+                    AssertFact($"price_haggled(player, {Sanitize(e.itemName)})");
+                    break;
+                case GiftGivenEvent e:
+                    AssertFact($"gift_given(player, {Sanitize(e.npcId)}, {Sanitize(e.itemName)})");
+                    break;
+                case TranslationAttemptEvent e:
+                    if (e.correct)
+                        AssertFact($"translation_completed(player, correct)");
+                    break;
+                case PronunciationAttemptEvent e:
+                    AssertFact($"pronunciation_score(player, {Sanitize(e.phrase)}, {e.score}, {e.timestamp})");
+                    if (e.passed)
+                        AssertFact($"pronunciation_passed(player, {Sanitize(e.phrase)})");
+                    break;
+                case ReadingCompletedEvent e:
+                    AssertFact($"text_read(player, {Sanitize(e.textId)})");
+                    break;
+                case QuestionsAnsweredEvent e:
+                    AssertFact($"comprehension_done(player, {Sanitize(e.textId)})");
+                    break;
+                case ConversationTurnCountedEvent e:
+                {
+                    RetractPattern("npc_conversation_turns", "player", Sanitize(e.npcId));
+                    AssertFact($"npc_conversation_turns(player, {Sanitize(e.npcId)}, {e.total})");
+                    break;
+                }
+                case PhysicalActionCompletedEvent e:
+                    AssertFact($"physical_action_done(player, {Sanitize(e.actionType)})");
+                    break;
+                case NpcExamCompletedEvent e:
+                    AssertFact($"assessment_result(player, {Sanitize(e.examId)}, {e.score}, {e.maxPoints}, {Sanitize(e.cefrLevel)}, {e.timestamp})");
+                    AssertFact($"player_cefr_level(player, {Sanitize(e.cefrLevel)})");
+                    break;
             }
 
             ReevaluateQuests();
@@ -958,6 +1037,69 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
             return HasFact(pattern);
         }
 
+        // ── Reconciliation & Rewards ─────────────────────────────────────────
+
+        /// <summary>
+        /// Reconcile current Prolog state to find all completed quests and objectives.
+        /// </summary>
+        public (List<string> completedQuests, List<(string questId, int objectiveIndex)> completedObjectives) Reconcile()
+        {
+            var quests = new List<string>();
+            var objectives = new List<(string, int)>();
+
+            if (!_initialized) return (quests, objectives);
+
+            foreach (var questId in _activeQuestIds)
+            {
+                var sanitizedId = Sanitize(questId);
+
+                // Check objectives
+                var objectiveFacts = FindFacts($"quest_objective({sanitizedId},");
+                foreach (var fact in objectiveFacts)
+                {
+                    var parts = fact.Split(',');
+                    if (parts.Length < 2) continue;
+                    if (!int.TryParse(parts[1].Trim().TrimEnd(')').Trim(), out int idx)) continue;
+
+                    if (HasFact($"objective_complete(player, {sanitizedId}, {idx})"))
+                    {
+                        objectives.Add((questId, idx));
+                    }
+                }
+
+                if (IsQuestComplete(questId, "player"))
+                {
+                    quests.Add(questId);
+                }
+            }
+
+            return (quests, objectives);
+        }
+
+        /// <summary>
+        /// Get bonus rewards for a completed quest from Prolog facts.
+        /// </summary>
+        public List<(string type, int value)> GetBonusRewards(string questId)
+        {
+            var results = new List<(string, int)>();
+            if (!_initialized) return results;
+
+            var facts = FindFacts($"quest_bonus_reward(player, {Sanitize(questId)},");
+            foreach (var fact in facts)
+            {
+                // Parse quest_bonus_reward(player, questId, Type, Value)
+                var parts = fact.Split(',');
+                if (parts.Length >= 4)
+                {
+                    var type = parts[2].Trim();
+                    int.TryParse(parts[3].Trim().TrimEnd(')'), out int value);
+                    results.Add((type, value));
+                }
+            }
+
+            return results;
+        }
+
         // ── Dispose ──────────────────────────────────────────────────────────
 
         /// <summary>
@@ -972,6 +1114,9 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
             _knowledgeBase.Clear();
             _activeQuestIds.Clear();
             _itemQuantities.Clear();
+            completedObjectives.Clear();
+            completedQuests.Clear();
+            onObjectiveCompleted = null;
             _initialized = false;
             Debug.Log("[Insimul] PrologEngine disposed");
         }
@@ -987,8 +1132,44 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
         {
             foreach (var questId in _activeQuestIds)
             {
-                if (IsQuestComplete(questId, "player"))
+                if (completedQuests.Contains(questId)) continue;
+
+                // Check individual objectives
+                if (onObjectiveCompleted != null)
+                {
+                    CheckObjectiveCompletion(questId);
+                }
+
+                // Check whole-quest completion
+                if (IsQuestComplete(questId, "player") && !completedQuests.Contains(questId))
+                {
+                    completedQuests.Add(questId);
                     OnQuestCompleted?.Invoke(questId);
+                }
+            }
+        }
+
+        private void CheckObjectiveCompletion(string questId)
+        {
+            var sanitizedId = Sanitize(questId);
+            var objectiveFacts = FindFacts($"quest_objective({sanitizedId},");
+
+            foreach (var fact in objectiveFacts)
+            {
+                var parts = fact.Split(',');
+                if (parts.Length < 2) continue;
+
+                if (!int.TryParse(parts[1].Trim().TrimEnd(')').Trim(), out int idx)) continue;
+
+                var key = $"{questId}:{idx}";
+                if (completedObjectives.Contains(key)) continue;
+
+                var completePattern = $"objective_complete(player, {sanitizedId}, {idx})";
+                if (HasFact(completePattern))
+                {
+                    completedObjectives.Add(key);
+                    onObjectiveCompleted?.Invoke(questId, idx);
+                }
             }
         }
 
@@ -1052,6 +1233,20 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                     return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Find all facts matching a given prefix.
+        /// </summary>
+        private List<string> FindFacts(string prefix)
+        {
+            var results = new List<string>();
+            foreach (var fact in _facts)
+            {
+                if (fact.StartsWith(prefix))
+                    results.Add(fact);
+            }
+            return results;
         }
 
         private void RetractPattern(string predicate, string firstArg, string secondArg = null)

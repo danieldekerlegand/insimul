@@ -19,6 +19,7 @@ import type { GameEventBus } from '../logic/GameEventBus';
 import type { LanguageGamificationTracker } from './LanguageGamificationTracker';
 import type { BabylonQuestTracker } from './BabylonQuestTracker';
 import type { IDataSource as DataSource } from '@shared/game-engine/data-source';
+import type { GameQuestManager, QuestCompletionResult } from '@shared/game-engine/logic/GameQuestManager';
 import { computeSkillRewards, applySkillRewards, type SkillReward } from '@shared/language/quest-skill-rewards';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export class QuestCompletionManager {
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private questTracker: BabylonQuestTracker | null = null;
   private dataSource: DataSource | null = null;
+  private questManager: GameQuestManager | null = null;
   private playerProgress: PlayerProgress = { inventory: [], questsCompleted: [], skills: {}, gold: 0 };
   private audioContext: AudioContext | null = null;
   private completionOverlay: Rectangle | null = null;
@@ -116,6 +118,10 @@ export class QuestCompletionManager {
     this.dataSource = dataSource;
   }
 
+  public setQuestManager(manager: GameQuestManager): void {
+    this.questManager = manager;
+  }
+
   public setPlayerProgress(progress: PlayerProgress): void {
     this.playerProgress = progress;
   }
@@ -139,14 +145,48 @@ export class QuestCompletionManager {
     worldId: string,
     questId: string,
   ): Promise<ServerCompletionResult | null> {
+    // Prefer client-side completion via GameQuestManager (no server roundtrip)
+    if (this.questManager) {
+      try {
+        const result = await this.questManager.completeQuest(questId);
+        if (result) {
+          const baseXP = result.quest.experienceReward || 0;
+          const grandTotalXP = baseXP + result.bonusXP;
+          return {
+            bonus: {
+              baseXP,
+              totalXP: grandTotalXP,
+              bonusXP: result.bonusXP,
+              grandTotalXP,
+              streak: result.streakCount,
+              difficultyMultiplier: 1,
+              streakMultiplier: 1 + (result.streakCount * 0.1),
+              hintPenalty: 0,
+              milestone: null,
+              milestoneXP: 0,
+              baseMoney: 0,
+              totalMoney: (result.quest as any).rewards?.gold ?? 0,
+            },
+            chainCompletion: result.chainCompletion?.isComplete ? {
+              chainName: result.chainCompletion.chainName,
+              bonusXP: result.chainCompletion.bonusXP,
+              achievement: result.chainCompletion.achievement,
+              totalQuests: result.chainCompletion.totalQuests,
+            } : null,
+            skillRewards: [],
+          };
+        }
+      } catch (err) {
+        console.warn('[QuestCompletionManager] Local completion failed, falling back to server:', err);
+      }
+    }
+
+    // Fallback: use server API
     try {
-      const response = await fetch(`/api/worlds/${worldId}/quests/${questId}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!response?.ok) return null;
-      return await response.json();
+      if (this.dataSource) {
+        return await this.dataSource.completeQuest(worldId, questId);
+      }
+      return null;
     } catch {
       return null;
     }

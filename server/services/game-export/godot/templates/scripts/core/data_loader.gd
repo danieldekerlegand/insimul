@@ -874,6 +874,30 @@ func load_reading_progress(player_id: String, world_id: String, playthrough_id: 
 func sync_reading_progress(data: Dictionary) -> void:
 	pass  # No-op in exported mode
 
+# ── Quest management ──────────────────────────────────────────
+
+## Create a dynamic quest at runtime.
+func create_dynamic_quest(_world_id: String, quest_data: Dictionary) -> Dictionary:
+	var quest_id = "dynamic_%d" % Time.get_unix_time_from_system()
+	var quest_dir = OS.get_user_data_dir() + "/quests"
+	DirAccess.make_dir_recursive_absolute(quest_dir)
+	var file = FileAccess.open(quest_dir + "/" + quest_id + ".json", FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(quest_data))
+		file.close()
+	print("[Insimul] Created dynamic quest: ", quest_id)
+	return {"id": quest_id, "status": "active"}
+
+## Branch a quest based on player choice.
+func branch_quest(_world_id: String, quest_id: String, choice_id: String, _target_stage_id: String = "") -> Dictionary:
+	print("[Insimul] BranchQuest: %s, choice: %s" % [quest_id, choice_id])
+	return {"success": true}
+
+## Adjust reputation for an entity.
+func adjust_reputation(_playthrough_id: String, entity_type: String, entity_id: String, amount: int, reason: String) -> Dictionary:
+	print("[Insimul] AdjustReputation: %s/%s by %d (%s)" % [entity_type, entity_id, amount, reason])
+	return {"success": true}
+
 # ── Playthroughs index helpers ─────────────────────────────────
 
 const PLAYTHROUGHS_INDEX_PATH := "user://insimul_playthroughs.json"

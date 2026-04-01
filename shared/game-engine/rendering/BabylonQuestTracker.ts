@@ -347,6 +347,7 @@ export class BabylonQuestTracker {
   // Selection and tracking
   private selectedQuestId: string | null = null;
   private trackedQuestId: string | null = null;
+  private disposed = false;
 
   // Player position for distance calculation
   private playerPosition: Vector3 = Vector3.Zero();
@@ -597,22 +598,14 @@ export class BabylonQuestTracker {
     try {
       this.worldId = worldId;
 
-      if (this.dataSource) {
-        // Load through DataSource (overlay-aware)
-        this.quests = await this.dataSource.loadQuests(worldId);
-      } else {
-        // Fallback: direct API call
-        const response = await fetch(`/api/worlds/${worldId}/quests`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch quests');
-        }
-        this.quests = await response.json();
-      }
+      if (!this.dataSource) throw new Error('No dataSource set — save file not loaded');
+      this.quests = await this.dataSource.loadQuests(worldId);
 
+      if (this.disposed) return;
       this.updateQuestsDisplay();
       this.updateWaypoints();
     } catch (error) {
-      console.error('Failed to load quests:', error);
+      if (!this.disposed) console.error('Failed to load quests:', error);
     }
   }
 
@@ -795,7 +788,7 @@ export class BabylonQuestTracker {
     metaRow.addControl(rewardText);
 
     const typeLabel = new TextBlock();
-    typeLabel.text = quest.questType.replace(/_/g, ' ');
+    typeLabel.text = (quest.questType || 'quest').replace(/_/g, ' ');
     typeLabel.color = typeColor;
     typeLabel.fontSize = 8;
     typeLabel.fontWeight = "bold";
@@ -1979,6 +1972,7 @@ export class BabylonQuestTracker {
   }
 
   public dispose() {
+    this.disposed = true;
     if (this.questPanel) {
       this.advancedTexture.removeControl(this.questPanel);
     }

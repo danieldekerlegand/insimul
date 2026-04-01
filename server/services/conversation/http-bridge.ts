@@ -372,6 +372,47 @@ async function streamTextResponse(
   res.end();
 }
 
+// ── Conversation Goal Evaluation Prompt ──────────────────────────────────
+
+/**
+ * Build a prompt that asks the LLM to evaluate whether the player's conversation
+ * achieved any of the active quest objectives. Returns a JSON array of evaluations.
+ */
+function buildConversationGoalPrompt(
+  playerMessage: string,
+  npcResponse: string,
+  objectives: Array<{ questId: string; objectiveId: string; objectiveType: string; description: string; npcId?: string }>,
+): string {
+  const objectiveList = objectives.map((obj, i) =>
+    `${i + 1}. [${obj.objectiveId}] (${obj.objectiveType}): "${obj.description}"`
+  ).join('\n');
+
+  return `You are evaluating whether a player's conversation exchange accomplished any quest objectives in a language learning RPG.
+
+PLAYER SAID: "${playerMessage}"
+NPC RESPONDED: "${npcResponse}"
+
+ACTIVE QUEST OBJECTIVES TO EVALUATE:
+${objectiveList}
+
+For EACH objective, determine if the conversation exchange meaningfully progressed or completed it.
+- "talk_to_npc" objectives: Met if the player had a substantive exchange (not just "hi").
+- "conversation" objectives: Met if the player engaged with the topic described in the objective.
+- "complete_conversation" objectives: Met if the player's exchange fulfilled the described goal.
+- "use_vocabulary" objectives: Met if the player used relevant vocabulary in their message.
+
+Return ONLY a JSON array. For each objective, include:
+- "objectiveId": the objective ID
+- "questId": the quest ID
+- "goalMet": true/false
+- "confidence": 0.0-1.0 (how confident you are)
+- "extractedInfo": brief description of what the player achieved (or "" if goalMet is false)
+
+IMPORTANT: Only set goalMet=true if you are genuinely confident (0.7+) that the exchange meaningfully addressed the objective. Do not be lenient — the player should actually engage with the goal, not just say anything.
+
+Return JSON array only, no explanation:`;
+}
+
 // ── Route registration ───────────────────────────────────────────────────
 
 export function registerConversationRoutes(app: Express): void {
@@ -497,7 +538,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: JSON { vocabHints, grammarFeedback, eval? }
    */
   app.post('/api/conversation/metadata', async (req: Request, res: Response) => {
-    const { playerMessage, npcResponse, targetLanguage, playerProficiency, includeEval } = req.body;
+    const { playerMessage, npcResponse, targetLanguage, playerProficiency, includeEval, activeObjectives } = req.body;
 
     if (!playerMessage || !npcResponse || !targetLanguage) {
       res.status(400).json({ error: 'Missing required fields: playerMessage, npcResponse, targetLanguage' });
@@ -511,44 +552,82 @@ export function registerConversationRoutes(app: Express): void {
         playerProficiency: playerProficiency ?? 'beginner',
       });
 
-      // Use the conversation LLM provider (fast model) for metadata extraction
-      let llmProvider: IStreamingLLMProvider;
-      try {
-        llmProvider = getProvider();
-      } catch {
-        // Fallback to Gemini directly
-        const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import('../../config/gemini.js');
-        const ai = getGenAI();
-        const result = await ai.models.generateContent({
-          model: GEMINI_MODELS.FLASH,
-          contents: prompt,
-          config: { temperature: 0.1, maxOutputTokens: 500, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
-        });
-        const text = result.text || '';
+      // Run two parallel LLM calls:
+      // 1. Metadata extraction (vocab, grammar, eval)
+      // 2. Conversation goal evaluation (if active objectives provided)
+
+      const metadataPromise = (async () => {
+        let llmProvider: IStreamingLLMProvider;
         try {
-          const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
-          return res.json(parsed);
+          llmProvider = getProvider();
         } catch {
-          return res.json({ vocabHints: [], grammarFeedback: { status: 'no_target_language', errors: [] }, raw: text });
+          const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import('../../config/gemini.js');
+          const ai = getGenAI();
+          const result = await ai.models.generateContent({
+            model: GEMINI_MODELS.FLASH,
+            contents: prompt,
+            config: { temperature: 0.1, maxOutputTokens: 500, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
+          });
+          const text = result.text || '';
+          try {
+            return JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
+          } catch {
+            return { vocabHints: [], grammarFeedback: { status: 'no_target_language', errors: [] } };
+          }
         }
+
+        let fullText = '';
+        const tokens = llmProvider.streamCompletion(prompt, {
+          systemPrompt: 'You are a language analysis engine. Return only valid JSON.',
+          characterName: 'system',
+        }, { languageCode: 'en' });
+        for await (const token of tokens) {
+          fullText += token;
+        }
+
+        try {
+          return JSON.parse(fullText.replace(/```json\n?|\n?```/g, '').trim());
+        } catch {
+          return { vocabHints: [], grammarFeedback: { status: 'no_target_language', errors: [] } };
+        }
+      })();
+
+      // Evaluate conversation goals in parallel (only if objectives provided)
+      const goalEvalPromise = (async () => {
+        if (!activeObjectives || activeObjectives.length === 0) return [];
+
+        const goalPrompt = buildConversationGoalPrompt(playerMessage, npcResponse, activeObjectives);
+
+        try {
+          const { getGenAI, GEMINI_MODELS, THINKING_LEVELS } = await import('../../config/gemini.js');
+          const ai = getGenAI();
+          const result = await ai.models.generateContent({
+            model: GEMINI_MODELS.FLASH,
+            contents: goalPrompt,
+            config: { temperature: 0.0, maxOutputTokens: 300, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
+          });
+          const text = result.text || '';
+          try {
+            const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
+            return Array.isArray(parsed) ? parsed : parsed.evaluations || [];
+          } catch {
+            return [];
+          }
+        } catch (err: any) {
+          console.warn('[ConversationBridge] Goal evaluation failed:', err.message);
+          return [];
+        }
+      })();
+
+      // Wait for both
+      const [metadata, goalEvaluations] = await Promise.all([metadataPromise, goalEvalPromise]);
+
+      // Merge goal evaluations into response
+      if (goalEvaluations.length > 0) {
+        metadata.goalEvaluations = goalEvaluations;
       }
 
-      // Stream and collect full response
-      let fullText = '';
-      const tokens = llmProvider.streamCompletion(prompt, {
-        systemPrompt: 'You are a language analysis engine. Return only valid JSON.',
-        characterName: 'system',
-      }, { languageCode: 'en' });
-      for await (const token of tokens) {
-        fullText += token;
-      }
-
-      try {
-        const parsed = JSON.parse(fullText.replace(/```json\n?|\n?```/g, '').trim());
-        res.json(parsed);
-      } catch {
-        res.json({ vocabHints: [], grammarFeedback: { status: 'no_target_language', errors: [] }, raw: fullText });
-      }
+      res.json(metadata);
     } catch (err: any) {
       console.error('[ConversationBridge] Metadata extraction error:', err.message);
       res.status(500).json({ error: 'Metadata extraction failed' });

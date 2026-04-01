@@ -77,6 +77,8 @@ export class ReputationManager {
   private changeListeners = new Set<ReputationChangeListener>();
   private unsubscribers: Array<() => void> = [];
 
+  private _dataSource: any | null = null;
+
   constructor(
     private playthroughId: string,
     private authToken: string,
@@ -85,16 +87,17 @@ export class ReputationManager {
     this.subscribeToEvents();
   }
 
+  setDataSource(ds: any): void {
+    this._dataSource = ds;
+  }
+
   // ── Public API ──────────────────────────────────────────────────────────
 
-  /** Load all reputations for this playthrough from the server. */
+  /** Load all reputations for this playthrough. */
   async loadAll(): Promise<void> {
     try {
-      const res = await fetch(`/api/playthroughs/${this.playthroughId}/reputations`, {
-        headers: this.headers(),
-      });
-      if (!res.ok) return;
-      const records: any[] = await res.json();
+      if (!this._dataSource) throw new Error('No dataSource — save file not loaded');
+      const records = await this._dataSource.getReputations(this.playthroughId);
       this.cache.clear();
       for (const r of records) {
         const key = `${r.entityType}:${r.entityId}`;
@@ -188,19 +191,8 @@ export class ReputationManager {
     const previousStanding = prev?.standing ?? 'neutral';
 
     try {
-      const res = await fetch(
-        `/api/playthroughs/${this.playthroughId}/reputations/${entityType}/${entityId}/adjust`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this.headers() },
-          body: JSON.stringify({ amount, reason }),
-        },
-      );
-      if (!res.ok) {
-        console.error('[ReputationManager] Adjust failed:', res.status);
-        return;
-      }
-      const updated = await res.json();
+      if (!this._dataSource) throw new Error('No dataSource — save file not loaded');
+      const updated = await this._dataSource.adjustReputation(this.playthroughId, entityType, entityId, amount, reason);
       const record = this.toRecord({ ...updated, entityName });
       this.cache.set(key, record);
 

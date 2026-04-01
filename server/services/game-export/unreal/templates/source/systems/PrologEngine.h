@@ -122,6 +122,9 @@ struct FInsimulPrologActionResult
     UPROPERTY(BlueprintReadOnly) FString Reason;
 };
 
+/** Delegate for per-objective completion notifications. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnPrologObjectiveCompleted, const FString&, QuestId, int32, ObjectiveIndex);
+
 /**
  * Prolog engine stub for Unreal Engine exports.
  *
@@ -301,9 +304,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     void SetActiveQuests(const TArray<FString>& QuestIds);
 
+    /** Reconcile Prolog's view of quest state with external system */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void Reconcile(TArray<FString>& OutCompletedQuests, TArray<FString>& OutCompletedObjectiveKeys);
+
+    /** Get conditional bonus rewards for a completed quest */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    TArray<FString> GetBonusRewards(const FString& QuestId);
+
     /** Callback delegate fired when Prolog determines a quest is complete */
     UPROPERTY(BlueprintAssignable, Category = "Insimul|PrologEngine")
     FOnGameEvent OnQuestCompleted;
+
+    /** Callback delegate fired when Prolog determines an individual objective is complete */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|PrologEngine")
+    FOnPrologObjectiveCompleted OnObjectiveCompleted;
 
     // ── State ────────────────────────────────────────────────────────────
 
@@ -347,12 +362,21 @@ private:
     /** Stored reference to event bus so PrologEngine can emit events (e.g., create_truth) */
     TWeakObjectPtr<UEventBus> EventBusRef;
 
+    /** Track which objectives Prolog has already marked complete */
+    TSet<FString> CompletedObjectives;
+
+    /** Track which quests Prolog has already marked complete */
+    TSet<FString> CompletedQuests;
+
     /** Handle a game event by asserting Prolog facts */
     UFUNCTION()
     void HandleGameEvent(const FInsimulGameEvent& Event);
 
     /** Re-evaluate active quests after fact assertion */
     void ReevaluateQuests();
+
+    /** Check each objective of a quest for completion */
+    void CheckObjectiveCompletion(const FString& QuestId);
 
     /** Assert item taxonomy facts */
     void AssertItemTaxonomy(const FString& ItemName, const FString& Category, const FString& Material, const FString& BaseType, const FString& Rarity, const FString& ItemType);

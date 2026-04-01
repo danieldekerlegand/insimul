@@ -696,6 +696,8 @@ namespace Insimul.Data
         public string floorTextureId;
         public string ceilingTextureId;
         public string furnitureSet;
+        /// <summary>Map furniture type to asset file path. Overrides default models per type.</summary>
+        public SerializableDictionary<string, string> furnitureAssets;
         /// <summary>bright, dim, warm, cool, or candlelit.</summary>
         public string lightingPreset;
     }

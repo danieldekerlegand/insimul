@@ -87,6 +87,8 @@ export interface IDataSource {
   markPlaythroughInitialized(playthroughId: string): Promise<void>;
 
   // ── Quests ──
+  createDynamicQuest(worldId: string, questData: any): Promise<any>;
+  branchQuest(worldId: string, questId: string, choiceId: string, targetStageId?: string): Promise<any>;
   updateQuest(questId: string, data: any): Promise<void>;
   completeQuest(worldId: string, questId: string): Promise<any>;
   getNpcQuestGuidance(worldId: string, npcId: string): Promise<{ hasGuidance: boolean; systemPromptAddition?: string } | null>;
@@ -134,6 +136,7 @@ export interface IDataSource {
   loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
   getReputations(playthroughId: string): Promise<any[]>;
   updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
+  adjustReputation(playthroughId: string, entityType: string, entityId: string, amount: number, reason: string): Promise<any>;
   payFines(playthroughId: string, settlementId: string): Promise<any>;
 
   // ── Language learning ──
@@ -148,6 +151,9 @@ export interface IDataSource {
   submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any>;
   completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any>;
   getPlayerAssessments(playerId: string, worldId: string): Promise<any[]>;
+
+  // ── Quest storage provider (for shared quest generators) ──
+  getQuestStorageProvider?(): any;
 
   // ── Media & assets ──
   textToSpeech(text: string, voice: string, gender: string, targetLanguage?: string | null): Promise<Blob | null>;

@@ -78,8 +78,8 @@ function buildCharacterMappings(ir: WorldIR): CharacterMapping[] {
 }
 
 function buildPluginConfig(ir: WorldIR, aiModelPaths?: AIModelPaths, modelPack?: ModelPackIR | null): InsimulPluginConfig {
-  const serverUrl = process.env.INSIMUL_SERVER_URL || 'http://localhost:5000';
-  const wsUrl = process.env.INSIMUL_WS_URL || 'ws://localhost:50052';
+  const serverUrl = process.env.INSIMUL_SERVER_URL || 'http://localhost:8080';
+  const wsUrl = process.env.INSIMUL_WS_URL || 'ws://localhost:8080';
   const apiKey = process.env.INSIMUL_API_KEY || '';
   const hasLocalModels = aiModelPaths != null || modelPack?.enabled === true;
 
@@ -119,7 +119,7 @@ function readDirRecursive(baseDir: string, relPrefix: string = ''): PluginFile[]
 
 export function bundleBabylonPlugin(ir: WorldIR, modelPack?: ModelPackIR | null): PluginFile[] {
   const config = buildPluginConfig(ir, undefined, modelPack);
-  const sdkDir = join(PACKAGES_DIR, 'insimul-sdk-js', 'src');
+  const sdkDir = join(PACKAGES_DIR, 'typescript', 'src');
   const files: PluginFile[] = [];
 
   // Copy SDK source files
@@ -203,7 +203,7 @@ export function getCharacterIdsByRole(role: string): string[] {
 
 export function bundleUnityPlugin(ir: WorldIR, modelPack?: ModelPackIR | null): PluginFile[] {
   const config = buildPluginConfig(ir, undefined, modelPack);
-  const pluginDir = join(PACKAGES_DIR, 'insimul-plugin-unity');
+  const pluginDir = join(PACKAGES_DIR, 'unity');
   const files: PluginFile[] = [];
 
   // Copy Runtime/ source files
@@ -237,6 +237,10 @@ export function bundleUnityPlugin(ir: WorldIR, modelPack?: ModelPackIR | null): 
 }
 
 function generateUnityConfig(config: InsimulPluginConfig): string {
+  const isLocal = config.aiConfig?.apiMode === 'local';
+  const chatProvider = isLocal ? 'InsimulChatProvider.Local' : 'InsimulChatProvider.Server';
+  const ttsProvider = isLocal ? 'InsimulTTSProvider.Local' : 'InsimulTTSProvider.Server';
+
   const mappingEntries = config.characterMappings
     .map(m => `            new CharacterMapping { characterId = ${JSON.stringify(m.characterId)}, characterName = ${JSON.stringify(m.characterName)}, npcRole = ${JSON.stringify(m.npcRole)} }`)
     .join(',\n');
@@ -248,15 +252,18 @@ namespace Insimul
 {
     /// <summary>
     /// Pre-configured connection and character mapping for this exported world.
+    /// Apply these settings to InsimulManager in your scene.
     /// </summary>
     public static class InsimulExportConfig
     {
         public const string ServerUrl = ${JSON.stringify(config.serverUrl)};
-        public const string WsUrl = ${JSON.stringify(config.wsUrl)};
         public const string WorldId = ${JSON.stringify(config.worldId)};
         public const string ApiKey = ${JSON.stringify(config.apiKey)};
-        public const string AIProvider = ${JSON.stringify(config.aiConfig?.apiMode ?? 'cloud')};
-        public const string AIModelBasePath = ${JSON.stringify(config.aiConfig?.localModelPath ?? '')};
+        public static readonly InsimulChatProvider ChatProvider = ${chatProvider};
+        public static readonly InsimulTTSProvider TTSProvider = ${ttsProvider};
+${isLocal ? `        public const string LocalLLMServerURL = "http://localhost:11434/api/generate";
+        public const string LocalLLMModel = ${JSON.stringify(config.aiConfig?.localModelName ?? 'mistral')};
+        public const string WorldDataPath = "InsimulData/world_export.json";` : ''}
 
         public static readonly List<CharacterMapping> CharacterMappings = new List<CharacterMapping>
         {
@@ -267,6 +274,19 @@ ${mappingEntries}
         {
             var mapping = CharacterMappings.Find(m => m.characterName == name);
             return mapping?.characterId;
+        }
+
+        /// <summary>Apply export config to an InsimulManager instance.</summary>
+        public static void ApplyTo(InsimulManager manager)
+        {
+            manager.chatProvider = ChatProvider;
+            manager.ttsProvider = TTSProvider;
+            manager.serverUrl = ServerUrl;
+            manager.worldId = WorldId;
+            manager.apiKey = ApiKey;
+${isLocal ? `            manager.localLLMServerURL = LocalLLMServerURL;
+            manager.localLLMModel = LocalLLMModel;
+            manager.worldDataPath = WorldDataPath;` : ''}
         }
     }
 
@@ -287,7 +307,7 @@ ${mappingEntries}
 
 export function bundleGodotPlugin(ir: WorldIR, aiModelPaths?: AIModelPaths): PluginFile[] {
   const config = buildPluginConfig(ir, aiModelPaths);
-  const pluginDir = join(PACKAGES_DIR, 'insimul-plugin-godot', 'addons', 'insimul');
+  const pluginDir = join(PACKAGES_DIR, 'godot', 'addons', 'insimul');
   const files: PluginFile[] = [];
 
   // Copy addon files
@@ -369,10 +389,10 @@ static func get_character_ids_by_role(role: String) -> Array[String]:
 
 export function bundleUnrealPlugin(ir: WorldIR, modelPack?: ModelPackIR | null): PluginFile[] {
   const config = buildPluginConfig(ir, undefined, modelPack);
-  const pluginDir = join(PACKAGES_DIR, 'insimul-plugin-unreal');
+  const pluginDir = join(PACKAGES_DIR, 'unreal');
   const files: PluginFile[] = [];
 
-  // Copy Source/ files
+  // Copy Source/ files (new plugin uses InsimulRuntime module)
   const sourceDir = join(pluginDir, 'Source');
   const sourceFiles = readDirRecursive(sourceDir);
   for (const f of sourceFiles) {
@@ -385,16 +405,28 @@ export function bundleUnrealPlugin(ir: WorldIR, modelPack?: ModelPackIR | null):
     files.push({ path: 'Plugins/Insimul/Insimul.uplugin', content: readFileSync(upluginPath, 'utf8') });
   }
 
-  // Generate DefaultGame.ini section for character mappings
+  // Copy README
+  const readmePath = join(pluginDir, 'README.md');
+  if (existsSync(readmePath)) {
+    files.push({ path: 'Plugins/Insimul/README.md', content: readFileSync(readmePath, 'utf8') });
+  }
+
+  // Generate DefaultGame.ini settings for UInsimulSettings
   files.push({
     path: 'Plugins/Insimul/Config/InsimulConfig.ini',
     content: generateUnrealConfig(config),
   });
 
-  // Generate C++ config header
+  // Generate C++ config header with character mappings
   files.push({
-    path: 'Plugins/Insimul/Source/Insimul/Public/InsimulExportConfig.h',
+    path: 'Plugins/Insimul/Source/InsimulRuntime/Public/InsimulExportConfig.h',
     content: generateUnrealConfigHeader(config),
+  });
+
+  // Generate world export JSON for offline mode
+  files.push({
+    path: 'Content/InsimulData/world_export.json',
+    content: generateWorldExportJson(ir, config),
   });
 
   console.log(`[Export] Unreal plugin bundled: ${files.length} files, ${config.characterMappings.length} character mappings`);
@@ -402,19 +434,32 @@ export function bundleUnrealPlugin(ir: WorldIR, modelPack?: ModelPackIR | null):
 }
 
 function generateUnrealConfig(config: InsimulPluginConfig): string {
+  const isLocal = config.aiConfig?.apiMode === 'local';
+  const chatProvider = isLocal ? 'Local' : 'Server';
+  const ttsProvider = isLocal ? 'Local' : 'Server';
+
   let ini = `; Auto-generated by Insimul export pipeline — do not edit manually.
-[/Script/Insimul.InsimulSettings]
-ServerUrl=${config.serverUrl}
-WsUrl=${config.wsUrl}
-WorldId=${config.worldId}
-ApiKey=${config.apiKey}
-AIProvider=${config.aiConfig?.apiMode ?? 'cloud'}
-AIModelBasePath=${config.aiConfig?.localModelPath ?? ''}
+; Paste this section into Config/DefaultGame.ini (or it will be read from here).
+[/Script/InsimulRuntime.InsimulSettings]
+ChatProvider=${chatProvider}
+TTSProvider=${ttsProvider}
+STTProvider=None
+ServerURL=${config.serverUrl}
+DefaultWorldID=${config.worldId}
+APIKey=${config.apiKey}
+bPreferWebSocket=true
+LanguageCode=en
 `;
 
-  for (let i = 0; i < config.characterMappings.length; i++) {
-    const m = config.characterMappings[i];
-    ini += `+CharacterMappings=(CharacterId="${m.characterId}",CharacterName="${m.characterName}",NpcRole="${m.npcRole}")\n`;
+  if (isLocal) {
+    ini += `LocalLLMServerURL=http://localhost:11434/api/generate
+LocalLLMModel=${config.aiConfig?.localModelName ?? 'mistral'}
+WorldDataPath=InsimulData/world_export.json
+MaxTokens=256
+Temperature=0.7
+LocalVoiceModel=en_US-amy-medium
+LocalSpeakerIndex=0
+`;
   }
 
   return ini;
@@ -428,16 +473,14 @@ function generateUnrealConfigHeader(config: InsimulPluginConfig): string {
 
 /**
  * Pre-configured connection settings and character mappings for this exported world.
- * Use UInsimulSubsystem to connect at runtime, or read these defaults directly.
+ * These are compile-time defaults. Runtime configuration comes from UInsimulSettings
+ * in Project Settings > Plugins > Insimul.
  */
 namespace InsimulExportConfig
 {
     inline const FString ServerUrl = TEXT(${JSON.stringify(config.serverUrl)});
-    inline const FString WsUrl = TEXT(${JSON.stringify(config.wsUrl)});
     inline const FString WorldId = TEXT(${JSON.stringify(config.worldId)});
     inline const FString ApiKey = TEXT(${JSON.stringify(config.apiKey)});
-    inline const FString AIProvider = TEXT(${JSON.stringify(config.aiConfig?.apiMode ?? 'cloud')});
-    inline const FString AIModelBasePath = TEXT(${JSON.stringify(config.aiConfig?.localModelPath ?? '')});
 
     struct FCharacterMapping
     {
@@ -451,4 +494,49 @@ ${config.characterMappings.map(m => `        { TEXT(${JSON.stringify(m.character
     };
 }
 `;
+}
+
+/**
+ * Generate a world export JSON compatible with FInsimulWorldExportLoader.
+ * This embeds character data and dialogue contexts for offline mode.
+ */
+function generateWorldExportJson(ir: WorldIR, config: InsimulPluginConfig): string {
+  const characters = ir.entities.characters.map((c: CharacterIR) => {
+    const personality = (c.personality || {}) as Record<string, number>;
+    return {
+      characterId: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      gender: c.gender || '',
+      occupation: c.occupation || '',
+      birthYear: c.birthYear || 0,
+      isAlive: c.isAlive !== false,
+      openness: personality.openness ?? 0,
+      conscientiousness: personality.conscientiousness ?? 0,
+      extroversion: personality.extroversion ?? 0,
+      agreeableness: personality.agreeableness ?? 0,
+      neuroticism: personality.neuroticism ?? 0,
+    };
+  });
+
+  // Build dialogue contexts from the IR's dialogue context data
+  const dialogueContexts = (ir.systems?.dialogueContexts || []).map((ctx: any) => ({
+    characterId: ctx.characterId,
+    characterName: ctx.characterName,
+    systemPrompt: ctx.systemPrompt,
+    greeting: ctx.greeting || '',
+    voice: ctx.voice || 'Kore',
+    truths: (ctx.truths || []).map((t: any) => ({
+      title: t.title || '',
+      content: t.content || '',
+    })),
+  }));
+
+  return JSON.stringify({
+    worldName: ir.meta.worldName,
+    worldId: ir.meta.worldId,
+    exportedAt: new Date().toISOString(),
+    characters,
+    dialogueContexts,
+  }, null, 2);
 }

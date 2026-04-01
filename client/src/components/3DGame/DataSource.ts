@@ -327,6 +327,24 @@ export class ApiDataSource implements DataSource {
     await this.saveQueue.enqueue('updateQuest', `quest:${questId}`, { questId, data });
   }
 
+  async createDynamicQuest(worldId: string, questData: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(questData),
+    });
+    return res.ok ? await res.json() : null;
+  }
+
+  async branchQuest(worldId: string, questId: string, choiceId: string, targetStageId?: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests/${questId}/branch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ choiceId, targetStageId }),
+    });
+    return res.ok ? await res.json() : null;
+  }
+
   async completeQuest(worldId: string, questId: string): Promise<any> {
     const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests/${questId}/complete`, {
       method: 'POST',
@@ -381,6 +399,18 @@ export class ApiDataSource implements DataSource {
   async loadSettlementResidences(settlementId: string): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/settlements/${settlementId}/residences`);
     return res.ok ? await res.json() : [];
+  }
+
+  async adjustReputation(playthroughId: string, entityType: string, entityId: string, amount: number, reason: string): Promise<any> {
+    const res = await fetch(
+      `${this.baseUrl}/api/playthroughs/${playthroughId}/reputations/${entityType}/${entityId}/adjust`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+        body: JSON.stringify({ amount, reason }),
+      }
+    );
+    return res.ok ? await res.json() : null;
   }
 
   async payFines(playthroughId: string, settlementId: string): Promise<any> {
@@ -690,6 +720,20 @@ export class ApiDataSource implements DataSource {
 
   async startNpcNpcConversation(worldId: string, npc1Id: string, npc2Id: string, topic?: string): Promise<NpcConversationResult | null> {
     try {
+      // Route through SDK if available
+      const { getInsimulClient } = await import('@shared/game-engine/InsimulClientRegistry');
+      const client = getInsimulClient();
+      if (client) {
+        const result = await client.simulateNpcConversation({ npc1Id, npc2Id, worldId, topic });
+        if (result) {
+          return {
+            exchanges: (result as any).exchanges ?? [],
+            relationshipDelta: (result as any).relationshipDelta ?? { friendshipChange: 0, trustChange: 0, romanceSpark: 0 },
+            topic: (result as any).topic ?? 'small_talk',
+            languageUsed: (result as any).languageUsed ?? 'English',
+          };
+        }
+      }
       const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/npc-npc-conversation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
@@ -712,33 +756,26 @@ export class ApiDataSource implements DataSource {
     return `${this.baseUrl}/api/assets/${assetId}`;
   }
 
+  // TODO: Assessment lifecycle should be folded into the quest/Prolog system.
+  // Language assessments are special quests (quest_language predicates).
+  // Results stored as Prolog facts instead of separate assessment API calls.
+
   async createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/assessments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error(`Failed to create assessment session: ${res.status}`);
-    return res.json();
+    // TODO: Replace with Prolog quest initiation: quest_language(assessment_type, language).
+    console.warn('[DataSource] createAssessmentSession stubbed — TODO: integrate via quest_language Prolog predicates');
+    return { id: `stub-${Date.now()}`, ...data };
   }
 
   async submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/assessments/${sessionId}/phases/${phaseId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error(`Failed to submit assessment phase: ${res.status}`);
-    return res.json();
+    // TODO: Replace with Prolog fact assertion: phase_score(PlayerID, PhaseID, Score, MaxScore).
+    console.warn('[DataSource] submitAssessmentPhase stubbed — TODO: integrate via Prolog');
+    return { sessionId, phaseId, ...data };
   }
 
   async completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/assessments/${sessionId}/complete`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error(`Failed to complete assessment: ${res.status}`);
+    // TODO: Replace with Prolog fact assertion: assessment_complete(PlayerID, SessionID, Score, CEFR).
+    console.warn('[DataSource] completeAssessment stubbed — TODO: integrate via Prolog');
+    const res = { ok: true } as any;
     return res.json();
   }
 
@@ -764,6 +801,12 @@ export class ApiDataSource implements DataSource {
 
   async simulateRichConversation(worldId: string, char1Id: string, char2Id: string, turnCount = 6): Promise<{ utterances: Array<{ speaker: string; text: string; gender?: string }> } | null> {
     try {
+      // Route through SDK if available
+      const { getInsimulClient } = await import('@shared/game-engine/InsimulClientRegistry');
+      const client = getInsimulClient();
+      if (client) {
+        return await client.simulateRichConversation({ char1Id, char2Id, worldId, turnCount }) as any;
+      }
       const res = await fetch(`${this.baseUrl}/api/conversations/simulate-rich`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
@@ -778,6 +821,13 @@ export class ApiDataSource implements DataSource {
 
   async textToSpeech(text: string, voice: string, gender: string, targetLanguage?: string | null): Promise<Blob | null> {
     try {
+      // Route through SDK if available
+      const { getInsimulClient } = await import('@shared/game-engine/InsimulClientRegistry');
+      const client = getInsimulClient();
+      if (client) {
+        const buffer = await client.synthesizeSpeech(text, { voice, gender });
+        return buffer ? new Blob([buffer], { type: 'audio/mp3' }) : null;
+      }
       const res = await fetch(`${this.baseUrl}/api/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
@@ -1793,6 +1843,17 @@ export class FileDataSource implements DataSource {
     this.localState.updateQuest(questId, data);
   }
 
+  async createDynamicQuest(_worldId: string, questData: any): Promise<any> {
+    const id = `dynamic_${Date.now()}`;
+    this.localState.updateQuest(id, { ...questData, status: 'active' });
+    return { ...questData, id };
+  }
+
+  async branchQuest(_worldId: string, questId: string, choiceId: string, _targetStageId?: string): Promise<any> {
+    this.localState.updateQuest(questId, { [`branch_${choiceId}`]: true });
+    return { success: true };
+  }
+
   async completeQuest(_worldId: string, questId: string): Promise<any> {
     this.localState.updateQuest(questId, { status: 'completed', completedAt: new Date().toISOString() });
     return { success: true, questId };
@@ -1921,6 +1982,8 @@ export class FileDataSource implements DataSource {
       position: b.position,
     }));
   }
+
+  async adjustReputation(_playthroughId: string, _entityType: string, _entityId: string, _amount: number, _reason: string): Promise<any> { return { success: true }; }
 
   async payFines(_playthroughId: string, settlementId: string): Promise<any> {
     return this.localState.payFines(settlementId);

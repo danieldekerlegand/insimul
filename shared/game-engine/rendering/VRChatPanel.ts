@@ -89,9 +89,23 @@ export class VRChatPanel {
   private onQuestAssigned: ((questData: any) => void) | null = null;
   private onVocabularyUsed: ((word: string) => void) | null = null;
 
+  // Injectable SDK functions — set from BabylonGame to route through @insimul/typescript
+  private _sendTextFn: ((text: string, characterId: string, worldId: string) => Promise<string>) | null = null;
+  private _synthesizeSpeechFn: ((text: string) => Promise<ArrayBuffer | null>) | null = null;
+
   constructor(scene: Scene, vrManager: VRManager) {
     this.scene = scene;
     this.vrManager = vrManager;
+  }
+
+  /** Set SDK chat function (routes through InsimulClient.sendText) */
+  public setSendTextFn(fn: (text: string, characterId: string, worldId: string) => Promise<string>): void {
+    this._sendTextFn = fn;
+  }
+
+  /** Set SDK TTS function (routes through InsimulClient.synthesizeSpeech) */
+  public setSynthesizeSpeechFn(fn: (text: string) => Promise<ArrayBuffer | null>): void {
+    this._synthesizeSpeechFn = fn;
   }
 
   /**
@@ -516,24 +530,31 @@ export class VRChatPanel {
     if (!this.character) return;
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          characterId: this.character.id,
-          worldId: this.character.worldId,
-          message: userMessage,
-          conversationHistory: this.messages.map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      });
+      let npcResponse = '';
 
-      if (!response.ok) throw new Error('Chat API failed');
+      if (this._sendTextFn) {
+        // Route through SDK
+        npcResponse = await this._sendTextFn(userMessage, this.character.id, this.character.worldId);
+      } else {
+        // Direct fetch fallback
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            characterId: this.character.id,
+            worldId: this.character.worldId,
+            message: userMessage,
+            conversationHistory: this.messages.map(m => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
+        });
 
-      const result = await response.json();
-      const npcResponse = result.message || result.response || '';
+        if (!response.ok) throw new Error('Chat API failed');
+        const result = await response.json();
+        npcResponse = result.message || result.response || '';
+      }
 
       if (npcResponse) {
         this.addAssistantMessage(npcResponse);
@@ -558,15 +579,27 @@ export class VRChatPanel {
 
   private async speakText(text: string): Promise<void> {
     try {
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
+      let audioBlob: Blob | null = null;
 
-      if (!response.ok) return;
+      if (this._synthesizeSpeechFn) {
+        // Route through SDK
+        const buffer = await this._synthesizeSpeechFn(text);
+        if (buffer) {
+          audioBlob = new Blob([buffer], { type: 'audio/mp3' });
+        }
+      } else {
+        // Direct fetch fallback
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (response.ok) {
+          audioBlob = await response.blob();
+        }
+      }
 
-      const audioBlob = await response.blob();
+      if (!audioBlob) return;
       const audioUrl = URL.createObjectURL(audioBlob);
 
       this.stopAudio();

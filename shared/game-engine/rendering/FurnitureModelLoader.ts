@@ -186,6 +186,54 @@ export class FurnitureModelLoader {
     return cloned;
   }
 
+  /**
+   * Load a single furniture template from an explicit path into a target scene.
+   * Used for asset-collection furniture overrides in interior scenes.
+   */
+  public async loadTemplateIntoScene(
+    type: string,
+    assetPath: string,
+    targetScene: Scene,
+  ): Promise<FurnitureTemplate | null> {
+    try {
+      const cleanPath = assetPath.replace(/^\//, '');
+      const lastSlash = cleanPath.lastIndexOf('/');
+      const rootUrl = '/' + cleanPath.substring(0, lastSlash + 1);
+      const fileName = cleanPath.substring(lastSlash + 1);
+
+      const result = await SceneLoader.ImportMeshAsync('', rootUrl, fileName, targetScene);
+      if (result.meshes.length === 0) return null;
+
+      const root = result.meshes[0] as Mesh;
+      root.setEnabled(false);
+      for (const child of result.meshes) {
+        child.setEnabled(false);
+      }
+
+      // Measure bounding box
+      root.computeWorldMatrix(true);
+      let oMin = new Vector3(Infinity, Infinity, Infinity);
+      let oMax = new Vector3(-Infinity, -Infinity, -Infinity);
+      for (const child of result.meshes) {
+        child.computeWorldMatrix(true);
+        const bi = child.getBoundingInfo();
+        oMin = Vector3.Minimize(oMin, bi.boundingBox.minimumWorld);
+        oMax = Vector3.Maximize(oMax, bi.boundingBox.maximumWorld);
+      }
+
+      const template: FurnitureTemplate = {
+        mesh: root,
+        originalHeight: isFinite(oMax.y - oMin.y) ? Math.max(oMax.y - oMin.y, 0.01) : 1,
+        originalWidth: isFinite(oMax.x - oMin.x) ? Math.max(oMax.x - oMin.x, 0.01) : 1,
+        originalDepth: isFinite(oMax.z - oMin.z) ? Math.max(oMax.z - oMin.z, 0.01) : 1,
+      };
+      return template;
+    } catch (err) {
+      console.warn(`[FurnitureModelLoader] Failed to load ${type} from ${assetPath}:`, err);
+      return null;
+    }
+  }
+
   /** Dispose all loaded templates. */
   public dispose(): void {
     this.templates.forEach((t) => {

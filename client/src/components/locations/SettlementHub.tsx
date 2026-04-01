@@ -1030,9 +1030,12 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
               className={`flex flex-col min-h-0 ${idx > 0 ? 'border-t' : ''} ${isExpanded ? 'flex-1' : ''}`}
             >
               {/* Section header */}
-              <button
-                className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0 hover:bg-muted/50 transition-colors text-left"
+              <div
+                role="button"
+                tabIndex={0}
+                className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0 hover:bg-muted/50 transition-colors text-left cursor-pointer"
                 onClick={() => setExpandedSection(isExpanded ? null : section.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedSection(isExpanded ? null : section.id); } }}
               >
                 <Icon className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -1092,7 +1095,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                   </Button>
                 )}
                 <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-              </button>
+              </div>
 
               {/* Section content */}
               {isExpanded && (

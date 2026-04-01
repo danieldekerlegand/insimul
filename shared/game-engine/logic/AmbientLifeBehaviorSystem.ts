@@ -80,13 +80,13 @@ export interface NearbyNPCInfo {
 const AMBIENT_ACTIVITIES: AmbientActivity[] = [
   {
     type: 'sweeping',
-    animation: 'work',
-    durationRange: [8000, 20000],
-    timeWindows: [[6, 10], [14, 17]],
-    personalityWeights: { conscientiousness: 0.4, neuroticism: -0.2 },
+    animation: 'idle', // No sweeping animation available — just stand near home
+    durationRange: [8000, 15000],
+    timeWindows: [[6, 9]], // Only early morning, at home
+    personalityWeights: { conscientiousness: 0.6, neuroticism: -0.2 },
     nearBuilding: true,
     nearOtherNPC: false,
-    preferredBuildingTypes: ['residence', 'business'],
+    preferredBuildingTypes: ['residence'], // Only at home, not in the street
     faceTarget: true,
   },
   {
@@ -113,29 +113,31 @@ const AMBIENT_ACTIVITIES: AmbientActivity[] = [
   },
   {
     type: 'eating_outdoor',
-    animation: 'eat',
+    animation: 'idle', // No eating animation — use idle near a food business
     durationRange: [15000, 30000],
-    timeWindows: [[7, 9], [11, 14], [17, 20]],
+    timeWindows: [[11, 14], [17, 20]], // Lunch and dinner only
     personalityWeights: { openness: 0.2, extroversion: 0.2 },
-    nearBuilding: false,
+    nearBuilding: true, // Must be near a food establishment
     nearOtherNPC: false,
+    preferredBuildingTypes: ['Restaurant', 'Bakery', 'GroceryStore', 'Bar'],
     faceTarget: false,
   },
   {
     type: 'drinking',
-    animation: 'eat',
+    animation: 'idle',
     durationRange: [10000, 20000],
-    timeWindows: [[10, 14], [16, 21]],
+    timeWindows: [[16, 21]], // Evening only
     personalityWeights: { extroversion: 0.3, neuroticism: 0.2 },
-    nearBuilding: false,
+    nearBuilding: true, // Must be near a bar/tavern
     nearOtherNPC: false,
+    preferredBuildingTypes: ['Bar', 'Restaurant'],
     faceTarget: false,
   },
   {
     type: 'people_watching',
     animation: 'idle',
-    durationRange: [10000, 25000],
-    timeWindows: [[8, 22]],
+    durationRange: [10000, 20000],
+    timeWindows: [[10, 18]], // Daytime only
     personalityWeights: { openness: 0.3, extroversion: -0.2 },
     nearBuilding: false,
     nearOtherNPC: false,
@@ -144,11 +146,12 @@ const AMBIENT_ACTIVITIES: AmbientActivity[] = [
   {
     type: 'stretching',
     animation: 'idle',
-    durationRange: [5000, 12000],
-    timeWindows: [[6, 9], [16, 19]],
+    durationRange: [5000, 10000],
+    timeWindows: [[6, 8]], // Early morning only
     personalityWeights: { conscientiousness: 0.2, openness: 0.2 },
-    nearBuilding: false,
+    nearBuilding: true, // At home
     nearOtherNPC: false,
+    preferredBuildingTypes: ['residence'],
     faceTarget: false,
   },
   {
@@ -402,16 +405,16 @@ export class AmbientLifeBehaviorSystem {
     if (!behavior) return null;
 
     const descriptions: Record<AmbientActivityType, string> = {
-      sweeping: 'Sweeping up',
+      sweeping: 'Tidying up outside',
       gardening: 'Tending the garden',
-      carrying_goods: 'Carrying goods',
-      eating_outdoor: 'Having a meal',
-      drinking: 'Having a drink',
-      people_watching: 'Watching people go by',
-      stretching: 'Stretching',
-      window_shopping: 'Window shopping',
+      carrying_goods: 'Running errands',
+      eating_outdoor: 'Enjoying a meal',
+      drinking: 'Enjoying a drink',
+      people_watching: 'Taking a break',
+      stretching: 'Getting some fresh air',
+      window_shopping: 'Browsing',
       chatting: 'Chatting',
-      greeting_passerby: 'Greeting a passerby',
+      greeting_passerby: 'Saying hello',
     };
 
     return descriptions[behavior.activity] ?? null;

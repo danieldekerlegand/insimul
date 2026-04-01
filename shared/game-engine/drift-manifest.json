@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-03-31T22:03:53.104Z",
+  "lastUpdated": "2026-04-01T06:56:55.681Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -289,7 +289,7 @@
     {
       "path": "shared/game-engine/logic/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "c185195493210b49ccf3e0e4da61de215fb1d6829ced3ecd65e614010028b0cb",
+      "hash": "e29fec10a634c05c98f077e29b670841fa8cc1c9a7ba4b603a21412f7ff4338b",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "0611e67efbb53bd17583d70db8dc3456245c4859d33d5e6558b006674f45dc97",
+      "hash": "78d7e9ffb8d7908b34beb92b04c1fc88c519e36f5e6c7be7220d10e0d76bc78f",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "9de8c77c571100b2419983d040548a5d56d7a56043993a2b0a1a0d1cf1331da0",
+      "hash": "5d3c3e3e0a542ed0b3f727d9f08e895c731b46aa8bcd6d23b5eb1e7d3d813ac1",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -571,7 +571,7 @@
     {
       "path": "shared/game-engine/rendering/BuildingInteriorGenerator.ts",
       "description": "Interior generation: multi-room layouts, role-specific furniture, entry/exit transitions.",
-      "hash": "45ebdb57cf3d128361d96a8a30db6dfeef3b7ef4242c6570936af37d6c579bae",
+      "hash": "8678662229df8f504cb67a57bb13f9fa0af9197f5294191bef264d230ce1a9b9",
       "engineMappings": [
         {
           "engine": "unity",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "406fea48533afc75b11c75ea43b7547f1ab8d772728b0cfb92cb43b4f553e761",
+      "hash": "46d027b70bb5d0b35b81529165d1177f71362ed98b0d7e938350a6c636d53c42",
       "engineMappings": [
         {
           "engine": "unity",
@@ -652,7 +652,7 @@
     {
       "path": "shared/game-engine/logic/AssessmentEngine.ts",
       "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
-      "hash": "41e10c60bf4670720e2fede5e482ffe9639f64fd9b48caf4b00a6d32dc8e1dba",
+      "hash": "55e63d4f92a67b14bc3103ae77071231a5a995fd1ccdb4768c7548798fa10588",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "c31e3125d26b10d1a5e6f57aa62858a6ae5de04ce8439c99f8a67331a1f9ebd3",
+      "hash": "aa9f6c27025594baf8b5a1aed6b1e85e65ac0d10d9cdcb5e0f32f47124dfce51",
       "engineMappings": [
         {
           "engine": "babylon",

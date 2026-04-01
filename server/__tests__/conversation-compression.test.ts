@@ -31,7 +31,7 @@ describe('compressConversationHistory', () => {
   });
 
   it('returns messages unchanged when below threshold', async () => {
-    const { compressConversationHistory } = await import('../services/conversation-compression');
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(10);
     const result = await compressConversationHistory(messages, { threshold: 20 });
     expect(result).toEqual(messages);
@@ -39,14 +39,14 @@ describe('compressConversationHistory', () => {
   });
 
   it('returns messages unchanged when exactly at threshold', async () => {
-    const { compressConversationHistory } = await import('../services/conversation-compression');
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(20);
     const result = await compressConversationHistory(messages, { threshold: 20 });
     expect(result).toEqual(messages);
   });
 
   it('compresses messages when above threshold', async () => {
-    const { compressConversationHistory } = await import('../services/conversation-compression');
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(30);
     const result = await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
 
@@ -64,7 +64,7 @@ describe('compressConversationHistory', () => {
   });
 
   it('keeps recent messages intact after compression', async () => {
-    const { compressConversationHistory } = await import('../services/conversation-compression');
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(25);
     const result = await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
 
@@ -79,7 +79,7 @@ describe('compressConversationHistory', () => {
     const geminiConfig = await import('../config/gemini.js');
     vi.mocked(geminiConfig.isGeminiConfigured).mockReturnValue(false);
 
-    const { compressConversationHistory } = await import('../services/conversation-compression');
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(30);
     const result = await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
 
@@ -99,7 +99,7 @@ describe('compressConversationHistory', () => {
       }
     } as any);
 
-    const { compressConversationHistory } = await import('../services/conversation-compression');
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(30);
     const result = await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
 
@@ -108,7 +108,7 @@ describe('compressConversationHistory', () => {
   });
 
   it('uses default threshold of 20 and keepRecent of 10', async () => {
-    const { compressConversationHistory } = await import('../services/conversation-compression');
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(15);
     const result = await compressConversationHistory(messages);
     expect(result).toEqual(messages); // below default threshold of 20
@@ -131,7 +131,7 @@ describe('compressTextHistory', () => {
   });
 
   it('returns formatted text when below threshold', async () => {
-    const { compressTextHistory } = await import('../services/conversation-compression');
+    const { compressTextHistory } = await import('../services/conversation/conversation-compression');
     const messages = [
       { role: 'user', content: 'Hello', inLanguage: null },
       { role: 'assistant', content: 'Hi there', inLanguage: 'Saluton' }
@@ -144,7 +144,7 @@ describe('compressTextHistory', () => {
   });
 
   it('compresses when above threshold', async () => {
-    const { compressTextHistory } = await import('../services/conversation-compression');
+    const { compressTextHistory } = await import('../services/conversation/conversation-compression');
     const messages = Array.from({ length: 25 }, (_, i) => ({
       role: i % 2 === 0 ? 'user' : 'assistant',
       content: `Message ${i + 1}`,

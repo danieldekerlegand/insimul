@@ -21,7 +21,7 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
-      "@insimul/sdk": path.resolve(import.meta.dirname, "packages", "insimul-sdk-js", "src", "index.ts"),
+      "@insimul/typescript": path.resolve(import.meta.dirname, "packages", "typescript", "src", "index.ts"),
     },
   },
   root: path.resolve(import.meta.dirname, "client"),

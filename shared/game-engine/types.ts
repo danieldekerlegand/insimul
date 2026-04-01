@@ -757,6 +757,8 @@ export interface InteriorTemplateConfig {
   ceilingTextureId?: string;
   /** Named furniture set to use (e.g., 'tavern', 'shop', 'residential') */
   furnitureSet?: string;
+  /** Map furniture type → asset file path. Overrides default models per type. */
+  furnitureAssets?: Record<string, string>;
   /** Lighting atmosphere preset */
   lightingPreset?: LightingPreset;
 }

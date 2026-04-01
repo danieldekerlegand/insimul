@@ -237,6 +237,7 @@ export class BuildingInteriorGenerator {
   private interiors: Map<string, InteriorLayout> = new Map();
   private nextSlotIndex: number = 0;
   private furnitureLoader: FurnitureModelLoader | null = null;
+  private interiorFurnitureTemplates: Map<string, import('./FurnitureModelLoader').FurnitureTemplate> = new Map();
   private interiorConfigs: Record<string, InteriorTemplateConfig> = {};
   private lightingSystem: InteriorLightingSystem | null = null;
   private atmosphericEffects: InteriorAtmosphericEffects | null = null;
@@ -266,6 +267,29 @@ export class BuildingInteriorGenerator {
   /** Set the furniture model loader for glTF-based furniture. */
   public setFurnitureLoader(loader: FurnitureModelLoader): void {
     this.furnitureLoader = loader;
+  }
+
+  /**
+   * Pre-load furniture asset models from the config's furnitureAssets mapping
+   * into the interior scene. Call before generateInterior for asset-based furniture.
+   */
+  public async loadFurnitureAssets(config?: InteriorTemplateConfig | null): Promise<void> {
+    // Dispose previous interior furniture templates
+    this.interiorFurnitureTemplates.forEach((template) => {
+      if (!template.mesh.isDisposed()) template.mesh.dispose(false, true);
+    });
+    this.interiorFurnitureTemplates.clear();
+
+    const assets = config?.furnitureAssets;
+    if (!assets || !this.furnitureLoader) return;
+
+    const entries = Object.entries(assets);
+    await Promise.allSettled(entries.map(async ([type, path]) => {
+      const template = await this.furnitureLoader!.loadTemplateIntoScene(type, path, this.scene);
+      if (template) {
+        this.interiorFurnitureTemplates.set(type, template);
+      }
+    }));
   }
 
   /** Set the interior lighting system for dynamic time-of-day lighting. */
@@ -391,10 +415,11 @@ export class BuildingInteriorGenerator {
       this.buildUpperFloor(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType, config);
     }
 
-    // Procedural furniture, decorations, and room labels are intentionally
-    // skipped — interiors are populated with asset models and containers
-    // by the InteriorItemManager and ContainerSpawnSystem instead.
+    // Generate furniture for each room zone.
+    // If furnitureAssets are configured, those models are used; otherwise procedural fallback.
     const beds: BedAssignment[] = [];
+    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType, config, layoutTemplate, residentCount, beds, wealthTier);
+    furniture.push(...roomFurniture);
 
     // Apply lighting preset if configured (support both object and string preset name)
     const lightingConfig = config?.lighting
@@ -2982,14 +3007,48 @@ export class BuildingInteriorGenerator {
 
   /** Attempt to clone a glTF model for the furniture type. */
   private tryCreateFromModel(name: string, spec: FurnitureSpec): Mesh | null {
-    // In dedicated scene mode, furniture model templates live in the overworld
-    // scene. Cloning them would place geometry in the wrong scene. Use
-    // procedural fallback instead until templates are migrated.
-    if (this.useDedicatedScene) return null;
+    // In dedicated scene mode, check interior-specific furniture templates first
+    // (loaded from furnitureAssets config into the interior scene)
+    if (this.useDedicatedScene) {
+      const interiorTemplate = this.interiorFurnitureTemplates.get(spec.type);
+      if (interiorTemplate) {
+        return this.cloneFromTemplate(interiorTemplate, name, spec);
+      }
+      // No interior template available — fall through to procedural
+      return null;
+    }
     if (!this.furnitureLoader) return null;
     return this.furnitureLoader.cloneForFurniture(
       spec.type, name, spec.width, spec.height, spec.depth,
     );
+  }
+
+  /** Clone a furniture template mesh, scaled to target dimensions. */
+  private cloneFromTemplate(
+    template: import('./FurnitureModelLoader').FurnitureTemplate,
+    name: string,
+    spec: FurnitureSpec,
+  ): Mesh | null {
+    let cloned: Mesh | null = null;
+    if (template.mesh.getTotalVertices() === 0 && template.mesh.getChildMeshes().length > 0) {
+      const root = template.mesh.instantiateHierarchy(null, undefined, (source, clone) => {
+        clone.name = `${source.name}_${name}`;
+      });
+      if (root) {
+        root.setEnabled(true);
+        root.getChildMeshes().forEach(m => m.setEnabled(true));
+        cloned = root as Mesh;
+      }
+    } else {
+      cloned = template.mesh.clone(name, null, false, false) as Mesh;
+    }
+    if (!cloned) return null;
+    cloned.setEnabled(true);
+    const scaleX = spec.width / template.originalWidth;
+    const scaleY = spec.height / template.originalHeight;
+    const scaleZ = spec.depth / template.originalDepth;
+    cloned.scaling = new Vector3(scaleX, scaleY, scaleZ);
+    return cloned;
   }
 
   /** Create procedural geometry matching the furniture shape. */

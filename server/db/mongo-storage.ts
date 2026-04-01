@@ -676,6 +676,7 @@ const UserSchema = new Schema({
   role: { type: String, default: 'user' },
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: false },
+  apiKey: { type: String, unique: true, sparse: true },
   lastLoginAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -703,6 +704,8 @@ const AssetCollectionSchema = new Schema({
   categoryPresets: { type: Schema.Types.Mixed, default: null },
   npcConfig: { type: Schema.Types.Mixed, default: null },
   worldTypeConfig: { type: Schema.Types.Mixed, default: null },
+  // Unified template config (label, description, visual preset, style preset, simulation rates, building style)
+  templateConfig: { type: Schema.Types.Mixed, default: null },
   groundTextureId: { type: String, default: null },
   roadTextureId: { type: String, default: null },
   wallTextureId: { type: String, default: null },
@@ -762,98 +765,39 @@ const GenerationJobSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-const PlaythroughSchema = new Schema({
-  userId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  worldSnapshotVersion: { type: Number, required: true, default: 1 },
-  name: { type: String, default: null },
-  description: { type: String, default: null },
-  notes: { type: String, default: null },
-  status: { type: String, default: 'active' },
-  currentTimestep: { type: Number, default: 0 },
-  playtime: { type: Number, default: 0 },
-  actionsCount: { type: Number, default: 0 },
-  decisionsCount: { type: Number, default: 0 },
-  startedAt: { type: Date, default: Date.now },
-  lastPlayedAt: { type: Date, default: Date.now },
-  completedAt: { type: Date, default: null },
-  playerCharacterId: { type: String, default: null },
-  saveData: { type: Schema.Types.Mixed, default: {} },
-  needsInitialization: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+// PlaythroughSchema removed — replaced by SaveFileSchema
 
-const PlaythroughDeltaSchema = new Schema({
-  playthroughId: { type: String, required: true },
-  entityType: { type: String, required: true },
-  entityId: { type: String, required: true },
-  operation: { type: String, required: true },
-  deltaData: { type: Schema.Types.Mixed, default: null },
-  fullData: { type: Schema.Types.Mixed, default: null },
-  timestep: { type: Number, required: true },
-  appliedAt: { type: Date, default: Date.now },
-  description: { type: String, default: null },
-  tags: { type: [String], default: [] },
-  createdAt: { type: Date, default: Date.now }
-});
-PlaythroughDeltaSchema.index({ playthroughId: 1, entityType: 1, entityId: 1 });
-PlaythroughDeltaSchema.index({ playthroughId: 1, timestep: 1 });
-
-// PlayTraceSchema removed — play traces are now truths with entryType='play_trace'
-
-const PlaythroughConversationSchema = new Schema({
-  playthroughId: { type: String, required: true },
-  userId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  playerCharacterId: { type: String, default: null },
-  npcCharacterId: { type: String, required: true },
-  npcCharacterName: { type: String, default: null },
-  turns: { type: Schema.Types.Mixed, default: [] },
-  turnCount: { type: Number, default: 0 },
-  locationId: { type: String, default: null },
-  locationName: { type: String, default: null },
-  timestep: { type: Number, default: null },
-  initiatedBy: { type: String, default: null },
-  targetLanguage: { type: String, default: null },
-  targetLanguagePercentage: { type: Number, default: null },
-  wordsUsed: { type: [String], default: [] },
-  newWordsLearned: { type: [String], default: [] },
-  fluencyGained: { type: Number, default: 0 },
-  grammarErrorCount: { type: Number, default: 0 },
-  grammarCorrectCount: { type: Number, default: 0 },
-  activeQuestIds: { type: [String], default: [] },
-  topics: { type: [String], default: [] },
-  durationMs: { type: Number, default: null },
-  startedAt: { type: Date, default: Date.now },
-  endedAt: { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now }
-});
-
-PlaythroughConversationSchema.index({ playthroughId: 1, createdAt: -1 });
-PlaythroughConversationSchema.index({ worldId: 1, userId: 1 });
-PlaythroughConversationSchema.index({ npcCharacterId: 1 });
+// PlaythroughDeltaSchema removed — replaced by save file playtraces
+// PlaythroughConversationSchema removed — replaced by save file conversations
 
 // ReputationSchema removed — reputations are now truths with entryType='reputation'
 
 // PlaythroughRelationshipSchema removed — relationships are now truths with entryType='relationship'
 
-const VersionAlertSchema = new Schema({
-  worldId: { type: String, required: true },
-  playthroughId: { type: String, required: true },
+// ── Unified Save File ────────────────────────────────────────────────────
+const SaveFileSchema = new Schema({
   userId: { type: String, required: true },
-  worldVersion: { type: Number, required: true },
-  snapshotVersion: { type: Number, required: true },
-  versionsBehind: { type: Number, required: true },
-  status: { type: String, required: true },
-  message: { type: String, required: true },
-  dismissed: { type: Boolean, default: false },
-  entityType: { type: String, default: null },
+  worldId: { type: String, required: true },
+  slotIndex: { type: Number, default: 0 },
+  name: { type: String, default: 'Save Game' },
+  version: { type: Number, default: 1 },
+  status: { type: String, default: 'active' },
+  totalPlaytime: { type: Number, default: 0 },
+  saveCount: { type: Number, default: 0 },
+  // Embedded world template (read-only after creation)
+  worldSnapshot: { type: Schema.Types.Mixed, required: true },
+  // Mutable game state (overwritten on each save)
+  currentState: { type: Schema.Types.Mixed, default: {} },
+  // Compressed conversation history
+  conversations: { type: [Schema.Types.Mixed], default: [] },
+  // Playtraces stored in separate 'playtraces' collection, not embedded here
   createdAt: { type: Date, default: Date.now },
+  lastSavedAt: { type: Date, default: Date.now },
 });
-VersionAlertSchema.index({ userId: 1, dismissed: 1 });
-VersionAlertSchema.index({ playthroughId: 1 });
-VersionAlertSchema.index({ worldId: 1 });
+SaveFileSchema.index({ userId: 1, worldId: 1 });
+SaveFileSchema.index({ userId: 1, worldId: 1, slotIndex: 1 }, { unique: true });
+
+// VersionAlertSchema removed — obsolete with save file system
 
 const WorldLanguageSchema = new Schema({
   worldId: { type: String, required: true },
@@ -1004,20 +948,17 @@ TelemetrySchema.index({ sessionId: 1 });
 TelemetrySchema.index({ playerId: 1, worldId: 1 });
 TelemetrySchema.index({ category: 1 });
 
-const ApiKeySchema = new Schema({
-  key: { type: String, required: true, unique: true },
-  worldId: { type: String, required: true },
-  ownerId: { type: String, required: true },
-  permissions: { type: [String], default: ['telemetry:write'] },
-  isActive: { type: Boolean, default: true },
-  expiresAt: { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now }
-});
-ApiKeySchema.index({ key: 1 });
+// ApiKeySchema removed — API keys are now stored on user accounts (UserSchema.apiKey)
 
 // GeographicFeatureSchema removed — geographic features are now merged into LocationSchema
 
 // AssessmentSessionSchema removed — merged into UnifiedAssessmentSchema above
+
+// Indexes
+CharacterSchema.index({ worldId: 1, isTemplate: 1 });
+CharacterSchema.index({ worldId: 1, isAlive: 1 });
+CharacterSchema.index({ currentLocation: 1 });
+CharacterSchema.index({ currentLocation: 1, isAlive: 1 });
 
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
@@ -1034,28 +975,32 @@ TruthSchema.index({ worldId: 1, playthroughId: 1 });
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
 const QuestModel = mongoose.model<QuestDoc>('Quest', QuestSchema);
 const ItemModel = mongoose.model<ItemDoc>('Item', ItemSchema);
-const GameTextModel = mongoose.model<GameTextDoc>('GameText', GameTextSchema);
+const GameTextModel = mongoose.model<GameTextDoc>('GameText', GameTextSchema, 'texts');
 // ContainerModel removed — containers are now Items with isContainer=true
-const VisualAssetModel = mongoose.model<VisualAssetDoc>('VisualAsset', VisualAssetSchema);
-const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection', AssetCollectionSchema);
-const GenerationJobModel = mongoose.model<GenerationJobDoc>('GenerationJob', GenerationJobSchema);
+const VisualAssetModel = mongoose.model<VisualAssetDoc>('VisualAsset', VisualAssetSchema, 'assets');
+const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection', AssetCollectionSchema, 'templates');
+const GenerationJobModel = mongoose.model<GenerationJobDoc>('GenerationJob', GenerationJobSchema, 'jobs');
 const UserModel = mongoose.model<UserDoc>('User', UserSchema);
 // PlayerProgressModel removed — use TruthModel with entryType='player_progress'
 // PlayerSessionModel removed — sessions embedded in player_progress truth sourceData
 // AchievementModel removed — use TruthModel with entryType='achievement'
 // TextModel removed — use GameTextModel instead
-const PlaythroughModel = mongoose.model<PlaythroughDoc>('Playthrough', PlaythroughSchema);
-const PlaythroughDeltaModel = mongoose.model<PlaythroughDeltaDoc>('PlaythroughDelta', PlaythroughDeltaSchema);
+// Playthrough models removed — replaced by save file system.
+// Stub models prevent runtime crashes in legacy code paths that haven't been removed yet.
+const _removedModel = { find: () => ({ sort: () => Promise.resolve([]) }), findById: () => Promise.resolve(null), findOne: () => ({ sort: () => Promise.resolve(null) }), create: () => Promise.reject(new Error('Playthroughs removed — use save files')), deleteMany: () => Promise.resolve({ deletedCount: 0 }), findByIdAndUpdate: () => Promise.resolve(null), findByIdAndDelete: () => Promise.resolve(null), updateOne: () => Promise.resolve({ modifiedCount: 0 }), insertMany: () => Promise.resolve([]) };
+const PlaythroughModel = _removedModel as any;
+const PlaythroughDeltaModel = _removedModel as any;
 // PlayTraceModel removed — use TruthModel with entryType='play_trace'
-const PlaythroughConversationModel = mongoose.model<PlaythroughConversationDoc>('PlaythroughConversation', PlaythroughConversationSchema);
+const PlaythroughConversationModel = _removedModel as any;
 // ReputationModel removed — use TruthModel with entryType='reputation'
 // PlaythroughRelationshipModel removed — use TruthModel with entryType='relationship'
-const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
+const SaveFileModel = mongoose.model('SaveFile', SaveFileSchema, 'saves');
+const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema, 'languages');
 const LocationModel = mongoose.model('Location', LocationSchema, 'locations');
 // BuildingModel removed — buildings are now embedded in lots as lot.building
 // BusinessMongoModel removed — businesses are now embedded in lots as lot.building
 // OccupationModel removed — use TruthModel with entryType='occupation'
-const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', VersionAlertSchema);
+const VersionAlertModel = _removedModel as any;
 // LanguageChatMessageModel removed — use PlaythroughConversation instead
 // Generic collection names (renamed from language-specific names).
 // Run server/db/migrations/rename-collections-for-feature-modules.ts to rename
@@ -1063,7 +1008,7 @@ const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', Versio
 // LanguageLearningModel removed — use TruthModel with entryType='language_progress'
 const AssessmentModel = mongoose.model('Assessment', UnifiedAssessmentSchema, 'assessments');
 const TelemetryModel = mongoose.model('Telemetry', TelemetrySchema, 'telemetry');
-const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
+// ApiKeyModel removed — API keys are now on user accounts
 // LocationModel removed — geographic features are now locations with featureCategory set
 // CharacterTemplateModel removed — use CharacterModel with isTemplate=true
 
@@ -2369,9 +2314,18 @@ export class MongoStorage implements IStorage {
     return doc ? docToCharacter(doc) : undefined;
   }
 
-  async getCharactersByWorld(worldId: string): Promise<Character[]> {
+  async getCharactersByWorld(worldId: string, options?: { limit?: number; offset?: number; aliveOnly?: boolean; lean?: boolean }): Promise<Character[]> {
     await this.connect();
-    const docs = await CharacterModel.find({ worldId, isTemplate: { $ne: true } });
+    const filter: any = { worldId, isTemplate: { $ne: true } };
+    if (options?.aliveOnly) filter.isAlive = true;
+    let query = CharacterModel.find(filter);
+    if (options?.offset) query = query.skip(options.offset);
+    if (options?.limit) query = query.limit(options.limit);
+    // Lean mode: only fetch fields needed for snapshots (skip heavy Mixed blobs)
+    if (options?.lean) {
+      query = query.select('firstName lastName gender birthYear isAlive occupation personality spouseId currentLocation') as any;
+    }
+    const docs = await query;
     return docs.map(docToCharacter);
   }
 
@@ -3027,7 +2981,10 @@ export class MongoStorage implements IStorage {
 
   async createUser(user: InsertUser): Promise<User> {
     await this.connect();
-    const doc = await UserModel.create(user);
+    // Auto-generate API key for new users
+    const crypto = await import('crypto');
+    const apiKey = `isk_${crypto.randomBytes(24).toString('hex')}`;
+    const doc = await UserModel.create({ ...user, apiKey });
     return docToUser(doc);
   }
 
@@ -3721,28 +3678,35 @@ export class MongoStorage implements IStorage {
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
-  // ============= API KEYS =============
-
-  async createApiKey(data: { key: string; worldId: string; ownerId: string; permissions?: string[]; expiresAt?: Date }): Promise<any> {
-    const doc = await ApiKeyModel.create(data);
-    return { id: doc._id.toString(), ...doc.toObject() };
-  }
+  // ============= API KEYS (stored on user accounts) =============
 
   async validateApiKey(key: string): Promise<any | null> {
-    const doc = await ApiKeyModel.findOne({ key, isActive: true });
+    await this.connect();
+    const doc = await UserModel.findOne({ apiKey: key, isActive: true });
     if (!doc) return null;
-    if (doc.expiresAt && doc.expiresAt < new Date()) return null;
-    return { id: doc._id.toString(), ...doc.toObject() };
+    return { id: doc._id.toString(), ownerId: doc._id.toString(), key, permissions: ['telemetry:write'] };
   }
 
-  async revokeApiKey(keyId: string): Promise<boolean> {
-    const result = await ApiKeyModel.updateOne({ _id: keyId }, { $set: { isActive: false } });
-    return result.modifiedCount > 0;
+  async getUserApiKey(userId: string): Promise<string | null> {
+    await this.connect();
+    const doc = await UserModel.findById(userId);
+    if (!doc) return null;
+    // Generate one if missing (for existing users created before this feature)
+    if (!doc.apiKey) {
+      const crypto = await import('crypto');
+      const apiKey = `isk_${crypto.randomBytes(24).toString('hex')}`;
+      await UserModel.updateOne({ _id: userId }, { $set: { apiKey } });
+      return apiKey;
+    }
+    return doc.apiKey;
   }
 
-  async getApiKeysByWorld(worldId: string): Promise<any[]> {
-    const docs = await ApiKeyModel.find({ worldId });
-    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  async regenerateUserApiKey(userId: string): Promise<string | null> {
+    await this.connect();
+    const crypto = await import('crypto');
+    const apiKey = `isk_${crypto.randomBytes(24).toString('hex')}`;
+    const result = await UserModel.updateOne({ _id: userId }, { $set: { apiKey, updatedAt: new Date() } });
+    return result.modifiedCount > 0 ? apiKey : null;
   }
 
   // ============= ASSESSMENT SESSIONS =============
@@ -4255,6 +4219,64 @@ export class MongoStorage implements IStorage {
   async deleteGameText(id: string): Promise<boolean> {
     await this.connect();
     const result = await GameTextModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ── Save File operations ─────────────────────────────────────────────
+
+  async createSaveFile(save: any): Promise<any> {
+    await this.connect();
+    const doc = await new SaveFileModel(save).save();
+    return { ...doc.toObject(), id: doc._id.toString() };
+  }
+
+  async getSaveFile(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await SaveFileModel.findById(id);
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async getSaveFileBySlot(userId: string, worldId: string, slotIndex: number): Promise<any | undefined> {
+    await this.connect();
+    const doc = await SaveFileModel.findOne({ userId, worldId, slotIndex });
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async getSaveFilesByUser(userId: string, worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await SaveFileModel.find({ userId, worldId }).sort({ lastSavedAt: -1 });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  async updateSaveFile(id: string, updates: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await SaveFileModel.findByIdAndUpdate(
+      id,
+      { ...updates, lastSavedAt: new Date(), $inc: { saveCount: 1 } },
+      { new: true }
+    );
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async appendPlaytraces(saveId: string, traces: any[]): Promise<boolean> {
+    await this.connect();
+    // Store traces in a separate collection to avoid bloating the save document
+    const db = mongoose.connection.db!;
+    const traceColl = db.collection('playtraces');
+    const docs = traces.map(t => ({ saveId, ...t, createdAt: new Date() }));
+    await traceColl.insertMany(docs, { ordered: false });
+    return true;
+  }
+
+  async deleteSaveFile(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await SaveFileModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  async deleteSaveFileBySlot(userId: string, worldId: string, slotIndex: number): Promise<boolean> {
+    await this.connect();
+    const result = await SaveFileModel.findOneAndDelete({ userId, worldId, slotIndex });
     return !!result;
   }
 

@@ -16,6 +16,7 @@
  */
 
 import type { GameEventBus } from './GameEventBus';
+import type { GamePrologEngine } from './GamePrologEngine';
 import type { AssessmentModalConfig, ContentTemplate, PhaseType } from '@shared/assessment/assessment-types';
 
 /** Lightweight assessment result (subset of shared/assessment AssessmentResult). */
@@ -112,6 +113,8 @@ export class AssessmentEngine {
   private authToken: string;
   private targetLanguage: string;
   private eventBus: GameEventBus | null;
+  private prologEngine: GamePrologEngine | null;
+  private _questId: string | null = null;
   private _onPhaseStarted?: (phaseId: string, phaseIndex: number, timeRemainingSeconds: number) => void;
   private _onPhaseCompleted?: (phaseId: string, score: number, maxScore: number) => void;
   private _onCompleted?: (result: AssessmentResult) => void;
@@ -132,10 +135,18 @@ export class AssessmentEngine {
   private _modalAnswers: Record<string, string> | null = null;
   private _unsubscribeConversation: (() => void) | null = null;
 
-  constructor(config: { authToken: string; targetLanguage: string; eventBus?: GameEventBus }) {
+  constructor(config: {
+    authToken: string;
+    targetLanguage: string;
+    eventBus?: GameEventBus;
+    prologEngine?: GamePrologEngine;
+    questId?: string;
+  }) {
     this.authToken = config.authToken;
     this.targetLanguage = config.targetLanguage;
     this.eventBus = config.eventBus ?? null;
+    this.prologEngine = config.prologEngine ?? null;
+    this._questId = config.questId ?? null;
   }
 
   async start(config: {
@@ -175,6 +186,9 @@ export class AssessmentEngine {
       this._onHideInstruction?.();
       this._onPhaseCompleted?.(phase.id, score, phase.maxScore);
 
+      // Assert phase score as Prolog fact for quest evaluation
+      await this._assertPhaseScore(phase.id, score, phase.maxScore);
+
       // Emit specific objective completion triggers for each phase type
       this._emitPhaseCompletionTrigger(phase);
     }
@@ -198,6 +212,9 @@ export class AssessmentEngine {
         dimensionScores[key] = Math.max(1, Math.round(dimensionScores[key] * 10) / 10);
       }
     }
+
+    // Assert final assessment result as Prolog facts
+    await this._assertAssessmentResult(totalScore, TOTAL_MAX_SCORE, cefrLevel, dimensionScores);
 
     const result: AssessmentResult = {
       sessionId: `assess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -342,31 +359,8 @@ export class AssessmentEngine {
   }
 
   private async _generateContent(phaseType: PhaseType, template: ContentTemplate): Promise<GeneratedContent> {
-    // Try server-side LLM content generation first
-    try {
-      const res = await fetch('/api/assessments/generate-content', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-        },
-        body: JSON.stringify({
-          phaseType,
-          targetLanguage: this.targetLanguage,
-          cityName: 'the city',
-          contentTemplate: template,
-        }),
-      });
-
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch {
-      // Server unavailable — fall through to offline content
-    }
-
-    // Offline fallback: use pre-bundled content bank
-    console.log(`[AssessmentEngine] Using offline content bank for ${phaseType}`);
+    // Use pre-bundled offline content bank.
+    // Future: InsimulClient SDK can generate dynamic content when available.
     return this._getOfflineContent(phaseType, template);
   }
 
@@ -401,27 +395,21 @@ export class AssessmentEngine {
   }
 
   private async _generateTTSAudio(passage: string): Promise<string | undefined> {
-    // Try server-side TTS first
+    // TODO: Assessment TTS should route through the @insimul/typescript SDK's synthesizeSpeech().
+    // When assessments are folded into the quest system, TTS will be handled by the
+    // quest conversation flow (same as NPC dialogue TTS).
+    // For now, try SDK → Electron → browser fallback.
     try {
-      const res = await fetch('/api/assessments/tts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-        },
-        body: JSON.stringify({
-          text: passage,
-          targetLanguage: this.targetLanguage,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        return data.audioDataUrl;
+      const { getInsimulClient } = await import('@shared/game-engine/InsimulClientRegistry');
+      const client = getInsimulClient();
+      if (client) {
+        const buffer = await client.synthesizeSpeech(passage);
+        if (buffer) {
+          const blob = new Blob([buffer], { type: 'audio/mp3' });
+          return URL.createObjectURL(blob);
+        }
       }
-    } catch {
-      // Server unavailable
-    }
+    } catch { /* SDK not available */ }
 
     // Try Electron Piper TTS
     const electronAPI = (window as any).electronAPI;
@@ -432,13 +420,11 @@ export class AssessmentEngine {
           const blob = new Blob([audioBuffer], { type: 'audio/wav' });
           return URL.createObjectURL(blob);
         }
-      } catch {
-        // Electron TTS unavailable
-      }
+      } catch { /* Electron TTS unavailable */ }
     }
 
     // Return undefined — AssessmentModalUI will fall back to browser SpeechSynthesis
-    console.log('[AssessmentEngine] TTS unavailable — modal will use browser SpeechSynthesis fallback');
+    console.log('[Assessment] TTS unavailable — modal will use browser SpeechSynthesis fallback');
     return undefined;
   }
 
@@ -487,36 +473,11 @@ export class AssessmentEngine {
 
   private async _scorePhase(
     phaseType: PhaseType,
-    content: GeneratedContent,
+    _content: GeneratedContent,
     answers: Record<string, string>,
   ): Promise<ScoringResult> {
-    // Try server-side LLM scoring first
-    try {
-      const res = await fetch('/api/assessments/score-phase', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-        },
-        body: JSON.stringify({
-          phaseType,
-          targetLanguage: this.targetLanguage,
-          passage: content.passage,
-          questions: content.questions?.map(q => ({ id: q.id, text: q.questionText, maxPoints: q.maxPoints })),
-          writingPrompts: content.writingPrompts,
-          answers,
-        }),
-      });
-
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch {
-      // Server unavailable — fall through to offline scoring
-    }
-
-    // Offline fallback: use client-side keyword/heuristic scoring
-    console.log(`[AssessmentEngine] Using offline scoring for ${phaseType}`);
+    // Score client-side using offline heuristic scoring.
+    // Results are persisted as Prolog facts by _assertPhaseScore().
     return this._scoreOffline(phaseType, answers);
   }
 
@@ -654,5 +615,67 @@ export class AssessmentEngine {
         }, 1000);
       }
     });
+  }
+
+  // ── Prolog fact assertion helpers ──────────────────────────────────────────
+
+  /**
+   * Assert a phase score as a Prolog fact.
+   * This is the authoritative record of assessment progress.
+   */
+  private async _assertPhaseScore(phaseId: string, score: number, maxScore: number): Promise<void> {
+    if (!this.prologEngine) return;
+
+    const questAtom = this._sanitize(this._questId || 'arrival_encounter');
+    const phaseAtom = this._sanitize(phaseId);
+
+    try {
+      await this.prologEngine.assertFact(
+        `phase_score(${questAtom}, ${phaseAtom}, ${Math.round(score * 10) / 10})`
+      );
+    } catch (err) {
+      console.warn('[AssessmentEngine] Failed to assert phase_score:', err);
+    }
+  }
+
+  /**
+   * Assert the final assessment result as Prolog facts.
+   * Includes total score, CEFR level, and per-dimension scores.
+   */
+  private async _assertAssessmentResult(
+    totalScore: number,
+    maxScore: number,
+    cefrLevel: string,
+    dimensionScores: Record<string, number>,
+  ): Promise<void> {
+    if (!this.prologEngine) return;
+
+    const questAtom = this._sanitize(this._questId || 'arrival_encounter');
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    try {
+      // Assert overall result
+      await this.prologEngine.assertFact(
+        `assessment_result(player, ${questAtom}, ${Math.round(totalScore * 10) / 10}, ${maxScore}, ${cefrLevel.toLowerCase()}, ${timestamp})`
+      );
+
+      // Assert player's CEFR level
+      await this.prologEngine.assertFact(
+        `player_cefr_level(player, ${cefrLevel.toLowerCase()})`
+      );
+
+      // Assert per-dimension scores
+      for (const [dim, score] of Object.entries(dimensionScores)) {
+        await this.prologEngine.assertFact(
+          `dimension_score(${questAtom}, ${this._sanitize(dim)}, ${Math.round(score * 10) / 10})`
+        );
+      }
+    } catch (err) {
+      console.warn('[AssessmentEngine] Failed to assert assessment result:', err);
+    }
+  }
+
+  private _sanitize(s: string): string {
+    return s.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^([0-9])/, '_$1').replace(/_+/g, '_');
   }
 }

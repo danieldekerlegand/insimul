@@ -506,6 +506,36 @@ FString UDataLoader::CompleteQuest(const FString& QuestId)
     return FString::Printf(TEXT("{\"success\":true,\"questId\":\"%s\"}"), *QuestId);
 }
 
+FString UDataLoader::CreateDynamicQuest(const FString& WorldId, const FString& QuestDataJson)
+{
+    // Generate a unique ID for the dynamic quest
+    FString QuestId = FString::Printf(TEXT("dynamic_%lld"), FDateTime::UtcNow().ToUnixTimestamp());
+
+    // Store in local quest state
+    FString SaveDir = GetDataDirectoryPath() / TEXT("quests");
+    IFileManager::Get().MakeDirectory(*SaveDir, true);
+
+    FString FilePath = SaveDir / QuestId + TEXT(".json");
+    FFileHelper::SaveStringToFile(QuestDataJson, *FilePath);
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Created dynamic quest: %s"), *QuestId);
+
+    // Return JSON with the quest ID
+    return FString::Printf(TEXT("{\"id\":\"%s\",\"status\":\"active\"}"), *QuestId);
+}
+
+FString UDataLoader::BranchQuest(const FString& WorldId, const FString& QuestId, const FString& ChoiceId, const FString& TargetStageId)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] BranchQuest: %s, choice: %s"), *QuestId, *ChoiceId);
+    return FString::Printf(TEXT("{\"success\":true,\"questId\":\"%s\",\"choiceId\":\"%s\"}"), *QuestId, *ChoiceId);
+}
+
+FString UDataLoader::AdjustReputation(const FString& PlaythroughId, const FString& EntityType, const FString& EntityId, int32 Amount, const FString& Reason)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] AdjustReputation: %s/%s by %d (%s)"), *EntityType, *EntityId, Amount, *Reason);
+    return TEXT("{\"success\":true}");
+}
+
 FString UDataLoader::GetNpcQuestGuidance(const FString& NpcId)
 {
     // TODO: Scan active quests for objectives targeting this NPC

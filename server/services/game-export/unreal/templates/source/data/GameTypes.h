@@ -930,6 +930,8 @@ struct FInsimulInteriorTemplateConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CeilingTextureId;
     /** Named furniture set */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FurnitureSet;
+    /** Map furniture type → asset file path. Overrides default models per type. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, FString> FurnitureAssets;
     /** Lighting atmosphere preset */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulLightingPreset LightingPreset = EInsimulLightingPreset::Bright;
 };

@@ -27,7 +27,7 @@
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
-    "@insimul/sdk": "file:packages/insimul-sdk-js",
+    "@insimul/typescript": "file:packages/typescript",
     "@babylonjs/core": "^8.54.1",
     "@babylonjs/gui": "^8.54.1",
     "@babylonjs/inspector": "^8.56.1",

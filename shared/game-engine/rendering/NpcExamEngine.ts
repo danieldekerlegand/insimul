@@ -27,6 +27,7 @@ import {
 } from '../../assessment/npc-exam-types';
 import { mapScoreToCEFR } from '../../assessment/cefr-mapping';
 import type { AudioPronunciationResult } from '../../language/pronunciation-scoring';
+import { scoreClientPronunciation } from '../../services/client-pronunciation-scorer';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -335,25 +336,22 @@ export class NpcExamEngine {
       mimeType = audioAnswer.audio.type || mimeType;
     }
 
-    const res = await fetch('/api/pronunciation/score', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        audio: audioBase64,
-        expectedPhrase,
-        mimeType,
-        languageHint,
-      }),
+    // Score pronunciation client-side and emit event for Prolog tracking
+    const result = await scoreClientPronunciation({
+      expectedPhrase,
+      languageHint,
+      audio: audioAnswer.audio,
     });
 
-    if (!res.ok) {
-      throw new Error(`Pronunciation API error: ${res.status}`);
-    }
+    // Emit pronunciation_attempt event so GamePrologEngine asserts pronunciation_score/4
+    this.eventBus?.emit({
+      type: 'pronunciation_attempt',
+      phrase: expectedPhrase,
+      score: result.overallScore,
+      passed: result.overallScore >= 60,
+    });
 
-    return await res.json();
+    return result;
   }
 
   /**
@@ -366,51 +364,16 @@ export class NpcExamEngine {
   ): Promise<void> {
     const phaseResult = npcExamResultToPhaseResult(result);
 
-    // Create assessment session
-    const createRes = await fetch('/api/assessments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        playerId: 'current', // Server resolves from auth
-        worldId: 'current',
-        assessmentType: 'npc_exam',
-        assessmentDefinitionId: `npc_exam_${config.category}`,
-        targetLanguage: config.targetLanguage,
-        totalMaxPoints: config.totalMaxPoints,
-      }),
+    // Persist assessment result via Prolog facts (no server roundtrip needed)
+    const examAtom = config.examId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const timestamp = Math.floor(Date.now() / 1000);
+    this.eventBus?.emit({
+      type: 'npc_exam_completed',
+      examId: config.examId,
+      totalScore: result.totalScore,
+      totalMaxPoints: result.totalMaxPoints,
+      cefrLevel: result.cefrLevel,
     });
-
-    if (!createRes.ok) {
-      throw new Error(`Failed to create assessment session: ${createRes.status}`);
-    }
-
-    const session = await createRes.json();
-
-    // Update with phase result
-    await fetch(`/api/assessments/${session.id}/phases/npc_exam_${result.examId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-      },
-      body: JSON.stringify(phaseResult),
-    });
-
-    // Complete the session
-    await fetch(`/api/assessments/${session.id}/complete`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        totalScore: result.totalScore,
-        maxScore: result.totalMaxPoints,
-        cefrLevel: result.cefrLevel,
-      }),
-    });
+    console.log(`[NpcExam] Result persisted via Prolog: ${result.totalScore}/${result.totalMaxPoints} (${result.cefrLevel})`);
   }
 }

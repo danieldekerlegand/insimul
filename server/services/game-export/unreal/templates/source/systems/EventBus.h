@@ -158,7 +158,17 @@ enum class EInsimulEventType : uint8
     // Exploration discovery events
     InvestigationCompleted UMETA(DisplayName = "Investigation Completed"),
     // NPC activity observation events
-    ActivityObserved UMETA(DisplayName = "Activity Observed")
+    ActivityObserved UMETA(DisplayName = "Activity Observed"),
+    // Conversational action completion events
+    ConversationalActionCompleted UMETA(DisplayName = "Conversational Action Completed"),
+    // Language learning discovery events
+    TextFound UMETA(DisplayName = "Text Found"),
+    TextRead UMETA(DisplayName = "Text Read"),
+    // Object point-and-name events
+    ObjectPointedAndNamed UMETA(DisplayName = "Object Pointed And Named"),
+    // Translation / pronunciation attempt events
+    TranslationAttempt UMETA(DisplayName = "Translation Attempt"),
+    PronunciationAttempt UMETA(DisplayName = "Pronunciation Attempt")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -415,6 +425,17 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float NewStrength = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PreviousTier;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NewTier;
+
+    // ── Language learning / objective fields ─────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TextId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SignId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 WordCount = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SubjectName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Phrase;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalTurns = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ObjectiveIndex = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalMaxPointsInt = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalScoreInt = 0;
 
     // ── Clue discovery fields ─────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ClueId;

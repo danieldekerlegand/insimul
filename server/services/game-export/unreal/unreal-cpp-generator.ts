@@ -447,12 +447,65 @@ function genUIWidgets(ir: WorldIR): GeneratedFile[] {
 
 function genServiceClasses(ir: WorldIR): GeneratedFile[] {
   const base = `Source/${M}/Services`;
+  // The Insimul plugin (Plugins/Insimul/) handles all conversation logic.
+  // We generate a thin initializer that loads exported world data into the plugin.
   return [
-    { path: `${base}/InsimulAIService.h`,   content: loadStaticTemplate('source/services/InsimulAIService.h') },
-    { path: `${base}/InsimulAIService.cpp`, content: loadStaticTemplate('source/services/InsimulAIService.cpp') },
-    { path: `${base}/InsimulAIBundle.h`,    content: loadStaticTemplate('source/services/InsimulAIBundle.h') },
-    { path: `${base}/InsimulAIBundle.cpp`,  content: generateAIBundleCpp(ir) },
+    { path: `${base}/InsimulPluginInitializer.h`, content: generatePluginInitializerH() },
+    { path: `${base}/InsimulPluginInitializer.cpp`, content: generatePluginInitializerCpp(ir) },
   ];
+}
+
+function generatePluginInitializerH(): string {
+  return `// Auto-generated — initializes the Insimul plugin with exported world data.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "InsimulPluginInitializer.generated.h"
+
+/**
+ * Initializes the Insimul plugin's character mapping subsystem
+ * with exported world data at game start.
+ *
+ * The Insimul plugin (Plugins/Insimul/) handles all conversation logic.
+ * This class just bootstraps it with the exported data.
+ */
+UCLASS()
+class ${M.toUpperCase()}_API UInsimulPluginInitializer : public UGameInstanceSubsystem
+{
+    GENERATED_BODY()
+
+public:
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+};
+`;
+}
+
+function generatePluginInitializerCpp(ir: WorldIR): string {
+  return `// Auto-generated — initializes the Insimul plugin with exported world data.
+#include "InsimulPluginInitializer.h"
+#include "InsimulSettings.h"
+
+void UInsimulPluginInitializer::Initialize(FSubsystemCollectionBase& Collection)
+{
+    Super::Initialize(Collection);
+
+    // The Insimul plugin auto-initializes from UInsimulSettings (DefaultGame.ini).
+    // World data is loaded from Content/InsimulData/world_export.json when
+    // ChatProvider=Local. For Server mode, characters are fetched from the server.
+    //
+    // The InsimulCharacterMappingSubsystem auto-loads characters at startup
+    // based on the configured provider. No additional initialization needed here.
+
+    const UInsimulSettings* Settings = UInsimulSettings::Get();
+    if (Settings)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[InsimulExport] Plugin initialized — Chat: %s, World: %s"),
+            Settings->IsOfflineMode() ? TEXT("Local") : TEXT("Server"),
+            *Settings->DefaultWorldID);
+    }
+}
+`;
 }
 
 // ─────────────────────────────────────────────

@@ -19,24 +19,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Play, Plus, Clock, Activity, Calendar, Loader2, LogIn, UserPlus, LogOut,
+  Play, Plus, Clock, Calendar, Loader2, LogIn, UserPlus, LogOut, Save, MessageSquare, Trash2,
 } from 'lucide-react';
 
-interface Playthrough {
+interface SaveSummary {
   id: string;
-  userId: string;
-  worldId: string;
-  name?: string;
-  description?: string;
-  notes?: string;
+  slotIndex: number;
+  name: string;
   status: string;
-  currentTimestep?: number;
-  playtime?: number;
-  actionsCount?: number;
-  decisionsCount?: number;
+  totalPlaytime: number;
+  saveCount: number;
   createdAt: string;
-  lastPlayedAt?: string;
-  startedAt?: string;
+  lastSavedAt: string;
+  worldName?: string;
+  playtraceCount: number;
+  conversationCount: number;
 }
 
 interface WorldInfo {
@@ -58,13 +55,14 @@ export default function PlayPage() {
   const [worldLoading, setWorldLoading] = useState(true);
   const [worldError, setWorldError] = useState<string | null>(null);
 
-  // Playthrough state
-  const [playthroughs, setPlaythroughs] = useState<Playthrough[]>([]);
-  const [playthroughsLoading, setPlaythroughsLoading] = useState(false);
-  const [selectedPlaythroughId, setSelectedPlaythroughId] = useState<string | null>(null);
+  // Save file state
+  const [saves, setSaves] = useState<SaveSummary[]>([]);
+  const [savesLoading, setSavesLoading] = useState(false);
+  const [activeSaveId, setActiveSaveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
-  const [newPlaythroughName, setNewPlaythroughName] = useState('');
+  const [newSaveName, setNewSaveName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<SaveSummary | null>(null);
 
   // Auth form state
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -93,26 +91,26 @@ export default function PlayPage() {
       .finally(() => setWorldLoading(false));
   }, [worldId, isAuthenticated]);
 
-  // Fetch playthroughs when authenticated
+  // Fetch save files when authenticated
   useEffect(() => {
     if (!isAuthenticated || !token || !worldId) return;
-    loadPlaythroughs();
+    loadSaves();
   }, [isAuthenticated, token, worldId]);
 
-  const loadPlaythroughs = async () => {
+  const loadSaves = async () => {
     if (!token) return;
     try {
-      setPlaythroughsLoading(true);
-      const res = await fetch(`/api/worlds/${worldId}/playthroughs`, {
+      setSavesLoading(true);
+      const res = await fetch(`/api/worlds/${worldId}/saves`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        setPlaythroughs(await res.json());
+        setSaves(await res.json());
       }
     } catch (err) {
-      console.error('Failed to load playthroughs:', err);
+      console.error('Failed to load saves:', err);
     } finally {
-      setPlaythroughsLoading(false);
+      setSavesLoading(false);
     }
   };
 
@@ -192,28 +190,47 @@ export default function PlayPage() {
     });
   };
 
-  // Playthrough actions
+  // Save file actions
   const handleStartNew = async () => {
     if (!token) return;
     try {
       setCreating(true);
-      const res = await fetch(`/api/worlds/${worldId}/playthroughs/start`, {
+      const res = await fetch(`/api/worlds/${worldId}/saves/new-game`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPlaythroughName.trim() || `${world?.name || 'World'} Playthrough` }),
+        body: JSON.stringify({ name: newSaveName.trim() || `${world?.name || 'World'} - New Game` }),
       });
       if (res.ok) {
-        const playthrough = await res.json();
+        const save = await res.json();
         setShowNewDialog(false);
-        setNewPlaythroughName('');
-        setSelectedPlaythroughId(playthrough.id);
+        setNewSaveName('');
+        setActiveSaveId(save.id);
       } else {
-        toast({ title: 'Error', description: 'Failed to create playthrough', variant: 'destructive' });
+        const err = await res.json().catch(() => ({}));
+        toast({ title: 'Error', description: err.error || 'Failed to start new game', variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to create playthrough', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to start new game', variant: 'destructive' });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteSave = async () => {
+    if (!deleteTarget || !token) return;
+    try {
+      const res = await fetch(`/api/saves/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setSaves(prev => prev.filter(s => s.id !== deleteTarget.id));
+        toast({ title: 'Deleted', description: `"${deleteTarget.name}" has been deleted` });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete save', variant: 'destructive' });
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -230,7 +247,7 @@ export default function PlayPage() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  // --- RENDER: Loading world ---
+  // --- RENDER: Loading ---
   if (worldLoading || authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -253,23 +270,25 @@ export default function PlayPage() {
     );
   }
 
-  // --- RENDER: Game is active (with or without pre-selected playthrough) ---
-  if (isAuthenticated && (selectedPlaythroughId || selectedPlaythroughId === '')) {
+  // --- RENDER: Game is active ---
+  if (isAuthenticated && activeSaveId) {
     return (
       <BabylonWorld
         worldId={worldId}
         worldName={world.name}
         worldType={world.config?.worldType}
         userId={user?.id}
-        playthroughId={selectedPlaythroughId || undefined}
-        onBack={() => setSelectedPlaythroughId(null)}
+        saveId={activeSaveId}
+        onBack={() => {
+          setActiveSaveId(null);
+          loadSaves(); // Refresh save list after playing
+        }}
       />
     );
   }
 
-  // --- RENDER: Auth + Playthrough selection ---
-  const activePlaythroughs = playthroughs.filter((p) => p.status === 'active');
-  const pausedPlaythroughs = playthroughs.filter((p) => p.status === 'paused');
+  // --- RENDER: Auth + Save selection ---
+  const activeSaves = saves.filter((s) => s.status === 'active');
 
   return (
     <div className="min-h-screen bg-background">
@@ -413,45 +432,35 @@ export default function PlayPage() {
           </div>
         )}
 
-        {/* --- Authenticated: show playthrough selector --- */}
-        {isAuthenticated && selectedPlaythroughId === null && (
+        {/* --- Authenticated: show save file selector --- */}
+        {isAuthenticated && !activeSaveId && (
           <div className="space-y-6">
-            {/* Quick launch with in-game main menu */}
-            <Button
-              size="lg"
-              className="w-full py-6 text-lg"
-              onClick={() => setSelectedPlaythroughId('')}
-            >
-              <Play className="w-5 h-5 mr-2" />
-              Play Game
-            </Button>
-
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Your Playthroughs</h2>
+                <h2 className="text-xl font-semibold">Saved Games</h2>
                 <p className="text-sm text-muted-foreground">
-                  Select a playthrough to resume or start a new one
+                  Select a save to resume or start a new game
                 </p>
               </div>
               <Button onClick={() => setShowNewDialog(true)}>
                 <Plus className="w-4 h-4 mr-2" />
-                New Playthrough
+                New Game
               </Button>
             </div>
 
-            {playthroughsLoading && (
+            {savesLoading && (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             )}
 
-            {!playthroughsLoading && playthroughs.length === 0 && (
+            {!savesLoading && saves.length === 0 && (
               <Card className="border-dashed">
                 <CardContent className="py-12 text-center">
                   <Play className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-lg font-medium mb-2">No playthroughs yet</p>
+                  <p className="text-lg font-medium mb-2">No saved games yet</p>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Start a new playthrough to explore {world.name}
+                    Start a new game to explore {world.name}
                   </p>
                   <Button onClick={() => setShowNewDialog(true)}>
                     <Plus className="w-4 h-4 mr-2" />
@@ -461,38 +470,59 @@ export default function PlayPage() {
               </Card>
             )}
 
-            {/* Active playthroughs */}
-            {activePlaythroughs.length > 0 && (
+            {activeSaves.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Active ({activePlaythroughs.length})
-                </h3>
-                {activePlaythroughs.map((p) => (
-                  <PlaythroughCard
-                    key={p.id}
-                    playthrough={p}
-                    onPlay={() => setSelectedPlaythroughId(p.id)}
-                    formatDuration={formatDuration}
-                    formatDate={formatDate}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Paused playthroughs */}
-            {pausedPlaythroughs.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Paused ({pausedPlaythroughs.length})
-                </h3>
-                {pausedPlaythroughs.map((p) => (
-                  <PlaythroughCard
-                    key={p.id}
-                    playthrough={p}
-                    onPlay={() => setSelectedPlaythroughId(p.id)}
-                    formatDuration={formatDuration}
-                    formatDate={formatDate}
-                  />
+                {activeSaves.map((save) => (
+                  <Card key={save.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-lg truncate">
+                              {save.name}
+                            </h4>
+                            <Badge variant="default">
+                              {save.saveCount} save{save.saveCount !== 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              {formatDuration(save.totalPlaytime)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              Started {formatDate(save.createdAt)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Save className="w-3.5 h-3.5" />
+                              Last saved {formatDate(save.lastSavedAt)}
+                            </span>
+                            {save.conversationCount > 0 && (
+                              <span className="flex items-center gap-1">
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                {save.conversationCount} conversation{save.conversationCount !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeleteTarget(save)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" onClick={() => setActiveSaveId(save.id)}>
+                            <Play className="w-4 h-4 mr-1" />
+                            Resume
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}
@@ -500,21 +530,21 @@ export default function PlayPage() {
         )}
       </div>
 
-      {/* New Playthrough Dialog */}
+      {/* New Game Dialog */}
       <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Playthrough</DialogTitle>
+            <DialogTitle>New Game</DialogTitle>
             <DialogDescription>Start a new adventure in {world.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label htmlFor="playthrough-name">Name (optional)</Label>
+              <Label htmlFor="save-name">Save Name (optional)</Label>
               <Input
-                id="playthrough-name"
-                value={newPlaythroughName}
-                onChange={(e) => setNewPlaythroughName(e.target.value)}
-                placeholder={`${world.name} Playthrough`}
+                id="save-name"
+                value={newSaveName}
+                onChange={(e) => setNewSaveName(e.target.value)}
+                placeholder={`${world.name} - New Game`}
                 onKeyDown={(e) => e.key === 'Enter' && handleStartNew()}
               />
             </div>
@@ -529,65 +559,21 @@ export default function PlayPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Save</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deleteTarget?.name}"? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteSave}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
-}
-
-/** Compact playthrough card for the player portal.
- * Management actions (rename, pause, abandon, delete) are handled in-game via the pause menu. */
-function PlaythroughCard({
-  playthrough,
-  onPlay,
-  formatDuration,
-  formatDate,
-}: {
-  playthrough: Playthrough;
-  onPlay: () => void;
-  formatDuration: (s: number | undefined) => string;
-  formatDate: (s: string | undefined) => string;
-}) {
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className="font-semibold text-lg truncate">
-                {playthrough.name || 'Unnamed Playthrough'}
-              </h4>
-              <Badge variant={playthrough.status === 'active' ? 'default' : 'secondary'}>
-                {playthrough.status}
-              </Badge>
-            </div>
-            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Activity className="w-3.5 h-3.5" />
-                {playthrough.actionsCount || 0} actions
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                {formatDuration(playthrough.playtime)}
-              </span>
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                Started {formatDate(playthrough.createdAt)}
-              </span>
-              {playthrough.lastPlayedAt && (
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  Last played {formatDate(playthrough.lastPlayedAt)}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 ml-4">
-            <Button size="sm" onClick={onPlay}>
-              <Play className="w-4 h-4 mr-1" />
-              Play
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

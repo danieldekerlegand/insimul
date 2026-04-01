@@ -218,30 +218,18 @@ export function registerExportRoutes(app: Express): void {
       // ── Always resolve telemetry config (telemetry is always included) ──
       // Client may pass overrides: telemetryServerUrl, telemetryApiKeyId
       let resolvedApiKey = '';
-      if (req.body.telemetryApiKeyId) {
-        // Resolve a specific API key by ID
+      // Use the exporting user's API key for telemetry
+      const userId = (req as any).userId;
+      if (userId) {
         try {
           const { storage } = await import(/* webpackIgnore: true */ '../db/storage.js' as any);
-          const keys = await storage.getApiKeysByWorld(worldId);
-          const found = keys.find((k: any) => k.id === req.body.telemetryApiKeyId);
-          if (found?.key) {
-            resolvedApiKey = found.key;
-          }
+          const key = await storage.getUserApiKey(userId);
+          if (key) resolvedApiKey = key;
         } catch (err) {
-          console.warn('[Export] Failed to resolve telemetry API key by ID:', err);
+          console.warn('[Export] Failed to resolve user API key:', err);
         }
       }
       if (!resolvedApiKey) {
-        // Fallback: pick the first available key for this world
-        try {
-          const { storage } = await import(/* webpackIgnore: true */ '../db/storage.js' as any);
-          const keys = await storage.getApiKeysByWorld(worldId);
-          if (keys.length > 0) {
-            resolvedApiKey = keys[0].key;
-          }
-        } catch (err) {
-          console.warn('[Export] Failed to resolve fallback telemetry API key:', err);
-        }
       }
 
       const telemetryConfig: ExportTelemetryConfig = {

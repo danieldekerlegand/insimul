@@ -10,6 +10,7 @@
 import type { QuestStorageProvider } from './quest-storage-provider.js';
 import type { InsertQuest, Quest } from '../schema.js';
 import type { MainQuestChapter, MainQuestObjective } from '../quest/main-quest-chapters.js';
+import { convertQuestToProlog } from '../prolog/quest-converter.js';
 
 /** Tag used to identify main quest records */
 const MAIN_QUEST_TAG = 'main_quest';
@@ -133,6 +134,16 @@ export async function createMainQuestRecord(
       outroNarrative: chapter.outroNarrative,
     }),
   };
+
+  // Generate Prolog content for the quest
+  try {
+    const result = convertQuestToProlog(questData as any);
+    if (result.prologContent) {
+      (questData as any).content = result.prologContent;
+    }
+  } catch {
+    // Non-fatal: quest still works without Prolog content
+  }
 
   return storage.createQuest(questData);
 }

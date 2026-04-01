@@ -1,5 +1,6 @@
 #include "DialogueSystem.h"
-#include "Services/InsimulAIService.h"
+#include "InsimulConversationComponent.h"
+#include "InsimulSettings.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonReader.h"
@@ -22,30 +23,15 @@ void UDialogueSystem::Deinitialize()
 
 void UDialogueSystem::LoadDialogueData()
 {
-    // Load AI Config
-    FString ConfigPath = FPaths::ProjectContentDir() / TEXT("Data/AIConfig.json");
-    FString ConfigJson;
-    if (FFileHelper::LoadFileToString(ConfigJson, *ConfigPath))
-    {
-        TSharedPtr<FJsonObject> ConfigObj;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ConfigJson);
-        if (FJsonSerializer::Deserialize(Reader, ConfigObj) && ConfigObj.IsValid())
-        {
-            AIConfig.ApiMode = ConfigObj->GetStringField(TEXT("apiMode"));
-            AIConfig.InsimulEndpoint = ConfigObj->GetStringField(TEXT("insimulEndpoint"));
-            AIConfig.GeminiModel = ConfigObj->GetStringField(TEXT("geminiModel"));
-            AIConfig.GeminiApiKey = ConfigObj->GetStringField(TEXT("geminiApiKeyPlaceholder"));
-            AIConfig.bVoiceEnabled = ConfigObj->GetBoolField(TEXT("voiceEnabled"));
-            AIConfig.DefaultVoice = ConfigObj->GetStringField(TEXT("defaultVoice"));
-            UE_LOG(LogTemp, Log, TEXT("[Insimul] AI config loaded: mode=%s"), *AIConfig.ApiMode);
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Insimul] AIConfig.json not found, using defaults"));
-    }
+    // Dialogue contexts and AI configuration are handled by the Insimul plugin.
+    // The plugin reads from UInsimulSettings (Project Settings > Plugins > Insimul)
+    // and loads world data from Content/InsimulData/world_export.json when using
+    // local LLM mode, or fetches from the server in server mode.
+    //
+    // The old InsimulAIService is no longer used — the plugin's
+    // UInsimulConversationComponent handles all conversation logic.
 
-    // Load Dialogue Contexts
+    // Load dialogue contexts for the game UI (greetings, available NPCs)
     FString ContextsPath = FPaths::ProjectContentDir() / TEXT("Data/DT_DialogueContexts.json");
     FString ContextsJson;
     if (FFileHelper::LoadFileToString(ContextsJson, *ContextsPath))
@@ -82,19 +68,18 @@ void UDialogueSystem::LoadDialogueData()
 
                 DialogueContexts.Add(Ctx);
             }
-            UE_LOG(LogTemp, Log, TEXT("[Insimul] Loaded %d dialogue contexts"), DialogueContexts.Num());
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Loaded %d dialogue contexts for UI"), DialogueContexts.Num());
         }
     }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Insimul] DT_DialogueContexts.json not found"));
-    }
 
-    // Initialize AI Service
-    UInsimulAIService* AIService = GetGameInstance()->GetSubsystem<UInsimulAIService>();
-    if (AIService)
+    // The Insimul plugin handles actual conversation routing —
+    // UInsimulConversationComponent is attached to each NPC via InsimulAICharacter/InsimulSpawner.
+    const UInsimulSettings* Settings = UInsimulSettings::Get();
+    if (Settings)
     {
-        AIService->InitializeService(AIConfig, DialogueContexts);
+        UE_LOG(LogTemp, Log, TEXT("[Insimul] Plugin configured — Chat: %s, World: %s"),
+            Settings->IsOfflineMode() ? TEXT("Local") : TEXT("Server"),
+            *Settings->DefaultWorldID);
     }
 }
 
@@ -157,102 +142,72 @@ TArray<FString> UDialogueSystem::GetAvailableActions()
         if (EnergyCost <= 0.0f || EnergyCost <= PlayerEnergy)
         {
             FString ActionId = ActionObj->GetStringField(TEXT("id"));
-            FString ActionName = ActionObj->GetStringField(TEXT("name"));
-            FString EnergyCostStr = FString::Printf(TEXT("%.0f"), EnergyCost);
-
-            // Return as "id|name|energyCost" for easy parsing in UI
-            AvailableActions.Add(FString::Printf(TEXT("%s|%s|%s"), *ActionId, *ActionName, *EnergyCostStr));
+            AvailableActions.Add(ActionId);
         }
     }
 
     return AvailableActions;
 }
 
-void UDialogueSystem::SelectAction(const FString& ActionId)
+void UDialogueSystem::LoadSocialActions()
 {
-    if (!bIsInDialogue)
+    FString ActionsPath = FPaths::ProjectContentDir() / TEXT("Data/actions.json");
+    FString ActionsJson;
+    if (!FFileHelper::LoadFileToString(ActionsJson, *ActionsPath))
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Insimul] Cannot select action — not in dialogue"));
         return;
     }
 
-    // Verify action exists and is affordable
-    for (const auto& ActionObj : SocialActions)
+    TArray<TSharedPtr<FJsonValue>> ActionsArray;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ActionsJson);
+    if (!FJsonSerializer::Deserialize(Reader, ActionsArray))
     {
-        if (!ActionObj.IsValid()) continue;
+        return;
+    }
 
-        FString Id = ActionObj->GetStringField(TEXT("id"));
-        if (Id == ActionId)
+    for (const auto& Val : ActionsArray)
+    {
+        auto Obj = Val->AsObject();
+        if (!Obj) continue;
+
+        FString Category = Obj->GetStringField(TEXT("category"));
+        if (Category == TEXT("social") || Category == TEXT("dialogue"))
         {
-            float EnergyCost = 0.0f;
-            if (ActionObj->HasField(TEXT("energyCost")))
-            {
-                EnergyCost = ActionObj->GetNumberField(TEXT("energyCost"));
-            }
-
-            if (EnergyCost > 0.0f && EnergyCost > PlayerEnergy)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("[Insimul] Not enough energy for action: %s (cost=%.0f, energy=%.0f)"), *ActionId, EnergyCost, PlayerEnergy);
-                return;
-            }
-
-            OnActionSelected.Broadcast(ActionId);
-            UE_LOG(LogTemp, Log, TEXT("[Insimul] Action selected: %s"), *ActionId);
-            return;
+            SocialActions.Add(Obj);
         }
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[Insimul] Action not found: %s"), *ActionId);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Loaded %d social/dialogue actions"), SocialActions.Num());
 }
 
-void UDialogueSystem::ShowWithRomanceActions(const TArray<FString>& BaseActionIds, const TArray<FInsimulRomanceAction>& RomanceActions, float Energy)
+FInsimulDialogueContext UDialogueSystem::GetDialogueContext(const FString& CharacterId) const
 {
-    SetPlayerEnergy(Energy);
-
-    // Convert romance actions to standard social action JSON objects and append
-    for (const auto& RA : RomanceActions)
+    for (const auto& Ctx : DialogueContexts)
     {
-        TSharedPtr<FJsonObject> ActionObj = MakeShareable(new FJsonObject());
-        ActionObj->SetStringField(TEXT("id"), FString::Printf(TEXT("romance_%s"), *RA.Id));
-        ActionObj->SetStringField(TEXT("name"), FString::Printf(TEXT("\xF0\x9F\x92\x95 %s"), *RA.Name));
-        ActionObj->SetStringField(TEXT("description"), RA.Description.IsEmpty()
-            ? FString::Printf(TEXT("Romance action (requires %s stage)"), *RA.RequiredStage)
-            : RA.Description);
-        ActionObj->SetStringField(TEXT("actionType"), TEXT("social"));
-        ActionObj->SetStringField(TEXT("category"), TEXT("romance"));
-        ActionObj->SetNumberField(TEXT("energyCost"), RA.EnergyCost);
-        ActionObj->SetNumberField(TEXT("sparkGain"), RA.SparkGain);
-        ActionObj->SetStringField(TEXT("romanceActionId"), RA.Id);
-        SocialActions.Add(ActionObj);
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] ShowWithRomanceActions: added %d romance actions (total=%d)"), RomanceActions.Num(), SocialActions.Num());
-}
-
-void UDialogueSystem::LoadSocialActions()
-{
-    FString ActionsPath = FPaths::ProjectContentDir() / TEXT("Data/SocialActions.json");
-    FString ActionsJson;
-    if (FFileHelper::LoadFileToString(ActionsJson, *ActionsPath))
-    {
-        TArray<TSharedPtr<FJsonValue>> ActionsArray;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ActionsJson);
-        if (FJsonSerializer::Deserialize(Reader, ActionsArray))
+        if (Ctx.CharacterId == CharacterId)
         {
-            SocialActions.Empty();
-            for (const auto& Val : ActionsArray)
-            {
-                TSharedPtr<FJsonObject> ActionObj = Val->AsObject();
-                if (ActionObj.IsValid())
-                {
-                    SocialActions.Add(ActionObj);
-                }
-            }
-            UE_LOG(LogTemp, Log, TEXT("[Insimul] Loaded %d social actions"), SocialActions.Num());
+            return Ctx;
         }
     }
-    else
+    return FInsimulDialogueContext();
+}
+
+FString UDialogueSystem::GetNPCGreeting(const FString& CharacterId) const
+{
+    FInsimulDialogueContext Ctx = GetDialogueContext(CharacterId);
+    return Ctx.Greeting.IsEmpty() ? TEXT("Hello there.") : Ctx.Greeting;
+}
+
+bool UDialogueSystem::IsRomanceAction(const FString& ActionId) const
+{
+    for (const auto& Obj : SocialActions)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Insimul] SocialActions.json not found"));
+        if (!Obj.IsValid()) continue;
+        if (Obj->GetStringField(TEXT("id")) == ActionId)
+        {
+            FString Category = Obj->GetStringField(TEXT("category"));
+            return Category == TEXT("romance") || ActionId.Contains(TEXT("romance"));
+        }
     }
+    return false;
 }

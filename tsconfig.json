@@ -18,8 +18,8 @@
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./shared/*"],
-      "@insimul/sdk": ["./packages/insimul-sdk-js/src/index.ts"],
-      "@insimul/sdk/*": ["./packages/insimul-sdk-js/src/*"]
+      "@insimul/typescript": ["./packages/typescript/src/index.ts"],
+      "@insimul/typescript/*": ["./packages/typescript/src/*"]
     }
   }
 }

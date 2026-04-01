@@ -157,6 +157,22 @@ export function generateAssessmentPrologContent(config: AssessmentPrologConfig):
   lines.push(`phase_passed(${questAtom}, PhaseId) :-`);
   lines.push(`    phase_score(${questAtom}, PhaseId, Score),`);
   lines.push(`    Score > 0.`);
+  lines.push('');
+
+  // CEFR derivation rules — derive level from total score percentage
+  const totalMax = encounter.totalMaxPoints || 53;
+  lines.push(`% CEFR level derived from assessment score`);
+  lines.push(`assessment_cefr(${questAtom}, b2) :-`);
+  lines.push(`    assessment_total_score(${questAtom}, S), S * 100 / ${totalMax} >= 80.`);
+  lines.push(`assessment_cefr(${questAtom}, b1) :-`);
+  lines.push(`    assessment_total_score(${questAtom}, S), S * 100 / ${totalMax} >= 60,`);
+  lines.push(`    \\+ assessment_cefr(${questAtom}, b2).`);
+  lines.push(`assessment_cefr(${questAtom}, a2) :-`);
+  lines.push(`    assessment_total_score(${questAtom}, S), S * 100 / ${totalMax} >= 40,`);
+  lines.push(`    \\+ assessment_cefr(${questAtom}, b1).`);
+  lines.push(`assessment_cefr(${questAtom}, a1) :-`);
+  lines.push(`    assessment_complete(${questAtom}),`);
+  lines.push(`    \\+ assessment_cefr(${questAtom}, a2).`);
 
   // ── Departure-specific eligibility rule ─────────────────────────────────
   if (departureThreshold != null) {

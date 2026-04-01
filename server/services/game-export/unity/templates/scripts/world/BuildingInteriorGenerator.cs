@@ -34,6 +34,7 @@ namespace Insimul.World
             public Color wallColor;
             public string lightingPreset;
             public string furnitureSet;
+            public Dictionary<string, string> furnitureAssets;
         }
 
         private struct LightingPreset

@@ -54,6 +54,15 @@ const LAYOUT_TEMPLATE_IDS = [
   'grocery_store', 'jewelry_store', 'book_store', 'pawn_shop',
 ];
 
+/** All known furniture types that can be assigned 3D model assets */
+const FURNITURE_ASSET_TYPES = [
+  'table', 'display_table', 'chair', 'stool', 'bench', 'bed', 'bed_single', 'bed_double',
+  'shelf', 'bookshelf', 'wardrobe', 'counter', 'workbench', 'desk',
+  'barrel', 'crate', 'chest',
+  'forge', 'anvil', 'altar', 'pew', 'pillar', 'oven', 'loom',
+  'display_case', 'lectern', 'throne', 'cauldron', 'weapon_rack', 'armor_stand',
+];
+
 const MATERIAL_TYPES: MaterialType[] = ['wood', 'stone', 'brick', 'metal', 'glass', 'stucco'];
 const ARCH_STYLES: ArchitectureStyle[] = ['medieval', 'modern', 'futuristic', 'rustic', 'industrial', 'colonial', 'creole'];
 const ROOF_STYLES: RoofStyle[] = ['hip', 'gable', 'flat', 'side_gable', 'hipped_dormers'];
@@ -295,6 +304,44 @@ function InteriorConfigEditor({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Furniture asset overrides */}
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold">Furniture Assets</Label>
+        <p className="text-[10px] text-muted-foreground">
+          Assign 3D models for each furniture type. Unset types use procedural geometry.
+        </p>
+        <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+          {FURNITURE_ASSET_TYPES.map(type => {
+            const currentPath = current.furnitureAssets?.[type];
+            return (
+              <div key={type} className="flex items-center gap-1.5">
+                <Label className="text-[10px] text-muted-foreground w-24 shrink-0 truncate" title={humanize(type)}>
+                  {humanize(type)}
+                </Label>
+                <div className="flex-1 min-w-0">
+                  <AssetDropdown
+                    assets={assets}
+                    value={currentPath}
+                    onChange={(path) => {
+                      const next = { ...(current.furnitureAssets || {}) };
+                      if (path) {
+                        next[type] = path;
+                      } else {
+                        delete next[type];
+                      }
+                      const hasEntries = Object.keys(next).length > 0;
+                      update({ furnitureAssets: hasEntries ? next : undefined });
+                    }}
+                    filter="model"
+                    placeholder="Procedural"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

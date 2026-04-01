@@ -215,72 +215,68 @@ export class QuaterniusNPCLoader {
   ): Promise<QuaterniusNPCResult | null> {
     const cacheKey = buildCacheKey(config);
 
-    // Check composite cache first
-    const cached = this.compositeTemplates.get(cacheKey);
-    if (cached) {
-      return this.cloneFromComposite(cached, characterId);
-    }
+    // Each NPC gets a fresh GLB import so mesh, skeleton, and animation groups
+    // are fully independent. This avoids the clone retargeting bug where cloned
+    // animation groups lose their skeleton binding.
+    const bodyPath = config.body.path;
+    const lastSlash = bodyPath.lastIndexOf('/');
+    const rootUrl = bodyPath.substring(0, lastSlash + 1);
+    const file = bodyPath.substring(lastSlash + 1);
 
-    // Load body (required)
-    const bodyTemplate = await this.loadPart(config.body.id, config.body.path);
-    if (!bodyTemplate) return null;
+    try {
+      const result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
+      const root = this.selectRoot(result.meshes);
+      if (!root) {
+        result.meshes.forEach((m) => m.dispose());
+        return null;
+      }
 
-    // The body is the root — clone it as the base
-    const root = this.cloneMesh(bodyTemplate, `quat_npc_${characterId}`);
-    if (!root) return null;
-
-    // For complete character models, skip outfit/hair — they're baked into the body mesh
-    if (!isCompleteCharacterModel(config.body.id)) {
-      // Load and attach outfit
-      const outfitTemplate = await this.loadPart(config.outfit.id, config.outfit.path);
-      if (outfitTemplate) {
-        const outfitClone = this.cloneMesh(outfitTemplate, `quat_outfit_${characterId}`);
-        if (outfitClone) {
-          outfitClone.parent = root;
-          outfitClone.position = Vector3.Zero();
+      // Reparent sibling meshes
+      for (const m of result.meshes) {
+        if (m !== root && !m.parent) {
+          m.parent = root;
         }
       }
 
-      // Load and attach hair
-      if (config.hair) {
-        const hairTemplate = await this.loadPart(config.hair.id, config.hair.path);
-        if (hairTemplate) {
-          const hairClone = this.cloneMesh(hairTemplate, `quat_hair_${characterId}`);
-          if (hairClone) {
-            hairClone.parent = root;
-            hairClone.position = Vector3.Zero();
+      root.name = `quat_npc_${characterId}`;
+      root.setEnabled(true);
+
+      const skeleton = result.skeletons?.[0] || null;
+      const animationGroups = result.animationGroups || [];
+      for (const ag of animationGroups) {
+        ag.stop();
+      }
+
+      // For complete character models, skip outfit/hair
+      if (!isCompleteCharacterModel(config.body.id)) {
+        // Load and attach outfit
+        const outfitTemplate = await this.loadPart(config.outfit.id, config.outfit.path);
+        if (outfitTemplate) {
+          const outfitClone = this.cloneMesh(outfitTemplate, `quat_outfit_${characterId}`);
+          if (outfitClone) {
+            outfitClone.parent = root;
+            outfitClone.position = Vector3.Zero();
+          }
+        }
+
+        // Load and attach hair
+        if (config.hair) {
+          const hairTemplate = await this.loadPart(config.hair.id, config.hair.path);
+          if (hairTemplate) {
+            const hairClone = this.cloneMesh(hairTemplate, `quat_hair_${characterId}`);
+            if (hairClone) {
+              hairClone.parent = root;
+              hairClone.position = Vector3.Zero();
+            }
           }
         }
       }
-    }
 
-    // Store as composite template for future clones
-    // (Store the body template as the composite since root structure matches)
-    if (!this.compositeTemplates.has(cacheKey)) {
-      this.compositeTemplates.set(cacheKey, {
-        sourceMesh: root,
-        allMeshes: [root, ...root.getChildMeshes()],
-        skeleton: bodyTemplate.skeleton,
-        animationGroups: bodyTemplate.animationGroups,
-      });
-      // Hide the composite template and create a new clone for the caller
-      root.setEnabled(false);
-      root.name = `__quat_template_${cacheKey}`;
-      const result = this.cloneFromComposite(
-        this.compositeTemplates.get(cacheKey)!,
-        characterId,
-      );
-      return result;
+      return { root, skeleton, animationGroups };
+    } catch (err) {
+      console.warn(`[QuaterniusNPCLoader] Failed to load NPC ${characterId}:`, err);
+      return null;
     }
-
-    root.setEnabled(true);
-    return {
-      root,
-      skeleton: bodyTemplate.skeleton
-        ? bodyTemplate.skeleton.clone(`skeleton_quat_${characterId}`)
-        : null,
-      animationGroups: bodyTemplate.animationGroups,
-    };
   }
 
   /**
@@ -427,37 +423,52 @@ export class QuaterniusNPCLoader {
     let skeleton: Skeleton | null = null;
     if (template.skeleton) {
       skeleton = template.skeleton.clone(`skeleton_quat_${characterId}`);
+      // Assign cloned skeleton to root and ALL child meshes
       root.skeleton = skeleton;
-      for (const child of root.getChildMeshes()) {
-        if (child instanceof Mesh && child.skeleton) {
+      for (const child of root.getChildMeshes(false)) {
+        if (child instanceof Mesh) {
           child.skeleton = skeleton;
         }
       }
     }
 
-    // Clone animation groups, retarget to the cloned skeleton, and keep original names
-    // so the CharacterController can find them by name (e.g. "Walk", "Idle", "Run")
+    // Clone animation groups and retarget to the cloned skeleton.
+    // Key: match targets by name against BOTH bones and transform nodes
+    // in the cloned hierarchy.
     const animationGroups: any[] = [];
+    const clonedNodes = new Map<string, any>();
+    // Build a lookup of all named nodes in the cloned hierarchy
+    clonedNodes.set(root.name, root);
+    for (const child of root.getChildTransformNodes(false)) {
+      clonedNodes.set(child.name, child);
+    }
+    if (skeleton) {
+      for (const bone of skeleton.bones) {
+        clonedNodes.set(bone.name, bone);
+      }
+    }
+
     for (const ag of template.animationGroups) {
       if (!ag || typeof ag.clone !== 'function') continue;
       const clonedAg = ag.clone(`${ag.name}_${characterId}`);
-      clonedAg.stop(); // Ensure not auto-playing
+      clonedAg.stop();
 
-      // Retarget the animation to the cloned skeleton's bones
-      if (skeleton && clonedAg.targetedAnimations) {
+      // Retarget every animation target to the corresponding node in the clone
+      if (clonedAg.targetedAnimations) {
         for (const ta of clonedAg.targetedAnimations) {
-          if (ta.target?.name) {
-            // Find the corresponding bone in the cloned skeleton
-            const bone = skeleton.bones.find((b: any) => b.name === ta.target.name);
-            if (bone) {
-              ta.target = bone;
+          const targetName = ta.target?.name;
+          if (targetName) {
+            // Try exact match first, then strip suffixes from previous clones
+            const match = clonedNodes.get(targetName)
+              || clonedNodes.get(targetName.replace(/_[a-f0-9]+$/i, ''));
+            if (match) {
+              ta.target = match;
             }
           }
         }
       }
 
-      // Also register with the original base name so CharacterController can find it
-      clonedAg.name = ag.name;
+      clonedAg.name = ag.name; // Restore original name
       animationGroups.push(clonedAg);
     }
 

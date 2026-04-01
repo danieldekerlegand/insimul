@@ -46,6 +46,9 @@ var _gesture_container: HBoxContainer
 var _inventory_items: Array = []
 var _player_gold := 0
 
+# Quest bridge for conversation goal evaluation (ConversationQuestBridge reference)
+var _quest_bridge = null
+
 # Root UI nodes
 var _panel: PanelContainer
 var _portrait_rect: ColorRect
@@ -175,6 +178,41 @@ func set_target_language(lang: String) -> void:
 func set_player_inventory_context(items: Array, gold: int) -> void:
 	_inventory_items = items
 	_player_gold = gold
+
+## Set the quest bridge for conversation goal evaluation.
+## Mirrors BabylonChatPanel.setQuestBridge() — used to evaluate quest objectives
+## from conversation metadata responses via the InsimulClient SDK.
+func set_quest_bridge(bridge) -> void:
+	_quest_bridge = bridge
+
+## Request metadata via InsimulClient SDK instead of HTTP POST to /api/conversation/metadata.
+## Processes goal evaluations through the quest bridge when available.
+func _request_metadata_via_sdk(player_message: String, npc_response: String) -> void:
+	if _target_language == "":
+		return
+	var ai := get_node_or_null("/root/AIService")
+	if not ai:
+		return
+
+	# Include active quest objectives for conversation goal evaluation
+	var active_objectives = null
+	if _quest_bridge and _quest_bridge.has_method("get_objectives_for_evaluation"):
+		active_objectives = _quest_bridge.get_objectives_for_evaluation(_current_character_id)
+
+	if ai.has_method("request_metadata"):
+		ai.request_metadata(
+			player_message,
+			npc_response,
+			_target_language,
+			active_objectives,
+			func(metadata: Dictionary) -> void:
+				if metadata.is_empty():
+					return
+				# Process conversation goal evaluations — complete quest objectives
+				var goal_evals = metadata.get("goalEvaluations", [])
+				if goal_evals.size() > 0 and _quest_bridge and _quest_bridge.has_method("process_evaluations"):
+					_quest_bridge.process_evaluations(goal_evals, _current_character_id, player_message)
+		)
 
 ## Add a system message to the dialogue panel.
 func add_system_message(text: String) -> void:

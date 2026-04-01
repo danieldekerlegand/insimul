@@ -1353,6 +1353,9 @@ export const users = pgTable("users", {
   isVerified: boolean("is_verified").default(false),
   lastLoginAt: timestamp("last_login_at"),
 
+  // API key for telemetry and external integrations
+  apiKey: text("api_key").unique(),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

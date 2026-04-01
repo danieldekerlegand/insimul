@@ -1503,6 +1503,11 @@ export async function generateWorldIR(
   const residenceArrays = await Promise.all(residencePromises);
   const allResidences = residenceArrays.flat();
 
+  // Fetch public buildings for all settlements
+  const publicBuildingPromises = settlements.map(s => storage.getPublicBuildingsBySettlement(s.id));
+  const publicBuildingArrays = await Promise.all(publicBuildingPromises);
+  const allPublicBuildings = publicBuildingArrays.flat();
+
   // Build lookup: lotId → residentIds
   const residentsByLot = new Map<string, string[]>();
   for (const res of allResidences) {
@@ -2397,6 +2402,10 @@ export async function generateWorldIR(
         worldItems: worldItems || [],
         languages: languages || [],
         waterFeatures: waterFeatures || [],
+        texts: gameTexts || [],
+        residences: allResidences || [],
+        containers: [],
+        publicBuildings: allPublicBuildings || [],
       }),
       mainQuestLocations: buildMainQuestLocations(world),
       narrative: buildNarrativeIR(world, characters, settlements),
@@ -2542,6 +2551,10 @@ async function buildKnowledgeBase(
     worldItems?: any[];
     languages?: any[];
     waterFeatures?: any[];
+    texts?: any[];
+    residences?: any[];
+    containers?: any[];
+    publicBuildings?: any[];
   },
 ): Promise<string | null> {
   const parts: string[] = [];
@@ -2587,6 +2600,48 @@ async function buildKnowledgeBase(
       if (c.governmentType) parts.push(`government_type(${cId}, ${sanitizeAtom(c.governmentType)}).`);
       if (c.economicSystem) parts.push(`economic_system(${cId}, ${sanitizeAtom(c.economicSystem)}).`);
       if (c.foundedYear) parts.push(`country_founded(${cId}, ${c.foundedYear}).`);
+      if (c.description) parts.push(`country_description(${cId}, '${escapeAtom(c.description.slice(0, 300))}').`);
+      // Alliances and enemies
+      if (Array.isArray(c.alliances)) {
+        for (const allyId of c.alliances) parts.push(`country_ally(${cId}, ${sanitizeAtom(allyId)}).`);
+      }
+      if (Array.isArray(c.enemies)) {
+        for (const enemyId of c.enemies) parts.push(`country_enemy(${cId}, ${sanitizeAtom(enemyId)}).`);
+      }
+      // Culture and laws
+      if (c.culture && typeof c.culture === 'object') {
+        for (const [key, value] of Object.entries(c.culture)) {
+          if (typeof value === 'string') {
+            parts.push(`country_culture(${cId}, ${sanitizeAtom(key)}, '${escapeAtom(value)}').`);
+          }
+        }
+      }
+      if (c.culturalValues && typeof c.culturalValues === 'object') {
+        for (const [key, value] of Object.entries(c.culturalValues)) {
+          if (typeof value === 'string') {
+            parts.push(`cultural_value(${cId}, ${sanitizeAtom(key)}, '${escapeAtom(value)}').`);
+          } else if (typeof value === 'number') {
+            parts.push(`cultural_value(${cId}, ${sanitizeAtom(key)}, ${value}).`);
+          }
+        }
+      }
+      if (Array.isArray(c.laws)) {
+        for (const law of c.laws) {
+          if (typeof law === 'string') {
+            parts.push(`country_law(${cId}, '${escapeAtom(law)}').`);
+          } else if (law?.name) {
+            parts.push(`country_law(${cId}, '${escapeAtom(law.name)}').`);
+          }
+        }
+      }
+      // Social structure
+      if (c.socialStructure && typeof c.socialStructure === 'object') {
+        for (const [key, value] of Object.entries(c.socialStructure)) {
+          if (typeof value === 'string') {
+            parts.push(`social_structure(${cId}, ${sanitizeAtom(key)}, '${escapeAtom(value)}').`);
+          }
+        }
+      }
     }
     parts.push('');
   }
@@ -2602,6 +2657,16 @@ async function buildKnowledgeBase(
       if (s.countryId) parts.push(`state_of_country(${sId}, ${sanitizeAtom(s.countryId)}).`);
       if (s.stateType) parts.push(`state_type(${sId}, ${sanitizeAtom(s.stateType)}).`);
       if (s.terrain) parts.push(`state_terrain(${sId}, ${sanitizeAtom(s.terrain)}).`);
+      if (s.description) parts.push(`state_description(${sId}, '${escapeAtom(s.description.slice(0, 300))}').`);
+      if (s.foundedYear) parts.push(`state_founded(${sId}, ${s.foundedYear}).`);
+      if (s.governorId) parts.push(`state_governor(${sId}, ${sanitizeAtom(s.governorId)}).`);
+      if (s.localGovernmentType) parts.push(`state_local_government(${sId}, ${sanitizeAtom(s.localGovernmentType)}).`);
+      // Previous countries (annexation history)
+      if (Array.isArray(s.previousCountryIds)) {
+        for (const prevId of s.previousCountryIds) {
+          parts.push(`state_previous_country(${sId}, ${sanitizeAtom(prevId)}).`);
+        }
+      }
     }
     parts.push('');
   }
@@ -2619,6 +2684,41 @@ async function buildKnowledgeBase(
       if (s.settlementType) parts.push(`settlement_type(${sId}, ${sanitizeAtom(s.settlementType)}).`);
       if (s.terrain) parts.push(`settlement_terrain(${sId}, ${sanitizeAtom(s.terrain)}).`);
       if (s.population) parts.push(`settlement_population(${sId}, ${s.population}).`);
+      // Districts
+      if (Array.isArray(s.districts)) {
+        for (const d of s.districts) {
+          const dName = typeof d === 'string' ? d : d?.name;
+          if (dName) parts.push(`settlement_district(${sId}, '${escapeAtom(dName)}').`);
+        }
+      }
+      // Streets
+      if (Array.isArray(s.streets)) {
+        for (const st of s.streets) {
+          const stName = typeof st === 'string' ? st : st?.name;
+          if (stName) parts.push(`settlement_street(${sId}, '${escapeAtom(stName)}').`);
+        }
+      }
+      // Landmarks
+      if (Array.isArray(s.landmarks)) {
+        for (const lm of s.landmarks) {
+          if (typeof lm === 'string') {
+            parts.push(`settlement_landmark(${sId}, '${escapeAtom(lm)}').`);
+          } else if (lm?.name) {
+            parts.push(`settlement_landmark(${sId}, '${escapeAtom(lm.name)}').`);
+            if (lm.type) parts.push(`landmark_type('${escapeAtom(lm.name)}', ${sanitizeAtom(lm.type)}).`);
+          }
+        }
+      }
+      // Demographic tracking
+      if (Array.isArray(s.unemployedCharacterIds) && s.unemployedCharacterIds.length > 0) {
+        parts.push(`settlement_unemployed_count(${sId}, ${s.unemployedCharacterIds.length}).`);
+      }
+      if (Array.isArray(s.deceasedCharacterIds) && s.deceasedCharacterIds.length > 0) {
+        parts.push(`settlement_deceased_count(${sId}, ${s.deceasedCharacterIds.length}).`);
+      }
+      if (Array.isArray(s.vacantLotIds) && s.vacantLotIds.length > 0) {
+        parts.push(`settlement_vacant_lots(${sId}, ${s.vacantLotIds.length}).`);
+      }
     }
     parts.push('');
   }
@@ -2691,6 +2791,68 @@ async function buildKnowledgeBase(
     if (Array.isArray(char.childIds)) {
       for (const cid of char.childIds) parts.push(`parent_of(${id}, ${sanitizeAtom(cid)}).`);
     }
+    // Physical traits
+    if (char.physicalTraits && typeof char.physicalTraits === 'object') {
+      for (const [trait, value] of Object.entries(char.physicalTraits)) {
+        if (typeof value === 'string') {
+          parts.push(`physical_trait(${id}, ${sanitizeAtom(trait)}, '${escapeAtom(value)}').`);
+        } else if (typeof value === 'boolean' && value) {
+          parts.push(`physical_trait(${id}, ${sanitizeAtom(trait)}).`);
+        } else if (typeof value === 'number') {
+          parts.push(`physical_trait(${id}, ${sanitizeAtom(trait)}, ${value}).`);
+        }
+      }
+    }
+    // Mental traits
+    if (char.mentalTraits && typeof char.mentalTraits === 'object') {
+      for (const [trait, value] of Object.entries(char.mentalTraits)) {
+        if (typeof value === 'string') {
+          parts.push(`mental_trait(${id}, ${sanitizeAtom(trait)}, '${escapeAtom(value)}').`);
+        } else if (typeof value === 'boolean' && value) {
+          parts.push(`mental_trait(${id}, ${sanitizeAtom(trait)}).`);
+        } else if (typeof value === 'number') {
+          parts.push(`mental_trait(${id}, ${sanitizeAtom(trait)}, ${value}).`);
+        }
+      }
+    }
+    // Social attributes
+    if (char.socialAttributes && typeof char.socialAttributes === 'object') {
+      for (const [attr, value] of Object.entries(char.socialAttributes)) {
+        if (typeof value === 'number') {
+          parts.push(`social_attribute(${id}, ${sanitizeAtom(attr)}, ${value}).`);
+        } else if (typeof value === 'string') {
+          parts.push(`social_attribute(${id}, ${sanitizeAtom(attr)}, '${escapeAtom(value)}').`);
+        }
+      }
+    }
+    // Thoughts (recent thought history)
+    if (Array.isArray(char.thoughts)) {
+      for (const thought of char.thoughts.slice(-10)) { // last 10 thoughts
+        if (typeof thought === 'string') {
+          parts.push(`has_thought(${id}, '${escapeAtom(thought.slice(0, 200))}').`);
+        } else if (thought && typeof thought === 'object' && thought.content) {
+          parts.push(`has_thought(${id}, '${escapeAtom(String(thought.content).slice(0, 200))}').`);
+        }
+      }
+    }
+    // Mental models (beliefs about others)
+    if (char.mentalModels && typeof char.mentalModels === 'object') {
+      for (const [subject, model] of Object.entries(char.mentalModels)) {
+        if (typeof model === 'string') {
+          parts.push(`believes_about(${id}, ${sanitizeAtom(subject)}, '${escapeAtom(model.slice(0, 200))}').`);
+        } else if (model && typeof model === 'object') {
+          for (const [aspect, belief] of Object.entries(model as Record<string, any>)) {
+            if (typeof belief === 'string') {
+              parts.push(`believes_about(${id}, ${sanitizeAtom(subject)}, ${sanitizeAtom(aspect)}, '${escapeAtom(belief.slice(0, 200))}').`);
+            }
+          }
+        }
+      }
+    }
+    // Education and lifecycle
+    if (char.collegeGraduate) parts.push(`college_graduate(${id}).`);
+    if (char.retired) parts.push(`retired(${id}).`);
+    if (char.departureYear) parts.push(`departure_year(${id}, ${char.departureYear}).`);
   }
   parts.push('');
 
@@ -2757,6 +2919,175 @@ async function buildKnowledgeBase(
     }
     parts.push('');
   }
+
+  // ── Text/book/sign facts ──
+  const texts = worldData?.texts || [];
+  if (texts.length > 0) {
+    parts.push('% === Text Facts (books, journals, letters, signs) ===');
+    for (const t of texts) {
+      const tId = sanitizeAtom(t.id || t._id?.toString());
+      parts.push(`game_text(${tId}).`);
+      if (t.title) parts.push(`text_title(${tId}, '${escapeAtom(t.title)}').`);
+      if (t.titleTranslation) parts.push(`text_title_translation(${tId}, '${escapeAtom(t.titleTranslation)}').`);
+      if (t.textCategory) parts.push(`text_category(${tId}, ${sanitizeAtom(t.textCategory)}).`);
+      if (t.cefrLevel) parts.push(`text_cefr_level(${tId}, ${sanitizeAtom(t.cefrLevel)}).`);
+      if (t.targetLanguage) parts.push(`text_language(${tId}, ${sanitizeAtom(t.targetLanguage)}).`);
+      if (t.difficulty) parts.push(`text_difficulty(${tId}, ${sanitizeAtom(t.difficulty)}).`);
+      if (t.authorName) parts.push(`text_author(${tId}, '${escapeAtom(t.authorName)}').`);
+      if (t.spawnLocationHint) parts.push(`text_spawn_location(${tId}, ${sanitizeAtom(t.spawnLocationHint)}).`);
+      if (t.clueText) parts.push(`text_clue(${tId}, '${escapeAtom(t.clueText.slice(0, 200))}').`);
+      if (t.narrativeChapterId) parts.push(`text_chapter(${tId}, ${sanitizeAtom(t.narrativeChapterId)}).`);
+      if (t.status) parts.push(`text_status(${tId}, ${sanitizeAtom(t.status)}).`);
+      const pageCount = Array.isArray(t.pages) ? t.pages.length : 0;
+      if (pageCount > 0) parts.push(`text_page_count(${tId}, ${pageCount}).`);
+      // Vocabulary highlights as facts
+      if (Array.isArray(t.vocabularyHighlights)) {
+        for (const vh of t.vocabularyHighlights) {
+          if (vh.word) parts.push(`text_vocabulary(${tId}, '${escapeAtom(vh.word)}', '${escapeAtom(vh.translation || '')}', ${sanitizeAtom(vh.partOfSpeech || 'unknown')}).`);
+        }
+      }
+      // Tags
+      if (Array.isArray(t.tags)) {
+        for (const tag of t.tags) {
+          parts.push(`text_tag(${tId}, ${sanitizeAtom(tag)}).`);
+        }
+      }
+    }
+    parts.push('');
+  }
+
+  // ── Residence facts ──
+  const residences = worldData?.residences || [];
+  if (residences.length > 0) {
+    parts.push('% === Residence Facts ===');
+    for (const res of residences) {
+      const rId = sanitizeAtom(res.id || res._id?.toString());
+      parts.push(`residence(${rId}).`);
+      if (res.settlementId) parts.push(`residence_of_settlement(${rId}, ${sanitizeAtom(res.settlementId)}).`);
+      if (res.lotId) parts.push(`residence_on_lot(${rId}, ${sanitizeAtom(res.lotId)}).`);
+      if (res.address) parts.push(`residence_address(${rId}, '${escapeAtom(res.address)}').`);
+      if (res.residenceType) parts.push(`residence_type(${rId}, ${sanitizeAtom(res.residenceType)}).`);
+      // Owners
+      if (Array.isArray(res.ownerIds)) {
+        for (const ownerId of res.ownerIds) {
+          parts.push(`residence_owner(${rId}, ${sanitizeAtom(ownerId)}).`);
+        }
+      }
+      // Residents
+      if (Array.isArray(res.residentIds)) {
+        for (const residentId of res.residentIds) {
+          parts.push(`lives_at(${sanitizeAtom(residentId)}, ${rId}).`);
+        }
+      }
+    }
+    parts.push('');
+  }
+
+  // ── Container facts ──
+  const containers = worldData?.containers || [];
+  if (containers.length > 0) {
+    parts.push('% === Container Facts ===');
+    for (const c of containers) {
+      const cId = sanitizeAtom(c.id || c._id?.toString());
+      parts.push(`container(${cId}).`);
+      if (c.name) parts.push(`container_name(${cId}, '${escapeAtom(c.name)}').`);
+      if (c.containerType) parts.push(`container_type(${cId}, ${sanitizeAtom(c.containerType)}).`);
+      if (c.capacity) parts.push(`container_capacity(${cId}, ${c.capacity}).`);
+      if (c.locked) parts.push(`container_locked(${cId}).`);
+      if (c.lockDifficulty) parts.push(`container_lock_difficulty(${cId}, ${c.lockDifficulty}).`);
+      if (c.keyItemId) parts.push(`container_key(${cId}, ${sanitizeAtom(c.keyItemId)}).`);
+      // Location
+      if (c.businessId) parts.push(`container_at_business(${cId}, ${sanitizeAtom(c.businessId)}).`);
+      if (c.residenceId) parts.push(`container_at_residence(${cId}, ${sanitizeAtom(c.residenceId)}).`);
+      if (c.lotId) parts.push(`container_on_lot(${cId}, ${sanitizeAtom(c.lotId)}).`);
+      // Contents
+      if (Array.isArray(c.items)) {
+        for (const item of c.items) {
+          if (item.itemName) {
+            parts.push(`container_contains(${cId}, '${escapeAtom(item.itemName)}', ${item.quantity || 1}).`);
+          }
+        }
+      }
+      if (c.respawns) parts.push(`container_respawns(${cId}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Public building facts ──
+  const publicBuildings = worldData?.publicBuildings || [];
+  if (publicBuildings.length > 0) {
+    parts.push('% === Public Building Facts ===');
+    for (const pb of publicBuildings) {
+      const pbId = sanitizeAtom(pb.id || pb._id?.toString());
+      parts.push(`public_building(${pbId}).`);
+      if (pb.name) parts.push(`public_building_name(${pbId}, '${escapeAtom(pb.name)}').`);
+      if (pb.publicBuildingType) parts.push(`public_building_type(${pbId}, ${sanitizeAtom(pb.publicBuildingType)}).`);
+      if (pb.settlementId) parts.push(`public_building_of_settlement(${pbId}, ${sanitizeAtom(pb.settlementId)}).`);
+      if (pb.lotId) parts.push(`public_building_on_lot(${pbId}, ${sanitizeAtom(pb.lotId)}).`);
+      if (pb.address) parts.push(`public_building_address(${pbId}, '${escapeAtom(pb.address)}').`);
+      if (pb.foundedYear) parts.push(`public_building_founded(${pbId}, ${pb.foundedYear}).`);
+      if (pb.isOperational !== undefined) parts.push(`public_building_operational(${pbId}, ${pb.isOperational}).`);
+      if (pb.capacity) parts.push(`public_building_capacity(${pbId}, ${pb.capacity}).`);
+      // Employees
+      if (Array.isArray(pb.employeeIds)) {
+        for (const empId of pb.employeeIds) {
+          parts.push(`public_building_employee(${pbId}, ${sanitizeAtom(empId)}).`);
+        }
+      }
+    }
+    parts.push('');
+  }
+
+  // ── Character relationship & knowledge facts (detailed) ──
+  parts.push('% === Character Relationships & Knowledge ===');
+  for (const char of characters) {
+    const id = sanitizeAtom(`${char.firstName}_${char.lastName}_${char.id}`);
+    // Friendships, coworkers, enemies
+    if (Array.isArray(char.friendIds)) {
+      for (const fid of char.friendIds) parts.push(`friends(${id}, ${sanitizeAtom(fid)}).`);
+    }
+    if (Array.isArray(char.coworkerIds)) {
+      for (const cid of char.coworkerIds) parts.push(`coworker(${id}, ${sanitizeAtom(cid)}).`);
+    }
+    if (Array.isArray(char.enemyIds)) {
+      for (const eid of char.enemyIds) parts.push(`enemies(${id}, ${sanitizeAtom(eid)}).`);
+    }
+    // Home/workplace
+    if (char.homeResidenceId) parts.push(`home(${id}, ${sanitizeAtom(char.homeResidenceId)}).`);
+    if (char.workplaceId) parts.push(`workplace(${id}, ${sanitizeAtom(char.workplaceId)}).`);
+    if (char.currentLocation) parts.push(`current_location(${id}, ${sanitizeAtom(char.currentLocation)}).`);
+    // Status
+    if (char.status) parts.push(`character_status(${id}, ${sanitizeAtom(char.status)}).`);
+    // Knowledge/mental model
+    if (char.knowledge && typeof char.knowledge === 'object') {
+      for (const [topic, value] of Object.entries(char.knowledge)) {
+        if (typeof value === 'string') {
+          parts.push(`knows(${id}, ${sanitizeAtom(topic)}, '${escapeAtom(value.slice(0, 200))}').`);
+        } else if (typeof value === 'boolean' && value) {
+          parts.push(`knows(${id}, ${sanitizeAtom(topic)}).`);
+        }
+      }
+    }
+    // Beliefs/opinions
+    if (char.mentalModel && typeof char.mentalModel === 'object') {
+      for (const [subject, opinion] of Object.entries(char.mentalModel)) {
+        if (typeof opinion === 'string') {
+          parts.push(`believes(${id}, ${sanitizeAtom(subject)}, '${escapeAtom(opinion.slice(0, 200))}').`);
+        }
+      }
+    }
+  }
+  parts.push('');
+
+  // ── Reputation helper rules ──
+  parts.push('% === Reputation Aggregation ===');
+  parts.push(':- dynamic(reputation_record/3).');
+  parts.push('% reputation(Player, Faction, Total) — aggregate all reputation changes');
+  parts.push('reputation(Player, Faction, Total) :-');
+  parts.push('    aggregate_all(sum(D), reputation_change(Player, Faction, D), Total).');
+  parts.push('reputation(Player, Faction, 0) :-');
+  parts.push('    \\+ reputation_change(Player, Faction, _).');
+  parts.push('');
 
   // Prolog content from rules (validate each individually, skip broken ones)
   let hasContent = false;

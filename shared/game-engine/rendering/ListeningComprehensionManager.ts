@@ -233,7 +233,26 @@ export class ListeningComprehensionManager {
     quest.evaluated = true;
 
     try {
-      const response = await fetch('/api/gemini/comprehension-evaluation', {
+      // Try SDK first, then direct fetch
+      let sdkResult: any = null;
+      try {
+        const { getInsimulClient } = await import('@shared/game-engine/InsimulClientRegistry');
+        const client = getInsimulClient();
+        if (client) {
+          sdkResult = await client.evaluateComprehension({
+            questions: quest.questions.map((q: string, i: number) => ({
+              question: q,
+              playerAnswer: quest.playerAnswers[i] || '',
+            })),
+            targetLanguage: quest.targetLanguage || 'the target language',
+            context: quest.storyText,
+          });
+        }
+      } catch { /* fall through */ }
+
+      const response = sdkResult
+        ? new Response(JSON.stringify(sdkResult), { status: 200, headers: { 'Content-Type': 'application/json' } })
+        : await fetch('/api/gemini/comprehension-evaluation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

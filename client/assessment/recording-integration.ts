@@ -42,80 +42,50 @@ export class RecordingIntegrationService {
     this._baseUrl = config.baseUrl ?? '';
   }
 
-  /** Create a new assessment session on the server. */
+  // TODO: All assessment lifecycle methods should be folded into the quest/Prolog system.
+  // Language assessments are special quests: quest_language(assessment_type, language).
+  // Results stored as Prolog facts instead of separate assessment API calls.
+  // Recording references can be stored as: recording(PlayerID, SessionID, PhaseID, BlobURL).
+
+  /** Create a new assessment session — stubbed pending Prolog integration. */
   async createSession(params: CreateSessionParams): Promise<AssessmentSession> {
-    const res = await fetch(`${this._baseUrl}/api/assessments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to create assessment session: ${res.status}`);
-    }
-    return res.json();
+    console.warn('[RecordingIntegration] createSession stubbed — TODO: integrate via quest_language Prolog predicates');
+    return { id: `stub-${Date.now()}`, ...params } as any;
   }
 
-  /** Persist a phase result (including transcript and recordings) to the server. */
+  /** Persist a phase result — stubbed pending Prolog integration. */
   async persistPhaseResult(sessionId: string, result: PhaseResult): Promise<AssessmentSession> {
-    const res = await fetch(`${this._baseUrl}/api/assessments/${sessionId}/phases/${result.phaseId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(result),
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to persist phase result: ${res.status}`);
-    }
-    return res.json();
+    console.warn('[RecordingIntegration] persistPhaseResult stubbed — TODO: store as Prolog fact');
+    return { id: sessionId } as any;
   }
 
-  /** Add a recording reference to the session. */
+  /** Add a recording reference — stubbed pending Prolog integration. */
   async addRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession> {
-    const res = await fetch(`${this._baseUrl}/api/assessments/${sessionId}/recordings`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recording),
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to add recording: ${res.status}`);
-    }
-    return res.json();
+    console.warn('[RecordingIntegration] addRecording stubbed — TODO: store as Prolog fact');
+    return { id: sessionId } as any;
   }
 
-  /** Mark the session as complete with final scores. */
+  /** Mark the session as complete — stubbed pending Prolog integration. */
   async completeSession(
     sessionId: string,
     totalScore: number,
     maxScore: number,
     cefrLevel: CEFRLevel,
   ): Promise<AssessmentSession> {
-    const res = await fetch(`${this._baseUrl}/api/assessments/${sessionId}/complete`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ totalScore, maxScore, cefrLevel }),
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to complete session: ${res.status}`);
-    }
-    return res.json();
+    console.warn('[RecordingIntegration] completeSession stubbed — TODO: store as Prolog fact');
+    return { id: sessionId, totalScore, maxScore, cefrLevel } as any;
   }
 
-  /** Fetch a session by ID. */
+  /** Fetch a session by ID — stubbed pending Prolog integration. */
   async getSession(sessionId: string): Promise<AssessmentSession | null> {
-    const res = await fetch(`${this._baseUrl}/api/assessments/${sessionId}`);
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      throw new Error(`Failed to fetch session: ${res.status}`);
-    }
-    return res.json();
+    console.warn('[RecordingIntegration] getSession stubbed — TODO: query Prolog facts');
+    return null;
   }
 
-  /** Fetch all sessions for a player. */
+  /** Fetch all sessions for a player — stubbed pending Prolog integration. */
   async getPlayerSessions(playerId: string): Promise<AssessmentSession[]> {
-    const res = await fetch(`${this._baseUrl}/api/assessments/player/${playerId}`);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch player sessions: ${res.status}`);
-    }
-    return res.json();
+    console.warn('[RecordingIntegration] getPlayerSessions stubbed — TODO: query Prolog facts');
+    return [];
   }
 
   /**

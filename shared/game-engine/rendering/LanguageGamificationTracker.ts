@@ -618,6 +618,9 @@ export class LanguageGamificationTracker {
   private syncTimer: ReturnType<typeof setTimeout> | null = null;
   private worldId: string | null = null;
   private playthroughId: string | null = null;
+  private _dataSource: any | null = null;
+
+  public setDataSource(ds: any): void { this._dataSource = ds; }
 
   public setWorldId(worldId: string): void {
     this.worldId = worldId;
@@ -642,15 +645,15 @@ export class LanguageGamificationTracker {
   private async doSync(): Promise<void> {
     if (!this.worldId) return;
     try {
-      await fetch('/api/xp/experiences/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          worldId: this.worldId,
-          ...(this.playthroughId ? { playthroughId: this.playthroughId } : {}),
-          totalXP: this.state.xp.totalXP,
-          level: this.state.xp.level,
-        }),
+      if (!this._dataSource) throw new Error('No dataSource — save file not loaded');
+      await this._dataSource.saveLanguageProgress({
+        playerId: 'player',
+        worldId: this.worldId,
+        playthroughId: this.playthroughId,
+        progress: { totalXP: this.state.xp.totalXP, level: this.state.xp.level },
+        vocabulary: [],
+        grammarPatterns: [],
+        conversations: [],
       });
     } catch (e) {
       console.warn('[LanguageGamificationTracker] XP sync failed:', e);
@@ -693,8 +696,8 @@ export class LanguageGamificationTracker {
       clearTimeout(this.syncTimer);
       this.syncTimer = null;
     }
-    // Final sync before dispose
-    this.doSync();
+    // Best-effort final sync (fire-and-forget; may fail if auth is gone)
+    this.doSync().catch(() => {});
     this.unsubscribeFromEventBus();
     this.onXPGain = null;
     this.onLevelUp = null;

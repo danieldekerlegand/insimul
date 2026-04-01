@@ -64,6 +64,8 @@ func generate_interior(building_data: Dictionary) -> Node3D:
 	var floors: int = spec.get("floors", 1)
 	var role: String = spec.get("buildingRole", "residential")
 	var bld_id: String = building_data.get("id", "unknown")
+	## Map furniture type → asset file path. Overrides default procedural models.
+	var furn_assets: Dictionary = building_data.get("interiorConfig", {}).get("furnitureAssets", {})
 
 	var interior := Node3D.new()
 	interior.name = "Interior_%s" % bld_id
@@ -75,7 +77,7 @@ func generate_interior(building_data: Dictionary) -> Node3D:
 		var rooms := _compute_room_layout(width, depth, role, floor_idx, floors)
 
 		for room in rooms:
-			_generate_room(interior, room, floor_y, surfaces, bld_id)
+			_generate_room(interior, room, floor_y, surfaces, bld_id, furn_assets)
 
 		# Add stairs between floors
 		if floor_idx < floors - 1:
@@ -139,7 +141,7 @@ func _compute_room_layout(width: float, depth: float, role: String,
 	return rooms
 
 func _generate_room(parent: Node3D, room: Dictionary, floor_y: float,
-		surfaces: Dictionary, bld_id: String) -> void:
+		surfaces: Dictionary, bld_id: String, furniture_assets: Dictionary = {}) -> void:
 	var rw: float = room["width"]
 	var rd: float = room["depth"]
 	var ox: float = room["offset_x"]
@@ -199,13 +201,13 @@ func _generate_room(parent: Node3D, room: Dictionary, floor_y: float,
 		wall.name = "BackPartition"
 		room_node.add_child(wall)
 
-	# Place furniture
-	_place_room_furniture(room_node, room_func, rw, rd, bld_id)
+	# Place furniture — pass furniture_assets override map if present in building config
+	_place_room_furniture(room_node, room_func, rw, rd, bld_id, furniture_assets)
 
 	parent.add_child(room_node)
 
 func _place_room_furniture(room_node: Node3D, room_func: String,
-		rw: float, rd: float, bld_id: String) -> void:
+		rw: float, rd: float, bld_id: String, furniture_assets: Dictionary = {}) -> void:
 	var furniture_list: Array = ROOM_FURNITURE.get(room_func, [])
 	if furniture_list.is_empty():
 		return
@@ -219,7 +221,17 @@ func _place_room_furniture(room_node: Node3D, room_func: String,
 			break
 
 		var pos := _get_furniture_position(furn_type, rw, rd, placed, rng)
-		var furn := _create_furniture_mesh(furn_type)
+		var furn: Node3D
+		# Check for asset override: load custom model if furnitureAssets maps this type
+		var asset_path: String = furniture_assets.get(furn_type, "")
+		if asset_path != "" and ResourceLoader.exists(asset_path):
+			var scene: PackedScene = load(asset_path)
+			if scene:
+				furn = scene.instantiate()
+			else:
+				furn = _create_furniture_mesh(furn_type)
+		else:
+			furn = _create_furniture_mesh(furn_type)
 		furn.position = pos
 		room_node.add_child(furn)
 		placed += 1

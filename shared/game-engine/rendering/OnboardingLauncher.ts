@@ -63,6 +63,8 @@ export interface OnboardingLauncherDeps {
   playerId: string;
   authToken: string;
   targetLanguage: string;
+  dataSource?: any;
+  prologEngine?: any;
   guiManager: {
     advancedTexture: any;
     showToast(opts: { title: string; description?: string; variant?: string; duration?: number }): void;
@@ -84,21 +86,16 @@ export async function isFirstPlaythrough(
   worldId: string,
   playerId: string,
   authToken: string,
+  dataSource?: any,
 ): Promise<boolean> {
   try {
-    const res = await fetch(
-      `/api/assessments/player/${playerId}?worldId=${encodeURIComponent(worldId)}`,
-      { headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} },
-    );
-    if (!res.ok) return true; // If endpoint not available yet, treat as first run
-    const sessions = await res.json();
-    // If there's a completed arrival assessment, player has done onboarding before
-    const hasCompleted = Array.isArray(sessions) && sessions.some(
+    if (!dataSource) throw new Error('No dataSource — save file not loaded');
+    const assessments = await dataSource.getPlayerAssessments(playerId, worldId);
+    const hasCompleted = Array.isArray(assessments) && assessments.some(
       (s: any) => s.assessmentType === 'arrival' && s.status === 'complete',
     );
     return !hasCompleted;
   } catch {
-    // Network error or module not deployed — default to first playthrough
     return true;
   }
 }
@@ -185,11 +182,12 @@ export async function launchOnboarding(
     console.warn('[OnboardingLauncher] Failed to create assessment modal UI:', err);
   }
 
-  // Create assessment engine with event bus for conversation detection
+  // Create assessment engine with event bus and Prolog engine for fact assertion
   const assessmentEngine: AssessmentEngine = new AssessmentEngineClass({
     authToken,
     targetLanguage,
     eventBus,
+    prologEngine: deps.prologEngine ?? null,
   });
 
   // Track current phase so we can advance the progress UI correctly
@@ -247,7 +245,7 @@ export async function launchOnboarding(
   });
 
   // Find the existing assessment quest (created in the world editor) so it appears in the quest log (J key)
-  const assessmentQuestId = await findAssessmentQuest(worldId, authToken);
+  const assessmentQuestId = await findAssessmentQuest(worldId, authToken, deps.dataSource);
 
   // Return a promise that resolves when the full onboarding completes
   return new Promise<OnboardingLaunchResult | null>((resolve) => {
@@ -271,7 +269,7 @@ export async function launchOnboarding(
       // Quest completion is tracked via assessment_completed event for now.
 
       // Store CEFR level on the server
-      storeCefrLevel(worldId, playerId, authToken, result.cefrLevel, result.totalScore, result.totalMaxScore);
+      storeCefrLevel(worldId, playerId, authToken, result.cefrLevel, result.totalScore, result.totalMaxScore, deps.dataSource);
     });
 
     // Create and start onboarding manager
@@ -355,14 +353,11 @@ export async function launchOnboarding(
 async function findAssessmentQuest(
   worldId: string,
   authToken: string,
+  dataSource?: any,
 ): Promise<string | null> {
   try {
-    const res = await fetch(`/api/worlds/${worldId}/quests`, {
-      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-    });
-    if (!res.ok) return null;
-
-    const quests = await res.json();
+    if (!dataSource) throw new Error('No dataSource — save file not loaded');
+    const quests = await dataSource.loadQuests(worldId);
     const { isArrivalAssessmentQuest } = await import(
       '@shared/services/assessment-quest-bridge-shared.ts'
     );
@@ -392,6 +387,7 @@ async function storeCefrLevel(
   cefrLevel: string,
   totalScore: number,
   totalMaxScore: number,
+  dataSource?: any,
 ): Promise<void> {
   // Map CEFR to an effectiveFluency percentage (0-100)
   const cefrToFluency: Record<string, number> = {
@@ -403,18 +399,14 @@ async function storeCefrLevel(
   const effectiveFluency = cefrToFluency[cefrLevel] ?? 10;
 
   try {
-    await fetch(`/api/worlds/${worldId}/players/${playerId}/language-profile`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        cefrLevel,
-        effectiveFluency,
-        assessmentScore: totalScore,
-        assessmentMaxScore: totalMaxScore,
-      }),
+    if (!dataSource) throw new Error('No dataSource — save file not loaded');
+    await dataSource.saveLanguageProgress({
+      playerId,
+      worldId,
+      progress: { cefrLevel, effectiveFluency, assessmentScore: totalScore, assessmentMaxScore: totalMaxScore },
+      vocabulary: [],
+      grammarPatterns: [],
+      conversations: [],
     });
     console.log('[OnboardingLauncher] CEFR level stored:', cefrLevel, 'fluency:', effectiveFluency);
   } catch (err) {

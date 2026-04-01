@@ -272,8 +272,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register authentication routes
   registerAuthRoutes(app);
 
-  // Register playthrough routes
+  // Register playthrough routes (legacy — will be replaced by save file routes)
   registerPlaythroughRoutes(app);
+
+  // Register unified save file routes
+  const { registerSaveFileRoutes } = await import('./routes/save-file-routes.js');
+  registerSaveFileRoutes(app);
 
   // Register game export routes (IR generation, engine export)
   registerExportRoutes(app);
@@ -1350,10 +1354,14 @@ app.get("/api/rules", async (req, res) => {
   // Characters
   app.get("/api/worlds/:worldId/characters", async (req, res) => {
     try {
-      const characters = await storage.getCharactersByWorld(req.params.worldId);
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const aliveOnly = req.query.alive === 'true';
+      const characters = await storage.getCharactersByWorld(req.params.worldId, { limit, offset, aliveOnly });
       res.json(characters);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch characters" });
+      console.error("Failed to fetch characters:", error);
+      res.status(500).json({ error: "Failed to fetch characters", details: (error as Error).message });
     }
   });
 
@@ -9085,8 +9093,8 @@ Respond with this JSON structure:
   // Note: sync-defaults endpoint removed - 3D assets are now managed through asset collections
   // Users can populate collections via the Polyhaven browser UI (Auto-Select Assets feature)
 
-  // Truths
-  app.get("/api/worlds/:worldId/truth", async (req, res) => {
+  // Truths (support both singular and plural)
+  app.get("/api/worlds/:worldId/truths?", async (req, res) => {
     try {
       const playthroughId = req.query.playthroughId as string | undefined;
       const entries = playthroughId
