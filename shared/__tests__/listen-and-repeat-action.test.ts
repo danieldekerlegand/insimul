@@ -7,7 +7,7 @@ import {
   executeListenAndRepeat,
   calculateXp,
   type ListenAndRepeatPhrase,
-} from '../../client/src/components/3DGame/actions/ListenAndRepeatAction';
+} from '../game-engine/logic/actions/ListenAndRepeatAction';
 import type { ActionContext } from '../game-engine/types';
 
 const TEST_PHRASE: ListenAndRepeatPhrase = {

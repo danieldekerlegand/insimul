@@ -153,10 +153,10 @@ describe('ListenAndRepeatController', () => {
       expect(callbacks.showNotification).toHaveBeenCalledTimes(3);
     });
 
-    it('emits utterance_evaluated and action_executed events', async () => {
+    it('emits utterance_evaluated, pronunciation_attempt, and action_executed events', async () => {
       await controller.attempt(TEST_PHRASE);
 
-      expect(callbacks.emitEvent).toHaveBeenCalledTimes(2);
+      expect(callbacks.emitEvent).toHaveBeenCalledTimes(3);
       const calls = (callbacks.emitEvent as any).mock.calls;
 
       const utteranceEvent = calls[0][0];
@@ -164,7 +164,11 @@ describe('ListenAndRepeatController', () => {
       expect(utteranceEvent.score).toBe(100);
       expect(utteranceEvent.passed).toBe(true);
 
-      const actionEvent = calls[1][0];
+      const pronEvent = calls[1][0];
+      expect(pronEvent.type).toBe('pronunciation_attempt');
+      expect(pronEvent.passed).toBe(true);
+
+      const actionEvent = calls[2][0];
       expect(actionEvent.type).toBe('action_executed');
       expect(actionEvent.actionName).toBe('listen_and_repeat');
       expect(actionEvent.actorId).toBe('player');
@@ -224,7 +228,7 @@ describe('ListenAndRepeatController', () => {
 
     it('emits events for text-based attempts', () => {
       controller.attemptFromText(TEST_PHRASE, 'Bonjour comment allez-vous');
-      expect(callbacks.emitEvent).toHaveBeenCalledTimes(2);
+      expect(callbacks.emitEvent).toHaveBeenCalledTimes(3);
     });
 
     it('shows a notification with the score', () => {
