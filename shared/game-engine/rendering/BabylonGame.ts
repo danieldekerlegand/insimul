@@ -198,6 +198,7 @@ import { NPCAccessorySystem } from "@shared/game-engine/rendering/NPCAccessorySy
 import { InteractionPromptSystem } from "@shared/game-engine/rendering/InteractionPromptSystem";
 import { FurnitureInteractionManager } from "@shared/game-engine/rendering/FurnitureInteractionManager";
 import { PlayerActionSystem } from "@shared/game-engine/rendering/PlayerActionSystem";
+import { generateWorldHotspots, getHotspotPromptText, type NatureMeshInfo } from "@shared/game-engine/logic/ActionHotspotIntegration";
 import { ResidenceActivitySystem, type BedSleepData } from "@shared/game-engine/logic/ResidenceActivitySystem";
 import { FishingSystem } from "@shared/game-engine/logic/FishingSystem";
 import { WorldObjectActionManager } from "@shared/game-engine/logic/WorldObjectActionManager";
@@ -772,6 +773,8 @@ export class BabylonGame {
   // Furniture interaction manager — chairs, beds, bookshelves, workstations
   private furnitureInteractionManager: FurnitureInteractionManager | null = null;
   private playerActionSystem: PlayerActionSystem | null = null;
+  /** Outdoor action hotspot marker meshes (fishing, mining, herbalism, etc.) */
+  private outdoorHotspotMeshes: AbstractMesh[] = [];
   private fishingSystem: FishingSystem | null = null;
 
   // World Object Action Manager — wires identify/examine/point-and-name/read-sign to world objects
@@ -6715,6 +6718,45 @@ export class BabylonGame {
     if (this.roadGenerator) {
       const rg = this.roadGenerator;
       natureGenerator.removeRoadOverlaps((x, z) => rg.isPointOnRoad(x, z, 1.5));
+    }
+
+    // Generate outdoor action hotspots from buildings + nature features
+    if (this.interactionPrompt && natureGenerator && scene) {
+      const natureMeshInfos: NatureMeshInfo[] = [];
+      for (const mesh of natureGenerator.getTreeMeshes()) {
+        const pos = mesh.getAbsolutePosition();
+        natureMeshInfos.push({ id: mesh.uniqueId.toString(), type: 'tree', position: { x: pos.x, z: pos.z } });
+      }
+      for (const mesh of natureGenerator.getRockMeshes()) {
+        const pos = mesh.getAbsolutePosition();
+        natureMeshInfos.push({ id: mesh.uniqueId.toString(), type: 'rock', position: { x: pos.x, z: pos.z } });
+      }
+
+      const hotspots = generateWorldHotspots(this.buildingData as Map<string, any>, natureMeshInfos);
+      for (const hotspot of hotspots) {
+        // Skip interior-only action types (handled by furniture registration)
+        if (['cooking', 'crafting', 'reading', 'praying', 'sweeping', 'painting'].includes(hotspot.actionType)) continue;
+
+        const y = sampleHeight(hotspot.position.x, hotspot.position.z);
+        const marker = MeshBuilder.CreateCylinder(`hotspot-${hotspot.id}`, { height: 0.15, diameter: 1.2 }, scene);
+        marker.position.set(hotspot.position.x, y + 0.1, hotspot.position.z);
+        marker.isPickable = true;
+        marker.metadata = { isActionHotspot: true, actionType: hotspot.actionType, hotspotId: hotspot.id, vocabulary: hotspot.vocabulary };
+
+        // Semi-transparent tinted marker
+        const mat = new StandardMaterial(`hotspot-mat-${hotspot.id}`, scene);
+        mat.diffuseColor = new Color3(0.2, 0.8, 0.4);
+        mat.alpha = 0.5;
+        mat.emissiveColor = new Color3(0.1, 0.4, 0.2);
+        marker.material = mat;
+
+        const prompt = getHotspotPromptText(hotspot.actionType);
+        this.interactionPrompt.registerActionHotspot(marker, hotspot.actionType, prompt);
+        this.outdoorHotspotMeshes.push(marker);
+      }
+      if (this.outdoorHotspotMeshes.length > 0) {
+        console.log(`[ActionHotspots] Registered ${this.outdoorHotspotMeshes.length} outdoor hotspots`);
+      }
     }
 
     // Ambient animals (cats, dogs, birds) for world ambiance
@@ -16334,6 +16376,9 @@ export class BabylonGame {
     this.buildingData.forEach(({ mesh }) => mesh.dispose());
     this.buildingData.clear();
     this.settlementStats.clear();
+
+    for (const mesh of this.outdoorHotspotMeshes) mesh.dispose();
+    this.outdoorHotspotMeshes = [];
 
     // Dispose building entry system, interior NPCs, and interiors
     this.interiorNPCManager?.dispose();
