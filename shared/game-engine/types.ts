@@ -1505,6 +1505,8 @@ export interface GameSaveState {
   photoBook?: SavedPhotoBookState;
   /** Serialized Prolog gameplay facts (canonical truth state) */
   prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
+  /** Serialized ClueStore state (investigation clues) */
+  clueState?: any;
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
 }

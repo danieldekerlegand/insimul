@@ -401,3 +401,32 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
   - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
 ---
+
+## 2026-04-01 - Audit: Journal and Case Notes with Main Quest Progress
+- Audited the full journal/case notes/clue pipeline: ClueStore, MainQuestProgressionManager, GameMenuSystem, BabylonGame wiring
+- **Gaps found and fixed:**
+  1. **No clue discovery notification** — Added `clue_discovered` event listener in BabylonGame.initClueStore() that shows a "New Clue Discovered!" toast with progress count
+  2. **Chapter gating never wired** — ClueStore.setAllowedChapters() existed but was never called; added syncClueStoreChapterGating() method called after every fetchMainQuestJournalData() to sync active/completed chapter IDs
+  3. **Eavesdrop not connected to ClueStore** — addEavesdropClue() existed but was never called; wired npc_conversation_turn events to clueStore.addEavesdropClue()
+  4. **ClueStore not in save/load pipeline** — Clues were lost between sessions; added clueState to GameSaveState, GameStateSource/Target interfaces, SUBSYSTEM_KEYS, captureState/applyState, SaveConflictResolver subsystem list, and BabylonGame source/target implementations
+- **Existing working parts verified:**
+  - Case notes ARE generated on quest progress (MainQuestProgressionManager.recordQuestCompletion calls addCaseNote)
+  - Journal tab in GameMenuSystem renders case notes with categories and day numbers
+  - Clues tab renders evidence board with category filters, connections, and chapter grouping
+  - fetchMainQuestJournalData IS called after quest completions (line 14038) and CEFR unlocks (line 4016)
+  - ClueStore correctly auto-discovers clues from text_collected, conversation_turn, photo_taken, location_visited, investigation_completed, location_discovered events
+- Files changed:
+  - `shared/game-engine/rendering/BabylonGame.ts` — clue_discovered toast, eavesdrop→ClueStore wiring, syncClueStoreChapterGating, save/load integration
+  - `shared/game-engine/types.ts` — added clueState to GameSaveState
+  - `client/src/components/3DGame/WorldStateManager.ts` — getClueState/restoreClueState in interfaces, SUBSYSTEM_KEYS, captureState, applyState, computeDiff
+  - `shared/game-engine/logic/SaveConflictResolver.ts` — added clueState to subsystem merge list
+  - `shared/game-engine/drift-manifest.json` — updated hash for types.ts
+  - `shared/__tests__/journal-case-notes-integration.test.ts` — 18 new tests
+- **Learnings for future iterations:**
+  - ClueStore chapter gating is opt-in: if setAllowedChapters is never called (empty set), all clues pass through
+  - Case notes are stored server-side in main_quest_state truth (via MainQuestProgressionManager.saveMainQuestState), not in GameSaveState
+  - ClueStore state is purely client-side/in-memory — needs GameSaveState for persistence
+  - BabylonGame's journal data is fetched from server and cached in mainQuestJournalData — it's not a live view
+  - Existing ClueStore.test.ts at shared/game-engine/rendering/__tests__/ is NOT in the vitest include glob — tests there don't run
+  - The `npc_conversation_turn` event only has npcId and topicTag, not the second NPC's identity
+---

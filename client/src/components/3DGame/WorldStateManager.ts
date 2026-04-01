@@ -68,6 +68,7 @@ export interface GameStateSource {
   getMainQuestState?(): SavedMainQuestState;
   getPhotoBookState?(): SavedPhotoBookState;
   getPrologFacts?(): Array<{ predicate: string; args: Array<string | number> }>;
+  getClueState?(): any;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -101,6 +102,7 @@ export interface GameStateTarget {
   restoreMainQuestState?(data: SavedMainQuestState): void;
   restorePhotoBookState?(data: SavedPhotoBookState): void;
   restorePrologFacts?(data: Array<{ predicate: string; args: Array<string | number> }>): void;
+  restoreClueState?(data: any): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -145,6 +147,7 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'mainQuestState',
   'photoBook',
   'prologFacts',
+  'clueState',
 ];
 
 export interface SaveStateAuditResult {
@@ -351,6 +354,7 @@ export class WorldStateManager {
       mainQuestState: src.getMainQuestState?.() ?? undefined,
       photoBook: src.getPhotoBookState?.() ?? undefined,
       prologFacts: src.getPrologFacts?.() ?? undefined,
+      clueState: src.getClueState?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -377,7 +381,7 @@ export class WorldStateManager {
       'interiorState', 'timeState', 'questActiveState',
       'languageProgressDetailed', 'reputationState',
       'relationshipDeltas', 'mainQuestState', 'photoBook',
-      'prologFacts',
+      'prologFacts', 'clueState',
     ];
 
     for (const field of fieldsToCompare) {
@@ -590,6 +594,9 @@ export class WorldStateManager {
     }
     if (state.prologFacts != null) {
       target.restorePrologFacts?.(state.prologFacts);
+    }
+    if (state.clueState != null) {
+      target.restoreClueState?.(state.clueState);
     }
   }
 
