@@ -460,3 +460,26 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `recordQuestCompletion` flow: BabylonGame.onQuestCompleted → quest.questType → API → progressionManager.recordQuestCompletion → mapping → chapter objective match
   - Pre-existing bug: `playthrough-truth-isolation.test.ts` also constructs `MainQuestProgressionManager()` with no args — same storage issue, unrelated to this change
 ---
+
+## 2026-04-01 - Farming System Implementation
+- Created `shared/game-engine/logic/FarmingSystem.ts` — full farming system following FishingSystem/HerbalismSystem pattern
+- 6 crop types with French names and language learning data: wheat (blé), corn (maïs), potato (pomme de terre), carrot (carotte), tomato (tomate), fine herbs (herbes fines)
+- Crop lifecycle: plant → water (daily, 1.5x growth bonus) → grow (over configurable days) → harvest
+- Farming skill progression (levels 0-10 with cumulative XP thresholds)
+- Yield bonus system: base yield + watering bonus + skill bonus
+- Full serialization/restore for save/load support
+- GameEventBus integration: responds to physical_action_completed (farm_plant/farm_water/farm_harvest) and day_changed events
+- Emits item_collected events on harvest with crop taxonomy
+- Updated action-matrix.ts: farm_plant, farm_water, farm_harvest status changed from 'partial' to 'implemented'
+- Created `shared/__tests__/farming-system.test.ts` — 24 vitest tests covering planting, watering, growth, harvesting, skill progression, serialization, event bus integration, query helpers, and dispose
+- Files changed:
+  - `shared/game-engine/logic/FarmingSystem.ts` — new file (530 lines)
+  - `shared/__tests__/farming-system.test.ts` — new file (24 tests)
+  - `shared/game-engine/action-matrix.ts` — 3 status changes: partial → implemented
+- **Learnings for future iterations:**
+  - Use `Array.from(map.values())` for Map iteration to avoid TS2802 downlevelIteration errors
+  - day_changed event uses `event.day` (not `event.newDay`) and also has `event.timestep`
+  - Vitest tests go in `shared/__tests__/` (not alongside source files) — vitest.config.ts only includes `__tests__` directories
+  - FishingSystem/HerbalismSystem/FarmingSystem all follow identical callback pattern: showToast + addInventoryItem + optional hasInventoryItem
+  - Crop growth uses watered-previous-day pattern: watering on day N boosts growth on day N+1
+---
