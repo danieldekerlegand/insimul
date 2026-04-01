@@ -2,6 +2,30 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## 2026-04-01 - Audit: Quest Reward and Progression Flow
+- **Audit findings**: Quest completion endpoint had 3 gaps in reward/progression flow:
+  1. Item rewards defined on quests (`itemRewards`) were never persisted to player inventory on the server side
+  2. Completing a quest did NOT auto-unlock dependent quests (those with `prerequisiteQuestIds` pointing to it)
+  3. Quest chain completion bonus XP was calculated and returned in API response but never applied to player's actual XP total
+- **Fixes applied**:
+  - Created `shared/quests/quest-completion-rewards.ts` with 3 pure functions: `grantItemRewards()`, `findQuestsToUnlock()`, `applyChainBonusXP()`
+  - Updated quest completion endpoint (`server/routes.ts`) to:
+    - Persist item rewards to `playerProgress.saveData.inventory` (merging with existing items)
+    - Scan all world quests for `prerequisiteQuestIds` containing the completed quest, unlock when all prereqs met
+    - Apply chain completion bonus XP to `playerProgress.experience` via `applyChainBonusXP()`
+  - Added `itemRewards` and `questsUnlocked` fields to API response
+- **Tests added**: 19 tests covering all 3 functions (item granting, prerequisite unlocking, chain bonus XP)
+- Files changed:
+  - `shared/quests/quest-completion-rewards.ts` — new shared module with pure testable functions
+  - `shared/__tests__/quest-completion-rewards.test.ts` — 19 tests for the 3 functions
+  - `server/routes.ts` — quest completion endpoint updated with all 3 fixes
+- **Learnings for future iterations:**
+  - Item rewards are stored in `playerProgress.saveData.inventory` (jsonb), not as separate DB entities
+  - `prerequisiteQuestIds` is an array of quest IDs on the quest schema — completing one quest should check all world quests for dependencies
+  - Chain completion bonus XP comes from `extractChainMeta()` in quest-chain-manager — encoded in quest tags
+  - The quest completion endpoint is at line ~9661 in routes.ts and handles: XP/gold, skill rewards, item rewards, vocab unlocks, prerequisite unlocking, depletion, chain completion
+---
+
 ## 2026-04-01 - Audit: Conversation Action Registration → Quest Objective Completion
 - Created comprehensive audit test suite: `shared/__tests__/ConversationActionQuestCompletion.test.ts` (51 tests)
 - Verified all 5 conversational action types map to correct objective types:
