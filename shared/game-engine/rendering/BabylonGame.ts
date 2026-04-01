@@ -2868,32 +2868,35 @@ export class BabylonGame {
       this.eventBus.emit({ type: 'conversation_turn_counted', npcId: turnState.npcId, totalTurns: turnState.totalTurns, meaningfulTurns: turnState.meaningfulTurns });
     });
     this.chatPanel.setOnListenAndRepeat((result: any) => {
-      // Emit listen & repeat events to the game event bus for quest tracking
-      if (result.type === 'utterance_evaluated') {
-        this.eventBus.emit(result);
-      } else if (result.type === 'action_executed') {
-        this.eventBus.emit(result);
-      } else {
-        // RepeatAttemptResult — emit both utterance and action events
-        this.eventBus.emit({
-          type: 'utterance_evaluated',
-          objectiveId: result.phrase?.phraseId || '',
-          input: result.playerSpoken || '',
-          score: result.score || 0,
-          passed: result.passed || false,
-          feedback: result.feedback || '',
-        });
-        this.eventBus.emit({
-          type: 'action_executed',
-          actionName: 'listen_and_repeat',
-          actorId: 'player',
-          targetId: result.phrase?.npcId || '',
-          targetName: result.phrase?.npcName || '',
-          category: 'language',
-          result: result.passed ? 'success' : 'failure',
-          xpGained: result.xpAwarded || 0,
-        });
+      // Skip individual controller events — we handle the RepeatAttemptResult directly
+      if (result.type === 'utterance_evaluated' || result.type === 'action_executed' || result.type === 'pronunciation_attempt') {
+        return;
       }
+      // RepeatAttemptResult — emit events for quest tracking
+      this.eventBus.emit({
+        type: 'utterance_evaluated',
+        objectiveId: result.phrase?.phraseId || '',
+        input: result.playerSpoken || '',
+        score: result.score || 0,
+        passed: result.passed || false,
+        feedback: result.feedback || '',
+      });
+      this.eventBus.emit({
+        type: 'action_executed',
+        actionName: 'listen_and_repeat',
+        actorId: 'player',
+        targetId: result.phrase?.npcId || '',
+        targetName: result.phrase?.npcName || '',
+        category: 'language',
+        result: result.passed ? 'success' : 'failure',
+        xpGained: result.xpAwarded || 0,
+      });
+      // Emit listen_and_repeat_passed for QuestCompletionEngine objective tracking
+      this.eventBus.emit({
+        type: 'listen_and_repeat_passed',
+        passed: result.passed || false,
+        phrase: result.phrase?.targetPhrase || '',
+      });
     });
     this.chatPanel.setOnNPCSpeechUpdate((text: string) => {
       // Update the speech bubble above the NPC with the latest response text

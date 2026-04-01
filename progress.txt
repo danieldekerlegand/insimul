@@ -401,3 +401,23 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
   - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
 ---
+
+## 2026-04-01 - Audit: Listen-and-Repeat System
+- **Critical bug found and fixed**: BabylonGame.ts `setOnListenAndRepeat` callback emitted `utterance_evaluated` and `action_executed` events but NOT `listen_and_repeat_passed`, which is the event QuestCompletionEngine handles for listen_and_repeat objectives. Quest objectives could never complete.
+- **Fix**: Added `listen_and_repeat_passed` event emission in BabylonGame.ts callback
+- **Duplicate event fix**: Controller's individual events (`utterance_evaluated`, `pronunciation_attempt`, `action_executed`) were being forwarded through BabylonChatPanel's `emitEvent` callback AND the final RepeatAttemptResult was also sent through the same `onListenAndRepeat` callback, causing duplicate event emission. Fixed by filtering out individual controller events in BabylonGame callback (they have `.type` fields matching known event types)
+- **Broken test import fix**: `listen-and-repeat-action.test.ts` imported from non-existent `../../client/src/components/3DGame/actions/ListenAndRepeatAction` — fixed to `../game-engine/logic/actions/ListenAndRepeatAction`
+- **Updated controller test expectations**: Tests expected 2 emitEvent calls but controller emits 3 (includes `pronunciation_attempt`); updated to 3
+- **Created E2E integration test**: `shared/__tests__/listen-and-repeat-e2e.test.ts` — 15 tests covering full pipeline from controller through BabylonGame callback to QCE objective completion
+- Files changed:
+  - `shared/game-engine/rendering/BabylonGame.ts` — fixed setOnListenAndRepeat callback: skip individual controller events, emit listen_and_repeat_passed
+  - `shared/__tests__/listen-and-repeat-action.test.ts` — fixed import path
+  - `shared/__tests__/listen-and-repeat-controller.test.ts` — updated emitEvent call count expectations
+  - `shared/__tests__/listen-and-repeat-e2e.test.ts` — new E2E integration test
+- **Learnings for future iterations:**
+  - ListenAndRepeatController.emitEvents() fires 3 events (utterance_evaluated, pronunciation_attempt, action_executed) via the emitEvent callback, AND BabylonChatPanel also passes the RepeatAttemptResult through the same onListenAndRepeat callback — always check for duplicate routing
+  - QCE event types must match exactly — `listen_and_repeat_passed` is the only type that triggers trackListenAndRepeat()
+  - BabylonChatPanel.ts lines 637-681: controller instantiation with TTS/STT/notification callbacks
+  - BabylonGame.ts line 2870: setOnListenAndRepeat wiring
+  - QCE line 449: listen_and_repeat_passed handler; line 646: trackListenAndRepeat method (requires `passed=true`, default requiredCount=3)
+---
