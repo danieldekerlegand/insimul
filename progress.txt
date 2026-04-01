@@ -401,3 +401,20 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
   - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
 ---
+
+## 2026-04-01 - Audit: Watch/Observe Quests
+- Audited the full observe/watch quest pipeline from NPCActivityLabelSystem → ActivityObservationRewards → QuestCompletionEngine
+- **Bug 1 Fixed**: Objective type normalization — aliases like `watch_npc`, `observe`, `watch_activity`, `overhear`, `overhear_conversation` were defined in quest-objective-types.ts but never applied in QuestCompletionEngine. Added normalization in `addQuest()` so all aliases resolve to canonical types.
+- **Bug 2 Fixed**: Eavesdrop event not emitted — `endEavesdrop()` in BabylonGame.ts only awarded XP via gamificationTracker but never emitted an `eavesdrop` CompletionEvent. Added event emission to QCE so eavesdrop quest objectives can complete.
+- **Bug 3 Fixed**: ActivityObservationRewards not wired — the class existed but was never instantiated in BabylonGame.ts. Initialized it with vocabulary teaching and toast callbacks, wired into the `onActivityObserved` callback alongside the existing QCE tracking.
+- Files changed:
+  - `shared/game-engine/logic/QuestCompletionEngine.ts` — import normalizeObjectiveType, normalize in addQuest()
+  - `shared/game-engine/rendering/BabylonGame.ts` — import + init ActivityObservationRewards, emit eavesdrop event in endEavesdrop(), cleanup in dispose
+  - `shared/__tests__/observe-watch-audit.test.ts` — new test file (17 tests)
+- **Learnings for future iterations:**
+  - QCE is fed events directly (not via GameEventBus subscription) — always use `engine.trackEvent()` for quest tracking
+  - `normalizeObjectiveType()` from quest-objective-types.ts is the single source of truth for type aliases
+  - ActivityObservationRewards emits to GameEventBus (for other systems) but QCE needs direct `trackEvent()` calls
+  - The eavesdrop loop doesn't extract topics from conversation content — defaults to 'general' topic
+  - Pre-existing typecheck error: BabylonGame.ts line 13172 has `import('./QuestCompletionEngine')` that should be `import('../logic/QuestCompletionEngine')` (unrelated)
+---
