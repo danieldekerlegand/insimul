@@ -401,3 +401,32 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Array.from(new Set(...))` instead of `[...new Set(...)]` to avoid TS2802 downlevelIteration errors
   - Pre-existing test file error in test-context-manager.ts (missing getSettlementsByWorld/getResidence on mock storage) — unrelated
 ---
+
+## 2026-04-01 - E2E Audit: Main Quest "The Missing Writer"
+- **Critical bug found and fixed**: Chapter objective `questType` values (`use_vocabulary`, `complete_conversation`, `find_text`, etc.) did not match actual database quest `questType` values (`vocabulary`, `conversation`, `reading`, etc.). This meant `recordQuestCompletion()` could never match any objective — the main quest was **completely stuck and could never progress**.
+- Added `QUEST_TYPE_TO_OBJECTIVE_MAP` and `getObjectiveTypesForQuestType()` to `shared/quests/main-quest-progression.ts` — maps 15+ DB quest types to chapter objective types they can satisfy
+- Updated `recordQuestCompletion()` matching logic to use the mapping instead of exact string comparison
+- Rewrote and expanded `server/__tests__/main-quest-progression.test.ts` (51 tests, all passing):
+  - Fixed mock storage: old test called `new MainQuestProgressionManager()` with no args (class requires storage param)
+  - Fixed quest type strings: old test used `'vocabulary'`, `'collect_text'` without mapping — now uses correct DB quest types
+  - Fixed stale chapter IDs: old test referenced `'ch1_arrival'`, `'ch1_collect_vocabulary'` which no longer exist
+  - Added 8 new quest type mapping tests (coverage for all objective type → quest type paths)
+  - Added full E2E test: completes all 6 chapters start to finish with CEFR gating at every boundary
+  - Added case note generation test
+  - Added social/visual_vocabulary/navigation/translation/collection quest type tests
+- Files changed:
+  - `shared/quests/main-quest-progression.ts` — QUEST_TYPE_TO_OBJECTIVE_MAP, getObjectiveTypesForQuestType, updated matching logic
+  - `server/__tests__/main-quest-progression.test.ts` — complete rewrite with correct types and E2E coverage
+- **Audit findings summary:**
+  - All 9 chapter objective types now reachable via quest type mapping
+  - All 6 chapters completable in sequence with correct CEFR gating (A1→A1→A2→A2→B1→B2)
+  - Event bridges verified: all main quest event types (text_collected, writing_submitted, npc_relationship_changed, conversation_goal_evaluated) have working bridges
+  - ConversationQuestBridge calls QCE directly (not through GameEventBus), so conversation_goal_evaluated works
+  - Total XP across all chapters: 6,050 (300+500+750+1000+1500+2000)
+- **Learnings for future iterations:**
+  - Chapter objective `questType` is a semantic type (what the objective represents), NOT the DB quest type — always use the mapping
+  - `reading` quests can satisfy `find_text`, `read_text`, OR `read_sign` objectives (in objective order within the chapter)
+  - `grammar` quests can satisfy `use_vocabulary` OR `write_response` objectives
+  - The `recordQuestCompletion` flow: BabylonGame.onQuestCompleted → quest.questType → API → progressionManager.recordQuestCompletion → mapping → chapter objective match
+  - Pre-existing bug: `playthrough-truth-isolation.test.ts` also constructs `MainQuestProgressionManager()` with no args — same storage issue, unrelated to this change
+---

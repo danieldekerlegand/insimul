@@ -81,6 +81,52 @@ import {
   addCaseNote,
 } from '../quest/main-quest-chapters.js';
 
+/**
+ * Maps database quest types to chapter objective types they can satisfy.
+ * Quest types in the DB (e.g. 'vocabulary', 'reading') differ from
+ * chapter objective types (e.g. 'use_vocabulary', 'find_text').
+ * This mapping bridges the gap so completing quests advances the main quest.
+ */
+export const QUEST_TYPE_TO_OBJECTIVE_MAP: Record<string, string[]> = {
+  // Vocabulary quests satisfy use_vocabulary objectives
+  vocabulary: ['use_vocabulary'],
+  visual_vocabulary: ['use_vocabulary'],
+  // Conversation/social quests satisfy complete_conversation objectives
+  conversation: ['complete_conversation'],
+  social: ['complete_conversation'],
+  'business-roleplay': ['complete_conversation'],
+  shopping: ['complete_conversation'],
+  // Reading quests can satisfy find_text, read_text, or read_sign objectives
+  reading: ['find_text', 'read_text', 'read_sign'],
+  // Exploration/navigation quests satisfy visit_location objectives
+  exploration: ['visit_location'],
+  navigation: ['visit_location'],
+  // Collection/delivery quests satisfy collect_item objectives
+  collection: ['collect_item', 'find_text'],
+  delivery: ['collect_item'],
+  crafting: ['collect_item'],
+  // Translation quests satisfy translation_challenge objectives
+  translation_challenge: ['translation_challenge'],
+  translation: ['translation_challenge'],
+  // Grammar quests can satisfy use_vocabulary or write_response objectives
+  grammar: ['use_vocabulary', 'write_response'],
+  error_correction: ['use_vocabulary'],
+  // Direct matches (if quest types already match objective types)
+  use_vocabulary: ['use_vocabulary'],
+  complete_conversation: ['complete_conversation'],
+  find_text: ['find_text'],
+  visit_location: ['visit_location'],
+  read_text: ['read_text'],
+  read_sign: ['read_sign'],
+  collect_item: ['collect_item'],
+  write_response: ['write_response'],
+};
+
+/** Get the chapter objective types that a quest type can satisfy */
+export function getObjectiveTypesForQuestType(questType: string): string[] {
+  return QUEST_TYPE_TO_OBJECTIVE_MAP[questType] || [questType];
+}
+
 export interface ChapterAdvanceResult {
   advanced: boolean;
   completedChapterId?: string;
@@ -197,9 +243,11 @@ export class MainQuestProgressionManager {
     const chapter = getChapterById(state.currentChapterId);
     if (!chapter) return null;
 
-    // Find matching objective that isn't yet complete
+    // Find matching objective that isn't yet complete.
+    // Map the incoming quest type to the chapter objective types it can satisfy.
+    const objectiveTypes = getObjectiveTypesForQuestType(questType);
     const matchingObjective = chapter.objectives.find(obj => {
-      if (obj.questType !== questType) return false;
+      if (!objectiveTypes.includes(obj.questType)) return false;
       const current = chapterProgress.objectiveProgress[obj.id] ?? 0;
       return current < obj.requiredCount;
     });
