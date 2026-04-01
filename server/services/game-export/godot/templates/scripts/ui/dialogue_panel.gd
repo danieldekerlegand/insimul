@@ -24,9 +24,9 @@ signal listen_and_repeat(result: Dictionary)
 signal conversational_action(actions: Array, turn_state: Dictionary)
 signal new_word_learned(entry: Dictionary)
 signal word_mastered(entry: Dictionary)
-signal grammar_feedback(feedback: Dictionary)
+signal grammar_demonstrated(feedback: Dictionary)
 signal translation_attempt(data: Dictionary)
-signal npc_relationship_changed(npc_id: String, new_strength: float)
+signal friendship_changed(npc_id: String, relationship_strength: float)
 
 const TYPEWRITER_SPEED := 30.0  # characters per second
 const MAX_RESPONSE_BUTTONS := 4
@@ -115,13 +115,13 @@ func open_dialogue(character_id: String) -> void:
 	var npc_count: int = _npc_conversation_counts.get(character_id, 0) + 1
 	_npc_conversation_counts[character_id] = npc_count
 	var new_strength: float = minf(float(npc_count) / 5.0, 1.0)
-	npc_relationship_changed.emit(character_id, new_strength)
+	friendship_changed.emit(character_id, new_strength)
 	# Also emit through game event bus if available
 	if _game_event_bus and _game_event_bus.has_method("emit_event"):
 		_game_event_bus.emit_event({
-			"type": "npc_relationship_changed",
+			"type": "friendship_changed",
 			"npcId": character_id,
-			"newStrength": new_strength,
+			"relationshipStrength": new_strength,
 		})
 
 	# Load NPC context from AIService
@@ -221,7 +221,7 @@ func set_game_event_bus(bus: Node) -> void:
 
 ## Request metadata via InsimulClient SDK instead of HTTP POST to /api/conversation/metadata.
 ## Processes goal evaluations through the quest bridge when available.
-## Emits grammar_feedback and translation_attempt signals/events through game event bus.
+## Emits grammar_demonstrated and translation_attempt signals/events through game event bus.
 func _request_metadata_via_sdk(player_message: String, npc_response: String) -> void:
 	if _target_language == "":
 		return
@@ -248,28 +248,27 @@ func _request_metadata_via_sdk(player_message: String, npc_response: String) -> 
 				if goal_evals.size() > 0 and _quest_bridge and _quest_bridge.has_method("process_evaluations"):
 					_quest_bridge.process_evaluations(goal_evals, _current_character_id, player_message)
 
-				# Emit grammar_feedback for quest objective tracking
+				# Emit grammar_demonstrated for quest objective tracking
 				var grammar = metadata.get("grammarFeedback", {})
 				if not grammar.is_empty():
 					var feedback_data := { "status": grammar.get("status", ""), "corrections": grammar.get("corrections", []) }
-					grammar_feedback.emit(feedback_data)
-					if _game_event_bus and _game_event_bus.has_method("emit_event"):
+					grammar_demonstrated.emit(feedback_data)
+					if _game_event_bus and _game_event_bus.has_method("emit_event") and grammar.get("status", "") == "correct":
 						_game_event_bus.emit_event({
-							"type": "grammar_feedback",
-							"status": grammar.get("status", ""),
-							"correctCount": 1 if grammar.get("status", "") == "correct" else 0,
+							"type": "grammar_demonstrated",
+							"patternCount": 1,
 						})
 
 				# Emit translation_attempt for each vocab hint (target-language word used)
 				var vocab_hints: Array = metadata.get("vocabHints", [])
 				for hint in vocab_hints:
 					var word: String = hint.get("word", hint.get("term", ""))
-					var attempt_data := { "correct": true, "word": word }
+					var attempt_data := { "isCorrect": true, "word": word }
 					translation_attempt.emit(attempt_data)
 					if _game_event_bus and _game_event_bus.has_method("emit_event"):
 						_game_event_bus.emit_event({
 							"type": "translation_attempt",
-							"correct": true,
+							"isCorrect": true,
 							"word": word,
 						})
 		)

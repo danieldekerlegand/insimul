@@ -510,3 +510,29 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - FishingSystem/HerbalismSystem/FarmingSystem all follow identical callback pattern: showToast + addInventoryItem + optional hasInventoryItem
   - Crop growth uses watered-previous-day pattern: watering on day N boosts growth on day N+1
 ---
+
+## 2026-04-01 - Audit: Conversational Quest Completion LLM Evaluation Pipeline
+- Audited the full LLM evaluation pipeline: BabylonChatPanel → server /api/conversation/metadata → buildConversationGoalPrompt → LLM → goalEvaluations → ConversationQuestBridge.processEvaluations → QuestCompletionEngine.trackConversationGoalResult
+- **Critical chain verified:** All links connected end-to-end. No broken references.
+- **Bugs fixed:**
+  - Extracted `MIN_CONVERSATION_GOAL_CONFIDENCE = 0.7` shared constant (was hardcoded in two places: ConversationQuestBridge line 118 and QCE line 1300)
+  - Added `Array.isArray()` validation in `processEvaluations()` — previously `null` could pass the truthy check
+  - Added locked objective filtering in `getObjectivesForEvaluation()` — was returning objectives blocked by `dependsOn`/`order` constraints
+  - Fixed `grammar_feedback` → `grammar_demonstrated` event type in BabylonChatPanel (QCE had no handler for `grammar_feedback`)
+  - Fixed `translation_attempt` event field: `correct` → `isCorrect` to match QCE CompletionEvent type
+  - Fixed `npc_relationship_changed` → `friendship_changed` event type + `newStrength` → `relationshipStrength` field in BabylonChatPanel to match QCE handler
+  - Server now always includes `goalEvaluations` in metadata response (even if empty array) for schema consistency
+- **43 new tests** covering: confidence threshold gating, input validation (null/undefined/non-array), locked objective filtering, full integration flow, GameEventBus emission, objective collection, event field alignment, QCE handler behavior
+- Files changed:
+  - `shared/game-engine/logic/ConversationQuestBridge.ts` — exported MIN_CONVERSATION_GOAL_CONFIDENCE, Array.isArray check, locked objective filtering, isObjectiveLocked on QuestTracker interface
+  - `shared/game-engine/logic/QuestCompletionEngine.ts` — import shared constant, use MIN_CONVERSATION_GOAL_CONFIDENCE
+  - `server/services/conversation/http-bridge.ts` — always include goalEvaluations in response
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — fix 3 event type/field mismatches (grammar_demonstrated, isCorrect, friendship_changed)
+  - `shared/__tests__/conversation-quest-pipeline-audit.test.ts` — new test file (43 tests)
+- **Learnings for future iterations:**
+  - The confidence threshold 0.7 is used in TWO places — always use the shared constant `MIN_CONVERSATION_GOAL_CONFIDENCE` from ConversationQuestBridge.ts
+  - BabylonChatPanel emits events via `(this._gameEventBus as any).emit()` — field names MUST match CompletionEvent union type in QCE exactly, or the handler silently reads `undefined`
+  - QCE's `forEachObjective()` already filters locked objectives, but `getObjectivesForEvaluation()` in the bridge did NOT — any code querying quests directly must check locking
+  - The server's `buildConversationGoalPrompt()` doesn't pass objective-specific fields (targetWords, npcId) — a future improvement to increase evaluation accuracy
+  - Pre-existing typecheck errors in BabylonChatPanel (missing module declarations for actions, RelationshipManager, LanguageProgressTracker) are known and unrelated
+---

@@ -14,6 +14,7 @@ import {
   getMappingsForEvent,
   matchesAllFields,
 } from '../quest-action-mapping';
+import { MIN_CONVERSATION_GOAL_CONFIDENCE } from './ConversationQuestBridge';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1297,7 +1298,7 @@ export class QuestCompletionEngine {
     obj.conversationGoalConfidence = confidence;
     obj.conversationGoalExtractedInfo = extractedInfo;
 
-    if (goalMet && confidence >= 0.7) {
+    if (goalMet && confidence >= MIN_CONVERSATION_GOAL_CONFIDENCE) {
       obj.conversationGoalMet = true;
       this.completeObjective(questId, objectiveId);
     }

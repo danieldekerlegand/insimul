@@ -622,10 +622,8 @@ export function registerConversationRoutes(app: Express): void {
       // Wait for both
       const [metadata, goalEvaluations] = await Promise.all([metadataPromise, goalEvalPromise]);
 
-      // Merge goal evaluations into response
-      if (goalEvaluations.length > 0) {
-        metadata.goalEvaluations = goalEvaluations;
-      }
+      // Always include goalEvaluations in response (even if empty) for schema consistency
+      metadata.goalEvaluations = goalEvaluations;
 
       res.json(metadata);
     } catch (err: any) {

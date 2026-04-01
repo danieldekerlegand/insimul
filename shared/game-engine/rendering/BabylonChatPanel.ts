@@ -338,9 +338,9 @@ export class BabylonChatPanel {
     this._npcConversationCounts.set(character.id, npcCount);
     if (this._gameEventBus) {
       (this._gameEventBus as any).emit({
-        type: 'npc_relationship_changed',
+        type: 'friendship_changed',
         npcId: character.id,
-        newStrength: Math.min(npcCount / 5, 1), // normalize: 5 conversations = max rapport
+        relationshipStrength: Math.min(npcCount / 5, 1), // normalize: 5 conversations = max rapport
       });
     }
 
@@ -1971,9 +1971,9 @@ export class BabylonChatPanel {
             }
           } else if (feedback.status === 'correct') {
             this.displayGrammarFeedback('Great grammar!', true);
-            // Emit grammar_feedback for quest objective tracking
+            // Emit grammar_demonstrated for quest objective tracking (QCE handles this event type)
             if (this._gameEventBus) {
-              (this._gameEventBus as any).emit({ type: 'grammar_feedback', status: 'correct', correctCount: 1 });
+              (this._gameEventBus as any).emit({ type: 'grammar_demonstrated', patternCount: 1 });
             }
           }
         }
@@ -1989,7 +1989,7 @@ export class BabylonChatPanel {
             for (const hint of metadata.vocabHints) {
               (this._gameEventBus as any).emit({
                 type: 'translation_attempt',
-                correct: true,
+                isCorrect: true,
                 word: (hint as any).word || (hint as any).term,
               });
             }
