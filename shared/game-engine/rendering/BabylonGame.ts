@@ -4309,7 +4309,7 @@ export class BabylonGame {
           duration: 4000,
         });
       },
-      getGameHour: () => 12,
+      getGameHour: () => this.gameTimeManager?.hour ?? 12,
       getPlayerPosition: () => this.playerMesh?.position ?? null,
     });
 
@@ -4351,7 +4351,7 @@ export class BabylonGame {
       onShowGreeting: (npcId, npcName, greeting) => {
         this.guiManager?.showToast({
           title: `${npcName} approaches`,
-          description: `"${greeting}" [G to talk]`,
+          description: `"${greeting}" [Enter to talk]`,
           duration: 15000,
         });
       },
@@ -4362,10 +4362,16 @@ export class BabylonGame {
         this.setSelectedNPC(npcId);
         await this.handleOpenChat();
       },
-      getGameHour: () => 12, // Default to noon; no global clock tracked
+      getGameHour: () => this.gameTimeManager?.hour ?? 12,
       getPlayerPosition: () => this.playerMesh?.position ?? null,
       isPlayerInConversation: () => this.conversationNPCId !== null,
       onEmitEvent: (event) => this.eventBus?.emit(event),
+      getEnvironment: () => ({
+        weather: this.weatherSystem?.weatherType ?? 'clear',
+        timePeriod: this.gameTimeManager?.timeOfDay ?? 'midday',
+        hasActiveQuestForPlayer: false, // TODO: wire to quest system
+        playerIsNew: false, // TODO: wire to playthrough state
+      }),
     });
 
     // Initialize procedural generators
