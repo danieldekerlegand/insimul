@@ -762,7 +762,7 @@ export class QuestCompletionEngine {
   }
 
   trackPhysicalAction(actionType: string, itemsProduced: string[], questId?: string): void {
-    this.forEachObjective(questId, 'perform_physical_action', (quest, obj) => {
+    this.forEachObjective(questId, ['perform_physical_action', 'physical_action'], (quest, obj) => {
       if (obj.actionType && obj.actionType !== actionType) return;
 
       obj.actionsCompleted = (obj.actionsCompleted || 0) + 1;

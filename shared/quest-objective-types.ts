@@ -112,6 +112,21 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     countable: false,
   },
 
+  {
+    type: 'buy_item',
+    description: 'Purchase an item from a shop or merchant',
+    playerAction: 'Visit a shop and buy an item using gold',
+    requiresTarget: 'item',
+    countable: true,
+  },
+  {
+    type: 'sell_item',
+    description: 'Sell an item to a merchant',
+    playerAction: 'Talk to a merchant and sell an inventory item',
+    requiresTarget: 'item',
+    countable: true,
+  },
+
   // ── Combat ───────────────────────────────────────────────────────────────
   {
     type: 'defeat_enemies',
@@ -127,6 +142,14 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     description: 'Craft a specific item using the crafting system',
     playerAction: 'Gather materials and craft the item at a crafting station',
     requiresTarget: 'item',
+    countable: true,
+  },
+
+  {
+    type: 'physical_action',
+    description: 'Perform a physical action at a hotspot (fishing, mining, farming, herbalism, etc.)',
+    playerAction: 'Approach a hotspot and press G to perform the action',
+    requiresTarget: 'none',
     countable: true,
   },
 

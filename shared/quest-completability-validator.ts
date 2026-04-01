@@ -67,6 +67,19 @@ export const OBJECTIVE_COMPLETION_EVENT_MAP: Record<string, string[]> = {
   describe_scene: ['writing_submitted'],
   teach_vocabulary: ['teach_word'],
   teach_phrase: ['teach_phrase_to_npc'],
+  buy_item: ['item_purchased'],
+  sell_item: ['item_sold'],
+  perform_physical_action: ['physical_action'],
+  physical_action: ['physical_action'],
+  read_text: ['text_read'],
+  read_document: ['text_read'],
+  find_text: ['text_found'],
+  comprehension_quiz: ['comprehension_answer'],
+  photograph_subject: ['photo_taken'],
+  photograph_activity: ['activity_photographed'],
+  observe_activity: ['activity_observed'],
+  eavesdrop: ['eavesdrop'],
+  grammar: ['grammar_demonstrated'],
 };
 
 // ── Validator ───────────────────────────────────────────────────────────────
