@@ -1283,6 +1283,9 @@ export class BabylonGame {
         const photos = this.photographySystem?.getPhotos();
         return photos && photos.length > 0 ? { photos } : undefined as any;
       },
+      getClueState: () => {
+        return this.clueStore?.serialize() ?? undefined;
+      },
     };
   }
 
@@ -1348,6 +1351,12 @@ export class BabylonGame {
         if (data?.photos && this.photographySystem) {
           this.photographySystem.setPhotos(data.photos);
           this.photoBookPanel?.setPhotos(data.photos);
+        }
+      },
+      restoreClueState: (data) => {
+        if (data && this.clueStore) {
+          this.clueStore.restore(data);
+          this.syncClueStoreChapterGating();
         }
       },
     };
@@ -1436,6 +1445,24 @@ export class BabylonGame {
           [event.locationId, 'writer', 'secret', 'location'].filter(Boolean),
         );
       }
+    });
+
+    // Auto-discover clues from eavesdropped NPC-to-NPC conversations
+    this.eventBus.on('npc_conversation_turn' as any, (event: any) => {
+      if (event.topicTag && event.npcId) {
+        const npcName = this.getNpcNameById(event.npcId) ?? event.npcId;
+        // Use a generic partner name since eavesdrop events don't include the second NPC
+        this.clueStore?.addEavesdropClue(npcName, 'another NPC', event.topicTag);
+      }
+    });
+
+    // Show toast notification when a new clue is discovered
+    this.eventBus.on('clue_discovered', (event) => {
+      this.guiManager?.showToast({
+        title: 'New Clue Discovered!',
+        description: `Evidence collected (${event.clueCount}/${event.totalClueCount})`,
+        duration: 4000,
+      });
     });
   }
 
@@ -1539,6 +1566,23 @@ export class BabylonGame {
       connections: this.clueStore.getConnections(),
       cluesByChapter,
     };
+  }
+
+  /**
+   * Sync ClueStore chapter gating with current journal state.
+   * Allows clues from active and completed chapters; blocks future chapter clues.
+   */
+  private syncClueStoreChapterGating(): void {
+    if (!this.clueStore || !this.mainQuestJournalData) return;
+    const allowedIds: string[] = [];
+    for (const ch of (this.mainQuestJournalData.chapters || [])) {
+      const status = (ch as any).progress?.status ?? (ch as any).status;
+      if (status === 'active' || status === 'completed') {
+        const id = (ch as any).chapter?.id ?? (ch as any).id;
+        if (id) allowedIds.push(id);
+      }
+    }
+    this.clueStore.setAllowedChapters(allowedIds);
   }
 
   // ─── Playthrough Management ──────────────────────────────────────────────
@@ -14219,6 +14263,7 @@ export class BabylonGame {
         playerCefrLevel: this.playerCefrLevel,
         investigationBoard: null, caseNotes: [],
       };
+      this.syncClueStoreChapterGating();
       return;
     }
     try {
@@ -14235,6 +14280,7 @@ export class BabylonGame {
         caseNotes: data.state?.caseNotes ?? [],
         narrativeHistory: data.narrativeHistory ?? [],
       };
+      this.syncClueStoreChapterGating();
     } catch {
       // Non-critical — journal will show empty state
     }

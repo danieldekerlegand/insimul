@@ -111,7 +111,7 @@ export function mergeStates(
   const subsystems = [
     'temporaryStates', 'languageProgress', 'gamification', 'volition',
     'utteranceQuests', 'ambientConversations', 'contentGating', 'skillTree',
-    'prologFacts',
+    'prologFacts', 'clueState',
   ] as const;
 
   for (const key of subsystems) {
