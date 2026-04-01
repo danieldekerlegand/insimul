@@ -15,6 +15,7 @@ import {
   matchesAllFields,
 } from '../quest-action-mapping';
 import { MIN_CONVERSATION_GOAL_CONFIDENCE } from './ConversationQuestBridge';
+import { normalizeObjectiveType } from '../../quest-objective-types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -248,6 +249,14 @@ export class QuestCompletionEngine {
   // ── Quest management ────────────────────────────────────────────────────
 
   addQuest(quest: CompletionQuest): void {
+    // Normalize objective types so aliases (watch_npc, observe, etc.) resolve
+    // to canonical types (observe_activity, eavesdrop, etc.) before tracking.
+    if (quest.objectives) {
+      for (const obj of quest.objectives) {
+        const normalized = normalizeObjectiveType(obj.type);
+        if (normalized) obj.type = normalized;
+      }
+    }
     this.quests.push(quest);
   }
 

@@ -155,6 +155,7 @@ import { NPCAmbientConversationManager } from "@shared/game-engine/rendering/NPC
 import { VehicleSystem } from "@shared/game-engine/rendering/VehicleSystem";
 import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo } from "@shared/game-engine/logic/AmbientLifeBehaviorSystem";
 import { NPCActivityLabelSystem } from "@shared/game-engine/rendering/NPCActivityLabelSystem";
+import { ActivityObservationRewards } from "@shared/game-engine/logic/ActivityObservationRewards";
 import { NPCInitiatedConversationController } from "@shared/game-engine/rendering/NPCInitiatedConversationController";
 import { NPCSocializationController } from "@shared/game-engine/rendering/NPCSocializationController";
 import type { SocializableNPC, ConversationResult } from "@shared/game-engine/rendering/NPCSocializationController";
@@ -786,6 +787,7 @@ export class BabylonGame {
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
   private ambientLifeSystem: AmbientLifeBehaviorSystem = new AmbientLifeBehaviorSystem();
   private npcActivityLabelSystem: NPCActivityLabelSystem | null = null;
+  private activityObservationRewards: ActivityObservationRewards | null = null;
   /** Unified NPC routine manager — replaces NPCLocationCycler */
   private scheduleExecutor!: ScheduleExecutor;
   private residenceActivitySystem: ResidenceActivitySystem | null = null;
@@ -2250,6 +2252,22 @@ export class BabylonGame {
       this.ambientLifeSystem,
     );
 
+    // Initialize activity observation rewards (vocabulary + toast on observation)
+    this.activityObservationRewards = new ActivityObservationRewards();
+    this.activityObservationRewards.setEventBus(this.eventBus);
+    this.activityObservationRewards.setShowToast((result) => {
+      if (result.activityTranslation) {
+        this.guiManager?.showToast({
+          title: result.activityTranslation.targetPhrase,
+          description: `${result.activityTranslation.translation}${result.vocabularyAdded ? ' (new word!)' : ''}`,
+          duration: 3000,
+        });
+      }
+    });
+    this.activityObservationRewards.setAddVocabularyWord((word, translation, category) => {
+      this.eventBus.emit({ type: 'vocabulary_used', word, correct: true } as any);
+    });
+
     // Initialize activity label + observation system
     this.npcActivityLabelSystem = new NPCActivityLabelSystem(scene, {
       getPlayerPosition: () => this.playerMesh?.position ?? null,
@@ -2259,6 +2277,9 @@ export class BabylonGame {
       getNPCName: (npcId) => this.npcInfos.find(n => n.id === npcId)?.name || 'Person',
       getNPCMesh: (npcId) => this.npcMeshes.get(npcId)?.mesh ?? null,
       onActivityObserved: (npcId, npcName, activity, duration) => {
+        // Process observation rewards (vocabulary teaching + toast)
+        this.activityObservationRewards?.processObservation(npcId, npcName, activity, duration);
+        // Track for quest objective completion
         const engine = this.questObjectManager?.getCompletionEngine();
         engine?.trackEvent({ type: 'activity_observed', npcId, npcName, activity, durationSeconds: duration });
         this.updateQuestIndicators();
@@ -13080,6 +13101,21 @@ export class BabylonGame {
    * End the eavesdrop session and clean up state.
    */
   private endEavesdrop(): void {
+    // Emit eavesdrop event for quest objective tracking before clearing state
+    const npc1Id = this.conversationNPCId;
+    const npc2Id = this.eavesdropNPC2Id;
+    if (npc1Id && npc2Id) {
+      const targetLanguage = getTargetLanguage(this.worldData) || 'french';
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({
+        type: 'eavesdrop',
+        npcId1: npc1Id,
+        npcId2: npc2Id,
+        topic: 'general',
+        languageUsed: targetLanguage,
+      });
+    }
+
     this.isEavesdropping = false;
     this.eavesdropNPC2Id = undefined;
     this.chatPanel?.setEavesdropMode(false);
@@ -16729,6 +16765,7 @@ export class BabylonGame {
     this.scheduleExecutor?.dispose();
     this.npcActivityLabelSystem?.dispose();
     this.npcActivityLabelSystem = null;
+    this.activityObservationRewards = null;
     this.ambientConversationManager?.dispose();
     this.npcInitiatedConversationController?.dispose();
     this.socializationController?.dispose();
