@@ -6,6 +6,8 @@
  * building data, and business types. Provides compass heading data for the HUD.
  */
 
+import { computeWaypointAlpha } from './waypointFading';
+
 /** Minimal position type (no Babylon dependency for testability) */
 export interface WaypointPosition {
   x: number;
@@ -167,16 +169,11 @@ export class DynamicQuestWaypointDirector {
 
   /**
    * Compute alpha (opacity) for a waypoint based on distance to player.
-   * Fades out when very close (< 5 units) and when very far (> 200 units).
+   * Delegates to shared computeWaypointAlpha for consistent breakpoints.
    */
   public getDistanceAlpha(playerPosition: WaypointPosition, waypointPosition: WaypointPosition): number {
     const dist = this.distance2D(playerPosition, waypointPosition);
-
-    if (dist < 3) return 0;        // Hidden when arrived
-    if (dist < 8) return (dist - 3) / 5; // Fade in from 3-8
-    if (dist > 200) return 0.2;    // Dim when very far
-    if (dist > 150) return 0.2 + 0.8 * ((200 - dist) / 50); // Fade out 150-200
-    return 1.0;                    // Full visibility 8-150
+    return computeWaypointAlpha(dist);
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────

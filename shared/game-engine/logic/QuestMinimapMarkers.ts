@@ -32,6 +32,7 @@ export function getObjectiveMarkerColor(objectiveType: string): string {
     case 'introduce_self':
     case 'teach_vocabulary':
     case 'teach_phrase':
+    case 'eavesdrop':
       return '#4CAF50';
 
     // Item collection — gold
@@ -44,11 +45,35 @@ export function getObjectiveMarkerColor(objectiveType: string): string {
     case 'point_and_name':
       return '#FFD700';
 
+    // Language / education — blue
+    case 'use_vocabulary':
+    case 'pronunciation_check':
+    case 'translation_challenge':
+    case 'write_response':
+    case 'describe_scene':
+    case 'reading_completed':
+    case 'listening_completed':
+    case 'grammar_demonstrated':
+    case 'answer_question':
+      return '#2196F3';
+
     // Commercial / social — orange
     case 'order_food':
     case 'haggle_price':
     case 'gain_reputation':
       return '#FF9800';
+
+    // Physical actions — amber
+    case 'physical_action':
+    case 'observe_activity':
+    case 'farm_plant':
+    case 'farm_water':
+    case 'farm_harvest':
+    case 'fish':
+    case 'mine':
+    case 'chop_tree':
+    case 'gather_herb':
+      return '#FFC107';
 
     // Combat — red
     case 'defeat_enemies':
@@ -101,9 +126,17 @@ export interface QuestObjectiveMarker {
  * Every incomplete objective produces a marker. Position resolution order:
  *   1. objective.locationPosition
  *   2. objective.position
- *   3. quest-level locationPosition (fallback so every objective gets a marker)
+ *   3. quest-level locationPosition
+ *   4. dynamically resolved position (from DynamicQuestWaypointDirector)
+ *
+ * @param quests - All quests (only active quests with incomplete objectives produce markers)
+ * @param resolvedPositions - Optional map of objectiveId → position from DynamicQuestWaypointDirector.
+ *   Key format: `${questId}_${objectiveId}` matching the director's output.
  */
-export function extractObjectiveMarkers(quests: Quest[]): QuestObjectiveMarker[] {
+export function extractObjectiveMarkers(
+  quests: Quest[],
+  resolvedPositions?: Map<string, { x: number; z: number }>
+): QuestObjectiveMarker[] {
   const markers: QuestObjectiveMarker[] = [];
 
   for (const quest of quests) {
@@ -117,8 +150,17 @@ export function extractObjectiveMarkers(quests: Quest[]): QuestObjectiveMarker[]
       const obj = quest.objectives[i];
       if (obj.completed) continue;
 
-      // Prefer objective-level position, fall back to quest-level position
-      const pos = obj.locationPosition ?? obj.position ?? questPos;
+      // Prefer objective-level position, fall back to quest-level, then dynamic resolution
+      let pos = obj.locationPosition ?? obj.position ?? questPos;
+
+      if (!pos && resolvedPositions) {
+        const markerId = `${quest.id}_obj_${i}`;
+        const dynPos = resolvedPositions.get(markerId);
+        if (dynPos) {
+          pos = { x: dynPos.x, y: 0, z: dynPos.z } as any;
+        }
+      }
+
       if (!pos) continue;
 
       markers.push({

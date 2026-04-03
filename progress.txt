@@ -92,6 +92,44 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The normalization map in quest-objective-types.ts handles 150+ aliases for AI-generated objective types
 ---
 
+## 2026-04-03 - Audit: Minimap Quest Markers and Waypoint Guidance
+- **Audit findings**: 4 critical issues in quest guidance systems:
+  1. `DynamicQuestWaypointDirector` and `QuestWaypointManager` existed but were NOT instantiated or used in BabylonGame.ts — no 3D waypoints or dynamic position resolution was active
+  2. `extractObjectiveMarkers()` silently skipped objectives without explicit positions — no fallback to dynamic resolution, so many quest objectives had no minimap markers
+  3. Distance fading used different breakpoints between `QuestWaypointManager` (max 0.6 alpha) and `DynamicQuestWaypointDirector` (different curve) — inconsistent visual behavior
+  4. Missing objective types in color map: language types (use_vocabulary, pronunciation_check, etc.), physical action types (farm_plant, fish, mine, etc.), observation types (observe_activity, eavesdrop) had no dedicated color categories
+- **Fixes applied**:
+  - Enhanced `extractObjectiveMarkers()` to accept optional `resolvedPositions` map from DynamicQuestWaypointDirector — objectives without explicit positions now get markers via dynamic resolution
+  - Added 2 new color categories: blue (#2196F3) for language/education types (9 types), amber (#FFC107) for physical action types (9 types); added `eavesdrop` to NPC interaction green category
+  - Created `shared/game-engine/logic/waypointFading.ts` with shared `computeWaypointAlpha()` function — unified fading breakpoints between QuestWaypointManager and DynamicQuestWaypointDirector
+  - Integrated DynamicQuestWaypointDirector and QuestWaypointManager into BabylonGame.ts:
+    - Instantiated both in scene setup alongside QuestIndicatorManager
+    - Resolved waypoints in `updateQuestIndicators()` using building/NPC data already assembled there
+    - Cached resolved positions in `_resolvedWaypointPositions` for minimap marker extraction
+    - Added 3D waypoint lifecycle management: create for new objectives, remove stale on completion/status change
+    - Added distance fading update per indicator cycle
+    - Added dispose/cleanup in BabylonGame.dispose()
+- **Tests added**: 83 tests in `shared/__tests__/minimap-quest-markers-audit.test.ts` covering:
+  - extractObjectiveMarkers: position priority, quest-level fallback, dynamic resolution fallback, multi-objective quests, marker cleanup on completion/status change
+  - Color map: all 9 color categories verified (52 objective types total)
+  - Shape map: diamond for location types, circle for others
+  - DynamicQuestWaypointDirector: explicit position, NPC lookup, building map fallback, business-type matching, nearest NPC for conversation objectives, quest giver fallback, compass data
+  - computeWaypointAlpha: arrival hiding, fade-in, full visibility, fade-out, dim far distance
+  - ID consistency between minimap markers and director output
+- Files changed:
+  - `shared/game-engine/logic/QuestMinimapMarkers.ts` — added dynamic position fallback param, 2 new color categories, eavesdrop to NPC category
+  - `shared/game-engine/logic/waypointFading.ts` — new shared fading function
+  - `shared/game-engine/logic/DynamicQuestWaypointDirector.ts` — delegated fading to shared function
+  - `shared/game-engine/rendering/QuestWaypointManager.ts` — delegated fading to shared function (scaled to beam max alpha)
+  - `shared/game-engine/rendering/BabylonGame.ts` — integrated Director + WaypointManager, wired to minimap + 3D waypoints + cleanup
+  - `shared/__tests__/minimap-quest-markers-audit.test.ts` — 83 audit tests
+- **Learnings for future iterations:**
+  - BabylonGame.ts `updateQuestIndicators()` already builds directorBuildingData, npcBuildingMap, and npcPositions — reuse these for any quest spatial logic
+  - The `_resolvedWaypointPositions` cache bridges the async indicator update with the per-frame minimap update
+  - system-contracts QuestObjective is minimal (no type/position fields) — the real runtime quests have these via `(quest as any)` casts; pre-existing TS errors
+  - QuestWaypointManager beam alpha caps at 0.6 (translucent beams) while compass/HUD alpha goes to 1.0 — intentionally different scales using shared normalized curve
+---
+
 ## 2026-04-01 - Audit: Quest Reward and Progression Flow
 - **Audit findings**: Quest completion endpoint had 3 gaps in reward/progression flow:
   1. Item rewards defined on quests (`itemRewards`) were never persisted to player inventory on the server side
