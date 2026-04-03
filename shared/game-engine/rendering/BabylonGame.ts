@@ -215,6 +215,8 @@ import { ReputationManager } from "@shared/game-engine/rendering/ReputationManag
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
 import { LanguageProgressTracker } from "@shared/game-engine/logic/LanguageProgressTracker";
 import { extractObjectiveMarkers } from "@shared/game-engine/logic/QuestMinimapMarkers";
+import { DynamicQuestWaypointDirector, type DirectorBuildingEntry, type DirectorNpcPosition, type ResolvedWaypoint } from "@shared/game-engine/logic/DynamicQuestWaypointDirector";
+import { QuestWaypointManager } from "@shared/game-engine/rendering/QuestWaypointManager";
 import {
   isFirstPlaythrough,
   isLanguageLearningWorld,
@@ -503,6 +505,10 @@ export class BabylonGame {
   private skipQuestOfferOnce = false;
   private questWorldObjectLinker: QuestWorldObjectLinker | null = null;
   private questNotificationManager: QuestNotificationManager | null = null;
+  private questWaypointDirector: DynamicQuestWaypointDirector | null = null;
+  private questWaypointManager: QuestWaypointManager | null = null;
+  /** Cached dynamic waypoint positions for minimap markers (resolved by DynamicQuestWaypointDirector) */
+  private _resolvedWaypointPositions: Map<string, { x: number; z: number }> = new Map();
   private questLanguageFeedbackTracker: QuestLanguageFeedbackTracker | null = null;
   private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
@@ -3203,6 +3209,10 @@ export class BabylonGame {
       const engine = this.questObjectManager?.getCompletionEngine();
       return engine?.isQuestComplete(questId) ?? false;
     });
+
+    // Initialize quest waypoint systems
+    this.questWaypointDirector = new DynamicQuestWaypointDirector();
+    this.questWaypointManager = new QuestWaypointManager(scene);
 
     // Initialize quest offer panel
     this.questOfferPanel = new QuestOfferPanel(scene);
@@ -12323,7 +12333,8 @@ export class BabylonGame {
     }
 
     // Derive markers from individual quest objectives (type-specific colors/shapes)
-    const questObjectiveMarkers = extractObjectiveMarkers(this.quests).map(m => ({
+    // Pass dynamically resolved positions so objectives without explicit positions still get markers
+    const questObjectiveMarkers = extractObjectiveMarkers(this.quests, this._resolvedWaypointPositions).map(m => ({
       id: m.id,
       questTitle: m.questTitle,
       objectiveType: m.objectiveType,
@@ -16155,6 +16166,52 @@ export class BabylonGame {
 
           this.questTracker.setWorldData(directorBuildingData, npcBuildingMap, npcPositions);
         }
+
+        // Resolve dynamic waypoint positions and sync 3D waypoint markers
+        if (this.questWaypointDirector && this.playerMesh) {
+          const playerPos = { x: this.playerMesh.position.x, y: this.playerMesh.position.y, z: this.playerMesh.position.z };
+          const allResolved: ResolvedWaypoint[] = [];
+
+          for (const quest of quests) {
+            if (quest.status !== 'active') continue;
+            const resolved = this.questWaypointDirector.resolveWaypoints(
+              quest as any, directorBuildingData as any, npcBuildingMap, npcPositions as any, playerPos
+            );
+            allResolved.push(...resolved);
+          }
+
+          // Cache resolved positions for minimap marker extraction
+          this._resolvedWaypointPositions.clear();
+          for (const wp of allResolved) {
+            this._resolvedWaypointPositions.set(wp.objectiveId, { x: wp.position.x, z: wp.position.z });
+          }
+
+          // Sync 3D waypoint markers: create new, remove stale
+          if (this.questWaypointManager) {
+            const activeIds = new Set(allResolved.map(wp => wp.objectiveId));
+
+            // Remove waypoints for objectives that are no longer active
+            for (const existingId of this.questWaypointManager.getWaypointIds()) {
+              if (!activeIds.has(existingId)) {
+                this.questWaypointManager.removeWaypoint(existingId);
+              }
+            }
+
+            // Create waypoints for new objectives
+            for (const wp of allResolved) {
+              if (!this.questWaypointManager.hasWaypoint(wp.objectiveId)) {
+                this.questWaypointManager.createWaypointForObjectiveType(
+                  wp.objectiveId,
+                  new Vector3(wp.position.x, wp.position.y ?? 0, wp.position.z),
+                  wp.objectiveType
+                );
+              }
+            }
+
+            // Update distance fading
+            this.questWaypointManager.updateDistanceFading(this.playerMesh.position);
+          }
+        }
       }
 
       // Refresh quest hotspot active states (only show "!" for objectives that are up next)
@@ -16861,10 +16918,14 @@ export class BabylonGame {
     this.eventBus.dispose();
     this.questObjectManager?.dispose();
     this.questIndicatorManager?.dispose();
+    this.questWaypointManager?.dispose();
     this.questOfferPanel?.dispose();
     this.questWorldObjectLinker?.dispose();
     this.questWorldObjectLinker = null;
     this.questIndicatorManager = null;
+    this.questWaypointManager = null;
+    this.questWaypointDirector = null;
+    this._resolvedWaypointPositions.clear();
     this.questOfferPanel = null;
     this.radialMenu?.dispose();
     this.contextualActionMenu?.dispose();

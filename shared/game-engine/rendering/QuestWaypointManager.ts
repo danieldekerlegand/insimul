@@ -7,6 +7,7 @@
  */
 
 import { Scene, Mesh, MeshBuilder, StandardMaterial, Color3, Vector3, Animation } from '@babylonjs/core';
+import { computeWaypointAlpha } from '@shared/game-engine/logic/waypointFading';
 
 /** Color mapping for objective types */
 export function getWaypointColor(objectiveType: string): Color3 {
@@ -153,6 +154,9 @@ export class QuestWaypointManager {
    * Update visibility of all waypoints based on distance to player.
    * Call this per-frame or on a throttled interval.
    */
+  /** Max alpha for beam materials (translucent light columns) */
+  private static readonly BEAM_MAX_ALPHA = 0.6;
+
   public updateDistanceFading(playerPosition: Vector3): void {
     this.waypoints.forEach((beam, id) => {
       const dist = Vector3.Distance(
@@ -160,12 +164,8 @@ export class QuestWaypointManager {
         new Vector3(beam.position.x, 0, beam.position.z)
       );
 
-      let alpha: number;
-      if (dist < 3) alpha = 0;
-      else if (dist < 8) alpha = ((dist - 3) / 5) * 0.6;
-      else if (dist > 200) alpha = 0.12;
-      else if (dist > 150) alpha = 0.12 + 0.48 * ((200 - dist) / 50);
-      else alpha = 0.6;
+      // Shared fading curve scaled to beam max alpha
+      const alpha = computeWaypointAlpha(dist) * QuestWaypointManager.BEAM_MAX_ALPHA;
 
       const beamMat = beam.material as StandardMaterial;
       if (beamMat) beamMat.alpha = alpha;
