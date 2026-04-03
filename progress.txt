@@ -2,6 +2,40 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## 2026-04-03 - Audit: Tutorial System — Can a New Player Complete the Tutorial?
+- **Audit findings**: Tutorial system had 4 bugs preventing new players from completing the tutorial:
+  1. `tut_inventory` objective had no event listener — player opens inventory but nothing completes the step
+  2. `tut_quest_log` objective had no event listener — same issue for quest log
+  3. `completeCurrentObjective()` didn't skip already-completed objectives after `skipNonAssessmentObjectives()`, so assessment-only flow got stuck
+  4. `onboarding.test.ts` had stale assertions referencing old phase IDs (`arrival_conversational`, `arrival_visual`) that don't exist in actual code
+- **Fixes applied**:
+  - Added `inventory_opened` and `quest_log_opened` event types to `GameEventBus`
+  - Wired `inventory_opened` → `tut_inventory` and `quest_log_opened` → `tut_quest_log` listeners in `TutorialQuestSystem.wireEventListeners()`
+  - Fixed `completeCurrentObjective()` to skip over already-completed objectives when advancing
+  - Fixed all stale phase ID assertions in `onboarding.test.ts` to match actual code (`arrival_reading`, `arrival_writing`, `arrival_listening`, `arrival_conversation`)
+- **Tests added**: 25 tests in `shared/__tests__/tutorial-system-audit.test.ts` covering:
+  - Full end-to-end tutorial completion (with and without assessment)
+  - Every objective has a mapped event that can complete it
+  - Event listener wiring for inventory_opened and quest_log_opened
+  - Out-of-order and post-dispose event handling
+  - OnboardingManager 10-step progression, skip, and prerequisite validation
+  - Assessment phase alignment between TutorialQuestSystem and AssessmentEngine
+  - skipNonAssessmentObjectives followed by assessment-only completion
+  - OnboardingLauncher helper functions (isFirstPlaythrough, isLanguageLearningWorld, getTargetLanguage)
+  - Progress tracking accuracy and event emission
+- Files changed:
+  - `shared/game-engine/logic/GameEventBus.ts` — added `inventory_opened` and `quest_log_opened` event types
+  - `shared/game-engine/logic/TutorialQuestSystem.ts` — added 2 event listeners, fixed objective advancement logic
+  - `shared/__tests__/onboarding.test.ts` — fixed 3 test assertions with stale phase IDs
+  - `shared/__tests__/tutorial-system-audit.test.ts` — new 25-test audit suite
+- **Learnings for future iterations:**
+  - TutorialQuestSystem objectives are strictly sequential — `completeObjectiveById` only works on the current objective
+  - `skipNonAssessmentObjectives()` marks non-assessment objectives completed but doesn't update `currentObjectiveIndex` past them — the advancement logic must skip over them
+  - OnboardingManager and TutorialQuestSystem are two parallel systems — OnboardingManager orchestrates the broader 10-step flow, TutorialQuestSystem tracks the HUD objectives
+  - The writing assessment phase is managed by OnboardingManager, not TutorialQuestSystem — by design, since it doesn't need a HUD objective
+  - `GameEventBus` event types must be added before they can be used in listeners — no runtime event registration
+---
+
 ## 2026-04-01 - Audit: Quest Reward and Progression Flow
 - **Audit findings**: Quest completion endpoint had 3 gaps in reward/progression flow:
   1. Item rewards defined on quests (`itemRewards`) were never persisted to player inventory on the server side

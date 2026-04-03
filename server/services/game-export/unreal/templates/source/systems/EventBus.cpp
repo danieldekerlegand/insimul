@@ -140,6 +140,9 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("investigation_completed"),          EInsimulEventType::InvestigationCompleted },
         // NPC activity observation events
         { TEXT("activity_observed"),                EInsimulEventType::ActivityObserved },
+        // UI panel events (tutorial completion triggers)
+        { TEXT("inventory_opened"),                 EInsimulEventType::InventoryOpened },
+        { TEXT("quest_log_opened"),                 EInsimulEventType::QuestLogOpened },
     };
     return Map;
 }

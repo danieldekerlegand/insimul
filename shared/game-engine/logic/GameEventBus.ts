@@ -189,7 +189,10 @@ export type GameEvent =
   // NPC speech act events (detected from NPC responses during conversation)
   | { type: 'npc_speech_act'; npcId: string; npcName: string; actionType: string; extractedData?: Record<string, string> }
   // NPC activity observation events (player watched NPC for required duration)
-  | { type: 'activity_observed'; npcId: string; npcName: string; activity: string; durationSeconds: number; questId?: string };
+  | { type: 'activity_observed'; npcId: string; npcName: string; activity: string; durationSeconds: number; questId?: string }
+  // UI panel events (tutorial completion triggers)
+  | { type: 'inventory_opened' }
+  | { type: 'quest_log_opened' };
 
 export type GameEventType = GameEvent['type'];
 

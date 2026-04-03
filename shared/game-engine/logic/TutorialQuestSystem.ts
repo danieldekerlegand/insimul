@@ -238,8 +238,14 @@ export class TutorialQuestSystem {
       durationMs: 0,
     });
 
-    // Advance to next
+    // Advance to next uncompleted objective (skip already-completed ones from skipNonAssessmentObjectives)
     this.state.currentObjectiveIndex++;
+    while (
+      this.state.currentObjectiveIndex < this.state.objectives.length &&
+      this.state.objectives[this.state.currentObjectiveIndex].completed
+    ) {
+      this.state.currentObjectiveIndex++;
+    }
 
     if (this.state.currentObjectiveIndex >= this.state.objectives.length) {
       this.state.isComplete = true;
@@ -320,10 +326,24 @@ export class TutorialQuestSystem {
       }),
     );
 
+    // Inventory — opened inventory panel
+    this.unsubscribers.push(
+      this.eventBus.on('inventory_opened', () => {
+        this.completeObjectiveById('tut_inventory');
+      }),
+    );
+
     // Reading — notice board or sign read
     this.unsubscribers.push(
       this.eventBus.on('sign_read', () => {
         this.completeObjectiveById('tut_reading');
+      }),
+    );
+
+    // Quest log — opened quest log panel
+    this.unsubscribers.push(
+      this.eventBus.on('quest_log_opened', () => {
+        this.completeObjectiveById('tut_quest_log');
       }),
     );
 
