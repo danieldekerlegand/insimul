@@ -168,7 +168,10 @@ enum class EInsimulEventType : uint8
     ObjectPointedAndNamed UMETA(DisplayName = "Object Pointed And Named"),
     // Translation / pronunciation attempt events
     TranslationAttempt UMETA(DisplayName = "Translation Attempt"),
-    PronunciationAttempt UMETA(DisplayName = "Pronunciation Attempt")
+    PronunciationAttempt UMETA(DisplayName = "Pronunciation Attempt"),
+    // UI panel events (tutorial completion triggers)
+    InventoryOpened UMETA(DisplayName = "Inventory Opened"),
+    QuestLogOpened UMETA(DisplayName = "Quest Log Opened")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

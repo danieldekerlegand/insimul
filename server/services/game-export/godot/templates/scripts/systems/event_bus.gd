@@ -155,6 +155,9 @@ const EVENT_LISTENING_COMPLETED := "listening_completed"
 const EVENT_INVESTIGATION_COMPLETED := "investigation_completed"
 # NPC activity observation events
 const EVENT_ACTIVITY_OBSERVED := "activity_observed"
+# UI panel events (tutorial completion triggers)
+const EVENT_INVENTORY_OPENED := "inventory_opened"
+const EVENT_QUEST_LOG_OPENED := "quest_log_opened"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -257,6 +260,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_INVESTIGATION_COMPLETED,
 	# NPC activity observation events
 	EVENT_ACTIVITY_OBSERVED,
+	# UI panel events (tutorial completion triggers)
+	EVENT_INVENTORY_OPENED,
+	EVENT_QUEST_LOG_OPENED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

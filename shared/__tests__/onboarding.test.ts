@@ -70,10 +70,10 @@ describe('LANGUAGE_LEARNING_ONBOARDING', () => {
     expect(assessmentSteps).toHaveLength(4);
 
     const phaseIds = assessmentSteps.map(s => s.externalRef);
-    expect(phaseIds).toContain('arrival_conversational');
-    expect(phaseIds).toContain('arrival_listening');
+    expect(phaseIds).toContain('arrival_reading');
     expect(phaseIds).toContain('arrival_writing');
-    expect(phaseIds).toContain('arrival_visual');
+    expect(phaseIds).toContain('arrival_listening');
+    expect(phaseIds).toContain('arrival_conversation');
   });
 
   it('assessment steps are not skippable', () => {
@@ -142,10 +142,10 @@ describe('helper functions', () => {
   it('getAssessmentStepIds returns 4 assessment step IDs', () => {
     const ids = getAssessmentStepIds();
     expect(ids).toHaveLength(4);
-    expect(ids).toContain('assessment_conversational');
-    expect(ids).toContain('assessment_listening');
+    expect(ids).toContain('assessment_reading');
     expect(ids).toContain('assessment_writing');
-    expect(ids).toContain('assessment_visual');
+    expect(ids).toContain('assessment_listening');
+    expect(ids).toContain('assessment_conversation');
   });
 
   it('getSkippableStepIds returns tutorial/narrative skippable steps', () => {
@@ -160,9 +160,9 @@ describe('helper functions', () => {
   it('getAssessmentPhaseMap maps step IDs to arrival encounter phase IDs', () => {
     const map = getAssessmentPhaseMap();
     expect(Object.keys(map)).toHaveLength(4);
-    expect(map['assessment_conversational']).toBe('arrival_conversational');
-    expect(map['assessment_listening']).toBe('arrival_listening');
+    expect(map['assessment_reading']).toBe('arrival_reading');
     expect(map['assessment_writing']).toBe('arrival_writing');
-    expect(map['assessment_visual']).toBe('arrival_visual');
+    expect(map['assessment_listening']).toBe('arrival_listening');
+    expect(map['assessment_conversation']).toBe('arrival_conversation');
   });
 });
