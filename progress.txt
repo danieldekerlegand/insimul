@@ -2,6 +2,39 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## 2026-04-03 - Audit: Vocabulary System — Spaced Repetition, Word Tracking, and Reward Integration
+- **Audit findings**: 3 issues found in vocabulary system:
+  1. **Mastery calculation mismatch**: `calculateMasteryLevel()` in `progress.ts` used different thresholds (10 correct + 15 encounters for mastered) than `getMasteryForCorrectCount()` in `vocabulary-review.ts` (8 correct). A word could be "mastered" in SRS review but only "familiar" in LanguageProgressTracker.
+  2. **Hardcoded vocabulary category**: `GameTruthSync.handleVocabularyUsed()` always used `category = 'general'` instead of deriving from the event, so Prolog `knows_vocabulary` assertions always got wrong category.
+  3. **vocabulary_used event missing category**: The `GameEvent` type for `vocabulary_used` didn't include a `category` field, preventing downstream handlers from getting the word's category.
+- **Fixes applied**:
+  - Updated `calculateMasteryLevel()` to use same thresholds as SRS (3/5/8 correct uses for learning/familiar/mastered), with encounter count gating only new→learning transition
+  - Added optional `category` field to `vocabulary_used` event type in `GameEventBus.ts`
+  - Updated `GameTruthSync.handleVocabularyUsed()` to use `event.category` when available, falling back to 'general'
+  - Updated existing tests in `e2e-main-quest-systems.test.ts` and `e2e-world-validation.test.ts` to match aligned thresholds
+- **Tests added**: 36 new audit tests in `shared/__tests__/vocabulary-system-audit.test.ts` covering:
+  - Mastery calculation alignment between both code paths
+  - SRS scheduling intervals and review selection
+  - SRS quest objective generation
+  - XP reward integration
+  - Vocabulary category unlock flow
+  - Event pipeline category propagation
+  - End-to-end word tracking → SRS → quest → reward flow
+- **Noted gap**: `calculateReviewXPBonus()` exists in `srs-quest-objectives.ts` but is never called during quest completion — vocabulary review quests don't get per-word mastery XP bonus
+- Files changed:
+  - `shared/language/progress.ts` — aligned `calculateMasteryLevel()` thresholds with SRS system
+  - `shared/game-engine/logic/GameEventBus.ts` — added `category?` to `vocabulary_used` event type
+  - `shared/game-engine/logic/GameTruthSync.ts` — use event category in `handleVocabularyUsed()`
+  - `shared/__tests__/vocabulary-system-audit.test.ts` — new: 36 audit tests
+  - `shared/__tests__/e2e-main-quest-systems.test.ts` — updated mastery threshold expectations
+  - `shared/__tests__/e2e-world-validation.test.ts` — updated mastery threshold expectations
+- **Learnings for future iterations:**
+  - Two parallel mastery calculation paths exist: `getMasteryForCorrectCount` (SRS) and `calculateMasteryLevel` (LanguageProgressTracker) — keep them aligned
+  - `vocabulary_used` events flow through GameEventBus to GameTruthSync, GamePrologEngine, QuestObjectManager, and PlayerActionTracker
+  - Category unlock persists in `playerProgress.saveData.unlockedVocabularyCategories`
+  - 9 pre-existing test failures in e2e-main-quest-systems and e2e-world-validation (main quest chapter/book seed issues, not vocabulary-related)
+---
+
 ## 2026-04-01 - Audit: Quest Reward and Progression Flow
 - **Audit findings**: Quest completion endpoint had 3 gaps in reward/progression flow:
   1. Item rewards defined on quests (`itemRewards`) were never persisted to player inventory on the server side

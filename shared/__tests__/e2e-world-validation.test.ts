@@ -395,11 +395,11 @@ describe('E2E: Text vocabulary feeds into language progress', () => {
       language: TARGET_LANGUAGE,
     });
 
-    // New → learning → familiar → mastered
+    // New → learning → familiar → mastered (aligned with SRS thresholds)
     expect(calculateMasteryLevel(0, 0)).toBe('new');
     expect(calculateMasteryLevel(3, 1)).toBe('learning');
     expect(calculateMasteryLevel(8, 5)).toBe('familiar');
-    expect(calculateMasteryLevel(15, 10)).toBe('mastered');
+    expect(calculateMasteryLevel(10, 8)).toBe('mastered');
   });
 
   it('text vocabulary words become due for review after interval', () => {

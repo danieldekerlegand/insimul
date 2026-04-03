@@ -27,7 +27,7 @@ export type GameEvent =
   | { type: 'location_visited'; locationId: string; locationName: string }
   | { type: 'npc_talked'; npcId: string; npcName: string; turnCount: number }
   | { type: 'item_delivered'; npcId: string; itemId: string; itemName: string }
-  | { type: 'vocabulary_used'; word: string; correct: boolean }
+  | { type: 'vocabulary_used'; word: string; correct: boolean; category?: string }
   | { type: 'object_examined'; objectId: string; objectName: string; targetWord: string; targetLanguage: string; pronunciation?: string; category?: string }
   | { type: 'conversation_turn'; npcId: string; keywords: string[] }
   | { type: 'npc_conversation_turn'; npcId: string; topicTag: string | undefined }

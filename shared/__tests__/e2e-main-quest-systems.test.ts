@@ -253,14 +253,18 @@ describe('E2E: Vocabulary mastery lifecycle', () => {
     expect(calculateMasteryLevel(1, 0)).toBe('new');
     expect(calculateMasteryLevel(2, 0)).toBe('learning');
     expect(calculateMasteryLevel(8, 5)).toBe('familiar');
-    expect(calculateMasteryLevel(15, 10)).toBe('mastered');
+    expect(calculateMasteryLevel(10, 8)).toBe('mastered');
   });
 
-  it('mastery requires both encounters AND correct uses', () => {
-    // High encounters but no correct uses = learning
+  it('mastery requires at least one encounter to leave new', () => {
+    // Zero encounters always = new, even with correct uses
+    expect(calculateMasteryLevel(0, 10)).toBe('new');
+    // High encounters but no correct uses = learning (encounter gate)
     expect(calculateMasteryLevel(20, 0)).toBe('learning');
-    // High correct uses but low encounters = learning (encounters gate)
-    expect(calculateMasteryLevel(3, 10)).toBe('learning');
+    // Correct-use thresholds aligned with SRS: 3=learning, 5=familiar, 8=mastered
+    expect(calculateMasteryLevel(3, 3)).toBe('learning');
+    expect(calculateMasteryLevel(5, 5)).toBe('familiar');
+    expect(calculateMasteryLevel(8, 8)).toBe('mastered');
   });
 
   it('vocabulary review scheduling respects mastery-based intervals', () => {

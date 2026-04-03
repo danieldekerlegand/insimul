@@ -278,7 +278,7 @@ var _global_handlers: Array[Callable] = []
 ##   location_visited:    {type, location_id, location_name}
 ##   npc_talked:          {type, npc_id, npc_name, turn_count}
 ##   item_delivered:      {type, npc_id, item_id, item_name}
-##   vocabulary_used:     {type, word, correct}
+##   vocabulary_used:     {type, word, correct, category?}
 ##   conversation_turn:   {type, npc_id, keywords}
 ##   quest_accepted:      {type, quest_id, quest_title, assigned_by_npc_id?, assigned_by_npc_name?}
 ##   quest_completed:     {type, quest_id, assigned_by_npc_id?}

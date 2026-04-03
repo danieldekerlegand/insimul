@@ -126,14 +126,27 @@ export interface FluencyGainResult {
 }
 
 /**
- * Calculate mastery level based on encounter and usage counts
+ * Calculate mastery level based on encounter and usage counts.
+ *
+ * Delegates to the SRS thresholds (3/5/8 correct uses) so that mastery
+ * levels stay consistent between the spaced-repetition review system
+ * and the general language progress tracker.  The encounter count gates
+ * only the first transition: a word must be encountered at least once
+ * before it can leave the "new" tier.
  */
 export function calculateMasteryLevel(
   timesEncountered: number,
   timesUsedCorrectly: number
 ): MasteryLevel {
-  if (timesUsedCorrectly >= 10 && timesEncountered >= 15) return 'mastered';
-  if (timesUsedCorrectly >= 5 && timesEncountered >= 8) return 'familiar';
+  // Must have at least one encounter to progress past 'new'
+  if (timesEncountered === 0) return 'new';
+
+  // Use the same thresholds as the SRS system (vocabulary-review.ts)
+  if (timesUsedCorrectly >= 8) return 'mastered';
+  if (timesUsedCorrectly >= 5) return 'familiar';
+  if (timesUsedCorrectly >= 3) return 'learning';
+
+  // Some encounters but few correct uses — still learning
   if (timesEncountered >= 2) return 'learning';
   return 'new';
 }
