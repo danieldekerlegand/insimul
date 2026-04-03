@@ -457,11 +457,11 @@ export class GameTruthSync {
 
   // ── Vocabulary & Language Handlers ──────────────────────────────────────
 
-  private async handleVocabularyUsed(event: { word: string; correct: boolean }): Promise<void> {
+  private async handleVocabularyUsed(event: { word: string; correct: boolean; category?: string }): Promise<void> {
     if (!event.correct) return; // Only track correctly used vocabulary
 
-    // Derive category from the word (default to 'general')
-    const category = 'general';
+    // Use event category if provided, otherwise fall back to 'general'
+    const category = event.category || 'general';
     // Assert for all known languages the player speaks
     const langs = Array.from(this.languageLevels.keys());
     for (const lang of langs) {

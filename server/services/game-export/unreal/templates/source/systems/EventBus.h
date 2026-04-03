@@ -236,6 +236,7 @@ struct FInsimulGameEvent
     // ── Dialogue / vocabulary ─────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Word;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bCorrect = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString VocabularyCategory;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Keywords;
 
     // ── Quest fields ──────────────────────────────────────────────────
