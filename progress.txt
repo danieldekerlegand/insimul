@@ -21,6 +21,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - encodeChainMeta/extractChainMeta are standalone exported functions, not static methods on QuestChainManager
 ---
 
+## 2026-04-03 - E2E Quest Completion Smoke Tests
+- Created `shared/__tests__/quest-e2e-completion-flow.test.ts` with 27 tests covering 8 E2E scenarios:
+  1. **Single quest completion → rewards**: multi-objective quest through full reward pipeline (items, skills, XP)
+  2. **Ordered objectives**: sequential order enforcement before quest completion
+  3. **Vocabulary unlock flow**: quest completion → category extraction → apply unlocks
+  4. **Prerequisite unlocking**: completing quests auto-unlocks dependent quests (single/multi/chain)
+  5. **Quest chain completion**: encode/extract chain metadata, bonus XP application, full 3-quest chain flow
+  6. **Skill reward computation**: all quest types, difficulty multipliers, explicit overrides, accumulation
+  7. **Vocabulary category unlocking**: initial categories, extraction, deduplication, invalid categories
+  8. **Multi-quest concurrent tracking**: single event completing multiple quests, NPC/item filtering
+  9. **Full new player scenario**: arrival quest → rewards → vocab unlock → prerequisite unlock
+  10. **Save/load serialization**: partial objective progress persists across engine instances
+- All 27 tests passing, 0 typecheck errors in new file
+- Files changed:
+  - `shared/__tests__/quest-e2e-completion-flow.test.ts` — new E2E smoke test file
+- **Learnings for future iterations:**
+  - QuestCompletionEngine, quest-completion-rewards, quest-skill-rewards, vocabulary-category-unlock, and quest-chain-manager are all independently testable pure modules
+  - Chain metadata is stored in quest tags as `chain_meta:` prefixed JSON — use `encodeChainMeta`/`extractChainMeta`
+  - `serializeObjectiveStates`/`restoreObjectiveStates` on QCE preserves partial progress (e.g., collectedCount)
+  - Single events can complete objectives across multiple active quests simultaneously
+---
+
 ## 2026-04-01 - Audit: Quest Reward and Progression Flow
 - **Audit findings**: Quest completion endpoint had 3 gaps in reward/progression flow:
   1. Item rewards defined on quests (`itemRewards`) were never persisted to player inventory on the server side
