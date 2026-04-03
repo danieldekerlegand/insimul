@@ -296,3 +296,60 @@ const FInsimulRuleEffect* URuleEnforcer::FindRestriction(const FInsimulRule& Rul
     }
     return nullptr;
 }
+
+// --- Atom helpers (match ir-generator.ts sanitizeAtom / nameAtom) ---
+
+FString URuleEnforcer::SanitizeToAtom(const FString& Name)
+{
+    if (Name.IsEmpty()) return TEXT("unknown");
+
+    FString Result = Name.ToLower();
+    // Replace non-alphanumeric (except underscore) with underscore
+    FString Cleaned;
+    for (TCHAR Ch : Result)
+    {
+        if ((Ch >= 'a' && Ch <= 'z') || (Ch >= '0' && Ch <= '9') || Ch == '_')
+            Cleaned.AppendChar(Ch);
+        else
+            Cleaned.AppendChar('_');
+    }
+    // Prefix leading digit with underscore
+    if (Cleaned.Len() > 0 && Cleaned[0] >= '0' && Cleaned[0] <= '9')
+    {
+        Cleaned = TEXT("_") + Cleaned;
+    }
+    // Collapse multiple underscores
+    while (Cleaned.Contains(TEXT("__")))
+    {
+        Cleaned = Cleaned.Replace(TEXT("__"), TEXT("_"));
+    }
+    // Strip leading/trailing underscores
+    while (Cleaned.Len() > 0 && Cleaned[0] == '_') Cleaned.RemoveAt(0);
+    while (Cleaned.Len() > 0 && Cleaned[Cleaned.Len() - 1] == '_') Cleaned.RemoveAt(Cleaned.Len() - 1);
+
+    return Cleaned.IsEmpty() ? TEXT("unknown") : Cleaned;
+}
+
+FString URuleEnforcer::NameToAtom(const FString& Name, const FString& FallbackId)
+{
+    if (!Name.TrimStartAndEnd().IsEmpty())
+    {
+        // Strip combining diacritical marks (Unicode NFD accents)
+        FString Normalized = Name;
+        // Simple ASCII transliteration for common accented characters
+        Normalized = Normalized.Replace(TEXT("\u00e9"), TEXT("e"));
+        Normalized = Normalized.Replace(TEXT("\u00e8"), TEXT("e"));
+        Normalized = Normalized.Replace(TEXT("\u00ea"), TEXT("e"));
+        Normalized = Normalized.Replace(TEXT("\u00e0"), TEXT("a"));
+        Normalized = Normalized.Replace(TEXT("\u00e1"), TEXT("a"));
+        Normalized = Normalized.Replace(TEXT("\u00e2"), TEXT("a"));
+        Normalized = Normalized.Replace(TEXT("\u00f6"), TEXT("o"));
+        Normalized = Normalized.Replace(TEXT("\u00f3"), TEXT("o"));
+        Normalized = Normalized.Replace(TEXT("\u00fc"), TEXT("u"));
+        Normalized = Normalized.Replace(TEXT("\u00fa"), TEXT("u"));
+        Normalized = Normalized.Replace(TEXT("\u00ed"), TEXT("i"));
+        Normalized = Normalized.Replace(TEXT("\u00f1"), TEXT("n"));
+        return SanitizeToAtom(Normalized);
+    }
+    return SanitizeToAtom(FallbackId.IsEmpty() ? TEXT("unknown") : FallbackId);
+}

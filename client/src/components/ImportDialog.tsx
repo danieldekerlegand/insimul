@@ -17,11 +17,13 @@ interface ImportDialogProps {
   onImportComplete: () => void;
 }
 
+type ImportCategory = 'rules' | 'characters' | 'actions' | 'truth' | 'quests' | 'items' | 'texts' | 'grammars' | 'languages' | 'settlements' | 'locations' | 'narrative' | 'world' | 'auto';
+
 interface FileImport {
   file: File;
   content: string;
-  format: SystemType;
-  type: 'rules' | 'characters' | 'actions' | 'truth';
+  format: SystemType | 'prolog';
+  type: ImportCategory;
   status: 'pending' | 'processing' | 'success' | 'error';
   message?: string;
 }
@@ -32,11 +34,11 @@ export function ImportDialog({
   worldId,
   onImportComplete
 }: ImportDialogProps) {
-  const [importFormat, setImportFormat] = useState<SystemType>('insimul');
+  const [importFormat, setImportFormat] = useState<SystemType | 'prolog'>('insimul');
   const [importContent, setImportContent] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<FileImport[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-  const [importType, setImportType] = useState<'rules' | 'characters' | 'actions' | 'truth'>('rules');
+  const [importType, setImportType] = useState<ImportCategory>('auto');
   const [isBaseResource, setIsBaseResource] = useState(false);
   const [parseResults, setParseResults] = useState<{ rules: number; characters: number; actions: number; truths: number } | null>(null);
   const { toast } = useToast();
@@ -49,10 +51,32 @@ export function ImportDialog({
     { value: 'tott', label: 'Talk of the Town Python', description: 'Python classes and methods' }
   ];
 
-  const detectFileTypeAndFormat = (fileName: string): { type: 'rules' | 'characters' | 'actions' | 'truth', format: SystemType } => {
+  const detectFileTypeAndFormat = (fileName: string): { type: ImportCategory, format: SystemType | 'prolog' } => {
     const lowerName = fileName.toLowerCase();
     const extension = lowerName.split('.').pop();
-    
+
+    // Prolog files — auto-detect category from filename
+    if (extension === 'pl') {
+      const base = lowerName.replace(/\.pl$/, '').replace(/[^a-z]/g, '_');
+      const plMap: Record<string, ImportCategory> = {
+        world: 'world', worlds: 'world',
+        character: 'characters', characters: 'characters', cast: 'characters',
+        quest: 'quests', quests: 'quests',
+        item: 'items', items: 'items', base_items: 'items',
+        rule: 'rules', rules: 'rules', base_rules: 'rules',
+        action: 'actions', actions: 'actions', base_actions: 'actions',
+        truth: 'truth', truths: 'truth',
+        text: 'texts', texts: 'texts',
+        grammar: 'grammars', grammars: 'grammars',
+        language: 'languages', languages: 'languages',
+        settlement: 'settlements', settlements: 'settlements',
+        location: 'locations', locations: 'locations',
+        narrative: 'narrative',
+        history: 'truth',
+      };
+      return { type: plMap[base] || 'auto', format: 'prolog' };
+    }
+
     // Detect type from filename with improved pattern matching
     if (lowerName.includes('cast') || lowerName.includes('character') || lowerName.includes('people')) {
       return { type: 'characters', format: 'ensemble' };
@@ -193,11 +217,19 @@ export function ImportDialog({
           title: 'Content Parsed',
           description: `Found ${results.truths} Truths ready to import`
         });
+      } else if (importFormat === 'prolog') {
+        // Quick preview for Prolog — count primary predicates
+        const factCount = (importContent.match(/^[a-z_]\w*\(/gm) || []).length;
+        results.rules = factCount;
+        toast({
+          title: 'Content Parsed',
+          description: `Found ${factCount} Prolog facts/rules ready to import (category auto-detected on import)`
+        });
       } else {
         // Parse rules
-        const parsedRules = ruleCompiler.compile(importContent, importFormat);
+        const parsedRules = ruleCompiler.compile(importContent, importFormat as SystemType);
         results.rules = parsedRules.length;
-        
+
         toast({
           title: 'Content Parsed',
           description: `Found ${results.rules} ${isBaseResource ? 'base ' : ''}rules ready to import`
@@ -214,9 +246,29 @@ export function ImportDialog({
     }
   };
 
-  const importSingleContent = async (content: string, type: 'rules' | 'characters' | 'actions' | 'truth', format: SystemType): Promise<{ success: boolean, count: number, message?: string }> => {
+  const importSingleContent = async (content: string, type: ImportCategory, format: SystemType | 'prolog'): Promise<{ success: boolean, count: number, message?: string }> => {
 
     try {
+      // Prolog import — send to bulk import endpoint, let server handle parsing
+      if (format === 'prolog') {
+        const response = await fetch(`/api/worlds/${worldId}/prolog/import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content,
+            filename: type !== 'auto' ? `${type}.pl` : undefined,
+          }),
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Import failed' }));
+          throw new Error(err.error || err.message || 'Prolog import failed');
+        }
+        const result = await response.json();
+        const total = result.results?.reduce((s: number, r: any) => s + r.created, 0) ?? 0;
+        const cats = result.results?.map((r: any) => `${r.created} ${r.category}`).join(', ') ?? '';
+        return { success: true, count: total, message: `Imported ${cats}` };
+      }
+
       if (type === 'characters') {
         // Import Ensemble cast file
         const castData = JSON.parse(content);
@@ -471,35 +523,25 @@ export function ImportDialog({
           {/* Import Type Selection */}
           <div className="space-y-2">
             <Label htmlFor="import-type">Import Type</Label>
-            <Select value={importType} onValueChange={(value: 'rules' | 'characters' | 'actions' | 'truth') => setImportType(value)} data-testid="select-import-type">
+            <Select value={importType} onValueChange={(value: ImportCategory) => setImportType(value)} data-testid="select-import-type">
               <SelectTrigger>
                 <SelectValue placeholder="Select what to import" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="rules">
-                  <div className="flex flex-col">
-                    <span className="font-medium">Rules</span>
-                    <span className="text-sm text-muted-foreground">Social simulation rules</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="characters">
-                  <div className="flex flex-col">
-                    <span className="font-medium">Characters (Cast)</span>
-                    <span className="text-sm text-muted-foreground">Ensemble cast file</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="actions">
-                  <div className="flex flex-col">
-                    <span className="font-medium">Actions</span>
-                    <span className="text-sm text-muted-foreground">Ensemble actions file</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="truth">
-                  <div className="flex flex-col">
-                    <span className="font-medium">Truth (History)</span>
-                    <span className="text-sm text-muted-foreground">Ensemble history/truth file</span>
-                  </div>
-                </SelectItem>
+                <SelectItem value="auto">Auto-detect from file</SelectItem>
+                <SelectItem value="rules">Rules</SelectItem>
+                <SelectItem value="characters">Characters</SelectItem>
+                <SelectItem value="actions">Actions</SelectItem>
+                <SelectItem value="quests">Quests</SelectItem>
+                <SelectItem value="items">Items</SelectItem>
+                <SelectItem value="texts">Texts</SelectItem>
+                <SelectItem value="grammars">Grammars</SelectItem>
+                <SelectItem value="languages">Languages</SelectItem>
+                <SelectItem value="truth">Truths / History</SelectItem>
+                <SelectItem value="settlements">Settlements</SelectItem>
+                <SelectItem value="locations">Locations</SelectItem>
+                <SelectItem value="narrative">Narrative</SelectItem>
+                <SelectItem value="world">World</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -552,7 +594,7 @@ export function ImportDialog({
               id="file-upload"
               type="file"
               multiple
-              accept=".insimul,.json,.ens,.lp,.kis,.py,.txt"
+              accept=".insimul,.json,.ens,.lp,.kis,.py,.txt,.pl"
               onChange={handleFileUpload}
               className="block w-full text-sm text-slate-500
                 file:mr-4 file:py-2 file:px-4
@@ -650,16 +692,17 @@ export function ImportDialog({
             <AlertDescription className="text-sm">
               <strong>Supported formats:</strong>
               <ul className="list-disc list-inside mt-2 space-y-1">
+                <li><strong>Prolog (.pl):</strong> World data exported from Insimul — characters, items, quests, rules, actions, truths, texts, grammars, languages, settlements, locations, narrative. Category is auto-detected from filename and predicates.</li>
                 <li><strong>Rules:</strong> Insimul (.insimul), Ensemble (.json), Kismet (.lp), TotT (.py)</li>
-                <li><strong>Characters:</strong> Ensemble cast files (.json) with character names</li>
-                <li><strong>Actions:</strong> Ensemble actions files (.json) with action definitions</li>
-                <li><strong>Truth:</strong> Ensemble history files (.json) with past/present/future events</li>
+                <li><strong>Characters:</strong> Ensemble cast files (.json)</li>
+                <li><strong>Actions:</strong> Ensemble actions files (.json)</li>
+                <li><strong>Truth:</strong> Ensemble history files (.json)</li>
               </ul>
               <p className="mt-2 text-xs text-muted-foreground">
-                <strong>Multiple Files:</strong> Select multiple files to batch import. Each file will be processed sequentially with progress tracking.
+                <strong>Multiple Files:</strong> Select multiple .pl files to import an entire world at once. Each file is auto-detected and processed.
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                <strong>Base Resources:</strong> Check "Import as Base Resource" for rules/actions to make them globally available across all worlds. Otherwise, they'll be specific to the current world.
+                <strong>Base Resources:</strong> Check "Import as Base Resource" for rules/actions to make them globally available across all worlds.
               </p>
             </AlertDescription>
           </Alert>

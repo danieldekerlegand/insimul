@@ -2578,10 +2578,45 @@ async function buildKnowledgeBase(
   parts.push(getAdvancedPredicates());
   parts.push('');
 
+  // ── Build ID→name lookup maps for cross-referencing ──
+  const countryLookup = buildAtomLookup(worldData?.countries || []);
+  const stateLookup = buildAtomLookup(worldData?.states || []);
+  const settlementLookup = buildAtomLookup(worldData?.settlements || []);
+  const charNameField = (c: any) => `${c.firstName || ''} ${c.lastName || ''}`.trim();
+  const charLookup = new Map<string, string>();
+  {
+    const nameCount = new Map<string, number>();
+    for (const c of characters) {
+      const atom = nameAtom(charNameField(c));
+      nameCount.set(atom, (nameCount.get(atom) || 0) + 1);
+    }
+    const seen = new Map<string, number>();
+    for (const c of characters) {
+      const id = c.id || c._id?.toString();
+      const atom = nameAtom(charNameField(c));
+      if ((nameCount.get(atom) || 0) > 1) {
+        const idx = (seen.get(atom) || 0) + 1;
+        seen.set(atom, idx);
+        charLookup.set(id, `${atom}_${idx}`);
+      } else {
+        charLookup.set(id, atom);
+      }
+    }
+  }
+  const itemLookup = buildAtomLookup(worldData?.worldItems || []);
+  const truthLookup = buildAtomLookup(worldData?.truths || [], 'title');
+  const langLookup = buildAtomLookup(worldData?.languages || []);
+
+  /** Resolve an entity ID to its readable atom name, falling back to sanitizeAtom(id) */
+  const resolveId = (id: string | undefined | null, lookup: Map<string, string>): string => {
+    if (!id) return 'unknown';
+    return lookup.get(id) || sanitizeAtom(id);
+  };
+
   // ── World facts ──
   if (worldData?.world) {
     const w = worldData.world;
-    const wId = sanitizeAtom(w.id || w._id?.toString() || 'world');
+    const wId = nameAtom(w.name, w.id || w._id?.toString() || 'world');
     parts.push('% === World Facts ===');
     parts.push(`world(${wId}).`);
     if (w.name) parts.push(`world_name(${wId}, '${escapeAtom(w.name)}').`);
@@ -2594,7 +2629,7 @@ async function buildKnowledgeBase(
   if (countries.length > 0) {
     parts.push('% === Country Facts ===');
     for (const c of countries) {
-      const cId = sanitizeAtom(c.id || c._id?.toString());
+      const cId = resolveId(c.id || c._id?.toString(), countryLookup);
       parts.push(`country(${cId}).`);
       if (c.name) parts.push(`country_name(${cId}, '${escapeAtom(c.name)}').`);
       if (c.governmentType) parts.push(`government_type(${cId}, ${sanitizeAtom(c.governmentType)}).`);
@@ -2603,10 +2638,10 @@ async function buildKnowledgeBase(
       if (c.description) parts.push(`country_description(${cId}, '${escapeAtom(c.description.slice(0, 300))}').`);
       // Alliances and enemies
       if (Array.isArray(c.alliances)) {
-        for (const allyId of c.alliances) parts.push(`country_ally(${cId}, ${sanitizeAtom(allyId)}).`);
+        for (const allyId of c.alliances) parts.push(`country_ally(${cId}, ${resolveId(allyId, countryLookup)}).`);
       }
       if (Array.isArray(c.enemies)) {
-        for (const enemyId of c.enemies) parts.push(`country_enemy(${cId}, ${sanitizeAtom(enemyId)}).`);
+        for (const enemyId of c.enemies) parts.push(`country_enemy(${cId}, ${resolveId(enemyId, countryLookup)}).`);
       }
       // Culture and laws
       if (c.culture && typeof c.culture === 'object') {
@@ -2651,20 +2686,20 @@ async function buildKnowledgeBase(
   if (states.length > 0) {
     parts.push('% === State Facts ===');
     for (const s of states) {
-      const sId = sanitizeAtom(s.id || s._id?.toString());
+      const sId = resolveId(s.id || s._id?.toString(), stateLookup);
       parts.push(`state(${sId}).`);
       if (s.name) parts.push(`state_name(${sId}, '${escapeAtom(s.name)}').`);
-      if (s.countryId) parts.push(`state_of_country(${sId}, ${sanitizeAtom(s.countryId)}).`);
+      if (s.countryId) parts.push(`state_of_country(${sId}, ${resolveId(s.countryId, countryLookup)}).`);
       if (s.stateType) parts.push(`state_type(${sId}, ${sanitizeAtom(s.stateType)}).`);
       if (s.terrain) parts.push(`state_terrain(${sId}, ${sanitizeAtom(s.terrain)}).`);
       if (s.description) parts.push(`state_description(${sId}, '${escapeAtom(s.description.slice(0, 300))}').`);
       if (s.foundedYear) parts.push(`state_founded(${sId}, ${s.foundedYear}).`);
-      if (s.governorId) parts.push(`state_governor(${sId}, ${sanitizeAtom(s.governorId)}).`);
+      if (s.governorId) parts.push(`state_governor(${sId}, ${resolveId(s.governorId, charLookup)}).`);
       if (s.localGovernmentType) parts.push(`state_local_government(${sId}, ${sanitizeAtom(s.localGovernmentType)}).`);
       // Previous countries (annexation history)
       if (Array.isArray(s.previousCountryIds)) {
         for (const prevId of s.previousCountryIds) {
-          parts.push(`state_previous_country(${sId}, ${sanitizeAtom(prevId)}).`);
+          parts.push(`state_previous_country(${sId}, ${resolveId(prevId, countryLookup)}).`);
         }
       }
     }
@@ -2676,11 +2711,11 @@ async function buildKnowledgeBase(
   if (settlements.length > 0) {
     parts.push('% === Settlement Facts ===');
     for (const s of settlements) {
-      const sId = sanitizeAtom(s.id || s._id?.toString());
+      const sId = resolveId(s.id || s._id?.toString(), settlementLookup);
       parts.push(`settlement(${sId}).`);
       if (s.name) parts.push(`settlement_name(${sId}, '${escapeAtom(s.name)}').`);
-      if (s.countryId) parts.push(`settlement_of_country(${sId}, ${sanitizeAtom(s.countryId)}).`);
-      if (s.stateId) parts.push(`settlement_of_state(${sId}, ${sanitizeAtom(s.stateId)}).`);
+      if (s.countryId) parts.push(`settlement_of_country(${sId}, ${resolveId(s.countryId, countryLookup)}).`);
+      if (s.stateId) parts.push(`settlement_of_state(${sId}, ${resolveId(s.stateId, stateLookup)}).`);
       if (s.settlementType) parts.push(`settlement_type(${sId}, ${sanitizeAtom(s.settlementType)}).`);
       if (s.terrain) parts.push(`settlement_terrain(${sId}, ${sanitizeAtom(s.terrain)}).`);
       if (s.population) parts.push(`settlement_population(${sId}, ${s.population}).`);
@@ -2728,12 +2763,12 @@ async function buildKnowledgeBase(
   if (businesses.length > 0) {
     parts.push('% === Business Facts ===');
     for (const b of businesses) {
-      const bId = sanitizeAtom(b.id || b._id?.toString());
+      const bId = nameAtom(b.name, b.id || b._id?.toString());
       parts.push(`business(${bId}).`);
       if (b.name) parts.push(`business_name(${bId}, '${escapeAtom(b.name)}').`);
       if (b.businessType) parts.push(`business_type(${bId}, ${sanitizeAtom(b.businessType)}).`);
-      if (b.settlementId) parts.push(`business_of_settlement(${bId}, ${sanitizeAtom(b.settlementId)}).`);
-      if (b.ownerId) parts.push(`business_owner(${bId}, ${sanitizeAtom(b.ownerId)}).`);
+      if (b.settlementId) parts.push(`business_of_settlement(${bId}, ${resolveId(b.settlementId, settlementLookup)}).`);
+      if (b.ownerId) parts.push(`business_owner(${bId}, ${resolveId(b.ownerId, charLookup)}).`);
       if (b.isOutOfBusiness) parts.push(`business_out_of_business(${bId}).`);
     }
     parts.push('');
@@ -2745,9 +2780,9 @@ async function buildKnowledgeBase(
     parts.push('% === Lot Facts ===');
     lotsBySettlement.forEach((lots) => {
       for (const lot of lots) {
-        const lId = sanitizeAtom(lot.id || lot._id?.toString());
+        const lId = nameAtom(lot.address || lot.name, lot.id || lot._id?.toString());
         parts.push(`lot(${lId}).`);
-        if (lot.settlementId) parts.push(`lot_of_settlement(${lId}, ${sanitizeAtom(lot.settlementId)}).`);
+        if (lot.settlementId) parts.push(`lot_of_settlement(${lId}, ${resolveId(lot.settlementId, settlementLookup)}).`);
         if (lot.address) parts.push(`lot_address(${lId}, '${escapeAtom(lot.address)}').`);
         if (lot.buildingType) parts.push(`lot_building_type(${lId}, ${sanitizeAtom(lot.buildingType)}).`);
       }
@@ -2758,7 +2793,7 @@ async function buildKnowledgeBase(
   // ── Character facts (expanded) ──
   parts.push('% === Character Facts ===');
   for (const char of characters) {
-    const id = sanitizeAtom(`${char.firstName}_${char.lastName}_${char.id}`);
+    const id = resolveId(char.id, charLookup);
     parts.push(`person(${id}).`);
     if (char.firstName) parts.push(`first_name(${id}, '${escapeAtom(char.firstName)}').`);
     if (char.lastName) parts.push(`last_name(${id}, '${escapeAtom(char.lastName)}').`);
@@ -2784,12 +2819,12 @@ async function buildKnowledgeBase(
       }
     }
     // Family relationships
-    if (char.spouseId) parts.push(`married_to(${id}, ${sanitizeAtom(char.spouseId)}).`);
+    if (char.spouseId) parts.push(`married_to(${id}, ${resolveId(char.spouseId, charLookup)}).`);
     if (Array.isArray(char.parentIds)) {
-      for (const pid of char.parentIds) parts.push(`child_of(${id}, ${sanitizeAtom(pid)}).`);
+      for (const pid of char.parentIds) parts.push(`child_of(${id}, ${resolveId(pid, charLookup)}).`);
     }
     if (Array.isArray(char.childIds)) {
-      for (const cid of char.childIds) parts.push(`parent_of(${id}, ${sanitizeAtom(cid)}).`);
+      for (const cid of char.childIds) parts.push(`parent_of(${id}, ${resolveId(cid, charLookup)}).`);
     }
     // Physical traits
     if (char.physicalTraits && typeof char.physicalTraits === 'object') {
@@ -2861,7 +2896,7 @@ async function buildKnowledgeBase(
   if (items.length > 0) {
     parts.push('% === Item Facts ===');
     for (const item of items) {
-      const iId = sanitizeAtom(item.id || item._id?.toString());
+      const iId = resolveId(item.id || item._id?.toString(), itemLookup);
       parts.push(`item(${iId}).`);
       if (item.name) parts.push(`item_name(${iId}, '${escapeAtom(item.name)}').`);
       if (item.itemType) parts.push(`item_type(${iId}, ${sanitizeAtom(item.itemType)}).`);
@@ -2877,11 +2912,11 @@ async function buildKnowledgeBase(
   if (truths.length > 0) {
     parts.push('% === Truth Facts ===');
     for (const truth of truths) {
-      const tId = sanitizeAtom(truth.id || truth._id?.toString());
+      const tId = resolveId(truth.id || truth._id?.toString(), truthLookup);
       parts.push(`truth(${tId}).`);
       if (truth.title) parts.push(`truth_title(${tId}, '${escapeAtom(truth.title)}').`);
       if (truth.entryType) parts.push(`truth_type(${tId}, ${sanitizeAtom(truth.entryType)}).`);
-      if (truth.characterId) parts.push(`truth_about(${tId}, ${sanitizeAtom(truth.characterId)}).`);
+      if (truth.characterId) parts.push(`truth_about(${tId}, ${resolveId(truth.characterId, charLookup)}).`);
       if (truth.timestep != null) parts.push(`truth_timestep(${tId}, ${truth.timestep}).`);
       if (truth.importance) parts.push(`truth_importance(${tId}, ${truth.importance}).`);
       if (truth.isPublic !== undefined) parts.push(`truth_public(${tId}, ${truth.isPublic}).`);
@@ -2894,7 +2929,7 @@ async function buildKnowledgeBase(
   if (languages.length > 0) {
     parts.push('% === Language Facts ===');
     for (const lang of languages) {
-      const lId = sanitizeAtom(lang.id || lang._id?.toString());
+      const lId = resolveId(lang.id || lang._id?.toString(), langLookup);
       parts.push(`language(${lId}).`);
       if (lang.name) parts.push(`language_name(${lId}, '${escapeAtom(lang.name)}').`);
       if (lang.nativeName) parts.push(`language_native_name(${lId}, '${escapeAtom(lang.nativeName)}').`);
@@ -2908,12 +2943,12 @@ async function buildKnowledgeBase(
   if (waterFeats.length > 0) {
     parts.push('% === Water Feature Facts ===');
     for (const wf of waterFeats) {
-      const wId = sanitizeAtom(wf.id || wf._id?.toString());
+      const wId = nameAtom(wf.name, wf.id || wf._id?.toString());
       parts.push(`water_feature(${wId}).`);
       if (wf.name) parts.push(`water_feature_name(${wId}, '${escapeAtom(wf.name)}').`);
       if (wf.type) parts.push(`water_feature_type(${wId}, ${sanitizeAtom(wf.type)}).`);
       if (wf.subType) parts.push(`water_feature_sub_type(${wId}, ${sanitizeAtom(wf.subType)}).`);
-      if (wf.settlementId) parts.push(`water_feature_settlement(${wId}, ${sanitizeAtom(wf.settlementId)}).`);
+      if (wf.settlementId) parts.push(`water_feature_settlement(${wId}, ${resolveId(wf.settlementId, settlementLookup)}).`);
       if (wf.isNavigable !== undefined) parts.push(`water_feature_navigable(${wId}, ${wf.isNavigable}).`);
       if (wf.isDrinkable !== undefined) parts.push(`water_feature_drinkable(${wId}, ${wf.isDrinkable}).`);
     }
@@ -2925,7 +2960,7 @@ async function buildKnowledgeBase(
   if (texts.length > 0) {
     parts.push('% === Text Facts (books, journals, letters, signs) ===');
     for (const t of texts) {
-      const tId = sanitizeAtom(t.id || t._id?.toString());
+      const tId = nameAtom(t.title, t.id || t._id?.toString());
       parts.push(`game_text(${tId}).`);
       if (t.title) parts.push(`text_title(${tId}, '${escapeAtom(t.title)}').`);
       if (t.titleTranslation) parts.push(`text_title_translation(${tId}, '${escapeAtom(t.titleTranslation)}').`);
@@ -2961,22 +2996,22 @@ async function buildKnowledgeBase(
   if (residences.length > 0) {
     parts.push('% === Residence Facts ===');
     for (const res of residences) {
-      const rId = sanitizeAtom(res.id || res._id?.toString());
+      const rId = nameAtom(res.address, res.id || res._id?.toString());
       parts.push(`residence(${rId}).`);
-      if (res.settlementId) parts.push(`residence_of_settlement(${rId}, ${sanitizeAtom(res.settlementId)}).`);
-      if (res.lotId) parts.push(`residence_on_lot(${rId}, ${sanitizeAtom(res.lotId)}).`);
+      if (res.settlementId) parts.push(`residence_of_settlement(${rId}, ${resolveId(res.settlementId, settlementLookup)}).`);
+      if (res.lotId) parts.push(`residence_on_lot(${rId}, ${nameAtom(null, res.lotId)}).`);
       if (res.address) parts.push(`residence_address(${rId}, '${escapeAtom(res.address)}').`);
       if (res.residenceType) parts.push(`residence_type(${rId}, ${sanitizeAtom(res.residenceType)}).`);
       // Owners
       if (Array.isArray(res.ownerIds)) {
         for (const ownerId of res.ownerIds) {
-          parts.push(`residence_owner(${rId}, ${sanitizeAtom(ownerId)}).`);
+          parts.push(`residence_owner(${rId}, ${resolveId(ownerId, charLookup)}).`);
         }
       }
       // Residents
       if (Array.isArray(res.residentIds)) {
         for (const residentId of res.residentIds) {
-          parts.push(`lives_at(${sanitizeAtom(residentId)}, ${rId}).`);
+          parts.push(`lives_at(${resolveId(residentId, charLookup)}, ${rId}).`);
         }
       }
     }
@@ -2988,18 +3023,18 @@ async function buildKnowledgeBase(
   if (containers.length > 0) {
     parts.push('% === Container Facts ===');
     for (const c of containers) {
-      const cId = sanitizeAtom(c.id || c._id?.toString());
+      const cId = nameAtom(c.name, c.id || c._id?.toString());
       parts.push(`container(${cId}).`);
       if (c.name) parts.push(`container_name(${cId}, '${escapeAtom(c.name)}').`);
       if (c.containerType) parts.push(`container_type(${cId}, ${sanitizeAtom(c.containerType)}).`);
       if (c.capacity) parts.push(`container_capacity(${cId}, ${c.capacity}).`);
       if (c.locked) parts.push(`container_locked(${cId}).`);
       if (c.lockDifficulty) parts.push(`container_lock_difficulty(${cId}, ${c.lockDifficulty}).`);
-      if (c.keyItemId) parts.push(`container_key(${cId}, ${sanitizeAtom(c.keyItemId)}).`);
+      if (c.keyItemId) parts.push(`container_key(${cId}, ${resolveId(c.keyItemId, itemLookup)}).`);
       // Location
-      if (c.businessId) parts.push(`container_at_business(${cId}, ${sanitizeAtom(c.businessId)}).`);
-      if (c.residenceId) parts.push(`container_at_residence(${cId}, ${sanitizeAtom(c.residenceId)}).`);
-      if (c.lotId) parts.push(`container_on_lot(${cId}, ${sanitizeAtom(c.lotId)}).`);
+      if (c.businessId) parts.push(`container_at_business(${cId}, ${nameAtom(null, c.businessId)}).`);
+      if (c.residenceId) parts.push(`container_at_residence(${cId}, ${nameAtom(null, c.residenceId)}).`);
+      if (c.lotId) parts.push(`container_on_lot(${cId}, ${nameAtom(null, c.lotId)}).`);
       // Contents
       if (Array.isArray(c.items)) {
         for (const item of c.items) {
@@ -3018,12 +3053,12 @@ async function buildKnowledgeBase(
   if (publicBuildings.length > 0) {
     parts.push('% === Public Building Facts ===');
     for (const pb of publicBuildings) {
-      const pbId = sanitizeAtom(pb.id || pb._id?.toString());
+      const pbId = nameAtom(pb.name, pb.id || pb._id?.toString());
       parts.push(`public_building(${pbId}).`);
       if (pb.name) parts.push(`public_building_name(${pbId}, '${escapeAtom(pb.name)}').`);
       if (pb.publicBuildingType) parts.push(`public_building_type(${pbId}, ${sanitizeAtom(pb.publicBuildingType)}).`);
-      if (pb.settlementId) parts.push(`public_building_of_settlement(${pbId}, ${sanitizeAtom(pb.settlementId)}).`);
-      if (pb.lotId) parts.push(`public_building_on_lot(${pbId}, ${sanitizeAtom(pb.lotId)}).`);
+      if (pb.settlementId) parts.push(`public_building_of_settlement(${pbId}, ${resolveId(pb.settlementId, settlementLookup)}).`);
+      if (pb.lotId) parts.push(`public_building_on_lot(${pbId}, ${nameAtom(null, pb.lotId)}).`);
       if (pb.address) parts.push(`public_building_address(${pbId}, '${escapeAtom(pb.address)}').`);
       if (pb.foundedYear) parts.push(`public_building_founded(${pbId}, ${pb.foundedYear}).`);
       if (pb.isOperational !== undefined) parts.push(`public_building_operational(${pbId}, ${pb.isOperational}).`);
@@ -3031,7 +3066,7 @@ async function buildKnowledgeBase(
       // Employees
       if (Array.isArray(pb.employeeIds)) {
         for (const empId of pb.employeeIds) {
-          parts.push(`public_building_employee(${pbId}, ${sanitizeAtom(empId)}).`);
+          parts.push(`public_building_employee(${pbId}, ${resolveId(empId, charLookup)}).`);
         }
       }
     }
@@ -3041,21 +3076,21 @@ async function buildKnowledgeBase(
   // ── Character relationship & knowledge facts (detailed) ──
   parts.push('% === Character Relationships & Knowledge ===');
   for (const char of characters) {
-    const id = sanitizeAtom(`${char.firstName}_${char.lastName}_${char.id}`);
+    const id = resolveId(char.id, charLookup);
     // Friendships, coworkers, enemies
     if (Array.isArray(char.friendIds)) {
-      for (const fid of char.friendIds) parts.push(`friends(${id}, ${sanitizeAtom(fid)}).`);
+      for (const fid of char.friendIds) parts.push(`friends(${id}, ${resolveId(fid, charLookup)}).`);
     }
     if (Array.isArray(char.coworkerIds)) {
-      for (const cid of char.coworkerIds) parts.push(`coworker(${id}, ${sanitizeAtom(cid)}).`);
+      for (const cid of char.coworkerIds) parts.push(`coworker(${id}, ${resolveId(cid, charLookup)}).`);
     }
     if (Array.isArray(char.enemyIds)) {
-      for (const eid of char.enemyIds) parts.push(`enemies(${id}, ${sanitizeAtom(eid)}).`);
+      for (const eid of char.enemyIds) parts.push(`enemies(${id}, ${resolveId(eid, charLookup)}).`);
     }
     // Home/workplace
-    if (char.homeResidenceId) parts.push(`home(${id}, ${sanitizeAtom(char.homeResidenceId)}).`);
-    if (char.workplaceId) parts.push(`workplace(${id}, ${sanitizeAtom(char.workplaceId)}).`);
-    if (char.currentLocation) parts.push(`current_location(${id}, ${sanitizeAtom(char.currentLocation)}).`);
+    if (char.homeResidenceId) parts.push(`home(${id}, ${nameAtom(null, char.homeResidenceId)}).`);
+    if (char.workplaceId) parts.push(`workplace(${id}, ${nameAtom(null, char.workplaceId)}).`);
+    if (char.currentLocation) parts.push(`current_location(${id}, ${resolveId(char.currentLocation, settlementLookup)}).`);
     // Status
     if (char.status) parts.push(`character_status(${id}, ${sanitizeAtom(char.status)}).`);
     // Knowledge/mental model
@@ -3192,16 +3227,57 @@ function hasBalancedParens(content: string): boolean {
 }
 
 function sanitizeAtom(str: string): string {
+  if (!str) return 'unknown';
   return str
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
     .replace(/^([0-9])/, '_$1')
     .replace(/_+/g, '_')
-    .replace(/_$/, '');
+    .replace(/^_|_$/g, '') || 'unknown';
 }
 
 function escapeAtom(str: string): string {
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/**
+ * Derive a human-readable Prolog atom from a display name.
+ * Falls back to sanitizeAtom(id) if no name is available.
+ */
+function nameAtom(name: string | undefined | null, fallbackId?: string): string {
+  if (name && name.trim()) {
+    // Strip accents for atom names
+    const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return sanitizeAtom(normalized);
+  }
+  return sanitizeAtom(fallbackId || 'unknown');
+}
+
+/**
+ * Build a map from entity ID → readable atom name, disambiguating duplicates.
+ */
+function buildAtomLookup(entities: any[], nameField: string = 'name'): Map<string, string> {
+  const nameCount = new Map<string, number>();
+  const atomMap = new Map<string, string>();
+
+  for (const e of entities) {
+    const atom = nameAtom(e[nameField]);
+    nameCount.set(atom, (nameCount.get(atom) || 0) + 1);
+  }
+
+  const seen = new Map<string, number>();
+  for (const e of entities) {
+    const id = e.id || e._id?.toString();
+    const atom = nameAtom(e[nameField]);
+    if ((nameCount.get(atom) || 0) > 1) {
+      const idx = (seen.get(atom) || 0) + 1;
+      seen.set(atom, idx);
+      atomMap.set(id, `${atom}_${idx}`);
+    } else {
+      atomMap.set(id, atom);
+    }
+  }
+  return atomMap;
 }
 
 // ─────────────────────────────────────────────

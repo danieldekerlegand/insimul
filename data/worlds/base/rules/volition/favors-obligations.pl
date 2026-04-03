@@ -1,0 +1,720 @@
+%% Ensemble Volition Rules: favors-obligations
+%% Source: data/ensemble/volitionRules/favors-obligations.json
+%% Converted: 2026-04-02T20:09:49.725Z
+%% Total rules: 60
+
+rule_likelihood(powerful_indifferent_rich_people_draw_attention_to_themselves, 1).
+rule_type(powerful_indifferent_rich_people_draw_attention_to_themselves, volition).
+% Powerful, indifferent, rich people draw attention to themselves
+rule_active(powerful_indifferent_rich_people_draw_attention_to_themselves).
+rule_category(powerful_indifferent_rich_people_draw_attention_to_themselves, favors_obligations).
+rule_source(powerful_indifferent_rich_people_draw_attention_to_themselves, ensemble).
+rule_priority(powerful_indifferent_rich_people_draw_attention_to_themselves, 5).
+rule_applies(powerful_indifferent_rich_people_draw_attention_to_themselves, X, Y) :-
+    trait(X, rich),
+    trait(X, indifferent),
+    attribute(X, self_assuredness, Self_assuredness_val), Self_assuredness_val > 70,
+    trait(Y, attendee),
+    attribute(Y, social_standing, Social_standing_val), Social_standing_val < 60,
+    attribute(X, social_standing, Social_standing_val), Social_standing_val > 85.
+rule_effect(powerful_indifferent_rich_people_draw_attention_to_themselves, modify_network(Y, X, curiosity, '+', 5)).
+
+rule_likelihood(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, 1).
+rule_type(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, volition).
+% Someone who is grateful could do everything for the one he owes a favor to
+rule_active(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to).
+rule_category(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, favors_obligations).
+rule_source(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, ensemble).
+rule_priority(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, 3).
+rule_applies(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, X, Y) :-
+    status(X, grateful),
+    directed_status(X, Y, owes_a_favor_to),
+    trait(X, provincial),
+    relationship(X, Y, friends).
+rule_effect(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, set_relationship(X, Y, esteem, 3)).
+rule_effect(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, modify_network(X, Y, affinity, '+', 3)).
+
+rule_likelihood(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, 1).
+rule_type(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, volition).
+% Someone who is grateful could do everything for the one he owes a favor to
+rule_active(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to).
+rule_category(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, favors_obligations).
+rule_source(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, ensemble).
+rule_priority(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, 3).
+rule_applies(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, X, Y) :-
+    status(X, grateful),
+    directed_status(X, Y, owes_a_favor_to),
+    trait(X, provincial),
+    relationship(X, Y, friends).
+rule_effect(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, set_relationship(X, Y, esteem, 3)).
+rule_effect(someone_who_is_grateful_could_do_everything_for_the_one_he_owes_a_favor_to, modify_network(X, Y, affinity, '+', 3)).
+
+rule_likelihood(a_person_may_want_to_befriend_a_powerful_person_s_lover, 1).
+rule_type(a_person_may_want_to_befriend_a_powerful_person_s_lover, volition).
+% A person may want to befriend a powerful person’s lover
+rule_active(a_person_may_want_to_befriend_a_powerful_person_s_lover).
+rule_category(a_person_may_want_to_befriend_a_powerful_person_s_lover, favors_obligations).
+rule_source(a_person_may_want_to_befriend_a_powerful_person_s_lover, ensemble).
+rule_priority(a_person_may_want_to_befriend_a_powerful_person_s_lover, 5).
+rule_applies(a_person_may_want_to_befriend_a_powerful_person_s_lover, X, Y) :-
+    relationship(Y, 'z', lovers),
+    attribute(Y, social_standing, Social_standing_val), Social_standing_val > 80.
+rule_effect(a_person_may_want_to_befriend_a_powerful_person_s_lover, set_relationship(X, 'z', ally, 5)).
+
+rule_likelihood(a_happy_elegant_man_may_be_followed_by_other_young_men, 1).
+rule_type(a_happy_elegant_man_may_be_followed_by_other_young_men, volition).
+% A happy, elegant man may be followed by other young men
+rule_active(a_happy_elegant_man_may_be_followed_by_other_young_men).
+rule_category(a_happy_elegant_man_may_be_followed_by_other_young_men, favors_obligations).
+rule_source(a_happy_elegant_man_may_be_followed_by_other_young_men, ensemble).
+rule_priority(a_happy_elegant_man_may_be_followed_by_other_young_men, 5).
+rule_applies(a_happy_elegant_man_may_be_followed_by_other_young_men, X, Y) :-
+    trait(X, male),
+    trait(Y, young),
+    attribute(X, sophistication, Sophistication_val), Sophistication_val > 50,
+    trait(X, elegantly_dressed),
+    trait(Y, male),
+    trait(Y, young).
+rule_effect(a_happy_elegant_man_may_be_followed_by_other_young_men, modify_network(Y, X, affinity, '+', 5)).
+rule_effect(a_happy_elegant_man_may_be_followed_by_other_young_men, modify_network(Y, X, curiosity, '+', 5)).
+rule_effect(a_happy_elegant_man_may_be_followed_by_other_young_men, set_relationship(Y, X, ally, 5)).
+
+rule_likelihood(some_lower_class_urbanites_may_be_nosy_and_unsophisticated, 1).
+rule_type(some_lower_class_urbanites_may_be_nosy_and_unsophisticated, volition).
+% Some lower class urbanites may be nosy and unsophisticated
+rule_active(some_lower_class_urbanites_may_be_nosy_and_unsophisticated).
+rule_category(some_lower_class_urbanites_may_be_nosy_and_unsophisticated, favors_obligations).
+rule_source(some_lower_class_urbanites_may_be_nosy_and_unsophisticated, ensemble).
+rule_priority(some_lower_class_urbanites_may_be_nosy_and_unsophisticated, 5).
+rule_applies(some_lower_class_urbanites_may_be_nosy_and_unsophisticated, X, Y) :-
+    \+ trait(X, provincial),
+    attribute(X, nosiness, Nosiness_val), Nosiness_val > 50,
+    attribute(X, sophistication, Sophistication_val), Sophistication_val < 40,
+    attribute(X, propriety, Propriety_val), Propriety_val < 40,
+    \+ trait(X, rich).
+rule_effect(some_lower_class_urbanites_may_be_nosy_and_unsophisticated, modify_network(Y, X, curiosity, '+', 5)).
+
+rule_likelihood(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing, 1).
+rule_type(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing, volition).
+% People of high social standing may want less attention from inappropriately behaved people of lower social standing
+rule_active(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing).
+rule_category(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing, favors_obligations).
+rule_source(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing, ensemble).
+rule_priority(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing, 5).
+rule_applies(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing, X, Y) :-
+    attribute(X, propriety, Propriety_val), Propriety_val < 50,
+    network(X, Y, affinity, Affinity_val), Affinity_val > 60,
+    attribute(X, social_standing, Social_standing_val), Social_standing_val < 50,
+    attribute(Y, social_standing, Social_standing_val), Social_standing_val > 50.
+rule_effect(people_of_high_social_standing_may_want_less_attention_from_inappropriately_behaved_people_of_lower_social_standing, modify_network(Y, X, curiosity, '-', 5)).
+
+rule_likelihood(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend, 1).
+rule_type(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend, volition).
+% Grateful people who owe a favor to their friend may want to please that friend
+rule_active(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend).
+rule_category(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend, favors_obligations).
+rule_source(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend, ensemble).
+rule_priority(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend, 5).
+rule_applies(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend, X, Y) :-
+    relationship(X, Y, friends),
+    directed_status(X, Y, owes_a_favor_to),
+    status(X, grateful).
+rule_effect(grateful_people_who_owe_a_favor_to_their_friend_may_want_to_please_that_friend, modify_network(X, Y, affinity, '+', 5)).
+
+rule_likelihood(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to, 1).
+rule_type(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to, volition).
+% Honest people may want to increase their credibility with those they are indebted to
+rule_active(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to).
+rule_category(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to, favors_obligations).
+rule_source(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to, ensemble).
+rule_priority(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to, 3).
+rule_applies(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to, X, Y) :-
+    directed_status(X, Y, owes_a_favor_to),
+    trait(X, honest).
+rule_effect(honest_people_may_want_to_increase_their_credibility_with_those_they_are_indebted_to, modify_network(X, Y, credibility, '+', 3)).
+
+rule_likelihood(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider, 1).
+rule_type(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider, volition).
+% Lower status people are more likely to be helpful if they were treated too formally by an outsider
+rule_active(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider).
+rule_category(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider, favors_obligations).
+rule_source(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider, ensemble).
+rule_priority(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider, 5).
+rule_applies(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider, X, Y) :-
+    attribute(X, status_individual, Status_individual_val), Status_individual_val < 51,
+    event(Y, formal),
+    status(Y, outsider).
+rule_effect(lower_status_people_are_more_likely_to_be_helpful_if_they_were_treated_too_formally_by_an_outsider, set_intent(X, help, Y, 5)).
+
+rule_likelihood(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request, 1).
+rule_type(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request, volition).
+% Lower Status people are more likely to be helpful when you were positive and made a neutral request
+rule_active(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request).
+rule_category(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request, favors_obligations).
+rule_source(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request, ensemble).
+rule_priority(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request, 5).
+rule_applies(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request, X, Y) :-
+    event(X, positive),
+    event(Y, neutral),
+    attribute(X, status_individual, Status_individual_val), Status_individual_val < 51.
+rule_effect(lower_status_people_are_more_likely_to_be_helpful_when_you_were_positive_and_made_a_neutral_request, set_intent(X, help, Y, 5)).
+
+rule_likelihood(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by, 1).
+rule_type(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by, volition).
+% People may develop negative feelings towards those they’ve been favored by.
+rule_active(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by).
+rule_category(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by, favors_obligations).
+rule_source(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by, ensemble).
+rule_priority(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by, 3).
+rule_applies(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_may_develop_negative_feelings_towards_those_they_ve_been_favored_by, set_intent(X, antagonize, Y, -3)).
+
+rule_likelihood(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them, 1).
+rule_type(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them, volition).
+% People may develop negative feelings towards those who did a favor for them.
+rule_active(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them).
+rule_category(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them, favors_obligations).
+rule_source(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them, ensemble).
+rule_priority(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them, 1).
+rule_applies(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_may_develop_negative_feelings_towards_those_who_did_a_favor_for_them, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_may_develop_negative_feelings_towards_those_they_have_previously_favored, 1).
+rule_type(people_may_develop_negative_feelings_towards_those_they_have_previously_favored, volition).
+% People may develop negative feelings towards those they have previously favored.
+rule_active(people_may_develop_negative_feelings_towards_those_they_have_previously_favored).
+rule_category(people_may_develop_negative_feelings_towards_those_they_have_previously_favored, favors_obligations).
+rule_source(people_may_develop_negative_feelings_towards_those_they_have_previously_favored, ensemble).
+rule_priority(people_may_develop_negative_feelings_towards_those_they_have_previously_favored, 3).
+rule_applies(people_may_develop_negative_feelings_towards_those_they_have_previously_favored, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_may_develop_negative_feelings_towards_those_they_have_previously_favored, set_intent(X, antagonize, Y, -3)).
+
+rule_likelihood(people_favor_getting_closer_to_strong_individuals_in_their_social_circle, 1).
+rule_type(people_favor_getting_closer_to_strong_individuals_in_their_social_circle, volition).
+% People favor getting closer to strong individuals in their social circle.
+rule_active(people_favor_getting_closer_to_strong_individuals_in_their_social_circle).
+rule_category(people_favor_getting_closer_to_strong_individuals_in_their_social_circle, favors_obligations).
+rule_source(people_favor_getting_closer_to_strong_individuals_in_their_social_circle, ensemble).
+rule_priority(people_favor_getting_closer_to_strong_individuals_in_their_social_circle, 1).
+rule_applies(people_favor_getting_closer_to_strong_individuals_in_their_social_circle, X, Y) :-
+    directed_status(X, Y, public_friends).
+rule_effect(people_favor_getting_closer_to_strong_individuals_in_their_social_circle, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them, 1).
+rule_type(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them, volition).
+% People favor strong individuals in a publicly romantic relationship with them.
+rule_active(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them).
+rule_category(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them, favors_obligations).
+rule_source(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them, ensemble).
+rule_priority(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them, 1).
+rule_applies(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them, X, Y) :-
+    directed_status(X, Y, publicly_romantically_committed_to).
+rule_effect(people_favor_strong_individuals_in_a_publicly_romantic_relationship_with_them, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_seek_favor_from_their_superiors, 1).
+rule_type(people_seek_favor_from_their_superiors, volition).
+% People seek favor from their superiors.
+rule_active(people_seek_favor_from_their_superiors).
+rule_category(people_seek_favor_from_their_superiors, favors_obligations).
+rule_source(people_seek_favor_from_their_superiors, ensemble).
+rule_priority(people_seek_favor_from_their_superiors, 1).
+rule_applies(people_seek_favor_from_their_superiors, X, Y) :-
+    directed_status(X, Y, is_boss_of).
+rule_effect(people_seek_favor_from_their_superiors, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them, 1).
+rule_type(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them, volition).
+% People idolize strong individuals and develop a favorable intent towards them.
+rule_active(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them).
+rule_category(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them, favors_obligations).
+rule_source(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them, ensemble).
+rule_priority(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them, 1).
+rule_applies(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them, X, Y) :-
+    directed_status(X, Y, idolize).
+rule_effect(people_idolize_strong_individuals_and_develop_a_favorable_intent_towards_them, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable, 1).
+rule_type(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable, volition).
+% People have a strong respect for individuals with high social influence and are inclined to develop favorable
+rule_active(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable).
+rule_category(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable, favors_obligations).
+rule_source(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable, ensemble).
+rule_priority(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable, 1).
+rule_applies(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable, X, Y) :-
+    network(X, Y, respect, Respect_val), Respect_val > 6.
+rule_effect(people_have_a_strong_respect_for_individuals_with_high_social_influence_and_are_inclined_to_develop_favorable, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that, 1).
+rule_type(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that, volition).
+% People have a favorable intent towards stronger individuals when their indebtedness level exceeds that
+rule_active(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that).
+rule_category(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that, favors_obligations).
+rule_source(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that, ensemble).
+rule_priority(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that, 3).
+rule_applies(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that, X, Y) :-
+    network(X, Y, indebted, Indebted_val), Indebted_val > 6.
+rule_effect(people_have_a_favorable_intent_towards_stronger_individuals_when_their_indebtedness_level_exceeds_that, set_intent(X, favor, Y, 3)).
+
+rule_likelihood(people_tend_to_favor_closer_friends_over_weaker_acquaintances, 1).
+rule_type(people_tend_to_favor_closer_friends_over_weaker_acquaintances, volition).
+% People tend to favor closer friends over weaker acquaintances.
+rule_active(people_tend_to_favor_closer_friends_over_weaker_acquaintances).
+rule_category(people_tend_to_favor_closer_friends_over_weaker_acquaintances, favors_obligations).
+rule_source(people_tend_to_favor_closer_friends_over_weaker_acquaintances, ensemble).
+rule_priority(people_tend_to_favor_closer_friends_over_weaker_acquaintances, 1).
+rule_applies(people_tend_to_favor_closer_friends_over_weaker_acquaintances, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val < 4.
+rule_effect(people_tend_to_favor_closer_friends_over_weaker_acquaintances, set_intent(X, favor, Y, -2)).
+
+rule_likelihood(people_tend_to_favor_strong_individuals_in_their_network, 1).
+rule_type(people_tend_to_favor_strong_individuals_in_their_network, volition).
+% People tend to favor strong individuals in their network.
+rule_active(people_tend_to_favor_strong_individuals_in_their_network).
+rule_category(people_tend_to_favor_strong_individuals_in_their_network, favors_obligations).
+rule_source(people_tend_to_favor_strong_individuals_in_their_network, ensemble).
+rule_priority(people_tend_to_favor_strong_individuals_in_their_network, 1).
+rule_applies(people_tend_to_favor_strong_individuals_in_their_network, X, Y) :-
+    network(X, Y, trust, Trust_val), Trust_val < 4.
+rule_effect(people_tend_to_favor_strong_individuals_in_their_network, set_intent(X, favor, Y, -1)).
+
+rule_likelihood(people_tend_to_favor_stronger_individuals_in_their_social_network, 1).
+rule_type(people_tend_to_favor_stronger_individuals_in_their_social_network, volition).
+% People tend to favor stronger individuals in their social network.
+rule_active(people_tend_to_favor_stronger_individuals_in_their_social_network).
+rule_category(people_tend_to_favor_stronger_individuals_in_their_social_network, favors_obligations).
+rule_source(people_tend_to_favor_stronger_individuals_in_their_social_network, ensemble).
+rule_priority(people_tend_to_favor_stronger_individuals_in_their_social_network, 1).
+rule_applies(people_tend_to_favor_stronger_individuals_in_their_social_network, X, Y) :-
+    network(X, Y, respect, Respect_val), Respect_val < 4.
+rule_effect(people_tend_to_favor_stronger_individuals_in_their_social_network, set_intent(X, favor, Y, -2)).
+
+rule_likelihood(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful, 1).
+rule_type(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful, volition).
+% People develop a favorable intent towards strong individuals when they perceive themselves as successful.
+rule_active(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful).
+rule_category(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful, favors_obligations).
+rule_source(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful, ensemble).
+rule_priority(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful, 1).
+rule_applies(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful, X, Y) :-
+    status(X, successful).
+rule_effect(people_develop_a_favorable_intent_towards_strong_individuals_when_they_perceive_themselves_as_successful, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty, 1).
+rule_type(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty, volition).
+% People develop a favorable disposition towards strong individuals when they feel guilty.
+rule_active(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty).
+rule_category(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty, favors_obligations).
+rule_source(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty, ensemble).
+rule_priority(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty, 1).
+rule_applies(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty, X, Y) :-
+    status(X, guilty).
+rule_effect(people_develop_a_favorable_disposition_towards_strong_individuals_when_they_feel_guilty, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name, 1).
+rule_type(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name, volition).
+% People envy others’ strong connections and favor forming relationships with those they admire. Rule Name
+rule_active(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name).
+rule_category(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name, favors_obligations).
+rule_source(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name, ensemble).
+rule_priority(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name, 1).
+rule_applies(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name, X, Y) :-
+    directed_status(X, Y, envy).
+rule_effect(people_envy_others_strong_connections_and_favor_forming_relationships_with_those_they_admire_rule_name, set_intent(X, favor, Y, -2)).
+
+rule_likelihood(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals, 1).
+rule_type(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals, volition).
+% People want to increase their social standing by doing favors for influential individuals.
+rule_active(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals).
+rule_category(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals, favors_obligations).
+rule_source(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals, ensemble).
+rule_priority(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals, 5).
+rule_applies(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_want_to_increase_their_social_standing_by_doing_favors_for_influential_individuals, set_intent(X, favor, Y, 5)).
+
+rule_likelihood(people_with_high_altruism_seek_to_establish_favorable_relationships, 1).
+rule_type(people_with_high_altruism_seek_to_establish_favorable_relationships, volition).
+% People with high altruism seek to establish favorable relationships.
+rule_active(people_with_high_altruism_seek_to_establish_favorable_relationships).
+rule_category(people_with_high_altruism_seek_to_establish_favorable_relationships, favors_obligations).
+rule_source(people_with_high_altruism_seek_to_establish_favorable_relationships, ensemble).
+rule_priority(people_with_high_altruism_seek_to_establish_favorable_relationships, 3).
+rule_applies(people_with_high_altruism_seek_to_establish_favorable_relationships, X, Y) :-
+    attribute(X, altruism, Altruism_val), Altruism_val > 12.
+rule_effect(people_with_high_altruism_seek_to_establish_favorable_relationships, set_intent(X, favor, Y, 3)).
+
+rule_likelihood(people_are_inclined_to_favor_strong_individuals_as_friends, 1).
+rule_type(people_are_inclined_to_favor_strong_individuals_as_friends, volition).
+% People are inclined to favor strong individuals as friends.
+rule_active(people_are_inclined_to_favor_strong_individuals_as_friends).
+rule_category(people_are_inclined_to_favor_strong_individuals_as_friends, favors_obligations).
+rule_source(people_are_inclined_to_favor_strong_individuals_as_friends, ensemble).
+rule_priority(people_are_inclined_to_favor_strong_individuals_as_friends, 1).
+rule_applies(people_are_inclined_to_favor_strong_individuals_as_friends, X, Y) :-
+    trait(X, friendly).
+rule_effect(people_are_inclined_to_favor_strong_individuals_as_friends, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them, 1).
+rule_type(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them, volition).
+% People develop a favorable intent towards strong individuals when they have recently experienced positive interactions with them.
+rule_active(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them).
+rule_category(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them, favors_obligations).
+rule_source(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them, ensemble).
+rule_priority(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them, 1).
+rule_applies(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them, X, Y) :-
+    event(X, nice).
+rule_effect(people_develop_a_favorable_intent_towards_strong_individuals_when_they_have_recently_experienced_positive_interactions_with_them, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_intend_to_do_favors_for_influential_individuals, 1).
+rule_type(people_intend_to_do_favors_for_influential_individuals, volition).
+% People intend to do favors for influential individuals.
+rule_active(people_intend_to_do_favors_for_influential_individuals).
+rule_category(people_intend_to_do_favors_for_influential_individuals, favors_obligations).
+rule_source(people_intend_to_do_favors_for_influential_individuals, ensemble).
+rule_priority(people_intend_to_do_favors_for_influential_individuals, 3).
+rule_applies(people_intend_to_do_favors_for_influential_individuals, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_intend_to_do_favors_for_influential_individuals, set_intent(X, favor, Y, 3)).
+
+rule_likelihood(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to, 1).
+rule_type(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to, volition).
+% People develop a favorable intent towards strong individuals after observing positive interactions within the last month to
+rule_active(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to).
+rule_category(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to, favors_obligations).
+rule_source(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to, ensemble).
+rule_priority(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to, 1).
+rule_applies(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to, X, Y) :-
+    event(X, nice).
+rule_effect(people_develop_a_favorable_intent_towards_strong_individuals_after_observing_positive_interactions_within_the_last_month_to, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_develop_a_favorable_disposition_towards_strong_individuals, 1).
+rule_type(people_develop_a_favorable_disposition_towards_strong_individuals, volition).
+% People develop a favorable disposition towards strong individuals.
+rule_active(people_develop_a_favorable_disposition_towards_strong_individuals).
+rule_category(people_develop_a_favorable_disposition_towards_strong_individuals, favors_obligations).
+rule_source(people_develop_a_favorable_disposition_towards_strong_individuals, ensemble).
+rule_priority(people_develop_a_favorable_disposition_towards_strong_individuals, 1).
+rule_applies(people_develop_a_favorable_disposition_towards_strong_individuals, X, Y) :-
+    event(X, mean).
+rule_effect(people_develop_a_favorable_disposition_towards_strong_individuals, set_intent(X, favor, Y, -2)).
+
+rule_likelihood(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions, 1).
+rule_type(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions, volition).
+% People intend to do favors for influential individuals due to past actions.
+rule_active(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions).
+rule_category(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions, favors_obligations).
+rule_source(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions, ensemble).
+rule_priority(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions, 1).
+rule_applies(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_intend_to_do_favors_for_influential_individuals_due_to_past_actions, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month, 1).
+rule_type(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month, volition).
+% People have a positive intent to do favors for strong individuals within the last month.
+rule_active(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month).
+rule_category(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month, favors_obligations).
+rule_source(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month, ensemble).
+rule_priority(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month, 1).
+rule_applies(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_have_a_positive_intent_to_do_favors_for_strong_individuals_within_the_last_month, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends, 1).
+rule_type(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends, volition).
+% People have a strong desire to favor their crush when they are within close proximity of friends
+rule_active(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends).
+rule_category(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends, favors_obligations).
+rule_source(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends, ensemble).
+rule_priority(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends, 1).
+rule_applies(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, nice).
+rule_effect(people_have_a_strong_desire_to_favor_their_crush_when_they_are_within_close_proximity_of_friends, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles, 1).
+rule_type(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles, volition).
+% People tend to favor those with stronger connections when their crushes are within recent social circles.
+rule_active(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles).
+rule_category(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles, favors_obligations).
+rule_source(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles, ensemble).
+rule_priority(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles, 5).
+rule_applies(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_recent_social_circles, set_intent(X, favor, Y, -5)).
+
+rule_likelihood(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with, 1).
+rule_type(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with, volition).
+% People are likely to do a favor for strong individuals they’ve recently become friends with.
+rule_active(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with).
+rule_category(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with, favors_obligations).
+rule_source(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with, ensemble).
+rule_priority(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with, 3).
+rule_applies(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_are_likely_to_do_a_favor_for_strong_individuals_they_ve_recently_become_friends_with, set_intent(X, favor, Y, 3)).
+
+rule_likelihood(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more, 1).
+rule_type(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more, volition).
+% People are likely to do a favor for strong individuals if they have been friends with them for more
+rule_active(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more).
+rule_category(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more, favors_obligations).
+rule_source(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more, ensemble).
+rule_priority(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more, 1).
+rule_applies(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_are_likely_to_do_a_favor_for_strong_individuals_if_they_have_been_friends_with_them_for_more, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle, 1).
+rule_type(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle, volition).
+% People tend to favor those with stronger connections when their crushes are within a close social circle
+rule_active(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle).
+rule_category(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle, favors_obligations).
+rule_source(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle, ensemble).
+rule_priority(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle, 1).
+rule_applies(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_favor_those_with_stronger_connections_when_their_crushes_are_within_a_close_social_circle, set_intent(X, favor, Y, -1)).
+
+rule_likelihood(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for, 1).
+rule_type(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for, volition).
+% People who have a strong social network with more than six friends and have recently done a favor for
+rule_active(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for).
+rule_category(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for, favors_obligations).
+rule_source(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for, ensemble).
+rule_priority(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for, 1).
+rule_applies(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_who_have_a_strong_social_network_with_more_than_six_friends_and_have_recently_done_a_favor_for, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent, 1).
+rule_type(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent, volition).
+% People are inclined to form closer bonds with influential individuals and have a favorable intent
+rule_active(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent).
+rule_category(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent, favors_obligations).
+rule_source(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent, ensemble).
+rule_priority(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent, 5).
+rule_applies(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_are_inclined_to_form_closer_bonds_with_influential_individuals_and_have_a_favorable_intent, set_intent(X, favor, Y, -5)).
+
+rule_likelihood(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact, 1).
+rule_type(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact, volition).
+% People develop a favorable intent towards getting closer to strong individuals when they have been meaningfully interact
+rule_active(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact).
+rule_category(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact, favors_obligations).
+rule_source(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact, ensemble).
+rule_priority(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact, 3).
+rule_applies(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_develop_a_favorable_intent_towards_getting_closer_to_strong_individuals_when_they_have_been_meaningfully_interact, set_intent(X, favor, Y, -3)).
+
+rule_likelihood(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them, 1).
+rule_type(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them, volition).
+% People feel indebted to their strong connections and are likely to do favors for them.
+rule_active(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them).
+rule_category(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them, favors_obligations).
+rule_source(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them, ensemble).
+rule_priority(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them, 1).
+rule_applies(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_feel_indebted_to_their_strong_connections_and_are_likely_to_do_favors_for_them, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, 1).
+rule_type(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, volition).
+% People who have a strong familial network with more than six connections and have done a favor for
+rule_active(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for).
+rule_category(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, favors_obligations).
+rule_source(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, ensemble).
+rule_priority(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, 1).
+rule_applies(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for, 1).
+rule_type(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for, volition).
+% People are inclined to seek connections with influential individuals when they have recently done a favor for
+rule_active(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for).
+rule_category(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for, favors_obligations).
+rule_source(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for, ensemble).
+rule_priority(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for, 1).
+rule_applies(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_are_inclined_to_seek_connections_with_influential_individuals_when_they_have_recently_done_a_favor_for, set_intent(X, favor, Y, -2)).
+
+rule_likelihood(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold, 1).
+rule_type(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold, volition).
+% People desire to honor stronger connections when indebtedness level exceeds a certain threshold.
+rule_active(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold).
+rule_category(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold, favors_obligations).
+rule_source(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold, ensemble).
+rule_priority(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold, 1).
+rule_applies(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold, X, Y) :-
+    network(X, Y, indebted, Indebted_val), Indebted_val > 6.
+rule_effect(people_desire_to_honor_stronger_connections_when_indebtedness_level_exceeds_a_certain_threshold, set_intent(X, honor, Y, 1)).
+
+rule_likelihood(people_seek_to_honor_strong_individuals_by_doing_favors, 1).
+rule_type(people_seek_to_honor_strong_individuals_by_doing_favors, volition).
+% People seek to honor strong individuals by doing favors.
+rule_active(people_seek_to_honor_strong_individuals_by_doing_favors).
+rule_category(people_seek_to_honor_strong_individuals_by_doing_favors, favors_obligations).
+rule_source(people_seek_to_honor_strong_individuals_by_doing_favors, ensemble).
+rule_priority(people_seek_to_honor_strong_individuals_by_doing_favors, 1).
+rule_applies(people_seek_to_honor_strong_individuals_by_doing_favors, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_seek_to_honor_strong_individuals_by_doing_favors, set_intent(X, honor, Y, 2)).
+
+rule_likelihood(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others, 1).
+rule_type(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others, volition).
+% People want to ingratiate themselves with individuals they are indebted to more than others
+rule_active(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others).
+rule_category(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others, favors_obligations).
+rule_source(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others, ensemble).
+rule_priority(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others, 1).
+rule_applies(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others, X, Y) :-
+    network(X, Y, indebted, Indebted_val), Indebted_val > 6.
+rule_effect(people_want_to_ingratiate_themselves_with_individuals_they_are_indebted_to_more_than_others, set_intent(X, ingratiate, Y, 2)).
+
+rule_likelihood(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently, 1).
+rule_type(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently, volition).
+% People want to ingratiate themselves with those they’ve done favors for recently.
+rule_active(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently).
+rule_category(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently, favors_obligations).
+rule_source(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently, ensemble).
+rule_priority(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently, 1).
+rule_applies(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_want_to_ingratiate_themselves_with_those_they_ve_done_favors_for_recently, set_intent(X, ingratiate, Y, 1)).
+
+rule_likelihood(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful, 1).
+rule_type(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful, volition).
+% People may develop feelings of envy towards those they perceive as more successful or powerful.
+rule_active(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful).
+rule_category(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful, favors_obligations).
+rule_source(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful, ensemble).
+rule_priority(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful, 1).
+rule_applies(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful, X, Y) :-
+    directed_status(X, Y, envy).
+rule_effect(people_may_develop_feelings_of_envy_towards_those_they_perceive_as_more_successful_or_powerful, set_intent(X, kind, Y, -2)).
+
+rule_likelihood(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors, 1).
+rule_type(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors, volition).
+% People are likely to develop a desire for friendship with strong individuals due to past favors.
+rule_active(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors).
+rule_category(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors, favors_obligations).
+rule_source(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors, ensemble).
+rule_priority(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors, 1).
+rule_applies(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_are_likely_to_develop_a_desire_for_friendship_with_strong_individuals_due_to_past_favors, set_intent(X, kind, Y, 1)).
+
+rule_likelihood(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are, 1).
+rule_type(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are, volition).
+% People with a strong network of family connections who have recently done favors for their crush are
+rule_active(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are).
+rule_category(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are, favors_obligations).
+rule_source(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are, ensemble).
+rule_priority(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are, 1).
+rule_applies(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_with_a_strong_network_of_family_connections_who_have_recently_done_favors_for_their_crush_are, set_intent(X, kind, Y, 1)).
+
+rule_likelihood(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past, 1).
+rule_type(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past, volition).
+% People seek to form closer bonds with influential individuals due to a favor received within the past
+rule_active(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past).
+rule_category(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past, favors_obligations).
+rule_source(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past, ensemble).
+rule_priority(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past, 1).
+rule_applies(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_seek_to_form_closer_bonds_with_influential_individuals_due_to_a_favor_received_within_the_past, set_intent(X, kind, Y, 1)).
+
+rule_likelihood(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, 1).
+rule_type(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, volition).
+% People who have a strong familial network with more than six connections and have done a favor for
+rule_active(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for).
+rule_category(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, favors_obligations).
+rule_source(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, ensemble).
+rule_priority(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, 1).
+rule_applies(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_who_have_a_strong_familial_network_with_more_than_six_connections_and_have_done_a_favor_for, set_intent(X, kind, Y, 1)).
+
+rule_likelihood(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful, 1).
+rule_type(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful, volition).
+% People are influenced to seek connections with individuals they perceive as more powerful.
+rule_active(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful).
+rule_category(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful, favors_obligations).
+rule_source(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful, ensemble).
+rule_priority(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful, 1).
+rule_applies(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful, X, Y) :-
+    directed_status(X, Y, rivals).
+rule_effect(people_are_influenced_to_seek_connections_with_individuals_they_perceive_as_more_powerful, set_intent(X, manipulate, Y, 2)).
+
+rule_likelihood(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network, 1).
+rule_type(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network, volition).
+% People have a lower trust towards weaker connections compared to stronger ones in their social network.
+rule_active(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network).
+rule_category(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network, favors_obligations).
+rule_source(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network, ensemble).
+rule_priority(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network, 3).
+rule_applies(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val < 4.
+rule_effect(people_have_a_lower_trust_towards_weaker_connections_compared_to_stronger_ones_in_their_social_network, set_intent(X, trust, Y, -3)).
+
+rule_likelihood(people_develop_trust_towards_those_they_have_done_favors_for_recently, 1).
+rule_type(people_develop_trust_towards_those_they_have_done_favors_for_recently, volition).
+% People develop trust towards those they have done favors for recently.
+rule_active(people_develop_trust_towards_those_they_have_done_favors_for_recently).
+rule_category(people_develop_trust_towards_those_they_have_done_favors_for_recently, favors_obligations).
+rule_source(people_develop_trust_towards_those_they_have_done_favors_for_recently, ensemble).
+rule_priority(people_develop_trust_towards_those_they_have_done_favors_for_recently, 3).
+rule_applies(people_develop_trust_towards_those_they_have_done_favors_for_recently, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_develop_trust_towards_those_they_have_done_favors_for_recently, set_intent(X, trust, Y, 3)).
+
+rule_likelihood(people_develop_trust_towards_those_they_have_done_favors_for_recently, 1).
+rule_type(people_develop_trust_towards_those_they_have_done_favors_for_recently, volition).
+% People develop trust towards those they have done favors for recently.
+rule_active(people_develop_trust_towards_those_they_have_done_favors_for_recently).
+rule_category(people_develop_trust_towards_those_they_have_done_favors_for_recently, favors_obligations).
+rule_source(people_develop_trust_towards_those_they_have_done_favors_for_recently, ensemble).
+rule_priority(people_develop_trust_towards_those_they_have_done_favors_for_recently, 1).
+rule_applies(people_develop_trust_towards_those_they_have_done_favors_for_recently, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_develop_trust_towards_those_they_have_done_favors_for_recently, set_intent(X, trust, Y, 2)).
+
+rule_likelihood(people_develop_trust_towards_those_they_ve_done_favors_for, 1).
+rule_type(people_develop_trust_towards_those_they_ve_done_favors_for, volition).
+% People develop trust towards those they’ve done favors for.
+rule_active(people_develop_trust_towards_those_they_ve_done_favors_for).
+rule_category(people_develop_trust_towards_those_they_ve_done_favors_for, favors_obligations).
+rule_source(people_develop_trust_towards_those_they_ve_done_favors_for, ensemble).
+rule_priority(people_develop_trust_towards_those_they_ve_done_favors_for, 1).
+rule_applies(people_develop_trust_towards_those_they_ve_done_favors_for, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_develop_trust_towards_those_they_ve_done_favors_for, set_intent(X, trust, Y, 1)).
+
+
+
+
+

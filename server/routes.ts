@@ -8731,6 +8731,157 @@ Respond with this JSON structure:
     }
   });
 
+  // ── Bulk Prolog Import ──────────────────────────────────────────────────
+  // Accepts one or more .pl file contents, parses them, and creates DB records
+  app.post("/api/worlds/:worldId/prolog/import", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const { parsePrologFile, detectCategory, detectCategoryFromFilename } = await import('../shared/prolog/prolog-fact-parser.js');
+      const { importPrologFile } = await import('../shared/prolog/prolog-importer.js');
+
+      // Accepts { files: [{ filename, content }] } or { content, filename }
+      const files: Array<{ filename?: string; content: string }> = [];
+      if (req.body.files && Array.isArray(req.body.files)) {
+        files.push(...req.body.files);
+      } else if (req.body.content) {
+        files.push({ filename: req.body.filename, content: req.body.content });
+      } else {
+        return res.status(400).json({ error: 'Missing content or files in request body' });
+      }
+
+      const results: Array<{
+        filename?: string;
+        category: string;
+        created: number;
+        errors: string[];
+      }> = [];
+
+      for (const file of files) {
+        const fileErrors: string[] = [];
+        let created = 0;
+
+        // Parse
+        const parsed = parsePrologFile(file.content);
+        if (parsed.errors.length > 0) {
+          for (const e of parsed.errors.slice(0, 5)) {
+            fileErrors.push(`L${e.line}: ${e.message}`);
+          }
+        }
+
+        // Import
+        const imported = importPrologFile(parsed, file.filename);
+        const category = imported.category;
+        fileErrors.push(...imported.warnings);
+
+        // Create entities in the database
+        try {
+          if (category === 'character') {
+            for (const entity of imported.entities) {
+              const data = { worldId, firstName: entity.firstName || '', lastName: entity.lastName || '', gender: entity.gender, age: entity.age, birthYear: entity.birthYear, isAlive: entity.isAlive ?? true, occupation: entity.occupation, personality: entity.personality, skills: entity.skills };
+              await storage.createCharacter(data as any);
+              created++;
+            }
+          } else if (category === 'item') {
+            for (const entity of imported.entities) {
+              const data = { worldId, name: entity.name, itemType: entity.itemType, description: entity.description, value: entity.value, sellValue: entity.sellValue, weight: entity.weight, rarity: entity.rarity, category: entity.category, tradeable: entity.tradeable, stackable: entity.stackable, maxStack: entity.maxStack, tags: entity.tags };
+              await storage.createItem(data as any);
+              created++;
+            }
+          } else if (category === 'truth') {
+            for (const entity of imported.entities) {
+              const data = { worldId, title: entity.title, content: entity.content, entryType: entity.entryType, importance: entity.importance, isPublic: entity.isPublic, timestep: entity.timestep };
+              await storage.createTruth(data as any);
+              created++;
+            }
+          } else if (category === 'language') {
+            for (const entity of imported.entities) {
+              const data = { worldId, scopeType: 'world', scopeId: worldId, name: entity.name, description: entity.description, kind: entity.kind, realCode: entity.realCode, isPrimary: entity.isPrimary, isLearningTarget: entity.isLearningTarget };
+              await storage.createWorldLanguage(data as any);
+              created++;
+            }
+          } else if (category === 'grammar') {
+            for (const entity of imported.entities) {
+              const data = { worldId, name: entity.name, description: entity.description, grammar: entity.grammar, tags: entity.tags, isActive: entity.isActive ?? true };
+              await storage.createGrammar(data as any);
+              created++;
+            }
+          } else if (category === 'text') {
+            for (const entity of imported.entities) {
+              const data = { worldId, title: entity.title, textCategory: entity.textCategory, titleTranslation: entity.titleTranslation, cefrLevel: entity.cefrLevel, targetLanguage: entity.targetLanguage, difficulty: entity.difficulty, authorName: entity.authorName, spawnLocationHint: entity.spawnLocationHint, clueText: entity.clueText, status: entity.status || 'published', pages: entity.pages, vocabularyHighlights: entity.vocabularyHighlights, tags: entity.tags };
+              await storage.createGameText(data as any);
+              created++;
+            }
+          } else if (category === 'settlement') {
+            for (const entity of imported.entities) {
+              const data = { worldId, name: entity.name, settlementType: entity.settlementType, population: entity.population, foundedYear: entity.foundedYear, districts: entity.districts, streets: entity.streets, landmarks: entity.landmarks };
+              await storage.createSettlement(data as any);
+              created++;
+            }
+          } else if (category === 'country') {
+            for (const entity of imported.entities) {
+              const data = { worldId, name: entity.name, description: entity.description, governmentType: entity.governmentType, economicSystem: entity.economicSystem, foundedYear: entity.foundedYear, isActive: entity.isActive ?? true };
+              await storage.createCountry(data as any);
+              created++;
+            }
+          } else if (category === 'quest') {
+            for (const ce of imported.contentEntities) {
+              const data = { worldId, title: ce.name, content: ce.content, sourceFormat: 'prolog', questType: ce.metadata.questType || 'misc', difficulty: ce.metadata.difficulty || 'beginner', status: ce.metadata.status || 'active', targetLanguage: ce.metadata.targetLanguage, experienceReward: ce.metadata.experienceReward || 0, tags: ce.metadata.tags };
+              await storage.createQuest(data as any);
+              created++;
+            }
+          } else if (category === 'rule') {
+            for (const ce of imported.contentEntities) {
+              const data = { worldId: null, isBase: false, name: ce.name, content: ce.content, sourceFormat: 'prolog', ruleType: ce.metadata.ruleType || 'volition', category: ce.metadata.category, priority: ce.metadata.priority, likelihood: ce.metadata.likelihood };
+              await storage.createRule(data as any);
+              created++;
+            }
+          } else if (category === 'action') {
+            for (const ce of imported.contentEntities) {
+              const data = { worldId: null, isBase: false, name: ce.name, content: ce.content, sourceFormat: 'prolog', actionType: ce.metadata.actionType || 'social', category: ce.metadata.category, energyCost: ce.metadata.energyCost || 0 };
+              await storage.createAction(data as any);
+              created++;
+            }
+          } else if (category === 'world') {
+            // World entities update the existing world rather than creating new ones
+            for (const entity of imported.entities) {
+              if (entity.name) {
+                await storage.updateWorld(worldId, { name: entity.name, description: entity.description, worldType: entity.worldType, gameType: entity.gameType, targetLanguage: entity.targetLanguage });
+                created++;
+              }
+            }
+          } else {
+            fileErrors.push(`Unsupported category for import: ${category}`);
+          }
+        } catch (err) {
+          fileErrors.push(`DB error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
+        results.push({ filename: file.filename, category, created, errors: fileErrors });
+      }
+
+      const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
+      const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
+
+      res.json({
+        status: totalErrors > 0 ? 'partial' : 'success',
+        message: `Imported ${totalCreated} entities from ${files.length} file(s)`,
+        results,
+      });
+    } catch (error) {
+      console.error("Error in bulk Prolog import:", error);
+      res.status(500).json({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Actions
   app.get("/api/worlds/:worldId/actions", async (req, res) => {
     try {

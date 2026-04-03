@@ -1,0 +1,119 @@
+%% Ensemble Volition Rules: social-connection
+%% Source: data/ensemble/volitionRules/social-connection.json
+%% Converted: 2026-04-02T20:09:49.729Z
+%% Total rules: 10
+
+rule_likelihood(people_seek_to_connect_with_individuals_who_have_strong_familial_ties, 1).
+rule_type(people_seek_to_connect_with_individuals_who_have_strong_familial_ties, volition).
+% People seek to connect with individuals who have strong familial ties.
+rule_active(people_seek_to_connect_with_individuals_who_have_strong_familial_ties).
+rule_category(people_seek_to_connect_with_individuals_who_have_strong_familial_ties, social_connection).
+rule_source(people_seek_to_connect_with_individuals_who_have_strong_familial_ties, ensemble).
+rule_priority(people_seek_to_connect_with_individuals_who_have_strong_familial_ties, 3).
+rule_applies(people_seek_to_connect_with_individuals_who_have_strong_familial_ties, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    network(Y, 'z', familial, Familial_val), Familial_val > 6.
+rule_effect(people_seek_to_connect_with_individuals_who_have_strong_familial_ties, set_intent(X, candid, Y, 3)).
+
+rule_likelihood(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely, 1).
+rule_type(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely, volition).
+% People with a strong desire to connect and the recent positive mean interaction within 8 turns are likely
+rule_active(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely).
+rule_category(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely, social_connection).
+rule_source(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely, ensemble).
+rule_priority(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely, 1).
+rule_applies(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_with_a_strong_desire_to_connect_and_the_recent_positive_mean_interaction_within_8_turns_are_likely, set_intent(X, candid, Y, -1)).
+
+rule_likelihood(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who, 1).
+rule_type(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who, volition).
+% People with a strong familial network of connections (with at least 6 members) and who
+rule_active(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who).
+rule_category(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who, social_connection).
+rule_source(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who, ensemble).
+rule_priority(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who, 1).
+rule_applies(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_with_a_strong_familial_network_of_connections_with_at_least_6_members_and_who, set_intent(X, candid, Y, -1)).
+
+rule_likelihood(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest, 1).
+rule_type(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest, volition).
+% People with a strong familial network of connections greater than 6 and who have had an interest
+rule_active(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest).
+rule_category(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest, social_connection).
+rule_source(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest, ensemble).
+rule_priority(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest, 1).
+rule_applies(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_with_a_strong_familial_network_of_connections_greater_than_6_and_who_have_had_an_interest, set_intent(X, candid, Y, -1)).
+
+rule_likelihood(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves, 1).
+rule_type(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves, volition).
+% People feel gratitude towards others with a higher network influence score than themselves.
+rule_active(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves).
+rule_category(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves, social_connection).
+rule_source(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves, ensemble).
+rule_priority(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves, 3).
+rule_applies(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves, X, Y) :-
+    network(X, Y, gratitude, Gratitude_val), Gratitude_val > 6.
+rule_effect(people_feel_gratitude_towards_others_with_a_higher_network_influence_score_than_themselves, set_intent(X, favor, Y, 3)).
+
+rule_likelihood(people_seek_companionship_with_those_exhibiting_high_altruism_levels, 1).
+rule_type(people_seek_companionship_with_those_exhibiting_high_altruism_levels, volition).
+% People seek companionship with those exhibiting high altruism levels.
+rule_active(people_seek_companionship_with_those_exhibiting_high_altruism_levels).
+rule_category(people_seek_companionship_with_those_exhibiting_high_altruism_levels, social_connection).
+rule_source(people_seek_companionship_with_those_exhibiting_high_altruism_levels, ensemble).
+rule_priority(people_seek_companionship_with_those_exhibiting_high_altruism_levels, 1).
+rule_applies(people_seek_companionship_with_those_exhibiting_high_altruism_levels, X, Y) :-
+    attribute(X, altruism, Altruism_val), Altruism_val < 7.
+rule_effect(people_seek_companionship_with_those_exhibiting_high_altruism_levels, set_intent(X, favor, Y, -2)).
+
+rule_likelihood(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances, 1).
+rule_type(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances, volition).
+% People seek stronger connections when they have a moderate-sized network of acquaintances.
+rule_active(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances).
+rule_category(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances, social_connection).
+rule_source(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances, ensemble).
+rule_priority(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances, 1).
+rule_applies(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances, X, Y) :-
+    network(X, Y, familial, Familial_val), Familial_val > 6.
+rule_effect(people_seek_stronger_connections_when_they_have_a_moderate_sized_network_of_acquaintances, set_intent(X, honor, Y, 1)).
+
+rule_likelihood(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network, 1).
+rule_type(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network, volition).
+% People desire stronger connections with individuals of higher social influence in their network.
+rule_active(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network).
+rule_category(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network, social_connection).
+rule_source(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network, ensemble).
+rule_priority(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network, 5).
+rule_applies(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val > 6.
+rule_effect(people_desire_stronger_connections_with_individuals_of_higher_social_influence_in_their_network, set_intent(X, kind, Y, 5)).
+
+rule_likelihood(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude, 1).
+rule_type(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude, volition).
+% People seek to associate with individuals of greater influence due to gratitude.
+rule_active(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude).
+rule_category(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude, social_connection).
+rule_source(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude, ensemble).
+rule_priority(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude, 3).
+rule_applies(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude, X, Y) :-
+    network(X, Y, gratitude, Gratitude_val), Gratitude_val > 6.
+rule_effect(people_seek_to_associate_with_individuals_of_greater_influence_due_to_gratitude, set_intent(X, kind, Y, 3)).
+
+rule_likelihood(people_seek_companionship_with_those_who_exhibit_high_altruism_levels, 1).
+rule_type(people_seek_companionship_with_those_who_exhibit_high_altruism_levels, volition).
+% People seek companionship with those who exhibit high altruism levels.
+rule_active(people_seek_companionship_with_those_who_exhibit_high_altruism_levels).
+rule_category(people_seek_companionship_with_those_who_exhibit_high_altruism_levels, social_connection).
+rule_source(people_seek_companionship_with_those_who_exhibit_high_altruism_levels, ensemble).
+rule_priority(people_seek_companionship_with_those_who_exhibit_high_altruism_levels, 1).
+rule_applies(people_seek_companionship_with_those_who_exhibit_high_altruism_levels, X, Y) :-
+    attribute(X, altruism, Altruism_val), Altruism_val < 7.
+rule_effect(people_seek_companionship_with_those_who_exhibit_high_altruism_levels, set_intent(X, kind, Y, -2)).
+

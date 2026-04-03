@@ -217,4 +217,20 @@ private:
     bool CheckItemTypeCondition(const FInsimulRuleCondition& Condition, const FInsimulGameContext& Context) const;
     const FInsimulRuleEffect* FindRestriction(const FInsimulRule& Rule, const FString& ActionType) const;
     bool CompareValue(float Actual, float Expected, const FString& Operator) const;
+
+public:
+    /**
+     * Convert a display name to the Prolog KB atom format used by the knowledge base.
+     * The KB uses human-readable atoms (e.g. "john_smith") rather than raw entity IDs.
+     * Use this to translate entity names when cross-referencing JSON data with KB facts.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|RuleEnforcer")
+    static FString SanitizeToAtom(const FString& Name);
+
+    /**
+     * Convert an entity display name to a KB atom, stripping accents.
+     * Falls back to SanitizeToAtom(FallbackId) if Name is empty.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|RuleEnforcer")
+    static FString NameToAtom(const FString& Name, const FString& FallbackId = TEXT("unknown"));
 };

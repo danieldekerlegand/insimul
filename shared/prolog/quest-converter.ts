@@ -163,9 +163,12 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
 
   // ── Prerequisites ──────────────────────────────────────────────────────
 
-  const prereqIds = quest.prerequisiteQuestIds || [];
+  const prereqIds = (quest.prerequisiteQuestIds || []).filter(id => id && id.trim());
   for (const prereqId of prereqIds) {
-    lines.push(`quest_prerequisite(${questId}, ${sanitizeAtom(prereqId)}).`);
+    const prereqAtom = sanitizeAtom(prereqId);
+    if (prereqAtom) {
+      lines.push(`quest_prerequisite(${questId}, ${prereqAtom}).`);
+    }
   }
   if (prereqIds.length > 0) {
     predicates.push('quest_prerequisite/2');
@@ -230,7 +233,10 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
   if (prereqIds.length > 0) {
     // All prerequisite quests must be completed
     for (const prereqId of prereqIds) {
-      availConditions.push(`quest_status(Player, ${sanitizeAtom(prereqId)}, completed)`);
+      const prereqAtom = sanitizeAtom(prereqId);
+      if (prereqAtom) {
+        availConditions.push(`quest_status(Player, ${prereqAtom}, completed)`);
+      }
     }
   }
 
@@ -730,12 +736,13 @@ function convertFailureCondition(condition: Record<string, any>, errors: string[
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function sanitizeAtom(str: string): string {
+  if (!str || !str.trim()) return '';
   return str
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
     .replace(/^([0-9])/, '_$1')
     .replace(/_+/g, '_')
-    .replace(/_$/, '');
+    .replace(/^_|_$/g, '') || '';
 }
 
 function escapeString(str: string): string {

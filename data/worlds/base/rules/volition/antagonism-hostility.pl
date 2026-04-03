@@ -1,0 +1,857 @@
+%% Ensemble Volition Rules: antagonism-hostility
+%% Source: data/ensemble/volitionRules/antagonism-hostility.json
+%% Converted: 2026-04-02T20:09:49.722Z
+%% Total rules: 74
+
+rule_likelihood(rivals_antagonize_each_other, 1).
+rule_type(rivals_antagonize_each_other, volition).
+% Rivals antagonize each other
+rule_active(rivals_antagonize_each_other).
+rule_category(rivals_antagonize_each_other, antagonism_hostility).
+rule_source(rivals_antagonize_each_other, ensemble).
+rule_priority(rivals_antagonize_each_other, 5).
+rule_applies(rivals_antagonize_each_other, X, Y) :-
+    directed_status(X, Y, rivals).
+rule_effect(rivals_antagonize_each_other, set_intent(X, antagonize, Y, 5)).
+
+rule_likelihood(feuding_leads_to_antagonism, 1).
+rule_type(feuding_leads_to_antagonism, volition).
+% Feuding leads to antagonism
+rule_active(feuding_leads_to_antagonism).
+rule_category(feuding_leads_to_antagonism, antagonism_hostility).
+rule_source(feuding_leads_to_antagonism, ensemble).
+rule_priority(feuding_leads_to_antagonism, 5).
+rule_applies(feuding_leads_to_antagonism, X, Y) :-
+    directed_status(X, Y, feuding).
+rule_effect(feuding_leads_to_antagonism, set_intent(X, antagonize, Y, 5)).
+
+rule_likelihood(bosses_are_less_antagonistic_to_their_employees, 1).
+rule_type(bosses_are_less_antagonistic_to_their_employees, volition).
+% Bosses are less antagonistic to their employees
+rule_active(bosses_are_less_antagonistic_to_their_employees).
+rule_category(bosses_are_less_antagonistic_to_their_employees, antagonism_hostility).
+rule_source(bosses_are_less_antagonistic_to_their_employees, ensemble).
+rule_priority(bosses_are_less_antagonistic_to_their_employees, 1).
+rule_applies(bosses_are_less_antagonistic_to_their_employees, X, Y) :-
+    directed_status(X, Y, is_boss_of).
+rule_effect(bosses_are_less_antagonistic_to_their_employees, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_are_less_antagonistic_to_those_they_idolize, 1).
+rule_type(people_are_less_antagonistic_to_those_they_idolize, volition).
+% People are less antagonistic to those they idolize
+rule_active(people_are_less_antagonistic_to_those_they_idolize).
+rule_category(people_are_less_antagonistic_to_those_they_idolize, antagonism_hostility).
+rule_source(people_are_less_antagonistic_to_those_they_idolize, ensemble).
+rule_priority(people_are_less_antagonistic_to_those_they_idolize, 1).
+rule_applies(people_are_less_antagonistic_to_those_they_idolize, X, Y) :-
+    directed_status(X, Y, idolize).
+rule_effect(people_are_less_antagonistic_to_those_they_idolize, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_are_less_antagonistic_to_their_friends, 1).
+rule_type(people_are_less_antagonistic_to_their_friends, volition).
+% People are less antagonistic to their friends
+rule_active(people_are_less_antagonistic_to_their_friends).
+rule_category(people_are_less_antagonistic_to_their_friends, antagonism_hostility).
+rule_source(people_are_less_antagonistic_to_their_friends, ensemble).
+rule_priority(people_are_less_antagonistic_to_their_friends, 1).
+rule_applies(people_are_less_antagonistic_to_their_friends, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val > 6.
+rule_effect(people_are_less_antagonistic_to_their_friends, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for, 1).
+rule_type(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for, volition).
+% People are less antagonistic to those they have romantic feelings for
+rule_active(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for).
+rule_category(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for, antagonism_hostility).
+rule_source(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for, ensemble).
+rule_priority(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for, 1).
+rule_applies(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val > 6.
+rule_effect(people_are_less_antagonistic_to_those_they_have_romantic_feelings_for, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_are_less_antagonistic_to_those_they_trust, 1).
+rule_type(people_are_less_antagonistic_to_those_they_trust, volition).
+% People are less antagonistic to those they trust
+rule_active(people_are_less_antagonistic_to_those_they_trust).
+rule_category(people_are_less_antagonistic_to_those_they_trust, antagonism_hostility).
+rule_source(people_are_less_antagonistic_to_those_they_trust, ensemble).
+rule_priority(people_are_less_antagonistic_to_those_they_trust, 1).
+rule_applies(people_are_less_antagonistic_to_those_they_trust, X, Y) :-
+    network(X, Y, trust, Trust_val), Trust_val > 6.
+rule_effect(people_are_less_antagonistic_to_those_they_trust, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_are_less_antagonistic_to_those_they_respect, 1).
+rule_type(people_are_less_antagonistic_to_those_they_respect, volition).
+% People are less antagonistic to those they respect
+rule_active(people_are_less_antagonistic_to_those_they_respect).
+rule_category(people_are_less_antagonistic_to_those_they_respect, antagonism_hostility).
+rule_source(people_are_less_antagonistic_to_those_they_respect, ensemble).
+rule_priority(people_are_less_antagonistic_to_those_they_respect, 1).
+rule_applies(people_are_less_antagonistic_to_those_they_respect, X, Y) :-
+    network(X, Y, respect, Respect_val), Respect_val > 6.
+rule_effect(people_are_less_antagonistic_to_those_they_respect, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle, 1).
+rule_type(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle, volition).
+% People tend to antagonize those they perceive as more dominant in their social circle.
+rule_active(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle).
+rule_category(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle, antagonism_hostility).
+rule_source(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle, ensemble).
+rule_priority(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle, 5).
+rule_applies(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_tend_to_antagonize_those_they_perceive_as_more_dominant_in_their_social_circle, set_intent(X, antagonize, Y, 5)).
+
+rule_likelihood(people_are_more_antagonistic_to_those_they_are_indebted_to, 1).
+rule_type(people_are_more_antagonistic_to_those_they_are_indebted_to, volition).
+% People are more antagonistic to those they are indebted to
+rule_active(people_are_more_antagonistic_to_those_they_are_indebted_to).
+rule_category(people_are_more_antagonistic_to_those_they_are_indebted_to, antagonism_hostility).
+rule_source(people_are_more_antagonistic_to_those_they_are_indebted_to, ensemble).
+rule_priority(people_are_more_antagonistic_to_those_they_are_indebted_to, 1).
+rule_applies(people_are_more_antagonistic_to_those_they_are_indebted_to, X, Y) :-
+    network(X, Y, indebted, Indebted_val), Indebted_val > 6.
+rule_effect(people_are_more_antagonistic_to_those_they_are_indebted_to, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections, 1).
+rule_type(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections, volition).
+% People tend to antagonize weaker friends while seeking stronger connections.
+rule_active(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections).
+rule_category(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections, antagonism_hostility).
+rule_source(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections, ensemble).
+rule_priority(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections, 1).
+rule_applies(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val > 3,
+    network(X, Y, friendship, Friendship_val), Friendship_val < 7.
+rule_effect(people_tend_to_antagonize_weaker_friends_while_seeking_stronger_connections, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so, 1).
+rule_type(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so, volition).
+% People tend to antagonize those who are more powerful than them but less so.
+rule_active(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so).
+rule_category(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so, antagonism_hostility).
+rule_source(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so, ensemble).
+rule_priority(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so, 1).
+rule_applies(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so, X, Y) :-
+    intent(X, antagonize, Y),
+    intent(X, antagonize, Y).
+rule_effect(people_tend_to_antagonize_those_who_are_more_powerful_than_them_but_less_so, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others, 1).
+rule_type(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others, volition).
+% People tend to antagonize weaker connections when they have strong friendships with others.
+rule_active(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others).
+rule_category(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others, antagonism_hostility).
+rule_source(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others, ensemble).
+rule_priority(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others, 1).
+rule_applies(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val < 4.
+rule_effect(people_tend_to_antagonize_weaker_connections_when_they_have_strong_friendships_with_others, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social, 1).
+rule_type(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social, volition).
+% People tend to antagonize those they perceive as more influential or dominant within their social
+rule_active(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social).
+rule_category(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social, antagonism_hostility).
+rule_source(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social, ensemble).
+rule_priority(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social, 1).
+rule_applies(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social, X, Y) :-
+    network(X, Y, trust, Trust_val), Trust_val < 4.
+rule_effect(people_tend_to_antagonize_those_they_perceive_as_more_influential_or_dominant_within_their_social, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others, 1).
+rule_type(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others, volition).
+% People may feel antagonized towards those they perceive as less respectful than others.
+rule_active(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others).
+rule_category(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others, antagonism_hostility).
+rule_source(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others, ensemble).
+rule_priority(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others, 1).
+rule_applies(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others, X, Y) :-
+    network(X, Y, respect, Respect_val), Respect_val < 4.
+rule_effect(people_may_feel_antagonized_towards_those_they_perceive_as_less_respectful_than_others, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_tend_to_distance_themselves_from_those_they_antagonize_significantly, 1).
+rule_type(people_tend_to_distance_themselves_from_those_they_antagonize_significantly, volition).
+% People tend to distance themselves from those they antagonize significantly.
+rule_active(people_tend_to_distance_themselves_from_those_they_antagonize_significantly).
+rule_category(people_tend_to_distance_themselves_from_those_they_antagonize_significantly, antagonism_hostility).
+rule_source(people_tend_to_distance_themselves_from_those_they_antagonize_significantly, ensemble).
+rule_priority(people_tend_to_distance_themselves_from_those_they_antagonize_significantly, 1).
+rule_applies(people_tend_to_distance_themselves_from_those_they_antagonize_significantly, X, Y) :-
+    intent(X, antagonize, Y).
+rule_effect(people_tend_to_distance_themselves_from_those_they_antagonize_significantly, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat, 1).
+rule_type(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat, volition).
+% People may develop antagonistic feelings towards strong individuals when they perceive them as a threat.
+rule_active(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat).
+rule_category(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat, antagonism_hostility).
+rule_source(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat, ensemble).
+rule_priority(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat, 1).
+rule_applies(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat, X, Y) :-
+    status(X, successful).
+rule_effect(people_may_develop_antagonistic_feelings_towards_strong_individuals_when_they_perceive_them_as_a_threat, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush, 1).
+rule_type(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush, volition).
+% People seeking solace after heartbreak may unintentionally antagonize their crush.
+rule_active(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush).
+rule_category(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush, antagonism_hostility).
+rule_source(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush, ensemble).
+rule_priority(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush, 1).
+rule_applies(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush, X, Y) :-
+    status(X, heartbroken).
+rule_effect(people_seeking_solace_after_heartbreak_may_unintentionally_antagonize_their_crush, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_with_a_fearful_status_are_likely_to_antagonize_others, 1).
+rule_type(people_with_a_fearful_status_are_likely_to_antagonize_others, volition).
+% People with a fearful status are likely to antagonize others.
+rule_active(people_with_a_fearful_status_are_likely_to_antagonize_others).
+rule_category(people_with_a_fearful_status_are_likely_to_antagonize_others, antagonism_hostility).
+rule_source(people_with_a_fearful_status_are_likely_to_antagonize_others, ensemble).
+rule_priority(people_with_a_fearful_status_are_likely_to_antagonize_others, 1).
+rule_applies(people_with_a_fearful_status_are_likely_to_antagonize_others, X, Y) :-
+    status(X, fearful).
+rule_effect(people_with_a_fearful_status_are_likely_to_antagonize_others, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_envy_strong_individuals_and_intend_to_antagonize_them, 1).
+rule_type(people_envy_strong_individuals_and_intend_to_antagonize_them, volition).
+% People envy strong individuals and intend to antagonize them.
+rule_active(people_envy_strong_individuals_and_intend_to_antagonize_them).
+rule_category(people_envy_strong_individuals_and_intend_to_antagonize_them, antagonism_hostility).
+rule_source(people_envy_strong_individuals_and_intend_to_antagonize_them, ensemble).
+rule_priority(people_envy_strong_individuals_and_intend_to_antagonize_them, 1).
+rule_applies(people_envy_strong_individuals_and_intend_to_antagonize_them, X, Y) :-
+    directed_status(X, Y, envy).
+rule_effect(people_envy_strong_individuals_and_intend_to_antagonize_them, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_are_antagonized_by_those_they_fear, 1).
+rule_type(people_are_antagonized_by_those_they_fear, volition).
+% People are antagonized by those they fear.
+rule_active(people_are_antagonized_by_those_they_fear).
+rule_category(people_are_antagonized_by_those_they_fear, antagonism_hostility).
+rule_source(people_are_antagonized_by_those_they_fear, ensemble).
+rule_priority(people_are_antagonized_by_those_they_fear, 1).
+rule_applies(people_are_antagonized_by_those_they_fear, X, Y) :-
+    directed_status(X, Y, afraid_of).
+rule_effect(people_are_antagonized_by_those_they_fear, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as, 1).
+rule_type(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as, volition).
+% People with low altruism levels may seek to antagonize those they perceive as
+rule_active(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as).
+rule_category(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as, antagonism_hostility).
+rule_source(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as, ensemble).
+rule_priority(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as, 1).
+rule_applies(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as, X, Y) :-
+    attribute(X, altruism, Altruism_val), Altruism_val < 7.
+rule_effect(people_with_low_altruism_levels_may_seek_to_antagonize_those_they_perceive_as, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable, 1).
+rule_type(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable, volition).
+% People with lower wisdom seek to antagonize those they perceive as more knowledgeable.
+rule_active(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable).
+rule_category(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable, antagonism_hostility).
+rule_source(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable, ensemble).
+rule_priority(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable, 1).
+rule_applies(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable, X, Y) :-
+    attribute(X, wisdom, Wisdom_val), Wisdom_val < 7.
+rule_effect(people_with_lower_wisdom_seek_to_antagonize_those_they_perceive_as_more_knowledgeable, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are, 1).
+rule_type(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are, volition).
+% People with high altruism levels may inadvertently antagonize those they are
+rule_active(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are).
+rule_category(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are, antagonism_hostility).
+rule_source(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are, ensemble).
+rule_priority(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are, 1).
+rule_applies(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are, X, Y) :-
+    attribute(X, altruism, Altruism_val), Altruism_val > 12.
+rule_effect(people_with_high_altruism_levels_may_inadvertently_antagonize_those_they_are, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom, 1).
+rule_type(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom, volition).
+% People may feel antagonized towards less wise individuals when they encounter someone with greater wisdom.
+rule_active(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom).
+rule_category(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom, antagonism_hostility).
+rule_source(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom, ensemble).
+rule_priority(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom, 1).
+rule_applies(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom, X, Y) :-
+    attribute(X, wisdom, Wisdom_val), Wisdom_val > 12.
+rule_effect(people_may_feel_antagonized_towards_less_wise_individuals_when_they_encounter_someone_with_greater_wisdom, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones, 1).
+rule_type(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones, volition).
+% People may antagonize weaker individuals when they are friendly towards stronger ones.
+rule_active(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones).
+rule_category(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones, antagonism_hostility).
+rule_source(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones, ensemble).
+rule_priority(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones, 1).
+rule_applies(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones, X, Y) :-
+    trait(X, friendly).
+rule_effect(people_may_antagonize_weaker_individuals_when_they_are_friendly_towards_stronger_ones, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_with_xenophobic_traits_may_inadvertently_antagonize_others, 1).
+rule_type(people_with_xenophobic_traits_may_inadvertently_antagonize_others, volition).
+% People with xenophobic traits may inadvertently antagonize others.
+rule_active(people_with_xenophobic_traits_may_inadvertently_antagonize_others).
+rule_category(people_with_xenophobic_traits_may_inadvertently_antagonize_others, antagonism_hostility).
+rule_source(people_with_xenophobic_traits_may_inadvertently_antagonize_others, ensemble).
+rule_priority(people_with_xenophobic_traits_may_inadvertently_antagonize_others, 1).
+rule_applies(people_with_xenophobic_traits_may_inadvertently_antagonize_others, X, Y) :-
+    trait(X, xenophobic).
+rule_effect(people_with_xenophobic_traits_may_inadvertently_antagonize_others, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush, 1).
+rule_type(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush, volition).
+% People’s average interest in strong individuals increases to antagonize their crush.
+rule_active(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush).
+rule_category(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush, antagonism_hostility).
+rule_source(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush, ensemble).
+rule_priority(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush, 3).
+rule_applies(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush, X, Y) :-
+    event(X, mean).
+rule_effect(people_s_average_interest_in_strong_individuals_increases_to_antagonize_their_crush, set_intent(X, antagonize, Y, 3)).
+
+rule_likelihood(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently, 1).
+rule_type(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently, volition).
+% People may feel antagonized towards those they did a favor for recently.
+rule_active(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently).
+rule_category(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently, antagonism_hostility).
+rule_source(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently, ensemble).
+rule_priority(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently, 1).
+rule_applies(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_may_feel_antagonized_towards_those_they_did_a_favor_for_recently, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others, 1).
+rule_type(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others, volition).
+% People may develop antagonism towards their public friends when both are considered strong by others.
+rule_active(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others).
+rule_category(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others, antagonism_hostility).
+rule_source(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others, ensemble).
+rule_priority(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others, 1).
+rule_applies(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others, X, Y) :-
+    directed_status(X, 'z', public_friends),
+    directed_status(Y, 'z', public_friends).
+rule_effect(people_may_develop_antagonism_towards_their_public_friends_when_both_are_considered_strong_by_others, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each, 1).
+rule_type(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each, volition).
+% People in feuding status with both individual A and B are likely to antagonize each
+rule_active(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each).
+rule_category(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each, antagonism_hostility).
+rule_source(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each, ensemble).
+rule_priority(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each, 1).
+rule_applies(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each, X, Y) :-
+    directed_status(X, 'z', feuding),
+    directed_status(Y, 'z', feuding).
+rule_effect(people_in_feuding_status_with_both_individual_a_and_b_are_likely_to_antagonize_each, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them, 1).
+rule_type(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them, volition).
+% People idolizing both person X and Y may lead to antagonism between them.
+rule_active(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them).
+rule_category(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them, antagonism_hostility).
+rule_source(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them, ensemble).
+rule_priority(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them, 1).
+rule_applies(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them, X, Y) :-
+    directed_status(X, 'z', idolize),
+    directed_status(Y, 'z', idolize).
+rule_effect(people_idolizing_both_person_x_and_y_may_lead_to_antagonism_between_them, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize, 1).
+rule_type(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize, volition).
+% People harboring rivalry towards both individuals X and Y are inclined to antagonize
+rule_active(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize).
+rule_category(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize, antagonism_hostility).
+rule_source(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize, ensemble).
+rule_priority(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize, 1).
+rule_applies(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize, X, Y) :-
+    directed_status(X, 'z', rivals),
+    directed_status(Y, 'z', rivals).
+rule_effect(people_harboring_rivalry_towards_both_individuals_x_and_y_are_inclined_to_antagonize, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common, 1).
+rule_type(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common, volition).
+% People may feel antagonized towards each other when both have more than 6 friends in common
+rule_active(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common).
+rule_category(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common, antagonism_hostility).
+rule_source(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common, ensemble).
+rule_priority(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common, 1).
+rule_applies(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    network(Y, 'z', friendship, Friendship_val), Friendship_val > 6.
+rule_effect(people_may_feel_antagonized_towards_each_other_when_both_have_more_than_6_friends_in_common, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less, 1).
+rule_type(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less, volition).
+% People are more inclined to antagonize their crush when they perceive themselves as less
+rule_active(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less).
+rule_category(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less, antagonism_hostility).
+rule_source(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less, ensemble).
+rule_priority(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less, 3).
+rule_applies(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    network(Y, 'z', romance, Romance_val), Romance_val > 6.
+rule_effect(people_are_more_inclined_to_antagonize_their_crush_when_they_perceive_themselves_as_less, set_intent(X, antagonize, Y, 3)).
+
+rule_likelihood(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others, 1).
+rule_type(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others, volition).
+% People tend to antagonize those more closely connected within their social network than others.
+rule_active(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others).
+rule_category(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others, antagonism_hostility).
+rule_source(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others, ensemble).
+rule_priority(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others, 1).
+rule_applies(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    network(Y, 'z', familial, Familial_val), Familial_val > 6.
+rule_effect(people_tend_to_antagonize_those_more_closely_connected_within_their_social_network_than_others, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar, 1).
+rule_type(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar, volition).
+% People are more likely to antagonize weaker friends over stronger ones when both have a similar
+rule_active(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar).
+rule_category(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar, antagonism_hostility).
+rule_source(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar, ensemble).
+rule_priority(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar, 1).
+rule_applies(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val < 4,
+    network(Y, 'z', friendship, Friendship_val), Friendship_val < 4.
+rule_effect(people_are_more_likely_to_antagonize_weaker_friends_over_stronger_ones_when_both_have_a_similar, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low, 1).
+rule_type(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low, volition).
+% People tend to antagonize those they are less trusting of when both parties have a low
+rule_active(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low).
+rule_category(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low, antagonism_hostility).
+rule_source(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low, ensemble).
+rule_priority(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low, 1).
+rule_applies(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low, X, Y) :-
+    network(X, 'Z', trust, Trust_val), Trust_val < 4,
+    intent(Y, trust, 'z').
+rule_effect(people_tend_to_antagonize_those_they_are_less_trusting_of_when_both_parties_have_a_low, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr, 1).
+rule_type(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr, volition).
+% People tend to antagonize those they perceive as less respectful than themselves or their cr
+rule_active(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr).
+rule_category(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr, antagonism_hostility).
+rule_source(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr, ensemble).
+rule_priority(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr, 1).
+rule_applies(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr, X, Y) :-
+    network(X, 'z', respect, Respect_val), Respect_val < 4,
+    intent(Y, antagonize, 'z').
+rule_effect(people_tend_to_antagonize_those_they_perceive_as_less_respectful_than_themselves_or_their_cr, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and, 1).
+rule_type(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and, volition).
+% People tend to antagonize their crushes when they have fewer than 7 friends and
+rule_active(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and).
+rule_category(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and, antagonism_hostility).
+rule_source(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and, ensemble).
+rule_priority(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and, 1).
+rule_applies(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, nice).
+rule_effect(people_tend_to_antagonize_their_crushes_when_they_have_fewer_than_7_friends_and, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and, 1).
+rule_type(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and, volition).
+% People tend to antagonize their crush when they have more than six friends in common and
+rule_active(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and).
+rule_category(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and, antagonism_hostility).
+rule_source(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and, ensemble).
+rule_priority(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and, 5).
+rule_applies(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common_and, set_intent(X, antagonize, Y, 5)).
+
+rule_likelihood(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them, 1).
+rule_type(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them, volition).
+% People may develop antagonism towards their friends who have recently done favors for them.
+rule_active(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them).
+rule_category(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them, antagonism_hostility).
+rule_source(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them, ensemble).
+rule_priority(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them, 5).
+rule_applies(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_may_develop_antagonism_towards_their_friends_who_have_recently_done_favors_for_them, set_intent(X, antagonize, Y, -5)).
+
+rule_likelihood(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for, 1).
+rule_type(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for, volition).
+% People may feel antagonized towards their crush after being in the company of strong individuals for
+rule_active(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for).
+rule_category(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for, antagonism_hostility).
+rule_source(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for, ensemble).
+rule_priority(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for, 1).
+rule_applies(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, nice).
+rule_effect(people_may_feel_antagonized_towards_their_crush_after_being_in_the_company_of_strong_individuals_for, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common, 1).
+rule_type(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common, volition).
+% People tend to antagonize their crush when they have more than six friends in common.
+rule_active(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common).
+rule_category(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common, antagonism_hostility).
+rule_source(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common, ensemble).
+rule_priority(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common, 3).
+rule_applies(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_in_common, set_intent(X, antagonize, Y, 3)).
+
+rule_likelihood(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain, 1).
+rule_type(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain, volition).
+% People may feel antagonized towards those they helped recently if their friendship strength is above a certain
+rule_active(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain).
+rule_category(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain, antagonism_hostility).
+rule_source(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain, ensemble).
+rule_priority(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain, 3).
+rule_applies(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_may_feel_antagonized_towards_those_they_helped_recently_if_their_friendship_strength_is_above_a_certain, set_intent(X, antagonize, Y, -3)).
+
+rule_likelihood(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year, 1).
+rule_type(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year, volition).
+% People tend to antagonize their crush when they have more than six friends within a year
+rule_active(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year).
+rule_category(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year, antagonism_hostility).
+rule_source(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year, ensemble).
+rule_priority(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year, 1).
+rule_applies(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_antagonize_their_crush_when_they_have_more_than_six_friends_within_a_year, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than, 1).
+rule_type(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than, volition).
+% People who have a strong desire to antagonize their crush due to having more than 
+rule_active(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than).
+rule_category(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than, antagonism_hostility).
+rule_source(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than, ensemble).
+rule_priority(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than, 1).
+rule_applies(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_who_have_a_strong_desire_to_antagonize_their_crush_due_to_having_more_than, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social, 1).
+rule_type(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social, volition).
+% People tend to antagonize their crush when they are within a close-knit social
+rule_active(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social).
+rule_category(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social, antagonism_hostility).
+rule_source(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social, ensemble).
+rule_priority(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social, 5).
+rule_applies(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_social, set_intent(X, antagonize, Y, 5)).
+
+rule_likelihood(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past, 1).
+rule_type(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past, volition).
+% People are likely to antagonize their crush after doing a favor for them within the past
+rule_active(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past).
+rule_category(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past, antagonism_hostility).
+rule_source(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past, ensemble).
+rule_priority(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past, 5).
+rule_applies(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_are_likely_to_antagonize_their_crush_after_doing_a_favor_for_them_within_the_past, set_intent(X, antagonize, Y, -5)).
+
+rule_likelihood(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family, 1).
+rule_type(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family, volition).
+% People tend to antagonize their crush when they are within a close-knit family
+rule_active(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family).
+rule_category(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family, antagonism_hostility).
+rule_source(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family, ensemble).
+rule_priority(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family, 3).
+rule_applies(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_antagonize_their_crush_when_they_are_within_a_close_knit_family, set_intent(X, antagonize, Y, 3)).
+
+rule_likelihood(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than, 1).
+rule_type(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than, volition).
+% People may develop antagonistic feelings towards their crush over time if they have a larger than
+rule_active(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than).
+rule_category(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than, antagonism_hostility).
+rule_source(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than, ensemble).
+rule_priority(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than, 1).
+rule_applies(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_may_develop_antagonistic_feelings_towards_their_crush_over_time_if_they_have_a_larger_than, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network, 1).
+rule_type(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network, volition).
+% People may develop antagonism towards those they’ve favored recently if their familial network
+rule_active(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network).
+rule_category(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network, antagonism_hostility).
+rule_source(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network, ensemble).
+rule_priority(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network, 1).
+rule_applies(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_may_develop_antagonism_towards_those_they_ve_favored_recently_if_their_familial_network, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely, 1).
+rule_type(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely, volition).
+% People with high antagonism towards strong individuals and a recent interest in their crush are likely
+rule_active(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely).
+rule_category(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely, antagonism_hostility).
+rule_source(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely, ensemble).
+rule_priority(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely, 3).
+rule_applies(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, mean).
+rule_effect(people_with_high_antagonism_towards_strong_individuals_and_a_recent_interest_in_their_crush_are_likely, set_intent(X, antagonize, Y, -3)).
+
+rule_likelihood(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may, 1).
+rule_type(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may, volition).
+% People with high antagonism towards strong individuals and who have recently done a favor for someone may
+rule_active(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may).
+rule_category(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may, antagonism_hostility).
+rule_source(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may, ensemble).
+rule_priority(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may, 3).
+rule_applies(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_with_high_antagonism_towards_strong_individuals_and_who_have_recently_done_a_favor_for_someone_may, set_intent(X, antagonize, Y, 3)).
+
+rule_likelihood(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else, 1).
+rule_type(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else, volition).
+% People tend to antagonize weaker individuals when they are significantly more attracted to someone else
+rule_active(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else).
+rule_category(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else, antagonism_hostility).
+rule_source(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else, ensemble).
+rule_priority(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else, 1).
+rule_applies(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_antagonize_weaker_individuals_when_they_are_significantly_more_attracted_to_someone_else, set_intent(X, antagonize, Y, -2)).
+
+rule_likelihood(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone, 1).
+rule_type(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone, volition).
+% People with high antagonism towards others (x > z) who did a favor for someone
+rule_active(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone).
+rule_category(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone, antagonism_hostility).
+rule_source(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone, ensemble).
+rule_priority(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone, 1).
+rule_applies(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_with_high_antagonism_towards_others_x_z_who_did_a_favor_for_someone, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6, 1).
+rule_type(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6, volition).
+% People want to antagonize those they are more distant from than their crush by 6
+rule_active(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6).
+rule_category(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6, antagonism_hostility).
+rule_source(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6, ensemble).
+rule_priority(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6, 1).
+rule_applies(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, mean).
+rule_effect(people_want_to_antagonize_those_they_are_more_distant_from_than_their_crush_by_6, set_intent(X, antagonize, Y, -1)).
+
+rule_likelihood(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person, 1).
+rule_type(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person, volition).
+% People who have a high antagonism level towards someone and have been favored by that person
+rule_active(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person).
+rule_category(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person, antagonism_hostility).
+rule_source(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person, ensemble).
+rule_priority(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person, 1).
+rule_applies(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_who_have_a_high_antagonism_level_towards_someone_and_have_been_favored_by_that_person, set_intent(X, antagonize, Y, 1)).
+
+rule_likelihood(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network, 1).
+rule_type(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network, volition).
+% People seek to reduce antagonism towards stronger individuals in their social network.
+rule_active(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network).
+rule_category(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network, antagonism_hostility).
+rule_source(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network, ensemble).
+rule_priority(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network, 1).
+rule_applies(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_seek_to_reduce_antagonism_towards_stronger_individuals_in_their_social_network, set_intent(X, candid, Y, -2)).
+
+rule_likelihood(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts, 1).
+rule_type(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts, volition).
+% People with feuding relationships seek to date their crushes despite the conflicts.
+rule_active(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts).
+rule_category(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts, antagonism_hostility).
+rule_source(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts, ensemble).
+rule_priority(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts, 1).
+rule_applies(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts, X, Y) :-
+    directed_status(X, 'z', feuding),
+    directed_status(Y, 'z', feuding).
+rule_effect(people_with_feuding_relationships_seek_to_date_their_crushes_despite_the_conflicts, set_intent(X, candid, Y, 1)).
+
+rule_likelihood(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections, 1).
+rule_type(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections, volition).
+% People desire to associate with those who are less antagonistic towards their connections.
+rule_active(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections).
+rule_category(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections, antagonism_hostility).
+rule_source(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections, ensemble).
+rule_priority(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections, 1).
+rule_applies(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    network(Y, 'z', antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_desire_to_associate_with_those_who_are_less_antagonistic_towards_their_connections, set_intent(X, candid, Y, 2)).
+
+rule_likelihood(people_seek_to_distance_themselves_from_feuding_individuals, 1).
+rule_type(people_seek_to_distance_themselves_from_feuding_individuals, volition).
+% People seek to distance themselves from feuding individuals.
+rule_active(people_seek_to_distance_themselves_from_feuding_individuals).
+rule_category(people_seek_to_distance_themselves_from_feuding_individuals, antagonism_hostility).
+rule_source(people_seek_to_distance_themselves_from_feuding_individuals, ensemble).
+rule_priority(people_seek_to_distance_themselves_from_feuding_individuals, 3).
+rule_applies(people_seek_to_distance_themselves_from_feuding_individuals, X, Y) :-
+    directed_status(X, Y, feuding).
+rule_effect(people_seek_to_distance_themselves_from_feuding_individuals, set_intent(X, favor, Y, -3)).
+
+rule_likelihood(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic, 1).
+rule_type(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic, volition).
+% People tend to avoid strong individuals due to antagonism. However, they may develop romantic
+rule_active(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic).
+rule_category(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic, antagonism_hostility).
+rule_source(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic, ensemble).
+rule_priority(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic, 5).
+rule_applies(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_tend_to_avoid_strong_individuals_due_to_antagonism_however_they_may_develop_romantic, set_intent(X, favor, Y, -5)).
+
+rule_likelihood(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor, 1).
+rule_type(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor, volition).
+% People with feuding relationships towards strong individuals and their respective counterparts desire to form a favor
+rule_active(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor).
+rule_category(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor, antagonism_hostility).
+rule_source(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor, ensemble).
+rule_priority(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor, 1).
+rule_applies(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor, X, Y) :-
+    directed_status(X, 'z', feuding),
+    directed_status(Y, 'z', feuding).
+rule_effect(people_with_feuding_relationships_towards_strong_individuals_and_their_respective_counterparts_desire_to_form_a_favor, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment, 1).
+rule_type(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment, volition).
+% People desire to form connections with influential individuals when they have a strong antagonistic network sentiment
+rule_active(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment).
+rule_category(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment, antagonism_hostility).
+rule_source(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment, ensemble).
+rule_priority(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment, 1).
+rule_applies(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, mean).
+rule_effect(people_desire_to_form_connections_with_influential_individuals_when_they_have_a_strong_antagonistic_network_sentiment, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals, 1).
+rule_type(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals, volition).
+% People with feuding relationships seek to improve their honor by getting closer to influential individuals.
+rule_active(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals).
+rule_category(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals, antagonism_hostility).
+rule_source(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals, ensemble).
+rule_priority(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals, 1).
+rule_applies(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals, X, Y) :-
+    directed_status(X, Y, feuding).
+rule_effect(people_with_feuding_relationships_seek_to_improve_their_honor_by_getting_closer_to_influential_individuals, set_intent(X, honor, Y, -2)).
+
+rule_likelihood(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with, 1).
+rule_type(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with, volition).
+% People with feuding relationships aim to ingratiate themselves towards those they have conflicts with
+rule_active(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with).
+rule_category(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with, antagonism_hostility).
+rule_source(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with, ensemble).
+rule_priority(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with, 3).
+rule_applies(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with, X, Y) :-
+    directed_status(X, Y, feuding).
+rule_effect(people_with_feuding_relationships_aim_to_ingratiate_themselves_towards_those_they_have_conflicts_with, set_intent(X, ingratiate, Y, -3)).
+
+rule_likelihood(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards, 1).
+rule_type(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards, volition).
+% People seek to ingratiate themselves with those they have a significant antagonistic relationship towards
+rule_active(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards).
+rule_category(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards, antagonism_hostility).
+rule_source(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards, ensemble).
+rule_priority(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards, 1).
+rule_applies(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_seek_to_ingratiate_themselves_with_those_they_have_a_significant_antagonistic_relationship_towards, set_intent(X, ingratiate, Y, -1)).
+
+rule_likelihood(people_avoid_getting_close_to_feuding_individuals, 1).
+rule_type(people_avoid_getting_close_to_feuding_individuals, volition).
+% People avoid getting close to feuding individuals
+rule_active(people_avoid_getting_close_to_feuding_individuals).
+rule_category(people_avoid_getting_close_to_feuding_individuals, antagonism_hostility).
+rule_source(people_avoid_getting_close_to_feuding_individuals, ensemble).
+rule_priority(people_avoid_getting_close_to_feuding_individuals, 5).
+rule_applies(people_avoid_getting_close_to_feuding_individuals, X, Y) :-
+    directed_status(X, Y, feuding).
+rule_effect(people_avoid_getting_close_to_feuding_individuals, set_intent(X, kind, Y, -5)).
+
+rule_likelihood(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr, 1).
+rule_type(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr, volition).
+% People tend to avoid strong antagonists and may seek emotional connections with those they have cr
+rule_active(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr).
+rule_category(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr, antagonism_hostility).
+rule_source(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr, ensemble).
+rule_priority(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr, 5).
+rule_applies(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_tend_to_avoid_strong_antagonists_and_may_seek_emotional_connections_with_those_they_have_cr, set_intent(X, kind, Y, -5)).
+
+rule_likelihood(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences, 1).
+rule_type(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences, volition).
+% People seek to distance themselves from individuals with strong antagonistic influences.
+rule_active(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences).
+rule_category(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences, antagonism_hostility).
+rule_source(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences, ensemble).
+rule_priority(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences, 3).
+rule_applies(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val < 4.
+rule_effect(people_seek_to_distance_themselves_from_individuals_with_strong_antagonistic_influences, set_intent(X, kind, Y, 3)).
+
+rule_likelihood(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks, 1).
+rule_type(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks, volition).
+% People seek to reduce antagonism and increase positive influence in their social networks.
+rule_active(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks).
+rule_category(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks, antagonism_hostility).
+rule_source(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks, ensemble).
+rule_priority(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks, 1).
+rule_applies(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_seek_to_reduce_antagonism_and_increase_positive_influence_in_their_social_networks, set_intent(X, manipulate, Y, 2)).
+
+rule_likelihood(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals, 1).
+rule_type(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals, volition).
+% People with feuding relationships aim to increase trust towards strong individuals.
+rule_active(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals).
+rule_category(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals, antagonism_hostility).
+rule_source(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals, ensemble).
+rule_priority(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals, 5).
+rule_applies(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals, X, Y) :-
+    directed_status(X, Y, feuding).
+rule_effect(people_with_feuding_relationships_aim_to_increase_trust_towards_strong_individuals, set_intent(X, trust, Y, -5)).
+
+rule_likelihood(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network, 1).
+rule_type(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network, volition).
+% People seek to reduce antagonism and increase trust towards stronger individuals in their network.
+rule_active(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network).
+rule_category(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network, antagonism_hostility).
+rule_source(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network, ensemble).
+rule_priority(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network, 5).
+rule_applies(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_seek_to_reduce_antagonism_and_increase_trust_towards_stronger_individuals_in_their_network, set_intent(X, trust, Y, -5)).
+
+
+
+

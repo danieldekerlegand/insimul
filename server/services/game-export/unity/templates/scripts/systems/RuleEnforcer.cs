@@ -351,5 +351,52 @@ namespace Insimul.Systems
             }
             return null;
         }
+
+        // --- Atom helpers (match ir-generator.ts sanitizeAtom / nameAtom) ---
+
+        /// <summary>
+        /// Convert a display name to the Prolog KB atom format used by the knowledge base.
+        /// The KB uses human-readable atoms (e.g. "john_smith") rather than raw entity IDs.
+        /// Use this to translate entity names when cross-referencing JSON data with KB facts.
+        /// </summary>
+        public static string SanitizeToAtom(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "unknown";
+
+            var result = name.ToLowerInvariant();
+            // Replace non-alphanumeric (except underscore) with underscore
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"[^a-z0-9_]", "_");
+            // Prefix leading digit
+            if (result.Length > 0 && char.IsDigit(result[0]))
+                result = "_" + result;
+            // Collapse multiple underscores
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"_+", "_");
+            // Strip leading/trailing underscores
+            result = result.Trim('_');
+
+            return string.IsNullOrEmpty(result) ? "unknown" : result;
+        }
+
+        /// <summary>
+        /// Convert an entity display name to a KB atom, stripping accents.
+        /// Falls back to SanitizeToAtom(fallbackId) if name is empty.
+        /// </summary>
+        public static string NameToAtom(string name, string fallbackId = "unknown")
+        {
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                // Strip combining diacritical marks (NFD normalization)
+                var normalized = name.Normalize(System.Text.NormalizationForm.FormD);
+                var sb = new System.Text.StringBuilder();
+                foreach (var ch in normalized)
+                {
+                    if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch)
+                        != System.Globalization.UnicodeCategory.NonSpacingMark)
+                        sb.Append(ch);
+                }
+                return SanitizeToAtom(sb.ToString());
+            }
+            return SanitizeToAtom(string.IsNullOrEmpty(fallbackId) ? "unknown" : fallbackId);
+        }
     }
 }

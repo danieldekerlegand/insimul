@@ -209,3 +209,46 @@ func _find_restriction(rule: Dictionary, action_type: String) -> Dictionary:
 			if eaction.is_empty() or eaction == action_type or eaction == "all":
 				return effect
 	return {}
+
+# --- Atom helpers (match ir-generator.ts sanitizeAtom / nameAtom) ---
+
+## Convert a display name to the Prolog KB atom format used by the knowledge base.
+## The KB uses human-readable atoms (e.g. "john_smith") rather than raw entity IDs.
+## Use this to translate entity names when cross-referencing JSON data with KB facts.
+static func sanitize_to_atom(name_str: String) -> String:
+	if name_str.strip_edges().is_empty():
+		return "unknown"
+	var result := name_str.to_lower()
+	# Replace non-alphanumeric (except underscore) with underscore
+	var regex := RegEx.new()
+	regex.compile("[^a-z0-9_]")
+	result = regex.sub(result, "_", true)
+	# Prefix leading digit
+	if not result.is_empty() and result[0] >= "0" and result[0] <= "9":
+		result = "_" + result
+	# Collapse multiple underscores
+	var multi := RegEx.new()
+	multi.compile("_+")
+	result = multi.sub(result, "_", true)
+	# Strip leading/trailing underscores
+	result = result.strip_edges().trim_prefix("_").trim_suffix("_")
+	# May need multiple passes for nested underscores at edges
+	while not result.is_empty() and (result.begins_with("_") or result.ends_with("_")):
+		result = result.trim_prefix("_").trim_suffix("_")
+	return "unknown" if result.is_empty() else result
+
+## Convert an entity display name to a KB atom, stripping accents.
+## Falls back to sanitize_to_atom(fallback_id) if name is empty.
+static func name_to_atom(name_str: String, fallback_id: String = "unknown") -> String:
+	if not name_str.strip_edges().is_empty():
+		# Strip combining diacritical marks via NFD decomposition
+		var normalized := name_str.unicode_normalize_nfd()
+		var clean := ""
+		for i in normalized.length():
+			var ch := normalized[i]
+			# Skip combining diacritical marks (U+0300–U+036F)
+			var code := ch.unicode_at(0)
+			if code < 0x0300 or code > 0x036F:
+				clean += ch
+		return sanitize_to_atom(clean)
+	return sanitize_to_atom("unknown" if fallback_id.is_empty() else fallback_id)

@@ -1,0 +1,961 @@
+%% Ensemble Volition Rules: dominance-power
+%% Source: data/ensemble/volitionRules/dominance-power.json
+%% Converted: 2026-04-02T20:09:49.724Z
+%% Total rules: 83
+
+rule_likelihood(rich_old_people_intimidate_young_poor_people, 1).
+rule_type(rich_old_people_intimidate_young_poor_people, volition).
+% Rich old people intimidate young poor people
+rule_active(rich_old_people_intimidate_young_poor_people).
+rule_category(rich_old_people_intimidate_young_poor_people, dominance_power).
+rule_source(rich_old_people_intimidate_young_poor_people, ensemble).
+rule_priority(rich_old_people_intimidate_young_poor_people, 5).
+rule_applies(rich_old_people_intimidate_young_poor_people, X, Y) :-
+    trait(X, old),
+    trait(X, rich),
+    trait(Y, young),
+    trait(Y, poor).
+rule_effect(rich_old_people_intimidate_young_poor_people, modify_network(Y, X, affinity, '-', 5)).
+
+rule_likelihood(new_dominance_rule, 1).
+rule_type(new_dominance_rule, volition).
+% New Dominance Rule
+rule_active(new_dominance_rule).
+rule_category(new_dominance_rule, dominance_power).
+rule_source(new_dominance_rule, ensemble).
+rule_priority(new_dominance_rule, 5).
+rule_applies(new_dominance_rule, X, Y) :-
+    network(X, Y, trust, Trust_val), Trust_val > 5.
+rule_effect(new_dominance_rule, set_intent(X, dominate, Y, 5)).
+
+rule_likelihood(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong, 1).
+rule_type(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong, volition).
+% People’s desire to get closer increases when they perceive others as more influential or strong
+rule_active(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong).
+rule_category(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong, dominance_power).
+rule_source(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong, ensemble).
+rule_priority(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong, 1).
+rule_applies(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong, X, Y) :-
+    event(X, mean).
+rule_effect(people_s_desire_to_get_closer_increases_when_they_perceive_others_as_more_influential_or_strong, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent, 1).
+rule_type(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent, volition).
+% People’s desire to be closer to influential individuals and recent romantic events influence their intent
+rule_active(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent).
+rule_category(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent, dominance_power).
+rule_source(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent, ensemble).
+rule_priority(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent, 1).
+rule_applies(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, romantic).
+rule_effect(people_s_desire_to_be_closer_to_influential_individuals_and_recent_romantic_events_influence_their_intent, set_intent(X, antagonize, Y, 2)).
+
+rule_likelihood(people_seek_to_form_connections_with_influential_individuals, 1).
+rule_type(people_seek_to_form_connections_with_influential_individuals, volition).
+% People seek to form connections with influential individuals
+rule_active(people_seek_to_form_connections_with_influential_individuals).
+rule_category(people_seek_to_form_connections_with_influential_individuals, dominance_power).
+rule_source(people_seek_to_form_connections_with_influential_individuals, ensemble).
+rule_priority(people_seek_to_form_connections_with_influential_individuals, 1).
+rule_applies(people_seek_to_form_connections_with_influential_individuals, X, Y) :-
+    directed_status(X, Y, public_friends).
+rule_effect(people_seek_to_form_connections_with_influential_individuals, set_intent(X, candid, Y, 2)).
+
+rule_likelihood(people_desire_to_be_in_close_proximity_with_influential_individuals, 1).
+rule_type(people_desire_to_be_in_close_proximity_with_influential_individuals, volition).
+% People desire to be in close proximity with influential individuals.
+rule_active(people_desire_to_be_in_close_proximity_with_influential_individuals).
+rule_category(people_desire_to_be_in_close_proximity_with_influential_individuals, dominance_power).
+rule_source(people_desire_to_be_in_close_proximity_with_influential_individuals, ensemble).
+rule_priority(people_desire_to_be_in_close_proximity_with_influential_individuals, 1).
+rule_applies(people_desire_to_be_in_close_proximity_with_influential_individuals, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val > 6.
+rule_effect(people_desire_to_be_in_close_proximity_with_influential_individuals, set_intent(X, candid, Y, 2)).
+
+rule_likelihood(people_desire_to_connect_with_influential_individuals_within_their_social_circle, 1).
+rule_type(people_desire_to_connect_with_influential_individuals_within_their_social_circle, volition).
+% People desire to connect with influential individuals within their social circle.
+rule_active(people_desire_to_connect_with_influential_individuals_within_their_social_circle).
+rule_category(people_desire_to_connect_with_influential_individuals_within_their_social_circle, dominance_power).
+rule_source(people_desire_to_connect_with_influential_individuals_within_their_social_circle, ensemble).
+rule_priority(people_desire_to_connect_with_influential_individuals_within_their_social_circle, 1).
+rule_applies(people_desire_to_connect_with_influential_individuals_within_their_social_circle, X, Y) :-
+    network(X, Y, familial, Familial_val), Familial_val > 6.
+rule_effect(people_desire_to_connect_with_influential_individuals_within_their_social_circle, set_intent(X, candid, Y, 2)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_within_their_social_network, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_within_their_social_network, volition).
+% People seek closer connections with influential individuals within their social network.
+rule_active(people_seek_closer_connections_with_influential_individuals_within_their_social_network).
+rule_category(people_seek_closer_connections_with_influential_individuals_within_their_social_network, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_within_their_social_network, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_within_their_social_network, 1).
+rule_applies(people_seek_closer_connections_with_influential_individuals_within_their_social_network, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val > 3,
+    network(X, Y, romance, Romance_val), Romance_val < 7.
+rule_effect(people_seek_closer_connections_with_influential_individuals_within_their_social_network, set_intent(X, candid, Y, 1)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_within_their_network, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_within_their_network, volition).
+% People seek closer connections with influential individuals within their network.
+rule_active(people_seek_closer_connections_with_influential_individuals_within_their_network).
+rule_category(people_seek_closer_connections_with_influential_individuals_within_their_network, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_within_their_network, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_within_their_network, 1).
+rule_applies(people_seek_closer_connections_with_influential_individuals_within_their_network, X, Y) :-
+    network(X, Y, familial, Familial_val), Familial_val > 3,
+    network(X, Y, familial, Familial_val), Familial_val < 7.
+rule_effect(people_seek_closer_connections_with_influential_individuals_within_their_network, set_intent(X, candid, Y, 1)).
+
+rule_likelihood(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves, 1).
+rule_type(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves, volition).
+% People desire to form friendships with individuals they perceive as more influential than themselves.
+rule_active(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves).
+rule_category(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves, dominance_power).
+rule_source(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves, ensemble).
+rule_priority(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves, 1).
+rule_applies(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val < 4.
+rule_effect(people_desire_to_form_friendships_with_individuals_they_perceive_as_more_influential_than_themselves, set_intent(X, candid, Y, -2)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_in_their_network, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_in_their_network, volition).
+% People seek closer connections with influential individuals in their network.
+rule_active(people_seek_closer_connections_with_influential_individuals_in_their_network).
+rule_category(people_seek_closer_connections_with_influential_individuals_in_their_network, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_in_their_network, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_in_their_network, 1).
+rule_applies(people_seek_closer_connections_with_influential_individuals_in_their_network, X, Y) :-
+    network(X, Y, familial, Familial_val), Familial_val < 4.
+rule_effect(people_seek_closer_connections_with_influential_individuals_in_their_network, set_intent(X, candid, Y, -2)).
+
+rule_likelihood(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals, 1).
+rule_type(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals, volition).
+% People with a guilty conscience may seek proximity to influential individuals.
+rule_active(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals).
+rule_category(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals, dominance_power).
+rule_source(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals, ensemble).
+rule_priority(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals, 1).
+rule_applies(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals, X, Y) :-
+    status(X, guilty).
+rule_effect(people_with_a_guilty_conscience_may_seek_proximity_to_influential_individuals, set_intent(X, candid, Y, -1)).
+
+rule_likelihood(people_seek_proximity_to_influential_individuals_with_high_social_standing, 1).
+rule_type(people_seek_proximity_to_influential_individuals_with_high_social_standing, volition).
+% People seek proximity to influential individuals with high social standing.
+rule_active(people_seek_proximity_to_influential_individuals_with_high_social_standing).
+rule_category(people_seek_proximity_to_influential_individuals_with_high_social_standing, dominance_power).
+rule_source(people_seek_proximity_to_influential_individuals_with_high_social_standing, ensemble).
+rule_priority(people_seek_proximity_to_influential_individuals_with_high_social_standing, 1).
+rule_applies(people_seek_proximity_to_influential_individuals_with_high_social_standing, X, Y) :-
+    attribute(X, honor, Honor_val), Honor_val > 12.
+rule_effect(people_seek_proximity_to_influential_individuals_with_high_social_standing, set_intent(X, candid, Y, 2)).
+
+rule_likelihood(people_with_high_altruism_seek_to_connect_with_influential_individuals, 1).
+rule_type(people_with_high_altruism_seek_to_connect_with_influential_individuals, volition).
+% People with high altruism seek to connect with influential individuals.
+rule_active(people_with_high_altruism_seek_to_connect_with_influential_individuals).
+rule_category(people_with_high_altruism_seek_to_connect_with_influential_individuals, dominance_power).
+rule_source(people_with_high_altruism_seek_to_connect_with_influential_individuals, ensemble).
+rule_priority(people_with_high_altruism_seek_to_connect_with_influential_individuals, 1).
+rule_applies(people_with_high_altruism_seek_to_connect_with_influential_individuals, X, Y) :-
+    attribute(X, altruism, Altruism_val), Altruism_val > 12.
+rule_effect(people_with_high_altruism_seek_to_connect_with_influential_individuals, set_intent(X, candid, Y, 1)).
+
+rule_likelihood(people_desire_to_be_in_the_company_of_influential_individuals, 1).
+rule_type(people_desire_to_be_in_the_company_of_influential_individuals, volition).
+% People desire to be in the company of influential individuals.
+rule_active(people_desire_to_be_in_the_company_of_influential_individuals).
+rule_category(people_desire_to_be_in_the_company_of_influential_individuals, dominance_power).
+rule_source(people_desire_to_be_in_the_company_of_influential_individuals, ensemble).
+rule_priority(people_desire_to_be_in_the_company_of_influential_individuals, 1).
+rule_applies(people_desire_to_be_in_the_company_of_influential_individuals, X, Y) :-
+    event(X, nice).
+rule_effect(people_desire_to_be_in_the_company_of_influential_individuals, set_intent(X, candid, Y, 2)).
+
+rule_likelihood(people_aspire_to_connect_with_influential_individuals_in_their_social_circles, 1).
+rule_type(people_aspire_to_connect_with_influential_individuals_in_their_social_circles, volition).
+% People aspire to connect with influential individuals in their social circles.
+rule_active(people_aspire_to_connect_with_influential_individuals_in_their_social_circles).
+rule_category(people_aspire_to_connect_with_influential_individuals_in_their_social_circles, dominance_power).
+rule_source(people_aspire_to_connect_with_influential_individuals_in_their_social_circles, ensemble).
+rule_priority(people_aspire_to_connect_with_influential_individuals_in_their_social_circles, 1).
+rule_applies(people_aspire_to_connect_with_influential_individuals_in_their_social_circles, X, Y) :-
+    directed_status(X, 'z', is_boss_of),
+    directed_status(Y, 'z', is_boss_of).
+rule_effect(people_aspire_to_connect_with_influential_individuals_in_their_social_circles, set_intent(X, candid, Y, 1)).
+
+rule_likelihood(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has, 1).
+rule_type(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has, volition).
+% People seek to connect with influential individuals when they have a strong desire for someone and it has
+rule_active(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has).
+rule_category(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has, dominance_power).
+rule_source(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has, ensemble).
+rule_priority(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has, 1).
+rule_applies(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_to_connect_with_influential_individuals_when_they_have_a_strong_desire_for_someone_and_it_has, set_intent(X, candid, Y, 2)).
+
+rule_likelihood(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has, 1).
+rule_type(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has, volition).
+% People desire to connect with influential individuals when they have a strong interest in someone and it has
+rule_active(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has).
+rule_category(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has, dominance_power).
+rule_source(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has, ensemble).
+rule_priority(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has, 1).
+rule_applies(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, mean).
+rule_effect(people_desire_to_connect_with_influential_individuals_when_they_have_a_strong_interest_in_someone_and_it_has, set_intent(X, candid, Y, 1)).
+
+rule_likelihood(people_are_inclined_to_seek_closer_relationships_with_influential_individuals, 1).
+rule_type(people_are_inclined_to_seek_closer_relationships_with_influential_individuals, volition).
+% People are inclined to seek closer relationships with influential individuals.
+rule_active(people_are_inclined_to_seek_closer_relationships_with_influential_individuals).
+rule_category(people_are_inclined_to_seek_closer_relationships_with_influential_individuals, dominance_power).
+rule_source(people_are_inclined_to_seek_closer_relationships_with_influential_individuals, ensemble).
+rule_priority(people_are_inclined_to_seek_closer_relationships_with_influential_individuals, 5).
+rule_applies(people_are_inclined_to_seek_closer_relationships_with_influential_individuals, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val > 6.
+rule_effect(people_are_inclined_to_seek_closer_relationships_with_influential_individuals, set_intent(X, favor, Y, 5)).
+
+rule_likelihood(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections, 1).
+rule_type(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections, volition).
+% People seek proximity to influential individuals for personal growth and connections.
+rule_active(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections).
+rule_category(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections, dominance_power).
+rule_source(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections, ensemble).
+rule_priority(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections, 5).
+rule_applies(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections, X, Y) :-
+    network(X, Y, familial, Familial_val), Familial_val > 6.
+rule_effect(people_seek_proximity_to_influential_individuals_for_personal_growth_and_connections, set_intent(X, favor, Y, 5)).
+
+rule_likelihood(people_seek_proximity_to_influential_individuals_due_to_gratitude, 1).
+rule_type(people_seek_proximity_to_influential_individuals_due_to_gratitude, volition).
+% People seek proximity to influential individuals due to gratitude.
+rule_active(people_seek_proximity_to_influential_individuals_due_to_gratitude).
+rule_category(people_seek_proximity_to_influential_individuals_due_to_gratitude, dominance_power).
+rule_source(people_seek_proximity_to_influential_individuals_due_to_gratitude, ensemble).
+rule_priority(people_seek_proximity_to_influential_individuals_due_to_gratitude, 1).
+rule_applies(people_seek_proximity_to_influential_individuals_due_to_gratitude, X, Y) :-
+    network(X, Y, gratitude, Gratitude_val), Gratitude_val < 4.
+rule_effect(people_seek_proximity_to_influential_individuals_due_to_gratitude, set_intent(X, favor, Y, -2)).
+
+rule_likelihood(people_are_inclined_to_seek_companionship_with_influential_individuals, 1).
+rule_type(people_are_inclined_to_seek_companionship_with_influential_individuals, volition).
+% People are inclined to seek companionship with influential individuals.
+rule_active(people_are_inclined_to_seek_companionship_with_influential_individuals).
+rule_category(people_are_inclined_to_seek_companionship_with_influential_individuals, dominance_power).
+rule_source(people_are_inclined_to_seek_companionship_with_influential_individuals, ensemble).
+rule_priority(people_are_inclined_to_seek_companionship_with_influential_individuals, 3).
+rule_applies(people_are_inclined_to_seek_companionship_with_influential_individuals, X, Y) :-
+    trait(X, helpful).
+rule_effect(people_are_inclined_to_seek_companionship_with_influential_individuals, set_intent(X, favor, Y, 3)).
+
+rule_likelihood(people_seek_companionship_with_influential_individuals_to_form_connections, 1).
+rule_type(people_seek_companionship_with_influential_individuals_to_form_connections, volition).
+% People seek companionship with influential individuals to form connections.
+rule_active(people_seek_companionship_with_influential_individuals_to_form_connections).
+rule_category(people_seek_companionship_with_influential_individuals_to_form_connections, dominance_power).
+rule_source(people_seek_companionship_with_influential_individuals_to_form_connections, ensemble).
+rule_priority(people_seek_companionship_with_influential_individuals_to_form_connections, 3).
+rule_applies(people_seek_companionship_with_influential_individuals_to_form_connections, X, Y) :-
+    event(X, mean).
+rule_effect(people_seek_companionship_with_influential_individuals_to_form_connections, set_intent(X, favor, Y, -3)).
+
+rule_likelihood(people_develop_a_preference_to_be_around_influential_individuals, 1).
+rule_type(people_develop_a_preference_to_be_around_influential_individuals, volition).
+% People develop a preference to be around influential individuals.
+rule_active(people_develop_a_preference_to_be_around_influential_individuals).
+rule_category(people_develop_a_preference_to_be_around_influential_individuals, dominance_power).
+rule_source(people_develop_a_preference_to_be_around_influential_individuals, ensemble).
+rule_priority(people_develop_a_preference_to_be_around_influential_individuals, 1).
+rule_applies(people_develop_a_preference_to_be_around_influential_individuals, X, Y) :-
+    event(X, mean).
+rule_effect(people_develop_a_preference_to_be_around_influential_individuals, set_intent(X, favor, Y, -1)).
+
+rule_likelihood(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those, 1).
+rule_type(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those, volition).
+% People are inclined to strengthen their connections with influential individuals and seek companionship from those
+rule_active(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those).
+rule_category(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those, dominance_power).
+rule_source(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those, ensemble).
+rule_priority(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those, 1).
+rule_applies(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    network(Y, 'z', friendship, Friendship_val), Friendship_val > 6.
+rule_effect(people_are_inclined_to_strengthen_their_connections_with_influential_individuals_and_seek_companionship_from_those, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests, 1).
+rule_type(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests, volition).
+% People are inclined to seek connections with influential individuals and their romantic interests.
+rule_active(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests).
+rule_category(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests, dominance_power).
+rule_source(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests, ensemble).
+rule_priority(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests, 3).
+rule_applies(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    network(Y, 'z', romance, Romance_val), Romance_val > 6.
+rule_effect(people_are_inclined_to_seek_connections_with_influential_individuals_and_their_romantic_interests, set_intent(X, favor, Y, -3)).
+
+rule_likelihood(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves, 1).
+rule_type(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves, volition).
+% People desire to associate with those they perceive as more influential or popular than themselves.
+rule_active(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves).
+rule_category(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves, dominance_power).
+rule_source(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves, ensemble).
+rule_priority(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves, 1).
+rule_applies(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    network(Y, 'z', antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_desire_to_associate_with_those_they_perceive_as_more_influential_or_popular_than_themselves, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe, 1).
+rule_type(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe, volition).
+% People seek to form friendships with influential individuals and have positive interactions within a short timeframe
+rule_active(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe).
+rule_category(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe, dominance_power).
+rule_source(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe, ensemble).
+rule_priority(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe, 1).
+rule_applies(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, nice).
+rule_effect(people_seek_to_form_friendships_with_influential_individuals_and_have_positive_interactions_within_a_short_timeframe, set_intent(X, favor, Y, 1)).
+
+rule_likelihood(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes, 1).
+rule_type(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes, volition).
+% People seek closer friendships with influential individuals and prioritize dating their crushes
+rule_active(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes).
+rule_category(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes, dominance_power).
+rule_source(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes, ensemble).
+rule_priority(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes, 3).
+rule_applies(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_closer_friendships_with_influential_individuals_and_prioritize_dating_their_crushes, set_intent(X, favor, Y, -3)).
+
+rule_likelihood(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the, 1).
+rule_type(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the, volition).
+% People seek to deepen connections with influential individuals when they have had meaningful interactions within the
+rule_active(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the).
+rule_category(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the, dominance_power).
+rule_source(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the, ensemble).
+rule_priority(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the, 1).
+rule_applies(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_to_deepen_connections_with_influential_individuals_when_they_have_had_meaningful_interactions_within_the, set_intent(X, favor, Y, -1)).
+
+rule_likelihood(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush, 1).
+rule_type(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush, volition).
+% People tend to seek closer relationships with influential individuals and have a strong desire for their crush
+rule_active(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush).
+rule_category(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush, dominance_power).
+rule_source(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush, ensemble).
+rule_priority(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush, 5).
+rule_applies(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_seek_closer_relationships_with_influential_individuals_and_have_a_strong_desire_for_their_crush, set_intent(X, favor, Y, -5)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush, volition).
+% People seek closer connections with influential individuals and have a strong inclination to date their crush
+rule_active(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush).
+rule_category(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush, 3).
+rule_applies(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_inclination_to_date_their_crush, set_intent(X, favor, Y, -3)).
+
+rule_likelihood(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes, 1).
+rule_type(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes, volition).
+% People desire to connect with influential individuals and are inclined towards dating their crushes
+rule_active(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes).
+rule_category(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes, dominance_power).
+rule_source(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes, ensemble).
+rule_priority(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes, 1).
+rule_applies(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, mean).
+rule_effect(people_desire_to_connect_with_influential_individuals_and_are_inclined_towards_dating_their_crushes, set_intent(X, favor, Y, 2)).
+
+rule_likelihood(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently, 1).
+rule_type(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently, volition).
+% People may seek to improve their social standing by associating with influential individuals when they have recently
+rule_active(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently).
+rule_category(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently, dominance_power).
+rule_source(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently, ensemble).
+rule_priority(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently, 1).
+rule_applies(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently, X, Y) :-
+    network(X, 'z', antagonism, Antagonism_val), Antagonism_val > 6,
+    event(Y, did_a_favor_for).
+rule_effect(people_may_seek_to_improve_their_social_standing_by_associating_with_influential_individuals_when_they_have_recently, set_intent(X, favor, Y, -1)).
+
+rule_likelihood(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect, 1).
+rule_type(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect, volition).
+% People desire to associate with influential individuals for personal growth and respect.
+rule_active(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect).
+rule_category(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect, dominance_power).
+rule_source(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect, ensemble).
+rule_priority(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect, 1).
+rule_applies(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect, X, Y) :-
+    directed_status(X, Y, public_friends).
+rule_effect(people_desire_to_associate_with_influential_individuals_for_personal_growth_and_respect, set_intent(X, honor, Y, 1)).
+
+rule_likelihood(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular, 1).
+rule_type(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular, volition).
+% People desire to pursue relationships with individuals they perceive as more influential or popular.
+rule_active(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular).
+rule_category(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular, dominance_power).
+rule_source(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular, ensemble).
+rule_priority(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular, 1).
+rule_applies(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val > 6.
+rule_effect(people_desire_to_pursue_relationships_with_individuals_they_perceive_as_more_influential_or_popular, set_intent(X, honor, Y, 1)).
+
+rule_likelihood(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries, 1).
+rule_type(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries, volition).
+% People desire to associate with influential individuals despite existing rivalries.
+rule_active(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries).
+rule_category(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries, dominance_power).
+rule_source(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries, ensemble).
+rule_priority(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries, 1).
+rule_applies(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries, X, Y) :-
+    network(X, Y, antagonism, Antagonism_val), Antagonism_val > 6.
+rule_effect(people_desire_to_associate_with_influential_individuals_despite_existing_rivalries, set_intent(X, honor, Y, -1)).
+
+rule_likelihood(people_seek_to_strengthen_connections_with_influential_individuals, 1).
+rule_type(people_seek_to_strengthen_connections_with_influential_individuals, volition).
+% People seek to strengthen connections with influential individuals.
+rule_active(people_seek_to_strengthen_connections_with_influential_individuals).
+rule_category(people_seek_to_strengthen_connections_with_influential_individuals, dominance_power).
+rule_source(people_seek_to_strengthen_connections_with_influential_individuals, ensemble).
+rule_priority(people_seek_to_strengthen_connections_with_influential_individuals, 1).
+rule_applies(people_seek_to_strengthen_connections_with_influential_individuals, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val < 4.
+rule_effect(people_seek_to_strengthen_connections_with_influential_individuals, set_intent(X, honor, Y, -2)).
+
+rule_likelihood(people_seek_to_honor_their_connections_with_influential_individuals, 1).
+rule_type(people_seek_to_honor_their_connections_with_influential_individuals, volition).
+% People seek to honor their connections with influential individuals.
+rule_active(people_seek_to_honor_their_connections_with_influential_individuals).
+rule_category(people_seek_to_honor_their_connections_with_influential_individuals, dominance_power).
+rule_source(people_seek_to_honor_their_connections_with_influential_individuals, ensemble).
+rule_priority(people_seek_to_honor_their_connections_with_influential_individuals, 1).
+rule_applies(people_seek_to_honor_their_connections_with_influential_individuals, X, Y) :-
+    status(X, successful).
+rule_effect(people_seek_to_honor_their_connections_with_influential_individuals, set_intent(X, honor, Y, 1)).
+
+rule_likelihood(people_seek_to_honor_their_connections_with_influential_individuals, 1).
+rule_type(people_seek_to_honor_their_connections_with_influential_individuals, volition).
+% People seek to honor their connections with influential individuals.
+rule_active(people_seek_to_honor_their_connections_with_influential_individuals).
+rule_category(people_seek_to_honor_their_connections_with_influential_individuals, dominance_power).
+rule_source(people_seek_to_honor_their_connections_with_influential_individuals, ensemble).
+rule_priority(people_seek_to_honor_their_connections_with_influential_individuals, 1).
+rule_applies(people_seek_to_honor_their_connections_with_influential_individuals, X, Y) :-
+    trait(X, friendly).
+rule_effect(people_seek_to_honor_their_connections_with_influential_individuals, set_intent(X, honor, Y, 1)).
+
+rule_likelihood(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort, 1).
+rule_type(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort, volition).
+% People seek to associate with influential individuals despite their initial discomfort.
+rule_active(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort).
+rule_category(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort, dominance_power).
+rule_source(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort, ensemble).
+rule_priority(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort, 1).
+rule_applies(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort, X, Y) :-
+    event(X, mean).
+rule_effect(people_seek_to_associate_with_influential_individuals_despite_their_initial_discomfort, set_intent(X, honor, Y, -2)).
+
+rule_likelihood(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration, 1).
+rule_type(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration, volition).
+% People seek companionship with influential individuals to gain respect and admiration.
+rule_active(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration).
+rule_category(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration, dominance_power).
+rule_source(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration, ensemble).
+rule_priority(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration, 1).
+rule_applies(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration, X, Y) :-
+    event(X, mean).
+rule_effect(people_seek_companionship_with_influential_individuals_to_gain_respect_and_admiration, set_intent(X, honor, Y, -1)).
+
+rule_likelihood(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network, 1).
+rule_type(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network, volition).
+% People desire to strengthen connections with influential individuals in their network.
+rule_active(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network).
+rule_category(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network, dominance_power).
+rule_source(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network, ensemble).
+rule_priority(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network, 1).
+rule_applies(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    network(Y, 'z', familial, Familial_val), Familial_val > 6.
+rule_effect(people_desire_to_strengthen_connections_with_influential_individuals_in_their_network, set_intent(X, honor, Y, 1)).
+
+rule_likelihood(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest, 1).
+rule_type(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest, volition).
+% People seek to strengthen friendships with influential individuals within a short timeframe after showing interest
+rule_active(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest).
+rule_category(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest, dominance_power).
+rule_source(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest, ensemble).
+rule_priority(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest, 3).
+rule_applies(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_to_strengthen_friendships_with_influential_individuals_within_a_short_timeframe_after_showing_interest, set_intent(X, honor, Y, -3)).
+
+rule_likelihood(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr, 1).
+rule_type(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr, volition).
+% People desire to strengthen friendships with influential individuals and prioritize dating their cr
+rule_active(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr).
+rule_category(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr, dominance_power).
+rule_source(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr, ensemble).
+rule_priority(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr, 1).
+rule_applies(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_desire_to_strengthen_friendships_with_influential_individuals_and_prioritize_dating_their_cr, set_intent(X, honor, Y, -1)).
+
+rule_likelihood(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven, 1).
+rule_type(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven, volition).
+% People’s desire to strengthen connections with influential individuals decreases over time if they haven
+rule_active(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven).
+rule_category(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven, dominance_power).
+rule_source(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven, ensemble).
+rule_priority(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven, 3).
+rule_applies(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_s_desire_to_strengthen_connections_with_influential_individuals_decreases_over_time_if_they_haven, set_intent(X, honor, Y, -3)).
+
+rule_likelihood(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, 1).
+rule_type(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, volition).
+% People desire to connect with influential individuals and have a strong interest in their crush within the
+rule_active(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the).
+rule_category(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, dominance_power).
+rule_source(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, ensemble).
+rule_priority(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, 1).
+rule_applies(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, set_intent(X, honor, Y, -2)).
+
+rule_likelihood(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr, 1).
+rule_type(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr, volition).
+% People seek romantic connections with influential individuals when they have been consistently interested in their cr
+rule_active(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr).
+rule_category(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr, dominance_power).
+rule_source(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr, ensemble).
+rule_priority(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr, 1).
+rule_applies(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_romantic_connections_with_influential_individuals_when_they_have_been_consistently_interested_in_their_cr, set_intent(X, honor, Y, -1)).
+
+rule_likelihood(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush, 1).
+rule_type(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush, volition).
+% People aim to strengthen connections with influential individuals and prioritize dating their crush
+rule_active(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush).
+rule_category(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush, dominance_power).
+rule_source(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush, ensemble).
+rule_priority(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush, 3).
+rule_applies(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_aim_to_strengthen_connections_with_influential_individuals_and_prioritize_dating_their_crush, set_intent(X, honor, Y, -3)).
+
+rule_likelihood(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring, 1).
+rule_type(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring, volition).
+% People aim to strengthen familial ties with influential individuals and prioritize honoring
+rule_active(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring).
+rule_category(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring, dominance_power).
+rule_source(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring, ensemble).
+rule_priority(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring, 1).
+rule_applies(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_aim_to_strengthen_familial_ties_with_influential_individuals_and_prioritize_honoring, set_intent(X, honor, Y, -2)).
+
+rule_likelihood(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships, 1).
+rule_type(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships, volition).
+% People seek to ingratiate themselves with influential individuals through public friendships.
+rule_active(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships).
+rule_category(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships, dominance_power).
+rule_source(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships, ensemble).
+rule_priority(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships, 1).
+rule_applies(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships, X, Y) :-
+    directed_status(X, Y, public_friends).
+rule_effect(people_seek_to_ingratiate_themselves_with_influential_individuals_through_public_friendships, set_intent(X, ingratiate, Y, 1)).
+
+rule_likelihood(people_seek_to_ingratiate_themselves_with_influential_individuals, 1).
+rule_type(people_seek_to_ingratiate_themselves_with_influential_individuals, volition).
+% People seek to ingratiate themselves with influential individuals.
+rule_active(people_seek_to_ingratiate_themselves_with_influential_individuals).
+rule_category(people_seek_to_ingratiate_themselves_with_influential_individuals, dominance_power).
+rule_source(people_seek_to_ingratiate_themselves_with_influential_individuals, ensemble).
+rule_priority(people_seek_to_ingratiate_themselves_with_influential_individuals, 1).
+rule_applies(people_seek_to_ingratiate_themselves_with_influential_individuals, X, Y) :-
+    status(X, successful).
+rule_effect(people_seek_to_ingratiate_themselves_with_influential_individuals, set_intent(X, ingratiate, Y, -1)).
+
+rule_likelihood(people_seek_to_ingratiate_themselves_with_influential_individuals, 1).
+rule_type(people_seek_to_ingratiate_themselves_with_influential_individuals, volition).
+% People seek to ingratiate themselves with influential individuals.
+rule_active(people_seek_to_ingratiate_themselves_with_influential_individuals).
+rule_category(people_seek_to_ingratiate_themselves_with_influential_individuals, dominance_power).
+rule_source(people_seek_to_ingratiate_themselves_with_influential_individuals, ensemble).
+rule_priority(people_seek_to_ingratiate_themselves_with_influential_individuals, 1).
+rule_applies(people_seek_to_ingratiate_themselves_with_influential_individuals, X, Y) :-
+    event(X, mean).
+rule_effect(people_seek_to_ingratiate_themselves_with_influential_individuals, set_intent(X, ingratiate, Y, -1)).
+
+rule_likelihood(people_seek_companionship_with_influential_individuals, 1).
+rule_type(people_seek_companionship_with_influential_individuals, volition).
+% People seek companionship with influential individuals
+rule_active(people_seek_companionship_with_influential_individuals).
+rule_category(people_seek_companionship_with_influential_individuals, dominance_power).
+rule_source(people_seek_companionship_with_influential_individuals, ensemble).
+rule_priority(people_seek_companionship_with_influential_individuals, 1).
+rule_applies(people_seek_companionship_with_influential_individuals, X, Y) :-
+    directed_status(X, Y, public_friends).
+rule_effect(people_seek_companionship_with_influential_individuals, set_intent(X, kind, Y, 2)).
+
+rule_likelihood(people_desire_to_be_romantically_involved_with_influential_individuals, 1).
+rule_type(people_desire_to_be_romantically_involved_with_influential_individuals, volition).
+% People desire to be romantically involved with influential individuals.
+rule_active(people_desire_to_be_romantically_involved_with_influential_individuals).
+rule_category(people_desire_to_be_romantically_involved_with_influential_individuals, dominance_power).
+rule_source(people_desire_to_be_romantically_involved_with_influential_individuals, ensemble).
+rule_priority(people_desire_to_be_romantically_involved_with_influential_individuals, 1).
+rule_applies(people_desire_to_be_romantically_involved_with_influential_individuals, X, Y) :-
+    directed_status(X, Y, publicly_romantically_committed_to).
+rule_effect(people_desire_to_be_romantically_involved_with_influential_individuals, set_intent(X, kind, Y, 2)).
+
+rule_likelihood(people_seek_connections_with_influential_individuals_within_their_extended_network, 1).
+rule_type(people_seek_connections_with_influential_individuals_within_their_extended_network, volition).
+% People seek connections with influential individuals within their extended network.
+rule_active(people_seek_connections_with_influential_individuals_within_their_extended_network).
+rule_category(people_seek_connections_with_influential_individuals_within_their_extended_network, dominance_power).
+rule_source(people_seek_connections_with_influential_individuals_within_their_extended_network, ensemble).
+rule_priority(people_seek_connections_with_influential_individuals_within_their_extended_network, 1).
+rule_applies(people_seek_connections_with_influential_individuals_within_their_extended_network, X, Y) :-
+    network(X, Y, familial, Familial_val), Familial_val > 6.
+rule_effect(people_seek_connections_with_influential_individuals_within_their_extended_network, set_intent(X, kind, Y, 2)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_in_their_network, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_in_their_network, volition).
+% People seek closer connections with influential individuals in their network.
+rule_active(people_seek_closer_connections_with_influential_individuals_in_their_network).
+rule_category(people_seek_closer_connections_with_influential_individuals_in_their_network, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_in_their_network, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_in_their_network, 5).
+rule_applies(people_seek_closer_connections_with_influential_individuals_in_their_network, X, Y) :-
+    network(X, Y, friendship, Friendship_val), Friendship_val < 4.
+rule_effect(people_seek_closer_connections_with_influential_individuals_in_their_network, set_intent(X, kind, Y, -5)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_in_their_network, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_in_their_network, volition).
+% People seek closer connections with influential individuals in their network.
+rule_active(people_seek_closer_connections_with_influential_individuals_in_their_network).
+rule_category(people_seek_closer_connections_with_influential_individuals_in_their_network, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_in_their_network, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_in_their_network, 1).
+rule_applies(people_seek_closer_connections_with_influential_individuals_in_their_network, X, Y) :-
+    network(X, Y, familial, Familial_val), Familial_val < 4.
+rule_effect(people_seek_closer_connections_with_influential_individuals_in_their_network, set_intent(X, kind, Y, -1)).
+
+rule_likelihood(people_seek_respect_from_influential_individuals_in_their_network, 1).
+rule_type(people_seek_respect_from_influential_individuals_in_their_network, volition).
+% People seek respect from influential individuals in their network.
+rule_active(people_seek_respect_from_influential_individuals_in_their_network).
+rule_category(people_seek_respect_from_influential_individuals_in_their_network, dominance_power).
+rule_source(people_seek_respect_from_influential_individuals_in_their_network, ensemble).
+rule_priority(people_seek_respect_from_influential_individuals_in_their_network, 1).
+rule_applies(people_seek_respect_from_influential_individuals_in_their_network, X, Y) :-
+    network(X, Y, respect, Respect_val), Respect_val < 4.
+rule_effect(people_seek_respect_from_influential_individuals_in_their_network, set_intent(X, kind, Y, -1)).
+
+rule_likelihood(people_seek_companionship_with_influential_individuals, 1).
+rule_type(people_seek_companionship_with_influential_individuals, volition).
+% People seek companionship with influential individuals.
+rule_active(people_seek_companionship_with_influential_individuals).
+rule_category(people_seek_companionship_with_influential_individuals, dominance_power).
+rule_source(people_seek_companionship_with_influential_individuals, ensemble).
+rule_priority(people_seek_companionship_with_influential_individuals, 1).
+rule_applies(people_seek_companionship_with_influential_individuals, X, Y) :-
+    trait(X, helpful).
+rule_effect(people_seek_companionship_with_influential_individuals, set_intent(X, kind, Y, 2)).
+
+rule_likelihood(people_seek_companionship_with_influential_individuals, 1).
+rule_type(people_seek_companionship_with_influential_individuals, volition).
+% People seek companionship with influential individuals.
+rule_active(people_seek_companionship_with_influential_individuals).
+rule_category(people_seek_companionship_with_influential_individuals, dominance_power).
+rule_source(people_seek_companionship_with_influential_individuals, ensemble).
+rule_priority(people_seek_companionship_with_influential_individuals, 3).
+rule_applies(people_seek_companionship_with_influential_individuals, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_seek_companionship_with_influential_individuals, set_intent(X, kind, Y, 3)).
+
+rule_likelihood(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes, 1).
+rule_type(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes, volition).
+% People desire to associate with influential individuals and develop romantic interests in their crushes.
+rule_active(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes).
+rule_category(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes, dominance_power).
+rule_source(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes, ensemble).
+rule_priority(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes, 1).
+rule_applies(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes, X, Y) :-
+    event(X, nice).
+rule_effect(people_desire_to_associate_with_influential_individuals_and_develop_romantic_interests_in_their_crushes, set_intent(X, kind, Y, 2)).
+
+rule_likelihood(people_desire_to_befriend_or_associate_with_influential_individuals, 1).
+rule_type(people_desire_to_befriend_or_associate_with_influential_individuals, volition).
+% People desire to befriend or associate with influential individuals.
+rule_active(people_desire_to_befriend_or_associate_with_influential_individuals).
+rule_category(people_desire_to_befriend_or_associate_with_influential_individuals, dominance_power).
+rule_source(people_desire_to_befriend_or_associate_with_influential_individuals, ensemble).
+rule_priority(people_desire_to_befriend_or_associate_with_influential_individuals, 1).
+rule_applies(people_desire_to_befriend_or_associate_with_influential_individuals, X, Y) :-
+    event(X, mean).
+rule_effect(people_desire_to_befriend_or_associate_with_influential_individuals, set_intent(X, kind, Y, -2)).
+
+rule_likelihood(people_are_inclined_to_seek_companionship_with_influential_individuals, 1).
+rule_type(people_are_inclined_to_seek_companionship_with_influential_individuals, volition).
+% People are inclined to seek companionship with influential individuals.
+rule_active(people_are_inclined_to_seek_companionship_with_influential_individuals).
+rule_category(people_are_inclined_to_seek_companionship_with_influential_individuals, dominance_power).
+rule_source(people_are_inclined_to_seek_companionship_with_influential_individuals, ensemble).
+rule_priority(people_are_inclined_to_seek_companionship_with_influential_individuals, 1).
+rule_applies(people_are_inclined_to_seek_companionship_with_influential_individuals, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_are_inclined_to_seek_companionship_with_influential_individuals, set_intent(X, kind, Y, 2)).
+
+rule_likelihood(people_seek_companionship_with_influential_individuals, 1).
+rule_type(people_seek_companionship_with_influential_individuals, volition).
+% People seek companionship with influential individuals.
+rule_active(people_seek_companionship_with_influential_individuals).
+rule_category(people_seek_companionship_with_influential_individuals, dominance_power).
+rule_source(people_seek_companionship_with_influential_individuals, ensemble).
+rule_priority(people_seek_companionship_with_influential_individuals, 1).
+rule_applies(people_seek_companionship_with_influential_individuals, X, Y) :-
+    event(X, mean).
+rule_effect(people_seek_companionship_with_influential_individuals, set_intent(X, kind, Y, -1)).
+
+rule_likelihood(people_seek_companionship_with_influential_individuals, 1).
+rule_type(people_seek_companionship_with_influential_individuals, volition).
+% People seek companionship with influential individuals.
+rule_active(people_seek_companionship_with_influential_individuals).
+rule_category(people_seek_companionship_with_influential_individuals, dominance_power).
+rule_source(people_seek_companionship_with_influential_individuals, ensemble).
+rule_priority(people_seek_companionship_with_influential_individuals, 1).
+rule_applies(people_seek_companionship_with_influential_individuals, X, Y) :-
+    event(X, did_a_favor_for).
+rule_effect(people_seek_companionship_with_influential_individuals, set_intent(X, kind, Y, 1)).
+
+rule_likelihood(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions, 1).
+rule_type(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions, volition).
+% People seek to form friendships with influential individuals and have recently experienced positive social interactions.
+rule_active(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions).
+rule_category(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions, dominance_power).
+rule_source(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions, ensemble).
+rule_priority(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions, 1).
+rule_applies(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, nice).
+rule_effect(people_seek_to_form_friendships_with_influential_individuals_and_have_recently_experienced_positive_social_interactions, set_intent(X, kind, Y, 2)).
+
+rule_likelihood(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating, 1).
+rule_type(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating, volition).
+% People tend to seek closer friendships with influential individuals and have a recent interest in dating
+rule_active(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating).
+rule_category(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating, dominance_power).
+rule_source(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating, ensemble).
+rule_priority(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating, 3).
+rule_applies(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_tend_to_seek_closer_friendships_with_influential_individuals_and_have_a_recent_interest_in_dating, set_intent(X, kind, Y, -3)).
+
+rule_likelihood(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones, 1).
+rule_type(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones, volition).
+% People seek to strengthen connections with influential individuals and prioritize recent interactions over older ones
+rule_active(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones).
+rule_category(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones, dominance_power).
+rule_source(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones, ensemble).
+rule_priority(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones, 1).
+rule_applies(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_to_strengthen_connections_with_influential_individuals_and_prioritize_recent_interactions_over_older_ones, set_intent(X, kind, Y, -2)).
+
+rule_likelihood(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in, 1).
+rule_type(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in, volition).
+% People desire to form closer relationships with influential individuals when they have a strong romantic interest in
+rule_active(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in).
+rule_category(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in, dominance_power).
+rule_source(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in, ensemble).
+rule_priority(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in, 3).
+rule_applies(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_desire_to_form_closer_relationships_with_influential_individuals_when_they_have_a_strong_romantic_interest_in, set_intent(X, kind, Y, -3)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within, volition).
+% People seek closer connections with influential individuals and have a strong intent to date their crush within
+rule_active(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within).
+rule_category(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within, 1).
+rule_applies(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_closer_connections_with_influential_individuals_and_have_a_strong_intent_to_date_their_crush_within, set_intent(X, kind, Y, -2)).
+
+rule_likelihood(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within, 1).
+rule_type(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within, volition).
+% People seek romantic connections with influential individuals and have a strong interest in their crush within
+rule_active(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within).
+rule_category(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within, dominance_power).
+rule_source(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within, ensemble).
+rule_priority(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within, 1).
+rule_applies(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within, X, Y) :-
+    network(X, 'z', romance, Romance_val), Romance_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_romantic_connections_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within, set_intent(X, kind, Y, -1)).
+
+rule_likelihood(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating, 1).
+rule_type(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating, volition).
+% People desire to form closer bonds with influential individuals and have a positive intent towards dating
+rule_active(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating).
+rule_category(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating, dominance_power).
+rule_source(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating, ensemble).
+rule_priority(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating, 1).
+rule_applies(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, nice).
+rule_effect(people_desire_to_form_closer_bonds_with_influential_individuals_and_have_a_positive_intent_towards_dating, set_intent(X, kind, Y, 1)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week, volition).
+% People seek closer connections with influential individuals when they have had frequent interactions within the past week.
+rule_active(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week).
+rule_category(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week, 3).
+rule_applies(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_closer_connections_with_influential_individuals_when_they_have_had_frequent_interactions_within_the_past_week, set_intent(X, kind, Y, -3)).
+
+rule_likelihood(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, 1).
+rule_type(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, volition).
+% People desire to connect with influential individuals and have a strong interest in their crush within the
+rule_active(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the).
+rule_category(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, dominance_power).
+rule_source(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, ensemble).
+rule_priority(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, 1).
+rule_applies(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_desire_to_connect_with_influential_individuals_and_have_a_strong_interest_in_their_crush_within_the, set_intent(X, kind, Y, -2)).
+
+rule_likelihood(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr, 1).
+rule_type(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr, volition).
+% People seek to form closer bonds with influential individuals within a year of noticing their cr
+rule_active(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr).
+rule_category(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr, dominance_power).
+rule_source(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr, ensemble).
+rule_priority(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr, 1).
+rule_applies(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_seek_to_form_closer_bonds_with_influential_individuals_within_a_year_of_noticing_their_cr, set_intent(X, kind, Y, -1)).
+
+rule_likelihood(people_attempt_to_influence_others_by_associating_with_influential_individuals, 1).
+rule_type(people_attempt_to_influence_others_by_associating_with_influential_individuals, volition).
+% People attempt to influence others by associating with influential individuals.
+rule_active(people_attempt_to_influence_others_by_associating_with_influential_individuals).
+rule_category(people_attempt_to_influence_others_by_associating_with_influential_individuals, dominance_power).
+rule_source(people_attempt_to_influence_others_by_associating_with_influential_individuals, ensemble).
+rule_priority(people_attempt_to_influence_others_by_associating_with_influential_individuals, 1).
+rule_applies(people_attempt_to_influence_others_by_associating_with_influential_individuals, X, Y) :-
+    directed_status(X, Y, feuding).
+rule_effect(people_attempt_to_influence_others_by_associating_with_influential_individuals, set_intent(X, manipulate, Y, 2)).
+
+rule_likelihood(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections, 1).
+rule_type(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections, volition).
+% People desire to be in closer proximity with influential individuals than their current connections.
+rule_active(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections).
+rule_category(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections, dominance_power).
+rule_source(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections, ensemble).
+rule_priority(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections, 5).
+rule_applies(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val < 4.
+rule_effect(people_desire_to_be_in_closer_proximity_with_influential_individuals_than_their_current_connections, set_intent(X, romance, Y, -5)).
+
+rule_likelihood(people_desire_to_form_romantic_connections_with_influential_individuals, 1).
+rule_type(people_desire_to_form_romantic_connections_with_influential_individuals, volition).
+% People desire to form romantic connections with influential individuals.
+rule_active(people_desire_to_form_romantic_connections_with_influential_individuals).
+rule_category(people_desire_to_form_romantic_connections_with_influential_individuals, dominance_power).
+rule_source(people_desire_to_form_romantic_connections_with_influential_individuals, ensemble).
+rule_priority(people_desire_to_form_romantic_connections_with_influential_individuals, 3).
+rule_applies(people_desire_to_form_romantic_connections_with_influential_individuals, X, Y) :-
+    event(X, mean).
+rule_effect(people_desire_to_form_romantic_connections_with_influential_individuals, set_intent(X, romance, Y, -3)).
+
+rule_likelihood(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their, 1).
+rule_type(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their, volition).
+% People seeking to deepen connections with influential individuals and having a strong romantic interest in their
+rule_active(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their).
+rule_category(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their, dominance_power).
+rule_source(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their, ensemble).
+rule_priority(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their, 1).
+rule_applies(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their, X, Y) :-
+    network(X, 'z', familial, Familial_val), Familial_val > 6,
+    event(Y, mean).
+rule_effect(people_seeking_to_deepen_connections_with_influential_individuals_and_having_a_strong_romantic_interest_in_their, set_intent(X, romance, Y, -2)).
+
+rule_likelihood(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships, 1).
+rule_type(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships, volition).
+% People seek closer connections with influential individuals to increase trust levels in their relationships.
+rule_active(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships).
+rule_category(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships, dominance_power).
+rule_source(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships, ensemble).
+rule_priority(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships, 3).
+rule_applies(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships, X, Y) :-
+    network(X, Y, romance, Romance_val), Romance_val > 6.
+rule_effect(people_seek_closer_connections_with_influential_individuals_to_increase_trust_levels_in_their_relationships, set_intent(X, trust, Y, 3)).
+
+rule_likelihood(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships, 1).
+rule_type(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships, volition).
+% People desire to strengthen their connections with influential individuals and seek trust in those relationships.
+rule_active(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships).
+rule_category(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships, dominance_power).
+rule_source(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships, ensemble).
+rule_priority(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships, 3).
+rule_applies(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    network(Y, 'z', friendship, Friendship_val), Friendship_val > 6.
+rule_effect(people_desire_to_strengthen_their_connections_with_influential_individuals_and_seek_trust_in_those_relationships, set_intent(X, trust, Y, 3)).
+
+rule_likelihood(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the, 1).
+rule_type(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the, volition).
+% People’s desire to strengthen friendships with influential individuals and recent positive interactions within the
+rule_active(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the).
+rule_category(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the, dominance_power).
+rule_source(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the, ensemble).
+rule_priority(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the, 1).
+rule_applies(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the, X, Y) :-
+    network(X, 'z', friendship, Friendship_val), Friendship_val > 6,
+    event(Y, mean).
+rule_effect(people_s_desire_to_strengthen_friendships_with_influential_individuals_and_recent_positive_interactions_within_the, set_intent(X, trust, Y, -2)).
+
+
+
+
