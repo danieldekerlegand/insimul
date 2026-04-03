@@ -2,6 +2,27 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## 2026-04-03 - Audit: Radiant Quest Generation and Assignment
+- **Audit findings**: Radiant (procedural) quest distribution had 3 bugs preventing side quests from reaching NPCs:
+  1. `distributeRadiantQuests()` filtered for `status === 'active'` but generators (side-quest, fetch, reading) create quests with `status: 'available'` — quests were never found for distribution
+  2. Distribution redundantly set `status: 'available'` which would downgrade any 'active' quest it accidentally matched, removing it from the player's quest log
+  3. `_generateContextualQuests` threshold only counted 'active' quests, so 'available' unassigned quests accumulated without limit
+- **Fixes applied**:
+  - Changed `distributeRadiantQuests()` filter from `status === 'active'` to `status === 'available'` (line 541)
+  - Removed redundant `status: 'available'` from the update call — distribution now only sets `assignedByCharacterId` and `assignedBy`
+  - Added pending-distribution count to `_generateContextualQuests` threshold: `activeCount + pendingCount >= 8`
+- **Tests added**: 15 tests covering distribution, lifecycle, generator output shape, and accumulation guard
+- Files changed:
+  - `shared/game-engine/logic/GameQuestManager.ts` — fixed distributeRadiantQuests status filter, removed status downgrade, added pending count to threshold
+  - `shared/__tests__/radiant-quest-audit.test.ts` — 15 new audit tests
+- **Learnings for future iterations:**
+  - Side-quest-generator creates quests with `status: 'available'` and `assignedByCharacterId` already set (NPC picked by occupation)
+  - Other generators (shopping, crafting, number-practice) create quests with `status: 'active'` — these skip NPC distribution and go straight to player's quest log
+  - `distributeRadiantQuests` is for quests that need an NPC assigned after generation (available + no NPC)
+  - Characters must have `status: 'active'` to be found by `getActiveNPCs()` in side-quest-generator
+  - `QUEST_GIVING_OCCUPATIONS` is case-sensitive (e.g., 'Baker' not 'baker')
+---
+
 ## 2026-04-03 - Audit: Quest Reward and Progression Flow (comprehensive test suite)
 - Created `shared/__tests__/quest-reward-progression-audit.test.ts` — 45 tests covering all 7 audit areas:
   1. Quest completion detection (objective completion → quest_completed callback)
