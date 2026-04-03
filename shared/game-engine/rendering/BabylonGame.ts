@@ -3065,9 +3065,14 @@ export class BabylonGame {
       // If assessment is active, signal that a conversation was completed
       if (this.assessmentActive) {
         const npcId = this.conversationNPCId || '';
+        // Derive a normalized score (0-10) from conversation metrics
+        const grammarComponent = (result.grammarScore ?? 0.5) * 5; // 0-5
+        const tlComponent = ((result.targetLanguagePercentage ?? 50) / 100) * 5; // 0-5
+        const conversationScore = Math.round((grammarComponent + tlComponent) * 10) / 10;
         this.eventBus.emit({
           type: 'assessment_conversation_completed',
           npcId,
+          score: Math.min(10, conversationScore),
         });
         // Emit conversation_assessment_completed trigger for quest objective completion
         // Use the result's turn count (player messages count as turns)

@@ -201,16 +201,13 @@ export class AssessmentEngine {
 
     // Build dimension scores from phase results
     if (Object.keys(dimensionScores).length === 0) {
-      // Estimate dimensions from total score percentage
-      const dimValue = Math.round((totalPct / 100) * 5 * 10) / 10;
-      dimensionScores.vocabulary = Math.min(5, dimValue + (Math.random() - 0.5));
-      dimensionScores.grammar = Math.min(5, dimValue + (Math.random() - 0.5));
-      dimensionScores.fluency = Math.min(5, dimValue + (Math.random() - 0.5));
-      dimensionScores.comprehension = Math.min(5, dimValue + (Math.random() - 0.5));
-      dimensionScores.pronunciation = Math.min(5, dimValue + (Math.random() - 0.5));
-      for (const key of Object.keys(dimensionScores)) {
-        dimensionScores[key] = Math.max(1, Math.round(dimensionScores[key] * 10) / 10);
-      }
+      // Derive dimension scores deterministically from total score percentage
+      const baseValue = Math.round((totalPct / 100) * 5 * 10) / 10;
+      dimensionScores.vocabulary = Math.max(1, Math.min(5, Math.round(baseValue * 10) / 10));
+      dimensionScores.grammar = Math.max(1, Math.min(5, Math.round(baseValue * 10) / 10));
+      dimensionScores.fluency = Math.max(1, Math.min(5, Math.round(baseValue * 10) / 10));
+      dimensionScores.comprehension = Math.max(1, Math.min(5, Math.round(baseValue * 10) / 10));
+      dimensionScores.pronunciation = Math.max(1, Math.min(5, Math.round(baseValue * 10) / 10));
     }
 
     // Assert final assessment result as Prolog facts

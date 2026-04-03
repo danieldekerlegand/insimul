@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-03T08:46:06.179Z",
+  "lastUpdated": "2026-04-03T08:57:15.167Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -652,7 +652,7 @@
     {
       "path": "shared/game-engine/logic/AssessmentEngine.ts",
       "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
-      "hash": "55e63d4f92a67b14bc3103ae77071231a5a995fd1ccdb4768c7548798fa10588",
+      "hash": "3c2facae81b1ac06c7e200b2ae2b680e29c8610257a48c7209bf4eb6400bb905",
       "engineMappings": [
         {
           "engine": "babylon",
