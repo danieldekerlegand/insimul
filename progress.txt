@@ -2,6 +2,25 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## 2026-04-03 - Audit: Quest Reward and Progression Flow (comprehensive test suite)
+- Created `shared/__tests__/quest-reward-progression-audit.test.ts` — 45 tests covering all 7 audit areas:
+  1. Quest completion detection (objective completion → quest_completed callback)
+  2. Reward distribution (gold, items, skills via computeSkillRewards/applySkillRewards, chain bonus XP)
+  3. Quest chain progression (linear prerequisites, getNextQuestInChain, checkChainCompletion, encodeChainMeta/extractChainMeta roundtrip)
+  4. Prerequisite quest unlocking (single/multiple prereqs, diamond dependency, partial prereqs blocked)
+  5. Guild quest tier advancement (getNextQuestForGuild, receiveNextQuest, hasJoinedGuild, pending quest blocking)
+  6. Main quest chapter transitions (QUEST_TYPE_TO_OBJECTIVE_MAP coverage, CEFR gating, isChapterComplete, initial state)
+  7. Reward integration consistency (full pipeline, chain bonus stacking, idempotent tracking, difficulty scaling)
+- **Audit verdict**: All reward types (XP, gold, items, skills, vocabulary category unlocks) are properly granted on quest completion. Prerequisite unlocking works server-side via findQuestsToUnlock. Chain progression works both client-side (QuestCompletionManager.handleChainProgression) and server-side (QuestChainManager.checkChainCompletion). Guild quest advancement and main quest chapter transitions are wired correctly.
+- Files changed:
+  - `shared/__tests__/quest-reward-progression-audit.test.ts` — new comprehensive audit test suite (45 tests)
+- **Learnings for future iterations:**
+  - GuildQuestManager is stateless (no constructor args) — methods take (guildId, allQuests) as params
+  - QuestChainManager requires a storage provider in constructor; createQuestChain is async
+  - CEFR levels must be uppercase ('A1', 'B2') — meetsChapterCefrRequirement uses indexOf on uppercase array
+  - encodeChainMeta/extractChainMeta are standalone exported functions, not static methods on QuestChainManager
+---
+
 ## 2026-04-01 - Audit: Quest Reward and Progression Flow
 - **Audit findings**: Quest completion endpoint had 3 gaps in reward/progression flow:
   1. Item rewards defined on quests (`itemRewards`) were never persisted to player inventory on the server side
