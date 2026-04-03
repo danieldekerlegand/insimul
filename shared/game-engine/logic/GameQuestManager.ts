@@ -537,9 +537,9 @@ export class GameQuestManager {
     const slotsAvailable = maxOffering - currentlyOffering.size;
     if (slotsAvailable <= 0) return 0;
 
-    // Find unassigned active quests that could be offered by NPCs
+    // Find unassigned available quests that could be offered by NPCs
     const unassigned = quests.filter(
-      q => q.status === 'active' && !q.assignedByCharacterId && q.assignedTo === this.playerName,
+      q => q.status === 'available' && !q.assignedByCharacterId && q.assignedTo === this.playerName,
     );
 
     if (unassigned.length === 0) return 0;
@@ -564,7 +564,6 @@ export class GameQuestManager {
       const quest = shuffledQuests[i];
 
       await this.storage.updateQuest(quest.id, {
-        status: 'available',
         assignedByCharacterId: npc.id,
         assignedBy: `${npc.firstName} ${npc.lastName}`,
       } as any);
@@ -704,9 +703,13 @@ export class GameQuestManager {
   private async _generateContextualQuests(): Promise<void> {
     const quests = await this.storage.getQuestsByWorld(this.worldId);
     const activeCount = countActiveQuests(quests, this.playerName, this.worldId);
+    const pendingCount = quests.filter(
+      q => q.worldId === this.worldId && q.assignedTo === this.playerName
+        && q.status === 'available' && !q.assignedByCharacterId,
+    ).length;
 
-    // Don't generate more if player already has plenty
-    if (activeCount >= 8) return;
+    // Don't generate more if player already has plenty (active + pending for distribution)
+    if (activeCount + pendingCount >= 8) return;
 
     // Pick 1-2 contextual generators at random for variety
     const generators = [
