@@ -741,3 +741,36 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Existing ClueStore.test.ts at shared/game-engine/rendering/__tests__/ is NOT in the vitest include glob — tests there don't run
   - The `npc_conversation_turn` event only has npcId and topicTag, not the second NPC's identity
 ---
+
+## 2026-04-03 - Audit: Building Entry/Exit and Interior Interaction
+- Created comprehensive audit test suite: `shared/__tests__/BuildingEntryExitAudit.test.ts` (57 tests)
+- **Audit scope**: BuildingEntrySystem (entry/exit flow, door proximity, transitions) and InteriorNPCManager (NPC selection, placement, business hours, furniture roles)
+- **Verified**:
+  1. Building registration calculates correct door positions (front face center, rotated)
+  2. Enter/exit flow: teleports player, saves/restores overworld position, plays door sounds, fires callbacks, shows toast
+  3. Double-entry prevention (no-op when already inside)
+  4. NPC pause/resume on building entry/exit (overworld NPCs freeze during interior visit)
+  5. InteriorNPCManager integration: populates NPCs on entry, clears on exit
+  6. Business hours: all 8 types (Bakery, Bar, Restaurant, Shop, GroceryStore, Hospital, Church, School) validated
+  7. Overnight business hours (Bar 16-2) work correctly
+  8. 24/7 businesses (Hospital) work correctly
+  9. Employee shift filtering (day/night) works — day shift employees excluded at night
+  10. Residence occupant placement (from metadata + residenceId fallback scan)
+  11. MAX_INTERIOR_NPCS cap (6) enforced
+  12. Furniture role assignment per business type with persistent assignments across visits
+  13. Greeting system triggers from owner/employee, uses business-specific messages
+  14. Animation state resolution (work animations → 'work', standard states pass through)
+  15. Schedule-based NPC updates: employees removed when business closes, NPCs enter/exit per schedule
+  16. Full E2E cycle for all 8 business types + residence
+- **No bugs found** — the building entry/exit and interior interaction systems are well-implemented
+- Files changed:
+  - `shared/__tests__/BuildingEntryExitAudit.test.ts` — new audit test file (57 tests)
+- **Learnings for future iterations:**
+  - BuildingEntrySystem has `_transitionOverride` hook for testing — skip fade transitions
+  - Babylon.js MeshBuilder/StandardMaterial/DynamicTexture must be mocked via `vi.mock()` for unit tests (deep engine deps)
+  - `@babylonjs/gui` (AdvancedDynamicTexture, Rectangle, TextBlock) needs separate mock from `@babylonjs/core`
+  - Bar is the only overnight business (open 16, close 2) — no single hour has all businesses open simultaneously
+  - Employee shift filtering at line 619 defaults to 'day' shift when shift prop is absent
+  - Off-shift employees can still appear as patrons/visitors via random selection in `findCandidateNPCs`
+  - `window.addEventListener` must be stubbed in vitest since BuildingEntrySystem binds keyboard in constructor
+---
