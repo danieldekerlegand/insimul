@@ -251,10 +251,11 @@ export async function launchOnboarding(
   return new Promise<OnboardingLaunchResult | null>((resolve) => {
     let assessmentResult: AssessmentResult | null = null;
 
-    assessmentEngine.onCompleted((result) => {
+    assessmentEngine.onCompleted(async (result) => {
       assessmentResult = result;
-      // Complete onboarding so the game continues.
-      onboardingManager.completeCurrentStep();
+
+      // Store CEFR level before completing onboarding so it persists before game continues
+      await storeCefrLevel(worldId, playerId, authToken, result.cefrLevel, result.totalScore, result.totalMaxScore, deps.dataSource);
 
       eventBus.emit({
         type: 'assessment_completed',
@@ -265,11 +266,8 @@ export async function launchOnboarding(
         cefrLevel: result.cefrLevel,
       });
 
-      // TODO: Mark quest completed via playthrough delta layer, not world data.
-      // Quest completion is tracked via assessment_completed event for now.
-
-      // Store CEFR level on the server
-      storeCefrLevel(worldId, playerId, authToken, result.cefrLevel, result.totalScore, result.totalMaxScore, deps.dataSource);
+      // Complete onboarding so the game continues.
+      onboardingManager.completeCurrentStep();
     });
 
     // Create and start onboarding manager

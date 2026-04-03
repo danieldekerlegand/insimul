@@ -722,3 +722,35 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Existing ClueStore.test.ts at shared/game-engine/rendering/__tests__/ is NOT in the vitest include glob — tests there don't run
   - The `npc_conversation_turn` event only has npcId and topicTag, not the second NPC's identity
 ---
+
+## 2026-04-03 - Audit: Assessment System — Can the Initial Language Assessment Be Completed?
+- **Audit findings**: The initial language assessment (arrival encounter) CAN complete end-to-end, but had 3 bugs affecting quality:
+  1. **Conversation score never passed through event** — BabylonGame emitted `assessment_conversation_completed` with only `npcId`, no `score` field. AssessmentEngine fell back to `Math.round(maxScore * (0.35 + Math.random() * 0.35))` — random estimation instead of real conversation metrics
+  2. **Dimension scores used random jitter** — `Math.random() - 0.5` added to each dimension (vocabulary, grammar, fluency, comprehension, pronunciation) making results non-reproducible across identical inputs
+  3. **storeCefrLevel not awaited** — Fire-and-forget call in OnboardingLauncher's onCompleted callback meant CEFR level might not persist before game continues
+- **Fixes applied**:
+  - `shared/game-engine/rendering/BabylonGame.ts` — Compute conversation score from `result.grammarScore` and `result.targetLanguagePercentage` and include in event
+  - `shared/game-engine/logic/AssessmentEngine.ts` — Replace random jitter with deterministic dimension scores derived from total percentage
+  - `shared/game-engine/rendering/OnboardingLauncher.ts` — Make onCompleted callback async, await storeCefrLevel before calling completeCurrentStep
+- **Tests added**: 29 tests in `shared/__tests__/assessment-system-audit.test.ts` covering:
+  - Offline content bank completeness (French, Spanish, generic fallback)
+  - Reading/writing/listening scoring with rubrics
+  - Full 5-phase E2E completion with mock event bus
+  - Conversation score passthrough (not random fallback)
+  - Dimension score determinism (3 identical runs produce identical scores)
+  - CEFR mapping at all thresholds (A1/A2/B1/B2)
+  - OnboardingLauncher helpers (isFirstPlaythrough, isLanguageLearningWorld, getTargetLanguage)
+  - Phase completion trigger events
+- Files changed:
+  - `shared/game-engine/rendering/BabylonGame.ts` — pass conversation score in event
+  - `shared/game-engine/logic/AssessmentEngine.ts` — deterministic dimension scores
+  - `shared/game-engine/rendering/OnboardingLauncher.ts` — await storeCefrLevel
+  - `shared/__tests__/assessment-system-audit.test.ts` — new audit test file (29 tests)
+- **Learnings for future iterations:**
+  - AssessmentEngine (shared/game-engine/logic/) is the in-game orchestrator; client/assessment/AssessmentEngine.ts is a separate formal state-machine version
+  - Offline content bank has French + Spanish + generic fallback; other languages fall back to generic English
+  - Conversation scoring has two paths: (1) offline heuristic via onConversationSummary metrics, (2) LLM via AssessmentConversationController EVAL blocks
+  - BabylonGame emits `assessment_conversation_completed` from two places: onConversationSummary (with score) and handleConversationEnd (safety net, no real score)
+  - The `_assessmentTargetNpcId` is set by `assessment_conversation_quest_start` handler — depends on NPCs existing in the world
+  - Assessment session is NOT persisted server-side (no POST /api/assessments call) — only CEFR level is stored via storeCefrLevel
+---
