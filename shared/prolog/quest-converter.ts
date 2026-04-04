@@ -736,7 +736,7 @@ function convertFailureCondition(condition: Record<string, any>, errors: string[
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function sanitizeAtom(str: string): string {
-  if (!str || !str.trim()) return '';
+  if (!str || !str.trim()) return 'unknown';
   let atom = str
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
@@ -744,7 +744,7 @@ function sanitizeAtom(str: string): string {
     .replace(/^_+|_+$/g, '');
   // Prolog atoms must start with a lowercase letter; prefix if it starts with a digit
   if (/^[0-9]/.test(atom)) atom = `n${atom}`;
-  return atom || '';
+  return atom || 'unknown';
 }
 
 function escapeString(str: string): string {

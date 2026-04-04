@@ -3184,10 +3184,14 @@ async function buildKnowledgeBase(
             tags: quest.tags || null,
             experienceReward: quest.experienceReward || 0,
           });
-          if (result.prologContent) {
+          if (result.prologContent && hasBalancedParens(result.prologContent)) {
             const label = quest.title || quest.id;
             console.log(`[IR Export] Regenerated Prolog for quest "${label}" (${quest.id})`);
             parts.push(result.prologContent);
+          } else if (result.prologContent) {
+            const label = quest.title || quest.id;
+            console.warn(`[IR Export] Regenerated quest "${label}" (${quest.id}) still has syntax issues, skipping`);
+            parts.push(`% SKIPPED: quest ${quest.id} "${quest.title || ''}" — regenerated content has syntax issues`);
           }
         } catch (err) {
           const label = quest.title || quest.id;

@@ -6,6 +6,7 @@
  */
 
 import type { Express } from 'express';
+import { Readable } from 'stream';
 import { generateWorldIR } from '../services/game-export/ir-generator';
 import type { TargetEngine } from '@shared/game-engine/asset-pipeline';
 import { buildWorldAssetManifest } from '../services/game-export/asset-resolver';
@@ -17,6 +18,18 @@ import type { ExportTelemetryConfig } from '../services/game-export/telemetry-co
 import { buildExportName } from '../services/game-export/export-naming';
 import { checkLocalAIAvailability } from '../services/game-export/ai-bundler';
 import { validateWorldForExport, serializeValidationReport } from '@shared/game-export-validator';
+
+/** Stream a large Buffer to the response in chunks to avoid overwhelming Node's socket buffer */
+function streamZipResponse(res: import('express').Response, zipBuffer: Buffer, filename: string): void {
+  // Disable response timeout for large exports (default 2min is too short)
+  res.req?.socket?.setTimeout(0);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Length', zipBuffer.length.toString());
+  res.setHeader('ETag', '');
+  const stream = Readable.from(zipBuffer);
+  stream.pipe(res);
+}
 
 export function registerExportRoutes(app: Express): void {
 
@@ -278,10 +291,7 @@ export function registerExportRoutes(app: Express): void {
         // Get world IR for filename
         const ir = await generateWorldIR(worldId);
         const filename = `${buildExportName(ir.meta.worldName, 'Babylon', aiProvider, mode)}.zip`;
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Length', zipBuffer.length.toString());
-        return res.send(zipBuffer);
+        return streamZipResponse(res, zipBuffer, filename);
       }
 
       // ── Unreal: full project export ──
@@ -295,11 +305,7 @@ export function registerExportRoutes(app: Express): void {
 
         if (format === 'zip' && result.zipBuffer) {
           const filename = `${buildExportName(result.worldName, 'Unreal', result.aiMode)}.zip`;
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-          res.setHeader('Content-Type', 'application/zip');
-          res.setHeader('Content-Length', result.zipBuffer.length.toString());
-          res.set('ETag', '');
-          return res.end(result.zipBuffer);
+          return streamZipResponse(res, result.zipBuffer, filename);
         }
 
         // JSON format: return file listing + stats (no binary ZIP)
@@ -331,11 +337,7 @@ export function registerExportRoutes(app: Express): void {
 
         if (format === 'zip' && result.zipBuffer) {
           const filename = `${buildExportName(result.worldName, 'Unity', result.aiMode)}.zip`;
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-          res.setHeader('Content-Type', 'application/zip');
-          res.setHeader('Content-Length', result.zipBuffer.length.toString());
-          res.set('ETag', '');
-          return res.end(result.zipBuffer);
+          return streamZipResponse(res, result.zipBuffer, filename);
         }
 
         return res.json({
@@ -365,12 +367,7 @@ export function registerExportRoutes(app: Express): void {
 
         if (format === 'zip' && result.zipBuffer) {
           const filename = `${buildExportName(result.worldName, 'Godot', result.aiMode)}.zip`;
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-          res.setHeader('Content-Type', 'application/zip');
-          res.setHeader('Content-Length', result.zipBuffer.length.toString());
-          // Disable ETag to avoid RangeError on large buffers (Node crypto hash limit)
-          res.set('ETag', '');
-          return res.end(result.zipBuffer);
+          return streamZipResponse(res, result.zipBuffer, filename);
         }
 
         return res.json({
@@ -429,43 +426,28 @@ export function registerExportRoutes(app: Express): void {
 
         const ir = await generateWorldIR(worldId);
         const filename = `${buildExportName(ir.meta.worldName, 'Babylon', ir.aiConfig?.apiMode, mode as string)}.zip`;
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Length', zipBuffer.length.toString());
-        return res.send(zipBuffer);
+        return streamZipResponse(res, zipBuffer, filename);
       }
 
       if (engine === 'unreal') {
         const result = await exportUnrealProject(worldId);
         if (!result.zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
         const filename = `${buildExportName(result.worldName, 'Unreal', result.aiMode)}.zip`;
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Length', result.zipBuffer.length.toString());
-        res.set('ETag', '');
-        return res.end(result.zipBuffer);
+        return streamZipResponse(res, result.zipBuffer, filename);
       }
 
       if (engine === 'unity') {
         const result = await exportUnityProject(worldId);
         if (!result.zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
         const filename = `${buildExportName(result.worldName, 'Unity', result.aiMode)}.zip`;
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Length', result.zipBuffer.length.toString());
-        res.set('ETag', '');
-        return res.end(result.zipBuffer);
+        return streamZipResponse(res, result.zipBuffer, filename);
       }
 
       if (engine === 'godot') {
         const result = await exportGodotProject(worldId);
         if (!result.zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
         const filename = `${buildExportName(result.worldName, 'Godot', result.aiMode)}.zip`;
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Length', result.zipBuffer.length.toString());
-        res.set('ETag', '');
-        return res.end(result.zipBuffer);
+        return streamZipResponse(res, result.zipBuffer, filename);
       }
 
       res.status(400).json({ error: `Unhandled engine: ${engine}` });
