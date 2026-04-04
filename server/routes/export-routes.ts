@@ -19,16 +19,30 @@ import { buildExportName } from '../services/game-export/export-naming';
 import { checkLocalAIAvailability } from '../services/game-export/ai-bundler';
 import { validateWorldForExport, serializeValidationReport } from '@shared/game-export-validator';
 
-/** Stream a large Buffer to the response in chunks to avoid overwhelming Node's socket buffer */
+const STREAM_CHUNK_SIZE = 64 * 1024; // 64KB chunks for streaming large buffers
+
+/** Stream a large Buffer to the response in 64KB chunks to avoid overwhelming Node's socket buffer */
 function streamZipResponse(res: import('express').Response, zipBuffer: Buffer, filename: string): void {
-  // Disable response timeout for large exports (default 2min is too short)
   res.req?.socket?.setTimeout(0);
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Length', zipBuffer.length.toString());
   res.setHeader('ETag', '');
-  const stream = Readable.from(zipBuffer);
-  stream.pipe(res);
+
+  // Create a readable stream that yields the buffer in small chunks
+  let offset = 0;
+  const chunked = new Readable({
+    read() {
+      if (offset >= zipBuffer.length) {
+        this.push(null);
+        return;
+      }
+      const end = Math.min(offset + STREAM_CHUNK_SIZE, zipBuffer.length);
+      this.push(zipBuffer.subarray(offset, end));
+      offset = end;
+    },
+  });
+  chunked.pipe(res);
 }
 
 export function registerExportRoutes(app: Express): void {
@@ -214,8 +228,8 @@ export function registerExportRoutes(app: Express): void {
    * - Unity/Godot: placeholder (returns IR with engine-specific asset resolution)
    */
   app.post('/api/worlds/:worldId/export/:engine', async (req, res) => {
-    // Increase timeout for export operations (5 minutes)
-    req.setTimeout(300000);
+    // Disable socket timeout for export operations (generation + streaming can take minutes)
+    req.socket.setTimeout(0);
 
     try {
       const { worldId, engine } = req.params;
@@ -403,9 +417,9 @@ export function registerExportRoutes(app: Express): void {
    * Direct browser download endpoint — opens in a new tab to trigger native download.
    */
   app.get('/api/worlds/:worldId/export/:engine/download', async (req, res) => {
-    // Increase timeout for export operations (5 minutes)
-    req.setTimeout(300000);
-    
+    // Disable socket timeout for export operations (generation + streaming can take minutes)
+    req.socket.setTimeout(0);
+
     try {
       const { worldId, engine } = req.params;
       const supportedEngines = ['babylon', 'unreal', 'unity', 'godot'];
