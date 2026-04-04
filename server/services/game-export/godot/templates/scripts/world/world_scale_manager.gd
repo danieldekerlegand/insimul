@@ -247,7 +247,7 @@ func distribute_settlements_in_territory(
 	if count == 0:
 		return result
 
-	var hash := _create_seed_hash(_seed + "_" + territory_id)
+	var name_hash := _create_seed_hash(_seed + "_" + territory_id)
 
 	var bounds_w: float = bounds_dict["maxX"] - bounds_dict["minX"]
 	var bounds_h: float = bounds_dict["maxZ"] - bounds_dict["minZ"]
@@ -283,10 +283,10 @@ func distribute_settlements_in_territory(
 			position = Vector3(bounds_dict["centerX"], 0.0, bounds_dict["centerZ"])
 
 			while attempts < max_attempts:
-				var pair_x := _seeded_random(hash)
-				hash = pair_x[1]
-				var pair_z := _seeded_random(hash)
-				hash = pair_z[1]
+				var pair_x := _seeded_random(name_hash)
+				name_hash = pair_x[1]
+				var pair_z := _seeded_random(name_hash)
+				name_hash = pair_z[1]
 
 				var x: float = safe_min_x + pair_x[0] * maxf(safe_max_x - safe_min_x, 1.0)
 				var z: float = safe_min_z + pair_z[0] * maxf(safe_max_z - safe_min_z, 1.0)

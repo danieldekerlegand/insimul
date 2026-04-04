@@ -737,12 +737,14 @@ function convertFailureCondition(condition: Record<string, any>, errors: string[
 
 function sanitizeAtom(str: string): string {
   if (!str || !str.trim()) return '';
-  return str
+  let atom = str
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
-    .replace(/^([0-9])/, '_$1')
     .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '') || '';
+    .replace(/^_+|_+$/g, '');
+  // Prolog atoms must start with a lowercase letter; prefix if it starts with a digit
+  if (/^[0-9]/.test(atom)) atom = `n${atom}`;
+  return atom || '';
 }
 
 function escapeString(str: string): string {

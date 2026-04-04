@@ -79,6 +79,7 @@ import type {
 import { getDefaultHiddenLocations } from '@shared/game-engine/rendering/ExplorationDiscoverySystem';
 import { getWriterName, MAIN_QUEST_CHAPTERS, resolveNarrativeText } from '@shared/quest/main-quest-chapters';
 import { generateNarrative } from '@shared/narrative/narrative-generator';
+import { convertQuestToProlog } from '@shared/prolog/quest-converter';
 import { computeElevationProfile } from '../../generators/settlement-elevation';
 import { TerrainGenerator, type TerrainType, type TerrainFeature } from '../../generators/terrain-generator';
 import {
@@ -1389,7 +1390,7 @@ export async function generateWorldIR(
   // can resolve texture/model references without an API server
   const assetIdToPath: Record<string, string> = {};
   try {
-    const { getWorld3DConfigForWorld } = await import(/* webpackIgnore: true */ '../asset-collection-resolver.js' as any);
+    const { getWorld3DConfigForWorld } = await import(/* webpackIgnore: true */ '../assets/asset-collection-resolver.js' as any);
     world3DConfig = await getWorld3DConfigForWorld(worldId);
     console.log(`[Export] ✓ getWorld3DConfigForWorld`);
   } catch (e) {
@@ -3157,17 +3158,42 @@ async function buildKnowledgeBase(
     hasContent = true;
   }
 
-  // Prolog content from quests
-  const questsWithContent = quests.filter(q => q.content);
-  if (questsWithContent.length > 0) {
+  // Prolog content from quests (fall back to regeneration if stored content has syntax errors)
+  if (quests.length > 0) {
     parts.push('% === Quests ===');
-    for (const quest of questsWithContent) {
-      if (hasBalancedParens(quest.content!)) {
-        parts.push(quest.content!);
+    for (const quest of quests) {
+      if (quest.content && hasBalancedParens(quest.content)) {
+        parts.push(quest.content);
       } else {
-        const label = quest.title || quest.id;
-        console.warn(`[IR Export] Skipping quest "${label}" (${quest.id}) with syntax error`);
-        parts.push(`% SKIPPED: quest ${quest.id} "${quest.title || ''}" — syntax error (unbalanced parens)`);
+        // Regenerate from structured fields
+        try {
+          const result = convertQuestToProlog({
+            title: quest.title || 'Untitled',
+            description: quest.description || undefined,
+            questType: quest.questType || 'side',
+            difficulty: quest.difficulty || 'normal',
+            status: quest.status || 'active',
+            objectives: quest.objectives || [],
+            completionCriteria: quest.completionCriteria || null,
+            prerequisiteQuestIds: quest.prerequisiteQuestIds || null,
+            rewards: quest.rewards || null,
+            itemRewards: quest.itemRewards || null,
+            skillRewards: quest.skillRewards || null,
+            unlocks: quest.unlocks || null,
+            failureConditions: quest.failureConditions || null,
+            tags: quest.tags || null,
+            experienceReward: quest.experienceReward || 0,
+          });
+          if (result.prologContent) {
+            const label = quest.title || quest.id;
+            console.log(`[IR Export] Regenerated Prolog for quest "${label}" (${quest.id})`);
+            parts.push(result.prologContent);
+          }
+        } catch (err) {
+          const label = quest.title || quest.id;
+          console.warn(`[IR Export] Could not regenerate quest "${label}" (${quest.id}):`, err);
+          parts.push(`% SKIPPED: quest ${quest.id} "${quest.title || ''}" — syntax error`);
+        }
       }
     }
     parts.push('');
@@ -3228,12 +3254,14 @@ function hasBalancedParens(content: string): boolean {
 
 function sanitizeAtom(str: string): string {
   if (!str) return 'unknown';
-  return str
+  let atom = str
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
-    .replace(/^([0-9])/, '_$1')
     .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '') || 'unknown';
+    .replace(/^_+|_+$/g, '');
+  // Prolog atoms must start with a lowercase letter; prefix if it starts with a digit
+  if (/^[0-9]/.test(atom)) atom = `n${atom}`;
+  return atom || 'unknown';
 }
 
 function escapeAtom(str: string): string {

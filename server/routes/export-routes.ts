@@ -298,7 +298,8 @@ export function registerExportRoutes(app: Express): void {
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           res.setHeader('Content-Type', 'application/zip');
           res.setHeader('Content-Length', result.zipBuffer.length.toString());
-          return res.send(result.zipBuffer);
+          res.set('ETag', '');
+          return res.end(result.zipBuffer);
         }
 
         // JSON format: return file listing + stats (no binary ZIP)
@@ -333,7 +334,8 @@ export function registerExportRoutes(app: Express): void {
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           res.setHeader('Content-Type', 'application/zip');
           res.setHeader('Content-Length', result.zipBuffer.length.toString());
-          return res.send(result.zipBuffer);
+          res.set('ETag', '');
+          return res.end(result.zipBuffer);
         }
 
         return res.json({
@@ -366,7 +368,9 @@ export function registerExportRoutes(app: Express): void {
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           res.setHeader('Content-Type', 'application/zip');
           res.setHeader('Content-Length', result.zipBuffer.length.toString());
-          return res.send(result.zipBuffer);
+          // Disable ETag to avoid RangeError on large buffers (Node crypto hash limit)
+          res.set('ETag', '');
+          return res.end(result.zipBuffer);
         }
 
         return res.json({
@@ -438,7 +442,8 @@ export function registerExportRoutes(app: Express): void {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', result.zipBuffer.length.toString());
-        return res.send(result.zipBuffer);
+        res.set('ETag', '');
+        return res.end(result.zipBuffer);
       }
 
       if (engine === 'unity') {
@@ -448,7 +453,8 @@ export function registerExportRoutes(app: Express): void {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', result.zipBuffer.length.toString());
-        return res.send(result.zipBuffer);
+        res.set('ETag', '');
+        return res.end(result.zipBuffer);
       }
 
       if (engine === 'godot') {
@@ -458,7 +464,8 @@ export function registerExportRoutes(app: Express): void {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Length', result.zipBuffer.length.toString());
-        return res.send(result.zipBuffer);
+        res.set('ETag', '');
+        return res.end(result.zipBuffer);
       }
 
       res.status(400).json({ error: `Unhandled engine: ${engine}` });

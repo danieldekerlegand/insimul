@@ -551,12 +551,13 @@ function wrapGoal(goal: string): string {
 }
 
 function sanitizeAtom(str: string): string {
-  return str
+  let atom = str
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
-    .replace(/^([0-9])/, '_$1')
     .replace(/_+/g, '_')
-    .replace(/_$/, '');
+    .replace(/^_+|_+$/g, '');
+  if (/^[0-9]/.test(atom)) atom = `n${atom}`;
+  return atom || 'unknown';
 }
 
 function escapeString(str: string): string {

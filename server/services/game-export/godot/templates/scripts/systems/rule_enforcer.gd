@@ -245,7 +245,7 @@ static func name_to_atom(name_str: String, fallback_id: String = "unknown") -> S
 		var normalized := name_str.unicode_normalize_nfd()
 		var clean := ""
 		for i in normalized.length():
-			var ch := normalized[i]
+			var ch: String = normalized[i]
 			# Skip combining diacritical marks (U+0300–U+036F)
 			var code := ch.unicode_at(0)
 			if code < 0x0300 or code > 0x036F:

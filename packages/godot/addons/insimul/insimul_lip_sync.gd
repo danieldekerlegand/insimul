@@ -126,7 +126,7 @@ func _advance_viseme_timeline(delta: float) -> void:
 		return
 	_current_viseme_time += delta * 1000.0  # convert to ms
 	if _current_viseme_index < _current_visemes.size():
-		var current := _current_visemes[_current_viseme_index]
+		var current: Dictionary = _current_visemes[_current_viseme_index]
 		if _current_viseme_time >= current.duration_ms:
 			_current_viseme_time -= current.duration_ms
 			_current_viseme_index += 1
@@ -142,7 +142,7 @@ func _apply_current_viseme() -> void:
 		_target_weights[key] = 0.0
 	if _current_viseme_index >= _current_visemes.size():
 		return
-	var viseme := _current_visemes[_current_viseme_index]
+	var viseme: Dictionary = _current_visemes[_current_viseme_index]
 	var blend_name: String = phoneme_blend_map.get(viseme.phoneme, "")
 	if blend_name != "" and blend_name in _blend_shape_indices:
 		_target_weights[blend_name] = viseme.weight

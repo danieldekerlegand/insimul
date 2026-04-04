@@ -104,7 +104,7 @@ export function generateProjectFiles(ir: WorldIR): GeneratedFile[] {
 
   return [
     { path: 'project.godot',            content: projectGodot },
-    { path: 'export_presets.cfg',       content: loadStaticTemplate('project/export_presets.cfg') },
+    { path: 'export_presets.cfg',       content: loadTemplate('project/export_presets.cfg', projectTokens) },
     { path: 'default_bus_layout.tres',  content: loadStaticTemplate('project/default_bus_layout.tres') },
     { path: 'icon.svg',                 content: loadStaticTemplate('project/icon.svg') },
     { path: '.gitignore',               content: loadStaticTemplate('project/.gitignore') },
