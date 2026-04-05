@@ -1692,3 +1692,37 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `isCacheableMessage()` replicates patterns from `conversation-classifier.ts` (GREETING_PATTERNS, FAREWELL_PATTERNS, SIMPLE_SOCIAL_PATTERNS) — could share but kept separate to avoid coupling caching to routing
   - Response cache is scoped per NPC + CEFR (not per player), so responses are shared across players for the same NPC
 ---
+
+## 2026-04-05 - US-012: Template fallback for NPC-NPC conversations
+- Created `server/services/conversation/npc-conversation-templates.ts` — expanded template library:
+  - 28 English templates covering all 12 topic types (daily_greeting, weather, work, gossip, food, family, local_events, shared_hobby, complaint, philosophy, romance, rivalry) with 2-3 variants each
+  - 12 bilingual (French) templates across 4 CEFR tiers (A1, A2, B1, B2) with progressive target language immersion
+  - `selectTemplate()` with personality-weighted random selection (Big Five affinity scoring)
+  - `getTemplateCoverage()` for coverage reporting
+- Updated `NpcConversationResult` with `source` field: `'pool' | 'template' | 'llm' | 'template_with_replacement'`
+- Implemented show-then-replace flow in `initiateConversation()`:
+  - Decision chain: pool → template-with-replacement (when LLM available) → template-only (no LLM)
+  - `onTemplateReady` callback fires immediately with template exchanges
+  - `onReplacementReady` callback fires when LLM generates usable replacement
+  - Falls back to keeping template if LLM fails or produces < 2 exchanges
+- Updated `generateFallbackConversation()` to use new template library with personality matching and CEFR tier support
+- Added `NpcConversationOptions.cefrTier` and `onTemplateReady`/`onReplacementReady` callbacks
+- Updated ws-bridge `handleNpcToNpc()`:
+  - Sends `npc_npc_template` message with instant template exchanges
+  - Sends `npc_npc_replace` message when LLM replacement ready
+  - Includes `source` in `relationship_delta` message
+- Added metric stages: `npc_npc_template_served`, `npc_npc_llm_served`, `npc_npc_pool_served`, `npc_npc_template_replaced`
+- Added `source` to shared `NpcConversationResult` in `data-source.ts` (optional for backward compatibility)
+- Files changed:
+  - `server/services/conversation/npc-conversation-templates.ts` — new template library (40 templates total)
+  - `server/services/conversation/npc-conversation-engine.ts` — source tracking, show-then-replace flow, template integration
+  - `server/services/conversation/ws-bridge.ts` — template/replace WebSocket messages
+  - `server/services/conversation/conversation-metrics.ts` — new metric stages
+  - `shared/game-engine/data-source.ts` — source field on NpcConversationResult
+  - `server/__tests__/npc-conversation-templates.test.ts` — 23 new tests
+- **Learnings for future iterations:**
+  - `NpcConversationResult` exists in two places: `npc-conversation-engine.ts` (server) and `data-source.ts` (shared) — both need updating when adding fields
+  - Template topic matching uses `string.includes()` both directions — `topicMatches('daily_greeting', 'greeting')` returns true
+  - The `onTemplateReady`/`onReplacementReady` pattern allows ws-bridge to send template instantly while still supporting the incremental `onLineReady` streaming for LLM content
+  - `generateFallbackConversation` is used both as initial template (show-then-replace) and as final fallback (LLM failure) — same function, different calling contexts
+---

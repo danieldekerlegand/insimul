@@ -214,7 +214,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "generateFallbackConversation() at line 431 has 4 hardcoded templates, used only on LLM failure. Expected: instant display for 100% of NPC-NPC conversations."
     },
     {
