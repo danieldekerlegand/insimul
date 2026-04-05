@@ -1472,3 +1472,30 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `===NPC:id===` delimiter pattern works well for batch LLM parsing — reusable for batch NPC-NPC generation (US-013)
   - `GreetingCache` is a simple Map (not LRU) since the max entry count is bounded by NPCs per world (~20-50)
 ---
+---
+
+## 2026-04-05 - US-004: Trim context for follow-up turns
+- Added `turnNumber` parameter to `buildContext()` and `buildSystemPrompt()` in context-manager.ts
+- Implemented section-based prompt trimming:
+  - Turn 1: full context (~4000 tokens) — all sections included
+  - Turn 2+: condensed world (one line), no settlement description, no family/friends/enemies, no weather hints, no player progress awareness, condensed quest IDs + status only
+  - Always kept in full: character identity/personality, language learning directives, player relationship, behavioral instructions, main quest NPC context
+- Added `PromptSectionTokens` interface and `getLastPromptSectionTokens()` export for section-level token counting (character, world, environment, relationships, quests, language, total)
+- Added `estimateTokens()` helper (~4 chars per token estimate)
+- Added `context_tokens` metric stage to `MetricStage` type in conversation-metrics.ts
+- Wired turn count in ws-bridge.ts:
+  - Turn number derived from `session.history.length / 2 + 1`
+  - Turn 1: uses context cache (existing behavior), records context_tokens metric
+  - Turn 2+: rebuilds system prompt with trimmed content, records context_tokens metric
+  - 20-message history cap verified working in `addToHistory()`
+- Files changed:
+  - `server/services/conversation/context-manager.ts` — turnNumber param, section-based prompt building, token counting
+  - `server/services/conversation/conversation-metrics.ts` — added context_tokens metric stage
+  - `server/services/conversation/ws-bridge.ts` — turn count derivation, follow-up turn trimming path
+  - `shared/__tests__/context-trimming.test.ts` — 18 new tests
+- **Learnings for future iterations:**
+  - `buildSystemPrompt()` is private — test through `buildContext()` with mock storage
+  - `ContextManagerStorage` interface requires `getSettlementsByWorld` and `getResidence` — mock storage must implement all methods
+  - The `session.history` array contains alternating user/assistant messages — `Math.floor(length / 2) + 1` gives correct 1-based turn number
+  - DB queries in `buildContext()` are fast (in-memory MongoDB) — the real latency savings come from shorter system prompts reducing LLM inference time
+  - Pre-existing TS errors in client/ files are unrelated — check only server/ and shared/ for regressions

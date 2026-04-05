@@ -71,7 +71,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "context-manager.ts buildSystemPrompt() caps at 4000 tokens but includes full context on every turn. Expected: -0.5s per turn."
     },
     {
