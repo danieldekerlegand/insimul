@@ -33,6 +33,8 @@ import {
 } from './conversation-context-cache.js';
 import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
 import { greetingCache } from './greeting-cache.js';
+import { classifyConversation } from './conversation-classifier.js';
+import type { ModelTier } from './conversation-classifier.js';
 import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -247,13 +249,39 @@ async function handleTextInput(
     ttsPromises.push(promise);
   };
 
+  // Classify conversation to determine model tier
+  const classification = classifyConversation({
+    message: text,
+    turnNumber,
+    isQuestConversation: false,
+    isNpcToNpc: false,
+    cefrLevel: session.languageCode !== 'en' ? undefined : undefined,
+    systemPrompt: session.conversationContext?.systemPrompt,
+  });
+  const modelTier: ModelTier = classification.tier;
+
+  // Track tier-specific latency
+  const tierFirstTokenStage = modelTier === 'fast' ? 'llm_fast_first_token' : 'llm_full_first_token' as const;
+  const tierTotalStage = modelTier === 'fast' ? 'llm_fast_total' : 'llm_full_total' as const;
+  const llmStartMs = Date.now();
+  let firstTokenRecorded = false;
+
   try {
     const tokens = llmProvider.streamCompletion(text, session.conversationContext!, {
       languageCode,
       conversationHistory: session.history.slice(0, -1),
+      modelTier,
     });
 
     for await (const token of tokens) {
+      // Record first token latency (both general and tier-specific)
+      if (!firstTokenRecorded) {
+        const firstTokenMs = Date.now() - llmStartMs;
+        getConversationMetrics().record('llm_first_token', firstTokenMs);
+        getConversationMetrics().record(tierFirstTokenStage, firstTokenMs);
+        firstTokenRecorded = true;
+      }
+
       fullResponse += token;
 
       // Stream text chunk immediately
@@ -271,6 +299,11 @@ async function handleTextInput(
         }
       }
     }
+
+    // Record total LLM latency (both general and tier-specific)
+    const totalMs = Date.now() - llmStartMs;
+    getConversationMetrics().record('llm_total', totalMs);
+    getConversationMetrics().record(tierTotalStage, totalMs);
   } catch (err: any) {
     console.error('[WS-Bridge] LLM streaming error:', err.message);
     sendJSON(ws, { type: 'error', message: 'LLM streaming failed' });

@@ -44,13 +44,20 @@ export class GeminiStreamingProvider implements IStreamingLLMProvider {
     contents.push(...history);
     contents.push({ role: 'user', parts: [{ text: prompt }] });
 
+    // Select model and parameters based on tier
+    const isFastTier = options?.modelTier === 'fast';
+    const modelName = isFastTier ? GEMINI_MODELS.FLASH : this.modelName;
+    const defaultMaxTokens = isFastTier ? 256 : 1024;
+    const defaultTemperature = isFastTier ? 0.7 : 0.8;
+    const thinkingLevel = isFastTier ? THINKING_LEVELS.MINIMAL : THINKING_LEVELS.LOW;
+
     const response = await ai.models.generateContentStream({
-      model: this.modelName,
+      model: modelName,
       contents,
       config: {
-        temperature: options?.temperature ?? 0.8,
-        maxOutputTokens: options?.maxTokens ?? 1024,
-        thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
+        temperature: options?.temperature ?? defaultTemperature,
+        maxOutputTokens: options?.maxTokens ?? defaultMaxTokens,
+        thinkingConfig: { thinkingLevel },
       },
     });
 

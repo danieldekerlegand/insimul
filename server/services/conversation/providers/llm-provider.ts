@@ -10,6 +10,8 @@ export interface StreamCompletionOptions {
   temperature?: number;
   maxTokens?: number;
   languageCode?: string;
+  /** Model tier: 'fast' uses lighter/faster model, 'full' uses primary model */
+  modelTier?: 'fast' | 'full';
   characterPersonality?: {
     openness: number;
     conscientiousness: number;

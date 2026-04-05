@@ -81,6 +81,8 @@ export interface NpcConversationOptions {
   environment?: NpcConversationEnvironment;
   /** Called incrementally as each conversation line is parsed from the LLM stream */
   onLineReady?: OnLineReadyCallback;
+  /** Model tier override: 'fast' (default for NPC-NPC) or 'full' (quest-relevant) */
+  modelTier?: 'fast' | 'full';
 }
 
 /** Event types emitted during NPC conversations */
@@ -685,7 +687,7 @@ export async function initiateConversation(
         for await (const token of llm.streamCompletion(
           `Begin the conversation about ${topic}.`,
           context,
-          { temperature: 0.8, maxTokens: 1024 },
+          { temperature: 0.8, maxTokens: 1024, modelTier: options?.modelTier ?? 'fast' },
         )) {
           fullResponse += token;
           lineBuffer += token;

@@ -20,6 +20,10 @@ export type MetricStage =
   | 'greeting_cache_miss'
   | 'llm_first_token'
   | 'llm_total'
+  | 'llm_fast_first_token'
+  | 'llm_fast_total'
+  | 'llm_full_first_token'
+  | 'llm_full_total'
   | 'tts_first_chunk'
   | 'tts_total'
   | 'viseme'
@@ -114,6 +118,8 @@ export class ConversationMetricsCollector {
       'stt', 'context', 'context_cache_hit', 'context_cache_miss', 'context_tokens', 'pre_warm',
       'greeting_cache_hit', 'greeting_cache_miss',
       'llm_first_token', 'llm_total',
+      'llm_fast_first_token', 'llm_fast_total',
+      'llm_full_first_token', 'llm_full_total',
       'tts_first_chunk', 'tts_total', 'viseme', 'end_to_end',
     ];
 

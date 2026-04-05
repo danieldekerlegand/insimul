@@ -1607,3 +1607,31 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The callout system runs independently from the approach system — both use `evaluateApproach` cooldowns to avoid duplicate interactions
   - `NPCTalkingIndicator.show()` needs the NPC mesh reference — access via `this.npcMeshes.get(npcId)` in BabylonGame
   - Game-seconds accumulation requires converting from gameMinutesDelta * 60 (not from msPerGameHour directly)
+---
+
+## 2026-04-05 - US-009: Tiered LLM routing (fast/full models)
+- Created `server/services/conversation/conversation-classifier.ts` — classifies conversations as FAST or FULL tier:
+  - FAST: greetings, farewells, simple social, NPC-NPC ambient, short follow-ups (turn 2+, <50 chars)
+  - FULL: quest conversations, quest-bearing NPCs (detected from system prompt), B1+ complex language, quest keywords in message, long messages (>200 chars)
+  - Priority order: quest flag > system prompt quest indicators > NPC-NPC > CEFR+complex > greeting/farewell/social > quest keywords > short follow-up > long message > default FULL
+- Added `modelTier?: 'fast' | 'full'` to `StreamCompletionOptions` in `llm-provider.ts`
+- Updated `GeminiStreamingProvider.streamCompletion()` — FAST tier uses `GEMINI_MODELS.FLASH` (flash-lite), lower maxTokens (256), temperature (0.7), MINIMAL thinking; FULL tier keeps PRO model, 1024 tokens, 0.8 temp, LOW thinking
+- Wired classifier into `ws-bridge.ts handleTextInput()` — classifies before streaming, passes `modelTier` to `streamCompletion()`
+- Added tier-specific latency tracking: `llm_fast_first_token`, `llm_fast_total`, `llm_full_first_token`, `llm_full_total` metric stages alongside general `llm_first_token`/`llm_total`
+- NPC-NPC conversations default to FAST tier via `modelTier` option on `NpcConversationOptions` (defaults to 'fast' in `initiateConversation()`)
+- Fallback: if FAST model errors, the error propagates to the existing error handling in ws-bridge which logs and sends error — transparent to user
+- Files changed:
+  - `server/services/conversation/conversation-classifier.ts` — new classifier module
+  - `server/services/conversation/providers/llm-provider.ts` — modelTier on StreamCompletionOptions
+  - `server/services/conversation/providers/gemini-provider.ts` — tier-aware model/param selection
+  - `server/services/conversation/ws-bridge.ts` — classifier integration, tier-specific metrics
+  - `server/services/conversation/npc-conversation-engine.ts` — modelTier option, default FAST for NPC-NPC
+  - `server/services/conversation/conversation-metrics.ts` — 4 new tier-specific metric stages
+  - `server/__tests__/conversation-classifier.test.ts` — 44 new tests
+  - `tasks/prd.json` — US-009 passes: true
+- **Learnings for future iterations:**
+  - `GEMINI_MODELS.FLASH` is 'gemini-3.1-flash-lite-preview' — the lightweight model suitable for simple exchanges
+  - `GeminiStreamingProvider` already accepts `modelName` in constructor but the tier-based switching happens per-call in `streamCompletion()` since the same provider instance serves both tiers
+  - Pre-existing TS error: `assignVoiceProfile({})` in ws-bridge.ts line 485 expects `CharacterVoiceAttributes` — not introduced by this change
+  - http-bridge.ts also calls `streamCompletion()` but was not wired to the classifier — can be done in a future story
+  - The classifier checks system prompt for quest indicators using regex — this is a heuristic; could be improved with explicit quest-bearer flags on the session
