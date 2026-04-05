@@ -66,11 +66,21 @@ export interface NpcConversationEnvironment {
   season?: string;
 }
 
+/** Callback fired when a complete NPC-NPC conversation line is parsed during streaming */
+export type OnLineReadyCallback = (
+  speaker: string,
+  speakerId: string,
+  line: string,
+  lineIndex: number,
+) => void;
+
 export interface NpcConversationOptions {
   topic?: string;
   maxExchanges?: number;
   languageCode?: string;
   environment?: NpcConversationEnvironment;
+  /** Called incrementally as each conversation line is parsed from the LLM stream */
+  onLineReady?: OnLineReadyCallback;
 }
 
 /** Event types emitted during NPC conversations */
@@ -454,6 +464,49 @@ function generateFallbackConversation(
   });
 }
 
+// ── Parse single line (for incremental streaming) ──────────────────
+
+interface ParsedLine {
+  speakerId: string;
+  speakerName: string;
+  text: string;
+}
+
+function parseSingleLine(
+  line: string,
+  npc1: Character,
+  npc2: Character,
+): ParsedLine | null {
+  const trimmed = line.trim();
+  const name1 = npc1.firstName;
+  const name2 = npc2.firstName;
+
+  let speakerId: string;
+  let speakerName: string;
+  let dialogueText: string;
+
+  if (trimmed.startsWith(`${name1}:`)) {
+    speakerId = npc1.id;
+    speakerName = `${npc1.firstName} ${npc1.lastName}`;
+    dialogueText = trimmed.slice(name1.length + 1).trim();
+  } else if (trimmed.startsWith(`${name2}:`)) {
+    speakerId = npc2.id;
+    speakerName = `${npc2.firstName} ${npc2.lastName}`;
+    dialogueText = trimmed.slice(name2.length + 1).trim();
+  } else {
+    return null;
+  }
+
+  // Remove surrounding quotes if present
+  if (dialogueText.startsWith('"') && dialogueText.endsWith('"')) {
+    dialogueText = dialogueText.slice(1, -1);
+  }
+
+  if (dialogueText.length === 0) return null;
+
+  return { speakerId, speakerName, text: dialogueText };
+}
+
 // ── Parse LLM response ──────────────────────────────────────────────
 
 function parseLlmConversation(
@@ -623,16 +676,46 @@ export async function initiateConversation(
           worldContext: world.name,
         };
 
-        // Collect streamed tokens into full response
+        // Incremental line parsing: detect complete lines as they stream
         let fullResponse = '';
+        let lineBuffer = '';
+        let lineIndex = 0;
+        const onLineReady = options?.onLineReady;
+
         for await (const token of llm.streamCompletion(
           `Begin the conversation about ${topic}.`,
           context,
           { temperature: 0.8, maxTokens: 1024 },
         )) {
           fullResponse += token;
+          lineBuffer += token;
+
+          // Check for complete lines (newline-delimited)
+          while (lineBuffer.includes('\n')) {
+            const newlinePos = lineBuffer.indexOf('\n');
+            const completeLine = lineBuffer.slice(0, newlinePos).trim();
+            lineBuffer = lineBuffer.slice(newlinePos + 1);
+
+            if (completeLine.length > 0 && onLineReady) {
+              const parsed = parseSingleLine(completeLine, npc1, npc2);
+              if (parsed) {
+                onLineReady(parsed.speakerName, parsed.speakerId, parsed.text, lineIndex);
+                lineIndex++;
+              }
+            }
+          }
         }
 
+        // Flush any remaining buffered line
+        const remaining = lineBuffer.trim();
+        if (remaining.length > 0 && onLineReady) {
+          const parsed = parseSingleLine(remaining, npc1, npc2);
+          if (parsed) {
+            onLineReady(parsed.speakerName, parsed.speakerId, parsed.text, lineIndex);
+          }
+        }
+
+        // Full parse for relationship updates and persistence
         exchanges = parseLlmConversation(fullResponse, npc1, npc2);
 
         // Fallback if LLM produced nothing usable
@@ -689,6 +772,7 @@ export {
   calculateExchangeCount,
   calculateRelationshipDelta,
   parseLlmConversation,
+  parseSingleLine,
   generateFallbackConversation,
   buildNpcNpcSystemPrompt,
   FALLBACK_TEMPLATES,

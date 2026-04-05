@@ -107,7 +107,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "npc-conversation-engine.ts accumulates full response into fullResponse before parsing — HIGH severity."
     },
     {

@@ -405,6 +405,7 @@ async function handleNpcToNpc(
   const { npc1Id, npc2Id, worldId, topic, languageCode = 'en' } = msg;
 
   const sessionId = `npc-npc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const startMs = Date.now();
   sendJSON(ws, { type: 'meta', sessionId, state: 'STARTED' });
 
   try {
@@ -415,13 +416,64 @@ async function handleNpcToNpc(
       // LLM not available — engine will use fallback templates
     }
 
+    // Track first line timing for latency metric
+    let firstLineTime: number | null = null;
+
+    // Resolve TTS provider once
+    let ttsProvider: ITTSProvider | null = options.ttsProvider ?? null;
+    if (!ttsProvider) {
+      try {
+        const ttsModule = await import('./tts/tts-provider.js');
+        ttsProvider = ttsModule.getTTSProvider?.() ?? null;
+      } catch { /* TTS not available */ }
+    }
+
     const result = await initiateConversation(npc1Id, npc2Id, worldId, {
       topic: topic || undefined,
       languageCode,
       llmProvider,
+      onLineReady: (speaker, speakerId, line, lineIndex) => {
+        if (firstLineTime === null) {
+          firstLineTime = Date.now() - startMs;
+        }
+
+        // Send per-line message immediately as each line is parsed
+        sendJSON(ws, {
+          type: 'npc_npc_line',
+          sessionId,
+          speaker,
+          speakerId,
+          line,
+          lineIndex,
+        });
+
+        // TTS per line if enabled (using SentenceAccumulator pattern)
+        if (ttsProvider) {
+          const voice = assignVoiceProfile({});
+          // Fire-and-forget TTS for each line
+          (async () => {
+            try {
+              const audioChunks = ttsProvider!.synthesize(line, voice, { languageCode });
+              for await (const chunk of audioChunks) {
+                sendBinary(ws, chunk.data instanceof Uint8Array ? chunk.data : new Uint8Array(chunk.data));
+                sendJSON(ws, {
+                  type: 'audio_meta',
+                  sessionId,
+                  speakerId,
+                  encoding: chunk.encoding,
+                  sampleRate: chunk.sampleRate,
+                  durationMs: chunk.durationMs,
+                });
+              }
+            } catch (err: any) {
+              console.error('[WS-Bridge] NpcToNpc TTS error:', err.message);
+            }
+          })();
+        }
+      },
     });
 
-    // Stream each exchange
+    // Also send full exchanges for clients that need the complete data
     for (const exchange of result.exchanges) {
       sendJSON(ws, {
         type: 'npc_exchange',
@@ -431,35 +483,11 @@ async function handleNpcToNpc(
         text: exchange.text,
         timestamp: exchange.timestamp,
       });
+    }
 
-      // Optional TTS per exchange
-      let ttsProvider: ITTSProvider | null = options.ttsProvider ?? null;
-      if (!ttsProvider) {
-        try {
-          const ttsModule = await import('./tts/tts-provider.js');
-          ttsProvider = ttsModule.getTTSProvider?.() ?? null;
-        } catch { /* TTS not available */ }
-      }
-
-      if (ttsProvider) {
-        const voice = assignVoiceProfile({});
-        try {
-          const audioChunks = ttsProvider.synthesize(exchange.text, voice, { languageCode });
-          for await (const chunk of audioChunks) {
-            sendBinary(ws, chunk.data instanceof Uint8Array ? chunk.data : new Uint8Array(chunk.data));
-            sendJSON(ws, {
-              type: 'audio_meta',
-              sessionId,
-              speakerId: exchange.speakerId,
-              encoding: chunk.encoding,
-              sampleRate: chunk.sampleRate,
-              durationMs: chunk.durationMs,
-            });
-          }
-        } catch (err: any) {
-          console.error('[WS-Bridge] NpcToNpc TTS error:', err.message);
-        }
-      }
+    // Record first-line latency metric
+    if (firstLineTime !== null) {
+      getConversationMetrics().record('npc_npc_first_line', firstLineTime);
     }
 
     // Send relationship delta

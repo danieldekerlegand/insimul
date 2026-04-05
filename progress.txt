@@ -27,6 +27,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
 - `GameMenuCallbacks` interface must be updated when adding new system settings — follow the AI Provider pattern: `getX()` getter + `onSetX()` setter
 ---
 
+## 2026-04-05 - US-006: Per-line streaming for NPC-NPC conversations
+- Added `OnLineReadyCallback` type and `onLineReady` optional callback to `NpcConversationOptions`
+- Created `parseSingleLine()` helper that extracts speaker/text from a single line (shared logic with `parseLlmConversation()`)
+- Replaced full-accumulation loop in `initiateConversation()` with incremental line parsing: detects newlines during token streaming and fires `onLineReady` for each complete speaker line
+- Flush logic handles final line without trailing newline
+- Full accumulation path preserved: `parseLlmConversation(fullResponse)` still runs after streaming for relationship updates and persistence
+- Added `npc_npc_line` WebSocket message type in ws-bridge.ts with `{ speaker, speakerId, line, lineIndex }`
+- TTS per-line: fire-and-forget TTS synthesis for each line as it's parsed (resolves TTS provider once upfront)
+- Also sends full `npc_exchange` messages after completion for backward compatibility
+- Added `npc_npc_first_line` metric stage to `MetricStage` type and recorded in ws-bridge after conversation completes
+- Files changed:
+  - `server/services/conversation/npc-conversation-engine.ts` — parseSingleLine(), onLineReady callback, incremental parsing loop
+  - `server/services/conversation/ws-bridge.ts` — npc_npc_line messages, first-line metric, per-line TTS
+  - `server/services/conversation/conversation-metrics.ts` — npc_npc_first_line stage
+  - `server/__tests__/npc-per-line-streaming.test.ts` — 17 new tests
+- **Learnings for future iterations:**
+  - `parseLlmConversation()` line parsing logic is duplicated in `parseSingleLine()` — could be refactored to share, but kept separate for clarity and zero-allocation streaming path
+  - The LLM stream yields variable-size chunks (sometimes chars, sometimes words) — line detection must buffer across chunk boundaries
+  - `assignVoiceProfile({})` has a pre-existing type error (expects CharacterVoiceAttributes) — not introduced by this change
+  - ws-bridge `handleNpcToNpc` already sends per-exchange messages; the new `npc_npc_line` type fires during streaming while `npc_exchange` fires after completion
+---
+
 ## 2026-04-05 - US-008: Enforce vocabulary frequency ranges in LLM prompts
 - Created `shared/language/vocabulary-frequency.ts` — vocabulary frequency enforcement module with:
   - `getFrequencyRange()` — maps CEFR level to frequency range with human-readable labels

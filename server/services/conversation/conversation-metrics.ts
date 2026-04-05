@@ -23,6 +23,7 @@ export type MetricStage =
   | 'tts_first_chunk'
   | 'tts_total'
   | 'viseme'
+  | 'npc_npc_first_line'
   | 'end_to_end';
 
 export interface LatencyEntry {
