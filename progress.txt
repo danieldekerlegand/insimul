@@ -2,6 +2,64 @@
 Started: Sun Mar 29 13:53:35 CDT 2026
 ---
 
+## Codebase Patterns
+- Canonical mastery thresholds live in `shared/language/vocabulary-constants.ts` — all mastery checks must import from there
+- `MasteryLevel` type is defined in `shared/feature-modules/knowledge-acquisition/types.ts` and re-exported from `shared/language/progress.ts`
+- `calculateMasteryLevel()` in progress.ts has an encounter-based fallback (promotes to 'learning' at 2+ encounters even with 0 correct uses) — this is intentional and separate from the correct-use thresholds
+- `systemPromptBuilder` in InsimulClient is called on every `sendText()` — dynamic prompt modifications (scaffolding, stretch) work by invalidating `_cachedSystemPrompt` and letting the next call rebuild it
+- Test files must be under `shared/__tests__/`, `server/__tests__/`, or `client/__tests__/` (not `shared/game-engine/__tests__/`) to match vitest include patterns
+- `WorldLanguageContext` has no `nativeLanguage` field — use hardcoded 'English' or derive from world data
+- Engine drift hook blocks commits when `shared/game-engine/rendering/` files change — run `npm run drift:update` after changes to BabylonChatPanel.ts
+---
+
+## 2026-04-05 - US-006: Dynamic mid-conversation scaffolding
+- Created `shared/game-engine/logic/ConversationDifficultyMonitor.ts` — tracks per-turn struggle metrics (grammar error rate, target language usage, response length, quality score), computes weighted struggle score (0-1), triggers scaffolding (>0.6 for 2+ turns) or stretch challenge (<0.2 for 3+ turns), with de-escalation logic
+- Added `buildScaffoldingDirective()` to `shared/language/cefr-adaptation.ts` — produces system prompt directives for scaffolded mode (simpler speech, inline translations, shorter sentences) and stretch mode (advanced vocabulary, complex structures, open-ended questions)
+- Integrated monitor into `shared/game-engine/rendering/BabylonChatPanel.ts`:
+  - `recordDifficultyMetrics()` called after each player message analysis in `processAssistantResponse()`
+  - When scaffolding/stretch triggers, invalidates `_cachedSystemPrompt` so next NPC response includes the directive
+  - Scaffolding directive injected in `buildSystemPrompt()` between quest guidance and relationship context
+  - Subtle visual indicator ("Adjusting..." in amber / "Challenge" in green) shown in chat panel header
+  - Monitor resets on `show()` (new conversation)
+- Added `getConversationGrammarCounts()` getter to `LanguageProgressTracker.ts` to expose per-conversation grammar error/correct counts
+- Files changed:
+  - `shared/game-engine/logic/ConversationDifficultyMonitor.ts` — new monitor class
+  - `shared/language/cefr-adaptation.ts` — added `buildScaffoldingDirective()`
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — integrated monitor, visual indicator
+  - `shared/game-engine/logic/LanguageProgressTracker.ts` — added grammar counts getter
+  - `shared/__tests__/ConversationDifficultyMonitor.test.ts` — 22 tests
+  - `shared/__tests__/cefr-adaptation.test.ts` — 4 new scaffolding directive tests
+- **Learnings for future iterations:**
+  - BabylonChatPanel.ts `buildSystemPrompt()` caches per character; set `_cachedSystemPrompt = null` to force rebuild when dynamic state changes
+  - Grammar counts on LanguageProgressTracker were private — needed a public getter for the monitor
+  - vitest include patterns don't cover `shared/game-engine/__tests__/` — tests must go under `shared/__tests__/`
+  - Engine drift hook runs on commit for rendering files — must `npm run drift:update` before committing
+---
+
+## 2026-04-05 - US-005: Fix mastery threshold inconsistency
+- Created `shared/language/vocabulary-constants.ts` as single source of truth for MASTERY_THRESHOLDS (new=0, learning=3, familiar=5, mastered=8), REVIEW_INTERVALS, and helper functions
+- Updated `cefr-adaptation.ts` `isWordMastered()` — was 5 encounters + 1 correct use, now re-exports from vocabulary-constants (1+ encounter + 8+ correct uses)
+- Updated `progress.ts` `calculateMasteryLevel()` to import `getMasteryForCorrectCount` and `ENCOUNTER_LEARNING_THRESHOLD` from shared constants
+- Updated `vocabulary-review.ts` — removed local MASTERY_THRESHOLDS/REVIEW_INTERVALS, imports from vocabulary-constants
+- Updated `feature-modules/knowledge-acquisition/types.ts` — DEFAULT_MASTERY_THRESHOLDS now imports from vocabulary-constants
+- Updated `feature-modules/language-learning-config.ts` — uses imported MASTERY_THRESHOLDS instead of inline object
+- Updated `shared/__tests__/cefr-adaptation.test.ts` — test expectations match new canonical thresholds
+- Created `shared/__tests__/mastery-consistency.test.ts` — 14 tests verifying all mastery locations agree
+- Files changed:
+  - `shared/language/vocabulary-constants.ts` — new canonical source
+  - `shared/language/cefr-adaptation.ts` — re-exports isWordMastered
+  - `shared/language/progress.ts` — imports from vocabulary-constants
+  - `shared/language/vocabulary-review.ts` — imports from vocabulary-constants
+  - `shared/feature-modules/knowledge-acquisition/types.ts` — imports from vocabulary-constants
+  - `shared/feature-modules/language-learning-config.ts` — imports MASTERY_THRESHOLDS
+  - `shared/__tests__/mastery-consistency.test.ts` — new test suite
+  - `shared/__tests__/cefr-adaptation.test.ts` — updated expectations
+- **Learnings for future iterations:**
+  - `isWordMastered()` was the only outlier (5 encounters + 1 use vs 8 correct uses); all other locations already agreed on 3/5/8
+  - Re-exporting a name from module A into module B means module B can't use that name locally unless you also import it (TypeScript re-exports don't create local bindings)
+  - `DEFAULT_MASTERY_THRESHOLDS` in knowledge-acquisition/types.ts is used as default parameter in `calculateMastery()` and `processReview()` — must be a local const, not just a re-export
+---
+
 ## 2026-04-03 - Audit: Vocabulary System — Spaced Repetition, Word Tracking, and Reward Integration
 - **Audit findings**: 3 issues found in vocabulary system:
   1. **Mastery calculation mismatch**: `calculateMasteryLevel()` in `progress.ts` used different thresholds (10 correct + 15 encounters for mastered) than `getMasteryForCorrectCount()` in `vocabulary-review.ts` (8 correct). A word could be "mastered" in SRS review but only "familiar" in LanguageProgressTracker.
