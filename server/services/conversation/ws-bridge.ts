@@ -27,6 +27,11 @@ import { splitAtSentenceBoundaries, assignVoiceProfile } from './tts/tts-provide
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
 import { initiateConversation } from './npc-conversation-engine.js';
+import {
+  conversationContextCache,
+  ConversationContextCache,
+} from './conversation-context-cache.js';
+import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -96,17 +101,43 @@ async function handleTextInput(
   }
   connectionSessions.set(ws, sessionId);
 
-  // Build context on first message or character change
+  // Build context on first message or character change, using cache when possible
   if (!session.conversationContext || session.characterId !== characterId) {
     session.characterId = characterId;
-    try {
-      const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId);
-      session.conversationContext = fullCtx.conversationContext;
-    } catch {
-      session.conversationContext = {
-        systemPrompt: 'You are an NPC in a game world. Respond in character.',
-        characterName: characterId,
-      };
+    const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
+    const cached = conversationContextCache.get(cacheKey);
+
+    if (cached?.formattedContext) {
+      // Cache hit — restore LLM context from cached data
+      const contextTimer = new PipelineTimer('context_cache_hit');
+      try {
+        session.conversationContext = JSON.parse(cached.formattedContext);
+      } catch {
+        session.conversationContext = null;
+      }
+      contextTimer.stop();
+    }
+
+    if (!session.conversationContext) {
+      // Cache miss — full buildContext() call
+      const contextTimer = new PipelineTimer('context_cache_miss');
+      try {
+        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId);
+        session.conversationContext = fullCtx.conversationContext;
+
+        // Store in cache for follow-up turns
+        conversationContextCache.set(cacheKey, {
+          messages: [],
+          formattedContext: JSON.stringify(fullCtx.conversationContext),
+          systemPrompt: fullCtx.conversationContext.systemPrompt,
+        });
+      } catch {
+        session.conversationContext = {
+          systemPrompt: 'You are an NPC in a game world. Respond in character.',
+          characterName: characterId,
+        };
+      }
+      contextTimer.stop();
     }
   }
 
@@ -231,6 +262,11 @@ async function handleTextInput(
   // Store response
   if (fullResponse) {
     addToHistory(session, 'assistant', fullResponse);
+
+    // Append messages to context cache for follow-up continuity
+    const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
+    conversationContextCache.append(cacheKey, { role: 'user', content: text });
+    conversationContextCache.append(cacheKey, { role: 'assistant', content: fullResponse });
   }
 
   sendJSON(ws, { type: 'done' });
@@ -441,6 +477,30 @@ function handleSystemCommand(
   }
 }
 
+// ── Context cache invalidation ────────────────────────────────────────
+
+/**
+ * Invalidate cached context for a specific NPC conversation.
+ * Called when CEFR level changes, quests change, relationships change,
+ * or world time advances significantly.
+ *
+ * If characterId and playerId are provided, invalidates that specific conversation.
+ * Otherwise, clears the entire cache (e.g., world time advance > 1 game hour).
+ */
+export function invalidateContextCache(
+  worldId: string,
+  characterId?: string,
+  playerId?: string,
+): void {
+  if (characterId && playerId) {
+    const key = ConversationContextCache.chatKey(worldId, characterId, playerId);
+    conversationContextCache.delete(key);
+  } else {
+    // World-level invalidation — clear entire cache
+    conversationContextCache.clear();
+  }
+}
+
 // ── WebSocket server lifecycle ────────────────────────────────────────
 
 let wss: WebSocketServer | null = null;
@@ -496,6 +556,16 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
         } else if (message.npcToNpc) {
           const { npc1Id, npc2Id, worldId, topic, languageCode } = message.npcToNpc;
           await handleNpcToNpc(ws, { npc1Id, npc2Id, worldId, topic, languageCode }, options);
+        } else if (message.invalidateContext) {
+          // Cache invalidation: client signals context change (CEFR level, quest, relationship, time)
+          const { worldId, characterId, playerId, reason } = message.invalidateContext;
+          invalidateContextCache(worldId, characterId, playerId);
+          // Also clear session context so next turn rebuilds
+          if (currentSessionId) {
+            const sess = getSession(currentSessionId);
+            if (sess) sess.conversationContext = null;
+          }
+          sendJSON(ws, { type: 'context_invalidated', reason });
         } else if (message.resumeSession) {
           // Reconnection: client provides previous sessionId to resume
           const { sessionId } = message.resumeSession;
