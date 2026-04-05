@@ -20,7 +20,7 @@ import {
   endSession,
 } from './grpc-server.js';
 import { getProvider } from './providers/provider-registry.js';
-import { buildContext } from './context-manager.js';
+import { buildContext, getLastPromptSectionTokens } from './context-manager.js';
 import type { IStreamingLLMProvider, ConversationContext } from './providers/llm-provider.js';
 import type { ITTSProvider, VoiceProfile } from './tts/tts-provider.js';
 import { splitAtSentenceBoundaries, assignVoiceProfile } from './tts/tts-provider.js';
@@ -103,6 +103,9 @@ async function handleTextInput(
   }
   connectionSessions.set(ws, sessionId);
 
+  // Derive turn number from conversation history (each turn = 1 user + 1 assistant message)
+  const turnNumber = Math.floor(session.history.length / 2) + 1;
+
   // Build context on first message or character change, using cache when possible
   if (!session.conversationContext || session.characterId !== characterId) {
     session.characterId = characterId;
@@ -124,15 +127,23 @@ async function handleTextInput(
       // Cache miss — full buildContext() call
       const contextTimer = new PipelineTimer('context_cache_miss');
       try {
-        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId);
+        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, undefined, turnNumber);
         session.conversationContext = fullCtx.conversationContext;
 
-        // Store in cache for follow-up turns
-        conversationContextCache.set(cacheKey, {
-          messages: [],
-          formattedContext: JSON.stringify(fullCtx.conversationContext),
-          systemPrompt: fullCtx.conversationContext.systemPrompt,
-        });
+        // Store full context in cache (turn 1 prompt for future cache hits)
+        if (turnNumber === 1) {
+          conversationContextCache.set(cacheKey, {
+            messages: [],
+            formattedContext: JSON.stringify(fullCtx.conversationContext),
+            systemPrompt: fullCtx.conversationContext.systemPrompt,
+          });
+        }
+
+        // Record context token count metric
+        const sectionTokens = getLastPromptSectionTokens();
+        if (sectionTokens) {
+          getConversationMetrics().record('context_tokens', sectionTokens.total);
+        }
       } catch {
         session.conversationContext = {
           systemPrompt: 'You are an NPC in a game world. Respond in character.',
@@ -140,6 +151,23 @@ async function handleTextInput(
         };
       }
       contextTimer.stop();
+    }
+  } else if (turnNumber >= 2) {
+    // Follow-up turn with existing context — rebuild system prompt with trimmed content.
+    // The expensive DB data is already cached; only the prompt text shrinks.
+    try {
+      const trimmedCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, undefined, turnNumber);
+      session.conversationContext = {
+        ...session.conversationContext,
+        systemPrompt: trimmedCtx.conversationContext.systemPrompt,
+      };
+
+      const sectionTokens = getLastPromptSectionTokens();
+      if (sectionTokens) {
+        getConversationMetrics().record('context_tokens', sectionTokens.total);
+      }
+    } catch {
+      // Keep existing full context if trimming fails
     }
   }
 

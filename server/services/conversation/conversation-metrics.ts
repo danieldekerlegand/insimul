@@ -14,6 +14,7 @@ export type MetricStage =
   | 'context'
   | 'context_cache_hit'
   | 'context_cache_miss'
+  | 'context_tokens'
   | 'pre_warm'
   | 'greeting_cache_hit'
   | 'greeting_cache_miss'
@@ -109,7 +110,7 @@ export class ConversationMetricsCollector {
   getSnapshot(): ConversationMetricsSnapshot {
     const stages: Record<string, StagePercentiles> = {};
     const allStages: MetricStage[] = [
-      'stt', 'context', 'context_cache_hit', 'context_cache_miss', 'pre_warm',
+      'stt', 'context', 'context_cache_hit', 'context_cache_miss', 'context_tokens', 'pre_warm',
       'greeting_cache_hit', 'greeting_cache_miss',
       'llm_first_token', 'llm_total',
       'tts_first_chunk', 'tts_total', 'viseme', 'end_to_end',

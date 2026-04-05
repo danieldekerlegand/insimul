@@ -310,6 +310,7 @@ export async function buildContext(
     playerGrammarPatterns?: GrammarPattern[];
     prologFacts?: SerializedFact[];
   },
+  turnNumber: number = 1,
 ): Promise<FullConversationContext> {
   const storage = storageOverride ?? defaultStorage;
 
@@ -455,6 +456,7 @@ export async function buildContext(
     playerRel,
     settlement: characterSettlement ?? null,
     mvtContext: mvtContext || null,
+    turnNumber,
   });
 
   return {
@@ -519,81 +521,114 @@ interface PromptParts {
   playerRel: { friendshipLevel: number; romanceStage: string; trust: number; previousTopics: string[] };
   settlement: Settlement | null;
   mvtContext: string | null;
+  turnNumber: number;
+}
+
+/** Estimated token count for a string (~4 chars per token). */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** Section-level token counts logged on each prompt build. */
+export interface PromptSectionTokens {
+  character: number;
+  world: number;
+  environment: number;
+  relationships: number;
+  quests: number;
+  language: number;
+  total: number;
+  turnNumber: number;
+}
+
+/** Last computed section token counts (for metrics/debugging). */
+let _lastSectionTokens: PromptSectionTokens | null = null;
+
+/** Returns the token counts from the most recent buildSystemPrompt() call. */
+export function getLastPromptSectionTokens(): PromptSectionTokens | null {
+  return _lastSectionTokens;
 }
 
 function buildSystemPrompt(p: PromptParts): string {
-  const lines: string[] = [];
+  const isFollowUp = p.turnNumber >= 2;
+  const sectionLines: Record<string, string[]> = {
+    character: [],
+    world: [],
+    environment: [],
+    relationships: [],
+    quests: [],
+    language: [],
+  };
 
-  // Identity
-  lines.push(`You are ${p.character.firstName} ${p.character.lastName}, a character in the world of ${p.world.name}.`);
-  if (p.character.gender) lines.push(`Gender: ${p.character.gender}.`);
-  if (p.character.birthYear) lines.push(`Born: year ${p.character.birthYear}.`);
-
-  // Personality
-  lines.push(`Personality (Big Five): ${personalitySummary(p.personality)}.`);
-
-  // Occupation & workplace context
+  // ── Character section (always full) ────────────────────────────────
+  sectionLines.character.push(`You are ${p.character.firstName} ${p.character.lastName}, a character in the world of ${p.world.name}.`);
+  if (p.character.gender) sectionLines.character.push(`Gender: ${p.character.gender}.`);
+  if (p.character.birthYear) sectionLines.character.push(`Born: year ${p.character.birthYear}.`);
+  sectionLines.character.push(`Personality (Big Five): ${personalitySummary(p.personality)}.`);
   if (p.occupationName) {
-    lines.push(`Occupation: ${p.occupationName}${p.workplace ? ` at ${p.workplace}` : ''}.`);
+    sectionLines.character.push(`Occupation: ${p.occupationName}${p.workplace ? ` at ${p.workplace}` : ''}.`);
   }
   if (p.businessContext) {
-    lines.push(`Workplace context: ${p.businessContext}`);
+    sectionLines.character.push(`Workplace context: ${p.businessContext}`);
   }
 
-  // Location, time & weather
-  if (p.settlement) {
-    lines.push(`You live in the ${p.settlement.settlementType} of ${p.settlement.name}.`);
-    if (p.settlement.description) {
-      const desc = p.settlement.description.length > 150
-        ? p.settlement.description.slice(0, 150) + '...'
-        : p.settlement.description;
-      lines.push(`About ${p.settlement.name}: ${desc}`);
+  // ── World section (condensed on follow-up) ─────────────────────────
+  if (isFollowUp) {
+    // Condensed: one-line world reference
+    sectionLines.world.push(`World: ${p.world.name}, ${p.era}.`);
+  } else {
+    sectionLines.world.push(`World: ${p.world.name}, ${p.era}.`);
+    if (p.world.worldType) sectionLines.world.push(`Setting: ${p.world.worldType}.`);
+    if (p.worldLanguageNames.length > 0) {
+      sectionLines.world.push(`Languages spoken: ${p.worldLanguageNames.join(', ')}.`);
+    }
+    if (p.world.description) {
+      const desc = p.world.description.length > 200
+        ? p.world.description.slice(0, 200) + '...'
+        : p.world.description;
+      sectionLines.world.push(`World description: ${desc}`);
     }
   }
+
+  // ── Environment section (condensed on follow-up) ───────────────────
   const weatherDesc = describeWeather(p.weather);
-  lines.push(`Current location: ${p.character.currentLocation}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
-  if (p.season) {
-    lines.push(`Season: ${p.season}.`);
+  if (isFollowUp) {
+    // Condensed: just time and weather on one line, skip settlement description
+    sectionLines.environment.push(`Location: ${p.character.currentLocation}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
+  } else {
+    if (p.settlement) {
+      sectionLines.environment.push(`You live in the ${p.settlement.settlementType} of ${p.settlement.name}.`);
+      if (p.settlement.description) {
+        const desc = p.settlement.description.length > 150
+          ? p.settlement.description.slice(0, 150) + '...'
+          : p.settlement.description;
+        sectionLines.environment.push(`About ${p.settlement.name}: ${desc}`);
+      }
+    }
+    sectionLines.environment.push(`Current location: ${p.character.currentLocation}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
+    if (p.season) {
+      sectionLines.environment.push(`Season: ${p.season}.`);
+    }
   }
 
-  // Family
-  if (p.family.length > 0) {
-    lines.push(`Family: ${p.family.join(', ')}.`);
+  // ── Relationships section (always full for player rel, condensed others) ──
+  if (!isFollowUp) {
+    if (p.family.length > 0) {
+      sectionLines.relationships.push(`Family: ${p.family.join(', ')}.`);
+    }
+    sectionLines.relationships.push(`Romantic status: ${p.romantic}.`);
+    if (p.friendships.length > 0) {
+      const fList = p.friendships.map((f) => f.characterName).join(', ');
+      sectionLines.relationships.push(`Friends: ${fList}.`);
+    }
+    if (p.enemies.length > 0) {
+      const eList = p.enemies.map((e) => e.characterName).join(', ');
+      sectionLines.relationships.push(`Rivals/enemies: ${eList}.`);
+    }
   }
+  sectionLines.relationships.push(`Current mood: ${p.emotion}.`);
 
-  // Romantic status
-  lines.push(`Romantic status: ${p.romantic}.`);
-
-  // Friends
-  if (p.friendships.length > 0) {
-    const fList = p.friendships.map((f) => f.characterName).join(', ');
-    lines.push(`Friends: ${fList}.`);
-  }
-
-  // Enemies
-  if (p.enemies.length > 0) {
-    const eList = p.enemies.map((e) => e.characterName).join(', ');
-    lines.push(`Rivals/enemies: ${eList}.`);
-  }
-
-  // Emotional state
-  lines.push(`Current mood: ${p.emotion}.`);
-
-  // World context
-  lines.push(`World: ${p.world.name}, ${p.era}.`);
-  if (p.world.worldType) lines.push(`Setting: ${p.world.worldType}.`);
-  if (p.worldLanguageNames.length > 0) {
-    lines.push(`Languages spoken: ${p.worldLanguageNames.join(', ')}.`);
-  }
-  if (p.world.description) {
-    // Truncate long descriptions
-    const desc = p.world.description.length > 200
-      ? p.world.description.slice(0, 200) + '...'
-      : p.world.description;
-    lines.push(`World description: ${desc}`);
-  }
-
-  // Relationship with player
+  // Player relationship — always full
   const relLevel = p.playerRel.friendshipLevel;
   const relLabel =
     relLevel >= 0.6
@@ -603,32 +638,31 @@ function buildSystemPrompt(p: PromptParts): string {
         : relLevel > -0.2
           ? 'stranger'
           : 'disliked';
-  lines.push(`Relationship with player: ${relLabel} (trust: ${p.playerRel.trust.toFixed(1)}).`);
+  sectionLines.relationships.push(`Relationship with player: ${relLabel} (trust: ${p.playerRel.trust.toFixed(1)}).`);
   if (p.playerRel.romanceStage !== 'none') {
-    lines.push(`Romance stage: ${p.playerRel.romanceStage}.`);
+    sectionLines.relationships.push(`Romance stage: ${p.playerRel.romanceStage}.`);
   }
   if (p.playerRel.previousTopics.length > 0) {
-    lines.push(`Previously discussed: ${p.playerRel.previousTopics.slice(0, 5).join(', ')}.`);
+    sectionLines.relationships.push(`Previously discussed: ${p.playerRel.previousTopics.slice(0, 5).join(', ')}.`);
   }
 
-  // Player game state (from Prolog MVT facts)
-  if (p.mvtContext) {
-    lines.push(`\n${p.mvtContext}`);
+  // Player game state (from Prolog MVT facts) — only on turn 1
+  if (p.mvtContext && !isFollowUp) {
+    sectionLines.relationships.push(`\n${p.mvtContext}`);
   }
 
-  // Language learning directives
+  // ── Language section (always full) ─────────────────────────────────
   if (p.languageLearning) {
     const ll = p.languageLearning;
-    lines.push(`\nLANGUAGE LEARNING MODE:`);
-    lines.push(`Target language: ${ll.targetLanguage}${ll.targetLanguageCode ? ` (${ll.targetLanguageCode})` : ''}.`);
-    lines.push(`Player proficiency: ${ll.playerProficiency}.`);
+    sectionLines.language.push(`\nLANGUAGE LEARNING MODE:`);
+    sectionLines.language.push(`Target language: ${ll.targetLanguage}${ll.targetLanguageCode ? ` (${ll.targetLanguageCode})` : ''}.`);
+    sectionLines.language.push(`Player proficiency: ${ll.playerProficiency}.`);
     if (ll.learnedVocabulary.length > 0) {
-      lines.push(`Known vocabulary: ${ll.learnedVocabulary.slice(0, 20).join(', ')}.`);
+      sectionLines.language.push(`Known vocabulary: ${ll.learnedVocabulary.slice(0, 20).join(', ')}.`);
     }
-    lines.push(`Incorporate the target language naturally. For a ${ll.playerProficiency} learner, adjust complexity accordingly.`);
-    lines.push(`CRITICAL: Your ENTIRE response is read aloud by TTS. Respond with ONLY natural spoken dialogue — no English translations, no glosses, no parenthetical hints, no vocabulary blocks, no structured data, no markup of any kind.`);
+    sectionLines.language.push(`Incorporate the target language naturally. For a ${ll.playerProficiency} learner, adjust complexity accordingly.`);
+    sectionLines.language.push(`CRITICAL: Your ENTIRE response is read aloud by TTS. Respond with ONLY natural spoken dialogue — no English translations, no glosses, no parenthetical hints, no vocabulary blocks, no structured data, no markup of any kind.`);
 
-    // Vocabulary review & grammar focus prompt
     const vocabGrammarPrompt = buildVocabGrammarPrompt({
       reviewWords: p.reviewWords,
       weakGrammarPatterns: p.weakGrammarPatterns,
@@ -636,55 +670,89 @@ function buildSystemPrompt(p: PromptParts): string {
       targetLanguage: ll.targetLanguage,
     });
     if (vocabGrammarPrompt) {
-      lines.push(vocabGrammarPrompt);
+      sectionLines.language.push(vocabGrammarPrompt);
     }
   }
 
-  // Quest awareness — NPC knows about quests they assigned
+  // ── Quest section (condensed on follow-up) ─────────────────────────
   const npcQuests = p.activeQuests.filter(q => q.assignedByThisNPC);
   const otherQuests = p.activeQuests.filter(q => !q.assignedByThisNPC && q.status === 'active');
-  if (npcQuests.length > 0) {
-    const questLines = npcQuests.map(q => {
-      if (q.status === 'active') return `"${q.questName}" (in progress — you can ask about progress)`;
-      if (q.status === 'completed') return `"${q.questName}" (completed — express gratitude)`;
-      if (q.status === 'failed') return `"${q.questName}" (failed — react based on personality)`;
-      return `"${q.questName}" (${q.status})`;
-    });
-    lines.push(`Quests you gave the player: ${questLines.join('; ')}.`);
-  }
-  if (otherQuests.length > 0 && otherQuests.length <= 3) {
-    lines.push(`You've heard the player is working on: ${otherQuests.map(q => q.questName).join(', ')}.`);
+
+  if (isFollowUp) {
+    // Condensed: IDs + current objective only
+    if (npcQuests.length > 0) {
+      const condensed = npcQuests.map(q => `"${q.questName}" (${q.status})`).join('; ');
+      sectionLines.quests.push(`Your quests for player: ${condensed}.`);
+    }
+  } else {
+    if (npcQuests.length > 0) {
+      const questLines = npcQuests.map(q => {
+        if (q.status === 'active') return `"${q.questName}" (in progress — you can ask about progress)`;
+        if (q.status === 'completed') return `"${q.questName}" (completed — express gratitude)`;
+        if (q.status === 'failed') return `"${q.questName}" (failed — react based on personality)`;
+        return `"${q.questName}" (${q.status})`;
+      });
+      sectionLines.quests.push(`Quests you gave the player: ${questLines.join('; ')}.`);
+    }
+    if (otherQuests.length > 0 && otherQuests.length <= 3) {
+      sectionLines.quests.push(`You've heard the player is working on: ${otherQuests.map(q => q.questName).join(', ')}.`);
+    }
   }
 
-  // Player progress awareness
-  if (p.playerProgress.isNewToTown) {
-    lines.push(`The player is new in town. React based on your personality — welcome them or be cautious.`);
-  } else if (p.playerProgress.questsCompleted > 5) {
-    lines.push(`The player is well-known locally, having completed ${p.playerProgress.questsCompleted} tasks for the community.`);
-  } else if (p.playerProgress.questsCompleted > 0) {
-    lines.push(`The player has helped around town (${p.playerProgress.questsCompleted} tasks completed).`);
+  // Player progress — only on turn 1
+  if (!isFollowUp) {
+    if (p.playerProgress.isNewToTown) {
+      sectionLines.quests.push(`The player is new in town. React based on your personality — welcome them or be cautious.`);
+    } else if (p.playerProgress.questsCompleted > 5) {
+      sectionLines.quests.push(`The player is well-known locally, having completed ${p.playerProgress.questsCompleted} tasks for the community.`);
+    } else if (p.playerProgress.questsCompleted > 0) {
+      sectionLines.quests.push(`The player has helped around town (${p.playerProgress.questsCompleted} tasks completed).`);
+    }
   }
 
-  // Weather-aware behavioral hint
-  if (p.weather === 'storm' || p.weather === 'rain') {
-    lines.push(`The weather is ${weatherDesc} — you might comment on it or suggest shelter.`);
+  // Weather-aware behavioral hint — only on turn 1
+  if (!isFollowUp && (p.weather === 'storm' || p.weather === 'rain')) {
+    sectionLines.environment.push(`The weather is ${weatherDesc} — you might comment on it or suggest shelter.`);
   }
 
-  // Main quest NPC context
+  // Main quest NPC context — always included (important for quest NPCs)
   if (isMainQuestNPC(p.character)) {
     const mqDef = getMainQuestNPCDefinition(p.character);
     if (mqDef) {
-      lines.push(`\nMAIN QUEST ROLE: ${mqDef.role.replace(/_/g, ' ').toUpperCase()}`);
-      lines.push(mqDef.conversationContext);
-      // Include all chapter hints the NPC has — the LLM will adapt based on conversation
+      sectionLines.quests.push(`\nMAIN QUEST ROLE: ${mqDef.role.replace(/_/g, ' ').toUpperCase()}`);
+      sectionLines.quests.push(mqDef.conversationContext);
       for (const [chapterId, hint] of Object.entries(mqDef.chapterHints)) {
-        lines.push(`[If the player is on ${chapterId}]: ${hint}`);
+        sectionLines.quests.push(`[If the player is on ${chapterId}]: ${hint}`);
       }
     }
   }
 
-  // Behavioral instructions
+  // ── Assemble final prompt ──────────────────────────────────────────
+  const lines: string[] = [
+    ...sectionLines.character,
+    ...sectionLines.environment,
+    ...sectionLines.relationships,
+    ...sectionLines.world,
+    ...sectionLines.language,
+    ...sectionLines.quests,
+  ];
+
+  // Behavioral instructions (always included)
   lines.push(`\nStay in character. Respond as ${p.character.firstName} would based on personality, mood, and current surroundings. Keep responses concise and natural.`);
 
-  return lines.join('\n');
+  const prompt = lines.join('\n');
+
+  // Log section token counts
+  _lastSectionTokens = {
+    character: estimateTokens(sectionLines.character.join('\n')),
+    world: estimateTokens(sectionLines.world.join('\n')),
+    environment: estimateTokens(sectionLines.environment.join('\n')),
+    relationships: estimateTokens(sectionLines.relationships.join('\n')),
+    quests: estimateTokens(sectionLines.quests.join('\n')),
+    language: estimateTokens(sectionLines.language.join('\n')),
+    total: estimateTokens(prompt),
+    turnNumber: p.turnNumber,
+  };
+
+  return prompt;
 }
