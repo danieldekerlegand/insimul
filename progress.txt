@@ -1375,3 +1375,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - A1→A2 has textsRead=0, so textsProgress is always 1.0 — don't assert it equals 0
   - Pre-existing TS errors (831) are unrelated to assessment-adaptation code; new test files compile cleanly
 ---
+
+## 2026-04-05 - US-001: Wire context caching into ws-bridge
+- Wired `ConversationContextCache` singleton into `ws-bridge.ts` `handleTextInput()`:
+  - On first message/character change, checks cache via `chatKey(worldId, characterId, playerId)` before calling `buildContext()`
+  - On cache hit, restores LLM `ConversationContext` from `formattedContext` (JSON serialized)
+  - On cache miss, calls `buildContext()` and stores result in cache via `set()` with `formattedContext` containing serialized LLM context
+  - After each exchange, appends user + assistant messages to cache via `append()` for conversation continuity
+- Added `context_cache_hit` and `context_cache_miss` metric stages to `MetricStage` type in `conversation-metrics.ts`
+- Added `invalidateContextCache(worldId, characterId?, playerId?)` export for server-side cache invalidation
+- Added `invalidateContext` WebSocket message handler for client-triggered invalidation (CEFR change, quest, relationship, time advance)
+- Created 18 tests in `server/__tests__/conversation-context-cache-integration.test.ts` covering:
+  - chatKey generation, hit/miss, TTL expiry, LRU eviction, append, invalidation triggers, MetricStage types, singleton
+- Files changed:
+  - `server/services/conversation/ws-bridge.ts` — cache integration, invalidation handler, invalidateContextCache export
+  - `server/services/conversation/conversation-metrics.ts` — added context_cache_hit/miss MetricStage values
+  - `server/__tests__/conversation-context-cache-integration.test.ts` — 18 new tests
+- **Learnings for future iterations:**
+  - `ConversationContextCache.ConversationContext` (messages/formattedContext/systemPrompt) is distinct from the LLM provider's `ConversationContext` (systemPrompt/characterName/worldContext/characterGender) — store the LLM context as JSON in `formattedContext`
+  - `session.conversationContext` must be nulled when invalidating cache, otherwise the session check `!session.conversationContext` won't trigger a rebuild
+  - The `sessions` Map in grpc-server.ts is private — use `getSession(sessionId)` to access individual sessions; for world-level invalidation, `cache.clear()` is simplest
+  - Pre-existing TS errors in ws-bridge.ts (line ~415, `assignVoiceProfile({})`) and many client files — these are not caused by this change
+---

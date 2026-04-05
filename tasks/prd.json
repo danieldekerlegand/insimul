@@ -17,7 +17,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "ConversationContextCache exists at conversation-context-cache.ts with LRU (max 200, 30-min TTL) and chatKey(), but ws-bridge.ts calls buildContext() unconditionally at lines 100-111. Expected: -0.5s per follow-up turn."
     },
     {
