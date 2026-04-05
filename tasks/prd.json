@@ -123,7 +123,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "assignNPCLanguageMode() uses deterministic hash of NPC ID + CEFR distributions. Mode should naturally update if called with new cefrLevel."
     },
     {
@@ -140,7 +140,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "cefrToVocabularyRange() at line 302 maps levels to frequency ranks but is never enforced in LLM prompts."
     },
     {

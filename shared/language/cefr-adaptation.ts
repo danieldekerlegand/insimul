@@ -8,6 +8,7 @@
  */
 
 import type { CEFRLevel } from '../assessment/cefr-mapping';
+import { buildFrequencyDirective, getFrequencyRange } from './vocabulary-frequency.js';
 
 // ── NPC Language Mode ────────────────────────────────────────────────────────
 
@@ -52,31 +53,44 @@ export function assignNPCLanguageMode(
 
 /**
  * Build a system prompt directive for an NPC's language mode.
+ * Optionally includes vocabulary frequency constraints when cefrLevel is provided.
  */
 export function buildLanguageModeDirective(
   mode: NPCLanguageMode,
   targetLanguage: string,
   nativeLanguage: string = 'English',
+  cefrLevel?: CEFRLevel,
 ): string {
+  let directive: string;
   switch (mode) {
     case 'bilingual':
-      return `LANGUAGE MODE — BILINGUAL:\n` +
+      directive = `LANGUAGE MODE — BILINGUAL:\n` +
         `Mix ${nativeLanguage} and ${targetLanguage} in your responses. ` +
         `Say important words in both languages. For example: "Le pain — the bread — c'est très bon!" ` +
         `Gradually use more ${targetLanguage} as the conversation progresses. ` +
         `If the player writes in ${nativeLanguage}, respond with a mix but lean toward ${targetLanguage}.\n`;
+      break;
     case 'simplified':
-      return `LANGUAGE MODE — SIMPLIFIED:\n` +
+      directive = `LANGUAGE MODE — SIMPLIFIED:\n` +
         `Use only very simple ${targetLanguage}. Short sentences (5-7 words max). ` +
         `Use only high-frequency, concrete vocabulary. ` +
         `If the player seems confused, offer a translation in brackets like [bread]. ` +
         `Repeat key words naturally. Speak slowly and clearly.\n`;
+      break;
     case 'natural':
-      return `LANGUAGE MODE — NATURAL:\n` +
+      directive = `LANGUAGE MODE — NATURAL:\n` +
         `Speak entirely in ${targetLanguage} at a natural pace. ` +
         `Use full vocabulary, idioms, and natural sentence structures. ` +
         `Do not simplify unless the player explicitly asks for help.\n`;
+      break;
   }
+
+  // Append vocabulary frequency constraints when CEFR level is known
+  if (cefrLevel) {
+    directive += '\n' + buildFrequencyDirective(cefrLevel, targetLanguage);
+  }
+
+  return directive;
 }
 
 /**
@@ -91,7 +105,7 @@ export function getNPCLanguageBehavior(
   const mode = assignNPCLanguageMode(cefrLevel, npcId);
   return {
     languageMode: mode,
-    promptDirective: buildLanguageModeDirective(mode, targetLanguage, nativeLanguage),
+    promptDirective: buildLanguageModeDirective(mode, targetLanguage, nativeLanguage, cefrLevel),
   };
 }
 
@@ -362,17 +376,20 @@ export function getCEFRTextComplexity(level: CEFRLevel): {
   maxSentenceWords: number;
   maxParagraphs: number;
   vocabularyTier: string;
+  frequencyRange: { min: number; max: number; label: string };
   comprehensionQuestionType: 'true_false' | 'simple_factual' | 'inferential' | 'analytical';
 } {
+  const freq = getFrequencyRange(level);
+  const frequencyRange = { min: freq.min, max: freq.max, label: freq.label };
   switch (level) {
     case 'A1':
-      return { maxSentenceWords: 8, maxParagraphs: 2, vocabularyTier: 'basic', comprehensionQuestionType: 'true_false' };
+      return { maxSentenceWords: 8, maxParagraphs: 2, vocabularyTier: 'basic', frequencyRange, comprehensionQuestionType: 'true_false' };
     case 'A2':
-      return { maxSentenceWords: 12, maxParagraphs: 3, vocabularyTier: 'common', comprehensionQuestionType: 'simple_factual' };
+      return { maxSentenceWords: 12, maxParagraphs: 3, vocabularyTier: 'common', frequencyRange, comprehensionQuestionType: 'simple_factual' };
     case 'B1':
-      return { maxSentenceWords: 20, maxParagraphs: 5, vocabularyTier: 'varied', comprehensionQuestionType: 'inferential' };
+      return { maxSentenceWords: 20, maxParagraphs: 5, vocabularyTier: 'varied', frequencyRange, comprehensionQuestionType: 'inferential' };
     case 'B2':
-      return { maxSentenceWords: 30, maxParagraphs: 8, vocabularyTier: 'advanced', comprehensionQuestionType: 'analytical' };
+      return { maxSentenceWords: 30, maxParagraphs: 8, vocabularyTier: 'advanced', frequencyRange, comprehensionQuestionType: 'analytical' };
   }
 }
 

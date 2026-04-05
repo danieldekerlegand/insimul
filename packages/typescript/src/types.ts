@@ -234,6 +234,8 @@ export interface ConversationMetadataRequest {
   targetLanguage: string;
   playerProficiency?: string;
   cefrLevel?: string;
+  /** Vocabulary frequency range label for the current CEFR level (e.g. "top 200 most common words") */
+  vocabularyRange?: string;
   /** Active quest objectives to evaluate against this conversation exchange.
    *  The server will ask the LLM if any of these goals were met. */
   activeObjectives?: Array<{

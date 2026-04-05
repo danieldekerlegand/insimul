@@ -30,6 +30,7 @@ import { ListenAndRepeatController, type RepeatAttemptResult } from "./ListenAnd
 import type { ListenAndRepeatPhrase } from "../logic/actions/ListenAndRepeatAction";
 import { ConversationDifficultyMonitor, type TurnMetrics } from "../logic/ConversationDifficultyMonitor";
 import { buildScaffoldingDirective } from "@shared/language/cefr-adaptation";
+import { buildVocabularyRangeSummary } from "@shared/language/vocabulary-frequency";
 import type { CEFRLevel } from "@shared/assessment/cefr-mapping";
 import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/typescript';
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
@@ -1972,12 +1973,14 @@ export class BabylonChatPanel {
       ? this.questBridge.getObjectivesForEvaluation(this.character?.id)
       : undefined;
 
+    const currentCefrLevel = this.languageTracker?.getCEFRLevel() || this.playerCefrLevel || undefined;
     this.insimulClient.requestMetadata({
       playerMessage,
       npcResponse,
       targetLanguage,
       playerProficiency: String(this.languageTracker?.getFluency?.() ?? 'beginner'),
-      cefrLevel: this.languageTracker?.getCEFRLevel() || this.playerCefrLevel || undefined,
+      cefrLevel: currentCefrLevel,
+      vocabularyRange: currentCefrLevel ? buildVocabularyRangeSummary(currentCefrLevel as any) : undefined,
       activeObjectives,
     })
       .then((metadata: any) => {

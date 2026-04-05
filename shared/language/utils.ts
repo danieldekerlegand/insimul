@@ -12,6 +12,7 @@ import type { CEFRLevel } from '../assessment/cefr-mapping';
 import { cefrToFluencyTier } from '../assessment/cefr-mapping';
 import { getSpeechComplexity, buildDialogueRulesFromComplexity } from './speech-complexity';
 import { getNPCLanguageBehavior } from './cefr-adaptation';
+import { buildFrequencyDirective } from './vocabulary-frequency';
 
 // ==========================================
 // Types
@@ -787,6 +788,9 @@ export function buildPlayerProficiencySection(
   if (cefrLevel && npcId) {
     const behavior = getNPCLanguageBehavior(cefrLevel, npcId, targetLanguage);
     section += '\n' + behavior.promptDirective;
+  } else if (cefrLevel) {
+    // Even without NPC-specific mode, enforce vocabulary frequency constraints
+    section += '\n' + buildFrequencyDirective(cefrLevel, targetLanguage);
   }
 
   // Build dialogue rules from speech complexity params

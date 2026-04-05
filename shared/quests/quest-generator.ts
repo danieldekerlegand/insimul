@@ -19,6 +19,7 @@ import {
 } from '../quest-objective-types.js';
 import { getQuestDifficultyInfo, type CEFRLevel } from '../quest-difficulty.js';
 import { cefrToVocabularyRange, getQuestPoolSizes } from '../language/cefr-adaptation.js';
+import { buildFrequencyDirective } from '../language/vocabulary-frequency.js';
 import {
   buildHintGenerationPrompt,
   buildQuestHints,
@@ -99,7 +100,7 @@ function fluencyToDifficulty(fluency: number): string {
 /**
  * Build a proficiency context string for the LLM prompt
  */
-function buildProficiencyPrompt(proficiency: PlayerProficiency): string {
+function buildProficiencyPrompt(proficiency: PlayerProficiency, cefrLevel?: CEFRLevel, targetLanguage?: string): string {
   let prompt = `\nPLAYER PROFICIENCY:
 - Fluency: ${proficiency.overallFluency.toFixed(0)}/100
 - Vocabulary: ${proficiency.vocabularyCount} words encountered, ${proficiency.masteredWordCount} mastered
@@ -123,6 +124,11 @@ function buildProficiencyPrompt(proficiency: PlayerProficiency): string {
     prompt += `\n- The player is ADVANCED. Quests should challenge with 8-12 new words, nuanced objectives, and mostly target language.`;
   } else {
     prompt += `\n- The player is NEAR-NATIVE. Quests should be fully in the target language with complex, nuanced objectives.`;
+  }
+
+  // Add vocabulary frequency constraints for quest text generation
+  if (cefrLevel && targetLanguage) {
+    prompt += '\n\n' + buildFrequencyDirective(cefrLevel, targetLanguage);
   }
 
   return prompt;
@@ -155,7 +161,8 @@ export async function generateQuestForType(params: {
 
   // Build AI prompt using quest type's generation prompt
   const basePrompt = questType.generationPrompt(world);
-  const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency) : '';
+  const questCefrLevel = getQuestDifficultyInfo(difficulty, category, 1).cefrLevel;
+  const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency, questCefrLevel, world.targetLanguage || undefined) : '';
   const worldContext = worldStateContext ? buildWorldContextPrompt(worldStateContext) : '';
   const fullPrompt = `${basePrompt}
 ${proficiencyContext}
@@ -360,7 +367,8 @@ export async function generateQuestFromDialogue(params: {
   const category = questHint?.category || randomCategory(questType);
   const difficulty = questHint?.difficulty
     || (playerProficiency ? fluencyToDifficulty(playerProficiency.overallFluency) : 'normal');
-  const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency) : '';
+  const convCefrLevel = getQuestDifficultyInfo(difficulty, category, 1).cefrLevel;
+  const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency, convCefrLevel, world.targetLanguage || undefined) : '';
   const worldContext = worldStateContext ? buildWorldContextPrompt(worldStateContext) : '';
 
   const prompt = `${questType.generationPrompt(world)}
