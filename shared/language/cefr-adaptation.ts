@@ -31,6 +31,8 @@ const CEFR_NPC_DISTRIBUTIONS: Record<CEFRLevel, { bilingual: number; simplified:
   A2: { bilingual: 0.3, simplified: 0.7, natural: 0.0 },
   B1: { bilingual: 0.1, simplified: 0.0, natural: 0.9 },
   B2: { bilingual: 0.0, simplified: 0.0, natural: 1.0 },
+  C1: { bilingual: 0.0, simplified: 0.0, natural: 1.0 },
+  C2: { bilingual: 0.0, simplified: 0.0, natural: 1.0 },
 };
 
 /**
@@ -202,6 +204,22 @@ export function getHintBehavior(cefrLevel: CEFRLevel): HintBehaviorConfig {
         newWordHintFrequency: 0,
         advancedVocabOnly: true,
       };
+    case 'C1':
+      return {
+        translationMode: 'click',
+        showTranslateButton: false,
+        translateButtonProminence: 0,
+        newWordHintFrequency: 0,
+        advancedVocabOnly: false,
+      };
+    case 'C2':
+      return {
+        translationMode: 'click',
+        showTranslateButton: false,
+        translateButtonProminence: 0,
+        newWordHintFrequency: 0,
+        advancedVocabOnly: false,
+      };
   }
 }
 
@@ -242,7 +260,7 @@ export { isWordMastered } from './vocabulary-constants';
 
 // ── Quest CEFR Filtering ─────────────────────────────────────────────────────
 
-const CEFR_ORDER: Record<CEFRLevel, number> = { A1: 0, A2: 1, B1: 2, B2: 3 };
+const CEFR_ORDER: Record<CEFRLevel, number> = { A1: 0, A2: 1, B1: 2, B2: 3, C1: 4, C2: 5 };
 
 /**
  * Check whether a quest's CEFR level is appropriate for the player.
@@ -289,6 +307,8 @@ export const CEFR_ADVANCEMENT_THRESHOLDS: Record<string, CEFRProgressionThreshol
   'A1→A2': { wordsLearned: 50, conversationsCompleted: 3, textsRead: 0 },
   'A2→B1': { wordsLearned: 150, conversationsCompleted: 10, textsRead: 5 },
   'B1→B2': { wordsLearned: 300, conversationsCompleted: 25, textsRead: 15 },
+  'B2→C1': { wordsLearned: 500, conversationsCompleted: 50, textsRead: 30 },
+  'C1→C2': { wordsLearned: 800, conversationsCompleted: 100, textsRead: 50 },
 };
 
 export interface CEFRProgressSnapshot {
@@ -313,7 +333,7 @@ export interface CEFRAdvancementResult {
   };
 }
 
-const LEVEL_ORDER: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
+const LEVEL_ORDER: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 /**
  * Check whether the player has met the thresholds to advance to the next CEFR level.
@@ -359,6 +379,8 @@ export function cefrToVocabularyRange(level: CEFRLevel): { min: number; max: num
     case 'A2': return { min: 201, max: 500 };
     case 'B1': return { min: 501, max: 1500 };
     case 'B2': return { min: 1501, max: Infinity };
+    case 'C1': return { min: 1, max: Infinity };
+    case 'C2': return { min: 1, max: Infinity };
   }
 }
 
@@ -366,7 +388,7 @@ export function cefrToVocabularyRange(level: CEFRLevel): { min: number; max: num
  * Get the recommended quest pool sizes for each CEFR level during world creation.
  */
 export function getQuestPoolSizes(): Record<CEFRLevel, number> {
-  return { A1: 30, A2: 25, B1: 15, B2: 10 };
+  return { A1: 30, A2: 25, B1: 15, B2: 10, C1: 8, C2: 5 };
 }
 
 /**
@@ -390,6 +412,10 @@ export function getCEFRTextComplexity(level: CEFRLevel): {
       return { maxSentenceWords: 20, maxParagraphs: 5, vocabularyTier: 'varied', frequencyRange, comprehensionQuestionType: 'inferential' };
     case 'B2':
       return { maxSentenceWords: 30, maxParagraphs: 8, vocabularyTier: 'advanced', frequencyRange, comprehensionQuestionType: 'analytical' };
+    case 'C1':
+      return { maxSentenceWords: 40, maxParagraphs: 10, vocabularyTier: 'sophisticated', frequencyRange, comprehensionQuestionType: 'analytical' };
+    case 'C2':
+      return { maxSentenceWords: 50, maxParagraphs: 12, vocabularyTier: 'native', frequencyRange, comprehensionQuestionType: 'analytical' };
   }
 }
 

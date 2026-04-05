@@ -114,7 +114,7 @@ export function getQuestDifficultyInfo(
 /**
  * CEFR level ordering for comparison.
  */
-const CEFR_ORDER: Record<CEFRLevel, number> = { A1: 0, A2: 1, B1: 2, B2: 3 };
+const CEFR_ORDER: Record<CEFRLevel, number> = { A1: 0, A2: 1, B1: 2, B2: 3, C1: 4, C2: 5 };
 
 /**
  * Determine how a quest's CEFR level aligns with the player's current level.
@@ -162,6 +162,8 @@ export function cefrLevelLabel(level: CEFRLevel): string {
     case 'A2': return 'A2 Elementary';
     case 'B1': return 'B1 Intermediate';
     case 'B2': return 'B2 Upper-Intermediate';
+    case 'C1': return 'C1 Advanced';
+    case 'C2': return 'C2 Mastery';
   }
 }
 

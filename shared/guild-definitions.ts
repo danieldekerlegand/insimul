@@ -145,6 +145,8 @@ export function getGuildTierForCefrLevel(cefrLevel: string | null | undefined): 
     case 'A2': return 1;
     case 'B1': return 2;
     case 'B2': return 3;
+    case 'C1': return 3;
+    case 'C2': return 3;
     default: return 1; // default to starter tier
   }
 }

@@ -19,6 +19,7 @@ Started: Sun Mar 29 13:53:35 CDT 2026
 - `Set` iteration with `for...of` causes TS errors in this project — use `Array.from(set).forEach()` instead
 - Grammar weakness analysis lives in `shared/language/grammar-weakness-analyzer.ts` — use `analyzeGrammarWeaknesses()` for weakness detection, `buildWeakPatternDirective()` for NPC prompts
 - Grammar quest generation lives in `shared/quests/grammar-quest-generator.ts` — 3 types: grammar_drill, correction_challenge, writing_practice; use `shouldGenerateGrammarQuest()` for quick checks
+- `CEFRLevel` type is defined in 6+ locations — grep for `type CEFRLevel =` and `type CefrLevel =` to find all; many `Record<CEFRLevel>` maps must be updated exhaustively when adding/changing levels
 ---
 
 ## 2026-04-05 - US-008: Enforce vocabulary frequency ranges in LLM prompts
@@ -1240,4 +1241,57 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Grammar feedback callback in BabylonGame is `setOnGrammarFeedbackExternal` — it's a good integration point for real-time weakness detection
   - `buildPlayerProficiencySection()` in utils.ts is the central NPC prompt builder — add grammar directives there, not in individual NPC modules
   - `PeriodicAssessmentDimensionContext` in periodic-encounter.ts is the pattern for adding assessment context — follow same pattern for grammar context
+---
+
+## 2026-04-05 - US-010: Add C1/C2 CEFR support
+- Extended CEFRLevel type from 4 levels (A1-B2) to 6 levels (A1-C2) across all type definitions
+- Added C1 (85%) and C2 (95%) score thresholds to CEFR_THRESHOLDS in cefr-mapping.ts
+- Added B2→C1 and C1→C2 advancement thresholds (500/50/30 and 800/100/50 respectively)
+- Extended NPC distributions: C1/C2 are 100% natural mode
+- Extended hint behavior: C1/C2 use click mode with no hints or translate buttons
+- Added C1/C2 text complexity: C1 sophisticated (40 words/10 paragraphs), C2 native (50 words/12 paragraphs)
+- Added C1/C2 vocabulary frequency ranges (both unrestricted, with different descriptive labels)
+- Extended exam content: C1 literary/academic, C2 archival/satirical texts
+- Updated quest difficulty: C1/C2 map to 'expert' difficulty
+- Updated quest pool sizes: C1=8, C2=5
+- Extended all Record<CEFRLevel> maps across 20+ files
+- Updated 6 local CEFRLevel type definitions (assessment-types.ts, schema.ts, assessment-types.ts, AssessmentResultsPanel.ts, GameTextTypes.ts, text-generator.ts)
+- Updated schema validation to accept C1/C2
+- Fixed existing test that used 'C1' as invalid CEFR level example
+- Updated "does not advance beyond B2" test to "does not advance beyond C2"
+- Files changed:
+  - `shared/assessment/assessment-types.ts` — CEFRLevel type extended
+  - `shared/assessment/cefr-mapping.ts` — thresholds, fluency tiers
+  - `shared/language/cefr-adaptation.ts` — NPC distributions, hints, advancement, vocabulary, text complexity, quest pools
+  - `shared/language/vocabulary-frequency.ts` — frequency ranges, getBandsUpTo, isWordInFrequencyRange, validateVocabularyFrequency
+  - `shared/quest-difficulty.ts` — CEFR_ORDER, cefrLevelLabel
+  - `shared/quests/quest-generator.ts` — cefrToDifficulty, level array
+  - `shared/quests/crafting-quest-generator.ts` — CEFR_ORDER
+  - `shared/quests/assessment-quest-bridge.ts` — cefrRank
+  - `shared/quests/reading-quest-generator.ts` — cefrToDifficulty
+  - `shared/schema.ts` — CefrLevel type, validation
+  - `shared/assessment-types.ts` — CEFRLevel type, descriptions, colors
+  - `shared/guild-definitions.ts` — guild tier mapping
+  - `shared/assessment/object-recognition-exam.ts` — points/question counts
+  - `shared/assessment/npc-exam-encounter.ts` — reading/writing templates, max scores
+  - `shared/game-engine/logic/NpcListeningExamController.ts` — CEFR adaptation
+  - `shared/game-engine/logic/GameTextTypes.ts` — CefrLevel type, cefrToDifficulty
+  - `shared/game-engine/rendering/AssessmentResultsPanel.ts` — CEFRLevel type, descriptions, colors
+  - `shared/game-engine/rendering/CEFRLevelSelector.ts` — C1/C2 options, score map
+  - `shared/language/ui-localization.ts` — immersion levels, max priority, display
+  - `shared/language/quest-localization.ts` — quest display
+  - `server/services/text-generator.ts` — CefrLevel type, constraints, difficulty
+  - `server/services/text-seed-generator.ts` — cefrToDifficulty, constraints
+  - `client/src/assessment/assessment-prompt-utils.ts` — tier instructions
+  - `shared/__tests__/c1-c2-cefr-support.test.ts` — 38 new tests
+  - `shared/__tests__/cefr-adaptation.test.ts` — updated max-level test
+  - `shared/__tests__/texts-schema.test.ts` — updated invalid CEFR test
+  - `shared/__tests__/e2e-world-validation.test.ts` — extended Record maps
+  - `tasks/prd.json` — US-010 passes: true
+- **Learnings for future iterations:**
+  - CEFRLevel type is defined in 6+ separate locations — when extending, must find ALL definitions (use `type CEFRLevel =` and `type CefrLevel =` grep)
+  - Many files use `Record<CEFRLevel, ...>` which enforces exhaustive keys — adding new levels requires updating ALL of them
+  - Some files have `default:` fallback in switch statements (safe), others don't (will cause TS errors if not updated)
+  - Test files also use `Record<CefrLevel, ...>` — don't forget to update test fixtures
+  - The narrative-arc-types.ts already had C1/C2 — was designed with expansion in mind
 ---

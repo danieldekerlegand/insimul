@@ -688,6 +688,12 @@ export const quests = pgTable("quests", {
   // Quest details
   title: text("title").notNull(),
   description: text("description").notNull(),
+
+  // Translation fields — English equivalents for bilingual quest display
+  titleTranslation: text("title_translation"), // English translation of title (when title is in target language)
+  descriptionTranslation: text("description_translation"), // English translation of description
+  objectivesTranslation: jsonb("objectives_translation").$type<string[]>(), // English translations of objective strings
+
   questType: text("quest_type").notNull(), // conversation, translation, vocabulary, grammar, cultural
   difficulty: text("difficulty").notNull(), // beginner, intermediate, advanced
   cefrLevel: text("cefr_level"), // A1, A2, B1, B2 — CEFR alignment
@@ -1206,6 +1212,9 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   assignedByCharacterId: true,
   title: true,
   description: true,
+  titleTranslation: true,
+  descriptionTranslation: true,
+  objectivesTranslation: true,
   questType: true,
   difficulty: true,
   cefrLevel: true,
@@ -2266,7 +2275,7 @@ export const texts = pgTable("texts", {
 export const insertTextSchema = createInsertSchema(texts, {
   title: (schema) => schema.min(1),
   textCategory: (schema) => schema.refine(v => ['book', 'journal', 'letter', 'flyer', 'recipe'].includes(v), { message: 'Invalid text category' }),
-  cefrLevel: (schema) => schema.refine(v => ['A1', 'A2', 'B1', 'B2'].includes(v), { message: 'Invalid CEFR level' }),
+  cefrLevel: (schema) => schema.refine(v => ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(v), { message: 'Invalid CEFR level' }),
   targetLanguage: (schema) => schema.min(1),
 }).pick({
   worldId: true,
@@ -2330,7 +2339,7 @@ export interface InsertVersionAlert {
 // ============= TEXTS (reading content for language learning) =============
 
 export type TextCategory = 'book' | 'journal' | 'letter' | 'flyer' | 'recipe';
-export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2';
+export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type TextStatus = 'draft' | 'published';
 
 export interface TextPage {
@@ -2393,3 +2402,18 @@ export interface InsertGameText {
   spawnLocationHint: string;
   status?: TextStatus;
 }
+
+// ── Word Translation Cache ──────────────────────────────────────────────────────
+// Caches individual word/phrase translations to avoid repeated LLM calls
+
+export const wordTranslationCache = pgTable("word_translation_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  sourceWord: text("source_word").notNull(),
+  targetLanguage: text("target_language").notNull(),
+  translation: text("translation").notNull(),
+  partOfSpeech: text("part_of_speech"),
+  context: text("context"),
+  lookupCount: integer("lookup_count").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+});

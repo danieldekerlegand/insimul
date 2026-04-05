@@ -62,12 +62,12 @@ describe('insertTextSchema', () => {
   });
 
   it('rejects invalid cefrLevel', () => {
-    const result = insertTextSchema.safeParse({ ...validText, cefrLevel: 'C1' });
+    const result = insertTextSchema.safeParse({ ...validText, cefrLevel: 'D1' });
     expect(result.success).toBe(false);
   });
 
   it('accepts all valid CEFR levels', () => {
-    for (const level of ['A1', 'A2', 'B1', 'B2']) {
+    for (const level of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']) {
       const result = insertTextSchema.safeParse({ ...validText, cefrLevel: level });
       expect(result.success).toBe(true);
     }

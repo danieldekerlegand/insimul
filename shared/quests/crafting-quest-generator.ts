@@ -53,7 +53,7 @@ export interface CraftableItemInfo {
 
 // ── CEFR level ordering ──────────────────────────────────────────────────────
 
-const CEFR_ORDER: Record<CEFRLevel, number> = { A1: 0, A2: 1, B1: 2, B2: 3 };
+const CEFR_ORDER: Record<CEFRLevel, number> = { A1: 0, A2: 1, B1: 2, B2: 3, C1: 4, C2: 5 };
 
 function cefrAtLeast(player: CEFRLevel, required: CEFRLevel): boolean {
   return CEFR_ORDER[player] >= CEFR_ORDER[required];

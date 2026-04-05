@@ -12,7 +12,7 @@
 
 import * as GUI from '@babylonjs/gui';
 
-export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2';
+export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 export interface ScoringDimension {
   name: string;
@@ -34,6 +34,8 @@ const CEFR_DESCRIPTIONS: Record<CEFRLevel, string> = {
   A2: 'Elementary — Can communicate in routine tasks and describe surroundings.',
   B1: 'Intermediate — Can handle most travel situations and describe experiences.',
   B2: 'Upper Intermediate — Can interact fluently with native speakers.',
+  C1: 'Advanced — Can understand demanding texts and use language flexibly.',
+  C2: 'Mastery — Near-native fluency with ease in virtually all contexts.',
 };
 
 const CEFR_COLORS: Record<CEFRLevel, string> = {
@@ -41,6 +43,8 @@ const CEFR_COLORS: Record<CEFRLevel, string> = {
   A2: '#e67e22',
   B1: '#f1c40f',
   B2: '#2ecc71',
+  C1: '#3498db',
+  C2: '#9b59b6',
 };
 
 const DIMENSION_COLORS: Record<number, string> = {

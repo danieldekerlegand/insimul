@@ -176,7 +176,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Entire system caps at B2 currently."
     },
     {

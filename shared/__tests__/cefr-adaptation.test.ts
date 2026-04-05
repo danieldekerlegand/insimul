@@ -274,14 +274,14 @@ describe('checkCEFRAdvancement', () => {
     expect(result.nextLevel).toBe('B1');
   });
 
-  it('does not advance beyond B2', () => {
+  it('does not advance beyond C2', () => {
     const snapshot: CEFRProgressSnapshot = {
-      currentLevel: 'B2',
-      wordsLearned: 500,
-      wordsMastered: 200,
-      conversationsCompleted: 50,
-      textsRead: 30,
-      grammarPatternsRecognized: 20,
+      currentLevel: 'C2',
+      wordsLearned: 1000,
+      wordsMastered: 500,
+      conversationsCompleted: 200,
+      textsRead: 100,
+      grammarPatternsRecognized: 50,
     };
     const result = checkCEFRAdvancement(snapshot);
     expect(result.shouldAdvance).toBe(false);

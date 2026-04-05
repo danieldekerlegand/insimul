@@ -27,6 +27,8 @@ export interface CefrThreshold {
 
 /** Minimum normalized score (0–100) required for each CEFR level. */
 export const CEFR_THRESHOLDS: CefrThreshold[] = [
+  { level: 'C2', min: 95, minPercent: 95, description: 'Mastery — Can understand with ease virtually everything heard or read; near-native fluency.' },
+  { level: 'C1', min: 85, minPercent: 85, description: 'Advanced — Can understand a wide range of demanding texts and use language flexibly for social, academic, and professional purposes.' },
   { level: 'B2', min: 75, minPercent: 75, description: 'Upper-Intermediate — Can interact with a degree of fluency and spontaneity with native speakers.' },
   { level: 'B1', min: 50, minPercent: 50, description: 'Intermediate — Can deal with most situations likely to arise while travelling in the target language area.' },
   { level: 'A2', min: 25, minPercent: 25, description: 'Elementary — Can communicate in simple, routine tasks requiring a direct exchange of information.' },
@@ -92,5 +94,7 @@ export function cefrToFluencyTier(level: CEFRLevel): { min: number; effective: n
     case 'A2': return { min: 20, effective: 30 };
     case 'B1': return { min: 40, effective: 50 };
     case 'B2': return { min: 60, effective: 70 };
+    case 'C1': return { min: 80, effective: 85 };
+    case 'C2': return { min: 90, effective: 95 };
   }
 }

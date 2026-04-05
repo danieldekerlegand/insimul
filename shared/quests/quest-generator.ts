@@ -468,6 +468,8 @@ function cefrToDifficulty(level: CEFRLevel): string {
     case 'A2': return 'beginner';
     case 'B1': return 'intermediate';
     case 'B2': return 'advanced';
+    case 'C1': return 'expert';
+    case 'C2': return 'expert';
   }
 }
 
@@ -484,7 +486,7 @@ export async function generateCEFRStratifiedQuests(
   },
 ): Promise<InsertQuest[]> {
   const poolSizes = getQuestPoolSizes();
-  const levels: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
+  const levels: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const allQuests: InsertQuest[] = [];
 
   for (const level of levels) {

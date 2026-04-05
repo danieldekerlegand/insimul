@@ -25,7 +25,7 @@ export type TaskType =
   | 'conversation_quest'
   | 'object_recognition';
 
-export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2';
+export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 /** Alias for CEFRLevel used by the conversation controller */
 export type CefrLevel = CEFRLevel;

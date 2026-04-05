@@ -66,6 +66,18 @@ const CEFR_FREQUENCY_RANGES: Record<CEFRLevel, VocabularyFrequencyRange> = {
     label: 'unrestricted vocabulary',
     description: 'Full vocabulary including abstract concepts, idioms, and specialized terms',
   },
+  C1: {
+    min: 1,
+    max: Infinity,
+    label: 'unrestricted vocabulary with sophisticated register',
+    description: 'Full vocabulary including academic, literary, and nuanced register-appropriate terms',
+  },
+  C2: {
+    min: 1,
+    max: Infinity,
+    label: 'native-level unrestricted vocabulary',
+    description: 'Complete native-speaker vocabulary including rare, archaic, dialectal, and highly specialized terms',
+  },
 };
 
 /**
@@ -108,7 +120,7 @@ export function isWordInFrequencyRange(
   level: CEFRLevel,
   language: string,
 ): boolean {
-  if (level === 'B2') return true; // B2 is unrestricted
+  if (level === 'B2' || level === 'C1' || level === 'C2') return true; // B2+ is unrestricted
 
   const langData = frequencySets.get(language);
   if (!langData) return true; // No data loaded — fail open
@@ -134,7 +146,7 @@ export function validateVocabularyFrequency(
   level: CEFRLevel,
   language: string,
 ): FrequencyValidationResult {
-  if (level === 'B2') {
+  if (level === 'B2' || level === 'C1' || level === 'C2') {
     return { valid: true, outOfRangeWords: [], inlineTranslations: [] };
   }
 
@@ -232,7 +244,7 @@ export function buildVocabularyRangeSummary(level: CEFRLevel): string {
 
 /** Get CEFR bands at or below a given level (cumulative). */
 function getBandsUpTo(level: CEFRLevel): CEFRLevel[] {
-  const order: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
+  const order: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const idx = order.indexOf(level);
   return order.slice(0, idx + 1);
 }

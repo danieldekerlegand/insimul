@@ -9,7 +9,7 @@ import type { InsertGameText } from '../../shared/schema.js';
 import { type ILLMProvider, createLLMProvider } from './llm-provider.js';
 
 export type TextCategory = 'book' | 'journal' | 'letter' | 'flyer' | 'recipe';
-export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2';
+export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 export interface TextGenerationParams {
   worldId: string;
@@ -52,6 +52,8 @@ const CEFR_CONSTRAINTS: Record<CefrLevel, string> = {
   A2: 'Present and past tense. Sentences up to 12 words. 1000 most common words. Basic connectors (and, but, because). Simple questions.',
   B1: 'All common tenses including subjunctive and conditional. Idiomatic expressions allowed. 2000+ words. Complex sentences with subordinate clauses.',
   B2: 'Literary language, metaphor, complex grammar. Unrestricted vocabulary. Varied sentence structures, passive voice, advanced connectors.',
+  C1: 'Academic and literary register. Complex argumentation with nuanced hedging. Implicit meaning, irony, and sophisticated rhetorical devices. Specialized and abstract vocabulary.',
+  C2: 'Native-level mastery. Archaic forms, dialectal variation, dense cultural allusions. Full range of literary devices. Highly specialized and rare vocabulary.',
 };
 
 const CATEGORY_PROMPTS: Record<TextCategory, string> = {
@@ -67,6 +69,8 @@ const DIFFICULTY_MAP: Record<CefrLevel, string> = {
   A2: 'beginner',
   B1: 'intermediate',
   B2: 'advanced',
+  C1: 'advanced',
+  C2: 'advanced',
 };
 
 function buildPrompt(params: TextGenerationParams): string {

@@ -176,6 +176,8 @@ const POINTS_PER_QUESTION: Record<CEFRLevel, number> = {
   A2: 2,
   B1: 3,
   B2: 3,
+  C1: 4,
+  C2: 4,
 };
 
 /** Number of objects to quiz by CEFR level */
@@ -184,6 +186,8 @@ const QUESTION_COUNT: Record<CEFRLevel, number> = {
   A2: 4,
   B1: 5,
   B2: 5,
+  C1: 6,
+  C2: 6,
 };
 
 /** Maximum Levenshtein distance for a "close" match */

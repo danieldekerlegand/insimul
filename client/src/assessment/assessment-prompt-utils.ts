@@ -121,6 +121,22 @@ const TIER_INSTRUCTIONS: Record<CefrLevel, string> = {
 - Only use English for truly complex explanations
 - Challenge the player with varied vocabulary and structures
 - Use longer, complex sentences at natural speed`,
+
+  C1: `The player is ADVANCED (C1). You should:
+- Use 100% target language in your responses
+- Speak entirely naturally with sophisticated vocabulary and complex structures
+- Use academic, literary, and register-appropriate language
+- Correct subtle errors with nuanced explanations in the target language
+- Discuss abstract concepts, hypotheticals, and argumentation
+- Challenge with implicit meaning, irony, and cultural depth`,
+
+  C2: `The player is at MASTERY level (C2). You should:
+- Use 100% target language — speak as you would to a native speaker
+- Use the full range of vocabulary including rare, archaic, and dialectal forms
+- Employ complex rhetorical devices, wordplay, and cultural allusions
+- Only note errors if they affect meaning or register
+- Engage at the highest intellectual level — philosophy, literature, nuance
+- Test comprehension of implicit meaning and pragmatic subtlety`,
 };
 
 const EVAL_BLOCK_INSTRUCTIONS = `

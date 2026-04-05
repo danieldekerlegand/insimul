@@ -108,6 +108,8 @@ function getCefrAdaptation(level: CEFRLevel): CefrAdaptation {
     case 'A2': return { difficulty: 'beginner', lengthSentences: 4, ttsSpeed: 0.85, maxReplays: 1 };
     case 'B1': return { difficulty: 'intermediate', lengthSentences: 5, ttsSpeed: 1.0, maxReplays: 1 };
     case 'B2': return { difficulty: 'advanced', lengthSentences: 6, ttsSpeed: 1.0, maxReplays: 0 };
+    case 'C1': return { difficulty: 'advanced', lengthSentences: 8, ttsSpeed: 1.1, maxReplays: 0 };
+    case 'C2': return { difficulty: 'advanced', lengthSentences: 10, ttsSpeed: 1.2, maxReplays: 0 };
     default: return { difficulty: 'beginner', lengthSentences: 4, ttsSpeed: 0.85, maxReplays: 1 };
   }
 }

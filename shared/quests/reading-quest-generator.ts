@@ -95,6 +95,8 @@ function cefrToDifficulty(cefr: string): 'beginner' | 'intermediate' | 'advanced
     case 'A2': return 'intermediate';
     case 'B1': return 'intermediate';
     case 'B2': return 'advanced';
+    case 'C1': return 'advanced';
+    case 'C2': return 'advanced';
     default: return 'beginner';
   }
 }

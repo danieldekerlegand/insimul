@@ -44,6 +44,8 @@ function cefrToDifficulty(level: CefrLevel): string {
     case 'A2': return 'beginner';
     case 'B1': return 'intermediate';
     case 'B2': return 'advanced';
+    case 'C1': return 'advanced';
+    case 'C2': return 'advanced';
   }
 }
 
@@ -1069,6 +1071,8 @@ export function buildTextGenerationPrompt(options: {
     A2: "Use present and passé composé. Sentences up to 12 words. Basic connectors (mais, parce que, quand). Simple descriptions and narration. Everyday vocabulary.",
     B1: "Use all common tenses including imparfait, plus-que-parfait, and conditional. Complex sentences with subordination. Idiomatic expressions allowed. Topic-specific vocabulary.",
     B2: "Literary register. Subjunctive mood, passive voice, complex relative clauses. Metaphor, irony, and nuance. Sophisticated vocabulary. Cultural references.",
+    C1: "Academic and literary register. Complex argumentation with nuanced hedging. Implicit meaning, irony, and sophisticated rhetorical devices. Specialized and abstract vocabulary.",
+    C2: "Native-level mastery. Archaic forms, dialectal variation, dense cultural allusions. Full range of literary devices. Highly specialized and rare vocabulary. Pragmatic subtlety.",
   };
 
   const writerStyle = writerName

@@ -194,7 +194,7 @@ describe('E2E: Seed texts satisfy main quest text collection requirements', () =
   });
 
   it('each CEFR level has enough texts for its chapters', () => {
-    const cefrChapterRequirements: Record<CefrLevel, number> = { A1: 0, A2: 0, B1: 0, B2: 0 };
+    const cefrChapterRequirements: Record<CefrLevel, number> = { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0 };
     for (const ch of MAIN_QUEST_CHAPTERS) {
       const obj = ch.objectives.find(o => o.questType === 'collect_text');
       if (obj) {
@@ -202,7 +202,7 @@ describe('E2E: Seed texts satisfy main quest text collection requirements', () =
       }
     }
 
-    const cefrTextCounts: Record<CefrLevel, number> = { A1: 0, A2: 0, B1: 0, B2: 0 };
+    const cefrTextCounts: Record<CefrLevel, number> = { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0 };
     for (const text of seeds) {
       cefrTextCounts[text.cefrLevel]++;
     }
@@ -375,7 +375,7 @@ describe('E2E: Text vocabulary feeds into language progress', () => {
   const seeds = buildSeedTexts(SEED_OPTIONS);
 
   it('seed texts provide vocabulary words at every CEFR level', () => {
-    const vocabByLevel: Record<CefrLevel, string[]> = { A1: [], A2: [], B1: [], B2: [] };
+    const vocabByLevel: Record<CefrLevel, string[]> = { A1: [], A2: [], B1: [], B2: [], C1: [], C2: [] };
     for (const text of seeds) {
       const words = text.vocabularyHighlights.map(vh => vh.word);
       vocabByLevel[text.cefrLevel].push(...words);
@@ -482,6 +482,8 @@ describe('E2E: Cross-system data integrity', () => {
       A2: ['beginner'],
       B1: ['intermediate'],
       B2: ['advanced'],
+      C1: ['advanced'],
+      C2: ['advanced'],
     };
     for (const text of seeds) {
       expect(cefrToDifficulty[text.cefrLevel]).toContain(text.difficulty);

@@ -5,13 +5,15 @@
  * and data shapes consumed by PlayerAssessmentPanel.
  */
 
-export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2';
+export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 export const CEFR_DESCRIPTIONS: Record<CEFRLevel, string> = {
   A1: 'Beginner',
   A2: 'Elementary',
   B1: 'Intermediate',
   B2: 'Upper Intermediate',
+  C1: 'Advanced',
+  C2: 'Mastery',
 };
 
 export const CEFR_COLORS: Record<CEFRLevel, string> = {
@@ -19,6 +21,8 @@ export const CEFR_COLORS: Record<CEFRLevel, string> = {
   A2: '#e67e22',
   B1: '#f1c40f',
   B2: '#2ecc71',
+  C1: '#3498db',
+  C2: '#9b59b6',
 };
 
 export const ASSESSMENT_DIMENSIONS = [

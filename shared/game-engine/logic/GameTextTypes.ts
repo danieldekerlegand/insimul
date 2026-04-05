@@ -12,7 +12,7 @@ import type { NoticeArticle } from '@shared/game-engine/types';
 export type TextCategory = 'book' | 'journal' | 'letter' | 'flyer' | 'recipe' | 'notice';
 
 /** CEFR language proficiency levels */
-export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2';
+export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 /** A page of multi-page text content */
 export interface TextPage {
@@ -47,6 +47,8 @@ export function cefrToDifficulty(cefr: CefrLevel): 'beginner' | 'intermediate' |
     case 'A2': return 'intermediate';
     case 'B1': return 'intermediate';
     case 'B2': return 'advanced';
+    case 'C1': return 'advanced';
+    case 'C2': return 'advanced';
   }
 }
 

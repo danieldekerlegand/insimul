@@ -45,6 +45,18 @@ const READING_TEMPLATES: Record<CEFRLevel, ContentTemplate> = {
     lengthSentences: 10,
     questionCount: 4,
   },
+  C1: {
+    topic: 'A literary excerpt or academic essay from {{cityName}} exploring philosophical, historical, or sociolinguistic themes — sophisticated vocabulary, implicit arguments, and nuanced register.',
+    difficulty: 'advanced',
+    lengthSentences: 14,
+    questionCount: 5,
+  },
+  C2: {
+    topic: 'An archival document, satirical column, or dense academic text from {{cityName}} requiring interpretation of irony, cultural allusions, dialectal variation, and highly specialized terminology.',
+    difficulty: 'advanced',
+    lengthSentences: 18,
+    questionCount: 5,
+  },
 };
 
 const WRITING_TEMPLATES: Record<CEFRLevel, ContentTemplate> = {
@@ -65,6 +77,16 @@ const WRITING_TEMPLATES: Record<CEFRLevel, ContentTemplate> = {
   },
   B2: {
     topic: 'Write a formal complaint letter about a service issue in {{cityName}}, and compose an opinion piece about a local cultural topic.',
+    difficulty: 'advanced',
+    promptCount: 2,
+  },
+  C1: {
+    topic: 'Write a well-structured argumentative essay on a cultural or socioeconomic issue in {{cityName}}, and compose a formal proposal for a community initiative.',
+    difficulty: 'advanced',
+    promptCount: 2,
+  },
+  C2: {
+    topic: 'Write a literary analysis of a classic text set in {{cityName}}, and compose a satirical commentary on a contemporary issue using sophisticated rhetorical devices.',
     difficulty: 'advanced',
     promptCount: 2,
   },
@@ -96,8 +118,8 @@ const BUSINESS_WRITING_TOPICS: Record<BusinessContext, string> = {
 // Score configuration per CEFR level
 // ─────────────────────────────────────────────────────────────────────────────
 
-const READING_MAX_SCORES: Record<CEFRLevel, number> = { A1: 10, A2: 15, B1: 15, B2: 20 };
-const WRITING_MAX_SCORES: Record<CEFRLevel, number> = { A1: 10, A2: 15, B1: 15, B2: 20 };
+const READING_MAX_SCORES: Record<CEFRLevel, number> = { A1: 10, A2: 15, B1: 15, B2: 20, C1: 25, C2: 25 };
+const WRITING_MAX_SCORES: Record<CEFRLevel, number> = { A1: 10, A2: 15, B1: 15, B2: 20, C1: 25, C2: 25 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase builders

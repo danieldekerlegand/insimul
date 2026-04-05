@@ -65,6 +65,16 @@ export function buildCEFROptions(targetLanguage: string): CEFROption[] {
       label: 'Upper Intermediate',
       description: `I can discuss complex topics in ${targetLanguage}`,
     },
+    {
+      level: 'C1',
+      label: 'Advanced',
+      description: `I can understand demanding texts and express myself fluently in ${targetLanguage}`,
+    },
+    {
+      level: 'C2',
+      label: 'Mastery',
+      description: `I have near-native command of ${targetLanguage}`,
+    },
   ];
 }
 
@@ -130,6 +140,8 @@ export class CEFRLevelSelector {
       A2: 20,
       B1: 35,
       B2: 45,
+      C1: 50,
+      C2: 53,
     };
     return { totalScore: scoreMap[level], totalMaxScore };
   }
