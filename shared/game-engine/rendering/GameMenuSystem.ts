@@ -250,6 +250,10 @@ export interface MenuJournalData {
   totalXPEarned: number;
   chapters: MenuJournalChapter[];
   playerCefrLevel: string | null;
+  /** Next periodic assessment milestone level (null if all completed) */
+  nextPeriodicAssessmentLevel: number | null;
+  /** Whether a periodic assessment is currently available (pending accept) */
+  periodicAssessmentAvailable: boolean;
   /** Investigation board summary data */
   investigationBoard?: InvestigationBoardData | null;
   /** Case notes from the investigation (newest first) */
@@ -1543,6 +1547,27 @@ export class GameMenuSystem {
     sectionHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     sectionHeader.paddingLeft = "4px";
     parent.addControl(sectionHeader);
+
+    // Periodic assessment status
+    if (data.periodicAssessmentAvailable) {
+      const assessStatus = new TextBlock();
+      assessStatus.text = "📋 Progress Check available — visit the Notice Board (N)";
+      assessStatus.color = COLORS.accent;
+      assessStatus.fontSize = 12;
+      assessStatus.height = "22px";
+      assessStatus.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      assessStatus.paddingLeft = "4px";
+      parent.addControl(assessStatus);
+    } else if (data.nextPeriodicAssessmentLevel !== null) {
+      const assessStatus = new TextBlock();
+      assessStatus.text = `Next progress check at level ${data.nextPeriodicAssessmentLevel}`;
+      assessStatus.color = COLORS.textSecondary;
+      assessStatus.fontSize = 11;
+      assessStatus.height = "20px";
+      assessStatus.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      assessStatus.paddingLeft = "4px";
+      parent.addControl(assessStatus);
+    }
 
     // Render current chapter first (prominently), then others
     const currentChapter = data.chapters.find(c => c.chapter.id === data.currentChapterId);

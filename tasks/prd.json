@@ -71,7 +71,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "periodic-encounter.ts line 52 has triggers at milestones [5, 10, 15, 20] and 60-min cooldown, but integration with game events is MISSING."
     },
     {

@@ -44,7 +44,7 @@ export interface NoticeArticle {
   documentType?: 'notice' | 'story' | 'poem' | 'document' | 'book' | 'journal' | 'letter' | 'recipe';
   /** Assessment hook — clicking this notice launches an assessment */
   assessmentHook?: {
-    assessmentType: 'arrival' | 'departure';
+    assessmentType: 'arrival' | 'departure' | 'periodic';
     buttonLabel: string;
     buttonLabelTranslation: string;
   };
@@ -70,7 +70,7 @@ export class BabylonNoticeBoardPanel {
   private onQuestionAnswered: ((correct: boolean, articleId: string) => void) | null = null;
   private onArticleRead: ((article: NoticeArticle) => void) | null = null;
   private onQuestAccepted: ((questId: string, questTitle: string) => void) | null = null;
-  private onAssessmentClicked: ((assessmentType: 'arrival' | 'departure') => void) | null = null;
+  private onAssessmentClicked: ((assessmentType: 'arrival' | 'departure' | 'periodic') => void) | null = null;
 
   constructor(advancedTexture: GUI.AdvancedDynamicTexture) {
     this.advancedTexture = advancedTexture;
@@ -548,7 +548,7 @@ export class BabylonNoticeBoardPanel {
   public setOnQuestionAnswered(cb: (correct: boolean, articleId: string) => void): void { this.onQuestionAnswered = cb; }
   public setOnArticleRead(cb: (article: NoticeArticle) => void): void { this.onArticleRead = cb; }
   public setOnQuestAccepted(cb: (questId: string, questTitle: string) => void): void { this.onQuestAccepted = cb; }
-  public setOnAssessmentClicked(cb: (assessmentType: 'arrival' | 'departure') => void): void { this.onAssessmentClicked = cb; }
+  public setOnAssessmentClicked(cb: (assessmentType: 'arrival' | 'departure' | 'periodic') => void): void { this.onAssessmentClicked = cb; }
 
   public dispose(): void {
     if (this.container) {

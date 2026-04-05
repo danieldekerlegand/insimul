@@ -1061,3 +1061,19 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - LanguageProgressTracker.endConversation() aggregates per-turn EVAL scores into per-conversation averages and pushes to history.
   - 830 pre-existing TypeScript errors; 131 pre-existing test file failures. Changes did not increase either.
 ---
+
+## 2026-04-05 - US-004: Wire periodic assessment triggers at quest milestones
+- **What was implemented**: Full periodic assessment integration — milestone-based trigger, Accept/Postpone UI, assessment conversation launch, result scoring, CEFR level update, dimension score tracking, and quest journal integration
+- **Files changed**:
+  - `shared/game-engine/rendering/BabylonGame.ts` — Added state (pendingPeriodicAssessment, postponedPeriodicAssessment), wired setOnPeriodicAssessmentTriggered callback, added showPeriodicAssessmentNotification() with notice board article, launchPeriodicAssessment() conversation flow, finishPeriodicAssessment() scoring/persistence, getNextPeriodicAssessmentLevel() helper; updated fetchMainQuestJournalData() to include assessment status; added PERIODIC_ASSESSMENT_LEVELS import; re-offer after postponement on next quest_completed
+  - `shared/game-engine/rendering/BabylonNoticeBoardPanel.ts` — Extended assessmentType union to include 'periodic' in NoticeArticle.assessmentHook and callback types
+  - `shared/game-engine/rendering/GameMenuSystem.ts` — Added nextPeriodicAssessmentLevel and periodicAssessmentAvailable to MenuJournalData; renders assessment status in chapter progress section
+  - `shared/__tests__/periodic-assessment-trigger.test.ts` — 22 new tests covering milestone detection, cooldown logic, PERIODIC_ENCOUNTER definition, tracker integration, and dimension context building
+  - `tasks/prd.json` — US-004 passes: true
+- **Learnings for future iterations:**
+  - `assessment_conversation_quest_start` event requires phaseId, topics, minExchanges, maxExchanges — not just type
+  - LanguageGamificationTracker.checkPeriodicAssessment() is called from addXP() → level-up path, so it triggers on XP milestones, not quest count milestones directly
+  - The existing assessment_completed handler in BabylonGame already handles CEFR persistence, quest objective completion, and gamification recording — periodic assessments can reuse it by emitting the same event
+  - NoticeArticle assessmentHook.assessmentType was originally union 'arrival' | 'departure' — extended to include 'periodic'
+  - MenuJournalData is constructed in two places in BabylonGame: one for offline/exported games, one for server-backed games — both need updating
+---

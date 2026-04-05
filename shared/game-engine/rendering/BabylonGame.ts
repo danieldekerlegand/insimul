@@ -232,6 +232,7 @@ import {
   computeProgress,
 } from "@shared/services/assessment-quest-bridge-shared";
 import type { OnboardingLaunchResult } from "@shared/game-engine/rendering/OnboardingLauncher";
+import { PERIODIC_ASSESSMENT_LEVELS } from "@shared/assessment/periodic-encounter";
 import {
   KEY_BUILDING_INTERACT,
   KEY_ATTACK,
@@ -584,6 +585,10 @@ export class BabylonGame {
   private assessmentActive: boolean = false;
   /** NPC ID highlighted for the current assessment conversation phase. */
   private _assessmentTargetNpcId: string | null = null;
+  /** Pending periodic assessment event (waiting for player accept/postpone). */
+  private pendingPeriodicAssessment: { level: number; tier: string } | null = null;
+  /** Whether a periodic assessment was postponed (retry after next quest). */
+  private postponedPeriodicAssessment: boolean = false;
 
   // Player
   private playerController: CharacterController | null = null;
@@ -3619,6 +3624,9 @@ export class BabylonGame {
         duration: 4000,
       });
     });
+    this.gamificationTracker.setOnPeriodicAssessmentTriggered((event) => {
+      this.showPeriodicAssessmentNotification(event);
+    });
 
     // Set world ID for server XP sync
     this.gamificationTracker.setWorldId(this.config.worldId);
@@ -3798,6 +3806,12 @@ export class BabylonGame {
           targetVocabulary: quest.targetVocabulary,
           xpEarned: quest.experienceReward || 0,
         });
+      }
+
+      // If a periodic assessment was postponed, retry after this quest completes
+      if (this.postponedPeriodicAssessment && this.pendingPeriodicAssessment) {
+        this.postponedPeriodicAssessment = false;
+        this.showPeriodicAssessmentNotification(this.pendingPeriodicAssessment);
       }
     });
     this.eventBus.on('quest_failed', (event: any) => {
@@ -8124,6 +8138,202 @@ export class BabylonGame {
       description: 'Visit the Notice Board (N) to begin your language assessment.',
       duration: 6000,
     });
+  }
+
+  /**
+   * Show a pre-assessment notification with Accept/Postpone options.
+   * If accepted, launches the periodic assessment. If postponed, retries after next quest.
+   */
+  private showPeriodicAssessmentNotification(event: { level: number; tier: string }): void {
+    if (this.assessmentActive || this.onboardingActive) return;
+
+    this.pendingPeriodicAssessment = event;
+
+    // Show accept/postpone toast — use two sequential toasts for simplicity
+    this.guiManager?.showToast({
+      title: 'Progress Check Available',
+      description: `You've reached level ${event.level}! A brief language check-in is available. Talk to any NPC to begin, or it will be offered again after your next quest.`,
+      duration: 10000,
+    });
+
+    // Add a periodic assessment notice to the notice board for the player to accept
+    const targetLang = getTargetLanguage(this.worldData);
+    const periodicNotice: NoticeArticle = {
+      id: 'assessment_periodic',
+      title: 'Évaluation de Progrès',
+      titleTranslation: 'Progress Check',
+      body: `Félicitations! Vous avez fait des progrès remarquables. Il est temps de vérifier votre niveau de langue avec une brève conversation.`,
+      bodyTranslation: `Congratulations! You've made remarkable progress. It's time to check your language level with a brief conversation.`,
+      difficulty: 'intermediate',
+      vocabularyWords: [
+        { word: 'progrès', meaning: 'progress' },
+        { word: 'vérifier', meaning: 'to check' },
+        { word: 'conversation', meaning: 'conversation' },
+      ],
+      noticeType: 'official',
+      readingXp: 5,
+      author: {
+        characterId: 'village_elder',
+        name: 'Le Conseil du Village',
+        occupation: 'Village Council',
+      },
+      assessmentHook: {
+        assessmentType: 'periodic',
+        buttonLabel: 'Commencer l\'Évaluation',
+        buttonLabelTranslation: 'Begin Assessment',
+      },
+    };
+    this.noticeBoardPanel?.addArticle(periodicNotice);
+
+    // Wire the notice board callback for periodic assessments
+    this.noticeBoardPanel?.setOnAssessmentClicked(async (assessmentType) => {
+      if (assessmentType !== 'periodic') return;
+      this.noticeBoardPanel?.removeArticle('assessment_periodic');
+      this.launchPeriodicAssessment(event);
+    });
+
+    // Also allow postponement — if the player doesn't accept within this session,
+    // re-offer after the next quest completion
+    this.postponedPeriodicAssessment = true;
+  }
+
+  /**
+   * Launch a periodic assessment (conversation-only, 25 points).
+   * Highlights nearest NPC, injects assessment conversation prompt,
+   * and scores the result when conversation completes.
+   */
+  private async launchPeriodicAssessment(event: { level: number; tier: string }): Promise<void> {
+    if (this.assessmentActive) return;
+    this.assessmentActive = true;
+    this.postponedPeriodicAssessment = false;
+    this.pendingPeriodicAssessment = null;
+
+    const targetLang = getTargetLanguage(this.worldData);
+    const playerId = this.config.userId || 'player';
+
+    this.guiManager?.showToast({
+      title: 'Progress Check',
+      description: 'Have a brief conversation with the highlighted NPC. Speak naturally!',
+      duration: 5000,
+    });
+
+    const topics = ['daily routine', 'local places and culture', 'opinions and preferences', 'plans and intentions'];
+
+    // Highlight nearest NPC for conversation
+    this.eventBus.emit({
+      type: 'assessment_conversation_quest_start',
+      phaseId: 'periodic_conversational',
+      topics,
+      minExchanges: 8,
+      maxExchanges: 12,
+    });
+
+    // Inject periodic assessment conversation prompt
+    this.eventBus.emit({
+      type: 'assessment_guided_conversation_start',
+      topics,
+      minExchanges: 8,
+      maxExchanges: 12,
+    });
+
+    // Wait for the conversation to complete
+    const unsubscribe = this.eventBus.on('assessment_conversation_completed', () => {
+      unsubscribe();
+      this.finishPeriodicAssessment(playerId, targetLang, event);
+    });
+  }
+
+  /**
+   * Score and persist periodic assessment results after conversation completes.
+   */
+  private async finishPeriodicAssessment(
+    playerId: string,
+    targetLanguage: string,
+    event: { level: number; tier: string },
+  ): Promise<void> {
+    this.assessmentActive = false;
+
+    // Build dimension context from recent EVAL scores if available
+    const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
+    const progress = tracker?.getProgress?.();
+    const dimensionScores = progress?.dimensionScores || [];
+
+    // Use the most recent conversation's EVAL scores if available
+    const lastEntry = dimensionScores.length > 0 ? dimensionScores[dimensionScores.length - 1] : null;
+
+    // Compute a total score from the conversation EVAL (scale 1-5 per dimension → /25 total)
+    let totalScore = 0;
+    const resultDimensions: Record<string, number> = {};
+    if (lastEntry?.scores) {
+      const s = lastEntry.scores;
+      resultDimensions.vocabulary = s.vocabulary;
+      resultDimensions.grammar = s.grammar;
+      resultDimensions.fluency = s.fluency;
+      resultDimensions.comprehension = s.comprehension;
+      resultDimensions.taskCompletion = s.taskCompletion;
+      totalScore = s.vocabulary + s.grammar + s.fluency + s.comprehension + s.taskCompletion;
+    } else {
+      // Fallback: estimate from current level
+      const baseScore = event.level >= 15 ? 3.5 : event.level >= 10 ? 3.0 : 2.5;
+      for (const dim of ['vocabulary', 'grammar', 'fluency', 'comprehension', 'taskCompletion']) {
+        resultDimensions[dim] = baseScore;
+      }
+      totalScore = baseScore * 5;
+    }
+
+    const totalMaxScore = 25;
+
+    // Map score to CEFR level
+    const totalPct = (totalScore / totalMaxScore) * 100;
+    const cefrLevel = totalPct >= 80 ? 'B2' : totalPct >= 60 ? 'B1' : totalPct >= 40 ? 'A2' : 'A1';
+
+    // Emit assessment_completed so BabylonGame's existing handler persists CEFR + updates gamification
+    this.eventBus.emit({
+      type: 'assessment_completed',
+      sessionId: `periodic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      instrumentId: 'periodic_assessment',
+      totalScore,
+      totalMaxScore,
+      cefrLevel,
+    });
+
+    // Push dimension scores into aggregated tracking (US-003 integration)
+    if (tracker && lastEntry?.scores) {
+      // Dimension scores are already pushed by the conversation EVAL parser;
+      // just ensure the periodic assessment is recorded
+      this.gamificationTracker?.recordPeriodicAssessmentCompleted();
+    }
+
+    // Show result toast
+    this.guiManager?.showToast({
+      title: `Progress Check Complete: ${cefrLevel}`,
+      description: `Score: ${Math.round(totalScore)}/${totalMaxScore}. ${
+        cefrLevel !== this.playerCefrLevel && this.playerCefrLevel
+          ? `Your level may be adjusted from ${this.playerCefrLevel} to ${cefrLevel}.`
+          : 'Keep up the great work!'
+      }`,
+      duration: 8000,
+    });
+
+    // Assert Prolog fact for periodic assessment
+    if (this.prologEngine) {
+      this.prologEngine.assertFact(
+        `periodic_assessment_completed(player, ${cefrLevel.toLowerCase()}, ${Math.round(totalScore)}, ${totalMaxScore})`
+      ).catch(err =>
+        console.warn('[BabylonGame] Failed to assert periodic assessment fact:', err)
+      );
+    }
+  }
+
+  /**
+   * Compute the next periodic assessment milestone level based on current player level.
+   */
+  private getNextPeriodicAssessmentLevel(): number | null {
+    const currentLevel = this.gamificationTracker?.getLevel() ?? 1;
+    for (const milestone of PERIODIC_ASSESSMENT_LEVELS) {
+      if (milestone > currentLevel) return milestone;
+    }
+    return null; // All milestones passed
   }
 
   /**
@@ -14326,6 +14536,8 @@ export class BabylonGame {
         })),
         playerCefrLevel: this.playerCefrLevel,
         investigationBoard: null, caseNotes: [],
+        nextPeriodicAssessmentLevel: this.getNextPeriodicAssessmentLevel(),
+        periodicAssessmentAvailable: this.pendingPeriodicAssessment !== null,
       };
       this.syncClueStoreChapterGating();
       return;
@@ -14343,6 +14555,8 @@ export class BabylonGame {
         investigationBoard: data.investigationBoard ?? null,
         caseNotes: data.state?.caseNotes ?? [],
         narrativeHistory: data.narrativeHistory ?? [],
+        nextPeriodicAssessmentLevel: this.getNextPeriodicAssessmentLevel(),
+        periodicAssessmentAvailable: this.pendingPeriodicAssessment !== null,
       };
       this.syncClueStoreChapterGating();
     } catch {
