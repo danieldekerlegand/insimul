@@ -95,6 +95,45 @@ export function getNPCLanguageBehavior(
   };
 }
 
+// ── Scaffolding Directives ──────────────────────────────────────────────────
+
+import type { ScaffoldingLevel } from '../game-engine/logic/ConversationDifficultyMonitor';
+
+/**
+ * Build a system-prompt directive that dynamically adjusts NPC speech
+ * mid-conversation based on the player's real-time struggle level.
+ * Returns empty string for 'none' (no modification needed).
+ */
+export function buildScaffoldingDirective(
+  level: ScaffoldingLevel,
+  targetLanguage: string,
+  nativeLanguage: string = 'English',
+): string {
+  switch (level) {
+    case 'none':
+      return '';
+    case 'scaffolded':
+      return `\nDYNAMIC SCAFFOLDING — ACTIVE:\n` +
+        `The player is struggling. Adjust your speech NOW:\n` +
+        `- Reduce ${targetLanguage} usage by 20% compared to your normal mode\n` +
+        `- Use shorter sentences (max 5-7 words)\n` +
+        `- Add inline translations in brackets for key words, like: "le pain [bread]"\n` +
+        `- Repeat important words naturally\n` +
+        `- Ask simple yes/no or choice questions to keep the player engaged\n` +
+        `- If the player responds in ${nativeLanguage}, acknowledge and gently guide back to ${targetLanguage}\n` +
+        `Do NOT mention that you are simplifying. Be natural and encouraging.\n`;
+    case 'stretch':
+      return `\nSTRETCH CHALLENGE — ACTIVE:\n` +
+        `The player is performing exceptionally well. Increase complexity:\n` +
+        `- Use more advanced vocabulary and natural idioms in ${targetLanguage}\n` +
+        `- Use longer, more complex sentence structures\n` +
+        `- Reduce translations and explanations\n` +
+        `- Ask open-ended questions that require detailed responses\n` +
+        `- Introduce cultural references or wordplay when appropriate\n` +
+        `Do NOT mention that you are increasing difficulty. Be natural.\n`;
+  }
+}
+
 // ── Hint & Translation Behavior ──────────────────────────────────────────────
 
 export type TranslationDisplayMode = 'inline' | 'hover' | 'click';

@@ -28,6 +28,8 @@ import type { IDataSource as DataSource } from '@shared/game-engine/data-source'
 import { ConversationalActionDetector, type ConversationalAction, type NpcConversationTurnState, type DetectorContext } from "../logic/ConversationalActionDetector";
 import { ListenAndRepeatController, type RepeatAttemptResult } from "./ListenAndRepeatController";
 import type { ListenAndRepeatPhrase } from "../logic/actions/ListenAndRepeatAction";
+import { ConversationDifficultyMonitor, type TurnMetrics } from "../logic/ConversationDifficultyMonitor";
+import { buildScaffoldingDirective } from "@shared/language/cefr-adaptation";
 import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/typescript';
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
@@ -217,6 +219,10 @@ export class BabylonChatPanel {
   /** Message controls that have been rebuilt with interactive word hover */
   private _interactiveMessages: Set<number> = new Set();
 
+  // Dynamic mid-conversation scaffolding monitor
+  private _difficultyMonitor = new ConversationDifficultyMonitor();
+  private _scaffoldingIndicator: TextBlock | null = null;
+
   // Listening mode — hides NPC text and shows audio waveform during listening exams
   private _listeningMode = false;
   private _listeningAudioElement: HTMLAudioElement | null = null;
@@ -323,6 +329,8 @@ export class BabylonChatPanel {
     this.messages = [];
     this.hoverTranslation.clear();
     this._interactiveMessages.clear();
+    this._difficultyMonitor.reset();
+    if (this._scaffoldingIndicator) this._scaffoldingIndicator.isVisible = false;
     console.log('[ChatPanel] Cleared previous messages');
 
     // Initialize streaming conversation client
@@ -1777,6 +1785,9 @@ export class BabylonChatPanel {
       this.languageTracker.analyzeNPCResponse(cleanedResponse);
     }
 
+    // Feed turn metrics into the difficulty monitor for dynamic scaffolding
+    this.recordDifficultyMetrics(userMessage);
+
     // Track vocabulary usage for quests
     this.trackQuestProgress(userMessage, cleanedResponse);
 
@@ -2135,6 +2146,23 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       const augmentation = this.systemPromptAugmentation(this.character.id);
       if (augmentation) {
         prompt += augmentation;
+      }
+    }
+
+    // Inject dynamic scaffolding/stretch directive based on real-time struggle monitoring
+    if (this._difficultyMonitor.currentLevel !== 'none') {
+      const targetLang = this._targetLanguage
+        || this.worldLanguageContext?.targetLanguage
+        || this.world?.targetLanguage
+        || '';
+      const nativeLang = 'English';
+      const scaffoldDirective = buildScaffoldingDirective(
+        this._difficultyMonitor.currentLevel,
+        targetLang,
+        nativeLang,
+      );
+      if (scaffoldDirective) {
+        prompt += scaffoldDirective;
       }
     }
 
@@ -3937,6 +3965,88 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     if (this.inputText) {
       this.inputText.text = 'Type your message...';
       this.inputText.color = 'white';
+    }
+  }
+
+  // ── Dynamic Difficulty Monitoring ──────────────────────────────────────────
+
+  /**
+   * Compute and record turn-level difficulty metrics from the player's message.
+   * If the struggle score crosses a threshold, invalidates the system prompt
+   * cache so the next NPC response includes scaffolding/stretch directives.
+   */
+  private recordDifficultyMetrics(playerMessage: string): void {
+    // Tokenize player message
+    const words = playerMessage.trim().split(/\s+/).filter(w => w.length > 0);
+    const totalWords = words.length;
+
+    // Estimate target-language words: words that match known vocabulary
+    let targetLangWords = 0;
+    if (this.languageTracker) {
+      const vocab = this.languageTracker.getVocabulary();
+      const knownWords = new Set(vocab.map(v => v.word.toLowerCase()));
+      for (const w of words) {
+        if (knownWords.has(w.toLowerCase())) targetLangWords++;
+      }
+    }
+
+    // Get grammar counts from the tracker
+    const grammar = this.languageTracker?.getConversationGrammarCounts() ?? { errors: 0, correct: 0 };
+
+    const metrics: TurnMetrics = {
+      grammarErrors: grammar.errors,
+      grammarPatternsChecked: grammar.errors + grammar.correct,
+      targetLanguageWords: targetLangWords,
+      totalPlayerWords: totalWords,
+    };
+
+    const adjustment = this._difficultyMonitor.recordTurn(metrics);
+    if (adjustment) {
+      // Invalidate cached system prompt so next response uses new directive
+      this._cachedSystemPrompt = null;
+
+      // Update visual indicator
+      this.updateScaffoldingIndicator(adjustment.level);
+
+      console.log(`[ChatPanel] Difficulty adjustment: ${adjustment.level} — ${adjustment.reason}`);
+    }
+  }
+
+  /**
+   * Show/hide a subtle visual indicator when scaffolding or stretch is active.
+   */
+  private updateScaffoldingIndicator(level: import('../logic/ConversationDifficultyMonitor').ScaffoldingLevel): void {
+    if (!this._scaffoldingIndicator && this.chatContainer) {
+      // Create the indicator text block on first use
+      const indicator = new TextBlock('scaffolding-indicator', '');
+      indicator.fontSize = 9;
+      indicator.height = '14px';
+      indicator.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      indicator.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      indicator.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      indicator.top = '2px';
+      indicator.left = '-40px';
+      indicator.isVisible = false;
+      this.chatContainer.addControl(indicator);
+      this._scaffoldingIndicator = indicator;
+    }
+
+    if (!this._scaffoldingIndicator) return;
+
+    switch (level) {
+      case 'scaffolded':
+        this._scaffoldingIndicator.text = 'Adjusting...';
+        this._scaffoldingIndicator.color = '#fbbf24'; // amber
+        this._scaffoldingIndicator.isVisible = true;
+        break;
+      case 'stretch':
+        this._scaffoldingIndicator.text = 'Challenge';
+        this._scaffoldingIndicator.color = '#34d399'; // green
+        this._scaffoldingIndicator.isVisible = true;
+        break;
+      case 'none':
+        this._scaffoldingIndicator.isVisible = false;
+        break;
     }
   }
 

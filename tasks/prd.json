@@ -88,7 +88,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "progress.ts: mastered at 8+ correct uses. cefr-adaptation.ts: mastered at 5 encounters + 1 use. These disagree."
     },
     {
@@ -107,7 +107,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "NPC language mode is locked at conversation start via assignNPCLanguageMode() and never re-evaluated."
     },
     {

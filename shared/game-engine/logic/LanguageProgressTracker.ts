@@ -587,6 +587,11 @@ export class LanguageProgressTracker {
     return this.progress.conversations.slice(-count);
   }
 
+  /** Get current conversation grammar error/correct counts (for difficulty monitoring) */
+  public getConversationGrammarCounts(): { errors: number; correct: number } {
+    return { errors: this.conversationGrammarErrors, correct: this.conversationGrammarCorrect };
+  }
+
   public getGrammarPatterns(): GrammarPattern[] {
     return [...this.progress.grammarPatterns];
   }

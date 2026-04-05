@@ -12,6 +12,7 @@ import {
   cefrToVocabularyRange,
   getQuestPoolSizes,
   getCEFRTextComplexity,
+  buildScaffoldingDirective,
   type NPCLanguageMode,
   type CEFRProgressSnapshot,
 } from '../language/cefr-adaptation';
@@ -364,5 +365,36 @@ describe('getCEFRTextComplexity', () => {
     expect(a1.maxSentenceWords).toBeLessThan(a2.maxSentenceWords);
     expect(a2.maxSentenceWords).toBeLessThan(b1.maxSentenceWords);
     expect(b1.maxSentenceWords).toBeLessThan(b2.maxSentenceWords);
+  });
+});
+
+// ── Scaffolding Directives ──────────────────────────────────────────────────
+
+describe('buildScaffoldingDirective', () => {
+  it('returns empty string for "none" level', () => {
+    expect(buildScaffoldingDirective('none', 'French')).toBe('');
+  });
+
+  it('returns scaffolding directive with target language', () => {
+    const directive = buildScaffoldingDirective('scaffolded', 'French', 'English');
+    expect(directive).toContain('SCAFFOLDING');
+    expect(directive).toContain('French');
+    expect(directive).toContain('shorter sentences');
+    expect(directive).toContain('translations in brackets');
+  });
+
+  it('returns stretch directive with advanced vocabulary guidance', () => {
+    const directive = buildScaffoldingDirective('stretch', 'French', 'English');
+    expect(directive).toContain('STRETCH');
+    expect(directive).toContain('French');
+    expect(directive).toContain('advanced vocabulary');
+    expect(directive).toContain('open-ended questions');
+  });
+
+  it('uses default native language of English', () => {
+    const directive = buildScaffoldingDirective('scaffolded', 'Spanish');
+    expect(directive).toContain('Spanish');
+    // Should not crash without nativeLanguage arg
+    expect(directive.length).toBeGreaterThan(0);
   });
 });
