@@ -35,6 +35,7 @@ import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js
 import { greetingCache } from './greeting-cache.js';
 import { classifyConversation } from './conversation-classifier.js';
 import type { ModelTier } from './conversation-classifier.js';
+import { speculativeCache, canonicalizeMessage } from './speculative-cache.js';
 import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -178,6 +179,42 @@ async function handleTextInput(
 
   // Add user message to history
   addToHistory(session, 'user', text);
+
+  // ── Speculative cache check (turn 1 only) ──────────────────────────
+  // If player sends a likely opening message, serve the pre-generated response instantly.
+  if (turnNumber === 1) {
+    const specHit = speculativeCache.get(worldId, characterId, text);
+    if (specHit) {
+      const specTimer = new PipelineTimer('speculative_cache_hit');
+
+      // Stream the cached response as text chunks (simulate streaming for client compat)
+      sendJSON(ws, { type: 'text', text: specHit.text, isFinal: false, languageCode, sessionId });
+      sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
+
+      // Send pre-generated TTS audio if available
+      if (specHit.audio) {
+        sendBinary(ws, specHit.audio);
+        sendJSON(ws, { type: 'audio_meta', encoding: 'pcm', sampleRate: 24000, durationMs: 0 });
+      }
+
+      // Store in history
+      addToHistory(session, 'assistant', specHit.text);
+      const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
+      conversationContextCache.append(cacheKey, { role: 'user', content: text });
+      conversationContextCache.append(cacheKey, { role: 'assistant', content: specHit.text });
+
+      specTimer.stop();
+      sendJSON(ws, { type: 'done' });
+
+      // Kick off real LLM generation in background to validate/correct
+      generateBackgroundCorrection(ws, text, session, worldId, characterId, languageCode, specHit.text, options).catch(() => {
+        // Background correction is best-effort
+      });
+      return;
+    } else {
+      getConversationMetrics().record('speculative_cache_miss', 0);
+    }
+  }
 
   // Resolve LLM provider
   let llmProvider: IStreamingLLMProvider;
@@ -598,10 +635,123 @@ async function handlePreWarm(
     });
     const elapsed = timer.stop();
     sendJSON(ws, { type: 'pre_warm_ack', characterId, status: 'warmed', durationMs: elapsed });
+
+    // Fire-and-forget: generate speculative responses for likely openings
+    generateSpeculativeResponses(worldId, characterId, fullCtx.conversationContext, {}).catch(() => {
+      // Speculative generation is best-effort
+    });
   } catch (err: any) {
     timer.stop();
     console.error('[WS-Bridge] Pre-warm error:', err.message);
     sendJSON(ws, { type: 'pre_warm_ack', characterId, status: 'error' });
+  }
+}
+
+/**
+ * Generate speculative responses for likely player openings using FAST tier.
+ * Called after pre-warm context is built. Runs in background.
+ */
+async function generateSpeculativeResponses(
+  worldId: string,
+  characterId: string,
+  context: ConversationContext,
+  options: WSBridgeOptions,
+): Promise<void> {
+  // Skip if already have speculative entries for this NPC
+  if (speculativeCache.has(worldId, characterId)) return;
+
+  let llmProvider: IStreamingLLMProvider;
+  try {
+    llmProvider = options.llmProvider ?? getProvider();
+  } catch {
+    return;
+  }
+
+  // Resolve TTS provider for audio pre-generation
+  let ttsProvider: ITTSProvider | null = options.ttsProvider ?? null;
+  if (!ttsProvider) {
+    try {
+      const ttsModule = await import('./tts/tts-provider.js');
+      ttsProvider = ttsModule.getTTSProvider?.() ?? null;
+    } catch {
+      // TTS not available
+    }
+  }
+
+  const voiceProfile: VoiceProfile | undefined = ttsProvider
+    ? assignVoiceProfile({ gender: (context as any)?.characterGender })
+    : undefined;
+
+  const specTimer = new PipelineTimer('speculative_generation');
+  try {
+    // TODO: derive CEFR level from context if available
+    const cefrLevel = (context as any)?.cefrLevel;
+    await speculativeCache.generate(worldId, characterId, context, llmProvider, cefrLevel, ttsProvider, voiceProfile);
+  } catch {
+    // Non-fatal
+  }
+  specTimer.stop();
+}
+
+/**
+ * Background correction: after serving a speculative response, generate the
+ * real LLM response. If it differs significantly, send a correction to the client.
+ * This ensures accuracy while still providing instant first response.
+ */
+async function generateBackgroundCorrection(
+  ws: WebSocket,
+  text: string,
+  session: any,
+  worldId: string,
+  characterId: string,
+  languageCode: string,
+  speculativeText: string,
+  options: WSBridgeOptions,
+): Promise<void> {
+  let llmProvider: IStreamingLLMProvider;
+  try {
+    llmProvider = options.llmProvider ?? getProvider();
+  } catch {
+    return;
+  }
+
+  try {
+    let realResponse = '';
+    const tokens = llmProvider.streamCompletion(text, session.conversationContext!, {
+      languageCode,
+      conversationHistory: session.history.slice(0, -2), // exclude speculative pair
+      modelTier: 'full' as ModelTier,
+    });
+    for await (const token of tokens) {
+      realResponse += token;
+    }
+
+    if (!realResponse) return;
+
+    // Check if responses differ significantly (>30% different by length ratio or content)
+    const lengthRatio = Math.abs(realResponse.length - speculativeText.length) / Math.max(realResponse.length, speculativeText.length);
+    const isDifferent = lengthRatio > 0.3 || !realResponse.toLowerCase().includes(speculativeText.substring(0, 20).toLowerCase());
+
+    if (isDifferent) {
+      // Send correction to client
+      sendJSON(ws, {
+        type: 'speculative_correction',
+        correctedText: realResponse,
+        languageCode,
+      });
+
+      // Update history with the corrected response
+      if (session.history.length >= 2) {
+        session.history[session.history.length - 1] = { role: 'assistant', content: realResponse };
+      }
+
+      // Update context cache
+      const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
+      // Re-append corrected response (the cache append is additive, so we rebuild)
+      conversationContextCache.append(cacheKey, { role: 'assistant', content: realResponse });
+    }
+  } catch {
+    // Background correction failure is non-fatal
   }
 }
 
@@ -679,6 +829,13 @@ export function invalidateContextCache(
     greetingCache.invalidate(worldId, characterId);
   } else {
     greetingCache.invalidateWorld(worldId);
+  }
+
+  // Also invalidate speculative cache on context invalidation
+  if (characterId) {
+    speculativeCache.invalidate(worldId, characterId);
+  } else {
+    speculativeCache.invalidateWorld(worldId);
   }
 }
 

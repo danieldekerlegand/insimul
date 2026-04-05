@@ -28,6 +28,9 @@ export type MetricStage =
   | 'tts_total'
   | 'viseme'
   | 'npc_npc_first_line'
+  | 'speculative_cache_hit'
+  | 'speculative_cache_miss'
+  | 'speculative_generation'
   | 'end_to_end';
 
 export interface LatencyEntry {
