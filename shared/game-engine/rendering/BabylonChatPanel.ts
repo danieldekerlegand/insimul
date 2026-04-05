@@ -30,6 +30,7 @@ import { ListenAndRepeatController, type RepeatAttemptResult } from "./ListenAnd
 import type { ListenAndRepeatPhrase } from "../logic/actions/ListenAndRepeatAction";
 import { ConversationDifficultyMonitor, type TurnMetrics } from "../logic/ConversationDifficultyMonitor";
 import { buildScaffoldingDirective } from "@shared/language/cefr-adaptation";
+import type { CEFRLevel } from "@shared/assessment/cefr-mapping";
 import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/typescript';
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
@@ -108,6 +109,9 @@ export class BabylonChatPanel {
   private worldLanguageContext: WorldLanguageContext | null = null;
   private playerInventoryContext: string = '';
   private languageTracker: LanguageProgressTracker | null = null;
+  private playerCefrLevel: CEFRLevel | null = null;
+  /** Previous CEFR level when last conversation started — used to detect improvement */
+  private _previousCefrLevel: CEFRLevel | null = null;
   private messages: Message[] = [];
   private isVisible = false;
   private nearbyNPCName: string | null = null;
@@ -294,6 +298,19 @@ export class BabylonChatPanel {
   }
 
   /**
+   * Update the player's CEFR level. Invalidates cached system prompt so the next
+   * conversation uses updated NPC language behavior.
+   */
+  public updateCefrLevel(level: CEFRLevel): void {
+    if (level !== this.playerCefrLevel) {
+      console.log(`[ChatPanel] CEFR level updated: ${this.playerCefrLevel} → ${level}`);
+      this._previousCefrLevel = this.playerCefrLevel;
+      this.playerCefrLevel = level;
+      this._cachedSystemPrompt = null;
+    }
+  }
+
+  /**
    * Start push-to-talk recording (called on key down).
    */
   public startPushToTalk(): void {
@@ -312,12 +329,20 @@ export class BabylonChatPanel {
     }
   }
 
-  public show(character: Character, truths: Truth[], npcMesh?: Mesh) {
+  public show(character: Character, truths: Truth[], npcMesh?: Mesh, cefrLevel?: CEFRLevel | null) {
     console.log('[ChatPanel] SHOW() called for:', character.firstName, character.lastName);
     console.log('[ChatPanel] Current time:', Date.now());
     this.character = character;
     this.truths = truths;
     this.npcMesh = npcMesh || null;
+
+    // Track CEFR level changes between conversations
+    if (cefrLevel) {
+      this._previousCefrLevel = this.playerCefrLevel;
+      this.playerCefrLevel = cefrLevel;
+      // Invalidate system prompt cache so NPC language mode reflects current level
+      this._cachedSystemPrompt = null;
+    }
     this.isVisible = true;
 
     // Lock voice/gender at conversation start so it never drifts mid-conversation
@@ -1952,6 +1977,7 @@ export class BabylonChatPanel {
       npcResponse,
       targetLanguage,
       playerProficiency: String(this.languageTracker?.getFluency?.() ?? 'beginner'),
+      cefrLevel: this.languageTracker?.getCEFRLevel() || this.playerCefrLevel || undefined,
       activeObjectives,
     })
       .then((metadata: any) => {
@@ -2103,6 +2129,8 @@ export class BabylonChatPanel {
     }
     this._proficiencyDirty = false;
     const proficiency = this.languageTracker?.getPlayerProficiency() || undefined;
+    // Use current CEFR level from tracker (most up-to-date) or stored level
+    const currentCefr = this.languageTracker?.getCEFRLevel() || this.playerCefrLevel || null;
     let prompt = buildLanguageAwareSystemPrompt(
       this.character,
       this.truths,
@@ -2115,8 +2143,14 @@ export class BabylonChatPanel {
         description: this.world.description,
         targetLanguage: this.world.targetLanguage,
       } : undefined,
-      proficiency
+      proficiency,
+      currentCefr
     );
+
+    // When CEFR level advanced since last conversation with this NPC, prompt NPC to acknowledge improvement
+    if (this._previousCefrLevel && currentCefr && this._previousCefrLevel !== currentCefr) {
+      prompt += `\n\nPLAYER IMPROVEMENT: The player has recently improved from ${this._previousCefrLevel} to ${currentCefr}. Briefly acknowledge their language improvement in your first response — comment naturally on how their speech has gotten better. Then continue the conversation normally.\n`;
+    }
     if (this.playerInventoryContext) {
       prompt += this.playerInventoryContext;
     }

@@ -4180,6 +4180,10 @@ export class BabylonGame {
       // Track CEFR level for main quest gating
       if (event.cefrLevel) {
         this.playerCefrLevel = event.cefrLevel;
+        // Update chat panel so next conversation uses new level
+        if (this.chatPanel) {
+          this.chatPanel.updateCefrLevel(event.cefrLevel as any);
+        }
         // Persist cefrLevel to playerProgress for server-side queries
         const worldId = this.config.worldId;
         const playerId = this.config.userId || 'player';
@@ -4844,6 +4848,14 @@ export class BabylonGame {
             ).catch(err =>
               console.warn('[BabylonGame] Failed to persist cefrLevel to playerProgress:', err)
             );
+          }
+
+          // Update playerCefrLevel so next chatPanel.show() passes the new level
+          this.playerCefrLevel = newLevel;
+
+          // Update chat panel immediately so in-progress or next conversation uses new level
+          if (this.chatPanel) {
+            this.chatPanel.updateCefrLevel(newLevel);
           }
 
           // Emit event for other systems (quest gating, periodic assessment, etc.)
@@ -13242,7 +13254,8 @@ export class BabylonGame {
       this.fetchQuestGuidance(npcId, this.config.worldId);
 
       // Open the chat panel — this is the core action
-      this.chatPanel.show(character, truths, npcMesh);
+      // Pass current CEFR level so NPC language mode reflects player's latest progress
+      this.chatPanel.show(character, truths, npcMesh, (this.playerCefrLevel as any) || null);
 
       // If this NPC is the assessment target, signal that the player initiated the conversation
       if (this.assessmentActive && this._assessmentTargetNpcId && npcId === this._assessmentTargetNpcId) {
@@ -13303,7 +13316,7 @@ export class BabylonGame {
 
     // Open chat panel with char1
     const npc1Instance = this.npcMeshes.get(npc1Id);
-    this.chatPanel.show(character, truths, npc1Instance?.mesh);
+    this.chatPanel.show(character, truths, npc1Instance?.mesh, (this.playerCefrLevel as any) || null);
 
     // Enter eavesdrop mode — hide input area, show system message
     this.chatPanel.setEavesdropMode(true);

@@ -233,6 +233,7 @@ export interface ConversationMetadataRequest {
   npcResponse: string;
   targetLanguage: string;
   playerProficiency?: string;
+  cefrLevel?: string;
   /** Active quest objectives to evaluate against this conversation exchange.
    *  The server will ask the LLM if any of these goals were met. */
   activeObjectives?: Array<{
