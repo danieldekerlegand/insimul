@@ -143,6 +143,8 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         // UI panel events (tutorial completion triggers)
         { TEXT("inventory_opened"),                 EInsimulEventType::InventoryOpened },
         { TEXT("quest_log_opened"),                 EInsimulEventType::QuestLogOpened },
+        // CEFR level advancement
+        { TEXT("cefr_level_advanced"),              EInsimulEventType::CefrLevelAdvanced },
     };
     return Map;
 }

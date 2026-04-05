@@ -214,6 +214,8 @@ import { QuestNotificationManager } from "@shared/game-engine/rendering/QuestNot
 import { ReputationManager } from "@shared/game-engine/rendering/ReputationManager";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
 import { LanguageProgressTracker } from "@shared/game-engine/logic/LanguageProgressTracker";
+import { getCEFRDescription } from "@shared/assessment/cefr-mapping";
+import type { CEFRLevel } from "@shared/assessment/cefr-mapping";
 import { extractObjectiveMarkers } from "@shared/game-engine/logic/QuestMinimapMarkers";
 import { DynamicQuestWaypointDirector, type DirectorBuildingEntry, type DirectorNpcPosition, type ResolvedWaypoint } from "@shared/game-engine/logic/DynamicQuestWaypointDirector";
 import { QuestWaypointManager } from "@shared/game-engine/rendering/QuestWaypointManager";
@@ -4792,6 +4794,36 @@ export class BabylonGame {
           this.config.playthroughId || undefined
         );
         this.languageProgressTracker.setDataSource(this.dataSource);
+
+        // Wire CEFR level-up celebration and Prolog assertion
+        this.languageProgressTracker.setOnCEFRAdvancement((oldLevel: CEFRLevel, newLevel: CEFRLevel) => {
+          console.log(`[BabylonGame] CEFR advancement: ${oldLevel} → ${newLevel}`);
+
+          // Show celebration toast with level description
+          const description = getCEFRDescription(newLevel);
+          this.guiManager?.showToast({
+            title: `Level Up! ${oldLevel} → ${newLevel}`,
+            description: `${description}\n\nYour language skills have improved! NPCs will now speak more in the target language.`,
+            duration: 8000,
+          });
+
+          // Assert player_cefr_level Prolog fact (matching AssessmentEngine pattern)
+          if (this.prologEngine) {
+            this.prologEngine.assertFact(
+              `player_cefr_level(player, ${newLevel.toLowerCase()})`
+            ).catch(err =>
+              console.warn('[BabylonGame] Failed to assert CEFR level:', err)
+            );
+          }
+
+          // Emit event for other systems (quest gating, periodic assessment, etc.)
+          this.eventBus.emit({
+            type: 'cefr_level_advanced',
+            oldLevel,
+            newLevel,
+          });
+        });
+
         // Share with chat panel so conversations accumulate into the persistent tracker
         if (this.chatPanel) {
           this.chatPanel.setPersistentLanguageTracker(this.languageProgressTracker);

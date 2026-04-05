@@ -64,6 +64,13 @@ export class LanguageProgressTracker {
   // CEFR progression tracking
   private _cefrLevel: CEFRLevel = 'A1';
   private _textsRead: number = 0;
+  private _lastAdvancementTimestamp: number = 0;
+  private _conversationsSinceLastAdvancement: number = 0;
+
+  /** Minimum ms between CEFR advancements to prevent oscillation (30 minutes) */
+  static readonly MIN_ADVANCEMENT_INTERVAL_MS = 30 * 60 * 1000;
+  /** Minimum conversations since last advancement before allowing another */
+  static readonly MIN_CONVERSATIONS_BETWEEN_ADVANCEMENTS = 3;
 
   // Callbacks
   private onFluencyGain: ((result: FluencyGainResult) => void) | null = null;
@@ -441,7 +448,11 @@ export class LanguageProgressTracker {
     this.conversationReinforcedWords = new Set();
 
     this.currentConversation = null;
+    this._conversationsSinceLastAdvancement++;
     this.onFluencyGain?.(result);
+
+    // Check CEFR advancement after every conversation with meaningful progress
+    this.checkAndAdvanceCEFR();
 
     return result;
   }
@@ -616,6 +627,7 @@ export class LanguageProgressTracker {
   /**
    * Check whether the player should advance to the next CEFR level.
    * If advancement thresholds are met, updates the level and fires the callback.
+   * Enforces safeguards: no demotion, minimum time/conversations between advancements.
    * Returns the advancement result (with progress toward next level).
    */
   public checkAndAdvanceCEFR(): CEFRAdvancementResult {
@@ -623,8 +635,32 @@ export class LanguageProgressTracker {
     const result = checkCEFRAdvancement(snapshot);
 
     if (result.shouldAdvance && result.nextLevel) {
+      // Safeguard: never demote (nextLevel must be higher than current)
+      const LEVEL_ORDER: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
+      const currentIdx = LEVEL_ORDER.indexOf(this._cefrLevel);
+      const nextIdx = LEVEL_ORDER.indexOf(result.nextLevel);
+      if (nextIdx <= currentIdx) {
+        return result;
+      }
+
+      // Safeguard: minimum time since last advancement
+      const now = Date.now();
+      if (this._lastAdvancementTimestamp > 0 &&
+          (now - this._lastAdvancementTimestamp) < LanguageProgressTracker.MIN_ADVANCEMENT_INTERVAL_MS) {
+        return result;
+      }
+
+      // Safeguard: minimum conversations since last advancement
+      if (this._lastAdvancementTimestamp > 0 &&
+          this._conversationsSinceLastAdvancement < LanguageProgressTracker.MIN_CONVERSATIONS_BETWEEN_ADVANCEMENTS) {
+        return result;
+      }
+
       const oldLevel = this._cefrLevel;
       this._cefrLevel = result.nextLevel;
+      this.progress.cefrLevel = result.nextLevel;
+      this._lastAdvancementTimestamp = now;
+      this._conversationsSinceLastAdvancement = 0;
       this.onCEFRAdvancement?.(oldLevel, result.nextLevel);
     }
 
@@ -639,6 +675,8 @@ export class LanguageProgressTracker {
       ...this.progress,
       cefrLevel: this._cefrLevel,
       textsRead: this._textsRead,
+      lastAdvancementTimestamp: this._lastAdvancementTimestamp,
+      conversationsSinceLastAdvancement: this._conversationsSinceLastAdvancement,
     });
   }
 
@@ -655,6 +693,14 @@ export class LanguageProgressTracker {
       if (data.textsRead != null) {
         this._textsRead = data.textsRead;
         delete data.textsRead;
+      }
+      if (data.lastAdvancementTimestamp != null) {
+        this._lastAdvancementTimestamp = data.lastAdvancementTimestamp;
+        delete data.lastAdvancementTimestamp;
+      }
+      if (data.conversationsSinceLastAdvancement != null) {
+        this._conversationsSinceLastAdvancement = data.conversationsSinceLastAdvancement;
+        delete data.conversationsSinceLastAdvancement;
       }
       this.progress = data;
     } catch (e) {

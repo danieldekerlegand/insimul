@@ -158,6 +158,8 @@ const EVENT_ACTIVITY_OBSERVED := "activity_observed"
 # UI panel events (tutorial completion triggers)
 const EVENT_INVENTORY_OPENED := "inventory_opened"
 const EVENT_QUEST_LOG_OPENED := "quest_log_opened"
+# CEFR level advancement (auto-level-up after conversation)
+const EVENT_CEFR_LEVEL_ADVANCED := "cefr_level_advanced"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -263,6 +265,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	# UI panel events (tutorial completion triggers)
 	EVENT_INVENTORY_OPENED,
 	EVENT_QUEST_LOG_OPENED,
+	# CEFR level advancement
+	EVENT_CEFR_LEVEL_ADVANCED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

@@ -981,3 +981,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `_assessmentTargetNpcId` is set by `assessment_conversation_quest_start` handler — depends on NPCs existing in the world
   - Assessment session is NOT persisted server-side (no POST /api/assessments call) — only CEFR level is stored via storeCefrLevel
 ---
+
+## 2026-04-05 - US-001: Wire auto-level-up with UI celebration
+- **What was implemented**: Wired `checkCEFRAdvancement()` to automatically run after every conversation with meaningful progress (after `calculateFluencyGain()`). When thresholds are met, the player's CEFR level advances with a celebration toast and Prolog fact assertion.
+- **Key changes**:
+  - `LanguageProgressTracker.endConversation()` now calls `checkAndAdvanceCEFR()` after fluency gain calculation
+  - `checkAndAdvanceCEFR()` enhanced with safeguards: no demotion (nextLevel must be strictly higher), 30-min minimum between advancements, 3 conversations minimum between advancements
+  - Added `_lastAdvancementTimestamp` and `_conversationsSinceLastAdvancement` fields, persisted in export/import
+  - `BabylonGame.ts` wires `onCEFRAdvancement` callback: shows celebration toast with level description from `getCEFRDescription()`, asserts `player_cefr_level(player, <level>)` Prolog fact (matching AssessmentEngine pattern), emits `cefr_level_advanced` event on GameEventBus
+  - Added `cefr_level_advanced` event type to `GameEvent` union in `GameEventBus.ts`
+- **Files changed**:
+  - `shared/game-engine/logic/LanguageProgressTracker.ts` — added safeguard fields, wired checkAndAdvanceCEFR after endConversation, enhanced checkAndAdvanceCEFR with safeguards, persisted new fields in export/import
+  - `shared/game-engine/rendering/BabylonGame.ts` — added CEFR advancement callback with celebration toast, Prolog assertion, and event emission
+  - `shared/game-engine/logic/GameEventBus.ts` — added `cefr_level_advanced` event type
+- **Learnings for future iterations:**
+  - `checkAndAdvanceCEFR()` existed on LanguageProgressTracker but was never called — the plumbing was ready, just needed wiring
+  - `onCEFRAdvancement` callback was already defined as a field, just needed `setOnCEFRAdvancement()` to be called from BabylonGame
+  - CEFR advancement functions take CEFRLevel as parameters (not cached) so they naturally use the latest level
+  - `progress.cefrLevel` on LanguageProgress interface needs to be updated alongside `_cefrLevel` private field
+  - GameEventBus event types are a union type — adding new events requires adding to the union in GameEventBus.ts
+  - Prolog fact pattern: `player_cefr_level(player, <lowercase_level>)` — must match AssessmentEngine._assertAssessmentResult
+---

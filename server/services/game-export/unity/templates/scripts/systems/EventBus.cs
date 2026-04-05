@@ -125,7 +125,9 @@ namespace Insimul.Systems
         // Exploration discovery events
         InvestigationCompleted,
         // NPC activity observation events
-        ActivityObserved
+        ActivityObserved,
+        // CEFR level advancement (auto-level-up after conversation)
+        CefrLevelAdvanced
     }
 
     /// <summary>
@@ -990,6 +992,13 @@ namespace Insimul.Systems
         public string npcName;
         public string activity;
         public float durationSeconds;
+    }
+
+    public class CefrLevelAdvancedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.CefrLevelAdvanced;
+        public string oldLevel;
+        public string newLevel;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

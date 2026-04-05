@@ -192,7 +192,9 @@ export type GameEvent =
   | { type: 'activity_observed'; npcId: string; npcName: string; activity: string; durationSeconds: number; questId?: string }
   // UI panel events (tutorial completion triggers)
   | { type: 'inventory_opened' }
-  | { type: 'quest_log_opened' };
+  | { type: 'quest_log_opened' }
+  // CEFR level advancement (auto-level-up after conversation)
+  | { type: 'cefr_level_advanced'; oldLevel: string; newLevel: string };
 
 export type GameEventType = GameEvent['type'];
 

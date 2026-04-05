@@ -1,418 +1,217 @@
 {
   "project": "Insimul",
-  "branchName": "ralph/game-state-truth-system",
-  "description": "Game State Truth System — Make Prolog the ultimate arbiter of truth for all gameplay state. Define canonical predicates, add action prerequisites/effects, real-time truth sync, character templates, and creator tools.",
+  "branchName": "ralph/assessment-adaptation",
+  "description": "Assessment & Adaptation Pipeline — wire auto-level-up, unify CEFR progress schema, aggregate EVAL dimension scores, periodic assessments, mastery threshold consistency, dynamic mid-conversation scaffolding, vocabulary frequency enforcement, grammar weakness quests, C1/C2 CEFR support, gradual UI immersion, and automated tests",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Fix converter whitespace and clean Prolog output",
-      "description": "As a developer, I want clean Prolog output from the action converter with consistent formatting — no extra blank lines.",
+      "title": "Wire auto-level-up with UI celebration",
+      "description": "As a player, I need checkCEFRAdvancement() to actually be called after conversations so that my CEFR level advances when I meet thresholds instead of being stuck at A1 forever.",
       "acceptanceCriteria": [
-        "In shared/prolog/action-converter.ts, remove extra blank lines before '% Can Actor perform this action?' comment (single blank line only)",
-        "Remove trailing blank lines after prerequisite/effect blocks when they are empty",
-        "No double-blank-lines anywhere in generated output",
-        "Run migration to update all 133 base actions in DB with cleaned output",
-        "Typecheck passes"
+        "After calculateFluencyGain() runs in progress.ts, call checkCEFRAdvancement() with a CEFRProgressSnapshot of current wordsLearned, wordsMastered, conversationsCompleted, textsRead, grammarPatternsRecognized",
+        "If shouldAdvance=true, update cefrLevel in LanguageProgress and persist via data source",
+        "New level propagates to getNPCLanguageBehavior(), getHintBehavior(), filterQuestsByCEFR(), getCEFRTextComplexity()",
+        "Show a CEFR level-up celebration modal/toast with level description from cefr-mapping.ts and summary of what changes",
+        "Wire level-up into BabylonGame.ts after conversation end handler",
+        "Assert player_cefr_level() Prolog fact on advancement (matching AssessmentEngine._assertAssessmentResult pattern)",
+        "Safeguards: no demotion via auto-level-up, minimum time/conversation count since last advancement to prevent oscillation",
+        "Typecheck passes, tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "checkCEFRAdvancement() in cefr-adaptation.ts line 267 is never called. Thresholds: A1→A2: 50 words + 3 convos, A2→B1: 150 words + 10 convos + 5 texts, B1→B2: 300 words + 25 convos + 15 texts."
     },
     {
       "id": "US-002",
-      "title": "Define canonical gameplay state predicates schema",
-      "description": "As a developer, I need a definitive predicate schema for all gameplay-relevant state so that every system speaks the same Prolog vocabulary.",
+      "title": "Unify progress schema with cefrLevel column",
+      "description": "As a developer, I need cefrLevel directly on the playerProgress table so that server-side queries can filter by CEFR level without parsing nested save data.",
       "acceptanceCriteria": [
-        "New file shared/prolog/gameplay-predicates.ts exports a GAMEPLAY_PREDICATES array",
-        "Each entry has: name (string), arity (number), description (string), args (array of {name, type} objects), syncDirection ('runtime_to_prolog' | 'prolog_to_runtime' | 'bidirectional'), category ('player_state' | 'npc_state' | 'world_state' | 'location')",
-        "Player state predicates defined: has_item/3, has_equipped/3, has_skill/3, has_trait/2, has_status/3, has_ability/2, health/3, energy/3, at_location/2, at_location_type/2, near/3, speaks_language/3, knows_vocabulary/3, gold/2, level/2, xp/3, age/2, occupation/2",
-        "NPC-specific predicates defined: npc_occupation/2, npc_schedule/4, npc_dialogue_state/2, npc_disposition/3, npc_will_trade/1, npc_quest_available/2",
-        "World state predicates defined: time_of_day/1, day_number/1, weather/1, location_accessible/1, location_discovered/1, quest_active/2, quest_completed/2, quest_failed/2",
-        "Location predicates defined: named_location/2, location_coords/3, location_of_building/2, location_of_business/2",
-        "Export getPredicatesByCategory(), getPredicateByName(), getMinimumViableTemplate() helper functions",
-        "getMinimumViableTemplate() returns the list of predicates required for any valid character: health, energy, speaks_language, gold, at_location, occupation, age",
-        "Typecheck passes"
+        "Add cefrLevel column to playerProgress in shared/schema.ts with text type, enum validation for A1/A2/B1/B2/C1/C2, default null",
+        "Create MongoDB migration adding the field to the Mongoose schema in mongo-storage.ts",
+        "On assessment completion (AssessmentEngine.onCompleted), write cefrLevel to both LanguageProgress and playerProgress",
+        "On auto-level-up, update playerProgress.cefrLevel alongside LanguageProgress.cefrLevel",
+        "Server API endpoint returns cefrLevel without loading full LanguageProgress blob",
+        "Server-side quest generation reads from playerProgress.cefrLevel",
+        "Typecheck passes, tests pass"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "playerProgress table at shared/schema.ts line 1364 has level, experience, gold, stats but NO cefrLevel."
     },
     {
       "id": "US-003",
-      "title": "Define helper predicates for Prolog KB",
-      "description": "As a developer, I need helper predicates (cefr_gte, is_weapon_type, etc.) in the base Prolog KB so that action prerequisites can reference them.",
+      "title": "Aggregate EVAL dimension scores into long-term tracking",
+      "description": "As a player, I need my NPC EVAL dimension scores (Vocabulary, Grammar, Fluency, Comprehension, Task Completion) accumulated over time so that the system can identify my weak areas and adapt.",
       "acceptanceCriteria": [
-        "New file shared/prolog/helper-predicates.ts exports HELPER_PREDICATES_PROLOG string containing base Prolog helper rules",
-        "cefr_gte/2 predicate: compares CEFR levels (a1 < a2 < b1 < b2 < c1 < c2) — e.g. cefr_gte(b1, a2) succeeds",
-        "cefr_level_rank/2 maps atoms to integers: cefr_level_rank(a1, 1), cefr_level_rank(a2, 2), etc.",
-        "is_weapon_type/2: is_weapon_type(ItemId, Type) checks item_type(ItemId, Type) for weapon categories (sword, axe, bow, staff, pistol)",
-        "is_tool_type/2: checks item_type for tool categories (fishing_rod, pickaxe, axe, hoe)",
-        "skill_tier_name/2: maps integer skill levels to display names (1=novice, 3=apprentice, 5=journeyman, 7=expert, 10=master)",
-        "skill_gte/3: skill_gte(Actor, Skill, MinLevel) succeeds if has_skill(Actor, Skill, Level), Level >= MinLevel",
-        "GamePrologEngine loads these helpers at initialization",
-        "Typecheck passes"
+        "Parse EVAL blocks (search for **EVAL** and END_EVAL patterns) extracting { vocabulary, grammar, fluency, comprehension, taskCompletion } scores 1-5",
+        "Add dimensionScores history array to LanguageProgress interface with timestamp, conversationId, npcId, scores",
+        "After each conversation with EVAL block, push parsed scores to history array",
+        "Implement computeAverageDimensionScores(lastN?) returning rolling averages across 5 dimensions",
+        "Implement computeDimensionTrend(dimension, windowSize) returning improving/stable/declining",
+        "Include recent dimension averages in periodic assessment context",
+        "Feed dimension scores into conversation-quality-scoring.ts as additional signal",
+        "Typecheck passes, tests pass"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "EVAL blocks referenced in BabylonChatPanel.ts ~line 1762 and progress.ts line 232. Similar to parseGrammarFeedbackBlock() at progress.ts line 253."
     },
     {
       "id": "US-004",
-      "title": "Define action prerequisites for combat actions",
-      "description": "As a game designer, I want combat actions to require appropriate weapons and proximity so players can only fight when equipped.",
+      "title": "Wire periodic assessment triggers at quest milestones",
+      "description": "As a player, I need periodic assessments to actually trigger at quest completion milestones so that my CEFR level stays calibrated as I progress.",
       "acceptanceCriteria": [
-        "New file shared/prolog/action-prerequisites.ts exports ACTION_PREREQUISITES: Record<string, PrerequisiteDefinition>",
-        "PrerequisiteDefinition type has: actionId (string), prerequisites (array of Prolog goal strings), inheritsFromParent (boolean)",
-        "attack_enemy: energy check + near(Actor, Target, 3) + alive(Target)",
-        "sword_attack, sword_combo, sword_dash: inherit from attack_enemy + has_equipped(Actor, weapon, W) + is_weapon_type(W, sword)",
-        "punch, punch_heavy, melee_hook: inherit from attack_enemy (no weapon required — unarmed)",
-        "shield_bash, shield_dash: inherit from attack_enemy + has_equipped(Actor, shield, _)",
-        "pistol_shoot: inherit from attack_enemy + has_equipped(Actor, weapon, W) + is_weapon_type(W, pistol)",
-        "throw_projectile: inherit from attack_enemy + has_item(Actor, projectile, _)",
-        "defend, shield_block: has_equipped(Actor, shield, _)",
-        "sword_block: has_equipped(Actor, weapon, W) + is_weapon_type(W, sword)",
-        "cast_spell, spell_channel: energy check + has_ability(Actor, magic)",
-        "Animation-only actions (react, die, hit_head, hit_reaction, knockback, sword_idle, pistol_aim, pistol_reload, zombie_*): inheritsFromParent = true, no additional prerequisites",
-        "Typecheck passes"
+        "After each quest completion event on GameEventBus, call isPeriodicAssessmentLevel() from periodic-encounter.ts with completed quest count",
+        "Respect 60-minute cooldown (PERIODIC_ASSESSMENT_COOLDOWN_MS) between assessments",
+        "Create launchPeriodicAssessment() in BabylonGame.ts: pause gameplay, open AssessmentModalUI, run conversation phase (25 points, 5 dimensions), score result",
+        "Handle results: if score suggests higher/lower CEFR, trigger auto-level-up or flag for confirmation",
+        "Show pre-assessment notification with Accept/Postpone options; if postponed, retry after next quest",
+        "Quest journal shows when next periodic assessment is due",
+        "Periodic assessments update dimension scores in aggregated tracking system",
+        "Typecheck passes, tests pass"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "periodic-encounter.ts line 52 has triggers at milestones [5, 10, 15, 20] and 60-min cooldown, but integration with game events is MISSING."
     },
     {
       "id": "US-005",
-      "title": "Define action prerequisites for resource and commerce actions",
-      "description": "As a game designer, I want resource gathering and commerce actions to require tools, location types, and merchant proximity.",
+      "title": "Fix mastery threshold inconsistency",
+      "description": "As a developer, I need a single canonical mastery definition so that vocabulary mastery is consistent across all systems.",
       "acceptanceCriteria": [
-        "In shared/prolog/action-prerequisites.ts, add prerequisites for resource category:",
-        "gather: energy check + at_location_type(Actor, LocType) where LocType is appropriate",
-        "chop_tree: inherit gather + has_item(Actor, axe, _) + at_location_type(Actor, forest)",
-        "mine_rock: inherit gather + has_item(Actor, pickaxe, _) + at_location_type(Actor, mine)",
-        "fish: inherit gather + has_item(Actor, fishing_rod, _) + at_location_type(Actor, water)",
-        "gather_herb: inherit gather + at_location_type(Actor, forest)",
-        "farm_plant, farm_water, farm_harvest: inherit farm + at_location_type(Actor, farm)",
-        "cook: energy check + at_location_type(Actor, kitchen)",
-        "craft_item, fix_repair: energy check + at_location_type(Actor, workshop)",
-        "Commerce prerequisites:",
-        "trade, buy_item, sell_item: near(Actor, Target, 5) + npc_will_trade(Target)",
-        "buy_item additionally: gold(Actor, G), G > 0",
-        "work: at_location(Actor, Workplace) + occupation(Actor, _)",
-        "paint, sweep, push_object: energy check only (inherit from work)",
-        "Typecheck passes"
+        "Audit all mastery threshold definitions: progress.ts calculateMasteryLevel(), cefr-adaptation.ts isWordMastered(), and any others",
+        "Create shared MASTERY_THRESHOLDS constant in shared/language/vocabulary-constants.ts with NEW/LEARNING/FAMILIAR/MASTERED levels",
+        "Update cefr-adaptation.ts isWordMastered() to use canonical thresholds (currently 5 encounters + 1 use — too low)",
+        "Update progress.ts calculateMasteryLevel() to import from shared constants",
+        "All UI components displaying mastery use same thresholds",
+        "Unit test verifies all mastery checks in the codebase agree on thresholds",
+        "Typecheck passes, tests pass"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "progress.ts: mastered at 8+ correct uses. cefr-adaptation.ts: mastered at 5 encounters + 1 use. These disagree."
     },
     {
       "id": "US-006",
-      "title": "Define action prerequisites for social, language, and remaining actions",
-      "description": "As a game designer, I want social and language actions to require NPC proximity and CEFR levels respectively.",
+      "title": "Dynamic mid-conversation scaffolding",
+      "description": "As a player, I need NPCs to detect when I'm struggling mid-conversation and simplify their speech in real-time so that I don't get stuck.",
       "acceptanceCriteria": [
-        "In shared/prolog/action-prerequisites.ts, add prerequisites for social category:",
-        "talk_to_npc and all children (greet, compliment_npc, insult_npc, threaten, flirt, persuade, bribe, gossip, confess, apologize, comfort, argue, joke, share_story, ask_about): near(Actor, Target, 5)",
-        "give_gift: near(Actor, Target, 5) + has_item(Actor, _, _) (must have something to give)",
-        "steal: near(Actor, Target, 3) + skill_gte(Actor, stealth, 1)",
-        "eavesdrop: near(Actor, Target, 15) (larger range)",
-        "request_quest: near(Actor, Target, 5) + npc_quest_available(Target, _)",
-        "Language prerequisites:",
-        "ask_for_directions, introduce_self: near(Actor, Target, 5) + speaks_language(Actor, _, _)",
-        "order_food: near(Actor, Target, 5) + npc_will_trade(Target) + speaks_language(Actor, Lang, Level) + cefr_gte(Level, a1)",
-        "haggle_price: near(Actor, Target, 5) + npc_will_trade(Target) + speaks_language(Actor, Lang, Level) + cefr_gte(Level, a2)",
-        "describe_scene: speaks_language(Actor, _, Level) + cefr_gte(Level, a2)",
-        "listen_and_repeat, answer_question, write_response: speaks_language(Actor, _, _)",
-        "teach_vocabulary: near(Actor, Target, 5) + speaks_language(Actor, Lang, Level) + cefr_gte(Level, b1)",
-        "read_book, read_sign: speaks_language(Actor, _, _)",
-        "Exploration: travel_to_location requires location_accessible(Loc), enter_building requires near + location_accessible",
-        "Items: equip_item, use_item, consume, drop_item, collect_item require has_item check",
-        "Survival: rest and sleep require energy check only; sit has no prerequisites",
-        "Movement/idle/expression: no prerequisites (animation-only)",
-        "Typecheck passes"
+        "Create ConversationDifficultyMonitor class at shared/game-engine/logic/ConversationDifficultyMonitor.ts",
+        "Track struggle metrics per turn: grammar error rate (>50% corrected), target language usage (<20% for 3 turns), response length (1-2 words for 3+ turns), conversation quality score",
+        "Maintain weighted struggle score (0-1); emit difficulty_adjustment_needed when >0.6 for 2+ consecutive turns",
+        "When scaffolding triggers, modify NPC system prompt: reduce target language by 20%, shorten sentences, add inline translations, switch to simplified mode",
+        "Show subtle visual indicator when scaffolding activates",
+        "Track scaffolding activations in dimension scores for potential over-promotion detection",
+        "Add reverse: stretch challenge when player performs exceptionally well",
+        "Scaffolding state resets between conversations",
+        "Typecheck passes, tests pass"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "NPC language mode is locked at conversation start via assignNPCLanguageMode() and never re-evaluated."
     },
     {
       "id": "US-007",
-      "title": "Define action effects for resource and commerce actions",
-      "description": "As a game designer, I want resource and commerce actions to define their Prolog effects (item creation, gold transfer, XP, energy cost).",
+      "title": "Mid-conversation NPC language mode re-evaluation",
+      "description": "As a player, I need NPCs to update their language mode when my CEFR level advances between conversations so that returning to the same NPC reflects my improvement.",
       "acceptanceCriteria": [
-        "New file shared/prolog/action-effects.ts exports ACTION_EFFECTS: Record<string, EffectDefinition>",
-        "EffectDefinition type has: actionId (string), effects (array of Prolog effect term strings)",
-        "Resource effects: fish -> has_item(Actor, fish, 1), modify energy -15, skill XP fishing +1",
-        "chop_tree -> has_item(Actor, wood, 1), modify energy -15, skill XP woodcutting +1",
-        "mine_rock -> has_item(Actor, ore, 1), modify energy -20, skill XP mining +1",
-        "gather_herb -> has_item(Actor, herbs, 1), modify energy -10, skill XP herbalism +1",
-        "cook -> has_item(Actor, prepared_food, 1), modify energy -10, skill XP cooking +1",
-        "craft_item -> has_item(Actor, crafted_item, 1), modify energy -15, skill XP crafting +1",
-        "farm_plant/water/harvest -> appropriate item/energy/skill effects",
-        "Commerce effects: buy_item -> transfer_item + gold transfer, sell_item -> reverse",
-        "work -> modify gold(Actor, +wages), modify energy -20",
-        "Typecheck passes"
+        "Verify getNPCLanguageBehavior() is called with current cefrLevel at each conversation start (not cached from session start)",
+        "If language mode is cached anywhere in BabylonGame.ts, add cache invalidation on CEFR level change",
+        "NPC comments on player improvement when CEFR advances between conversations",
+        "Metadata request in BabylonChatPanel.ts passes current (not stale) CEFR level each time",
+        "Full flow works: player at A1 talks to NPC (80-90% English), advances to A2, same NPC now uses 50-70% English",
+        "Typecheck passes, tests pass"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "assignNPCLanguageMode() uses deterministic hash of NPC ID + CEFR distributions. Mode should naturally update if called with new cefrLevel."
     },
     {
       "id": "US-008",
-      "title": "Define action effects for combat, social, and language actions",
-      "description": "As a game designer, I want combat, social, and language actions to define their Prolog effects.",
+      "title": "Enforce vocabulary frequency ranges in LLM prompts",
+      "description": "As a player, I need NPC speech to actually use vocabulary within my CEFR frequency range so that I'm exposed to words I can learn, not arbitrary vocabulary.",
       "acceptanceCriteria": [
-        "In shared/prolog/action-effects.ts, add effects for combat category:",
-        "attack_enemy and children (sword_attack, punch, etc.): modify health(Target, -damage), modify energy(Actor, -cost), modify xp(Actor, +combat_xp)",
-        "defend and children: modify energy(Actor, -cost) only",
-        "Social effects:",
-        "talk_to_npc: assert(met(Actor, Target))",
-        "greet: modify(npc_disposition, Target, Actor, +5), assert(met(Actor, Target))",
-        "compliment_npc: modify(npc_disposition, Target, Actor, +10)",
-        "insult_npc: modify(npc_disposition, Target, Actor, -15)",
-        "give_gift: modify(npc_disposition, Target, Actor, +20), retract(has_item(Actor, Gift, _))",
-        "Language effects:",
-        "examine_object, point_and_name, read_sign: assert(knows_vocabulary(Actor, Lang, Category)), modify xp +5",
-        "listen_and_repeat: modify xp +10",
-        "write_response, answer_question: modify xp +15",
-        "All movement/idle/expression actions: no effects (animation-only)",
-        "Typecheck passes"
+        "Augment buildLanguageModeDirective() with frequency guidance per level: A1 top 200 words, A2 top 500, B1 top 1500, B2 unrestricted",
+        "Create/import word frequency list stored at data/seed/language/word-frequency-ranks.json",
+        "Add post-generation validation: check target-language words against frequency list and flag out-of-range words for inline translation",
+        "Include vocabulary range in conversation metadata sent to server",
+        "Update getCEFRTextComplexity() to include frequency range in text complexity parameters",
+        "Apply to all LLM content generation: NPC conversations, quest text, assessment content, reading materials",
+        "Typecheck passes, tests pass"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "cefrToVocabularyRange() at line 302 maps levels to frequency ranks but is never enforced in LLM prompts."
     },
     {
       "id": "US-009",
-      "title": "Update action converter to accept prerequisites and effects",
-      "description": "As a developer, I need the action converter to read from the prerequisite and effect definitions and generate proper Prolog can_perform rules and action_effect predicates.",
+      "title": "Generate error-correction quests from weak grammar patterns",
+      "description": "As a player, I need targeted quests generated from my weakest grammar patterns so that I can practice and improve specific areas I struggle with.",
       "acceptanceCriteria": [
-        "Update convertActionToProlog() in shared/prolog/action-converter.ts to accept optional prerequisites: string[] and effects: string[] parameters",
-        "When prerequisites are provided, use them in can_perform rule body instead of just energy check",
-        "When effects are provided, emit action_effect(ActionId, Effect). for each effect",
-        "Parent action inheritance: if action has inheritsFromParent and a parentAction, include parent prerequisites in can_perform",
-        "Generated Prolog passes content validator with 0 errors",
-        "action_effect/2 warning in validator is resolved (effects are now present)",
-        "Typecheck passes"
+        "Create grammar weakness analyzer at shared/language/grammar-weakness-analyzer.ts: compute error rate per GrammarPattern, identify patterns with >50% error rate and 3+ attempts",
+        "Create grammar quest generator at shared/quests/grammar-quest-generator.ts: Grammar Drill (conversation with teacher NPC), Correction Challenge (read passage with intentional errors), Writing Practice (write sentences scored by LLM)",
+        "After conversations with grammar feedback, check weakness threshold and generate quest if none active for that pattern",
+        "Include weak grammar patterns in NPC system prompts for natural modeling of correct usage",
+        "Track quest effectiveness: monitor error rate improvement after completion",
+        "Integrate with periodic assessment to include weak-pattern questions",
+        "Typecheck passes, tests pass"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "parseGrammarFeedbackBlock() at progress.ts line 253 tracks correctCount/incorrectCount per pattern but nothing analyzes or acts on weaknesses."
     },
     {
       "id": "US-010",
-      "title": "Migration: regenerate all 133 actions with prerequisites and effects",
-      "description": "As a developer, I need to re-run the action converter with the new prerequisite and effect definitions to update all base actions in MongoDB.",
+      "title": "Add C1/C2 CEFR support",
+      "description": "As an advanced player, I need C1 and C2 CEFR levels to exist so that I have continued progression beyond B2.",
       "acceptanceCriteria": [
-        "New migration server/migrations/040-action-prerequisites-effects.ts",
-        "Reads ACTION_PREREQUISITES and ACTION_EFFECTS for each action",
-        "Calls convertActionToProlog() with prerequisites and effects for each action",
-        "Updates content field on all 133 base actions in DB",
-        "All actions pass content validator with 0 errors",
-        "action_effect/2 warning eliminated for all player-triggerable actions",
-        "Migration is idempotent (can be re-run safely)",
-        "Typecheck passes"
+        "Add C1 (85%) and C2 (95%) score thresholds to CEFR_THRESHOLDS in cefr-mapping.ts; update mapScoreToCEFR()",
+        "Add advancement thresholds: B2→C1 (500 words, 50 convos, 30 texts, 20 grammar patterns), C1→C2 (800 words, 100 convos, 50 texts, 40 grammar patterns)",
+        "Add C1/C2 to CEFR_NPC_DISTRIBUTIONS: C1 100% natural with sophisticated vocabulary, C2 native-speaker level",
+        "Extend getNPCLanguageBehavior() and buildLanguageModeDirective() with C1/C2 directives",
+        "Extend getHintBehavior(): C1 no translation/hints, C2 optional monolingual dictionary",
+        "Add C1/C2 exam content to arrival-encounter.ts (literary/academic texts, argumentation prompts)",
+        "Extend getCEFRTextComplexity() and cefrToVocabularyRange() for C1/C2",
+        "Update filterQuestsByCEFR() and CEFRLevel type definition everywhere",
+        "Typecheck passes, tests pass"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Entire system caps at B2 currently."
     },
     {
       "id": "US-011",
-      "title": "GameTruthSync class — equipment and inventory sync",
-      "description": "As a developer, I need equipment and inventory changes to automatically assert/retract Prolog facts in real-time.",
+      "title": "Gradual UI immersion at B2+",
+      "description": "As an advanced player, I need game interface elements to transition to the target language at higher CEFR levels so that I get full immersion.",
       "acceptanceCriteria": [
-        "New class GameTruthSync in shared/game-engine/logic/GameTruthSync.ts",
-        "Constructor takes GameEventBus and tau-prolog session references",
-        "Subscribes to item_equipped event: asserts has_equipped(player, Slot, ItemId), retracts previous equipped item in that slot",
-        "Subscribes to item_unequipped event: retracts has_equipped(player, Slot, ItemId)",
-        "Subscribes to item_collected event: asserts has_item(player, ItemName, Qty) or updates quantity",
-        "Subscribes to item_dropped event: retracts or decrements has_item(player, ItemName, Qty)",
-        "Subscribes to item_purchased event: asserts has_item for buyer, gold transfer",
-        "Subscribes to item_crafted event: asserts has_item(player, ItemName, Qty)",
-        "All assert/retract operations use local embedded tau-prolog (no API calls)",
-        "Typecheck passes"
+        "Create UI localization system at shared/language/ui-localization.ts with getUIString(key, immersionLevel) and immersion percentage by CEFR",
+        "Immersion levels: A1-A2=0%, B1=10% (location names), B2=30% (action prompts, inventory, menus), C1=60% (quest descriptions, notifications), C2=90% (nearly everything except system messages)",
+        "Implement hover-to-reveal English for translated UI elements",
+        "Progressive rollout: don't switch all elements at once within each level",
+        "Smooth transition when CEFR level changes: phase in over minutes of gameplay",
+        "Settings toggle: UI Language Immersion: Auto / English Only / Maximum",
+        "Start with action prompts and building labels as minimum viable implementation",
+        "Typecheck passes, tests pass"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "ALL UI is currently in English regardless of CEFR level."
     },
     {
       "id": "US-012",
-      "title": "GameTruthSync — location, health, energy, and time sync",
-      "description": "As a developer, I need player position, health, energy, and world time to sync to Prolog in real-time.",
+      "title": "Automated tests for assessment-adaptation pipeline",
+      "description": "As a developer, I need a test suite covering the assessment-to-adaptation pipeline so that regressions are caught early.",
       "acceptanceCriteria": [
-        "GameTruthSync subscribes to location_visited/settlement_entered: retracts old at_location, asserts new at_location(player, LocationId)",
-        "Derives at_location_type from terrain/building data and asserts at_location_type(player, Type)",
-        "Subscribes to health change events: retracts old health/3, asserts health(player, NewCurrent, Max)",
-        "Tracks energy via action costs: retracts old energy/3, asserts energy(player, NewCurrent, Max)",
-        "Subscribes to hour_changed event: retracts old time_of_day/1, asserts time_of_day(NewHour)",
-        "Subscribes to day_changed event: retracts old day_number/1, asserts day_number(NewDay)",
-        "Subscribes to vocabulary_used event: asserts knows_vocabulary(player, Lang, Category) when new vocab learned",
-        "Subscribes to assessment_completed event: updates speaks_language(player, Lang, NewLevel)",
-        "Typecheck passes"
+        "shared/assessment/__tests__/cefr-advancement.test.ts: test checkCEFRAdvancement() at/below/above thresholds, max level behavior",
+        "shared/language/__tests__/mastery-consistency.test.ts: import mastery definitions from all locations, assert agreement",
+        "shared/language/__tests__/cefr-adaptation.test.ts: test getNPCLanguageBehavior(), getHintBehavior(), filterQuestsByCEFR(), cefrToVocabularyRange() per level",
+        "shared/game-engine/__tests__/ConversationDifficultyMonitor.test.ts: struggle detection, scaffolding activation, reset between conversations",
+        "shared/assessment/__tests__/periodic-assessment-trigger.test.ts: milestone levels, cooldown, CEFR level update",
+        "Integration test simulating full journey: initial assessment → A1 → conversations → auto-level-up → periodic assessment → grammar weakness → quest → improvement",
+        "All tests pass"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-013",
-      "title": "GameTruthSync — save/load serialization",
-      "description": "As a developer, I need the Prolog fact base to be serialized with game saves and restored on load.",
-      "acceptanceCriteria": [
-        "GameTruthSync has serialize() method that exports all asserted gameplay facts as a JSON-compatible array of {predicate, args} objects",
-        "GameTruthSync has restore(facts) method that asserts all facts into a fresh tau-prolog session",
-        "Serialize filters to only gameplay predicates (from GAMEPLAY_PREDICATES schema), not internal Prolog system predicates",
-        "Save integration: game save includes serialized fact base alongside existing JSON state",
-        "Load integration: on game load, restore facts before game loop starts",
-        "Cloud save includes serialized facts as backup",
-        "Typecheck passes"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "NPC truth initialization from DB",
-      "description": "As a developer, I need NPCs to have their truths initialized from character DB fields at game start.",
-      "acceptanceCriteria": [
-        "GameTruthSync has initializeNpcTruths(characters) method",
-        "For each NPC character, asserts: person(NpcId), occupation(NpcId, Occ), at_location(NpcId, Loc), age(NpcId, Age)",
-        "Asserts has_skill(NpcId, Skill, Level) from character skills field",
-        "Asserts personality traits: personality(NpcId, Trait, Value) from Big Five",
-        "Asserts npc_occupation(NpcId, Occ) from occupation field",
-        "Asserts npc_will_trade(NpcId) for merchant-type NPCs",
-        "Asserts npc_quest_available(NpcId, QuestId) from available quests",
-        "Asserts health/3 and energy/3 with defaults for NPCs",
-        "Called during game initialization after world data loads",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-015",
-      "title": "NPC dynamic truth updates",
-      "description": "As a developer, I need NPCs to dynamically gain/lose truths during gameplay as they move, trade, and change state.",
-      "acceptanceCriteria": [
-        "GameTruthSync subscribes to npc_volition_action events: updates NPC at_location when NPCs move",
-        "Schedule system integration: when hour changes, updates NPC at_location and npc_schedule based on character schedules",
-        "Merchant stock: when NPC runs out of items, retracts npc_will_trade(NpcId) until restocked",
-        "NPC relationship changes: npc_relationship_changed event updates npc_disposition(NpcId, TowardId, Value)",
-        "NPC quest state: when quest given, retracts npc_quest_available for that quest",
-        "All NPC truth changes use same assert/retract pattern as player truths",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-016",
-      "title": "Character template schema and migration",
-      "description": "As a developer, I need a database table for character templates that store starting truths.",
-      "acceptanceCriteria": [
-        "Add character_templates table to shared/schema.ts with fields: id (UUID), worldId (FK nullable for base templates), name (text), description (text), startingTruths (jsonb array of {predicate: string, args: any[]}), isDefault (boolean), characterCreationMode referenced from worlds table",
-        "Add characterCreationMode field to worlds table: 'fixed' | 'archetype_select' | 'custom_create' (default 'fixed')",
-        "Add Mongoose schema for character_templates in server/db/mongo-storage.ts",
-        "Add CRUD methods: createCharacterTemplate, getCharacterTemplates, getCharacterTemplate, updateCharacterTemplate, deleteCharacterTemplate",
-        "Add API routes: GET/POST /api/worlds/:worldId/character-templates, GET/PUT/DELETE /api/character-templates/:id",
-        "Typecheck passes"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-017",
-      "title": "Seed default character templates",
-      "description": "As a developer, I need default character templates seeded for language-learning worlds.",
-      "acceptanceCriteria": [
-        "New migration seeds 3 base character templates (worldId: null, isBase: true):",
-        "Explorer template: balanced stats, basic equipment (backpack, compass, map), skills (exploration 2, survival 1), speaks_language(english, b1) + speaks_language(french, a1), gold 100, health 100/100, energy 100/100",
-        "Scholar template: language-focused, notebook + quill + dictionary, skills (reading 3, writing 2, linguistics 1), speaks_language(english, b2) + speaks_language(french, a2), has_trait(bookworm), gold 50, health 80/80, energy 120/120",
-        "Trader template: commerce-focused, merchant_ledger + sample_goods, skills (bargaining 3, appraisal 2), speaks_language(english, b1) + speaks_language(french, a1), gold 200, health 90/90, energy 90/90",
-        "All templates include MVT predicates (health, energy, speaks_language, gold, at_location, occupation, age)",
-        "Migration is idempotent",
-        "Typecheck passes"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-018",
-      "title": "Character template editor UI — list and CRUD",
-      "description": "As a world creator, I want to see, create, edit, and delete character templates in the editor.",
-      "acceptanceCriteria": [
-        "New CharacterTemplateEditor component in client/src/components/ (or tab in existing world/character editor)",
-        "Lists all templates for the current world plus base templates",
-        "Create button opens form with name, description fields",
-        "Edit opens existing template",
-        "Duplicate creates a copy with '(Copy)' suffix",
-        "Delete with confirmation dialog",
-        "isDefault toggle (only one per world)",
-        "Reuses existing UI patterns (Card, Button, Dialog from shadcn)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-019",
-      "title": "Character template editor UI — predicate builder",
-      "description": "As a world creator, I want a form-based predicate builder so I can add starting truths without writing Prolog.",
-      "acceptanceCriteria": [
-        "Within template editor, 'Starting Truths' section with list of current predicates",
-        "Add Predicate button opens form: dropdown for predicate name (populated from GAMEPLAY_PREDICATES), typed inputs for each argument based on predicate arity and arg types",
-        "Predicate dropdown grouped by category (player_state, npc_state, world_state)",
-        "Preview panel shows the Prolog facts that would be asserted (formatted like: has_item(player, notebook, 1).)",
-        "Remove button on each predicate row",
-        "Validation: warns if MVT predicates are missing (health, energy, speaks_language, gold, at_location, occupation, age) with yellow banner",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-020",
-      "title": "Action feasibility tester",
-      "description": "As a world creator, I want to test which actions a character template can perform so I can verify my game design.",
-      "acceptanceCriteria": [
-        "New ActionFeasibilityTester component (panel within template editor or standalone)",
-        "Select a character template from dropdown",
-        "Displays all 133 actions grouped by category with pass/fail icons",
-        "Green checkmark = can_perform succeeds, red X = fails, gray dash = animation-only (no prerequisites)",
-        "Click a failed action to see which prerequisite(s) failed in a detail panel",
-        "'What's Missing?' helper: for failed actions, shows which predicates would need to be added to the template",
-        "Can modify template truths inline and click 'Re-test' without saving to DB",
-        "Uses local tau-prolog session initialized with template truths + helper predicates + action definitions",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-021",
-      "title": "Integrate MVT context into LLM conversation prompts",
-      "description": "As a developer, I need the Minimum Viable Template context to be included in NPC conversation prompts so the LLM knows the player's current game state.",
-      "acceptanceCriteria": [
-        "Audit existing conversation prompt pipeline to identify where character/game state is currently injected",
-        "Add a generateMVTContext() function that queries the current Prolog fact base for MVT predicates and formats them as a natural-language context block",
-        "Context block includes: player health/energy, equipped items, inventory summary, gold, CEFR level, known vocabulary categories, current location, occupation",
-        "Context block is injected into NPC conversation system prompt alongside existing character context",
-        "Format is concise (under 200 tokens) to avoid bloating prompts",
-        "Typecheck passes"
-      ],
-      "priority": 21,
-      "passes": true,
+      "passes": false,
       "notes": ""
     }
   ]

@@ -171,7 +171,9 @@ enum class EInsimulEventType : uint8
     PronunciationAttempt UMETA(DisplayName = "Pronunciation Attempt"),
     // UI panel events (tutorial completion triggers)
     InventoryOpened UMETA(DisplayName = "Inventory Opened"),
-    QuestLogOpened UMETA(DisplayName = "Quest Log Opened")
+    QuestLogOpened UMETA(DisplayName = "Quest Log Opened"),
+    // CEFR level advancement (auto-level-up after conversation)
+    CefrLevelAdvanced UMETA(DisplayName = "CEFR Level Advanced")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
