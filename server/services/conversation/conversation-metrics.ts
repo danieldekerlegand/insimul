@@ -40,6 +40,7 @@ export type MetricStage =
   | 'npc_npc_batch_generated'
   | 'npc_npc_batch_parse_failure'
   | 'npc_npc_batch_partial_failure'
+  | 'tts_queue_depth'
   | 'end_to_end';
 
 export interface LatencyEntry {

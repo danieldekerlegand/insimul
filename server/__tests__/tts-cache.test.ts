@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { TTSCache } from '../services/tts-cache';
+import { TTSCache } from '../services/conversation/tts-cache';
 
 describe('TTSCache', () => {
   let cache: TTSCache;

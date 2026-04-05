@@ -24,7 +24,12 @@ export interface GreetingVariant {
   cefrLevel: CEFRLevel;
   /** Timestamp when this greeting was generated */
   generatedAt: number;
+  /** Pre-synthesized TTS audio (base64) — generated at cache time, not serving time */
+  audioBase64?: string;
 }
+
+/** Optional TTS function for pre-synthesizing greeting audio at cache time */
+export type GreetingTTSFunc = (text: string, voice?: string, gender?: string) => Promise<Buffer>;
 
 export interface NPCGreetingEntry {
   npcId: string;
@@ -109,6 +114,40 @@ export class GreetingCache {
 
     if (candidates.length === 0) return null;
     return candidates[Math.floor(Math.random() * candidates.length)].text;
+  }
+
+  /** Get a greeting with pre-synthesized audio for an NPC. Returns null if not found. */
+  getWithAudio(
+    worldId: string,
+    npcId: string,
+    context?: GreetingVariant['context'],
+    cefrLevel?: CEFRLevel,
+  ): { text: string; audioBase64?: string } | null {
+    const entry = this.cache.get(GreetingCache.key(worldId, npcId));
+    if (!entry) return null;
+
+    if (Date.now() - entry.lastRefreshed > TTL_MS) {
+      this.cache.delete(GreetingCache.key(worldId, npcId));
+      return null;
+    }
+
+    let candidates = entry.greetings;
+
+    if (cefrLevel) {
+      const cefrMatches = candidates.filter((g) => g.cefrLevel === cefrLevel);
+      if (cefrMatches.length > 0) candidates = cefrMatches;
+    }
+
+    if (context) {
+      const contextMatches = candidates.filter(
+        (g) => g.context === context || g.context === 'general',
+      );
+      if (contextMatches.length > 0) candidates = contextMatches;
+    }
+
+    if (candidates.length === 0) return null;
+    const selected = candidates[Math.floor(Math.random() * candidates.length)];
+    return { text: selected.text, audioBase64: selected.audioBase64 };
   }
 
   /** Check if an NPC has cached greetings (non-expired). */
@@ -259,6 +298,7 @@ export class GreetingCache {
   /**
    * Generate greetings for a batch of NPCs using the provided LLM.
    * Respects concurrent batch limits.
+   * If ttsFunc is provided, pre-synthesizes TTS audio at cache time (not serving time).
    */
   async generateBatch(
     worldId: string,
@@ -266,6 +306,7 @@ export class GreetingCache {
     cefrLevel: CEFRLevel,
     targetLanguage: string,
     llmStream: (prompt: string, systemPrompt: string) => AsyncIterable<string>,
+    ttsFunc?: GreetingTTSFunc,
   ): Promise<BatchGreetingResult[]> {
     if (this.activeBatches >= MAX_CONCURRENT_BATCHES) {
       return [];
@@ -282,6 +323,26 @@ export class GreetingCache {
       }
 
       const results = GreetingCache.parseBatchResponse(fullResponse, npcIds, cefrLevel);
+
+      // Pre-synthesize TTS audio for all greetings (fire-and-forget per greeting)
+      if (ttsFunc) {
+        const ttsPromises: Promise<void>[] = [];
+        for (const result of results) {
+          for (const greeting of result.greetings) {
+            ttsPromises.push(
+              ttsFunc(greeting.text)
+                .then(buf => {
+                  greeting.audioBase64 = buf.toString('base64');
+                })
+                .catch(err => {
+                  // Non-fatal: greeting works without pre-synthesized audio
+                  console.warn(`[GreetingCache] TTS pre-synthesis failed for "${greeting.text.slice(0, 30)}...":`, err?.message);
+                }),
+            );
+          }
+        }
+        await Promise.all(ttsPromises);
+      }
 
       // Store results in cache
       for (const result of results) {
@@ -307,6 +368,7 @@ export class GreetingCache {
     cefrLevel: CEFRLevel,
     targetLanguage: string,
     llmStream: (prompt: string, systemPrompt: string) => AsyncIterable<string>,
+    ttsFunc?: GreetingTTSFunc,
   ): Promise<number> {
     // Only warm the nearest 20 NPCs
     const toWarm = npcs.slice(0, MAX_NPCS_ON_LOAD);
@@ -323,7 +385,7 @@ export class GreetingCache {
     for (const batch of batches) {
       try {
         const results = await this.generateBatch(
-          worldId, batch, cefrLevel, targetLanguage, llmStream,
+          worldId, batch, cefrLevel, targetLanguage, llmStream, ttsFunc,
         );
         for (const r of results) {
           totalGenerated += r.greetings.length;

@@ -19,19 +19,12 @@ import {
 } from '../../../conversation/tts/tts-provider.js';
 import type { AudioStreamChunk } from '../../../conversation/stt/stt-provider.js';
 import { AudioEncoding } from '../../../../../shared/proto/conversation.js';
+import { cleanForSpeech } from '../../../conversation/streaming-chat.js';
 
 // ── Text cleaning ──────────────────────────────────────────────────
 
-/** Strip system markers from LLM output before TTS synthesis. */
-function cleanForTTS(text: string): string {
-  return text
-    .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
-    .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
-    .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
-    .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
-    .replace(/\*\*QUEST_PROGRESS\*\*[\s\S]*?\*\*END_QUEST_PROGRESS\*\*/g, '')
-    .trim();
-}
+// Consolidated into cleanForSpeech from streaming-chat.ts
+const cleanForTTS = cleanForSpeech;
 
 /** Resolve a VoiceProfile from a voice name string. */
 function resolveVoice(voiceName?: string): VoiceProfile {

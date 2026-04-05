@@ -286,7 +286,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "streaming-chat.ts processStreamWithTTS() uses SentenceAccumulator with maxConcurrency=5. Expected: -0.5-1s perceived latency."
     },
     {

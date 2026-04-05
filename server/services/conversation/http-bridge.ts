@@ -29,6 +29,7 @@ import type { QualityTierConfig } from './conversation-metrics.js';
 import { responseCache } from './response-cache.js';
 import { analyzeConversation } from './quest-trigger-analyzer.js';
 import type { ActiveQuest } from './quest-trigger-analyzer.js';
+import { cleanForSpeech } from './streaming-chat.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -45,34 +46,8 @@ const MARKER_BLOCKS = [
   { open: '**QUEST_PROGRESS**', close: '**END_QUEST_PROGRESS**', type: 'quest_progress' },
 ] as const;
 
-/**
- * Strip ALL non-spoken content from text destined for TTS.
- * TTS reads every character literally — markdown, markers, translations all get spoken.
- */
-function cleanForTTS(text: string): string {
-  return text
-    // Strip complete marker blocks
-    .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
-    .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
-    .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
-    .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
-    .replace(/\*\*QUEST_PROGRESS\*\*[\s\S]*?\*\*END_QUEST_PROGRESS\*\*/g, '')
-    // Strip orphaned marker tags
-    .replace(/\*\*(VOCAB_HINTS|END_VOCAB|GRAMMAR_FEEDBACK|END_GRAMMAR|QUEST_ASSIGN|END_QUEST|EVAL|END_EVAL|QUEST_PROGRESS|END_QUEST_PROGRESS)\*\*/g, '')
-    // Strip markdown bold/italic (***text***, **text**, *text*)
-    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
-    // Strip markdown headers
-    .replace(/^#{1,6}\s+/gm, '')
-    // Strip markdown links [text](url) → text
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    // Strip parenthetical English translations
-    .replace(/\s*\([A-Z][^)]{1,60}\)/g, '')
-    // Strip action/stage directions like *points to door*
-    .replace(/\*[^*]{1,80}\*/g, '')
-    // Collapse whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+// cleanForTTS consolidated into cleanForSpeech imported from streaming-chat.ts
+const cleanForTTS = cleanForSpeech;
 
 function addToHistory(
   session: { history: Array<{ role: 'user' | 'assistant'; content: string }>; lastActivity: number },

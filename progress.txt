@@ -1791,4 +1791,47 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - When testing walking interrupts, use small dt values to avoid accidentally triggering the callout eval (30 game-seconds = 500ms dt at 60000 msPerGameHour)
   - Walking interrupt probability is additive (base + extrovert + quest-bearer) unlike callout probability which overrides base for quest-bearers
   - `vi.useFakeTimers()` mocks Date.now() to real system time, not epoch 0 — cooldown checks against initial value of 0 always pass
+- `cleanForSpeech()` in `streaming-chat.ts` is the canonical TTS text-cleaning function — `http-bridge.ts` and `local-native-audio.ts` import from it (no more duplicates)
+- TTS-related test files must use `../services/conversation/` prefix, not `../services/` — common pre-existing mistake
+---
+
+## 2026-04-05 - US-016: Optimize SentenceAccumulator and TTS pipeline
+- Optimized `splitIntoSentences()` boundary detection:
+  - Pre-compiled regex at module load (no re-compilation per call in streaming hot paths)
+  - Ellipsis (... and …) no longer treated as sentence boundaries — they indicate pauses, not sentence ends
+  - French guillemets (« ») treated as sentence-ending markers (close-guillemet triggers split)
+  - Spanish inverted punctuation (¿ ¡) stripped — they open sentences, not end them
+  - Triple-dot `...` normalized to unicode `…` for uniform handling
+- Consolidated `cleanForSpeech`/`cleanForTTS` duplicate code:
+  - `streaming-chat.ts` is the single source; `http-bridge.ts` and `local-native-audio.ts` now import from it
+  - All 13 cleaning regexes pre-compiled at module load (not per-call)
+  - Added QUEST_PROGRESS marker stripping, French guillemet stripping
+  - Fixed action description stripping order (before bold/italic to prevent `*waves hand*` → `waves hand`)
+- Speculative TTS dispatch: sentences dispatch immediately without waiting for prior completions; only blocked by concurrency ceiling (MAX_TTS_CONCURRENT=5)
+- Added `TTSQueueDepthCallback` to `processStreamWithTTS()` for monitoring peak queue depth
+- Pre-synthesize TTS audio for cached greetings at cache time:
+  - `generateBatch()` and `warmOnLoad()` accept optional `GreetingTTSFunc`
+  - Audio stored as base64 in `GreetingVariant.audioBase64`
+  - New `getWithAudio()` method returns greeting text + pre-synthesized audio
+- Added TTL support to `TTSCache`:
+  - 5-minute TTL — entries expire on access, same sentence + voice ID within window returns cached audio
+  - `cachedAt` timestamp on every entry
+- Added `tts_queue_depth` to `MetricStage` type in conversation-metrics.ts
+- Fixed pre-existing test import paths (`../services/streaming-chat` → `../services/conversation/streaming-chat`, same for tts-cache)
+- Files changed:
+  - `server/services/conversation/streaming-chat.ts` — regex pre-compilation, boundary detection, cleanForSpeech order fix, queue depth callback
+  - `server/services/conversation/http-bridge.ts` — consolidated cleanForTTS → import cleanForSpeech
+  - `server/services/ai/providers/local/local-native-audio.ts` — consolidated cleanForTTS → import cleanForSpeech
+  - `server/services/conversation/greeting-cache.ts` — TTS pre-synthesis, getWithAudio(), GreetingTTSFunc type
+  - `server/services/conversation/tts-cache.ts` — TTL support (5-min default)
+  - `server/services/conversation/conversation-metrics.ts` — tts_queue_depth stage
+  - `server/__tests__/tts-pipeline-optimization.test.ts` — 29 new tests
+  - `server/__tests__/streaming-chat.test.ts` — updated tests for new boundary behavior
+  - `server/__tests__/tts-cache.test.ts` — fixed import path
+- **Learnings for future iterations:**
+  - `cleanForSpeech` action description regex `*text*` conflicts with bold/italic regex `*text*` — action stripping must run FIRST
+  - Test files in `server/__tests__/` had wrong import paths (`../services/X` instead of `../services/conversation/X`) — pre-existing issue, fix when touching
+  - Pre-compiled module-level regexes with `/g` flag have state (lastIndex) — safe here because `String.replace()` resets it, but `RegExp.exec()` loops would not
+  - `GreetingVariant` interface is exported and used by greeting-cache tests — adding optional fields is backward compatible
+  - The TTS cache's TTL eviction is lazy (on access) not proactive — no background sweep needed for 200-entry cache
 ---

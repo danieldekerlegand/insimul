@@ -4,7 +4,7 @@ import {
   SentenceAccumulator,
   cleanForSpeech,
   processStreamWithTTS,
-} from '../services/streaming-chat';
+} from '../services/conversation/streaming-chat';
 
 describe('splitIntoSentences', () => {
   it('splits on periods', () => {
@@ -44,9 +44,10 @@ describe('splitIntoSentences', () => {
     expect(splitIntoSentences('')).toEqual([]);
   });
 
-  it('handles ellipsis', () => {
+  it('handles ellipsis (not a sentence boundary)', () => {
+    // Ellipsis (…) is NOT treated as a sentence boundary — it indicates a pause, not end of sentence
     const result = splitIntoSentences('Well\u2026 I suppose so. Okay.');
-    expect(result).toEqual(['Well\u2026', 'I suppose so.', 'Okay.']);
+    expect(result).toEqual(['Well\u2026 I suppose so.', 'Okay.']);
   });
 });
 
@@ -109,12 +110,12 @@ describe('SentenceAccumulator', () => {
 describe('cleanForSpeech', () => {
   it('strips GRAMMAR_FEEDBACK markers', () => {
     const text = 'Hello! **GRAMMAR_FEEDBACK** some feedback **END_GRAMMAR** Goodbye.';
-    expect(cleanForSpeech(text)).toBe('Hello!  Goodbye.');
+    expect(cleanForSpeech(text)).toBe('Hello! Goodbye.');
   });
 
   it('strips QUEST_ASSIGN markers', () => {
     const text = 'Here is a quest. **QUEST_ASSIGN** quest data **END_QUEST** Good luck!';
-    expect(cleanForSpeech(text)).toBe('Here is a quest.  Good luck!');
+    expect(cleanForSpeech(text)).toBe('Here is a quest. Good luck!');
   });
 
   it('returns plain text unchanged', () => {
@@ -213,7 +214,7 @@ describe('processStreamWithTTS', () => {
     );
 
     // TTS should still be called for the flushed text
-    expect(mockTTS).toHaveBeenCalledWith('Hello world', 'Kore', 'female', 'MP3', undefined);
+    expect(mockTTS).toHaveBeenCalledWith('Hello world', 'Kore', 'female', 'MP3', undefined, undefined);
   });
 
   it('handles TTS failure gracefully', async () => {
@@ -280,7 +281,7 @@ describe('processStreamWithTTS', () => {
       mockTTS,
     );
 
-    expect(mockTTS).toHaveBeenCalledWith('Hello world', 'Kore', 'female', 'MP3', 'happy');
+    expect(mockTTS).toHaveBeenCalledWith('Hello world', 'Kore', 'female', 'MP3', 'happy', undefined);
   });
 
   it('strips system markers before TTS', async () => {
