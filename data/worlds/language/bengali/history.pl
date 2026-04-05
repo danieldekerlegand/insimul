@@ -1,104 +1,290 @@
-%% Insimul History: Mughal Bengal
+%% Ensemble History: Bengali Riverside Town -- Initial World State
 %% Source: data/worlds/language/bengali/history.pl
 %% Created: 2026-04-03
-%% Total: 16 historical events
+%% Timestep: 0 (initial state)
 %%
-%% Predicate schema:
-%%   historical_event/3 — historical_event(AtomId, Title, Year)
-%%   event_description/2, event_importance/2, event_category/2
+%% Categories: trait, attribute, relationship, status, language
 
-%% The Fall of the Bengal Sultanate
-historical_event(fall_of_bengal_sultanate, 'The Fall of the Bengal Sultanate', 1576).
-event_description(fall_of_bengal_sultanate, 'Mughal general Khan Jahan conquered Bengal, ending the independent Sultanate and incorporating the region as Subah Bangalah into the Mughal Empire.').
-event_importance(fall_of_bengal_sultanate, 10).
-event_category(fall_of_bengal_sultanate, political).
+%% --- Karim Rahman ---
+trait(karim_rahman, male).
+trait(karim_rahman, hospitable).
+trait(karim_rahman, generous).
+trait(karim_rahman, traditional).
+trait(karim_rahman, middle_aged).
+attribute(karim_rahman, charisma, 75).
+attribute(karim_rahman, cultural_knowledge, 85).
+attribute(karim_rahman, propriety, 70).
+language_proficiency(karim_rahman, bengali, 95).
+language_proficiency(karim_rahman, english, 30).
 
-%% Founding of Dhaka as Capital
-historical_event(founding_of_dhaka_capital, 'Founding of Dhaka as Provincial Capital', 1608).
-event_description(founding_of_dhaka_capital, 'Islam Khan shifted the Mughal provincial capital to Dhaka, transforming it from a small trading post into the administrative center of Bengal.').
-event_importance(founding_of_dhaka_capital, 9).
-event_category(founding_of_dhaka_capital, political).
+%% --- Rashida Rahman ---
+trait(rashida_rahman, female).
+trait(rashida_rahman, nurturing).
+trait(rashida_rahman, wise).
+trait(rashida_rahman, community_minded).
+attribute(rashida_rahman, charisma, 70).
+attribute(rashida_rahman, cultural_knowledge, 90).
+attribute(rashida_rahman, propriety, 80).
+relationship(rashida_rahman, karim_rahman, married).
+language_proficiency(rashida_rahman, bengali, 95).
+language_proficiency(rashida_rahman, english, 20).
 
-%% Rise of Sonargaon Muslin Trade
-historical_event(rise_of_muslin_trade, 'Rise of the Sonargaon Muslin Trade', 1590).
-event_description(rise_of_muslin_trade, 'Sonargaon''s muslin weavers gained imperial patronage, and their cloth became the most sought-after textile in the Mughal court and European markets.').
-event_importance(rise_of_muslin_trade, 9).
-event_category(rise_of_muslin_trade, economic).
+%% --- Nusrat Rahman ---
+trait(nusrat_rahman, female).
+trait(nusrat_rahman, young).
+trait(nusrat_rahman, ambitious).
+trait(nusrat_rahman, tech_savvy).
+attribute(nusrat_rahman, charisma, 65).
+attribute(nusrat_rahman, cunningness, 50).
+attribute(nusrat_rahman, self_assuredness, 70).
+language_proficiency(nusrat_rahman, bengali, 90).
+language_proficiency(nusrat_rahman, english, 65).
 
-%% Portuguese Arrival in Bengal
-historical_event(portuguese_arrival, 'Portuguese Traders Arrive in Bengal', 1537).
-event_description(portuguese_arrival, 'Portuguese traders established a settlement at Chittagong, beginning European commercial contact with Bengal and disrupting traditional trade networks.').
-event_importance(portuguese_arrival, 8).
-event_category(portuguese_arrival, trade).
+%% --- Fahim Rahman ---
+trait(fahim_rahman, male).
+trait(fahim_rahman, young).
+trait(fahim_rahman, artistic).
+trait(fahim_rahman, quiet).
+attribute(fahim_rahman, charisma, 55).
+attribute(fahim_rahman, cultural_knowledge, 60).
+attribute(fahim_rahman, sensitiveness, 75).
+language_proficiency(fahim_rahman, bengali, 88).
+language_proficiency(fahim_rahman, english, 50).
 
-%% Construction of Goaldi Mosque
-historical_event(goaldi_mosque_built, 'Construction of Goaldi Mosque', 1519).
-event_description(goaldi_mosque_built, 'The Goaldi Masjid was built in Sonargaon during the Bengal Sultanate period, featuring distinctive terracotta ornamentation that blends Islamic and local artistic traditions.').
-event_importance(goaldi_mosque_built, 7).
-event_category(goaldi_mosque_built, cultural).
+%% --- Anwar Hossain ---
+trait(anwar_hossain, male).
+trait(anwar_hossain, educated).
+trait(anwar_hossain, formal).
+trait(anwar_hossain, intellectual).
+trait(anwar_hossain, middle_aged).
+attribute(anwar_hossain, charisma, 80).
+attribute(anwar_hossain, cultural_knowledge, 95).
+attribute(anwar_hossain, propriety, 85).
+language_proficiency(anwar_hossain, bengali, 98).
+language_proficiency(anwar_hossain, english, 80).
+language_proficiency(anwar_hossain, hindi, 40).
 
-%% The Great Flood of 1584
-historical_event(great_flood_1584, 'The Great Flood of 1584', 1584).
-event_description(great_flood_1584, 'A catastrophic monsoon flood devastated the Bengal Delta, destroying harvests and forcing thousands to relocate. The disaster reshaped the river channels and created new char lands.').
-event_importance(great_flood_1584, 8).
-event_category(great_flood_1584, natural_disaster).
+%% --- Nasreen Hossain ---
+trait(nasreen_hossain, female).
+trait(nasreen_hossain, articulate).
+trait(nasreen_hossain, passionate).
+trait(nasreen_hossain, modern).
+attribute(nasreen_hossain, charisma, 85).
+attribute(nasreen_hossain, cultural_knowledge, 80).
+attribute(nasreen_hossain, self_assuredness, 80).
+relationship(nasreen_hossain, anwar_hossain, married).
+language_proficiency(nasreen_hossain, bengali, 95).
+language_proficiency(nasreen_hossain, english, 75).
 
-%% Isa Khan's Resistance
-historical_event(isa_khan_resistance, 'Isa Khan''s Resistance Against the Mughals', 1580).
-event_description(isa_khan_resistance, 'The Baro-Bhuiyan chieftain Isa Khan, based in Sonargaon, led a fierce guerrilla resistance against Mughal expansion in eastern Bengal, using the rivers and terrain to his advantage.').
-event_importance(isa_khan_resistance, 9).
-event_category(isa_khan_resistance, military).
+%% --- Tahmina Hossain ---
+trait(tahmina_hossain, female).
+trait(tahmina_hossain, young).
+trait(tahmina_hossain, studious).
+trait(tahmina_hossain, idealistic).
+attribute(tahmina_hossain, charisma, 60).
+attribute(tahmina_hossain, cultural_knowledge, 70).
+attribute(tahmina_hossain, self_assuredness, 55).
+language_proficiency(tahmina_hossain, bengali, 92).
+language_proficiency(tahmina_hossain, english, 85).
 
-%% Dutch East India Company Arrives
-historical_event(dutch_arrive_bengal, 'Dutch East India Company Reaches Bengal', 1615).
-event_description(dutch_arrive_bengal, 'The VOC established trading posts in Bengal, competing with the Portuguese for access to muslin, silk, and saltpeter exports.').
-event_importance(dutch_arrive_bengal, 7).
-event_category(dutch_arrive_bengal, trade).
+%% --- Sohel Hossain ---
+trait(sohel_hossain, male).
+trait(sohel_hossain, young).
+trait(sohel_hossain, social).
+trait(sohel_hossain, athletic).
+attribute(sohel_hossain, charisma, 75).
+attribute(sohel_hossain, self_assuredness, 70).
+attribute(sohel_hossain, cunningness, 45).
+language_proficiency(sohel_hossain, bengali, 88).
+language_proficiency(sohel_hossain, english, 60).
 
-%% The Chandimangal Composed
-historical_event(chandimangal_composed, 'Composition of the Chandimangal', 1589).
-event_description(chandimangal_composed, 'Mukundaram Chakrabarti composed the Chandimangal, a masterpiece of Bengali mangalkavya poetry celebrating the goddess Chandi, preserving details of daily life in Bengal.').
-event_importance(chandimangal_composed, 8).
-event_category(chandimangal_composed, cultural).
+%% --- Jalal Ahmed ---
+trait(jalal_ahmed, male).
+trait(jalal_ahmed, shrewd).
+trait(jalal_ahmed, experienced).
+trait(jalal_ahmed, merchant).
+trait(jalal_ahmed, middle_aged).
+attribute(jalal_ahmed, charisma, 80).
+attribute(jalal_ahmed, cunningness, 75).
+attribute(jalal_ahmed, cultural_knowledge, 70).
+relationship(jalal_ahmed, karim_rahman, friends).
+language_proficiency(jalal_ahmed, bengali, 95).
+language_proficiency(jalal_ahmed, english, 40).
 
-%% Mughal Revenue Survey of Bengal
-historical_event(mughal_revenue_survey, 'Mughal Revenue Survey of Bengal', 1582).
-event_description(mughal_revenue_survey, 'Emperor Akbar''s minister Todar Mal conducted a comprehensive land revenue survey of Bengal, establishing the zamindari tax collection system that would define rural power structures.').
-event_importance(mughal_revenue_survey, 8).
-event_category(mughal_revenue_survey, administrative).
+%% --- Salma Ahmed ---
+trait(salma_ahmed, female).
+trait(salma_ahmed, organized).
+trait(salma_ahmed, warm).
+trait(salma_ahmed, practical).
+attribute(salma_ahmed, charisma, 65).
+attribute(salma_ahmed, propriety, 75).
+attribute(salma_ahmed, cultural_knowledge, 80).
+relationship(salma_ahmed, jalal_ahmed, married).
+relationship(salma_ahmed, rashida_rahman, friends).
+language_proficiency(salma_ahmed, bengali, 93).
+language_proficiency(salma_ahmed, english, 25).
 
-%% Spread of Vaishnavism in Bengal
-historical_event(vaishnavism_spread, 'Spread of Vaishnavism in Bengal', 1510).
-event_description(vaishnavism_spread, 'Chaitanya Mahaprabhu''s devotional movement swept Bengal, emphasizing kirtan singing and egalitarian worship. The movement profoundly influenced Bengali music, poetry, and social norms.').
-event_importance(vaishnavism_spread, 9).
-event_category(vaishnavism_spread, religious).
+%% --- Farzana Ahmed ---
+trait(farzana_ahmed, female).
+trait(farzana_ahmed, young).
+trait(farzana_ahmed, creative).
+trait(farzana_ahmed, independent).
+attribute(farzana_ahmed, charisma, 70).
+attribute(farzana_ahmed, self_assuredness, 65).
+attribute(farzana_ahmed, sensitiveness, 60).
+relationship(farzana_ahmed, tahmina_hossain, friends).
+language_proficiency(farzana_ahmed, bengali, 90).
+language_proficiency(farzana_ahmed, english, 55).
 
-%% Establishment of Bengal Silk Route
-historical_event(bengal_silk_route, 'Establishment of the Bengal Silk Route', 1595).
-event_description(bengal_silk_route, 'The overland and riverine trade routes connecting Bengal''s silk-producing regions to the Mughal heartland were formalized, bringing prosperity to intermediary towns.').
-event_importance(bengal_silk_route, 7).
-event_category(bengal_silk_route, economic).
+%% --- Imran Ahmed ---
+trait(imran_ahmed, male).
+trait(imran_ahmed, young).
+trait(imran_ahmed, entrepreneurial).
+trait(imran_ahmed, energetic).
+attribute(imran_ahmed, charisma, 70).
+attribute(imran_ahmed, cunningness, 60).
+attribute(imran_ahmed, self_assuredness, 65).
+language_proficiency(imran_ahmed, bengali, 88).
+language_proficiency(imran_ahmed, english, 50).
 
-%% The Jute Revolution
-historical_event(jute_revolution, 'Expansion of Jute Cultivation', 1600).
-event_description(jute_revolution, 'Jute cultivation expanded dramatically in the Bengal Delta as demand grew for sacking, rope, and coarse textiles. Jute became known as the "golden fiber" and transformed the rural economy.').
-event_importance(jute_revolution, 7).
-event_category(jute_revolution, economic).
+%% --- Tariqul Islam ---
+trait(tariqul_islam, male).
+trait(tariqul_islam, educated).
+trait(tariqul_islam, caring).
+trait(tariqul_islam, respected).
+trait(tariqul_islam, middle_aged).
+attribute(tariqul_islam, charisma, 75).
+attribute(tariqul_islam, cultural_knowledge, 70).
+attribute(tariqul_islam, propriety, 80).
+relationship(tariqul_islam, anwar_hossain, friends).
+language_proficiency(tariqul_islam, bengali, 95).
+language_proficiency(tariqul_islam, english, 70).
 
-%% First Bengali Printing
-historical_event(bengali_literary_patronage, 'Mughal Patronage of Bengali Literature', 1605).
-event_description(bengali_literary_patronage, 'Mughal governors began patronizing Bengali literary works, commissioning translations of Sanskrit epics and encouraging court poets to write in the vernacular.').
-event_importance(bengali_literary_patronage, 7).
-event_category(bengali_literary_patronage, cultural).
+%% --- Hasina Begum ---
+trait(hasina_begum, female).
+trait(hasina_begum, elegant).
+trait(hasina_begum, artistic).
+trait(hasina_begum, cultured).
+attribute(hasina_begum, charisma, 80).
+attribute(hasina_begum, cultural_knowledge, 85).
+attribute(hasina_begum, sensitiveness, 70).
+relationship(hasina_begum, tariqul_islam, married).
+language_proficiency(hasina_begum, bengali, 93).
+language_proficiency(hasina_begum, english, 55).
 
-%% Construction of Panam Nagar
-historical_event(panam_nagar_built, 'Construction of Panam Nagar', 1465).
-event_description(panam_nagar_built, 'The merchant quarter of Panam Nagar was established in Sonargaon, becoming a prosperous trading hub with ornate buildings that reflected the wealth of Bengal''s textile merchants.').
-event_importance(panam_nagar_built, 7).
-event_category(panam_nagar_built, urban).
+%% --- Rafiq Islam ---
+trait(rafiq_islam, male).
+trait(rafiq_islam, young).
+trait(rafiq_islam, rebellious).
+trait(rafiq_islam, musical).
+attribute(rafiq_islam, charisma, 65).
+attribute(rafiq_islam, self_assuredness, 55).
+attribute(rafiq_islam, sensitiveness, 70).
+relationship(rafiq_islam, sohel_hossain, friends).
+language_proficiency(rafiq_islam, bengali, 85).
+language_proficiency(rafiq_islam, english, 55).
 
-%% The Sufi Saints of Bengal
-historical_event(sufi_saints_bengal, 'The Sufi Saints Transform Bengal', 1550).
-event_description(sufi_saints_bengal, 'Sufi mystics spread across the Bengal Delta, establishing khanqahs and composing songs in Bengali. Their syncretic spirituality bridged Hindu and Muslim communities.').
-event_importance(sufi_saints_bengal, 8).
-event_category(sufi_saints_bengal, religious).
+%% --- Sharmin Islam ---
+trait(sharmin_islam, female).
+trait(sharmin_islam, young).
+trait(sharmin_islam, diligent).
+trait(sharmin_islam, kind).
+attribute(sharmin_islam, charisma, 60).
+attribute(sharmin_islam, propriety, 75).
+attribute(sharmin_islam, cultural_knowledge, 65).
+relationship(sharmin_islam, nusrat_rahman, friends).
+language_proficiency(sharmin_islam, bengali, 90).
+language_proficiency(sharmin_islam, english, 65).
+
+%% --- Habibur Molla ---
+trait(habibur_molla, male).
+trait(habibur_molla, rugged).
+trait(habibur_molla, hardworking).
+trait(habibur_molla, storyteller).
+trait(habibur_molla, middle_aged).
+attribute(habibur_molla, charisma, 65).
+attribute(habibur_molla, cultural_knowledge, 75).
+attribute(habibur_molla, propriety, 55).
+language_proficiency(habibur_molla, bengali, 92).
+language_proficiency(habibur_molla, english, 10).
+
+%% --- Jahanara Khatun ---
+trait(jahanara_khatun, female).
+trait(jahanara_khatun, resilient).
+trait(jahanara_khatun, resourceful).
+trait(jahanara_khatun, community_minded).
+attribute(jahanara_khatun, charisma, 60).
+attribute(jahanara_khatun, propriety, 65).
+attribute(jahanara_khatun, cultural_knowledge, 70).
+relationship(jahanara_khatun, habibur_molla, married).
+language_proficiency(jahanara_khatun, bengali, 90).
+language_proficiency(jahanara_khatun, english, 5).
+
+%% --- Rubel Molla ---
+trait(rubel_molla, male).
+trait(rubel_molla, young).
+trait(rubel_molla, restless).
+trait(rubel_molla, ambitious).
+attribute(rubel_molla, charisma, 60).
+attribute(rubel_molla, self_assuredness, 50).
+attribute(rubel_molla, cunningness, 40).
+language_proficiency(rubel_molla, bengali, 85).
+language_proficiency(rubel_molla, english, 30).
+
+%% --- Beauty Khatun ---
+trait(beauty_khatun, female).
+trait(beauty_khatun, young).
+trait(beauty_khatun, curious).
+trait(beauty_khatun, cheerful).
+attribute(beauty_khatun, charisma, 70).
+attribute(beauty_khatun, sensitiveness, 60).
+attribute(beauty_khatun, self_assuredness, 45).
+language_proficiency(beauty_khatun, bengali, 87).
+language_proficiency(beauty_khatun, english, 35).
+
+%% --- Monir Sarker ---
+trait(monir_sarker, male).
+trait(monir_sarker, patient).
+trait(monir_sarker, traditional).
+trait(monir_sarker, proud).
+trait(monir_sarker, elderly).
+attribute(monir_sarker, charisma, 60).
+attribute(monir_sarker, cultural_knowledge, 90).
+attribute(monir_sarker, propriety, 70).
+relationship(monir_sarker, habibur_molla, friends).
+language_proficiency(monir_sarker, bengali, 95).
+language_proficiency(monir_sarker, english, 8).
+
+%% --- Aleya Sarker ---
+trait(aleya_sarker, female).
+trait(aleya_sarker, gentle).
+trait(aleya_sarker, herbalist).
+trait(aleya_sarker, observant).
+attribute(aleya_sarker, charisma, 55).
+attribute(aleya_sarker, cultural_knowledge, 85).
+attribute(aleya_sarker, propriety, 70).
+relationship(aleya_sarker, monir_sarker, married).
+language_proficiency(aleya_sarker, bengali, 93).
+language_proficiency(aleya_sarker, english, 5).
+
+%% --- Lipi Sarker ---
+trait(lipi_sarker, female).
+trait(lipi_sarker, young).
+trait(lipi_sarker, determined).
+trait(lipi_sarker, nature_loving).
+attribute(lipi_sarker, charisma, 55).
+attribute(lipi_sarker, self_assuredness, 60).
+attribute(lipi_sarker, sensitiveness, 65).
+language_proficiency(lipi_sarker, bengali, 88).
+language_proficiency(lipi_sarker, english, 40).
+
+%% --- Sumon Sarker ---
+trait(sumon_sarker, male).
+trait(sumon_sarker, young).
+trait(sumon_sarker, quiet).
+trait(sumon_sarker, dutiful).
+attribute(sumon_sarker, charisma, 45).
+attribute(sumon_sarker, propriety, 65).
+attribute(sumon_sarker, cultural_knowledge, 60).
+language_proficiency(sumon_sarker, bengali, 87).
+language_proficiency(sumon_sarker, english, 25).

@@ -1,93 +1,290 @@
-%% Insimul History: Arabic Al-Andalus
+%% Ensemble History: Arabic Coastal Town — Initial World State
 %% Source: data/worlds/language/arabic/history.pl
 %% Created: 2026-04-03
-%% Total: 17 historical events
+%% Timestep: 0 (initial state)
 %%
-%% Predicate schema:
-%%   history_event/3 — history_event(AtomId, Title, Year)
-%%   history_description/2, history_category/2
+%% Categories: trait, attribute, relationship, status, language
 
-%% The Muslim Conquest of Iberia
-history_event(muslim_conquest_iberia, 'The Muslim Conquest of Iberia', 711).
-history_description(muslim_conquest_iberia, 'Tariq ibn Ziyad crosses the strait and defeats the Visigothic King Roderic at the Battle of Guadalete, beginning the Islamic period of the Iberian Peninsula.').
-history_category(muslim_conquest_iberia, military).
+%% ─── Omar Hassan ───
+trait(omar_hassan, male).
+trait(omar_hassan, hospitable).
+trait(omar_hassan, generous).
+trait(omar_hassan, traditional).
+trait(omar_hassan, middle_aged).
+attribute(omar_hassan, charisma, 75).
+attribute(omar_hassan, cultural_knowledge, 85).
+attribute(omar_hassan, propriety, 70).
+language_proficiency(omar_hassan, arabic, 95).
+language_proficiency(omar_hassan, english, 35).
 
-%% Founding of Qurtuba as Capital
-history_event(qurtuba_as_capital, 'Qurtuba Becomes Capital', 716).
-history_description(qurtuba_as_capital, 'Qurtuba (Cordoba) is established as the capital of Al-Andalus under the Umayyad governors, beginning its transformation into one of the greatest cities in the world.').
-history_category(qurtuba_as_capital, political).
+%% ─── Fatima Hassan ───
+trait(fatima_hassan, female).
+trait(fatima_hassan, nurturing).
+trait(fatima_hassan, wise).
+trait(fatima_hassan, community_minded).
+attribute(fatima_hassan, charisma, 70).
+attribute(fatima_hassan, cultural_knowledge, 90).
+attribute(fatima_hassan, propriety, 80).
+relationship(fatima_hassan, omar_hassan, married).
+language_proficiency(fatima_hassan, arabic, 95).
+language_proficiency(fatima_hassan, english, 25).
 
-%% Abd al-Rahman I Arrives
-history_event(abd_al_rahman_arrives, 'Abd al-Rahman I Arrives', 756).
-history_description(abd_al_rahman_arrives, 'The last surviving Umayyad prince, Abd al-Rahman I, escapes the Abbasid massacre and establishes an independent emirate in Al-Andalus, founding the Umayyad dynasty of Cordoba.').
-history_category(abd_al_rahman_arrives, political).
+%% ─── Layla Hassan ───
+trait(layla_hassan, female).
+trait(layla_hassan, young).
+trait(layla_hassan, ambitious).
+trait(layla_hassan, tech_savvy).
+attribute(layla_hassan, charisma, 65).
+attribute(layla_hassan, cunningness, 50).
+attribute(layla_hassan, self_assuredness, 70).
+language_proficiency(layla_hassan, arabic, 90).
+language_proficiency(layla_hassan, english, 70).
 
-%% Construction of the Great Mosque
-history_event(great_mosque_construction, 'Construction of the Great Mosque', 784).
-history_description(great_mosque_construction, 'Abd al-Rahman I begins construction of the Great Mosque of Cordoba (al-Masjid al-Kabir), which will become one of the largest and most beautiful mosques in the Islamic world.').
-history_category(great_mosque_construction, cultural).
+%% ─── Yusuf Hassan ───
+trait(yusuf_hassan, male).
+trait(yusuf_hassan, young).
+trait(yusuf_hassan, artistic).
+trait(yusuf_hassan, quiet).
+attribute(yusuf_hassan, charisma, 55).
+attribute(yusuf_hassan, cultural_knowledge, 60).
+attribute(yusuf_hassan, sensitiveness, 75).
+language_proficiency(yusuf_hassan, arabic, 88).
+language_proficiency(yusuf_hassan, english, 55).
 
-%% Ziryab Arrives in Cordoba
-history_event(ziryab_arrives, 'Ziryab Arrives in Cordoba', 822).
-history_description(ziryab_arrives, 'The polymath musician Ziryab arrives from Baghdad, revolutionizing Andalusian music, fashion, cuisine, and hygiene practices. He establishes a conservatory and introduces the five-string oud.').
-history_category(ziryab_arrives, cultural).
+%% ─── Khalid al-Rashid ───
+trait(khalid_al_rashid, male).
+trait(khalid_al_rashid, educated).
+trait(khalid_al_rashid, formal).
+trait(khalid_al_rashid, intellectual).
+trait(khalid_al_rashid, middle_aged).
+attribute(khalid_al_rashid, charisma, 80).
+attribute(khalid_al_rashid, cultural_knowledge, 95).
+attribute(khalid_al_rashid, propriety, 85).
+language_proficiency(khalid_al_rashid, arabic, 98).
+language_proficiency(khalid_al_rashid, english, 80).
+language_proficiency(khalid_al_rashid, french, 40).
 
-%% The Martyrs of Cordoba
-history_event(martyrs_of_cordoba, 'The Martyrs of Cordoba', 850).
-history_description(martyrs_of_cordoba, 'A group of Mozarab Christians deliberately provoke their own execution by publicly denouncing Islam, creating a religious crisis. The movement eventually subsides but reveals tensions beneath the surface of convivencia.').
-history_category(martyrs_of_cordoba, religious).
+%% ─── Amira al-Rashid ───
+trait(amira_al_rashid, female).
+trait(amira_al_rashid, articulate).
+trait(amira_al_rashid, passionate).
+trait(amira_al_rashid, modern).
+attribute(amira_al_rashid, charisma, 85).
+attribute(amira_al_rashid, cultural_knowledge, 80).
+attribute(amira_al_rashid, self_assuredness, 80).
+relationship(amira_al_rashid, khalid_al_rashid, married).
+language_proficiency(amira_al_rashid, arabic, 95).
+language_proficiency(amira_al_rashid, english, 75).
 
-%% Caliphate Proclaimed
-history_event(caliphate_proclaimed, 'The Caliphate of Cordoba Proclaimed', 929).
-history_description(caliphate_proclaimed, 'Abd al-Rahman III declares himself Caliph, elevating Cordoba from an emirate to a caliphate and signaling Al-Andalus as a rival to both Baghdad and Cairo in prestige and power.').
-history_category(caliphate_proclaimed, political).
+%% ─── Nadia al-Rashid ───
+trait(nadia_al_rashid, female).
+trait(nadia_al_rashid, young).
+trait(nadia_al_rashid, studious).
+trait(nadia_al_rashid, idealistic).
+attribute(nadia_al_rashid, charisma, 60).
+attribute(nadia_al_rashid, cultural_knowledge, 70).
+attribute(nadia_al_rashid, self_assuredness, 55).
+language_proficiency(nadia_al_rashid, arabic, 92).
+language_proficiency(nadia_al_rashid, english, 85).
 
-%% Madinat al-Zahra Built
-history_event(madinat_al_zahra_built, 'Madinat al-Zahra Built', 936).
-history_description(madinat_al_zahra_built, 'Abd al-Rahman III commissions the construction of the palatial city of Madinat al-Zahra outside Cordoba, a lavish administrative capital with gardens, baths, and a zoo.').
-history_category(madinat_al_zahra_built, cultural).
+%% ─── Tariq al-Rashid ───
+trait(tariq_al_rashid, male).
+trait(tariq_al_rashid, young).
+trait(tariq_al_rashid, social).
+trait(tariq_al_rashid, athletic).
+attribute(tariq_al_rashid, charisma, 75).
+attribute(tariq_al_rashid, self_assuredness, 70).
+attribute(tariq_al_rashid, cunningness, 45).
+language_proficiency(tariq_al_rashid, arabic, 88).
+language_proficiency(tariq_al_rashid, english, 65).
 
-%% Hasdai ibn Shaprut's Embassy
-history_event(hasdai_embassy, 'Hasdai ibn Shaprut''s Embassy', 949).
-history_description(hasdai_embassy, 'The Jewish physician and diplomat Hasdai ibn Shaprut leads a diplomatic mission to the Khazar Khaganate and facilitates a cultural exchange with the Byzantine Empire, exemplifying the multicultural achievements of the Caliphate.').
-history_category(hasdai_embassy, diplomatic).
+%% ─── Ibrahim Mansour ───
+trait(ibrahim_mansour, male).
+trait(ibrahim_mansour, shrewd).
+trait(ibrahim_mansour, experienced).
+trait(ibrahim_mansour, merchant).
+trait(ibrahim_mansour, middle_aged).
+attribute(ibrahim_mansour, charisma, 80).
+attribute(ibrahim_mansour, cunningness, 75).
+attribute(ibrahim_mansour, cultural_knowledge, 70).
+relationship(ibrahim_mansour, omar_hassan, friends).
+language_proficiency(ibrahim_mansour, arabic, 95).
+language_proficiency(ibrahim_mansour, english, 40).
 
-%% The Royal Library Expands
-history_event(royal_library_expands, 'The Royal Library Expands', 961).
-history_description(royal_library_expands, 'Under al-Hakam II, the royal library of Cordoba grows to over 400,000 volumes, making it the largest library in Europe and a beacon for scholars from across the known world.').
-history_category(royal_library_expands, cultural).
+%% ─── Huda Mansour ───
+trait(huda_mansour, female).
+trait(huda_mansour, organized).
+trait(huda_mansour, warm).
+trait(huda_mansour, practical).
+attribute(huda_mansour, charisma, 65).
+attribute(huda_mansour, propriety, 75).
+attribute(huda_mansour, cultural_knowledge, 80).
+relationship(huda_mansour, ibrahim_mansour, married).
+relationship(huda_mansour, fatima_hassan, friends).
+language_proficiency(huda_mansour, arabic, 93).
+language_proficiency(huda_mansour, english, 30).
 
-%% Al-Mansur's Rise to Power
-history_event(al_mansur_rise, 'Al-Mansur''s Rise to Power', 978).
-history_description(al_mansur_rise, 'The brilliant military commander al-Mansur seizes effective control of the Caliphate, becoming the de facto ruler while keeping the young Caliph Hisham II as a figurehead.').
-history_category(al_mansur_rise, political).
+%% ─── Sara Mansour ───
+trait(sara_mansour, female).
+trait(sara_mansour, young).
+trait(sara_mansour, creative).
+trait(sara_mansour, independent).
+attribute(sara_mansour, charisma, 70).
+attribute(sara_mansour, self_assuredness, 65).
+attribute(sara_mansour, sensitiveness, 60).
+relationship(sara_mansour, nadia_al_rashid, friends).
+language_proficiency(sara_mansour, arabic, 90).
+language_proficiency(sara_mansour, english, 60).
 
-%% Sack of Santiago de Compostela
-history_event(sack_santiago, 'Sack of Santiago de Compostela', 997).
-history_description(sack_santiago, 'Al-Mansur raids the Christian holy city of Santiago de Compostela, carrying its bells back to Cordoba as trophies. The campaign demonstrates the military apex of Andalusian power.').
-history_category(sack_santiago, military).
+%% ─── Ahmed Mansour ───
+trait(ahmed_mansour, male).
+trait(ahmed_mansour, young).
+trait(ahmed_mansour, entrepreneurial).
+trait(ahmed_mansour, energetic).
+attribute(ahmed_mansour, charisma, 70).
+attribute(ahmed_mansour, cunningness, 60).
+attribute(ahmed_mansour, self_assuredness, 65).
+language_proficiency(ahmed_mansour, arabic, 88).
+language_proficiency(ahmed_mansour, english, 55).
 
-%% Death of Al-Mansur
-history_event(death_al_mansur, 'Death of al-Mansur', 1002).
-history_description(death_al_mansur, 'Al-Mansur dies after his defeat at the Battle of Calatanazor. His death marks the beginning of political instability that will lead to the fragmentation of the Caliphate.').
-history_category(death_al_mansur, political).
+%% ─── Samir Khoury ───
+trait(samir_khoury, male).
+trait(samir_khoury, educated).
+trait(samir_khoury, caring).
+trait(samir_khoury, respected).
+trait(samir_khoury, middle_aged).
+attribute(samir_khoury, charisma, 75).
+attribute(samir_khoury, cultural_knowledge, 70).
+attribute(samir_khoury, propriety, 80).
+relationship(samir_khoury, khalid_al_rashid, friends).
+language_proficiency(samir_khoury, arabic, 95).
+language_proficiency(samir_khoury, english, 70).
 
-%% The Fitna (Civil War)
-history_event(the_fitna, 'The Fitna Begins', 1009).
-history_description(the_fitna, 'A devastating civil war erupts in the Caliphate as Berber, Slavic, and Arab factions vie for control. The conflict will eventually shatter the Caliphate into dozens of small taifa kingdoms.').
-history_category(the_fitna, military).
+%% ─── Leila Khoury ───
+trait(leila_khoury, female).
+trait(leila_khoury, elegant).
+trait(leila_khoury, artistic).
+trait(leila_khoury, cultured).
+attribute(leila_khoury, charisma, 80).
+attribute(leila_khoury, cultural_knowledge, 85).
+attribute(leila_khoury, sensitiveness, 70).
+relationship(leila_khoury, samir_khoury, married).
+language_proficiency(leila_khoury, arabic, 93).
+language_proficiency(leila_khoury, english, 60).
 
-%% Sack of Madinat al-Zahra
-history_event(sack_madinat_al_zahra, 'Sack of Madinat al-Zahra', 1010).
-history_description(sack_madinat_al_zahra, 'During the civil war, Berber soldiers sack and burn the magnificent palace city of Madinat al-Zahra, destroying one of the greatest architectural achievements of the Islamic world.').
-history_category(sack_madinat_al_zahra, military).
+%% ─── Rami Khoury ───
+trait(rami_khoury, male).
+trait(rami_khoury, young).
+trait(rami_khoury, rebellious).
+trait(rami_khoury, musical).
+attribute(rami_khoury, charisma, 65).
+attribute(rami_khoury, self_assuredness, 55).
+attribute(rami_khoury, sensitiveness, 70).
+relationship(rami_khoury, tariq_al_rashid, friends).
+language_proficiency(rami_khoury, arabic, 85).
+language_proficiency(rami_khoury, english, 60).
 
-%% End of the Caliphate
-history_event(end_of_caliphate, 'End of the Caliphate', 1031).
-history_description(end_of_caliphate, 'The Caliphate of Cordoba is formally abolished. Al-Andalus fragments into over thirty independent taifa kingdoms, ending the era of unified Andalusian power but beginning a new golden age of cultural competition.').
-history_category(end_of_caliphate, political).
+%% ─── Dina Khoury ───
+trait(dina_khoury, female).
+trait(dina_khoury, young).
+trait(dina_khoury, diligent).
+trait(dina_khoury, kind).
+attribute(dina_khoury, charisma, 60).
+attribute(dina_khoury, propriety, 75).
+attribute(dina_khoury, cultural_knowledge, 65).
+relationship(dina_khoury, layla_hassan, friends).
+language_proficiency(dina_khoury, arabic, 90).
+language_proficiency(dina_khoury, english, 70).
 
-%% Ibn Hazm Writes The Ring of the Dove
-history_event(ring_of_the_dove, 'The Ring of the Dove', 1022).
-history_description(ring_of_the_dove, 'The Cordoban scholar Ibn Hazm writes Tawq al-Hamama (The Ring of the Dove), a treatise on love and lovers that becomes one of the most influential works of Arabic literature, reflecting the refinement of Andalusian culture.').
-history_category(ring_of_the_dove, cultural).
+%% ─── Mahmoud Jabari ───
+trait(mahmoud_jabari, male).
+trait(mahmoud_jabari, rugged).
+trait(mahmoud_jabari, hardworking).
+trait(mahmoud_jabari, storyteller).
+trait(mahmoud_jabari, middle_aged).
+attribute(mahmoud_jabari, charisma, 65).
+attribute(mahmoud_jabari, cultural_knowledge, 75).
+attribute(mahmoud_jabari, propriety, 55).
+language_proficiency(mahmoud_jabari, arabic, 92).
+language_proficiency(mahmoud_jabari, english, 15).
+
+%% ─── Samia Jabari ───
+trait(samia_jabari, female).
+trait(samia_jabari, resilient).
+trait(samia_jabari, resourceful).
+trait(samia_jabari, community_minded).
+attribute(samia_jabari, charisma, 60).
+attribute(samia_jabari, propriety, 65).
+attribute(samia_jabari, cultural_knowledge, 70).
+relationship(samia_jabari, mahmoud_jabari, married).
+language_proficiency(samia_jabari, arabic, 90).
+language_proficiency(samia_jabari, english, 10).
+
+%% ─── Kareem Jabari ───
+trait(kareem_jabari, male).
+trait(kareem_jabari, young).
+trait(kareem_jabari, restless).
+trait(kareem_jabari, ambitious).
+attribute(kareem_jabari, charisma, 60).
+attribute(kareem_jabari, self_assuredness, 50).
+attribute(kareem_jabari, cunningness, 40).
+language_proficiency(kareem_jabari, arabic, 85).
+language_proficiency(kareem_jabari, english, 35).
+
+%% ─── Mona Jabari ───
+trait(mona_jabari, female).
+trait(mona_jabari, young).
+trait(mona_jabari, curious).
+trait(mona_jabari, cheerful).
+attribute(mona_jabari, charisma, 70).
+attribute(mona_jabari, sensitiveness, 60).
+attribute(mona_jabari, self_assuredness, 45).
+language_proficiency(mona_jabari, arabic, 87).
+language_proficiency(mona_jabari, english, 40).
+
+%% ─── Adel Nasser ───
+trait(adel_nasser, male).
+trait(adel_nasser, patient).
+trait(adel_nasser, traditional).
+trait(adel_nasser, proud).
+trait(adel_nasser, elderly).
+attribute(adel_nasser, charisma, 60).
+attribute(adel_nasser, cultural_knowledge, 90).
+attribute(adel_nasser, propriety, 70).
+relationship(adel_nasser, mahmoud_jabari, friends).
+language_proficiency(adel_nasser, arabic, 95).
+language_proficiency(adel_nasser, english, 10).
+
+%% ─── Noura Nasser ───
+trait(noura_nasser, female).
+trait(noura_nasser, gentle).
+trait(noura_nasser, herbalist).
+trait(noura_nasser, observant).
+attribute(noura_nasser, charisma, 55).
+attribute(noura_nasser, cultural_knowledge, 85).
+attribute(noura_nasser, propriety, 70).
+relationship(noura_nasser, adel_nasser, married).
+language_proficiency(noura_nasser, arabic, 93).
+language_proficiency(noura_nasser, english, 5).
+
+%% ─── Rana Nasser ───
+trait(rana_nasser, female).
+trait(rana_nasser, young).
+trait(rana_nasser, determined).
+trait(rana_nasser, nature_loving).
+attribute(rana_nasser, charisma, 55).
+attribute(rana_nasser, self_assuredness, 60).
+attribute(rana_nasser, sensitiveness, 65).
+language_proficiency(rana_nasser, arabic, 88).
+language_proficiency(rana_nasser, english, 45).
+
+%% ─── Walid Nasser ───
+trait(walid_nasser, male).
+trait(walid_nasser, young).
+trait(walid_nasser, quiet).
+trait(walid_nasser, dutiful).
+attribute(walid_nasser, charisma, 45).
+attribute(walid_nasser, propriety, 65).
+attribute(walid_nasser, cultural_knowledge, 60).
+language_proficiency(walid_nasser, arabic, 87).
+language_proficiency(walid_nasser, english, 30).

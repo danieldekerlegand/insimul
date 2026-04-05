@@ -1,7 +1,7 @@
-%% Insimul Characters: Arabic Al-Andalus
+%% Insimul Characters: Arabic Coastal Town
 %% Source: data/worlds/language/arabic/characters.pl
 %% Created: 2026-04-03
-%% Total: 24 characters (genealogy across 3 generations, multi-faith)
+%% Total: 24 characters (6 families)
 %%
 %% Predicate schema:
 %%   person/1, first_name/2, last_name/2, full_name/2
@@ -9,307 +9,337 @@
 %%   parent/2, child/2, spouse/2, location/2
 
 %% ═══════════════════════════════════════════════════════════
-%% Al-Rashid Family (Muslim scholars/merchants)
+%% Hassan Family (Cafe Owners, Madinat al-Bahr)
 %% ═══════════════════════════════════════════════════════════
 
-%% Abu Bakr al-Rashid — patriarch, merchant
-person(abu_bakr_al_rashid).
-first_name(abu_bakr_al_rashid, 'Abu Bakr').
-last_name(abu_bakr_al_rashid, 'al-Rashid').
-full_name(abu_bakr_al_rashid, 'Abu Bakr al-Rashid').
-gender(abu_bakr_al_rashid, male).
-alive(abu_bakr_al_rashid).
-generation(abu_bakr_al_rashid, 0).
-founder_family(abu_bakr_al_rashid).
-child(abu_bakr_al_rashid, yusuf_al_rashid).
-child(abu_bakr_al_rashid, fatima_al_rashid).
-spouse(abu_bakr_al_rashid, khadija_al_rashid).
-location(abu_bakr_al_rashid, qurtuba).
+%% Omar Hassan
+person(omar_hassan).
+first_name(omar_hassan, 'Omar').
+last_name(omar_hassan, 'Hassan').
+full_name(omar_hassan, 'Omar Hassan').
+gender(omar_hassan, male).
+alive(omar_hassan).
+generation(omar_hassan, 0).
+founder_family(omar_hassan).
+child(omar_hassan, layla_hassan).
+child(omar_hassan, yusuf_hassan).
+spouse(omar_hassan, fatima_hassan).
+location(omar_hassan, madinat_al_bahr).
 
-%% Khadija al-Rashid — matriarch
-person(khadija_al_rashid).
-first_name(khadija_al_rashid, 'Khadija').
-last_name(khadija_al_rashid, 'al-Rashid').
-full_name(khadija_al_rashid, 'Khadija al-Rashid').
-gender(khadija_al_rashid, female).
-alive(khadija_al_rashid).
-generation(khadija_al_rashid, 0).
-founder_family(khadija_al_rashid).
-child(khadija_al_rashid, yusuf_al_rashid).
-child(khadija_al_rashid, fatima_al_rashid).
-spouse(khadija_al_rashid, abu_bakr_al_rashid).
-location(khadija_al_rashid, qurtuba).
+%% Fatima Hassan
+person(fatima_hassan).
+first_name(fatima_hassan, 'Fatima').
+last_name(fatima_hassan, 'Hassan').
+full_name(fatima_hassan, 'Fatima Hassan').
+gender(fatima_hassan, female).
+alive(fatima_hassan).
+generation(fatima_hassan, 0).
+founder_family(fatima_hassan).
+child(fatima_hassan, layla_hassan).
+child(fatima_hassan, yusuf_hassan).
+spouse(fatima_hassan, omar_hassan).
+location(fatima_hassan, madinat_al_bahr).
 
-%% Yusuf al-Rashid — son, astronomer
-person(yusuf_al_rashid).
-first_name(yusuf_al_rashid, 'Yusuf').
-last_name(yusuf_al_rashid, 'al-Rashid').
-full_name(yusuf_al_rashid, 'Yusuf al-Rashid').
-gender(yusuf_al_rashid, male).
-alive(yusuf_al_rashid).
-generation(yusuf_al_rashid, 1).
-parent(abu_bakr_al_rashid, yusuf_al_rashid).
-parent(khadija_al_rashid, yusuf_al_rashid).
-child(yusuf_al_rashid, layla_al_rashid).
-spouse(yusuf_al_rashid, zahra_al_rashid).
-location(yusuf_al_rashid, qurtuba).
+%% Layla Hassan
+person(layla_hassan).
+first_name(layla_hassan, 'Layla').
+last_name(layla_hassan, 'Hassan').
+full_name(layla_hassan, 'Layla Hassan').
+gender(layla_hassan, female).
+alive(layla_hassan).
+generation(layla_hassan, 1).
+parent(omar_hassan, layla_hassan).
+parent(fatima_hassan, layla_hassan).
+location(layla_hassan, madinat_al_bahr).
 
-%% Zahra al-Rashid — Yusuf's wife, poetess
-person(zahra_al_rashid).
-first_name(zahra_al_rashid, 'Zahra').
-last_name(zahra_al_rashid, 'al-Rashid').
-full_name(zahra_al_rashid, 'Zahra al-Rashid').
-gender(zahra_al_rashid, female).
-alive(zahra_al_rashid).
-generation(zahra_al_rashid, 1).
-child(zahra_al_rashid, layla_al_rashid).
-spouse(zahra_al_rashid, yusuf_al_rashid).
-location(zahra_al_rashid, qurtuba).
-
-%% Layla al-Rashid — granddaughter, student
-person(layla_al_rashid).
-first_name(layla_al_rashid, 'Layla').
-last_name(layla_al_rashid, 'al-Rashid').
-full_name(layla_al_rashid, 'Layla al-Rashid').
-gender(layla_al_rashid, female).
-alive(layla_al_rashid).
-generation(layla_al_rashid, 2).
-parent(yusuf_al_rashid, layla_al_rashid).
-parent(zahra_al_rashid, layla_al_rashid).
-location(layla_al_rashid, qurtuba).
-
-%% Fatima al-Rashid — daughter, physician
-person(fatima_al_rashid).
-first_name(fatima_al_rashid, 'Fatima').
-last_name(fatima_al_rashid, 'al-Rashid').
-full_name(fatima_al_rashid, 'Fatima al-Rashid').
-gender(fatima_al_rashid, female).
-alive(fatima_al_rashid).
-generation(fatima_al_rashid, 1).
-parent(abu_bakr_al_rashid, fatima_al_rashid).
-parent(khadija_al_rashid, fatima_al_rashid).
-location(fatima_al_rashid, qurtuba).
+%% Yusuf Hassan
+person(yusuf_hassan).
+first_name(yusuf_hassan, 'Yusuf').
+last_name(yusuf_hassan, 'Hassan').
+full_name(yusuf_hassan, 'Yusuf Hassan').
+gender(yusuf_hassan, male).
+alive(yusuf_hassan).
+generation(yusuf_hassan, 1).
+parent(omar_hassan, yusuf_hassan).
+parent(fatima_hassan, yusuf_hassan).
+location(yusuf_hassan, madinat_al_bahr).
 
 %% ═══════════════════════════════════════════════════════════
-%% Ibn Hayyan Family (Muslim scholars)
+%% Al-Rashid Family (University Professors, Madinat al-Bahr)
 %% ═══════════════════════════════════════════════════════════
 
-%% Khalid ibn Hayyan — patriarch, qadi (judge)
-person(khalid_ibn_hayyan).
-first_name(khalid_ibn_hayyan, 'Khalid').
-last_name(khalid_ibn_hayyan, 'ibn Hayyan').
-full_name(khalid_ibn_hayyan, 'Khalid ibn Hayyan').
-gender(khalid_ibn_hayyan, male).
-alive(khalid_ibn_hayyan).
-generation(khalid_ibn_hayyan, 0).
-founder_family(khalid_ibn_hayyan).
-child(khalid_ibn_hayyan, tariq_ibn_hayyan).
-child(khalid_ibn_hayyan, maryam_ibn_hayyan).
-spouse(khalid_ibn_hayyan, salma_ibn_hayyan).
-location(khalid_ibn_hayyan, qurtuba).
+%% Khalid al-Rashid
+person(khalid_al_rashid).
+first_name(khalid_al_rashid, 'Khalid').
+last_name(khalid_al_rashid, 'al-Rashid').
+full_name(khalid_al_rashid, 'Khalid al-Rashid').
+gender(khalid_al_rashid, male).
+alive(khalid_al_rashid).
+generation(khalid_al_rashid, 0).
+founder_family(khalid_al_rashid).
+child(khalid_al_rashid, nadia_al_rashid).
+child(khalid_al_rashid, tariq_al_rashid).
+spouse(khalid_al_rashid, amira_al_rashid).
+location(khalid_al_rashid, madinat_al_bahr).
 
-%% Salma ibn Hayyan — matriarch
-person(salma_ibn_hayyan).
-first_name(salma_ibn_hayyan, 'Salma').
-last_name(salma_ibn_hayyan, 'ibn Hayyan').
-full_name(salma_ibn_hayyan, 'Salma ibn Hayyan').
-gender(salma_ibn_hayyan, female).
-alive(salma_ibn_hayyan).
-generation(salma_ibn_hayyan, 0).
-founder_family(salma_ibn_hayyan).
-child(salma_ibn_hayyan, tariq_ibn_hayyan).
-child(salma_ibn_hayyan, maryam_ibn_hayyan).
-spouse(salma_ibn_hayyan, khalid_ibn_hayyan).
-location(salma_ibn_hayyan, qurtuba).
+%% Amira al-Rashid
+person(amira_al_rashid).
+first_name(amira_al_rashid, 'Amira').
+last_name(amira_al_rashid, 'al-Rashid').
+full_name(amira_al_rashid, 'Amira al-Rashid').
+gender(amira_al_rashid, female).
+alive(amira_al_rashid).
+generation(amira_al_rashid, 0).
+founder_family(amira_al_rashid).
+child(amira_al_rashid, nadia_al_rashid).
+child(amira_al_rashid, tariq_al_rashid).
+spouse(amira_al_rashid, khalid_al_rashid).
+location(amira_al_rashid, madinat_al_bahr).
 
-%% Tariq ibn Hayyan — son, calligrapher
-person(tariq_ibn_hayyan).
-first_name(tariq_ibn_hayyan, 'Tariq').
-last_name(tariq_ibn_hayyan, 'ibn Hayyan').
-full_name(tariq_ibn_hayyan, 'Tariq ibn Hayyan').
-gender(tariq_ibn_hayyan, male).
-alive(tariq_ibn_hayyan).
-generation(tariq_ibn_hayyan, 1).
-parent(khalid_ibn_hayyan, tariq_ibn_hayyan).
-parent(salma_ibn_hayyan, tariq_ibn_hayyan).
-location(tariq_ibn_hayyan, qurtuba).
+%% Nadia al-Rashid
+person(nadia_al_rashid).
+first_name(nadia_al_rashid, 'Nadia').
+last_name(nadia_al_rashid, 'al-Rashid').
+full_name(nadia_al_rashid, 'Nadia al-Rashid').
+gender(nadia_al_rashid, female).
+alive(nadia_al_rashid).
+generation(nadia_al_rashid, 1).
+parent(khalid_al_rashid, nadia_al_rashid).
+parent(amira_al_rashid, nadia_al_rashid).
+location(nadia_al_rashid, madinat_al_bahr).
 
-%% Maryam ibn Hayyan — daughter, herbalist
-person(maryam_ibn_hayyan).
-first_name(maryam_ibn_hayyan, 'Maryam').
-last_name(maryam_ibn_hayyan, 'ibn Hayyan').
-full_name(maryam_ibn_hayyan, 'Maryam ibn Hayyan').
-gender(maryam_ibn_hayyan, female).
-alive(maryam_ibn_hayyan).
-generation(maryam_ibn_hayyan, 1).
-parent(khalid_ibn_hayyan, maryam_ibn_hayyan).
-parent(salma_ibn_hayyan, maryam_ibn_hayyan).
-location(maryam_ibn_hayyan, qurtuba).
-
-%% ═══════════════════════════════════════════════════════════
-%% Al-Qurtubi Family (Muslim artisans)
-%% ═══════════════════════════════════════════════════════════
-
-%% Hassan al-Qurtubi — patriarch, coppersmith
-person(hassan_al_qurtubi).
-first_name(hassan_al_qurtubi, 'Hassan').
-last_name(hassan_al_qurtubi, 'al-Qurtubi').
-full_name(hassan_al_qurtubi, 'Hassan al-Qurtubi').
-gender(hassan_al_qurtubi, male).
-alive(hassan_al_qurtubi).
-generation(hassan_al_qurtubi, 0).
-founder_family(hassan_al_qurtubi).
-child(hassan_al_qurtubi, omar_al_qurtubi).
-child(hassan_al_qurtubi, amina_al_qurtubi).
-spouse(hassan_al_qurtubi, noura_al_qurtubi).
-location(hassan_al_qurtubi, qurtuba).
-
-%% Noura al-Qurtubi — matriarch, weaver
-person(noura_al_qurtubi).
-first_name(noura_al_qurtubi, 'Noura').
-last_name(noura_al_qurtubi, 'al-Qurtubi').
-full_name(noura_al_qurtubi, 'Noura al-Qurtubi').
-gender(noura_al_qurtubi, female).
-alive(noura_al_qurtubi).
-generation(noura_al_qurtubi, 0).
-founder_family(noura_al_qurtubi).
-child(noura_al_qurtubi, omar_al_qurtubi).
-child(noura_al_qurtubi, amina_al_qurtubi).
-spouse(noura_al_qurtubi, hassan_al_qurtubi).
-location(noura_al_qurtubi, qurtuba).
-
-%% Omar al-Qurtubi — son, potter
-person(omar_al_qurtubi).
-first_name(omar_al_qurtubi, 'Omar').
-last_name(omar_al_qurtubi, 'al-Qurtubi').
-full_name(omar_al_qurtubi, 'Omar al-Qurtubi').
-gender(omar_al_qurtubi, male).
-alive(omar_al_qurtubi).
-generation(omar_al_qurtubi, 1).
-parent(hassan_al_qurtubi, omar_al_qurtubi).
-parent(noura_al_qurtubi, omar_al_qurtubi).
-location(omar_al_qurtubi, qurtuba).
-
-%% Amina al-Qurtubi — daughter, midwife
-person(amina_al_qurtubi).
-first_name(amina_al_qurtubi, 'Amina').
-last_name(amina_al_qurtubi, 'al-Qurtubi').
-full_name(amina_al_qurtubi, 'Amina al-Qurtubi').
-gender(amina_al_qurtubi, female).
-alive(amina_al_qurtubi).
-generation(amina_al_qurtubi, 1).
-parent(hassan_al_qurtubi, amina_al_qurtubi).
-parent(noura_al_qurtubi, amina_al_qurtubi).
-location(amina_al_qurtubi, qurtuba).
+%% Tariq al-Rashid
+person(tariq_al_rashid).
+first_name(tariq_al_rashid, 'Tariq').
+last_name(tariq_al_rashid, 'al-Rashid').
+full_name(tariq_al_rashid, 'Tariq al-Rashid').
+gender(tariq_al_rashid, male).
+alive(tariq_al_rashid).
+generation(tariq_al_rashid, 1).
+parent(khalid_al_rashid, tariq_al_rashid).
+parent(amira_al_rashid, tariq_al_rashid).
+location(tariq_al_rashid, madinat_al_bahr).
 
 %% ═══════════════════════════════════════════════════════════
-%% Ben Shlomo Family (Jewish scholars/translators)
+%% Mansour Family (Spice Merchants, Madinat al-Bahr)
 %% ═══════════════════════════════════════════════════════════
 
-%% Moshe ben Shlomo — patriarch, translator
-person(moshe_ben_shlomo).
-first_name(moshe_ben_shlomo, 'Moshe').
-last_name(moshe_ben_shlomo, 'ben Shlomo').
-full_name(moshe_ben_shlomo, 'Moshe ben Shlomo').
-gender(moshe_ben_shlomo, male).
-alive(moshe_ben_shlomo).
-generation(moshe_ben_shlomo, 0).
-founder_family(moshe_ben_shlomo).
-child(moshe_ben_shlomo, david_ben_shlomo).
-child(moshe_ben_shlomo, miriam_ben_shlomo).
-spouse(moshe_ben_shlomo, hannah_ben_shlomo).
-location(moshe_ben_shlomo, qurtuba).
+%% Ibrahim Mansour
+person(ibrahim_mansour).
+first_name(ibrahim_mansour, 'Ibrahim').
+last_name(ibrahim_mansour, 'Mansour').
+full_name(ibrahim_mansour, 'Ibrahim Mansour').
+gender(ibrahim_mansour, male).
+alive(ibrahim_mansour).
+generation(ibrahim_mansour, 0).
+founder_family(ibrahim_mansour).
+child(ibrahim_mansour, sara_mansour).
+child(ibrahim_mansour, ahmed_mansour).
+spouse(ibrahim_mansour, huda_mansour).
+location(ibrahim_mansour, madinat_al_bahr).
 
-%% Hannah ben Shlomo — matriarch
-person(hannah_ben_shlomo).
-first_name(hannah_ben_shlomo, 'Hannah').
-last_name(hannah_ben_shlomo, 'ben Shlomo').
-full_name(hannah_ben_shlomo, 'Hannah ben Shlomo').
-gender(hannah_ben_shlomo, female).
-alive(hannah_ben_shlomo).
-generation(hannah_ben_shlomo, 0).
-founder_family(hannah_ben_shlomo).
-child(hannah_ben_shlomo, david_ben_shlomo).
-child(hannah_ben_shlomo, miriam_ben_shlomo).
-spouse(hannah_ben_shlomo, moshe_ben_shlomo).
-location(hannah_ben_shlomo, qurtuba).
+%% Huda Mansour
+person(huda_mansour).
+first_name(huda_mansour, 'Huda').
+last_name(huda_mansour, 'Mansour').
+full_name(huda_mansour, 'Huda Mansour').
+gender(huda_mansour, female).
+alive(huda_mansour).
+generation(huda_mansour, 0).
+founder_family(huda_mansour).
+child(huda_mansour, sara_mansour).
+child(huda_mansour, ahmed_mansour).
+spouse(huda_mansour, ibrahim_mansour).
+location(huda_mansour, madinat_al_bahr).
 
-%% David ben Shlomo — son, physician
-person(david_ben_shlomo).
-first_name(david_ben_shlomo, 'David').
-last_name(david_ben_shlomo, 'ben Shlomo').
-full_name(david_ben_shlomo, 'David ben Shlomo').
-gender(david_ben_shlomo, male).
-alive(david_ben_shlomo).
-generation(david_ben_shlomo, 1).
-parent(moshe_ben_shlomo, david_ben_shlomo).
-parent(hannah_ben_shlomo, david_ben_shlomo).
-location(david_ben_shlomo, qurtuba).
+%% Sara Mansour
+person(sara_mansour).
+first_name(sara_mansour, 'Sara').
+last_name(sara_mansour, 'Mansour').
+full_name(sara_mansour, 'Sara Mansour').
+gender(sara_mansour, female).
+alive(sara_mansour).
+generation(sara_mansour, 1).
+parent(ibrahim_mansour, sara_mansour).
+parent(huda_mansour, sara_mansour).
+location(sara_mansour, madinat_al_bahr).
 
-%% Miriam ben Shlomo — daughter, scribe
-person(miriam_ben_shlomo).
-first_name(miriam_ben_shlomo, 'Miriam').
-last_name(miriam_ben_shlomo, 'ben Shlomo').
-full_name(miriam_ben_shlomo, 'Miriam ben Shlomo').
-gender(miriam_ben_shlomo, female).
-alive(miriam_ben_shlomo).
-generation(miriam_ben_shlomo, 1).
-parent(moshe_ben_shlomo, miriam_ben_shlomo).
-parent(hannah_ben_shlomo, miriam_ben_shlomo).
-location(miriam_ben_shlomo, qurtuba).
+%% Ahmed Mansour
+person(ahmed_mansour).
+first_name(ahmed_mansour, 'Ahmed').
+last_name(ahmed_mansour, 'Mansour').
+full_name(ahmed_mansour, 'Ahmed Mansour').
+gender(ahmed_mansour, male).
+alive(ahmed_mansour).
+generation(ahmed_mansour, 1).
+parent(ibrahim_mansour, ahmed_mansour).
+parent(huda_mansour, ahmed_mansour).
+location(ahmed_mansour, madinat_al_bahr).
 
 %% ═══════════════════════════════════════════════════════════
-%% De Leon Family (Christian/Mozarab)
+%% Khoury Family (Doctors, Madinat al-Bahr)
 %% ═══════════════════════════════════════════════════════════
 
-%% Alfonso de Leon — patriarch, winemaker
-person(alfonso_de_leon).
-first_name(alfonso_de_leon, 'Alfonso').
-last_name(alfonso_de_leon, 'de Leon').
-full_name(alfonso_de_leon, 'Alfonso de Leon').
-gender(alfonso_de_leon, male).
-alive(alfonso_de_leon).
-generation(alfonso_de_leon, 0).
-founder_family(alfonso_de_leon).
-child(alfonso_de_leon, rodrigo_de_leon).
-child(alfonso_de_leon, isabella_de_leon).
-spouse(alfonso_de_leon, elena_de_leon).
-location(alfonso_de_leon, qurtuba).
+%% Samir Khoury
+person(samir_khoury).
+first_name(samir_khoury, 'Samir').
+last_name(samir_khoury, 'Khoury').
+full_name(samir_khoury, 'Samir Khoury').
+gender(samir_khoury, male).
+alive(samir_khoury).
+generation(samir_khoury, 0).
+founder_family(samir_khoury).
+child(samir_khoury, rami_khoury).
+child(samir_khoury, dina_khoury).
+spouse(samir_khoury, leila_khoury).
+location(samir_khoury, madinat_al_bahr).
 
-%% Elena de Leon — matriarch
-person(elena_de_leon).
-first_name(elena_de_leon, 'Elena').
-last_name(elena_de_leon, 'de Leon').
-full_name(elena_de_leon, 'Elena de Leon').
-gender(elena_de_leon, female).
-alive(elena_de_leon).
-generation(elena_de_leon, 0).
-founder_family(elena_de_leon).
-child(elena_de_leon, rodrigo_de_leon).
-child(elena_de_leon, isabella_de_leon).
-spouse(elena_de_leon, alfonso_de_leon).
-location(elena_de_leon, qurtuba).
+%% Leila Khoury
+person(leila_khoury).
+first_name(leila_khoury, 'Leila').
+last_name(leila_khoury, 'Khoury').
+full_name(leila_khoury, 'Leila Khoury').
+gender(leila_khoury, female).
+alive(leila_khoury).
+generation(leila_khoury, 0).
+founder_family(leila_khoury).
+child(leila_khoury, rami_khoury).
+child(leila_khoury, dina_khoury).
+spouse(leila_khoury, samir_khoury).
+location(leila_khoury, madinat_al_bahr).
 
-%% Rodrigo de Leon — son, stonemason
-person(rodrigo_de_leon).
-first_name(rodrigo_de_leon, 'Rodrigo').
-last_name(rodrigo_de_leon, 'de Leon').
-full_name(rodrigo_de_leon, 'Rodrigo de Leon').
-gender(rodrigo_de_leon, male).
-alive(rodrigo_de_leon).
-generation(rodrigo_de_leon, 1).
-parent(alfonso_de_leon, rodrigo_de_leon).
-parent(elena_de_leon, rodrigo_de_leon).
-location(rodrigo_de_leon, qurtuba).
+%% Rami Khoury
+person(rami_khoury).
+first_name(rami_khoury, 'Rami').
+last_name(rami_khoury, 'Khoury').
+full_name(rami_khoury, 'Rami Khoury').
+gender(rami_khoury, male).
+alive(rami_khoury).
+generation(rami_khoury, 1).
+parent(samir_khoury, rami_khoury).
+parent(leila_khoury, rami_khoury).
+location(rami_khoury, madinat_al_bahr).
 
-%% Isabella de Leon — daughter, embroiderer
-person(isabella_de_leon).
-first_name(isabella_de_leon, 'Isabella').
-last_name(isabella_de_leon, 'de Leon').
-full_name(isabella_de_leon, 'Isabella de Leon').
-gender(isabella_de_leon, female).
-alive(isabella_de_leon).
-generation(isabella_de_leon, 1).
-parent(alfonso_de_leon, isabella_de_leon).
-parent(elena_de_leon, isabella_de_leon).
-location(isabella_de_leon, qurtuba).
+%% Dina Khoury
+person(dina_khoury).
+first_name(dina_khoury, 'Dina').
+last_name(dina_khoury, 'Khoury').
+full_name(dina_khoury, 'Dina Khoury').
+gender(dina_khoury, female).
+alive(dina_khoury).
+generation(dina_khoury, 1).
+parent(samir_khoury, dina_khoury).
+parent(leila_khoury, dina_khoury).
+location(dina_khoury, madinat_al_bahr).
+
+%% ═══════════════════════════════════════════════════════════
+%% Jabari Family (Fishermen, Al-Zahra)
+%% ═══════════════════════════════════════════════════════════
+
+%% Mahmoud Jabari
+person(mahmoud_jabari).
+first_name(mahmoud_jabari, 'Mahmoud').
+last_name(mahmoud_jabari, 'Jabari').
+full_name(mahmoud_jabari, 'Mahmoud Jabari').
+gender(mahmoud_jabari, male).
+alive(mahmoud_jabari).
+generation(mahmoud_jabari, 0).
+founder_family(mahmoud_jabari).
+child(mahmoud_jabari, kareem_jabari).
+child(mahmoud_jabari, mona_jabari).
+spouse(mahmoud_jabari, samia_jabari).
+location(mahmoud_jabari, al_zahra).
+
+%% Samia Jabari
+person(samia_jabari).
+first_name(samia_jabari, 'Samia').
+last_name(samia_jabari, 'Jabari').
+full_name(samia_jabari, 'Samia Jabari').
+gender(samia_jabari, female).
+alive(samia_jabari).
+generation(samia_jabari, 0).
+founder_family(samia_jabari).
+child(samia_jabari, kareem_jabari).
+child(samia_jabari, mona_jabari).
+spouse(samia_jabari, mahmoud_jabari).
+location(samia_jabari, al_zahra).
+
+%% Kareem Jabari
+person(kareem_jabari).
+first_name(kareem_jabari, 'Kareem').
+last_name(kareem_jabari, 'Jabari').
+full_name(kareem_jabari, 'Kareem Jabari').
+gender(kareem_jabari, male).
+alive(kareem_jabari).
+generation(kareem_jabari, 1).
+parent(mahmoud_jabari, kareem_jabari).
+parent(samia_jabari, kareem_jabari).
+location(kareem_jabari, al_zahra).
+
+%% Mona Jabari
+person(mona_jabari).
+first_name(mona_jabari, 'Mona').
+last_name(mona_jabari, 'Jabari').
+full_name(mona_jabari, 'Mona Jabari').
+gender(mona_jabari, female).
+alive(mona_jabari).
+generation(mona_jabari, 1).
+parent(mahmoud_jabari, mona_jabari).
+parent(samia_jabari, mona_jabari).
+location(mona_jabari, al_zahra).
+
+%% ═══════════════════════════════════════════════════════════
+%% Nasser Family (Olive Farmers, Al-Zahra)
+%% ═══════════════════════════════════════════════════════════
+
+%% Adel Nasser
+person(adel_nasser).
+first_name(adel_nasser, 'Adel').
+last_name(adel_nasser, 'Nasser').
+full_name(adel_nasser, 'Adel Nasser').
+gender(adel_nasser, male).
+alive(adel_nasser).
+generation(adel_nasser, 0).
+founder_family(adel_nasser).
+child(adel_nasser, rana_nasser).
+child(adel_nasser, walid_nasser).
+spouse(adel_nasser, noura_nasser).
+location(adel_nasser, al_zahra).
+
+%% Noura Nasser
+person(noura_nasser).
+first_name(noura_nasser, 'Noura').
+last_name(noura_nasser, 'Nasser').
+full_name(noura_nasser, 'Noura Nasser').
+gender(noura_nasser, female).
+alive(noura_nasser).
+generation(noura_nasser, 0).
+founder_family(noura_nasser).
+child(noura_nasser, rana_nasser).
+child(noura_nasser, walid_nasser).
+spouse(noura_nasser, adel_nasser).
+location(noura_nasser, al_zahra).
+
+%% Rana Nasser
+person(rana_nasser).
+first_name(rana_nasser, 'Rana').
+last_name(rana_nasser, 'Nasser').
+full_name(rana_nasser, 'Rana Nasser').
+gender(rana_nasser, female).
+alive(rana_nasser).
+generation(rana_nasser, 1).
+parent(adel_nasser, rana_nasser).
+parent(noura_nasser, rana_nasser).
+location(rana_nasser, al_zahra).
+
+%% Walid Nasser
+person(walid_nasser).
+first_name(walid_nasser, 'Walid').
+last_name(walid_nasser, 'Nasser').
+full_name(walid_nasser, 'Walid Nasser').
+gender(walid_nasser, male).
+alive(walid_nasser).
+generation(walid_nasser, 1).
+parent(adel_nasser, walid_nasser).
+parent(noura_nasser, walid_nasser).
+location(walid_nasser, al_zahra).

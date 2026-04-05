@@ -1,36 +1,27 @@
-%% Insimul World: Bengali (Mughal-era Bengal Delta)
+%% Insimul World: Bengali Riverside Town
 %% Source: data/worlds/language/bengali/world.pl
 %% Created: 2026-04-03
-%% Setting: A vibrant riverine settlement in the Bengal Delta during
-%%          the Mughal period (~1600s), with jute markets, monsoon-fed
-%%          rice paddies, poetry, music, and textile arts.
 
-world(mughal_bengal, 'Mughal Bengal').
-world_description(mughal_bengal, 'A vibrant riverine settlement in the Mughal-era Bengal Delta with jute markets, monsoon-fed rice paddies, and rich traditions of poetry, music, and textile arts').
-world_type(mughal_bengal, historical_renaissance).
-game_type(mughal_bengal, language_learning).
-target_language(mughal_bengal, bengali).
-camera_perspective(mughal_bengal, third_person).
-timestep_unit(mughal_bengal, year).
-gameplay_timestep_unit(mughal_bengal, day).
-character_creation_mode(mughal_bengal, fixed).
-world_language(mughal_bengal, bengali).
-learning_target_language(mughal_bengal, bengali).
+world(bengali_riverside, 'Bengali Riverside').
+world_description(bengali_riverside, 'A contemporary Bangladeshi riverside town with rickshaw-filled streets, vibrant textile bazaars, tea stalls, a university campus, and monsoon-fed rice paddies on the outskirts').
+world_type(bengali_riverside, modern_realistic).
+game_type(bengali_riverside, language_learning).
+target_language(bengali_riverside, bengali).
+camera_perspective(bengali_riverside, third_person).
+timestep_unit(bengali_riverside, year).
+gameplay_timestep_unit(bengali_riverside, day).
+character_creation_mode(bengali_riverside, fixed).
+world_language(bengali_riverside, bengali).
+learning_target_language(bengali_riverside, bengali).
 
-%% Insimul Countries: Mughal Bengal
-%% Total: 1 country
+%% Country
+country(peoples_republic_of_bangladesh, 'People''s Republic of Bangladesh', bengali_riverside).
+country_description(peoples_republic_of_bangladesh, 'A South Asian nation born from the 1971 Liberation War, known for its lush river deltas, vibrant textile industry, rich literary traditions, and resilient monsoon-adapted communities.').
+government_type(peoples_republic_of_bangladesh, parliamentary_republic).
+economic_system(peoples_republic_of_bangladesh, market).
+country_founded(peoples_republic_of_bangladesh, 1971).
+country_active(peoples_republic_of_bangladesh).
 
-%% Subah Bangalah (Mughal Province of Bengal)
-country(subah_bangalah, 'Subah Bangalah', mughal_bengal).
-country_description(subah_bangalah, 'The Mughal province of Bengal, one of the wealthiest regions of the empire, renowned for its muslin textiles, rice surplus, and riverine trade networks stretching from the Ganges Delta to the Bay of Bengal.').
-government_type(subah_bangalah, monarchy).
-economic_system(subah_bangalah, feudal).
-country_founded(subah_bangalah, 1576).
-country_active(subah_bangalah).
-
-%% Insimul States/Provinces: Mughal Bengal
-%% Total: 1 state
-
-%% Sarkar Sonargaon (District of Sonargaon)
-state(sarkar_sonargaon, 'Sarkar Sonargaon', subah_bangalah).
-state_type(sarkar_sonargaon, province).
+%% State
+state(dhaka_division, 'Dhaka Division', peoples_republic_of_bangladesh).
+state_type(dhaka_division, division).

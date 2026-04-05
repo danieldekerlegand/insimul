@@ -1,169 +1,140 @@
-%% Insimul Truths: Medieval Brittany
+%% Insimul Truths: Breton Coast
 %% Source: data/worlds/language/breton/truths.pl
 %% Created: 2026-04-03
-%% Total: 24 truths
+%% Total: 22 truths
 %%
 %% Predicate schema:
-%%   truth/3 — truth(AtomId, Title, EntryType)
-%%   truth_content/2, truth_importance/2, truth_public/1
-%%   truth_character/2, truth_timestep/2
+%%   truth/3 -- truth(AtomId, Title, EntryType)
+%%   truth_content/2, truth_importance/2, truth_timestep/2
 
-%% ─── Character Truths ───
+%% Soft Mutation (Kemmadur Dre Vlotaat)
+truth(soft_mutation, 'Soft Mutation', linguistic_note).
+truth_content(soft_mutation, 'Breton has a soft mutation (kemmadur dre vlotaat) triggered by articles, possessives, and certain prepositions. For example, tad (father) becomes da dad (your father), bag (boat) becomes ar vag (the boat). This is the most common mutation and essential for correct speech.').
+truth_importance(soft_mutation, 10).
+truth_timestep(soft_mutation, 0).
 
-%% The Old Captain
-truth(the_old_captain, 'The Old Captain', trait).
-truth_content(the_old_captain, 'Yann Le Bihan has sailed every current of the Iroise Sea. He knows every reef, sandbar, and hidden cove from Ouessant to the Pointe du Raz.').
-truth_importance(the_old_captain, 9).
-truth_character(the_old_captain, yann_le_bihan).
-truth_timestep(the_old_captain, 0).
+%% Nasal Mutation
+truth(nasal_mutation, 'Nasal Mutation', linguistic_note).
+truth_content(nasal_mutation, 'The nasal mutation (kemmadur dre froenolaat) occurs after possessives like ma (my) and the particle en/ez. For example, tad becomes ma zad (my father), gwenn becomes e wenn. It nasalizes consonants: t to d, k to g, p to b, g to ch, gw to w.').
+truth_importance(nasal_mutation, 9).
+truth_timestep(nasal_mutation, 0).
 
-%% The Drowned Son
-truth(the_drowned_son, 'The Drowned Son', secret).
-truth_content(the_drowned_son, 'Yann lost his eldest son to the sea ten years ago. He has never spoken of it, but the empty chair at his table tells its story.').
-truth_importance(the_drowned_son, 10).
-truth_character(the_drowned_son, yann_le_bihan).
-truth_timestep(the_drowned_son, 0).
+%% Aspirate Mutation (Spirant)
+truth(aspirate_mutation, 'Aspirate Mutation', linguistic_note).
+truth_content(aspirate_mutation, 'The aspirate (spirant) mutation occurs after possessives like he (her), the conjunction ha (and), and certain other particles. For example, tad becomes he zad (her father), penn becomes he fenn. It only affects three consonants: k, t, p.').
+truth_importance(aspirate_mutation, 8).
+truth_timestep(aspirate_mutation, 0).
 
-%% The Mending Wife
-truth(the_mending_wife, 'The Mending Wife', trait).
-truth_content(the_mending_wife, 'Soazig Le Bihan mends every net in the village. Her knots are so strong that fishermen from neighbouring parishes seek her work.').
-truth_importance(the_mending_wife, 7).
-truth_character(the_mending_wife, soazig_le_bihan).
-truth_timestep(the_mending_wife, 0).
+%% Fest-Noz Tradition
+truth(fest_noz, 'Fest-Noz Tradition', cultural_norm).
+truth_content(fest_noz, 'The fest-noz (night festival) is a communal evening of traditional Breton music and dance. Recognized by UNESCO as intangible cultural heritage, it features bombard and biniou duos, circle dances like an dro and hanter dro, and is the heartbeat of Breton community life.').
+truth_importance(fest_noz, 9).
+truth_timestep(fest_noz, 0).
 
-%% The Master Weaver
-truth(the_master_weaver, 'The Master Weaver', trait).
-truth_content(the_master_weaver, 'Goulven Kernev weaves the finest linen in Bro Leon. His patterns preserve ancient Celtic knotwork that dates back to the migration from Britain.').
-truth_importance(the_master_weaver, 9).
-truth_character(the_master_weaver, goulven_kernev).
-truth_timestep(the_master_weaver, 0).
+%% VSO Word Order
+truth(vso_word_order, 'Verb-Subject-Object Order', linguistic_note).
+truth_content(vso_word_order, 'Breton uses verb-subject-object (VSO) word order, unlike French or English. Lenn a ra Yann al levr means Yann reads the book, literally: reads does Yann the book. The particle a ra marks the verbal action.').
+truth_importance(vso_word_order, 9).
+truth_timestep(vso_word_order, 0).
 
-%% The Hidden Pattern
-truth(the_hidden_pattern, 'The Hidden Pattern', secret).
-truth_content(the_hidden_pattern, 'Goulven has secretly woven pagan symbols into the altar cloth of the chapel. He believes the old gods still protect the village alongside the Christian saints.').
-truth_importance(the_hidden_pattern, 10).
-truth_character(the_hidden_pattern, goulven_kernev).
-truth_timestep(the_hidden_pattern, 0).
-
-%% The Duke's Steward
-truth(the_dukes_steward, 'The Duke''s Steward', trait).
-truth_content(the_dukes_steward, 'Riwal Karadeg collects taxes and administers justice on behalf of the Duke of Brittany. He is torn between loyalty to the Duke and protecting his villagers from heavy levies.').
-truth_importance(the_dukes_steward, 9).
-truth_character(the_dukes_steward, riwal_karadeg).
-truth_timestep(the_dukes_steward, 0).
-
-%% The Forged Charter
-truth(the_forged_charter, 'The Forged Charter', secret).
-truth_content(the_forged_charter, 'Riwal forged a ducal charter granting Porzh-Gwenn reduced harbour taxes. If the Duke discovers the deception, Riwal faces imprisonment or worse.').
-truth_importance(the_forged_charter, 10).
-truth_character(the_forged_charter, riwal_karadeg).
-truth_timestep(the_forged_charter, 0).
-
-%% The Herb Woman
-truth(the_herb_woman, 'The Herb Woman', trait).
-truth_content(the_herb_woman, 'Enora Morvan knows every healing plant on the moor. Villagers come to her before they visit the priest, and her remedies rarely fail.').
-truth_importance(the_herb_woman, 8).
-truth_character(the_herb_woman, enora_morvan).
-truth_timestep(the_herb_woman, 0).
-
-%% The Pagan Rites
-truth(the_pagan_rites, 'The Pagan Rites', secret).
-truth_content(the_pagan_rites, 'Enora performs rituals at the standing stones on solstice nights, blending druidic chants with Christian prayers. The parish priest suspects but cannot prove it.').
-truth_importance(the_pagan_rites, 9).
-truth_character(the_pagan_rites, enora_morvan).
-truth_timestep(the_pagan_rites, 0).
-
-%% The Strong Smith
-truth(the_strong_smith, 'The Strong Smith', trait).
-truth_content(the_strong_smith, 'Jakez Guivarch is the strongest man in Lann-Vraz. He can forge an anchor in a single day and bend horseshoes with his bare hands.').
-truth_importance(the_strong_smith, 7).
-truth_character(the_strong_smith, jakez_guivarch).
-truth_timestep(the_strong_smith, 0).
-
-%% The Stolen Ore
-truth(the_stolen_ore, 'The Stolen Ore', secret).
-truth_content(the_stolen_ore, 'Jakez has been buying bog iron from smugglers to avoid the Duke''s iron tax. If discovered, his smithy would be confiscated.').
-truth_importance(the_stolen_ore, 8).
-truth_character(the_stolen_ore, jakez_guivarch).
-truth_timestep(the_stolen_ore, 0).
-
-%% The Ballad Singer
-truth(the_ballad_singer, 'The Ballad Singer', trait).
-truth_content(the_ballad_singer, 'Maiwenn Kernev has the finest voice in Porzh-Gwenn. She knows every gwerz ballad from the Barzaz Breiz tradition.').
-truth_importance(the_ballad_singer, 8).
-truth_character(the_ballad_singer, maiwenn_kernev).
-truth_timestep(the_ballad_singer, 0).
-
-%% ─── Cultural Truths ───
-
-%% Breton Consonant Mutations
-truth(breton_consonant_mutations, 'Breton Consonant Mutations', cultural).
-truth_content(breton_consonant_mutations, 'Breton has four types of consonant mutation: soft (kemmadur dre vlotaat), spirant (kemmadur dre c''hwezhadenniñ), hard (kemmadur dre galedaat), and mixed. These change the initial consonant of a word depending on grammatical context — e.g., "tad" (father) becomes "da dad" (your father).').
-truth_importance(breton_consonant_mutations, 10).
-truth_timestep(breton_consonant_mutations, 0).
-
-%% The Pardons
-truth(the_pardons, 'The Pardons', cultural).
-truth_content(the_pardons, 'Pardons are uniquely Breton religious festivals combining Catholic processions with Celtic customs. Villagers walk in procession carrying relics and banners, followed by feasting, wrestling, and music.').
-truth_importance(the_pardons, 9).
-truth_timestep(the_pardons, 0).
-
-%% The Ankou
-truth(the_ankou, 'The Ankou', cultural).
-truth_content(the_ankou, 'The Ankou is the Breton personification of death — a skeletal figure with a scythe who drives a creaking cart. Every parish has its own Ankou: the last person to die in a year becomes the next Ankou.').
-truth_importance(the_ankou, 9).
-truth_timestep(the_ankou, 0).
-
-%% Standing Stones and Menhirs
-truth(standing_stones_menhirs, 'Standing Stones and Menhirs', cultural).
-truth_content(standing_stones_menhirs, 'Brittany has the highest concentration of megalithic monuments in the world. The menhirs (standing stones) and dolmens (passage graves) predate Celtic settlement and are woven into Breton folklore as petrified giants or fairy dwellings.').
-truth_importance(standing_stones_menhirs, 8).
-truth_timestep(standing_stones_menhirs, 0).
-
-%% Maritime Independence
-truth(maritime_independence, 'Maritime Independence', cultural).
-truth_content(maritime_independence, 'Breton fishermen fiercely guard their right to fish the Atlantic freely. The Duchy grants fishing communities special charters exempting them from many feudal obligations in exchange for naval service in wartime.').
-truth_importance(maritime_independence, 8).
-truth_timestep(maritime_independence, 0).
-
-%% The Fest-Noz
-truth(the_fest_noz, 'The Fest-Noz', cultural).
-truth_content(the_fest_noz, 'The fest-noz (night festival) is a communal dance gathering where couples form chains and circles to the music of the biniou and bombard. It binds communities together through shared rhythm and song.').
-truth_importance(the_fest_noz, 8).
-truth_timestep(the_fest_noz, 0).
-
-%% Celtic Church Traditions
-truth(celtic_church_traditions, 'Celtic Church Traditions', cultural).
-truth_content(celtic_church_traditions, 'Brittany preserves Celtic Christian traditions distinct from Roman practice. Local saints like Santez Anna (Saint Anne), patron of Brittany, are venerated alongside uniquely Breton saints not recognized by Rome.').
-truth_importance(celtic_church_traditions, 7).
-truth_timestep(celtic_church_traditions, 0).
+%% Diwan Schools
+truth(diwan_schools, 'Diwan Schools', social_rule).
+truth_content(diwan_schools, 'Diwan schools are Breton-medium immersion schools where all subjects are taught in Breton. Founded in 1977, they are the primary engine of language transmission to new generations. In the Republik Breizh, they are state-funded and widely attended.').
+truth_importance(diwan_schools, 8).
+truth_timestep(diwan_schools, 0).
 
 %% Breton Cider Culture
-truth(breton_cider_culture, 'Breton Cider Culture', cultural).
-truth_content(breton_cider_culture, 'Cider (sistr) rather than wine is the drink of Brittany. Every farmstead maintains an orchard, and pressing day is a communal event. Cider accompanies every meal and seals every bargain.').
-truth_importance(breton_cider_culture, 7).
-truth_timestep(breton_cider_culture, 0).
+truth(cider_culture, 'Cider Culture', cultural_norm).
+truth_content(cider_culture, 'Cider (sistr) is the traditional drink of Brittany, made from over 600 local apple varieties. It is served in a bolenn (bowl), not a glass. Sharing a pitcher of cider at a creperie is a social ritual as important as the meal itself.').
+truth_importance(cider_culture, 7).
+truth_timestep(cider_culture, 0).
 
-%% The Ermine Symbol
-truth(the_ermine_symbol, 'The Ermine Symbol', cultural).
-truth_content(the_ermine_symbol, 'The ermine (erminig) is the symbol of Brittany, appearing on the ducal coat of arms. According to legend, Duchess Anne''s ermine chose death over soiling its white fur — the motto "Kentoc''h mervel eget bezañ saotret" (rather death than dishonour).').
-truth_importance(the_ermine_symbol, 8).
-truth_timestep(the_ermine_symbol, 0).
+%% Crepe vs Galette
+truth(crepe_galette, 'Krampouezhenn vs Galettenn', cultural_norm).
+truth_content(crepe_galette, 'In Brittany, a krampouezhenn (crepe) is made from wheat flour and is sweet. A galettenn is made from buckwheat (ed-du) and is savory, typically filled with ham, cheese, and egg (komplez). Confusing the two marks you as a tourist.').
+truth_importance(crepe_galette, 7).
+truth_timestep(crepe_galette, 0).
 
-%% Breton and Welsh Connection
-truth(breton_welsh_connection, 'Breton and Welsh Connection', cultural).
-truth_content(breton_welsh_connection, 'Breton speakers can partially understand Welsh, as both languages descend from Brythonic Celtic. Medieval Breton bards and Welsh poets exchanged verses, and the legend of Tristan and Iseult originates in this shared literary tradition.').
-truth_importance(breton_welsh_connection, 8).
-truth_timestep(breton_welsh_connection, 0).
+%% Celtic Identity
+truth(celtic_identity, 'Celtic Identity', cultural_norm).
+truth_content(celtic_identity, 'Bretons identify strongly as Celtic people with cultural ties to Wales, Cornwall, Ireland, Scotland, and the Isle of Man. The inter-Celtic festivals, shared musical traditions, and linguistic kinship reinforce a pan-Celtic identity that is central to Breton pride.').
+truth_importance(celtic_identity, 8).
+truth_timestep(celtic_identity, 0).
 
-%% The Seaweed Harvesters
-truth(the_seaweed_harvesters, 'The Seaweed Harvesters', cultural).
-truth_content(the_seaweed_harvesters, 'Coastal Bretons harvest seaweed (bezhin) for fertilizer, food, and soda ash production. Seaweed rights are communally managed and disputes over gathering grounds can last generations.').
-truth_importance(the_seaweed_harvesters, 7).
-truth_timestep(the_seaweed_harvesters, 0).
+%% Maritime Heritage
+truth(maritime_heritage, 'Maritime Heritage', cultural_norm).
+truth_content(maritime_heritage, 'Brittany has one of the longest coastlines in Europe. Fishing, seaweed harvesting, and maritime trade have shaped Breton culture for millennia. Coastal towns like Porzh-Gwenn organize their social life around the tides and the fishing fleet.').
+truth_importance(maritime_heritage, 7).
+truth_timestep(maritime_heritage, 0).
 
-%% Breton Ship Blessing
-truth(breton_ship_blessing, 'Breton Ship Blessing', cultural).
-truth_content(breton_ship_blessing, 'Before any new boat''s maiden voyage, the priest blesses it and the crew scatters holy water on the hull. The boat is given a woman''s name and a carved figurehead of Santez Anna to protect the sailors.').
-truth_importance(breton_ship_blessing, 7).
-truth_timestep(breton_ship_blessing, 0).
+%% Greeting Customs
+truth(breton_greetings, 'Breton Greeting Customs', social_rule).
+truth_content(breton_greetings, 'The standard Breton greeting is Demat (good day). Kenavo means goodbye. Mont a ra? means How is it going? Close friends and family greet with a kiss on each cheek (biz). Using Breton for greetings is a mark of cultural solidarity.').
+truth_importance(breton_greetings, 8).
+truth_timestep(breton_greetings, 0).
+
+%% Standing Stones
+truth(standing_stones, 'Megalithic Heritage', cultural_norm).
+truth_content(standing_stones, 'Brittany has the densest concentration of megalithic monuments in the world, including the famous alignments at Carnac. Mein-hir (standing stones) and dolmen (stone tables) are woven into local legends. They are protected as national heritage in Republik Breizh.').
+truth_importance(standing_stones, 7).
+truth_timestep(standing_stones, 0).
+
+%% Bagad Pipe Bands
+truth(bagad_tradition, 'Bagad Pipe Bands', cultural_norm).
+truth_content(bagad_tradition, 'A bagad is a Breton pipe band combining biniou-braz (Scottish-style bagpipe), bombard (double-reed oboe), and percussion. Every town has its bagad, and inter-bagad competitions are major cultural events. The bombard-biniou couple is the soul of Breton music.').
+truth_importance(bagad_tradition, 7).
+truth_timestep(bagad_tradition, 0).
+
+%% Breton Article System
+truth(breton_articles, 'The Breton Article System', linguistic_note).
+truth_content(breton_articles, 'Breton has one definite article: an (before vowels and n, d, t, h), al (before l), ar (elsewhere). Unlike French, Breton has no indefinite article -- un/ul/ur exist but are used differently. The article triggers soft mutation: bag becomes ar vag.').
+truth_importance(breton_articles, 8).
+truth_timestep(breton_articles, 0).
+
+%% Salted Butter Pride
+truth(salted_butter, 'Salted Butter Pride', cultural_norm).
+truth_content(salted_butter, 'Bretons are fiercely proud of their salted butter (amanenn sall). It appears in everything from kouign-amann pastry to seafood sauces. The salted-vs-unsalted divide roughly marks the cultural boundary between Brittany and the rest of France.').
+truth_importance(salted_butter, 6).
+truth_timestep(salted_butter, 0).
+
+%% Language Revitalization
+truth(language_revival, 'Language Revitalization', social_rule).
+truth_content(language_revival, 'In this alternate timeline, Breton independence in 1946 led to strong state support for the language. Breton is used in government, media, education, and signage. The Office of the Breton Language (Ofis Publik ar Brezhoneg) coordinates standardization and promotion.').
+truth_importance(language_revival, 9).
+truth_timestep(language_revival, 0).
+
+%% Breton Verb System
+truth(breton_verbs, 'Breton Verb System', linguistic_note).
+truth_content(breton_verbs, 'Breton verbs conjugate with auxiliary particles. The present tense uses a ra (does): lenn a ra (reads). The past uses en deus/he deus. Breton also has a distinction between short and long forms. The verb bezanin (to be) is highly irregular.').
+truth_importance(breton_verbs, 8).
+truth_timestep(breton_verbs, 0).
+
+%% Pardons (Religious Processions)
+truth(pardons_tradition, 'Pardons Tradition', cultural_norm).
+truth_content(pardons_tradition, 'Pardons are traditional Breton religious processions and festivals honoring patron saints. Participants wear traditional costumes including lace coiffes and embroidered waistcoats. Even in modern secular Brittany, pardons remain important community gatherings.').
+truth_importance(pardons_tradition, 6).
+truth_timestep(pardons_tradition, 0).
+
+%% Fishing Community
+truth(fishing_community_br, 'Fishing Community', social_rule).
+truth_content(fishing_community_br, 'Coastal fishing cooperatives are the backbone of harbor towns. Fishermen share catches, maintain boats collectively, and pass maritime knowledge through generations. The morning fish auction is both an economic event and a social gathering.').
+truth_importance(fishing_community_br, 6).
+truth_timestep(fishing_community_br, 0).
+
+%% Breton Spelling: Ch digraph
+truth(ch_digraph, 'The Ch Digraph in Breton', linguistic_note).
+truth_content(ch_digraph, 'Breton uses the digraph ch to represent a voiceless velar fricative (like Scottish loch or German Bach). This sound does not exist in French or English and is essential for correct Breton pronunciation. For example: c''houez (sweat), c''hwec''h (six).').
+truth_importance(ch_digraph, 7).
+truth_timestep(ch_digraph, 0).
+
+%% Weather and Social Life
+truth(breton_weather, 'Weather and Social Life', social_rule).
+truth_content(breton_weather, 'Brittany has a maritime climate with frequent rain and wind. Bretons joke that they get four seasons in one day. Weather vocabulary is rich and practical. A rain jacket is essential gear, and cafes and bars serve as warm refuges from Atlantic storms.').
+truth_importance(breton_weather, 5).
+truth_timestep(breton_weather, 0).
+
+%% Bilingual Signage
+truth(bilingual_signs, 'Bilingual Signage', social_rule).
+truth_content(bilingual_signs, 'All public signage in Republik Breizh is bilingual Breton-French, with Breton listed first. Street names, government buildings, shops, and transport use both languages. This bilingual landscape is a daily reminder of the language and a learning resource for newcomers.').
+truth_importance(bilingual_signs, 6).
+truth_timestep(bilingual_signs, 0).

@@ -1,151 +1,94 @@
-%% Insimul Grammars (Tracery): Arabic Al-Andalus
+%% Insimul Grammars (Tracery): Arabic Coastal Town
 %% Source: data/worlds/language/arabic/grammars.pl
 %% Created: 2026-04-03
 %% Total: 3 grammars
 %%
 %% Predicate schema:
 %%   grammar/2 — grammar(AtomId, Name)
+%%   grammar_description/2
 %%   grammar_rule/3 — grammar_rule(GrammarAtom, RuleKey, Expansion)
 
-%% ═══════════════════════════════════════════════════════════
-%% historical_medieval_character_names
-%% ═══════════════════════════════════════════════════════════
+%% Arabic Character Names
+grammar(arabic_character_names, 'arabic_character_names').
+grammar_description(arabic_character_names, 'Authentic Arabic name generation for a contemporary Arab coastal town. Names follow modern Arabic naming conventions.').
+grammar_rule(arabic_character_names, origin, '#givenName# #familyName#').
+grammar_rule(arabic_character_names, givenname, '#maleName#').
+grammar_rule(arabic_character_names, givenname, '#femaleName#').
+grammar_rule(arabic_character_names, malename, 'Omar').
+grammar_rule(arabic_character_names, malename, 'Khalid').
+grammar_rule(arabic_character_names, malename, 'Ibrahim').
+grammar_rule(arabic_character_names, malename, 'Ahmed').
+grammar_rule(arabic_character_names, malename, 'Yusuf').
+grammar_rule(arabic_character_names, malename, 'Samir').
+grammar_rule(arabic_character_names, malename, 'Tariq').
+grammar_rule(arabic_character_names, malename, 'Mahmoud').
+grammar_rule(arabic_character_names, malename, 'Adel').
+grammar_rule(arabic_character_names, malename, 'Rami').
+grammar_rule(arabic_character_names, malename, 'Kareem').
+grammar_rule(arabic_character_names, malename, 'Walid').
+grammar_rule(arabic_character_names, malename, 'Nabil').
+grammar_rule(arabic_character_names, malename, 'Faisal').
+grammar_rule(arabic_character_names, malename, 'Hassan').
+grammar_rule(arabic_character_names, femalename, 'Fatima').
+grammar_rule(arabic_character_names, femalename, 'Layla').
+grammar_rule(arabic_character_names, femalename, 'Amira').
+grammar_rule(arabic_character_names, femalename, 'Nadia').
+grammar_rule(arabic_character_names, femalename, 'Sara').
+grammar_rule(arabic_character_names, femalename, 'Huda').
+grammar_rule(arabic_character_names, femalename, 'Leila').
+grammar_rule(arabic_character_names, femalename, 'Dina').
+grammar_rule(arabic_character_names, femalename, 'Samia').
+grammar_rule(arabic_character_names, femalename, 'Noura').
+grammar_rule(arabic_character_names, femalename, 'Rana').
+grammar_rule(arabic_character_names, femalename, 'Mona').
+grammar_rule(arabic_character_names, femalename, 'Yasmin').
+grammar_rule(arabic_character_names, femalename, 'Dalal').
+grammar_rule(arabic_character_names, femalename, 'Mariam').
+grammar_rule(arabic_character_names, familyname, '#surname#').
+grammar_rule(arabic_character_names, familyname, 'al-#surname#').
+grammar_rule(arabic_character_names, surname, 'Hassan').
+grammar_rule(arabic_character_names, surname, 'Rashid').
+grammar_rule(arabic_character_names, surname, 'Mansour').
+grammar_rule(arabic_character_names, surname, 'Khoury').
+grammar_rule(arabic_character_names, surname, 'Jabari').
+grammar_rule(arabic_character_names, surname, 'Nasser').
+grammar_rule(arabic_character_names, surname, 'Saleh').
+grammar_rule(arabic_character_names, surname, 'Qasim').
+grammar_rule(arabic_character_names, surname, 'Darwish').
+grammar_rule(arabic_character_names, surname, 'Haddad').
+grammar_rule(arabic_character_names, surname, 'Sabbagh').
+grammar_rule(arabic_character_names, surname, 'Najjar').
 
-grammar(historical_medieval_character_names, 'historical_medieval_character_names').
-grammar_description(historical_medieval_character_names, 'Character names for a historical medieval Al-Andalus world. All names MUST be culturally authentic Arabic, Jewish, or Mozarab names using real naming conventions of medieval Iberia.').
-grammar_rule(historical_medieval_character_names, origin, '#arabicMaleFull#').
-grammar_rule(historical_medieval_character_names, origin, '#arabicFemaleFull#').
-grammar_rule(historical_medieval_character_names, origin, '#jewishMaleFull#').
-grammar_rule(historical_medieval_character_names, origin, '#mozarabMaleFull#').
-grammar_rule(historical_medieval_character_names, arabicmalefull, '#arabicMale# #nasab#').
-grammar_rule(historical_medieval_character_names, arabicmalefull, '#arabicMale# #nisba#').
-grammar_rule(historical_medieval_character_names, arabicmalefull, '#kunya# #arabicMale# #nasab#').
-grammar_rule(historical_medieval_character_names, arabicfemalefull, '#arabicFemale# #nasab#').
-grammar_rule(historical_medieval_character_names, arabicfemalefull, '#arabicFemale# #nisba#').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Ahmad').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Muhammad').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Yusuf').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Khalid').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Tariq').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Omar').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Hassan').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Ibrahim').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Ali').
-grammar_rule(historical_medieval_character_names, arabicmale, 'Ismail').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Fatima').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Khadija').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Zahra').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Maryam').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Layla').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Salma').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Noura').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Amina').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Hafsa').
-grammar_rule(historical_medieval_character_names, arabicfemale, 'Aisha').
-grammar_rule(historical_medieval_character_names, kunya, 'Abu').
-grammar_rule(historical_medieval_character_names, kunya, 'Umm').
-grammar_rule(historical_medieval_character_names, nasab, 'ibn #arabicMale#').
-grammar_rule(historical_medieval_character_names, nasab, 'ibn #arabicMale# ibn #arabicMale#').
-grammar_rule(historical_medieval_character_names, nisba, 'al-Qurtubi').
-grammar_rule(historical_medieval_character_names, nisba, 'al-Ishbili').
-grammar_rule(historical_medieval_character_names, nisba, 'al-Andalusi').
-grammar_rule(historical_medieval_character_names, nisba, 'al-Gharbi').
-grammar_rule(historical_medieval_character_names, nisba, 'al-Rashid').
-grammar_rule(historical_medieval_character_names, nisba, 'al-Tulaytuli').
-grammar_rule(historical_medieval_character_names, jewishmalefull, '#jewishMale# ben #jewishMale#').
-grammar_rule(historical_medieval_character_names, jewishmale, 'Moshe').
-grammar_rule(historical_medieval_character_names, jewishmale, 'Shlomo').
-grammar_rule(historical_medieval_character_names, jewishmale, 'David').
-grammar_rule(historical_medieval_character_names, jewishmale, 'Yosef').
-grammar_rule(historical_medieval_character_names, jewishmale, 'Hasdai').
-grammar_rule(historical_medieval_character_names, jewishmale, 'Shmuel').
-grammar_rule(historical_medieval_character_names, mozarabmalefull, '#mozarabMale# de #mozarabPlace#').
-grammar_rule(historical_medieval_character_names, mozarabmale, 'Alfonso').
-grammar_rule(historical_medieval_character_names, mozarabmale, 'Rodrigo').
-grammar_rule(historical_medieval_character_names, mozarabmale, 'Fernando').
-grammar_rule(historical_medieval_character_names, mozarabmale, 'Pedro').
-grammar_rule(historical_medieval_character_names, mozarabmale, 'Diego').
-grammar_rule(historical_medieval_character_names, mozarabplace, 'Leon').
-grammar_rule(historical_medieval_character_names, mozarabplace, 'Toledo').
-grammar_rule(historical_medieval_character_names, mozarabplace, 'Castilla').
-grammar_rule(historical_medieval_character_names, mozarabplace, 'Navarra').
-grammar_tag(historical_medieval_character_names, historical_medieval).
-grammar_tag(historical_medieval_character_names, character).
-grammar_tag(historical_medieval_character_names, names).
-grammar_tag(historical_medieval_character_names, arabic).
+%% Arabic Place Names
+grammar(arabic_place_names, 'arabic_place_names').
+grammar_description(arabic_place_names, 'Generation of Arabic-style place names for streets and buildings.').
+grammar_rule(arabic_place_names, origin, '#placeType# al-#placeQuality#').
+grammar_rule(arabic_place_names, placetype, 'Sharia').
+grammar_rule(arabic_place_names, placetype, 'Zuqaq').
+grammar_rule(arabic_place_names, placetype, 'Tariq').
+grammar_rule(arabic_place_names, placetype, 'Midan').
+grammar_rule(arabic_place_names, placequality, 'Nakhil').
+grammar_rule(arabic_place_names, placequality, 'Bahr').
+grammar_rule(arabic_place_names, placequality, 'Souq').
+grammar_rule(arabic_place_names, placequality, 'Masjid').
+grammar_rule(arabic_place_names, placequality, 'Jami').
+grammar_rule(arabic_place_names, placequality, 'Zaytun').
+grammar_rule(arabic_place_names, placequality, 'Nur').
+grammar_rule(arabic_place_names, placequality, 'Salam').
 
-%% ═══════════════════════════════════════════════════════════
-%% historical_medieval_settlement_names
-%% ═══════════════════════════════════════════════════════════
-
-grammar(historical_medieval_settlement_names, 'historical_medieval_settlement_names').
-grammar_description(historical_medieval_settlement_names, 'Settlement names for a historical medieval Al-Andalus world. Use authentic Arabic place naming conventions from medieval Iberia.').
-grammar_rule(historical_medieval_settlement_names, origin, '#prefix##baseName#').
-grammar_rule(historical_medieval_settlement_names, origin, '#baseName# #suffix#').
-grammar_rule(historical_medieval_settlement_names, origin, '#standalone#').
-grammar_rule(historical_medieval_settlement_names, prefix, 'Madinat ').
-grammar_rule(historical_medieval_settlement_names, prefix, 'Qasr ').
-grammar_rule(historical_medieval_settlement_names, prefix, 'Hisn ').
-grammar_rule(historical_medieval_settlement_names, prefix, 'Wadi ').
-grammar_rule(historical_medieval_settlement_names, prefix, 'Jabal ').
-grammar_rule(historical_medieval_settlement_names, prefix, 'Bab ').
-grammar_rule(historical_medieval_settlement_names, basename, 'al-Zahra').
-grammar_rule(historical_medieval_settlement_names, basename, 'al-Hamra').
-grammar_rule(historical_medieval_settlement_names, basename, 'al-Bayda').
-grammar_rule(historical_medieval_settlement_names, basename, 'al-Kabir').
-grammar_rule(historical_medieval_settlement_names, basename, 'al-Saghir').
-grammar_rule(historical_medieval_settlement_names, basename, 'al-Jadid').
-grammar_rule(historical_medieval_settlement_names, suffix, 'al-Gharb').
-grammar_rule(historical_medieval_settlement_names, suffix, 'al-Sharq').
-grammar_rule(historical_medieval_settlement_names, suffix, 'al-Janub').
-grammar_rule(historical_medieval_settlement_names, suffix, 'al-Shamal').
-grammar_rule(historical_medieval_settlement_names, standalone, 'Qurtuba').
-grammar_rule(historical_medieval_settlement_names, standalone, 'Ishbiliya').
-grammar_rule(historical_medieval_settlement_names, standalone, 'Tulaytula').
-grammar_rule(historical_medieval_settlement_names, standalone, 'Gharnata').
-grammar_rule(historical_medieval_settlement_names, standalone, 'Malaqa').
-grammar_rule(historical_medieval_settlement_names, standalone, 'Saraqusta').
-grammar_tag(historical_medieval_settlement_names, historical_medieval).
-grammar_tag(historical_medieval_settlement_names, settlement).
-grammar_tag(historical_medieval_settlement_names, location).
-grammar_tag(historical_medieval_settlement_names, names).
-grammar_tag(historical_medieval_settlement_names, arabic).
-
-%% ═══════════════════════════════════════════════════════════
-%% historical_medieval_business_names
-%% ═══════════════════════════════════════════════════════════
-
-grammar(historical_medieval_business_names, 'historical_medieval_business_names').
-grammar_description(historical_medieval_business_names, 'Business and establishment names for a historical medieval Al-Andalus world. Use authentic Arabic naming conventions for medieval Iberian shops, workshops, and institutions.').
-grammar_rule(historical_medieval_business_names, origin, '#businessType# #ownerName#').
-grammar_rule(historical_medieval_business_names, origin, '#businessType# #alDescriptor#').
-grammar_rule(historical_medieval_business_names, origin, '#alDescriptor# #businessType#').
-grammar_rule(historical_medieval_business_names, origin, '#businessType# #location#').
-grammar_rule(historical_medieval_business_names, businesstype, 'Suq').
-grammar_rule(historical_medieval_business_names, businesstype, 'Dukkan').
-grammar_rule(historical_medieval_business_names, businesstype, 'Hammam').
-grammar_rule(historical_medieval_business_names, businesstype, 'Khan').
-grammar_rule(historical_medieval_business_names, businesstype, 'Funduq').
-grammar_rule(historical_medieval_business_names, businesstype, 'Furn').
-grammar_rule(historical_medieval_business_names, businesstype, 'Dar').
-grammar_rule(historical_medieval_business_names, businesstype, 'Maktab').
-grammar_rule(historical_medieval_business_names, aldescriptor, 'al-Kabir').
-grammar_rule(historical_medieval_business_names, aldescriptor, 'al-Saghir').
-grammar_rule(historical_medieval_business_names, aldescriptor, 'al-Jadid').
-grammar_rule(historical_medieval_business_names, aldescriptor, 'al-Qadim').
-grammar_rule(historical_medieval_business_names, aldescriptor, 'al-Amir').
-grammar_rule(historical_medieval_business_names, aldescriptor, 'al-Nur').
-grammar_rule(historical_medieval_business_names, ownername, 'ibn Ahmad').
-grammar_rule(historical_medieval_business_names, ownername, 'ibn Khalid').
-grammar_rule(historical_medieval_business_names, ownername, 'al-Qurtubi').
-grammar_rule(historical_medieval_business_names, ownername, 'al-Rashid').
-grammar_rule(historical_medieval_business_names, ownername, 'ibn Yusuf').
-grammar_rule(historical_medieval_business_names, ownername, 'al-Andalusi').
-grammar_rule(historical_medieval_business_names, location, 'al-Medina').
-grammar_rule(historical_medieval_business_names, location, 'al-Wadi').
-grammar_rule(historical_medieval_business_names, location, 'al-Suq').
-grammar_rule(historical_medieval_business_names, location, 'al-Qasr').
-grammar_tag(historical_medieval_business_names, historical_medieval).
-grammar_tag(historical_medieval_business_names, business).
-grammar_tag(historical_medieval_business_names, names).
-grammar_tag(historical_medieval_business_names, arabic).
+%% Arabic Business Names
+grammar(arabic_business_names, 'arabic_business_names').
+grammar_description(arabic_business_names, 'Generation of Arabic-style business names for shops and restaurants.').
+grammar_rule(arabic_business_names, origin, '#businessType# #businessQuality#').
+grammar_rule(arabic_business_names, businesstype, 'Mataam').
+grammar_rule(arabic_business_names, businesstype, 'Makhbaz').
+grammar_rule(arabic_business_names, businesstype, 'Dukkan').
+grammar_rule(arabic_business_names, businesstype, 'Maktaba').
+grammar_rule(arabic_business_names, businesstype, 'Cafe').
+grammar_rule(arabic_business_names, businesstype, 'Saydaliyya').
+grammar_rule(arabic_business_names, businessquality, 'al-Khair').
+grammar_rule(arabic_business_names, businessquality, 'al-Nur').
+grammar_rule(arabic_business_names, businessquality, 'al-Salam').
+grammar_rule(arabic_business_names, businessquality, 'al-Bahr').
+grammar_rule(arabic_business_names, businessquality, 'al-Shifa').
+grammar_rule(arabic_business_names, businessquality, 'al-Baraka').

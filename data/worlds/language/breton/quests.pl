@@ -1,340 +1,233 @@
-%% Insimul Quests: Medieval Brittany
+%% Insimul Quests: Breton Coast
 %% Source: data/worlds/language/breton/quests.pl
 %% Created: 2026-04-03
 %% Total: 16 quests (CEFR A1-B2)
 
-%% ═══════════════════════════════════════════════════════════
-%% A1 — Beginner Quests
-%% ═══════════════════════════════════════════════════════════
-
-%% Quest: Demat Porzh-Gwenn (Hello Porzh-Gwenn)
-%% Greet the villagers and learn basic Breton introductions.
-%% Type: main / Difficulty: beginner / CEFR: A1
-
-quest(demat_porzh_gwenn, 'Demat Porzh-Gwenn', main, beginner, active).
-quest_assigned_to(demat_porzh_gwenn, '{{player}}').
-quest_language(demat_porzh_gwenn, breton).
-quest_tag(demat_porzh_gwenn, cefr_a1).
-quest_tag(demat_porzh_gwenn, greetings).
-
-quest_objective(demat_porzh_gwenn, 0, talk_to(yann_le_bihan, 1)).
-quest_objective(demat_porzh_gwenn, 1, talk_to(goulven_kernev, 1)).
-quest_objective(demat_porzh_gwenn, 2, talk_to(riwal_karadeg, 1)).
-
-quest_reward(demat_porzh_gwenn, experience, 50).
-quest_reward(demat_porzh_gwenn, gold, 25).
-
-quest_available(Player, demat_porzh_gwenn) :-
-    quest(demat_porzh_gwenn, _, _, _, active).
-
-%% Quest: War ar Marc'had (At the Market)
-%% Learn the names of common goods at the village market.
-%% Type: side / Difficulty: beginner / CEFR: A1
-
-quest(war_ar_marc_had, 'War ar Marc''had', side, beginner, active).
-quest_assigned_to(war_ar_marc_had, '{{player}}').
-quest_language(war_ar_marc_had, breton).
-quest_tag(war_ar_marc_had, cefr_a1).
-quest_tag(war_ar_marc_had, vocabulary).
-
-quest_objective(war_ar_marc_had, 0, objective('Visit the market square and learn the names of five goods in Breton.')).
-quest_objective(war_ar_marc_had, 1, collect(bara, 1)).
-quest_objective(war_ar_marc_had, 2, collect(sistr, 1)).
-
-quest_reward(war_ar_marc_had, experience, 75).
-quest_reward(war_ar_marc_had, gold, 30).
-
-quest_available(Player, war_ar_marc_had) :-
-    quest(war_ar_marc_had, _, _, _, active).
-
-%% Quest: Pesked an Deiz (Fish of the Day)
-%% Help the fishermen and learn fish/sea vocabulary.
-%% Type: side / Difficulty: beginner / CEFR: A1
-
-quest(pesked_an_deiz, 'Pesked an Deiz', side, beginner, active).
-quest_assigned_to(pesked_an_deiz, '{{player}}').
-quest_language(pesked_an_deiz, breton).
-quest_tag(pesked_an_deiz, cefr_a1).
-quest_tag(pesked_an_deiz, food).
-
-quest_objective(pesked_an_deiz, 0, talk_to(yann_le_bihan, 1)).
-quest_objective(pesked_an_deiz, 1, objective('Learn the Breton names for five types of fish.')).
-quest_objective(pesked_an_deiz, 2, collect(pesked_moged, 1)).
-
-quest_reward(pesked_an_deiz, experience, 60).
-quest_reward(pesked_an_deiz, gold, 20).
-
-quest_available(Player, pesked_an_deiz) :-
-    quest(pesked_an_deiz, _, _, _, active).
-
-%% Quest: Ti ha Tiegezh (House and Family)
-%% Visit homes and learn family/dwelling vocabulary.
-%% Type: side / Difficulty: beginner / CEFR: A1
-
-quest(ti_ha_tiegezh, 'Ti ha Tiegezh', side, beginner, active).
-quest_assigned_to(ti_ha_tiegezh, '{{player}}').
-quest_language(ti_ha_tiegezh, breton).
-quest_tag(ti_ha_tiegezh, cefr_a1).
-quest_tag(ti_ha_tiegezh, daily_routine).
-
-quest_objective(ti_ha_tiegezh, 0, objective('Visit three homes and learn Breton family terms.')).
-quest_objective(ti_ha_tiegezh, 1, talk_to(soazig_le_bihan, 1)).
-quest_objective(ti_ha_tiegezh, 2, talk_to(nolwenn_kernev, 1)).
-
-quest_reward(ti_ha_tiegezh, experience, 60).
-quest_reward(ti_ha_tiegezh, gold, 20).
-
-quest_available(Player, ti_ha_tiegezh) :-
-    quest(ti_ha_tiegezh, _, _, _, active).
-
-%% ═══════════════════════════════════════════════════════════
-%% A2 — Elementary Quests
-%% ═══════════════════════════════════════════════════════════
-
-%% Quest: Ar Sistr Nevez (The New Cider)
-%% Help at the cider press and learn about apple harvest vocabulary.
-%% Type: side / Difficulty: beginner / CEFR: A2
-
-quest(ar_sistr_nevez, 'Ar Sistr Nevez', side, beginner, active).
-quest_assigned_to(ar_sistr_nevez, '{{player}}').
-quest_language(ar_sistr_nevez, breton).
-quest_tag(ar_sistr_nevez, cefr_a2).
-quest_tag(ar_sistr_nevez, vocabulary).
-
-quest_objective(ar_sistr_nevez, 0, visit_location(2_hent_ar_park_17)).
-quest_objective(ar_sistr_nevez, 1, collect(aval, 3)).
-quest_objective(ar_sistr_nevez, 2, objective('Describe the cider-making process using five new Breton words.')).
-
-quest_reward(ar_sistr_nevez, experience, 100).
-quest_reward(ar_sistr_nevez, gold, 40).
-
-quest_available(Player, ar_sistr_nevez) :-
-    quest(ar_sistr_nevez, _, _, _, active).
-
-%% Quest: Hent ar Mein Hir (Path of the Standing Stones)
-%% Explore the standing stones and learn directions and landscape vocabulary.
-%% Type: exploration / Difficulty: beginner / CEFR: A2
-
-quest(hent_ar_mein_hir_quest, 'Hent ar Mein Hir', exploration, beginner, active).
-quest_assigned_to(hent_ar_mein_hir_quest, '{{player}}').
-quest_language(hent_ar_mein_hir_quest, breton).
-quest_tag(hent_ar_mein_hir_quest, cefr_a2).
-quest_tag(hent_ar_mein_hir_quest, exploration).
-
-quest_objective(hent_ar_mein_hir_quest, 0, discover_location(3_hent_ar_mein_hir_10)).
-quest_objective(hent_ar_mein_hir_quest, 1, discover_location(2_hent_ar_c_hoat_28)).
-quest_objective(hent_ar_mein_hir_quest, 2, objective('Describe the stones using Breton directional words.')).
-
-quest_reward(hent_ar_mein_hir_quest, experience, 100).
-quest_reward(hent_ar_mein_hir_quest, gold, 35).
-
-quest_available(Player, hent_ar_mein_hir_quest) :-
-    quest(hent_ar_mein_hir_quest, _, _, _, active).
-
-%% Quest: Gwiadenn ar Vro (Weaving of the Land)
-%% Learn about Breton weaving and textile vocabulary.
-%% Type: character / Difficulty: beginner / CEFR: A2
-
-quest(gwiadenn_ar_vro, 'Gwiadenn ar Vro', character, beginner, active).
-quest_assigned_to(gwiadenn_ar_vro, '{{player}}').
-quest_language(gwiadenn_ar_vro, breton).
-quest_tag(gwiadenn_ar_vro, cefr_a2).
-quest_tag(gwiadenn_ar_vro, crafting).
-
-quest_objective(gwiadenn_ar_vro, 0, talk_to(goulven_kernev, 1)).
-quest_objective(gwiadenn_ar_vro, 1, collect(neud_gloan, 2)).
-quest_objective(gwiadenn_ar_vro, 2, objective('Describe three Breton textile patterns using colour vocabulary.')).
-
-quest_reward(gwiadenn_ar_vro, experience, 100).
-quest_reward(gwiadenn_ar_vro, gold, 45).
-
-quest_available(Player, gwiadenn_ar_vro) :-
-    quest(gwiadenn_ar_vro, _, _, _, active).
-
-%% Quest: Louzou ha Plantennoù (Herbs and Plants)
-%% Help the herbalist gather medicinal plants.
-%% Type: collection / Difficulty: beginner / CEFR: A2
-
-quest(louzou_ha_plantennou, 'Louzou ha Plantennoù', collection, beginner, active).
-quest_assigned_to(louzou_ha_plantennou, '{{player}}').
-quest_language(louzou_ha_plantennou, breton).
-quest_tag(louzou_ha_plantennou, cefr_a2).
-quest_tag(louzou_ha_plantennou, herbalism).
-
-quest_objective(louzou_ha_plantennou, 0, talk_to(enora_morvan, 1)).
-quest_objective(louzou_ha_plantennou, 1, collect(louzaouenn, 3)).
-quest_objective(louzou_ha_plantennou, 2, deliver(louzaouenn, enora_morvan)).
-
-quest_reward(louzou_ha_plantennou, experience, 90).
-quest_reward(louzou_ha_plantennou, gold, 35).
-
-quest_available(Player, louzou_ha_plantennou) :-
-    quest(louzou_ha_plantennou, _, _, _, active).
-
-%% ═══════════════════════════════════════════════════════════
-%% B1 — Intermediate Quests
-%% ═══════════════════════════════════════════════════════════
-
-%% Quest: Ar Pardon Bras (The Great Pardon)
-%% Participate in the religious festival and learn ceremonial vocabulary.
-%% Type: cultural / Difficulty: intermediate / CEFR: B1
-
-quest(ar_pardon_bras, 'Ar Pardon Bras', cultural, intermediate, active).
-quest_assigned_to(ar_pardon_bras, '{{player}}').
-quest_language(ar_pardon_bras, breton).
-quest_tag(ar_pardon_bras, cefr_b1).
-quest_tag(ar_pardon_bras, cultural).
-
-quest_objective(ar_pardon_bras, 0, visit_location(2_hent_ar_chapel_6)).
-quest_objective(ar_pardon_bras, 1, talk_to(gwenael_karadeg, 1)).
-quest_objective(ar_pardon_bras, 2, objective('Describe the Pardon procession using at least ten Breton sentences.')).
-
-quest_reward(ar_pardon_bras, experience, 150).
-quest_reward(ar_pardon_bras, gold, 60).
-
-quest_available(Player, ar_pardon_bras) :-
-    quest(ar_pardon_bras, _, _, _, active).
-
-%% Quest: Kemener ar Mor (Tailor of the Sea)
-%% Negotiate the purchase of a sail using maritime and trade vocabulary.
-%% Type: shopping / Difficulty: intermediate / CEFR: B1
-
-quest(kemener_ar_mor, 'Kemener ar Mor', shopping, intermediate, active).
-quest_assigned_to(kemener_ar_mor, '{{player}}').
-quest_language(kemener_ar_mor, breton).
-quest_tag(kemener_ar_mor, cefr_b1).
-quest_tag(kemener_ar_mor, number_practice).
-
-quest_objective(kemener_ar_mor, 0, visit_location(5_hent_ar_porzh_1)).
-quest_objective(kemener_ar_mor, 1, objective('Negotiate a price for a new sail in Breton, using numbers and bargaining phrases.')).
-quest_objective(kemener_ar_mor, 2, collect(gwel_bag, 1)).
-
-quest_reward(kemener_ar_mor, experience, 150).
-quest_reward(kemener_ar_mor, gold, 55).
-
-quest_available(Player, kemener_ar_mor) :-
-    quest(kemener_ar_mor, _, _, _, active).
-
-%% Quest: Treuzkas Kentelioù (Mutation Lessons)
-%% Learn about Breton consonant mutations through conversation.
-%% Type: grammar / Difficulty: intermediate / CEFR: B1
-
-quest(treuzkas_kenteliou, 'Treuzkas Kentelioù', grammar, intermediate, active).
-quest_assigned_to(treuzkas_kenteliou, '{{player}}').
-quest_language(treuzkas_kenteliou, breton).
-quest_tag(treuzkas_kenteliou, cefr_b1).
-quest_tag(treuzkas_kenteliou, grammar).
-
-quest_objective(treuzkas_kenteliou, 0, talk_to(konan_morvan, 1)).
-quest_objective(treuzkas_kenteliou, 1, objective('Correctly apply soft mutation (kemmadur dre vlotaat) in five sentences.')).
-quest_objective(treuzkas_kenteliou, 2, objective('Correctly apply spirant mutation (kemmadur dre c''hwezhadenniñ) in three sentences.')).
-
-quest_reward(treuzkas_kenteliou, experience, 175).
-quest_reward(treuzkas_kenteliou, gold, 50).
-
-quest_available(Player, treuzkas_kenteliou) :-
-    quest(treuzkas_kenteliou, _, _, _, active).
-
-%% Quest: Istor ar Govadeg (Story of the Smithy)
-%% Listen to the smith tell a folk tale and retell it.
-%% Type: storytelling / Difficulty: intermediate / CEFR: B1
-
-quest(istor_ar_govadeg, 'Istor ar Govadeg', storytelling, intermediate, active).
-quest_assigned_to(istor_ar_govadeg, '{{player}}').
-quest_language(istor_ar_govadeg, breton).
-quest_tag(istor_ar_govadeg, cefr_b1).
-quest_tag(istor_ar_govadeg, storytelling).
-
-quest_objective(istor_ar_govadeg, 0, talk_to(jakez_guivarch, 1)).
-quest_objective(istor_ar_govadeg, 1, objective('Listen to the folk tale of the Ankou and retell it in your own Breton words.')).
-quest_objective(istor_ar_govadeg, 2, conversation_turns(8)).
-
-quest_reward(istor_ar_govadeg, experience, 175).
-quest_reward(istor_ar_govadeg, gold, 55).
-
-quest_available(Player, istor_ar_govadeg) :-
-    quest(istor_ar_govadeg, _, _, _, active).
-
-%% ═══════════════════════════════════════════════════════════
-%% B2 — Upper-Intermediate Quests
-%% ═══════════════════════════════════════════════════════════
-
-%% Quest: Kanañ ar Gwerz (Singing the Ballad)
-%% Learn and perform a traditional Breton gwerz (ballad).
-%% Type: cultural / Difficulty: advanced / CEFR: B2
-
-quest(kanañ_ar_gwerz, 'Kanañ ar Gwerz', cultural, advanced, active).
-quest_assigned_to(kanañ_ar_gwerz, '{{player}}').
-quest_language(kanañ_ar_gwerz, breton).
-quest_tag(kanañ_ar_gwerz, cefr_b2).
-quest_tag(kanañ_ar_gwerz, cultural).
-
-quest_objective(kanañ_ar_gwerz, 0, talk_to(maiwenn_kernev, 1)).
-quest_objective(kanañ_ar_gwerz, 1, objective('Learn the lyrics of a traditional gwerz and explain its meaning in Breton.')).
-quest_objective(kanañ_ar_gwerz, 2, objective('Perform the gwerz at the tavern and answer questions about its historical context.')).
-
-quest_reward(kanañ_ar_gwerz, experience, 250).
-quest_reward(kanañ_ar_gwerz, gold, 80).
-
-quest_available(Player, kanañ_ar_gwerz) :-
-    quest(kanañ_ar_gwerz, _, _, _, active).
-
-%% Quest: Disputañ gant ar Rouaned (Debating with the Nobles)
-%% Argue for maritime independence using formal Breton.
-%% Type: social / Difficulty: advanced / CEFR: B2
-
-quest(disputañ_gant_ar_rouaned, 'Disputañ gant ar Rouaned', social, advanced, active).
-quest_assigned_to(disputañ_gant_ar_rouaned, '{{player}}').
-quest_language(disputañ_gant_ar_rouaned, breton).
-quest_tag(disputañ_gant_ar_rouaned, cefr_b2).
-quest_tag(disputañ_gant_ar_rouaned, social).
-
-quest_objective(disputañ_gant_ar_rouaned, 0, talk_to(riwal_karadeg, 1)).
-quest_objective(disputañ_gant_ar_rouaned, 1, objective('Present three arguments for Breton maritime rights using formal register.')).
-quest_objective(disputañ_gant_ar_rouaned, 2, conversation_turns(10)).
-
-quest_reward(disputañ_gant_ar_rouaned, experience, 275).
-quest_reward(disputañ_gant_ar_rouaned, gold, 90).
-
-quest_available(Player, disputañ_gant_ar_rouaned) :-
-    quest(disputañ_gant_ar_rouaned, _, _, _, active).
-
-%% Quest: Levr ar Vein Hir (Book of the Standing Stones)
-%% Translate ancient inscriptions and discuss their meaning.
-%% Type: translation / Difficulty: advanced / CEFR: B2
-
-quest(levr_ar_vein_hir, 'Levr ar Vein Hir', translation, advanced, active).
-quest_assigned_to(levr_ar_vein_hir, '{{player}}').
-quest_language(levr_ar_vein_hir, breton).
-quest_tag(levr_ar_vein_hir, cefr_b2).
-quest_tag(levr_ar_vein_hir, translation).
-
-quest_objective(levr_ar_vein_hir, 0, discover_location(3_hent_ar_mein_hir_10)).
-quest_objective(levr_ar_vein_hir, 1, objective('Translate three ogham-like inscriptions into modern Breton.')).
-quest_objective(levr_ar_vein_hir, 2, talk_to(konan_morvan, 1)).
-
-quest_reward(levr_ar_vein_hir, experience, 300).
-quest_reward(levr_ar_vein_hir, gold, 100).
-
-quest_available(Player, levr_ar_vein_hir) :-
-    quest(levr_ar_vein_hir, _, _, _, active).
-
-%% Quest: Brezel ar Mor (War of the Sea)
-%% Navigate a storm and coordinate with the crew using nautical Breton.
-%% Type: main / Difficulty: advanced / CEFR: B2
-
-quest(brezel_ar_mor, 'Brezel ar Mor', main, advanced, active).
-quest_assigned_to(brezel_ar_mor, '{{player}}').
-quest_language(brezel_ar_mor, breton).
-quest_tag(brezel_ar_mor, cefr_b2).
-quest_tag(brezel_ar_mor, navigation).
-
-quest_objective(brezel_ar_mor, 0, talk_to(ewen_le_bihan, 1)).
-quest_objective(brezel_ar_mor, 1, objective('Give nautical commands in Breton to navigate a fishing boat through a storm.')).
-quest_objective(brezel_ar_mor, 2, objective('Describe the experience of the storm in a written Breton account of at least ten sentences.')).
-
-quest_reward(brezel_ar_mor, experience, 300).
-quest_reward(brezel_ar_mor, gold, 100).
-
-quest_available(Player, brezel_ar_mor) :-
-    quest(brezel_ar_mor, _, _, _, active).
+%% ======================================================
+%% A1 -- Beginner Quests
+%% ======================================================
+
+%% Quest: First Greetings in Breton
+quest(demat_da_gentanion, 'Demat! Da Gentanion', conversation, beginner, active).
+quest_assigned_to(demat_da_gentanion, '{{player}}').
+quest_language(demat_da_gentanion, breton).
+quest_tag(demat_da_gentanion, generated).
+quest_objective(demat_da_gentanion, 0, talk_to('yann_le_goff', 1)).
+quest_objective(demat_da_gentanion, 1, objective('Learn basic Breton greetings: demat, kenavo, mont a ra, trugarez.')).
+quest_objective(demat_da_gentanion, 2, talk_to('soazig_le_goff', 1)).
+quest_reward(demat_da_gentanion, experience, 100).
+quest_reward(demat_da_gentanion, gold, 50).
+quest_available(Player, demat_da_gentanion) :-
+    quest(demat_da_gentanion, _, _, _, active).
+
+%% Quest: At the Creperie
+quest(er_grampouezhenn, 'Er Grampouezhenn', vocabulary, beginner, active).
+quest_assigned_to(er_grampouezhenn, '{{player}}').
+quest_language(er_grampouezhenn, breton).
+quest_tag(er_grampouezhenn, generated).
+quest_objective(er_grampouezhenn, 0, objective('Visit Krampouezhenn Ar Vag creperie.')).
+quest_objective(er_grampouezhenn, 1, objective('Learn the names of crepe fillings in Breton: sukr, amanenn, ov, keuz.')).
+quest_objective(er_grampouezhenn, 2, objective('Order a krampouezhenn using Breton.')).
+quest_reward(er_grampouezhenn, experience, 100).
+quest_reward(er_grampouezhenn, gold, 50).
+quest_available(Player, er_grampouezhenn) :-
+    quest(er_grampouezhenn, _, _, _, active).
+
+%% Quest: Counting Fish
+quest(kontanin_pesked, 'Kontanin Pesked', vocabulary, beginner, active).
+quest_assigned_to(kontanin_pesked, '{{player}}').
+quest_language(kontanin_pesked, breton).
+quest_tag(kontanin_pesked, generated).
+quest_objective(kontanin_pesked, 0, objective('Learn Breton numbers 1-20: unan, daou, tri, pevar, pemp...')).
+quest_objective(kontanin_pesked, 1, objective('Count fish at the fish market with Goulven Kermarrec.')).
+quest_objective(kontanin_pesked, 2, objective('Pay for fish using the correct Breton number.')).
+quest_reward(kontanin_pesked, experience, 120).
+quest_reward(kontanin_pesked, gold, 60).
+quest_available(Player, kontanin_pesked) :-
+    quest(kontanin_pesked, _, _, _, active).
+
+%% Quest: My Family
+quest(ma_familh, 'Ma Familh', conversation, beginner, active).
+quest_assigned_to(ma_familh, '{{player}}').
+quest_language(ma_familh, breton).
+quest_tag(ma_familh, generated).
+quest_objective(ma_familh, 0, talk_to('soazig_le_goff', 1)).
+quest_objective(ma_familh, 1, objective('Learn family vocabulary: mamm, tad, breur, c''hoar, mab, merc''h.')).
+quest_objective(ma_familh, 2, objective('Describe your own family in Breton to Soazig.')).
+quest_reward(ma_familh, experience, 100).
+quest_reward(ma_familh, gold, 50).
+quest_available(Player, ma_familh) :-
+    quest(ma_familh, _, _, _, active).
+
+%% ======================================================
+%% A2 -- Elementary Quests
+%% ======================================================
+
+%% Quest: Harbor Exploration
+quest(klask_ar_porzh, 'Klask ar Porzh', exploration, beginner, active).
+quest_assigned_to(klask_ar_porzh, '{{player}}').
+quest_language(klask_ar_porzh, breton).
+quest_tag(klask_ar_porzh, generated).
+quest_objective(klask_ar_porzh, 0, objective('Find the fish market and buy pesked-mor (sea fish).')).
+quest_objective(klask_ar_porzh, 1, objective('Find the surf shop and learn equipment names in Breton.')).
+quest_objective(klask_ar_porzh, 2, objective('Find the bookstore and ask for a recommendation in Breton.')).
+quest_reward(klask_ar_porzh, experience, 150).
+quest_reward(klask_ar_porzh, gold, 80).
+quest_available(Player, klask_ar_porzh) :-
+    quest(klask_ar_porzh, _, _, _, active).
+
+%% Quest: Cider Traditions
+quest(gouzout_ar_sistr, 'Gouzout ar Sistr', cultural_knowledge, beginner, active).
+quest_assigned_to(gouzout_ar_sistr, '{{player}}').
+quest_language(gouzout_ar_sistr, breton).
+quest_tag(gouzout_ar_sistr, generated).
+quest_objective(gouzout_ar_sistr, 0, talk_to('herve_quere', 1)).
+quest_objective(gouzout_ar_sistr, 1, objective('Learn about Breton cider-making traditions at the cider press.')).
+quest_objective(gouzout_ar_sistr, 2, objective('Order cider at Tavarn ar Sistr using proper Breton phrases.')).
+quest_reward(gouzout_ar_sistr, experience, 150).
+quest_reward(gouzout_ar_sistr, gold, 75).
+quest_available(Player, gouzout_ar_sistr) :-
+    quest(gouzout_ar_sistr, _, _, _, active).
+
+%% Quest: Directions in Porzh-Gwenn
+quest(hentoù_porzh_gwenn, 'Hentou Porzh-Gwenn', grammar, beginner, active).
+quest_assigned_to(hentoù_porzh_gwenn, '{{player}}').
+quest_language(hentoù_porzh_gwenn, breton).
+quest_tag(hentoù_porzh_gwenn, generated).
+quest_objective(hentoù_porzh_gwenn, 0, objective('Learn direction words: dehou, kleiz, war-raok, war-dro.')).
+quest_objective(hentoù_porzh_gwenn, 1, objective('Ask three people for directions in Breton.')).
+quest_objective(hentoù_porzh_gwenn, 2, objective('Navigate to the standing stone using only Breton directions.')).
+quest_reward(hentoù_porzh_gwenn, experience, 150).
+quest_reward(hentoù_porzh_gwenn, gold, 80).
+quest_available(Player, hentoù_porzh_gwenn) :-
+    quest(hentoù_porzh_gwenn, _, _, _, active).
+
+%% Quest: Breton Food Festival
+quest(gouel_boued, 'Gouel Boued', vocabulary, beginner, active).
+quest_assigned_to(gouel_boued, '{{player}}').
+quest_language(gouel_boued, breton).
+quest_tag(gouel_boued, generated).
+quest_objective(gouel_boued, 0, objective('Visit the seafood restaurant and order a meal in Breton.')).
+quest_objective(gouel_boued, 1, objective('Learn 10 food words at the bakery and market.')).
+quest_objective(gouel_boued, 2, objective('Describe your favorite food in Breton to Annaig Riou.')).
+quest_reward(gouel_boued, experience, 160).
+quest_reward(gouel_boued, gold, 80).
+quest_available(Player, gouel_boued) :-
+    quest(gouel_boued, _, _, _, active).
+
+%% ======================================================
+%% B1 -- Intermediate Quests
+%% ======================================================
+
+%% Quest: The Diwan School
+quest(skol_diwan, 'Skol Diwan', exploration, intermediate, active).
+quest_assigned_to(skol_diwan, '{{player}}').
+quest_language(skol_diwan, breton).
+quest_tag(skol_diwan, generated).
+quest_objective(skol_diwan, 0, talk_to('gwenael_le_bihan', 1)).
+quest_objective(skol_diwan, 1, objective('Tour the Diwan school and learn educational vocabulary in Breton.')).
+quest_objective(skol_diwan, 2, objective('Introduce yourself to three students in Breton.')).
+quest_objective(skol_diwan, 3, talk_to('rozenn_le_bihan', 1)).
+quest_reward(skol_diwan, experience, 250).
+quest_reward(skol_diwan, gold, 120).
+quest_available(Player, skol_diwan) :-
+    quest(skol_diwan, _, _, _, active).
+
+%% Quest: Fest-Noz Night
+quest(fest_noz, 'Fest-Noz', cultural_knowledge, intermediate, active).
+quest_assigned_to(fest_noz, '{{player}}').
+quest_language(fest_noz, breton).
+quest_tag(fest_noz, generated).
+quest_objective(fest_noz, 0, objective('Visit Ti ar Fest-Noz venue.')).
+quest_objective(fest_noz, 1, objective('Learn about traditional Breton dances: an dro, hanter dro, gavotte.')).
+quest_objective(fest_noz, 2, objective('Have a conversation in Breton about music with Tudual Morvan.')).
+quest_reward(fest_noz, experience, 250).
+quest_reward(fest_noz, gold, 100).
+quest_available(Player, fest_noz) :-
+    quest(fest_noz, _, _, _, active).
+
+%% Quest: The Fishing Boat
+quest(ar_vag_pesked, 'Ar Vag-Pesked', conversation, intermediate, active).
+quest_assigned_to(ar_vag_pesked, '{{player}}').
+quest_language(ar_vag_pesked, breton).
+quest_tag(ar_vag_pesked, generated).
+quest_objective(ar_vag_pesked, 0, objective('Meet Goulven Kermarrec at the harbor.')).
+quest_objective(ar_vag_pesked, 1, talk_to('goulven_kermarrec', 1)).
+quest_objective(ar_vag_pesked, 2, objective('Help Goulven describe his catch using marine vocabulary in Breton.')).
+quest_objective(ar_vag_pesked, 3, objective('Have a conversation about sea life with Maiwenn Kermarrec.')).
+quest_reward(ar_vag_pesked, experience, 280).
+quest_reward(ar_vag_pesked, gold, 130).
+quest_available(Player, ar_vag_pesked) :-
+    quest(ar_vag_pesked, _, _, _, active).
+
+%% Quest: Mutations Practice
+quest(kemmaduriou, 'Kemmaduriou', grammar, intermediate, active).
+quest_assigned_to(kemmaduriou, '{{player}}').
+quest_language(kemmaduriou, breton).
+quest_tag(kemmaduriou, generated).
+quest_objective(kemmaduriou, 0, objective('Learn the three Breton consonant mutations: soft, nasal, and aspirate.')).
+quest_objective(kemmaduriou, 1, objective('Practice soft mutation with Rozenn Le Bihan at the Diwan school.')).
+quest_objective(kemmaduriou, 2, objective('Successfully use mutations in conversation at the market.')).
+quest_reward(kemmaduriou, experience, 250).
+quest_reward(kemmaduriou, gold, 150).
+quest_available(Player, kemmaduriou) :-
+    quest(kemmaduriou, _, _, _, active).
+
+%% ======================================================
+%% B2 -- Upper Intermediate Quests
+%% ======================================================
+
+%% Quest: The Standing Stones
+quest(ar_mein_hir, 'Ar Mein-Hir', conversation, advanced, active).
+quest_assigned_to(ar_mein_hir, '{{player}}').
+quest_language(ar_mein_hir, breton).
+quest_tag(ar_mein_hir, generated).
+quest_objective(ar_mein_hir, 0, objective('Visit the standing stone at Penn ar Bed.')).
+quest_objective(ar_mein_hir, 1, talk_to('jakez_riou', 1)).
+quest_objective(ar_mein_hir, 2, objective('Discuss megalithic history and local legends in Breton.')).
+quest_objective(ar_mein_hir, 3, objective('Write a short paragraph about the stones in Breton.')).
+quest_reward(ar_mein_hir, experience, 400).
+quest_reward(ar_mein_hir, gold, 200).
+quest_available(Player, ar_mein_hir) :-
+    quest(ar_mein_hir, _, _, _, active).
+
+%% Quest: The Language Debate
+quest(tabut_ar_yezh, 'Tabut ar Yezh', grammar, advanced, active).
+quest_assigned_to(tabut_ar_yezh, '{{player}}').
+quest_language(tabut_ar_yezh, breton).
+quest_tag(tabut_ar_yezh, generated).
+quest_objective(tabut_ar_yezh, 0, talk_to('gwenael_le_bihan', 1)).
+quest_objective(tabut_ar_yezh, 1, objective('Learn to express opinions in Breton: me a soñj din, ne gredan ket, hervez ma soñj.')).
+quest_objective(tabut_ar_yezh, 2, objective('Participate in a discussion about language revitalization at the cultural center.')).
+quest_objective(tabut_ar_yezh, 3, objective('Use conditional sentences in your arguments.')).
+quest_reward(tabut_ar_yezh, experience, 450).
+quest_reward(tabut_ar_yezh, gold, 200).
+quest_available(Player, tabut_ar_yezh) :-
+    quest(tabut_ar_yezh, _, _, _, active).
+
+%% Quest: Celtic Music and Poetry
+quest(sonerezh_ha_barzhoneg, 'Sonerezh ha Barzhoneg', cultural_knowledge, advanced, active).
+quest_assigned_to(sonerezh_ha_barzhoneg, '{{player}}').
+quest_language(sonerezh_ha_barzhoneg, breton).
+quest_tag(sonerezh_ha_barzhoneg, generated).
+quest_objective(sonerezh_ha_barzhoneg, 0, objective('Interview three residents about Breton music traditions.')).
+quest_objective(sonerezh_ha_barzhoneg, 1, objective('Learn traditional song lyrics and their meanings.')).
+quest_objective(sonerezh_ha_barzhoneg, 2, objective('Write a short text in Breton about the role of music in Celtic identity.')).
+quest_objective(sonerezh_ha_barzhoneg, 3, talk_to('enora_morvan', 1)).
+quest_reward(sonerezh_ha_barzhoneg, experience, 500).
+quest_reward(sonerezh_ha_barzhoneg, gold, 250).
+quest_available(Player, sonerezh_ha_barzhoneg) :-
+    quest(sonerezh_ha_barzhoneg, _, _, _, active).
+
+%% Quest: Coastal Walk and Storytelling
+quest(bale_war_an_aod, 'Bale war an Aod', exploration, advanced, active).
+quest_assigned_to(bale_war_an_aod, '{{player}}').
+quest_language(bale_war_an_aod, breton).
+quest_tag(bale_war_an_aod, generated).
+quest_objective(bale_war_an_aod, 0, objective('Walk from the harbor to Penn ar Bed and describe the scenery in Breton.')).
+quest_objective(bale_war_an_aod, 1, objective('Have an extended conversation with a stranger about life in Breizh.')).
+quest_objective(bale_war_an_aod, 2, objective('Narrate a short story about the lighthouse in Breton.')).
+quest_reward(bale_war_an_aod, experience, 450).
+quest_reward(bale_war_an_aod, gold, 200).
+quest_available(Player, bale_war_an_aod) :-
+    quest(bale_war_an_aod, _, _, _, active).

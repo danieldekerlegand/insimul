@@ -1,4 +1,4 @@
-%% Insimul Characters: Medieval Brittany
+%% Insimul Characters: Breton Coast
 %% Source: data/worlds/language/breton/characters.pl
 %% Created: 2026-04-03
 %% Total: 24 characters (6 families)
@@ -7,53 +7,150 @@
 %%   person/1, first_name/2, last_name/2, full_name/2
 %%   gender/2, alive/1, generation/2, founder_family/1
 %%   parent/2, child/2, spouse/2, location/2
-%%   ensemble_cast/1 — marks character as Ensemble cast member
 
-%% ═══════════════════════════════════════════════════════════
-%% Genealogy Characters (24 entries, 6 families)
-%% ═══════════════════════════════════════════════════════════
+%% ======================================================
+%% Le Goff Family (Creperie Owners, Porzh-Gwenn)
+%% ======================================================
 
-%% ─── Le Bihan Family (Fishing Captains) ───
+%% Yann Le Goff
+person(yann_le_goff).
+first_name(yann_le_goff, 'Yann').
+last_name(yann_le_goff, 'Le Goff').
+full_name(yann_le_goff, 'Yann Le Goff').
+gender(yann_le_goff, male).
+alive(yann_le_goff).
+generation(yann_le_goff, 0).
+founder_family(yann_le_goff).
+child(yann_le_goff, erwan_le_goff).
+child(yann_le_goff, nolwenn_le_goff).
+spouse(yann_le_goff, soazig_le_goff).
+location(yann_le_goff, porzh_gwenn).
 
-%% Yann Le Bihan
-person(yann_le_bihan).
-first_name(yann_le_bihan, 'Yann').
-last_name(yann_le_bihan, 'Le Bihan').
-full_name(yann_le_bihan, 'Yann Le Bihan').
-gender(yann_le_bihan, male).
-alive(yann_le_bihan).
-generation(yann_le_bihan, 0).
-founder_family(yann_le_bihan).
-child(yann_le_bihan, ewen_le_bihan).
-child(yann_le_bihan, anna_le_bihan).
-spouse(yann_le_bihan, soazig_le_bihan).
-location(yann_le_bihan, porzh_gwenn).
+%% Soazig Le Goff
+person(soazig_le_goff).
+first_name(soazig_le_goff, 'Soazig').
+last_name(soazig_le_goff, 'Le Goff').
+full_name(soazig_le_goff, 'Soazig Le Goff').
+gender(soazig_le_goff, female).
+alive(soazig_le_goff).
+generation(soazig_le_goff, 0).
+founder_family(soazig_le_goff).
+child(soazig_le_goff, erwan_le_goff).
+child(soazig_le_goff, nolwenn_le_goff).
+spouse(soazig_le_goff, yann_le_goff).
+location(soazig_le_goff, porzh_gwenn).
 
-%% Soazig Le Bihan
-person(soazig_le_bihan).
-first_name(soazig_le_bihan, 'Soazig').
-last_name(soazig_le_bihan, 'Le Bihan').
-full_name(soazig_le_bihan, 'Soazig Le Bihan').
-gender(soazig_le_bihan, female).
-alive(soazig_le_bihan).
-generation(soazig_le_bihan, 0).
-founder_family(soazig_le_bihan).
-child(soazig_le_bihan, ewen_le_bihan).
-child(soazig_le_bihan, anna_le_bihan).
-spouse(soazig_le_bihan, yann_le_bihan).
-location(soazig_le_bihan, porzh_gwenn).
+%% Erwan Le Goff
+person(erwan_le_goff).
+first_name(erwan_le_goff, 'Erwan').
+last_name(erwan_le_goff, 'Le Goff').
+full_name(erwan_le_goff, 'Erwan Le Goff').
+gender(erwan_le_goff, male).
+alive(erwan_le_goff).
+generation(erwan_le_goff, 1).
+parent(yann_le_goff, erwan_le_goff).
+parent(soazig_le_goff, erwan_le_goff).
+location(erwan_le_goff, porzh_gwenn).
 
-%% Ewen Le Bihan
-person(ewen_le_bihan).
-first_name(ewen_le_bihan, 'Ewen').
-last_name(ewen_le_bihan, 'Le Bihan').
-full_name(ewen_le_bihan, 'Ewen Le Bihan').
-gender(ewen_le_bihan, male).
-alive(ewen_le_bihan).
-generation(ewen_le_bihan, 1).
-parent(yann_le_bihan, ewen_le_bihan).
-parent(soazig_le_bihan, ewen_le_bihan).
-location(ewen_le_bihan, porzh_gwenn).
+%% Nolwenn Le Goff
+person(nolwenn_le_goff).
+first_name(nolwenn_le_goff, 'Nolwenn').
+last_name(nolwenn_le_goff, 'Le Goff').
+full_name(nolwenn_le_goff, 'Nolwenn Le Goff').
+gender(nolwenn_le_goff, female).
+alive(nolwenn_le_goff).
+generation(nolwenn_le_goff, 1).
+parent(yann_le_goff, nolwenn_le_goff).
+parent(soazig_le_goff, nolwenn_le_goff).
+location(nolwenn_le_goff, porzh_gwenn).
+
+%% ======================================================
+%% Kermarrec Family (Fishermen, Porzh-Gwenn)
+%% ======================================================
+
+%% Goulven Kermarrec
+person(goulven_kermarrec).
+first_name(goulven_kermarrec, 'Goulven').
+last_name(goulven_kermarrec, 'Kermarrec').
+full_name(goulven_kermarrec, 'Goulven Kermarrec').
+gender(goulven_kermarrec, male).
+alive(goulven_kermarrec).
+generation(goulven_kermarrec, 0).
+founder_family(goulven_kermarrec).
+child(goulven_kermarrec, alan_kermarrec).
+child(goulven_kermarrec, katell_kermarrec).
+spouse(goulven_kermarrec, maiwenn_kermarrec).
+location(goulven_kermarrec, porzh_gwenn).
+
+%% Maiwenn Kermarrec
+person(maiwenn_kermarrec).
+first_name(maiwenn_kermarrec, 'Maiwenn').
+last_name(maiwenn_kermarrec, 'Kermarrec').
+full_name(maiwenn_kermarrec, 'Maiwenn Kermarrec').
+gender(maiwenn_kermarrec, female).
+alive(maiwenn_kermarrec).
+generation(maiwenn_kermarrec, 0).
+founder_family(maiwenn_kermarrec).
+child(maiwenn_kermarrec, alan_kermarrec).
+child(maiwenn_kermarrec, katell_kermarrec).
+spouse(maiwenn_kermarrec, goulven_kermarrec).
+location(maiwenn_kermarrec, porzh_gwenn).
+
+%% Alan Kermarrec
+person(alan_kermarrec).
+first_name(alan_kermarrec, 'Alan').
+last_name(alan_kermarrec, 'Kermarrec').
+full_name(alan_kermarrec, 'Alan Kermarrec').
+gender(alan_kermarrec, male).
+alive(alan_kermarrec).
+generation(alan_kermarrec, 1).
+parent(goulven_kermarrec, alan_kermarrec).
+parent(maiwenn_kermarrec, alan_kermarrec).
+location(alan_kermarrec, porzh_gwenn).
+
+%% Katell Kermarrec
+person(katell_kermarrec).
+first_name(katell_kermarrec, 'Katell').
+last_name(katell_kermarrec, 'Kermarrec').
+full_name(katell_kermarrec, 'Katell Kermarrec').
+gender(katell_kermarrec, female).
+alive(katell_kermarrec).
+generation(katell_kermarrec, 1).
+parent(goulven_kermarrec, katell_kermarrec).
+parent(maiwenn_kermarrec, katell_kermarrec).
+location(katell_kermarrec, porzh_gwenn).
+
+%% ======================================================
+%% Le Bihan Family (Diwan Teachers, Porzh-Gwenn)
+%% ======================================================
+
+%% Gwenael Le Bihan
+person(gwenael_le_bihan).
+first_name(gwenael_le_bihan, 'Gwenael').
+last_name(gwenael_le_bihan, 'Le Bihan').
+full_name(gwenael_le_bihan, 'Gwenael Le Bihan').
+gender(gwenael_le_bihan, male).
+alive(gwenael_le_bihan).
+generation(gwenael_le_bihan, 0).
+founder_family(gwenael_le_bihan).
+child(gwenael_le_bihan, anna_le_bihan).
+child(gwenael_le_bihan, per_le_bihan).
+spouse(gwenael_le_bihan, rozenn_le_bihan).
+location(gwenael_le_bihan, porzh_gwenn).
+
+%% Rozenn Le Bihan
+person(rozenn_le_bihan).
+first_name(rozenn_le_bihan, 'Rozenn').
+last_name(rozenn_le_bihan, 'Le Bihan').
+full_name(rozenn_le_bihan, 'Rozenn Le Bihan').
+gender(rozenn_le_bihan, female).
+alive(rozenn_le_bihan).
+generation(rozenn_le_bihan, 0).
+founder_family(rozenn_le_bihan).
+child(rozenn_le_bihan, anna_le_bihan).
+child(rozenn_le_bihan, per_le_bihan).
+spouse(rozenn_le_bihan, gwenael_le_bihan).
+location(rozenn_le_bihan, porzh_gwenn).
 
 %% Anna Le Bihan
 person(anna_le_bihan).
@@ -63,133 +160,39 @@ full_name(anna_le_bihan, 'Anna Le Bihan').
 gender(anna_le_bihan, female).
 alive(anna_le_bihan).
 generation(anna_le_bihan, 1).
-parent(yann_le_bihan, anna_le_bihan).
-parent(soazig_le_bihan, anna_le_bihan).
+parent(gwenael_le_bihan, anna_le_bihan).
+parent(rozenn_le_bihan, anna_le_bihan).
 location(anna_le_bihan, porzh_gwenn).
 
-%% ─── Kernev Family (Weavers) ───
+%% Per Le Bihan
+person(per_le_bihan).
+first_name(per_le_bihan, 'Per').
+last_name(per_le_bihan, 'Le Bihan').
+full_name(per_le_bihan, 'Per Le Bihan').
+gender(per_le_bihan, male).
+alive(per_le_bihan).
+generation(per_le_bihan, 1).
+parent(gwenael_le_bihan, per_le_bihan).
+parent(rozenn_le_bihan, per_le_bihan).
+location(per_le_bihan, porzh_gwenn).
 
-%% Goulven Kernev
-person(goulven_kernev).
-first_name(goulven_kernev, 'Goulven').
-last_name(goulven_kernev, 'Kernev').
-full_name(goulven_kernev, 'Goulven Kernev').
-gender(goulven_kernev, male).
-alive(goulven_kernev).
-generation(goulven_kernev, 0).
-founder_family(goulven_kernev).
-child(goulven_kernev, maiwenn_kernev).
-child(goulven_kernev, jakes_kernev).
-spouse(goulven_kernev, nolwenn_kernev).
-location(goulven_kernev, porzh_gwenn).
+%% ======================================================
+%% Morvan Family (Musicians, Porzh-Gwenn)
+%% ======================================================
 
-%% Nolwenn Kernev
-person(nolwenn_kernev).
-first_name(nolwenn_kernev, 'Nolwenn').
-last_name(nolwenn_kernev, 'Kernev').
-full_name(nolwenn_kernev, 'Nolwenn Kernev').
-gender(nolwenn_kernev, female).
-alive(nolwenn_kernev).
-generation(nolwenn_kernev, 0).
-founder_family(nolwenn_kernev).
-child(nolwenn_kernev, maiwenn_kernev).
-child(nolwenn_kernev, jakes_kernev).
-spouse(nolwenn_kernev, goulven_kernev).
-location(nolwenn_kernev, porzh_gwenn).
-
-%% Maiwenn Kernev
-person(maiwenn_kernev).
-first_name(maiwenn_kernev, 'Maiwenn').
-last_name(maiwenn_kernev, 'Kernev').
-full_name(maiwenn_kernev, 'Maiwenn Kernev').
-gender(maiwenn_kernev, female).
-alive(maiwenn_kernev).
-generation(maiwenn_kernev, 1).
-parent(goulven_kernev, maiwenn_kernev).
-parent(nolwenn_kernev, maiwenn_kernev).
-location(maiwenn_kernev, porzh_gwenn).
-
-%% Jakes Kernev
-person(jakes_kernev).
-first_name(jakes_kernev, 'Jakes').
-last_name(jakes_kernev, 'Kernev').
-full_name(jakes_kernev, 'Jakes Kernev').
-gender(jakes_kernev, male).
-alive(jakes_kernev).
-generation(jakes_kernev, 1).
-parent(goulven_kernev, jakes_kernev).
-parent(nolwenn_kernev, jakes_kernev).
-location(jakes_kernev, porzh_gwenn).
-
-%% ─── Karadeg Family (Ducal Stewards) ───
-
-%% Riwal Karadeg
-person(riwal_karadeg).
-first_name(riwal_karadeg, 'Riwal').
-last_name(riwal_karadeg, 'Karadeg').
-full_name(riwal_karadeg, 'Riwal Karadeg').
-gender(riwal_karadeg, male).
-alive(riwal_karadeg).
-generation(riwal_karadeg, 0).
-founder_family(riwal_karadeg).
-child(riwal_karadeg, bleunvenn_karadeg).
-child(riwal_karadeg, alan_karadeg).
-spouse(riwal_karadeg, gwenael_karadeg).
-location(riwal_karadeg, porzh_gwenn).
-
-%% Gwenael Karadeg
-person(gwenael_karadeg).
-first_name(gwenael_karadeg, 'Gwenael').
-last_name(gwenael_karadeg, 'Karadeg').
-full_name(gwenael_karadeg, 'Gwenael Karadeg').
-gender(gwenael_karadeg, female).
-alive(gwenael_karadeg).
-generation(gwenael_karadeg, 0).
-founder_family(gwenael_karadeg).
-child(gwenael_karadeg, bleunvenn_karadeg).
-child(gwenael_karadeg, alan_karadeg).
-spouse(gwenael_karadeg, riwal_karadeg).
-location(gwenael_karadeg, porzh_gwenn).
-
-%% Bleunvenn Karadeg
-person(bleunvenn_karadeg).
-first_name(bleunvenn_karadeg, 'Bleunvenn').
-last_name(bleunvenn_karadeg, 'Karadeg').
-full_name(bleunvenn_karadeg, 'Bleunvenn Karadeg').
-gender(bleunvenn_karadeg, female).
-alive(bleunvenn_karadeg).
-generation(bleunvenn_karadeg, 1).
-parent(riwal_karadeg, bleunvenn_karadeg).
-parent(gwenael_karadeg, bleunvenn_karadeg).
-location(bleunvenn_karadeg, porzh_gwenn).
-
-%% Alan Karadeg
-person(alan_karadeg).
-first_name(alan_karadeg, 'Alan').
-last_name(alan_karadeg, 'Karadeg').
-full_name(alan_karadeg, 'Alan Karadeg').
-gender(alan_karadeg, male).
-alive(alan_karadeg).
-generation(alan_karadeg, 1).
-parent(riwal_karadeg, alan_karadeg).
-parent(gwenael_karadeg, alan_karadeg).
-location(alan_karadeg, porzh_gwenn).
-
-%% ─── Morvan Family (Herbalists) ───
-
-%% Konan Morvan
-person(konan_morvan).
-first_name(konan_morvan, 'Konan').
-last_name(konan_morvan, 'Morvan').
-full_name(konan_morvan, 'Konan Morvan').
-gender(konan_morvan, male).
-alive(konan_morvan).
-generation(konan_morvan, 0).
-founder_family(konan_morvan).
-child(konan_morvan, katell_morvan).
-child(konan_morvan, erwan_morvan).
-spouse(konan_morvan, enora_morvan).
-location(konan_morvan, porzh_gwenn).
+%% Tudual Morvan
+person(tudual_morvan).
+first_name(tudual_morvan, 'Tudual').
+last_name(tudual_morvan, 'Morvan').
+full_name(tudual_morvan, 'Tudual Morvan').
+gender(tudual_morvan, male).
+alive(tudual_morvan).
+generation(tudual_morvan, 0).
+founder_family(tudual_morvan).
+child(tudual_morvan, sterenn_morvan).
+child(tudual_morvan, denez_morvan).
+spouse(tudual_morvan, enora_morvan).
+location(tudual_morvan, porzh_gwenn).
 
 %% Enora Morvan
 person(enora_morvan).
@@ -200,139 +203,143 @@ gender(enora_morvan, female).
 alive(enora_morvan).
 generation(enora_morvan, 0).
 founder_family(enora_morvan).
-child(enora_morvan, katell_morvan).
-child(enora_morvan, erwan_morvan).
-spouse(enora_morvan, konan_morvan).
+child(enora_morvan, sterenn_morvan).
+child(enora_morvan, denez_morvan).
+spouse(enora_morvan, tudual_morvan).
 location(enora_morvan, porzh_gwenn).
 
-%% Katell Morvan
-person(katell_morvan).
-first_name(katell_morvan, 'Katell').
-last_name(katell_morvan, 'Morvan').
-full_name(katell_morvan, 'Katell Morvan').
-gender(katell_morvan, female).
-alive(katell_morvan).
-generation(katell_morvan, 1).
-parent(konan_morvan, katell_morvan).
-parent(enora_morvan, katell_morvan).
-location(katell_morvan, porzh_gwenn).
+%% Sterenn Morvan
+person(sterenn_morvan).
+first_name(sterenn_morvan, 'Sterenn').
+last_name(sterenn_morvan, 'Morvan').
+full_name(sterenn_morvan, 'Sterenn Morvan').
+gender(sterenn_morvan, female).
+alive(sterenn_morvan).
+generation(sterenn_morvan, 1).
+parent(tudual_morvan, sterenn_morvan).
+parent(enora_morvan, sterenn_morvan).
+location(sterenn_morvan, porzh_gwenn).
 
-%% Erwan Morvan
-person(erwan_morvan).
-first_name(erwan_morvan, 'Erwan').
-last_name(erwan_morvan, 'Morvan').
-full_name(erwan_morvan, 'Erwan Morvan').
-gender(erwan_morvan, male).
-alive(erwan_morvan).
-generation(erwan_morvan, 1).
-parent(konan_morvan, erwan_morvan).
-parent(enora_morvan, erwan_morvan).
-location(erwan_morvan, porzh_gwenn).
+%% Denez Morvan
+person(denez_morvan).
+first_name(denez_morvan, 'Denez').
+last_name(denez_morvan, 'Morvan').
+full_name(denez_morvan, 'Denez Morvan').
+gender(denez_morvan, male).
+alive(denez_morvan).
+generation(denez_morvan, 1).
+parent(tudual_morvan, denez_morvan).
+parent(enora_morvan, denez_morvan).
+location(denez_morvan, porzh_gwenn).
 
-%% ─── Kerloc'h Family (Farmers, Lann-Vraz) ───
+%% ======================================================
+%% Riou Family (Farmers, Lann-Vraz)
+%% ======================================================
 
-%% Tugdual Kerloc_h
-person(tugdual_kerloc_h).
-first_name(tugdual_kerloc_h, 'Tugdual').
-last_name(tugdual_kerloc_h, 'Kerloc''h').
-full_name(tugdual_kerloc_h, 'Tugdual Kerloc''h').
-gender(tugdual_kerloc_h, male).
-alive(tugdual_kerloc_h).
-generation(tugdual_kerloc_h, 0).
-founder_family(tugdual_kerloc_h).
-child(tugdual_kerloc_h, tangi_kerloc_h).
-child(tugdual_kerloc_h, rozenn_kerloc_h).
-spouse(tugdual_kerloc_h, adela_kerloc_h).
-location(tugdual_kerloc_h, lann_vraz).
+%% Jakez Riou
+person(jakez_riou).
+first_name(jakez_riou, 'Jakez').
+last_name(jakez_riou, 'Riou').
+full_name(jakez_riou, 'Jakez Riou').
+gender(jakez_riou, male).
+alive(jakez_riou).
+generation(jakez_riou, 0).
+founder_family(jakez_riou).
+child(jakez_riou, ewen_riou).
+child(jakez_riou, gwenola_riou).
+spouse(jakez_riou, annaig_riou).
+location(jakez_riou, lann_vraz).
 
-%% Adela Kerloc'h
-person(adela_kerloc_h).
-first_name(adela_kerloc_h, 'Adela').
-last_name(adela_kerloc_h, 'Kerloc''h').
-full_name(adela_kerloc_h, 'Adela Kerloc''h').
-gender(adela_kerloc_h, female).
-alive(adela_kerloc_h).
-generation(adela_kerloc_h, 0).
-founder_family(adela_kerloc_h).
-child(adela_kerloc_h, tangi_kerloc_h).
-child(adela_kerloc_h, rozenn_kerloc_h).
-spouse(adela_kerloc_h, tugdual_kerloc_h).
-location(adela_kerloc_h, lann_vraz).
+%% Annaig Riou
+person(annaig_riou).
+first_name(annaig_riou, 'Annaig').
+last_name(annaig_riou, 'Riou').
+full_name(annaig_riou, 'Annaig Riou').
+gender(annaig_riou, female).
+alive(annaig_riou).
+generation(annaig_riou, 0).
+founder_family(annaig_riou).
+child(annaig_riou, ewen_riou).
+child(annaig_riou, gwenola_riou).
+spouse(annaig_riou, jakez_riou).
+location(annaig_riou, lann_vraz).
 
-%% Tangi Kerloc'h
-person(tangi_kerloc_h).
-first_name(tangi_kerloc_h, 'Tangi').
-last_name(tangi_kerloc_h, 'Kerloc''h').
-full_name(tangi_kerloc_h, 'Tangi Kerloc''h').
-gender(tangi_kerloc_h, male).
-alive(tangi_kerloc_h).
-generation(tangi_kerloc_h, 1).
-parent(tugdual_kerloc_h, tangi_kerloc_h).
-parent(adela_kerloc_h, tangi_kerloc_h).
-location(tangi_kerloc_h, lann_vraz).
+%% Ewen Riou
+person(ewen_riou).
+first_name(ewen_riou, 'Ewen').
+last_name(ewen_riou, 'Riou').
+full_name(ewen_riou, 'Ewen Riou').
+gender(ewen_riou, male).
+alive(ewen_riou).
+generation(ewen_riou, 1).
+parent(jakez_riou, ewen_riou).
+parent(annaig_riou, ewen_riou).
+location(ewen_riou, lann_vraz).
 
-%% Rozenn Kerloc'h
-person(rozenn_kerloc_h).
-first_name(rozenn_kerloc_h, 'Rozenn').
-last_name(rozenn_kerloc_h, 'Kerloc''h').
-full_name(rozenn_kerloc_h, 'Rozenn Kerloc''h').
-gender(rozenn_kerloc_h, female).
-alive(rozenn_kerloc_h).
-generation(rozenn_kerloc_h, 1).
-parent(tugdual_kerloc_h, rozenn_kerloc_h).
-parent(adela_kerloc_h, rozenn_kerloc_h).
-location(rozenn_kerloc_h, lann_vraz).
+%% Gwenola Riou
+person(gwenola_riou).
+first_name(gwenola_riou, 'Gwenola').
+last_name(gwenola_riou, 'Riou').
+full_name(gwenola_riou, 'Gwenola Riou').
+gender(gwenola_riou, female).
+alive(gwenola_riou).
+generation(gwenola_riou, 1).
+parent(jakez_riou, gwenola_riou).
+parent(annaig_riou, gwenola_riou).
+location(gwenola_riou, lann_vraz).
 
-%% ─── Guivarch Family (Smiths, Lann-Vraz) ───
+%% ======================================================
+%% Quere Family (Cider Makers, Lann-Vraz)
+%% ======================================================
 
-%% Jakez Guivarch
-person(jakez_guivarch).
-first_name(jakez_guivarch, 'Jakez').
-last_name(jakez_guivarch, 'Guivarch').
-full_name(jakez_guivarch, 'Jakez Guivarch').
-gender(jakez_guivarch, male).
-alive(jakez_guivarch).
-generation(jakez_guivarch, 0).
-founder_family(jakez_guivarch).
-child(jakez_guivarch, loiza_guivarch).
-child(jakez_guivarch, per_guivarch).
-spouse(jakez_guivarch, mabilen_guivarch).
-location(jakez_guivarch, lann_vraz).
+%% Herve Quere
+person(herve_quere).
+first_name(herve_quere, 'Herve').
+last_name(herve_quere, 'Quere').
+full_name(herve_quere, 'Herve Quere').
+gender(herve_quere, male).
+alive(herve_quere).
+generation(herve_quere, 0).
+founder_family(herve_quere).
+child(herve_quere, loig_quere).
+child(herve_quere, mael_quere).
+spouse(herve_quere, margod_quere).
+location(herve_quere, lann_vraz).
 
-%% Mabilen Guivarch
-person(mabilen_guivarch).
-first_name(mabilen_guivarch, 'Mabilen').
-last_name(mabilen_guivarch, 'Guivarch').
-full_name(mabilen_guivarch, 'Mabilen Guivarch').
-gender(mabilen_guivarch, female).
-alive(mabilen_guivarch).
-generation(mabilen_guivarch, 0).
-founder_family(mabilen_guivarch).
-child(mabilen_guivarch, loiza_guivarch).
-child(mabilen_guivarch, per_guivarch).
-spouse(mabilen_guivarch, jakez_guivarch).
-location(mabilen_guivarch, lann_vraz).
+%% Margod Quere
+person(margod_quere).
+first_name(margod_quere, 'Margod').
+last_name(margod_quere, 'Quere').
+full_name(margod_quere, 'Margod Quere').
+gender(margod_quere, female).
+alive(margod_quere).
+generation(margod_quere, 0).
+founder_family(margod_quere).
+child(margod_quere, loig_quere).
+child(margod_quere, mael_quere).
+spouse(margod_quere, herve_quere).
+location(margod_quere, lann_vraz).
 
-%% Loiza Guivarch
-person(loiza_guivarch).
-first_name(loiza_guivarch, 'Loiza').
-last_name(loiza_guivarch, 'Guivarch').
-full_name(loiza_guivarch, 'Loiza Guivarch').
-gender(loiza_guivarch, female).
-alive(loiza_guivarch).
-generation(loiza_guivarch, 1).
-parent(jakez_guivarch, loiza_guivarch).
-parent(mabilen_guivarch, loiza_guivarch).
-location(loiza_guivarch, lann_vraz).
+%% Loig Quere
+person(loig_quere).
+first_name(loig_quere, 'Loig').
+last_name(loig_quere, 'Quere').
+full_name(loig_quere, 'Loig Quere').
+gender(loig_quere, male).
+alive(loig_quere).
+generation(loig_quere, 1).
+parent(herve_quere, loig_quere).
+parent(margod_quere, loig_quere).
+location(loig_quere, lann_vraz).
 
-%% Per Guivarch
-person(per_guivarch).
-first_name(per_guivarch, 'Per').
-last_name(per_guivarch, 'Guivarch').
-full_name(per_guivarch, 'Per Guivarch').
-gender(per_guivarch, male).
-alive(per_guivarch).
-generation(per_guivarch, 1).
-parent(jakez_guivarch, per_guivarch).
-parent(mabilen_guivarch, per_guivarch).
-location(per_guivarch, lann_vraz).
+%% Mael Quere
+person(mael_quere).
+first_name(mael_quere, 'Mael').
+last_name(mael_quere, 'Quere').
+full_name(mael_quere, 'Mael Quere').
+gender(mael_quere, male).
+alive(mael_quere).
+generation(mael_quere, 1).
+parent(herve_quere, mael_quere).
+parent(margod_quere, mael_quere).
+location(mael_quere, lann_vraz).

@@ -1,339 +1,304 @@
-%% Insimul Items: Medieval Brittany
+%% Insimul Items: Breton Coast
 %% Source: data/worlds/language/breton/items.pl
 %% Created: 2026-04-03
-%% Total: 24 items
+%% Total: 22 items
 %%
 %% Predicate schema:
-%%   item/3 — item(AtomId, Name, ItemType)
-%%   item_value/2, item_sell_value/2, item_weight/2
+%%   item/3 -- item(AtomId, Name, ItemType)
+%%   item_description/2, item_value/2, item_sell_value/2, item_weight/2
 %%   item_rarity/2, item_category/2, item_tag/2
 %%   item_stackable/1, item_tradeable/1, item_possessable/1
 
-%% Bara (Bread)
-item(bara, 'Bara', food).
-item_description(bara, 'A round loaf of dark rye bread, the staple of every Breton table.').
-item_value(bara, 2).
-item_sell_value(bara, 1).
-item_weight(bara, 1).
-item_rarity(bara, common).
-item_category(bara, food).
-item_stackable(bara).
-item_tradeable(bara).
-item_possessable(bara).
-item_base(bara).
-item_tag(bara, food).
-item_tag(bara, breton).
-item_max_stack(bara, 20).
+%% Krampouezhenn (Buckwheat Crepe)
+item(krampouezhenn, 'Krampouezhenn', consumable).
+item_description(krampouezhenn, 'A traditional Breton buckwheat galette filled with ham, cheese, and egg -- the quintessential Breton meal.').
+item_value(krampouezhenn, 4).
+item_sell_value(krampouezhenn, 2).
+item_weight(krampouezhenn, 0.4).
+item_rarity(krampouezhenn, common).
+item_category(krampouezhenn, food_drink).
+item_stackable(krampouezhenn).
+item_tradeable(krampouezhenn).
+item_possessable(krampouezhenn).
+item_tag(krampouezhenn, food).
+item_tag(krampouezhenn, cultural).
 
 %% Sistr (Cider)
-item(sistr, 'Sistr', drink).
-item_description(sistr, 'A jug of tangy Breton cider pressed from orchard apples.').
-item_value(sistr, 4).
-item_sell_value(sistr, 2).
-item_weight(sistr, 2).
+item(sistr, 'Sistr', consumable).
+item_description(sistr, 'Breton farmhouse cider pressed from local apple varieties -- dry, sparkling, and refreshing.').
+item_value(sistr, 5).
+item_sell_value(sistr, 3).
+item_weight(sistr, 1).
 item_rarity(sistr, common).
-item_category(sistr, drink).
+item_category(sistr, food_drink).
 item_stackable(sistr).
 item_tradeable(sistr).
 item_possessable(sistr).
-item_base(sistr).
-item_tag(sistr, drink).
-item_tag(sistr, breton).
-item_max_stack(sistr, 10).
+item_tag(sistr, beverage).
+item_tag(sistr, cultural).
 
-%% Pesked Moged (Smoked Fish)
-item(pesked_moged, 'Pesked Moged', food).
-item_description(pesked_moged, 'Atlantic mackerel smoked over oak chips in the village smokehouse.').
-item_value(pesked_moged, 3).
-item_sell_value(pesked_moged, 2).
-item_weight(pesked_moged, 1).
-item_rarity(pesked_moged, common).
-item_category(pesked_moged, food).
-item_stackable(pesked_moged).
-item_tradeable(pesked_moged).
-item_possessable(pesked_moged).
-item_tag(pesked_moged, food).
-item_tag(pesked_moged, fishing).
-item_max_stack(pesked_moged, 20).
+%% Smartphone
+item(smartphone_br, 'Pellgomzer-hezoug', tool).
+item_description(smartphone_br, 'A modern smartphone with a Breton keyboard and language-learning apps installed.').
+item_value(smartphone_br, 200).
+item_sell_value(smartphone_br, 100).
+item_weight(smartphone_br, 0.3).
+item_rarity(smartphone_br, common).
+item_category(smartphone_br, technology).
+item_tradeable(smartphone_br).
+item_possessable(smartphone_br).
+item_tag(smartphone_br, technology).
+item_tag(smartphone_br, communication).
 
-%% Rouedad Keltiek (Celtic Knot Carving)
-item(rouedad_keltiek, 'Rouedad Keltiek', collectible).
-item_description(rouedad_keltiek, 'An intricate Celtic knot carved in oak, a symbol of eternity.').
-item_value(rouedad_keltiek, 15).
-item_sell_value(rouedad_keltiek, 10).
-item_weight(rouedad_keltiek, 0.5).
-item_rarity(rouedad_keltiek, uncommon).
-item_category(rouedad_keltiek, decorative).
-item_tradeable(rouedad_keltiek).
-item_possessable(rouedad_keltiek).
-item_tag(rouedad_keltiek, celtic).
-item_tag(rouedad_keltiek, collectible).
+%% Breton Textbook
+item(levr_brezhoneg, 'Levr Brezhoneg', tool).
+item_description(levr_brezhoneg, 'A modern Breton language textbook covering grammar, vocabulary, mutations, and conversation practice.').
+item_value(levr_brezhoneg, 25).
+item_sell_value(levr_brezhoneg, 10).
+item_weight(levr_brezhoneg, 1).
+item_rarity(levr_brezhoneg, common).
+item_category(levr_brezhoneg, education).
+item_tradeable(levr_brezhoneg).
+item_possessable(levr_brezhoneg).
+item_tag(levr_brezhoneg, education).
+item_tag(levr_brezhoneg, language).
 
-%% Koef (Coiffe — Traditional Breton Headdress)
-item(koef, 'Koef', collectible).
-item_description(koef, 'A tall white lace headdress worn by Breton women, distinctive to each parish.').
-item_value(koef, 20).
-item_sell_value(koef, 12).
-item_weight(koef, 0.3).
+%% Celtic Knot Necklace
+item(kolier_keltiek, 'Kolier Keltiek', accessory).
+item_description(kolier_keltiek, 'A silver necklace with an intricate Celtic knot pendant, handcrafted by a local artisan.').
+item_value(kolier_keltiek, 45).
+item_sell_value(kolier_keltiek, 25).
+item_weight(kolier_keltiek, 0.1).
+item_rarity(kolier_keltiek, uncommon).
+item_category(kolier_keltiek, accessory).
+item_tradeable(kolier_keltiek).
+item_possessable(kolier_keltiek).
+item_tag(kolier_keltiek, cultural).
+item_tag(kolier_keltiek, craft).
+
+%% Gwenn-ha-du (Breton Flag)
+item(gwenn_ha_du, 'Gwenn-ha-Du', accessory).
+item_description(gwenn_ha_du, 'The black-and-white national flag of Brittany, a symbol of Celtic pride and independence.').
+item_value(gwenn_ha_du, 10).
+item_sell_value(gwenn_ha_du, 5).
+item_weight(gwenn_ha_du, 0.3).
+item_rarity(gwenn_ha_du, common).
+item_category(gwenn_ha_du, decorative).
+item_tradeable(gwenn_ha_du).
+item_possessable(gwenn_ha_du).
+item_tag(gwenn_ha_du, cultural).
+item_tag(gwenn_ha_du, national).
+
+%% Surfboard
+item(taol_surf, 'Taol-Surf', tool).
+item_description(taol_surf, 'A surfboard for riding the Atlantic waves off the Breton coast.').
+item_value(taol_surf, 120).
+item_sell_value(taol_surf, 60).
+item_weight(taol_surf, 5).
+item_rarity(taol_surf, uncommon).
+item_category(taol_surf, sport).
+item_tradeable(taol_surf).
+item_possessable(taol_surf).
+item_tag(taol_surf, sport).
+item_tag(taol_surf, maritime).
+
+%% Bara (Bread)
+item(bara, 'Bara', consumable).
+item_description(bara, 'A crusty Breton bread loaf, baked fresh each morning at the village bakery.').
+item_value(bara, 2).
+item_sell_value(bara, 1).
+item_weight(bara, 0.5).
+item_rarity(bara, common).
+item_category(bara, food_drink).
+item_stackable(bara).
+item_tradeable(bara).
+item_possessable(bara).
+item_tag(bara, food).
+item_tag(bara, cultural).
+
+%% Amanenn (Salted Butter)
+item(amanenn, 'Amanenn', consumable).
+item_description(amanenn, 'Breton salted butter -- a point of regional pride. Essential for crepes, galettes, and kouign-amann.').
+item_value(amanenn, 3).
+item_sell_value(amanenn, 1).
+item_weight(amanenn, 0.3).
+item_rarity(amanenn, common).
+item_category(amanenn, food_drink).
+item_stackable(amanenn).
+item_tradeable(amanenn).
+item_possessable(amanenn).
+item_tag(amanenn, food).
+item_tag(amanenn, cooking).
+
+%% Kouign-Amann
+item(kouign_amann, 'Kouign-Amann', consumable).
+item_description(kouign_amann, 'A rich, buttery, layered Breton pastry -- caramelized sugar and salted butter folded into dough.').
+item_value(kouign_amann, 6).
+item_sell_value(kouign_amann, 3).
+item_weight(kouign_amann, 0.4).
+item_rarity(kouign_amann, common).
+item_category(kouign_amann, food_drink).
+item_stackable(kouign_amann).
+item_tradeable(kouign_amann).
+item_possessable(kouign_amann).
+item_tag(kouign_amann, food).
+item_tag(kouign_amann, cultural).
+
+%% Bombarde (Breton Oboe)
+item(bombard, 'Bombard', tool).
+item_description(bombard, 'A traditional Breton double-reed instrument, essential to bagad pipe bands and fest-noz music.').
+item_value(bombard, 80).
+item_sell_value(bombard, 40).
+item_weight(bombard, 0.5).
+item_rarity(bombard, uncommon).
+item_category(bombard, entertainment).
+item_tradeable(bombard).
+item_possessable(bombard).
+item_tag(bombard, cultural).
+item_tag(bombard, music).
+
+%% Biniou (Breton Bagpipe)
+item(biniou, 'Biniou', tool).
+item_description(biniou, 'A small Breton bagpipe, traditionally played in a pair (couple) with the bombard at fest-noz events.').
+item_value(biniou, 150).
+item_sell_value(biniou, 80).
+item_weight(biniou, 2).
+item_rarity(biniou, rare).
+item_category(biniou, entertainment).
+item_tradeable(biniou).
+item_possessable(biniou).
+item_tag(biniou, cultural).
+item_tag(biniou, music).
+
+%% Koef (Breton Lace Coiffe)
+item(koef, 'Koef', equipment).
+item_description(koef, 'A traditional Breton lace headdress, once worn daily by Breton women. Now worn at festivals and cultural events.').
+item_value(koef, 35).
+item_sell_value(koef, 18).
+item_weight(koef, 0.2).
 item_rarity(koef, uncommon).
 item_category(koef, clothing).
 item_tradeable(koef).
 item_possessable(koef).
 item_tag(koef, clothing).
-item_tag(koef, breton).
 item_tag(koef, cultural).
 
-%% Rouez ar Pardon (Pardon Rosary)
-item(rouez_ar_pardon, 'Rouez ar Pardon', quest).
-item_description(rouez_ar_pardon, 'A blessed wooden rosary carried during the Pardon procession.').
-item_value(rouez_ar_pardon, 10).
-item_sell_value(rouez_ar_pardon, 5).
-item_weight(rouez_ar_pardon, 0.2).
-item_rarity(rouez_ar_pardon, uncommon).
-item_category(rouez_ar_pardon, religious).
-item_possessable(rouez_ar_pardon).
-item_tag(rouez_ar_pardon, pardon).
-item_tag(rouez_ar_pardon, religious).
-item_tag(rouez_ar_pardon, quest).
+%% Breton-French Dictionary
+item(geriadur_br, 'Geriadur Brezhoneg-Galleg', tool).
+item_description(geriadur_br, 'A compact Breton-French pocket dictionary for quick word lookups.').
+item_value(geriadur_br, 15).
+item_sell_value(geriadur_br, 7).
+item_weight(geriadur_br, 0.6).
+item_rarity(geriadur_br, common).
+item_category(geriadur_br, education).
+item_tradeable(geriadur_br).
+item_possessable(geriadur_br).
+item_tag(geriadur_br, education).
+item_tag(geriadur_br, language).
 
-%% Rouez Mein Hir (Standing Stone Fragment)
-item(rouez_mein_hir, 'Rouez Mein Hir', collectible).
-item_description(rouez_mein_hir, 'A small fragment of granite from a fallen standing stone, etched with ancient spirals.').
-item_value(rouez_mein_hir, 25).
-item_sell_value(rouez_mein_hir, 15).
-item_weight(rouez_mein_hir, 2).
-item_rarity(rouez_mein_hir, rare).
-item_category(rouez_mein_hir, archaeological).
-item_possessable(rouez_mein_hir).
-item_tag(rouez_mein_hir, megalith).
-item_tag(rouez_mein_hir, collectible).
+%% Fishing Net
+item(roued_pesked_br, 'Roued Pesked', tool).
+item_description(roued_pesked_br, 'A sturdy fishing net used by the fishermen of Porzh-Gwenn harbor.').
+item_value(roued_pesked_br, 20).
+item_sell_value(roued_pesked_br, 10).
+item_weight(roued_pesked_br, 3).
+item_rarity(roued_pesked_br, common).
+item_category(roued_pesked_br, tool).
+item_tradeable(roued_pesked_br).
+item_possessable(roued_pesked_br).
+item_tag(roued_pesked_br, fishing).
+item_tag(roued_pesked_br, maritime).
 
-%% Gwel Bag (Sail Cloth)
-item(gwel_bag, 'Gwel Bag', material).
-item_description(gwel_bag, 'A heavy bolt of linen sail cloth woven to withstand Atlantic gales.').
-item_value(gwel_bag, 12).
-item_sell_value(gwel_bag, 8).
-item_weight(gwel_bag, 5).
-item_rarity(gwel_bag, common).
-item_category(gwel_bag, maritime).
-item_stackable(gwel_bag).
-item_tradeable(gwel_bag).
-item_possessable(gwel_bag).
-item_tag(gwel_bag, maritime).
-item_tag(gwel_bag, crafting).
-item_max_stack(gwel_bag, 5).
+%% Ceramic Bowl (Breton Bol)
+item(bol_breizh, 'Bol Breizh', material).
+item_description(bol_breizh, 'A hand-painted Breton ceramic bowl with traditional yellow-and-blue Quimper faience motifs.').
+item_value(bol_breizh, 18).
+item_sell_value(bol_breizh, 10).
+item_weight(bol_breizh, 1).
+item_rarity(bol_breizh, uncommon).
+item_category(bol_breizh, decorative).
+item_tradeable(bol_breizh).
+item_possessable(bol_breizh).
+item_tag(bol_breizh, craft).
+item_tag(bol_breizh, cultural).
 
-%% Neud Gloan (Wool Thread)
-item(neud_gloan, 'Neud Gloan', material).
-item_description(neud_gloan, 'Spun wool thread dyed with woad and madder, ready for the loom.').
-item_value(neud_gloan, 3).
-item_sell_value(neud_gloan, 1).
-item_weight(neud_gloan, 0.5).
-item_rarity(neud_gloan, common).
-item_category(neud_gloan, raw_material).
-item_stackable(neud_gloan).
-item_tradeable(neud_gloan).
-item_possessable(neud_gloan).
-item_tag(neud_gloan, textile).
-item_tag(neud_gloan, crafting).
-item_max_stack(neud_gloan, 50).
+%% Notebook
+item(kaier_br, 'Kaier', tool).
+item_description(kaier_br, 'A lined notebook for practicing Breton writing and vocabulary.').
+item_value(kaier_br, 3).
+item_sell_value(kaier_br, 1).
+item_weight(kaier_br, 0.3).
+item_rarity(kaier_br, common).
+item_category(kaier_br, education).
+item_stackable(kaier_br).
+item_tradeable(kaier_br).
+item_possessable(kaier_br).
+item_tag(kaier_br, education).
+item_tag(kaier_br, writing).
 
-%% Aval (Apple)
-item(aval, 'Aval', food).
-item_description(aval, 'A crisp cider apple from the orchards of Lann-Vraz.').
-item_value(aval, 1).
-item_sell_value(aval, 0).
-item_weight(aval, 0.3).
-item_rarity(aval, common).
-item_category(aval, food).
-item_stackable(aval).
-item_tradeable(aval).
-item_possessable(aval).
-item_base(aval).
-item_tag(aval, food).
-item_tag(aval, cider).
-item_max_stack(aval, 30).
+%% Far Breton (Prune Cake)
+item(far_breton, 'Far Breton', consumable).
+item_description(far_breton, 'A traditional Breton custard cake studded with prunes, served at every family gathering.').
+item_value(far_breton, 5).
+item_sell_value(far_breton, 3).
+item_weight(far_breton, 0.5).
+item_rarity(far_breton, common).
+item_category(far_breton, food_drink).
+item_stackable(far_breton).
+item_tradeable(far_breton).
+item_possessable(far_breton).
+item_tag(far_breton, food).
+item_tag(far_breton, cultural).
 
-%% Louzaouenn (Medicinal Herb)
-item(louzaouenn, 'Louzaouenn', material).
-item_description(louzaouenn, 'A bundle of medicinal herbs gathered from the moorland — yarrow, meadowsweet, and valerian.').
-item_value(louzaouenn, 5).
-item_sell_value(louzaouenn, 3).
-item_weight(louzaouenn, 0.3).
-item_rarity(louzaouenn, common).
-item_category(louzaouenn, raw_material).
-item_stackable(louzaouenn).
-item_tradeable(louzaouenn).
-item_possessable(louzaouenn).
-item_tag(louzaouenn, herbalism).
-item_tag(louzaouenn, natural).
-item_max_stack(louzaouenn, 30).
+%% Chouchen (Breton Mead)
+item(chouchen, 'Chouchen', consumable).
+item_description(chouchen, 'Traditional Breton mead made from honey and apple juice -- an ancient Celtic drink.').
+item_value(chouchen, 12).
+item_sell_value(chouchen, 7).
+item_weight(chouchen, 1).
+item_rarity(chouchen, uncommon).
+item_category(chouchen, food_drink).
+item_stackable(chouchen).
+item_tradeable(chouchen).
+item_possessable(chouchen).
+item_tag(chouchen, beverage).
+item_tag(chouchen, cultural).
 
-%% Houarn (Iron Ingot)
-item(houarn, 'Houarn', material).
-item_description(houarn, 'A bar of bog iron smelted at the village smithy.').
-item_value(houarn, 8).
-item_sell_value(houarn, 5).
-item_weight(houarn, 4).
-item_rarity(houarn, common).
-item_category(houarn, raw_material).
-item_stackable(houarn).
-item_tradeable(houarn).
-item_possessable(houarn).
-item_base(houarn).
-item_tag(houarn, material).
-item_tag(houarn, crafting).
-item_max_stack(houarn, 20).
+%% Triskell Pendant
+item(triskell, 'Triskell', accessory).
+item_description(triskell, 'A silver triskell pendant -- the ancient Celtic triple spiral symbol, ubiquitous in Breton identity.').
+item_value(triskell, 20).
+item_sell_value(triskell, 12).
+item_weight(triskell, 0.1).
+item_rarity(triskell, common).
+item_category(triskell, accessory).
+item_tradeable(triskell).
+item_possessable(triskell).
+item_tag(triskell, cultural).
+item_tag(triskell, celtic).
 
-%% Koad (Wood)
-item(koad, 'Koad', material).
-item_description(koad, 'A bundle of seasoned oak, cut from the coastal forest.').
-item_value(koad, 2).
-item_sell_value(koad, 1).
-item_weight(koad, 3).
-item_rarity(koad, common).
-item_category(koad, raw_material).
-item_stackable(koad).
-item_tradeable(koad).
-item_possessable(koad).
-item_base(koad).
-item_tag(koad, material).
-item_tag(koad, crafting).
-item_max_stack(koad, 50).
+%% Rain Jacket
+item(sae_glav_br, 'Sae-Glav', equipment).
+item_description(sae_glav_br, 'A waterproof rain jacket -- essential gear for the famously wet Breton climate.').
+item_value(sae_glav_br, 30).
+item_sell_value(sae_glav_br, 15).
+item_weight(sae_glav_br, 0.5).
+item_rarity(sae_glav_br, common).
+item_category(sae_glav_br, clothing).
+item_tradeable(sae_glav_br).
+item_possessable(sae_glav_br).
+item_tag(sae_glav_br, clothing).
+item_tag(sae_glav_br, practical).
 
-%% Kordenn (Rope)
-item(kordenn, 'Kordenn', tool).
-item_description(kordenn, 'Stout hemp rope used by fishermen to tie their boats and haul nets.').
-item_value(kordenn, 4).
-item_sell_value(kordenn, 2).
-item_weight(kordenn, 2).
-item_rarity(kordenn, common).
-item_category(kordenn, tool).
-item_stackable(kordenn).
-item_tradeable(kordenn).
-item_possessable(kordenn).
-item_tag(kordenn, maritime).
-item_tag(kordenn, fishing).
-item_max_stack(kordenn, 10).
-
-%% Roued Pesked (Fishing Net)
-item(roued_pesked, 'Roued Pesked', tool).
-item_description(roued_pesked, 'A hand-knotted hemp fishing net mended many times over.').
-item_value(roued_pesked, 10).
-item_sell_value(roued_pesked, 6).
-item_weight(roued_pesked, 3).
-item_rarity(roued_pesked, common).
-item_category(roued_pesked, tool).
-item_tradeable(roued_pesked).
-item_possessable(roued_pesked).
-item_tag(roued_pesked, fishing).
-item_tag(roued_pesked, maritime).
-
-%% Kezeg Sec'h (Dried Seaweed)
-item(kezeg_sec_h, 'Kezeg Sec''h', food).
-item_description(kezeg_sec_h, 'Dried seaweed harvested from the rocky Armorican shore, used in soups and as fertilizer.').
-item_value(kezeg_sec_h, 2).
-item_sell_value(kezeg_sec_h, 1).
-item_weight(kezeg_sec_h, 0.5).
-item_rarity(kezeg_sec_h, common).
-item_category(kezeg_sec_h, food).
-item_stackable(kezeg_sec_h).
-item_tradeable(kezeg_sec_h).
-item_possessable(kezeg_sec_h).
-item_tag(kezeg_sec_h, food).
-item_tag(kezeg_sec_h, maritime).
-item_max_stack(kezeg_sec_h, 30).
-
-%% Biniou Kozh (Breton Bagpipe)
-item(biniou_kozh, 'Biniou Kozh', collectible).
-item_description(biniou_kozh, 'A small Breton bagpipe, traditionally played at pardons and fest-noz celebrations.').
-item_value(biniou_kozh, 30).
-item_sell_value(biniou_kozh, 20).
-item_weight(biniou_kozh, 1.5).
-item_rarity(biniou_kozh, rare).
-item_category(biniou_kozh, instrument).
-item_possessable(biniou_kozh).
-item_tag(biniou_kozh, music).
-item_tag(biniou_kozh, breton).
-item_tag(biniou_kozh, cultural).
-
-%% Bombard (Breton Oboe)
-item(bombard, 'Bombard', collectible).
-item_description(bombard, 'A double-reed oboe played in pairs with the biniou at every Breton gathering.').
-item_value(bombard, 25).
-item_sell_value(bombard, 15).
-item_weight(bombard, 0.8).
-item_rarity(bombard, uncommon).
-item_category(bombard, instrument).
-item_possessable(bombard).
-item_tag(bombard, music).
-item_tag(bombard, breton).
-
-%% Krampouezh (Buckwheat Crêpe)
-item(krampouezh, 'Krampouezh', food).
-item_description(krampouezh, 'A thin buckwheat crêpe filled with egg and cheese, a Breton staple.').
-item_value(krampouezh, 3).
-item_sell_value(krampouezh, 2).
-item_weight(krampouezh, 0.3).
-item_rarity(krampouezh, common).
-item_category(krampouezh, food).
-item_stackable(krampouezh).
-item_tradeable(krampouezh).
-item_possessable(krampouezh).
-item_tag(krampouezh, food).
-item_tag(krampouezh, breton).
-item_max_stack(krampouezh, 10).
-
-%% Holen (Salt)
-item(holen, 'Holen', material).
-item_description(holen, 'Coarse sea salt harvested from the coastal salt pans of Guérande.').
-item_value(holen, 6).
-item_sell_value(holen, 4).
-item_weight(holen, 2).
-item_rarity(holen, common).
-item_category(holen, raw_material).
-item_stackable(holen).
-item_tradeable(holen).
-item_possessable(holen).
-item_tag(holen, material).
-item_tag(holen, food).
-item_tag(holen, maritime).
-item_max_stack(holen, 30).
-
-%% Mell Houarn (Iron Hammer)
-item(mell_houarn, 'Mell Houarn', tool).
-item_description(mell_houarn, 'A heavy smith''s hammer forged at the Lann-Vraz smithy.').
-item_value(mell_houarn, 12).
-item_sell_value(mell_houarn, 7).
-item_weight(mell_houarn, 3).
-item_rarity(mell_houarn, common).
-item_category(mell_houarn, tool).
-item_tradeable(mell_houarn).
-item_possessable(mell_houarn).
-item_tag(mell_houarn, tool).
-item_tag(mell_houarn, crafting).
-
-%% Kaouenn Aour (Gold Torque)
-item(kaouenn_aour, 'Kaouenn Aour', collectible).
-item_description(kaouenn_aour, 'A twisted gold torque in the ancient Celtic style, found near the dolmen.').
-item_value(kaouenn_aour, 100).
-item_sell_value(kaouenn_aour, 75).
-item_weight(kaouenn_aour, 0.5).
-item_rarity(kaouenn_aour, rare).
-item_category(kaouenn_aour, treasure).
-item_possessable(kaouenn_aour).
-item_tag(kaouenn_aour, celtic).
-item_tag(kaouenn_aour, treasure).
-
-%% Banniel Breizh (Banner of Brittany)
-item(banniel_breizh, 'Banniel Breizh', quest).
-item_description(banniel_breizh, 'A black-and-white ermine banner, the Gwenn-ha-Du, symbol of Breton identity.').
-item_value(banniel_breizh, 50).
-item_sell_value(banniel_breizh, 30).
-item_weight(banniel_breizh, 1).
-item_rarity(banniel_breizh, rare).
-item_category(banniel_breizh, heraldic).
-item_possessable(banniel_breizh).
-item_tag(banniel_breizh, quest).
-item_tag(banniel_breizh, breton).
-item_tag(banniel_breizh, cultural).
+%% Bus Ticket
+item(bilhed_bus_br, 'Bilhed Bus', consumable).
+item_description(bilhed_bus_br, 'A local bus ticket for traveling between Porzh-Gwenn and Lann-Vraz.').
+item_value(bilhed_bus_br, 1).
+item_sell_value(bilhed_bus_br, 0).
+item_weight(bilhed_bus_br, 0).
+item_rarity(bilhed_bus_br, common).
+item_category(bilhed_bus_br, transport).
+item_stackable(bilhed_bus_br).
+item_tradeable(bilhed_bus_br).
+item_possessable(bilhed_bus_br).
+item_tag(bilhed_bus_br, transport).

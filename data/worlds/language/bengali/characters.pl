@@ -1,338 +1,345 @@
-%% Insimul Characters: Mughal Bengal
+%% Insimul Characters: Bengali Riverside Town
 %% Source: data/worlds/language/bengali/characters.pl
 %% Created: 2026-04-03
-%% Total: 24 characters (6 genealogy families)
+%% Total: 24 characters (6 families)
 %%
 %% Predicate schema:
 %%   person/1, first_name/2, last_name/2, full_name/2
 %%   gender/2, alive/1, generation/2, founder_family/1
 %%   parent/2, child/2, spouse/2, location/2
-%%   ensemble_cast/1 — marks character as Ensemble cast member
 
-%% ═══════════════════════════════════════════════════════════
-%% Genealogy Characters (24 entries, 6 families)
-%% ═══════════════════════════════════════════════════════════
+%% ======================================================
+%% Rahman Family (Tea Stall Owners, Nodi Gram)
+%% ======================================================
 
-%% ─── Chowdhury Family (Landowners) ───
+%% Karim Rahman
+person(karim_rahman).
+first_name(karim_rahman, 'Karim').
+last_name(karim_rahman, 'Rahman').
+full_name(karim_rahman, 'Karim Rahman').
+gender(karim_rahman, male).
+alive(karim_rahman).
+generation(karim_rahman, 0).
+founder_family(karim_rahman).
+child(karim_rahman, nusrat_rahman).
+child(karim_rahman, fahim_rahman).
+spouse(karim_rahman, rashida_rahman).
+location(karim_rahman, nodi_gram).
 
-%% Raghunath Chowdhury
-person(raghunath_chowdhury).
-first_name(raghunath_chowdhury, 'Raghunath').
-last_name(raghunath_chowdhury, 'Chowdhury').
-full_name(raghunath_chowdhury, 'Raghunath Chowdhury').
-gender(raghunath_chowdhury, male).
-alive(raghunath_chowdhury).
-generation(raghunath_chowdhury, 0).
-founder_family(raghunath_chowdhury).
-child(raghunath_chowdhury, anirban_chowdhury).
-child(raghunath_chowdhury, kamala_chowdhury).
-spouse(raghunath_chowdhury, sarojini_chowdhury).
-location(raghunath_chowdhury, sonargaon).
+%% Rashida Rahman
+person(rashida_rahman).
+first_name(rashida_rahman, 'Rashida').
+last_name(rashida_rahman, 'Rahman').
+full_name(rashida_rahman, 'Rashida Rahman').
+gender(rashida_rahman, female).
+alive(rashida_rahman).
+generation(rashida_rahman, 0).
+founder_family(rashida_rahman).
+child(rashida_rahman, nusrat_rahman).
+child(rashida_rahman, fahim_rahman).
+spouse(rashida_rahman, karim_rahman).
+location(rashida_rahman, nodi_gram).
 
-%% Sarojini Chowdhury
-person(sarojini_chowdhury).
-first_name(sarojini_chowdhury, 'Sarojini').
-last_name(sarojini_chowdhury, 'Chowdhury').
-full_name(sarojini_chowdhury, 'Sarojini Chowdhury').
-gender(sarojini_chowdhury, female).
-alive(sarojini_chowdhury).
-generation(sarojini_chowdhury, 0).
-founder_family(sarojini_chowdhury).
-child(sarojini_chowdhury, anirban_chowdhury).
-child(sarojini_chowdhury, kamala_chowdhury).
-spouse(sarojini_chowdhury, raghunath_chowdhury).
-location(sarojini_chowdhury, sonargaon).
+%% Nusrat Rahman
+person(nusrat_rahman).
+first_name(nusrat_rahman, 'Nusrat').
+last_name(nusrat_rahman, 'Rahman').
+full_name(nusrat_rahman, 'Nusrat Rahman').
+gender(nusrat_rahman, female).
+alive(nusrat_rahman).
+generation(nusrat_rahman, 1).
+parent(karim_rahman, nusrat_rahman).
+parent(rashida_rahman, nusrat_rahman).
+location(nusrat_rahman, nodi_gram).
 
-%% Anirban Chowdhury
-person(anirban_chowdhury).
-first_name(anirban_chowdhury, 'Anirban').
-last_name(anirban_chowdhury, 'Chowdhury').
-full_name(anirban_chowdhury, 'Anirban Chowdhury').
-gender(anirban_chowdhury, male).
-alive(anirban_chowdhury).
-generation(anirban_chowdhury, 1).
-parent(raghunath_chowdhury, anirban_chowdhury).
-parent(sarojini_chowdhury, anirban_chowdhury).
-location(anirban_chowdhury, sonargaon).
+%% Fahim Rahman
+person(fahim_rahman).
+first_name(fahim_rahman, 'Fahim').
+last_name(fahim_rahman, 'Rahman').
+full_name(fahim_rahman, 'Fahim Rahman').
+gender(fahim_rahman, male).
+alive(fahim_rahman).
+generation(fahim_rahman, 1).
+parent(karim_rahman, fahim_rahman).
+parent(rashida_rahman, fahim_rahman).
+location(fahim_rahman, nodi_gram).
 
-%% Kamala Chowdhury
-person(kamala_chowdhury).
-first_name(kamala_chowdhury, 'Kamala').
-last_name(kamala_chowdhury, 'Chowdhury').
-full_name(kamala_chowdhury, 'Kamala Chowdhury').
-gender(kamala_chowdhury, female).
-alive(kamala_chowdhury).
-generation(kamala_chowdhury, 1).
-parent(raghunath_chowdhury, kamala_chowdhury).
-parent(sarojini_chowdhury, kamala_chowdhury).
-location(kamala_chowdhury, sonargaon).
+%% ======================================================
+%% Hossain Family (University Professors, Nodi Gram)
+%% ======================================================
 
-%% ─── Das Family (Weavers) ───
+%% Anwar Hossain
+person(anwar_hossain).
+first_name(anwar_hossain, 'Anwar').
+last_name(anwar_hossain, 'Hossain').
+full_name(anwar_hossain, 'Anwar Hossain').
+gender(anwar_hossain, male).
+alive(anwar_hossain).
+generation(anwar_hossain, 0).
+founder_family(anwar_hossain).
+child(anwar_hossain, tahmina_hossain).
+child(anwar_hossain, sohel_hossain).
+spouse(anwar_hossain, nasreen_hossain).
+location(anwar_hossain, nodi_gram).
 
-%% Gobinda Das
-person(gobinda_das).
-first_name(gobinda_das, 'Gobinda').
-last_name(gobinda_das, 'Das').
-full_name(gobinda_das, 'Gobinda Das').
-gender(gobinda_das, male).
-alive(gobinda_das).
-generation(gobinda_das, 0).
-founder_family(gobinda_das).
-child(gobinda_das, nikhil_das).
-child(gobinda_das, shefali_das).
-spouse(gobinda_das, malati_das).
-location(gobinda_das, sonargaon).
+%% Nasreen Hossain
+person(nasreen_hossain).
+first_name(nasreen_hossain, 'Nasreen').
+last_name(nasreen_hossain, 'Hossain').
+full_name(nasreen_hossain, 'Nasreen Hossain').
+gender(nasreen_hossain, female).
+alive(nasreen_hossain).
+generation(nasreen_hossain, 0).
+founder_family(nasreen_hossain).
+child(nasreen_hossain, tahmina_hossain).
+child(nasreen_hossain, sohel_hossain).
+spouse(nasreen_hossain, anwar_hossain).
+location(nasreen_hossain, nodi_gram).
 
-%% Malati Das
-person(malati_das).
-first_name(malati_das, 'Malati').
-last_name(malati_das, 'Das').
-full_name(malati_das, 'Malati Das').
-gender(malati_das, female).
-alive(malati_das).
-generation(malati_das, 0).
-founder_family(malati_das).
-child(malati_das, nikhil_das).
-child(malati_das, shefali_das).
-spouse(malati_das, gobinda_das).
-location(malati_das, sonargaon).
+%% Tahmina Hossain
+person(tahmina_hossain).
+first_name(tahmina_hossain, 'Tahmina').
+last_name(tahmina_hossain, 'Hossain').
+full_name(tahmina_hossain, 'Tahmina Hossain').
+gender(tahmina_hossain, female).
+alive(tahmina_hossain).
+generation(tahmina_hossain, 1).
+parent(anwar_hossain, tahmina_hossain).
+parent(nasreen_hossain, tahmina_hossain).
+location(tahmina_hossain, nodi_gram).
 
-%% Nikhil Das
-person(nikhil_das).
-first_name(nikhil_das, 'Nikhil').
-last_name(nikhil_das, 'Das').
-full_name(nikhil_das, 'Nikhil Das').
-gender(nikhil_das, male).
-alive(nikhil_das).
-generation(nikhil_das, 1).
-parent(gobinda_das, nikhil_das).
-parent(malati_das, nikhil_das).
-location(nikhil_das, sonargaon).
+%% Sohel Hossain
+person(sohel_hossain).
+first_name(sohel_hossain, 'Sohel').
+last_name(sohel_hossain, 'Hossain').
+full_name(sohel_hossain, 'Sohel Hossain').
+gender(sohel_hossain, male).
+alive(sohel_hossain).
+generation(sohel_hossain, 1).
+parent(anwar_hossain, sohel_hossain).
+parent(nasreen_hossain, sohel_hossain).
+location(sohel_hossain, nodi_gram).
 
-%% Shefali Das
-person(shefali_das).
-first_name(shefali_das, 'Shefali').
-last_name(shefali_das, 'Das').
-full_name(shefali_das, 'Shefali Das').
-gender(shefali_das, female).
-alive(shefali_das).
-generation(shefali_das, 1).
-parent(gobinda_das, shefali_das).
-parent(malati_das, shefali_das).
-location(shefali_das, sonargaon).
+%% ======================================================
+%% Ahmed Family (Textile Merchants, Nodi Gram)
+%% ======================================================
 
-%% ─── Sarkar Family (Merchants) ───
+%% Jalal Ahmed
+person(jalal_ahmed).
+first_name(jalal_ahmed, 'Jalal').
+last_name(jalal_ahmed, 'Ahmed').
+full_name(jalal_ahmed, 'Jalal Ahmed').
+gender(jalal_ahmed, male).
+alive(jalal_ahmed).
+generation(jalal_ahmed, 0).
+founder_family(jalal_ahmed).
+child(jalal_ahmed, farzana_ahmed).
+child(jalal_ahmed, imran_ahmed).
+spouse(jalal_ahmed, salma_ahmed).
+location(jalal_ahmed, nodi_gram).
 
-%% Biswanath Sarkar
-person(biswanath_sarkar).
-first_name(biswanath_sarkar, 'Biswanath').
-last_name(biswanath_sarkar, 'Sarkar').
-full_name(biswanath_sarkar, 'Biswanath Sarkar').
-gender(biswanath_sarkar, male).
-alive(biswanath_sarkar).
-generation(biswanath_sarkar, 0).
-founder_family(biswanath_sarkar).
-child(biswanath_sarkar, debashish_sarkar).
-child(biswanath_sarkar, rani_sarkar).
-spouse(biswanath_sarkar, parvati_sarkar).
-location(biswanath_sarkar, sonargaon).
+%% Salma Ahmed (nee Begum)
+person(salma_ahmed).
+first_name(salma_ahmed, 'Salma').
+last_name(salma_ahmed, 'Ahmed').
+full_name(salma_ahmed, 'Salma Ahmed').
+gender(salma_ahmed, female).
+alive(salma_ahmed).
+generation(salma_ahmed, 0).
+founder_family(salma_ahmed).
+child(salma_ahmed, farzana_ahmed).
+child(salma_ahmed, imran_ahmed).
+spouse(salma_ahmed, jalal_ahmed).
+location(salma_ahmed, nodi_gram).
 
-%% Parvati Sarkar
-person(parvati_sarkar).
-first_name(parvati_sarkar, 'Parvati').
-last_name(parvati_sarkar, 'Sarkar').
-full_name(parvati_sarkar, 'Parvati Sarkar').
-gender(parvati_sarkar, female).
-alive(parvati_sarkar).
-generation(parvati_sarkar, 0).
-founder_family(parvati_sarkar).
-child(parvati_sarkar, debashish_sarkar).
-child(parvati_sarkar, rani_sarkar).
-spouse(parvati_sarkar, biswanath_sarkar).
-location(parvati_sarkar, sonargaon).
+%% Farzana Ahmed
+person(farzana_ahmed).
+first_name(farzana_ahmed, 'Farzana').
+last_name(farzana_ahmed, 'Ahmed').
+full_name(farzana_ahmed, 'Farzana Ahmed').
+gender(farzana_ahmed, female).
+alive(farzana_ahmed).
+generation(farzana_ahmed, 1).
+parent(jalal_ahmed, farzana_ahmed).
+parent(salma_ahmed, farzana_ahmed).
+location(farzana_ahmed, nodi_gram).
 
-%% Debashish Sarkar
-person(debashish_sarkar).
-first_name(debashish_sarkar, 'Debashish').
-last_name(debashish_sarkar, 'Sarkar').
-full_name(debashish_sarkar, 'Debashish Sarkar').
-gender(debashish_sarkar, male).
-alive(debashish_sarkar).
-generation(debashish_sarkar, 1).
-parent(biswanath_sarkar, debashish_sarkar).
-parent(parvati_sarkar, debashish_sarkar).
-location(debashish_sarkar, sonargaon).
+%% Imran Ahmed
+person(imran_ahmed).
+first_name(imran_ahmed, 'Imran').
+last_name(imran_ahmed, 'Ahmed').
+full_name(imran_ahmed, 'Imran Ahmed').
+gender(imran_ahmed, male).
+alive(imran_ahmed).
+generation(imran_ahmed, 1).
+parent(jalal_ahmed, imran_ahmed).
+parent(salma_ahmed, imran_ahmed).
+location(imran_ahmed, nodi_gram).
 
-%% Rani Sarkar
-person(rani_sarkar).
-first_name(rani_sarkar, 'Rani').
-last_name(rani_sarkar, 'Sarkar').
-full_name(rani_sarkar, 'Rani Sarkar').
-gender(rani_sarkar, female).
-alive(rani_sarkar).
-generation(rani_sarkar, 1).
-parent(biswanath_sarkar, rani_sarkar).
-parent(parvati_sarkar, rani_sarkar).
-location(rani_sarkar, sonargaon).
+%% ======================================================
+%% Begum Family (Doctors, Nodi Gram)
+%% ======================================================
 
-%% ─── Mondal Family (Fishermen) ───
+%% Tariqul Islam
+person(tariqul_islam).
+first_name(tariqul_islam, 'Tariqul').
+last_name(tariqul_islam, 'Islam').
+full_name(tariqul_islam, 'Tariqul Islam').
+gender(tariqul_islam, male).
+alive(tariqul_islam).
+generation(tariqul_islam, 0).
+founder_family(tariqul_islam).
+child(tariqul_islam, rafiq_islam).
+child(tariqul_islam, sharmin_islam).
+spouse(tariqul_islam, hasina_begum).
+location(tariqul_islam, nodi_gram).
 
-%% Haripada Mondal
-person(haripada_mondal).
-first_name(haripada_mondal, 'Haripada').
-last_name(haripada_mondal, 'Mondal').
-full_name(haripada_mondal, 'Haripada Mondal').
-gender(haripada_mondal, male).
-alive(haripada_mondal).
-generation(haripada_mondal, 0).
-founder_family(haripada_mondal).
-child(haripada_mondal, jatin_mondal).
-child(haripada_mondal, basanti_mondal).
-spouse(haripada_mondal, lakshmi_mondal).
-location(haripada_mondal, chandpur).
+%% Hasina Begum
+person(hasina_begum).
+first_name(hasina_begum, 'Hasina').
+last_name(hasina_begum, 'Begum').
+full_name(hasina_begum, 'Hasina Begum').
+gender(hasina_begum, female).
+alive(hasina_begum).
+generation(hasina_begum, 0).
+founder_family(hasina_begum).
+child(hasina_begum, rafiq_islam).
+child(hasina_begum, sharmin_islam).
+spouse(hasina_begum, tariqul_islam).
+location(hasina_begum, nodi_gram).
 
-%% Lakshmi Mondal
-person(lakshmi_mondal).
-first_name(lakshmi_mondal, 'Lakshmi').
-last_name(lakshmi_mondal, 'Mondal').
-full_name(lakshmi_mondal, 'Lakshmi Mondal').
-gender(lakshmi_mondal, female).
-alive(lakshmi_mondal).
-generation(lakshmi_mondal, 0).
-founder_family(lakshmi_mondal).
-child(lakshmi_mondal, jatin_mondal).
-child(lakshmi_mondal, basanti_mondal).
-spouse(lakshmi_mondal, haripada_mondal).
-location(lakshmi_mondal, chandpur).
+%% Rafiq Islam
+person(rafiq_islam).
+first_name(rafiq_islam, 'Rafiq').
+last_name(rafiq_islam, 'Islam').
+full_name(rafiq_islam, 'Rafiq Islam').
+gender(rafiq_islam, male).
+alive(rafiq_islam).
+generation(rafiq_islam, 1).
+parent(tariqul_islam, rafiq_islam).
+parent(hasina_begum, rafiq_islam).
+location(rafiq_islam, nodi_gram).
 
-%% Jatin Mondal
-person(jatin_mondal).
-first_name(jatin_mondal, 'Jatin').
-last_name(jatin_mondal, 'Mondal').
-full_name(jatin_mondal, 'Jatin Mondal').
-gender(jatin_mondal, male).
-alive(jatin_mondal).
-generation(jatin_mondal, 1).
-parent(haripada_mondal, jatin_mondal).
-parent(lakshmi_mondal, jatin_mondal).
-location(jatin_mondal, chandpur).
+%% Sharmin Islam
+person(sharmin_islam).
+first_name(sharmin_islam, 'Sharmin').
+last_name(sharmin_islam, 'Islam').
+full_name(sharmin_islam, 'Sharmin Islam').
+gender(sharmin_islam, female).
+alive(sharmin_islam).
+generation(sharmin_islam, 1).
+parent(tariqul_islam, sharmin_islam).
+parent(hasina_begum, sharmin_islam).
+location(sharmin_islam, nodi_gram).
 
-%% Basanti Mondal
-person(basanti_mondal).
-first_name(basanti_mondal, 'Basanti').
-last_name(basanti_mondal, 'Mondal').
-full_name(basanti_mondal, 'Basanti Mondal').
-gender(basanti_mondal, female).
-alive(basanti_mondal).
-generation(basanti_mondal, 1).
-parent(haripada_mondal, basanti_mondal).
-parent(lakshmi_mondal, basanti_mondal).
-location(basanti_mondal, chandpur).
+%% ======================================================
+%% Khatun Family (Fishermen, Shonar Gaon)
+%% ======================================================
 
-%% ─── Sheikh Family (Poets/Scholars) ───
+%% Habibur Molla
+person(habibur_molla).
+first_name(habibur_molla, 'Habibur').
+last_name(habibur_molla, 'Molla').
+full_name(habibur_molla, 'Habibur Molla').
+gender(habibur_molla, male).
+alive(habibur_molla).
+generation(habibur_molla, 0).
+founder_family(habibur_molla).
+child(habibur_molla, rubel_molla).
+child(habibur_molla, beauty_khatun).
+spouse(habibur_molla, jahanara_khatun).
+location(habibur_molla, shonar_gaon).
 
-%% Farid Sheikh
-person(farid_sheikh).
-first_name(farid_sheikh, 'Farid').
-last_name(farid_sheikh, 'Sheikh').
-full_name(farid_sheikh, 'Farid Sheikh').
-gender(farid_sheikh, male).
-alive(farid_sheikh).
-generation(farid_sheikh, 0).
-founder_family(farid_sheikh).
-child(farid_sheikh, kamal_sheikh).
-child(farid_sheikh, nusrat_sheikh).
-spouse(farid_sheikh, amina_sheikh).
-location(farid_sheikh, sonargaon).
+%% Jahanara Khatun
+person(jahanara_khatun).
+first_name(jahanara_khatun, 'Jahanara').
+last_name(jahanara_khatun, 'Khatun').
+full_name(jahanara_khatun, 'Jahanara Khatun').
+gender(jahanara_khatun, female).
+alive(jahanara_khatun).
+generation(jahanara_khatun, 0).
+founder_family(jahanara_khatun).
+child(jahanara_khatun, rubel_molla).
+child(jahanara_khatun, beauty_khatun).
+spouse(jahanara_khatun, habibur_molla).
+location(jahanara_khatun, shonar_gaon).
 
-%% Amina Sheikh
-person(amina_sheikh).
-first_name(amina_sheikh, 'Amina').
-last_name(amina_sheikh, 'Sheikh').
-full_name(amina_sheikh, 'Amina Sheikh').
-gender(amina_sheikh, female).
-alive(amina_sheikh).
-generation(amina_sheikh, 0).
-founder_family(amina_sheikh).
-child(amina_sheikh, kamal_sheikh).
-child(amina_sheikh, nusrat_sheikh).
-spouse(amina_sheikh, farid_sheikh).
-location(amina_sheikh, sonargaon).
+%% Rubel Molla
+person(rubel_molla).
+first_name(rubel_molla, 'Rubel').
+last_name(rubel_molla, 'Molla').
+full_name(rubel_molla, 'Rubel Molla').
+gender(rubel_molla, male).
+alive(rubel_molla).
+generation(rubel_molla, 1).
+parent(habibur_molla, rubel_molla).
+parent(jahanara_khatun, rubel_molla).
+location(rubel_molla, shonar_gaon).
 
-%% Kamal Sheikh
-person(kamal_sheikh).
-first_name(kamal_sheikh, 'Kamal').
-last_name(kamal_sheikh, 'Sheikh').
-full_name(kamal_sheikh, 'Kamal Sheikh').
-gender(kamal_sheikh, male).
-alive(kamal_sheikh).
-generation(kamal_sheikh, 1).
-parent(farid_sheikh, kamal_sheikh).
-parent(amina_sheikh, kamal_sheikh).
-location(kamal_sheikh, sonargaon).
+%% Beauty Khatun
+person(beauty_khatun).
+first_name(beauty_khatun, 'Beauty').
+last_name(beauty_khatun, 'Khatun').
+full_name(beauty_khatun, 'Beauty Khatun').
+gender(beauty_khatun, female).
+alive(beauty_khatun).
+generation(beauty_khatun, 1).
+parent(habibur_molla, beauty_khatun).
+parent(jahanara_khatun, beauty_khatun).
+location(beauty_khatun, shonar_gaon).
 
-%% Nusrat Sheikh
-person(nusrat_sheikh).
-first_name(nusrat_sheikh, 'Nusrat').
-last_name(nusrat_sheikh, 'Sheikh').
-full_name(nusrat_sheikh, 'Nusrat Sheikh').
-gender(nusrat_sheikh, female).
-alive(nusrat_sheikh).
-generation(nusrat_sheikh, 1).
-parent(farid_sheikh, nusrat_sheikh).
-parent(amina_sheikh, nusrat_sheikh).
-location(nusrat_sheikh, sonargaon).
+%% ======================================================
+%% Sarker Family (Rice Farmers, Shonar Gaon)
+%% ======================================================
 
-%% ─── Pal Family (Potters/Artisans) ───
+%% Monir Sarker
+person(monir_sarker).
+first_name(monir_sarker, 'Monir').
+last_name(monir_sarker, 'Sarker').
+full_name(monir_sarker, 'Monir Sarker').
+gender(monir_sarker, male).
+alive(monir_sarker).
+generation(monir_sarker, 0).
+founder_family(monir_sarker).
+child(monir_sarker, lipi_sarker).
+child(monir_sarker, sumon_sarker).
+spouse(monir_sarker, aleya_sarker).
+location(monir_sarker, shonar_gaon).
 
-%% Madhusudan Pal
-person(madhusudan_pal).
-first_name(madhusudan_pal, 'Madhusudan').
-last_name(madhusudan_pal, 'Pal').
-full_name(madhusudan_pal, 'Madhusudan Pal').
-gender(madhusudan_pal, male).
-alive(madhusudan_pal).
-generation(madhusudan_pal, 0).
-founder_family(madhusudan_pal).
-child(madhusudan_pal, tarun_pal).
-child(madhusudan_pal, supriya_pal).
-spouse(madhusudan_pal, chandana_pal).
-location(madhusudan_pal, chandpur).
+%% Aleya Sarker
+person(aleya_sarker).
+first_name(aleya_sarker, 'Aleya').
+last_name(aleya_sarker, 'Sarker').
+full_name(aleya_sarker, 'Aleya Sarker').
+gender(aleya_sarker, female).
+alive(aleya_sarker).
+generation(aleya_sarker, 0).
+founder_family(aleya_sarker).
+child(aleya_sarker, lipi_sarker).
+child(aleya_sarker, sumon_sarker).
+spouse(aleya_sarker, monir_sarker).
+location(aleya_sarker, shonar_gaon).
 
-%% Chandana Pal
-person(chandana_pal).
-first_name(chandana_pal, 'Chandana').
-last_name(chandana_pal, 'Pal').
-full_name(chandana_pal, 'Chandana Pal').
-gender(chandana_pal, female).
-alive(chandana_pal).
-generation(chandana_pal, 0).
-founder_family(chandana_pal).
-child(chandana_pal, tarun_pal).
-child(chandana_pal, supriya_pal).
-spouse(chandana_pal, madhusudan_pal).
-location(chandana_pal, chandpur).
+%% Lipi Sarker
+person(lipi_sarker).
+first_name(lipi_sarker, 'Lipi').
+last_name(lipi_sarker, 'Sarker').
+full_name(lipi_sarker, 'Lipi Sarker').
+gender(lipi_sarker, female).
+alive(lipi_sarker).
+generation(lipi_sarker, 1).
+parent(monir_sarker, lipi_sarker).
+parent(aleya_sarker, lipi_sarker).
+location(lipi_sarker, shonar_gaon).
 
-%% Tarun Pal
-person(tarun_pal).
-first_name(tarun_pal, 'Tarun').
-last_name(tarun_pal, 'Pal').
-full_name(tarun_pal, 'Tarun Pal').
-gender(tarun_pal, male).
-alive(tarun_pal).
-generation(tarun_pal, 1).
-parent(madhusudan_pal, tarun_pal).
-parent(chandana_pal, tarun_pal).
-location(tarun_pal, chandpur).
-
-%% Supriya Pal
-person(supriya_pal).
-first_name(supriya_pal, 'Supriya').
-last_name(supriya_pal, 'Pal').
-full_name(supriya_pal, 'Supriya Pal').
-gender(supriya_pal, female).
-alive(supriya_pal).
-generation(supriya_pal, 1).
-parent(madhusudan_pal, supriya_pal).
-parent(chandana_pal, supriya_pal).
-location(supriya_pal, chandpur).
+%% Sumon Sarker
+person(sumon_sarker).
+first_name(sumon_sarker, 'Sumon').
+last_name(sumon_sarker, 'Sarker').
+full_name(sumon_sarker, 'Sumon Sarker').
+gender(sumon_sarker, male).
+alive(sumon_sarker).
+generation(sumon_sarker, 1).
+parent(monir_sarker, sumon_sarker).
+parent(aleya_sarker, sumon_sarker).
+location(sumon_sarker, shonar_gaon).
