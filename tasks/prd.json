@@ -125,7 +125,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "No eavesdropping UI exists. QuestCompletionEngine already references an 'eavesdrop' case at line 432."
     },
     {

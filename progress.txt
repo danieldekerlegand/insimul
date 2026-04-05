@@ -1546,3 +1546,36 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `replenishPool()` batches with `Math.min(remaining, maxConcurrent)` so the last batch may be smaller than maxConcurrent
   - The `take()` scoring system: exact pair = +100, partial match = +10, stale penalty = -50 — ensures exact matches win even when stale
   - Pre-existing TS errors in `server/tests/test-npc-conversation-engine.ts` are about missing `ContextManagerStorage` fields — not related to pool changes
+---
+
+## 2026-04-05 - US-007: Eavesdropping UI for nearby NPC-NPC conversations
+- Created `BabylonEavesdropPanel` at `shared/game-engine/rendering/BabylonEavesdropPanel.ts`:
+  - Semi-transparent side panel (right, 25% width, 60% height) with rounded corners
+  - Speaker names color-coded (sky blue for NPC1, gold for NPC2)
+  - Typewriter line-by-line effect with queuing for sequential display
+  - Header bar with conversation title and close button
+  - ScrollViewer with auto-scroll to bottom
+- Wired into `BabylonGame.ts`:
+  - Imported and initialized alongside chatPanel
+  - `startEavesdropConversation()` now opens eavesdrop panel instead of chat panel
+  - `runEavesdropLoop()` sends lines to eavesdrop panel with `addLine()`
+  - `endEavesdrop()` closes eavesdrop panel
+  - Y key toggles eavesdrop on/off (was one-way before)
+  - `updateEavesdropDistance()` computes player-to-NPC-midpoint distance for TTS volume
+- Visual indicator: ear icon (👂) shown on NPC speech bubbles via `npcTalkingIndicator.updateText()` when eavesdrop is available
+- Vocabulary learning: `recordVocabularyEncounter()` tokenizes lines via HoverTranslationSystem, records word encounters, emits `vocabulary_overheard` events
+- Quest integration: emits `conversation_overheard` and `ambient_conversation_ended` events on GameEventBus when eavesdrop ends
+- Distance-scaled TTS: `playDistanceScaledTTS()` scales audio volume by distance (full at 0, silent at 15+ units), different voices per speaker
+- Rate limiting: `emittedPairs` Set tracks NPC pairs (order-independent), only emits once per pair per session; `resetRateLimits()` for session changes
+- Files changed:
+  - `shared/game-engine/rendering/BabylonEavesdropPanel.ts` — new file (complete panel implementation)
+  - `shared/game-engine/rendering/BabylonGame.ts` — import, field, initialization, rewired eavesdrop flow
+  - `shared/__tests__/eavesdrop-panel.test.ts` — 26 new tests
+  - `tasks/prd.json` — marked US-007 as passing
+- **Learnings for future iterations:**
+  - `window.setInterval` is not available in vitest Node environment — use `globalThis.setInterval` for code that needs to run in both browser and test contexts
+  - `StackPanel.adaptHeight` is not in the Babylon.js type definitions — must cast to `any`
+  - `HoverTranslationSystem.recordWordEncounter()` expects difficulty levels ('beginner'|'intermediate'|'advanced'), not arbitrary strings
+  - `npcTalkingIndicator` (not `talkingIndicator`) is the correct field name on BabylonGame
+  - The eavesdrop key is `KEY_EAVESDROP = 'KeyY'` (not V, which is vocabulary panel)
+  - Pre-existing TS errors exist in client/ files (AdminAssetsHub, DataSource, etc.) — unrelated to this change
