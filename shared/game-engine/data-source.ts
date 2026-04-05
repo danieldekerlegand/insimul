@@ -31,6 +31,8 @@ export interface NpcConversationResult {
   relationshipDelta: { friendshipChange: number; trustChange: number; romanceSpark: number };
   topic: string;
   languageUsed: string;
+  /** Where the conversation content came from */
+  source?: 'pool' | 'template' | 'llm' | 'template_with_replacement';
 }
 
 /** Playthrough quest overlay interface (subset used by IDataSource). */

@@ -538,6 +538,34 @@ async function handleNpcToNpc(
       topic: topic || undefined,
       languageCode,
       llmProvider,
+      // Serve template instantly while LLM generates
+      onTemplateReady: (templateExchanges) => {
+        sendJSON(ws, {
+          type: 'npc_npc_template',
+          sessionId,
+          source: 'template',
+          exchanges: templateExchanges.map((e) => ({
+            speakerId: e.speakerId,
+            speakerName: e.speakerName,
+            text: e.text,
+            timestamp: e.timestamp,
+          })),
+        });
+      },
+      // Replace template with LLM-generated content when ready
+      onReplacementReady: (llmExchanges) => {
+        sendJSON(ws, {
+          type: 'npc_npc_replace',
+          sessionId,
+          source: 'llm',
+          exchanges: llmExchanges.map((e) => ({
+            speakerId: e.speakerId,
+            speakerName: e.speakerName,
+            text: e.text,
+            timestamp: e.timestamp,
+          })),
+        });
+      },
       onLineReady: (speaker, speakerId, line, lineIndex) => {
         if (firstLineTime === null) {
           firstLineTime = Date.now() - startMs;
@@ -596,13 +624,14 @@ async function handleNpcToNpc(
       getConversationMetrics().record('npc_npc_first_line', firstLineTime);
     }
 
-    // Send relationship delta
+    // Send relationship delta with source info
     sendJSON(ws, {
       type: 'relationship_delta',
       sessionId,
       npc1Id,
       npc2Id,
       topic: result.topic,
+      source: result.source,
       ...result.relationshipDelta,
       durationMs: result.durationMs,
     });

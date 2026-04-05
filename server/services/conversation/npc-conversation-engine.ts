@@ -25,8 +25,14 @@ import type { WeatherCondition } from '@shared/npc-awareness-context';
 import { describeWeather, describeTime } from '@shared/npc-awareness-context';
 import { npcConversationPool } from './npc-conversation-pool.js';
 import type { PooledConversation } from './npc-conversation-pool.js';
+import { selectTemplate } from './npc-conversation-templates.js';
+import type { CEFRTier } from './npc-conversation-templates.js';
+import { getConversationMetrics } from './conversation-metrics.js';
 
 // ── Types ────────────────────────────────────────────────────────────
+
+/** Source of the NPC-NPC conversation content */
+export type NpcConversationSource = 'pool' | 'template' | 'llm' | 'template_with_replacement';
 
 export interface NpcConversationResult {
   conversationId: string;
@@ -38,6 +44,8 @@ export interface NpcConversationResult {
   relationshipDelta: RelationshipDelta;
   durationMs: number;
   languageUsed: string;
+  /** Where the conversation content came from */
+  source: NpcConversationSource;
 }
 
 export interface ConversationExchange {
@@ -83,6 +91,13 @@ export interface NpcConversationOptions {
   onLineReady?: OnLineReadyCallback;
   /** Model tier override: 'fast' (default for NPC-NPC) or 'full' (quest-relevant) */
   modelTier?: 'fast' | 'full';
+  /** CEFR tier for bilingual template selection */
+  cefrTier?: CEFRTier;
+  /** Called when a template is served instantly; receives template exchanges.
+   *  If LLM later generates a replacement, onReplacementReady fires. */
+  onTemplateReady?: (exchanges: ConversationExchange[]) => void;
+  /** Called when LLM replacement is ready after template was served */
+  onReplacementReady?: (exchanges: ConversationExchange[]) => void;
 }
 
 /** Event types emitted during NPC conversations */
@@ -446,11 +461,16 @@ function generateFallbackConversation(
   npc1: Character,
   npc2: Character,
   topic: string,
+  cefrTier?: CEFRTier,
 ): ConversationExchange[] {
-  // Find a matching template or use the first one
-  const template =
-    FALLBACK_TEMPLATES.find((t) => topic.includes(t.topic)) ??
-    FALLBACK_TEMPLATES[0];
+  const p1: BigFivePersonality = (npc1.personality as BigFivePersonality) ?? {
+    openness: 0, conscientiousness: 0, extroversion: 0, agreeableness: 0, neuroticism: 0,
+  };
+  const p2: BigFivePersonality = (npc2.personality as BigFivePersonality) ?? {
+    openness: 0, conscientiousness: 0, extroversion: 0, agreeableness: 0, neuroticism: 0,
+  };
+
+  const template = selectTemplate(topic, p1, p2, cefrTier);
 
   const now = Date.now();
   return template.lines.map((line, i) => {
@@ -634,11 +654,16 @@ export async function initiateConversation(
       topic,
     });
 
-    // Check pre-generated pool first
+    const metrics = getConversationMetrics();
+
+    // ── Decision flow: pool → template-with-replacement → LLM-only ──
+
+    // 1. Check pre-generated pool first
     const pooled = npcConversationPool.take(
       worldId, npc1Id, npc2Id, environment?.gameHour,
     );
     if (pooled) {
+      metrics.record('npc_npc_pool_served', 1);
       const durationMs = Date.now() - startTime;
       options?.eventEmitter?.emit({
         type: 'ambient_conversation_ended',
@@ -659,14 +684,25 @@ export async function initiateConversation(
         relationshipDelta: pooled.relationshipDelta,
         durationMs,
         languageUsed: pooled.languageUsed,
+        source: 'pool',
       };
     }
 
-    // Try LLM-based conversation
+    // 2. Template-with-replacement: serve template instantly, start LLM generation in parallel
     let exchanges: ConversationExchange[];
+    let source: NpcConversationSource;
     const llm = options?.llmProvider;
+    const cefrTier = options?.cefrTier;
 
     if (llm) {
+      // Serve template instantly via callback
+      const templateExchanges = generateFallbackConversation(npc1, npc2, topic, cefrTier);
+      if (options?.onTemplateReady) {
+        options.onTemplateReady(templateExchanges);
+        metrics.record('npc_npc_template_served', 1);
+      }
+
+      // Start LLM generation (may replace template)
       try {
         const systemPrompt = buildNpcNpcSystemPrompt(
           npc1, npc2, p1, p2, topic, world.name, worldLangs, maxExchanges, relationshipStrength, environment,
@@ -720,17 +756,31 @@ export async function initiateConversation(
         // Full parse for relationship updates and persistence
         exchanges = parseLlmConversation(fullResponse, npc1, npc2);
 
-        // Fallback if LLM produced nothing usable
-        if (exchanges.length < 2) {
-          exchanges = generateFallbackConversation(npc1, npc2, topic);
+        // If LLM produced usable content, notify replacement and track as LLM-served
+        if (exchanges.length >= 2) {
+          if (options?.onTemplateReady && options?.onReplacementReady) {
+            options.onReplacementReady(exchanges);
+            metrics.record('npc_npc_template_replaced', 1);
+          }
+          source = options?.onTemplateReady ? 'template_with_replacement' : 'llm';
+          metrics.record('npc_npc_llm_served', 1);
+        } else {
+          // LLM produced nothing usable — keep template
+          exchanges = templateExchanges;
+          source = 'template';
+          metrics.record('npc_npc_template_served', 1);
         }
       } catch {
-        // LLM failed — use fallback
-        exchanges = generateFallbackConversation(npc1, npc2, topic);
+        // LLM failed — keep template
+        exchanges = templateExchanges;
+        source = 'template';
+        metrics.record('npc_npc_template_served', 1);
       }
     } else {
-      // No LLM available — use fallback templates
-      exchanges = generateFallbackConversation(npc1, npc2, topic);
+      // 3. No LLM available — use template only
+      exchanges = generateFallbackConversation(npc1, npc2, topic, cefrTier);
+      source = 'template';
+      metrics.record('npc_npc_template_served', 1);
     }
 
     // Calculate relationship changes
@@ -761,6 +811,7 @@ export async function initiateConversation(
       relationshipDelta,
       durationMs,
       languageUsed,
+      source,
     };
   } finally {
     releaseSlot(worldId, conversationId);
@@ -780,6 +831,9 @@ export {
   FALLBACK_TEMPLATES,
   MAX_CONCURRENT_PER_WORLD,
 };
+
+// Re-export template library
+export { selectTemplate, getTemplateCoverage, CONVERSATION_TEMPLATES, BILINGUAL_TEMPLATES } from './npc-conversation-templates.js';
 
 // Re-export pool for external access
 export { npcConversationPool } from './npc-conversation-pool.js';

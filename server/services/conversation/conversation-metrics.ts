@@ -33,6 +33,10 @@ export type MetricStage =
   | 'speculative_generation'
   | 'response_cache_hit'
   | 'response_cache_miss'
+  | 'npc_npc_template_served'
+  | 'npc_npc_llm_served'
+  | 'npc_npc_pool_served'
+  | 'npc_npc_template_replaced'
   | 'end_to_end';
 
 export interface LatencyEntry {
