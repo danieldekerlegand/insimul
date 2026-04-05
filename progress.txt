@@ -1726,3 +1726,23 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `onTemplateReady`/`onReplacementReady` pattern allows ws-bridge to send template instantly while still supporting the incremental `onLineReady` streaming for LLM content
   - `generateFallbackConversation` is used both as initial template (show-then-replace) and as final fallback (LLM failure) — same function, different calling contexts
 ---
+
+## 2026-04-05 - US-013: Batch NPC-NPC conversation generation
+- Created `batchGenerateConversations()` in `npc-conversation-engine.ts` — single LLM call generates multiple conversations separated by delimiters
+- Created `buildBatchPrompt()` — builds prompt with character roster (deduplicated) + numbered conversation requests with delimiter instructions
+- Created `parseBatchResponse()` — splits on `---CONVERSATION_BREAK---` delimiter, applies `parseLlmConversation()` per section, salvages valid conversations from partial failures
+- Added batch rate limiting: `acquireBatchSlot()`/`releaseBatchSlot()` with `MAX_BATCHES_PER_WORLD = 2` (separate from per-conversation rate limiting)
+- Created `replenishPoolBatch()` in `npc-conversation-pool.ts` — batch-aware pool replenishment that generates `batchSize` conversations per LLM call instead of one-at-a-time
+- Added 3 new metric stages: `npc_npc_batch_generated`, `npc_npc_batch_parse_failure`, `npc_npc_batch_partial_failure`
+- Uses FAST model tier; maxTokens scales by 512 * request count
+- Files changed:
+  - `server/services/conversation/npc-conversation-engine.ts` — BatchConversationRequest, buildBatchPrompt(), parseBatchResponse(), batchGenerateConversations(), batch rate limiting
+  - `server/services/conversation/npc-conversation-pool.ts` — BatchReplenishmentConfig, replenishPoolBatch()
+  - `server/services/conversation/conversation-metrics.ts` — 3 new MetricStage entries
+  - `server/__tests__/batch-npc-conversation.test.ts` — 26 new tests
+- **Learnings for future iterations:**
+  - `parseLlmConversation()` is reusable for both single and batch responses — just split on delimiter first
+  - Batch delimiter `---CONVERSATION_BREAK---` must be unique enough that NPC dialogue won't accidentally contain it
+  - The existing `replenishPool()` (one-at-a-time) is preserved alongside new `replenishPoolBatch()` — caller decides which to use
+  - Batch rate limiting is separate from per-conversation rate limiting — a single batch call uses 1 batch slot but doesn't consume per-conversation slots
+---

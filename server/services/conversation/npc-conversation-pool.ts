@@ -293,6 +293,66 @@ export async function replenishPool(config: ReplenishmentConfig): Promise<number
   return added;
 }
 
+// ── Batch-aware replenishment ───────────────────────────────────────
+
+export interface BatchReplenishmentConfig {
+  pool: NpcConversationPool;
+  worldId: string;
+  /** Function that generates a batch of conversations for the pool */
+  batchGenerateFn: (count: number) => Promise<Array<PooledConversation | null>>;
+  /** Number of conversations per LLM batch call (default 3-5) */
+  batchSize?: number;
+  /** Target count to fill to (default: replenishThreshold) */
+  targetCount?: number;
+}
+
+/**
+ * Replenish the pool using batch generation.
+ * Each LLM call generates `batchSize` conversations at once (3-5x faster).
+ * Falls back gracefully if batch generation returns partial results.
+ * Returns the number of conversations added.
+ */
+export async function replenishPoolBatch(config: BatchReplenishmentConfig): Promise<number> {
+  const {
+    pool,
+    worldId,
+    batchGenerateFn,
+    batchSize = 4,
+    targetCount,
+  } = config;
+
+  const target = targetCount ?? DEFAULT_REPLENISH_THRESHOLD;
+  let added = 0;
+  let needed = target - pool.size(worldId);
+
+  if (needed <= 0) return 0;
+
+  // Generate in batch calls
+  while (needed > 0 && !pool.isFull(worldId)) {
+    const thisBatch = Math.min(needed, batchSize);
+    let results: Array<PooledConversation | null>;
+    try {
+      results = await batchGenerateFn(thisBatch);
+    } catch {
+      // Batch generation failed entirely — stop trying
+      break;
+    }
+
+    for (const conv of results) {
+      if (conv && pool.add(worldId, conv)) {
+        added++;
+      }
+    }
+
+    needed = target - pool.size(worldId);
+
+    // If batch produced nothing, stop to avoid infinite loop
+    if (results.every(r => r === null)) break;
+  }
+
+  return added;
+}
+
 // ── Singleton instance ───────────────────────────────────────────────
 
 export const npcConversationPool = new NpcConversationPool();

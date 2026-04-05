@@ -818,6 +818,239 @@ export async function initiateConversation(
   }
 }
 
+// ── Batch generation ────────────────────────────────────────────────
+
+/** A single request within a batch */
+export interface BatchConversationRequest {
+  npc1: Character;
+  npc2: Character;
+  topic: string;
+  exchangeCount: number;
+}
+
+/** Result of a single conversation within a batch */
+export interface BatchConversationItem {
+  request: BatchConversationRequest;
+  exchanges: ConversationExchange[];
+  relationshipDelta: RelationshipDelta;
+}
+
+/** Result of the entire batch operation */
+export interface BatchGenerationResult {
+  conversations: BatchConversationItem[];
+  /** Requests that failed to parse */
+  failures: Array<{ request: BatchConversationRequest; reason: string }>;
+  durationMs: number;
+}
+
+/** Delimiter used to separate conversations in batch prompt/response */
+const BATCH_DELIMITER = '---CONVERSATION_BREAK---';
+
+/** Rate limiting for batch operations */
+const activeBatches = new Map<string, number>();
+const MAX_BATCHES_PER_WORLD = 2;
+
+export function acquireBatchSlot(worldId: string): boolean {
+  const current = activeBatches.get(worldId) ?? 0;
+  if (current >= MAX_BATCHES_PER_WORLD) return false;
+  activeBatches.set(worldId, current + 1);
+  return true;
+}
+
+export function releaseBatchSlot(worldId: string): void {
+  const current = activeBatches.get(worldId) ?? 0;
+  if (current <= 1) {
+    activeBatches.delete(worldId);
+  } else {
+    activeBatches.set(worldId, current - 1);
+  }
+}
+
+export function getActiveBatchCount(worldId: string): number {
+  return activeBatches.get(worldId) ?? 0;
+}
+
+/** For testing: reset batch rate limiting state */
+export function resetBatchRateLimiting(): void {
+  activeBatches.clear();
+}
+
+/**
+ * Build a batch prompt that asks the LLM to generate multiple conversations
+ * in a single call, separated by delimiters.
+ */
+export function buildBatchPrompt(
+  requests: BatchConversationRequest[],
+  worldName: string,
+  languages: string[],
+): string {
+  const langInstruction = languages.length > 0
+    ? `Languages spoken: ${languages.join(' and ')}.`
+    : '';
+
+  // Character roster at the top
+  const roster = new Map<string, string>();
+  for (const req of requests) {
+    if (!roster.has(req.npc1.id)) {
+      const p = (req.npc1.personality ?? {}) as BigFivePersonality;
+      roster.set(req.npc1.id, `- ${req.npc1.firstName} ${req.npc1.lastName} (${req.npc1.occupation ?? 'unemployed'}): O=${p.openness?.toFixed(1) ?? '0'} C=${p.conscientiousness?.toFixed(1) ?? '0'} E=${p.extroversion?.toFixed(1) ?? '0'} A=${p.agreeableness?.toFixed(1) ?? '0'} N=${p.neuroticism?.toFixed(1) ?? '0'}`);
+    }
+    if (!roster.has(req.npc2.id)) {
+      const p = (req.npc2.personality ?? {}) as BigFivePersonality;
+      roster.set(req.npc2.id, `- ${req.npc2.firstName} ${req.npc2.lastName} (${req.npc2.occupation ?? 'unemployed'}): O=${p.openness?.toFixed(1) ?? '0'} C=${p.conscientiousness?.toFixed(1) ?? '0'} E=${p.extroversion?.toFixed(1) ?? '0'} A=${p.agreeableness?.toFixed(1) ?? '0'} N=${p.neuroticism?.toFixed(1) ?? '0'}`);
+    }
+  }
+
+  const rosterText = Array.from(roster.values()).join('\n');
+
+  // Build individual conversation requests
+  const conversationRequests = requests.map((req, i) => {
+    return [
+      `CONVERSATION ${i + 1}:`,
+      `Speakers: ${req.npc1.firstName} and ${req.npc2.firstName}`,
+      `Topic: ${req.topic}`,
+      `Exchanges: ${req.exchangeCount}`,
+      `Format: "${req.npc1.firstName}: text" or "${req.npc2.firstName}: text"`,
+      `${req.npc1.firstName} speaks first.`,
+    ].join('\n');
+  }).join('\n\n');
+
+  return [
+    `You are simulating multiple NPC conversations in ${worldName}.`,
+    langInstruction,
+    '',
+    'CHARACTER ROSTER:',
+    rosterText,
+    '',
+    'Generate the following conversations. Separate each conversation with exactly this line:',
+    BATCH_DELIMITER,
+    '',
+    conversationRequests,
+    '',
+    `Keep each conversation natural, brief, and in-character. Output conversations in order, separated by "${BATCH_DELIMITER}" on its own line.`,
+  ].filter(l => l !== undefined).join('\n');
+}
+
+/**
+ * Parse a batch LLM response into individual conversations.
+ * Handles partial failures by salvaging valid sections.
+ */
+export function parseBatchResponse(
+  response: string,
+  requests: BatchConversationRequest[],
+): { parsed: Array<{ index: number; exchanges: ConversationExchange[] }>; failures: Array<{ index: number; reason: string }> } {
+  // Split on the delimiter
+  const sections = response.split(BATCH_DELIMITER).map(s => s.trim()).filter(s => s.length > 0);
+
+  const parsed: Array<{ index: number; exchanges: ConversationExchange[] }> = [];
+  const failures: Array<{ index: number; reason: string }> = [];
+
+  for (let i = 0; i < requests.length; i++) {
+    if (i >= sections.length) {
+      failures.push({ index: i, reason: 'no_section_in_response' });
+      continue;
+    }
+
+    const section = sections[i];
+    const req = requests[i];
+    const exchanges = parseLlmConversation(section, req.npc1, req.npc2);
+
+    if (exchanges.length >= 2) {
+      parsed.push({ index: i, exchanges });
+    } else {
+      failures.push({ index: i, reason: exchanges.length === 0 ? 'no_parseable_lines' : 'too_few_exchanges' });
+    }
+  }
+
+  return { parsed, failures };
+}
+
+/**
+ * Generate multiple NPC-NPC conversations in a single LLM call.
+ * Optimal batch size: 3-5. Reduces if parse failure rate >10%.
+ */
+export async function batchGenerateConversations(
+  requests: BatchConversationRequest[],
+  worldId: string,
+  worldName: string,
+  languages: string[],
+  llmProvider: IStreamingLLMProvider,
+): Promise<BatchGenerationResult> {
+  const startTime = Date.now();
+  const metrics = getConversationMetrics();
+
+  if (requests.length === 0) {
+    return { conversations: [], failures: [], durationMs: 0 };
+  }
+
+  const prompt = buildBatchPrompt(requests, worldName, languages);
+
+  const context: ConversationContext = {
+    systemPrompt: prompt,
+    characterName: 'batch',
+    worldContext: worldName,
+  };
+
+  // Accumulate full response
+  let fullResponse = '';
+  try {
+    for await (const token of llmProvider.streamCompletion(
+      'Generate all conversations now.',
+      context,
+      {
+        temperature: 0.8,
+        maxTokens: 512 * requests.length,
+        modelTier: 'fast',
+      },
+    )) {
+      fullResponse += token;
+    }
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    metrics.record('npc_npc_batch_parse_failure', 1);
+    return {
+      conversations: [],
+      failures: requests.map((req, i) => ({ request: req, reason: 'llm_error' })),
+      durationMs,
+    };
+  }
+
+  // Parse the batch response
+  const { parsed, failures: parseFailures } = parseBatchResponse(fullResponse, requests);
+
+  const conversations: BatchConversationItem[] = [];
+  const failures: Array<{ request: BatchConversationRequest; reason: string }> = [];
+
+  for (const { index, exchanges } of parsed) {
+    const req = requests[index];
+    const p1 = (req.npc1.personality ?? {}) as BigFivePersonality;
+    const p2 = (req.npc2.personality ?? {}) as BigFivePersonality;
+    const rels1 = (req.npc1.relationships ?? {}) as Record<string, any>;
+    const rel = rels1[req.npc2.id];
+    const relationshipStrength = typeof rel?.strength === 'number' ? rel.strength : 0;
+
+    const relationshipDelta = calculateRelationshipDelta(
+      req.topic, exchanges.length, p1, p2, relationshipStrength,
+    );
+
+    conversations.push({ request: req, exchanges, relationshipDelta });
+  }
+
+  for (const { index, reason } of parseFailures) {
+    failures.push({ request: requests[index], reason });
+  }
+
+  const durationMs = Date.now() - startTime;
+
+  // Record metrics
+  metrics.record('npc_npc_batch_generated', conversations.length);
+  if (failures.length > 0) {
+    metrics.record('npc_npc_batch_partial_failure', failures.length);
+  }
+
+  return { conversations, failures, durationMs };
+}
+
 // Re-export for testing
 export {
   selectTopics,
@@ -830,6 +1063,8 @@ export {
   buildNpcNpcSystemPrompt,
   FALLBACK_TEMPLATES,
   MAX_CONCURRENT_PER_WORLD,
+  BATCH_DELIMITER,
+  MAX_BATCHES_PER_WORLD,
 };
 
 // Re-export template library

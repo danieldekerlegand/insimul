@@ -37,6 +37,9 @@ export type MetricStage =
   | 'npc_npc_llm_served'
   | 'npc_npc_pool_served'
   | 'npc_npc_template_replaced'
+  | 'npc_npc_batch_generated'
+  | 'npc_npc_batch_parse_failure'
+  | 'npc_npc_batch_partial_failure'
   | 'end_to_end';
 
 export interface LatencyEntry {

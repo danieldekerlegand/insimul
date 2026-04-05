@@ -232,7 +232,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Expected: 3-5x throughput improvement, pool fill time ~2-3 minutes instead of ~10."
     },
     {
