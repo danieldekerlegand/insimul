@@ -250,7 +250,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Currently only degrades viseme quality (15→5 shapes) when p95 >4000ms. evaluateAdaptiveQuality() at line 149."
     },
     {

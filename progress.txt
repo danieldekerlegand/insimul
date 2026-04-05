@@ -1746,3 +1746,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The existing `replenishPool()` (one-at-a-time) is preserved alongside new `replenishPoolBatch()` — caller decides which to use
   - Batch rate limiting is separate from per-conversation rate limiting — a single batch call uses 1 batch slot but doesn't consume per-conversation slots
 ---
+
+## 2026-04-05 - US-014: Enhanced adaptive quality degradation
+- Replaced binary `_degraded` flag with four quality tiers: FULL (<1500ms p95), STANDARD (1500-3000ms), REDUCED (3000-5000ms), MINIMAL (>5000ms)
+- Created `QualityTier` type, `QualityTierConfig` interface, and `QUALITY_TIER_CONFIGS` constant defining per-tier behavior for visemes, TTS, context, model tier, and NPC-NPC fallback
+- Implemented hysteresis: 10 consecutive measurements above threshold to degrade, 20 below to recover — prevents tier flapping
+- Added `qualityTier` and `tierConfig` getters to `ConversationMetricsCollector`
+- Wired tier into ws-bridge.ts: sends `quality_tier` WebSocket message, applies tier-based TTS behavior (full/first_sentence/disabled), viseme quality, and model tier override
+- Wired tier into http-bridge.ts: sends `quality_tier` SSE event, applies same tier-based behavior, replaced old isDegraded checks
+- Added quality tier to `/api/metrics/conversation` endpoint
+- Backward-compatible: `isDegraded` getter still works (true for any non-FULL tier)
+- Files changed:
+  - `server/services/conversation/conversation-metrics.ts` — QualityTier types, QUALITY_TIER_CONFIGS, hysteresis-based evaluateAdaptiveQuality(), qualityTier/tierConfig getters
+  - `server/services/conversation/ws-bridge.ts` — quality_tier WebSocket message, tier-based TTS/viseme/model selection
+  - `server/services/conversation/http-bridge.ts` — quality_tier SSE event, tier-based TTS/viseme behavior, metrics endpoint
+  - `server/__tests__/adaptive-quality.test.ts` — 23 new tests
+- **Learnings for future iterations:**
+  - Rolling window of 100 entries means recovery requires enough low entries to push old high entries out of the window before p95 drops — tests must account for this
+  - Tier degradation can skip tiers (FULL→REDUCED) when latency is very high, but recovery is always one tier at a time
+  - `ttsBehavior: 'first_sentence'` is tracked via sentence counter in synthesizeSentence closure — counter must reset per request
+  - The `modelTierOverride` in tier config takes precedence over conversation classifier result
+---
