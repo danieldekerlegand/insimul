@@ -31,7 +31,8 @@ import {
   conversationContextCache,
   ConversationContextCache,
 } from './conversation-context-cache.js';
-import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
+import { PipelineTimer, getConversationMetrics, QUALITY_TIER_CONFIGS } from './conversation-metrics.js';
+import type { QualityTierConfig } from './conversation-metrics.js';
 import { greetingCache } from './greeting-cache.js';
 import { classifyConversation } from './conversation-classifier.js';
 import type { ModelTier } from './conversation-classifier.js';
@@ -257,19 +258,31 @@ async function handleTextInput(
     return;
   }
 
-  // Attempt TTS + viseme (optional)
-  let ttsProvider: ITTSProvider | null = options.ttsProvider ?? null;
-  if (!ttsProvider) {
-    try {
-      const ttsModule = await import('./tts/tts-provider.js');
-      ttsProvider = ttsModule.getTTSProvider?.() ?? null;
-    } catch {
-      // TTS not available
+  // Adaptive quality tier
+  const metrics = getConversationMetrics();
+  const tierConfig: QualityTierConfig = metrics.tierConfig;
+
+  // Send current quality tier to client
+  sendJSON(ws, { type: 'quality_tier', tier: metrics.qualityTier, config: tierConfig });
+
+  // Attempt TTS + viseme (optional), respecting quality tier
+  let ttsProvider: ITTSProvider | null = null;
+  if (tierConfig.ttsBehavior !== 'disabled') {
+    ttsProvider = options.ttsProvider ?? null;
+    if (!ttsProvider) {
+      try {
+        const ttsModule = await import('./tts/tts-provider.js');
+        ttsProvider = ttsModule.getTTSProvider?.() ?? null;
+      } catch {
+        // TTS not available
+      }
     }
   }
-  const visemeQuality: VisemeQuality = options.visemeQuality ?? 'full';
+  const effectiveVisemeQuality: VisemeQuality = tierConfig.visemeQuality === 'disabled'
+    ? 'disabled'
+    : (options.visemeQuality ?? tierConfig.visemeQuality as VisemeQuality);
   let visemeGen: IVisemeGenerator | null = null;
-  if (visemeQuality !== 'disabled') {
+  if (effectiveVisemeQuality !== 'disabled') {
     try {
       visemeGen = options.visemeGenerator ?? createVisemeGenerator();
     } catch {
@@ -281,9 +294,13 @@ async function handleTextInput(
   let fullResponse = '';
   let sentenceBuffer = '';
   const ttsPromises: Array<Promise<void>> = [];
+  let ttsSentenceCount = 0;
 
   const synthesizeSentence = (sentence: string) => {
     if (!ttsProvider) return;
+    // In 'first_sentence' mode, only synthesize the first sentence
+    if (tierConfig.ttsBehavior === 'first_sentence' && ttsSentenceCount >= 1) return;
+    ttsSentenceCount++;
     const voice: VoiceProfile = assignVoiceProfile({
       gender: (session as any)?.conversationContext?.characterGender,
     });
@@ -294,8 +311,8 @@ async function handleTextInput(
         });
         for await (const chunk of audioChunks) {
           // Viseme data before audio
-          if (visemeGen && visemeQuality !== 'disabled') {
-            const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, visemeQuality);
+          if (visemeGen && effectiveVisemeQuality !== 'disabled') {
+            const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, effectiveVisemeQuality);
             if (facialData.visemes.length > 0) {
               sendJSON(ws, { type: 'facial', visemes: facialData.visemes });
             }
@@ -326,7 +343,8 @@ async function handleTextInput(
     cefrLevel: session.languageCode !== 'en' ? undefined : undefined,
     systemPrompt: session.conversationContext?.systemPrompt,
   });
-  const modelTier: ModelTier = classification.tier;
+  // Quality tier can force FAST model for non-quest conversations
+  const modelTier: ModelTier = tierConfig.modelTierOverride ?? classification.tier;
 
   // Track tier-specific latency
   const tierFirstTokenStage = modelTier === 'fast' ? 'llm_fast_first_token' : 'llm_full_first_token' as const;

@@ -56,6 +56,74 @@ export interface StagePercentiles {
   mean: number;
 }
 
+// ── Quality Tiers ────────────────────────────────────────────────────
+
+export type QualityTier = 'FULL' | 'STANDARD' | 'REDUCED' | 'MINIMAL';
+
+export interface QualityTierConfig {
+  /** p95 latency threshold — tier activates when p95 exceeds this value */
+  maxP95Ms: number;
+  /** Viseme quality for this tier */
+  visemeQuality: VisemeQualityLevel;
+  /** TTS behavior for this tier */
+  ttsBehavior: 'full' | 'first_sentence' | 'disabled';
+  /** Context mode for this tier */
+  contextMode: 'full' | 'slim_followup' | 'minimal';
+  /** Model tier override: null means use classifier result */
+  modelTierOverride: 'fast' | null;
+  /** Whether to use template fallback for NPC-NPC conversations */
+  npcNpcTemplateFallback: boolean;
+}
+
+export type VisemeQualityLevel = 'full' | 'simplified' | 'disabled';
+
+/**
+ * Quality tier definitions ordered from best to worst.
+ * Thresholds: FULL (<1500ms), STANDARD (1500-3000ms), REDUCED (3000-5000ms), MINIMAL (>5000ms)
+ */
+export const QUALITY_TIER_CONFIGS: Record<QualityTier, QualityTierConfig> = {
+  FULL: {
+    maxP95Ms: 1500,
+    visemeQuality: 'full',
+    ttsBehavior: 'full',
+    contextMode: 'full',
+    modelTierOverride: null,
+    npcNpcTemplateFallback: false,
+  },
+  STANDARD: {
+    maxP95Ms: 3000,
+    visemeQuality: 'full',
+    ttsBehavior: 'full',
+    contextMode: 'slim_followup',
+    modelTierOverride: null,
+    npcNpcTemplateFallback: false,
+  },
+  REDUCED: {
+    maxP95Ms: 5000,
+    visemeQuality: 'simplified',
+    ttsBehavior: 'first_sentence',
+    contextMode: 'slim_followup',
+    modelTierOverride: 'fast',
+    npcNpcTemplateFallback: false,
+  },
+  MINIMAL: {
+    maxP95Ms: Infinity,
+    visemeQuality: 'disabled',
+    ttsBehavior: 'disabled',
+    contextMode: 'minimal',
+    modelTierOverride: 'fast',
+    npcNpcTemplateFallback: true,
+  },
+};
+
+/** Ordered tiers from best to worst for threshold comparison */
+const TIER_ORDER: QualityTier[] = ['FULL', 'STANDARD', 'REDUCED', 'MINIMAL'];
+
+/** Consecutive measurements above threshold required to degrade */
+const HYSTERESIS_DEGRADE = 10;
+/** Consecutive measurements below threshold required to recover */
+const HYSTERESIS_RECOVER = 20;
+
 export interface ConversationMetricsSnapshot {
   stages: Record<string, StagePercentiles>;
   windowSize: number;
@@ -63,6 +131,8 @@ export interface ConversationMetricsSnapshot {
   adaptiveQuality: {
     degraded: boolean;
     reason: string | null;
+    qualityTier: QualityTier;
+    tierConfig: QualityTierConfig;
   };
 }
 
@@ -86,6 +156,11 @@ export class ConversationMetricsCollector {
   private entries = new Map<MetricStage, LatencyEntry[]>();
   private _degraded = false;
   private _degradeReason: string | null = null;
+  private _qualityTier: QualityTier = 'FULL';
+  /** Consecutive measurements above current tier's threshold */
+  private _degradeCount = 0;
+  /** Consecutive measurements below current tier's threshold (eligible for recovery) */
+  private _recoverCount = 0;
 
   /** Record a latency measurement for a pipeline stage. */
   record(stage: MetricStage, durationMs: number): void {
@@ -157,6 +232,8 @@ export class ConversationMetricsCollector {
       adaptiveQuality: {
         degraded: this._degraded,
         reason: this._degradeReason,
+        qualityTier: this._qualityTier,
+        tierConfig: QUALITY_TIER_CONFIGS[this._qualityTier],
       },
     };
   }
@@ -166,11 +243,24 @@ export class ConversationMetricsCollector {
     return this._degraded;
   }
 
+  /** Current quality tier. */
+  get qualityTier(): QualityTier {
+    return this._qualityTier;
+  }
+
+  /** Get the configuration for the current quality tier. */
+  get tierConfig(): QualityTierConfig {
+    return QUALITY_TIER_CONFIGS[this._qualityTier];
+  }
+
   /** Reset all collected metrics. */
   reset(): void {
     this.entries.clear();
     this._degraded = false;
     this._degradeReason = null;
+    this._qualityTier = 'FULL';
+    this._degradeCount = 0;
+    this._recoverCount = 0;
   }
 
   private evaluateAdaptiveQuality(): void {
@@ -179,16 +269,68 @@ export class ConversationMetricsCollector {
       // Not enough data to judge
       this._degraded = false;
       this._degradeReason = null;
+      this._qualityTier = 'FULL';
+      this._degradeCount = 0;
+      this._recoverCount = 0;
       return;
     }
 
-    if (e2eStats.p95 > ADAPTIVE_THRESHOLD_MS) {
-      this._degraded = true;
-      this._degradeReason = `p95 end-to-end latency ${e2eStats.p95}ms exceeds ${ADAPTIVE_THRESHOLD_MS}ms threshold`;
-    } else {
-      this._degraded = false;
-      this._degradeReason = null;
+    const p95 = e2eStats.p95;
+    const currentIdx = TIER_ORDER.indexOf(this._qualityTier);
+    const currentConfig = QUALITY_TIER_CONFIGS[this._qualityTier];
+
+    // Check if we should degrade (p95 exceeds current tier's threshold)
+    if (p95 > currentConfig.maxP95Ms && currentIdx < TIER_ORDER.length - 1) {
+      this._recoverCount = 0;
+      this._degradeCount++;
+      if (this._degradeCount >= HYSTERESIS_DEGRADE) {
+        // Find the appropriate tier for the current p95
+        let targetIdx = currentIdx + 1;
+        for (let i = currentIdx + 1; i < TIER_ORDER.length; i++) {
+          if (p95 <= QUALITY_TIER_CONFIGS[TIER_ORDER[i]].maxP95Ms) {
+            targetIdx = i;
+            break;
+          }
+          targetIdx = i;
+        }
+        const previousTier = this._qualityTier;
+        this._qualityTier = TIER_ORDER[targetIdx];
+        this._degradeCount = 0;
+        console.log(
+          `[AdaptiveQuality] Degraded ${previousTier} → ${this._qualityTier} (p95=${p95}ms)`
+        );
+      }
     }
+    // Check if we should recover (p95 is below previous tier's threshold)
+    else if (currentIdx > 0) {
+      const betterTier = TIER_ORDER[currentIdx - 1];
+      const betterConfig = QUALITY_TIER_CONFIGS[betterTier];
+      if (p95 <= betterConfig.maxP95Ms) {
+        this._degradeCount = 0;
+        this._recoverCount++;
+        if (this._recoverCount >= HYSTERESIS_RECOVER) {
+          const previousTier = this._qualityTier;
+          this._qualityTier = betterTier;
+          this._recoverCount = 0;
+          console.log(
+            `[AdaptiveQuality] Recovered ${previousTier} → ${this._qualityTier} (p95=${p95}ms)`
+          );
+        }
+      } else {
+        this._recoverCount = 0;
+        this._degradeCount = 0;
+      }
+    } else {
+      // Already at FULL tier and p95 is fine
+      this._degradeCount = 0;
+      this._recoverCount = 0;
+    }
+
+    // Update legacy degraded flag for backward compatibility
+    this._degraded = this._qualityTier !== 'FULL';
+    this._degradeReason = this._degraded
+      ? `Quality tier ${this._qualityTier}: p95 end-to-end latency ${p95}ms`
+      : null;
   }
 }
 

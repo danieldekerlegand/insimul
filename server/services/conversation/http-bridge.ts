@@ -24,7 +24,8 @@ import { splitAtSentenceBoundaries, assignVoiceProfile, getTTSProvider } from '.
 import './tts/google-tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
-import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
+import { PipelineTimer, getConversationMetrics, QUALITY_TIER_CONFIGS } from './conversation-metrics.js';
+import type { QualityTierConfig } from './conversation-metrics.js';
 import { responseCache } from './response-cache.js';
 import { analyzeConversation } from './quest-trigger-analyzer.js';
 import type { ActiveQuest } from './quest-trigger-analyzer.js';
@@ -139,38 +140,47 @@ async function streamTextResponse(
     return;
   }
 
+  // Adaptive quality tier
+  const tierConfig: QualityTierConfig = metrics.tierConfig;
+
+  // Send quality tier info as first SSE event
+  sendSSE(res, { type: 'quality_tier', tier: metrics.qualityTier, config: tierConfig });
+
   // Attempt TTS + viseme setup (optional — gracefully skip if unavailable)
   let ttsProvider: ITTSProvider | null = null;
   let visemeGen: IVisemeGenerator | null = null;
-  try {
-    ttsProvider = getTTSProvider();
-  } catch {
-    // TTS not available — text-only mode
+  if (tierConfig.ttsBehavior !== 'disabled') {
+    try {
+      ttsProvider = getTTSProvider();
+    } catch {
+      // TTS not available — text-only mode
+    }
   }
-  try {
-    visemeGen = createVisemeGenerator();
-  } catch {
-    // Viseme generation not available
+  if (tierConfig.visemeQuality !== 'disabled') {
+    try {
+      visemeGen = createVisemeGenerator();
+    } catch {
+      // Viseme generation not available
+    }
   }
 
   // Stream LLM tokens
   let fullResponse = '';
   let sentenceBuffer = '';
   const ttsPromises: Array<Promise<void>> = [];
+  let ttsSentenceCount = 0;
 
-  // Adaptive quality: degrade viseme quality when latency is high
-  const effectiveVisemeQuality = metrics.isDegraded ? 'simplified' : 'full';
+  // Adaptive quality: use tier-based viseme quality
+  const effectiveVisemeQuality = tierConfig.visemeQuality;
 
   const synthesizeSentence = (sentence: string) => {
     if (!ttsProvider) return;
     // Strip ALL non-spoken content before TTS
     const stripped = cleanForTTS(sentence);
     if (!stripped) return;
-    // Skip TTS entirely when adaptive quality degrades and latency is very high
-    if (metrics.isDegraded) {
-      const e2eStats = metrics.getStageStats('end_to_end');
-      if (e2eStats && e2eStats.p95 > 4000) return;
-    }
+    // In 'first_sentence' mode, only synthesize the first sentence
+    if (tierConfig.ttsBehavior === 'first_sentence' && ttsSentenceCount >= 1) return;
+    ttsSentenceCount++;
     const voice: VoiceProfile = assignVoiceProfile({
       gender: (session as any)?.conversationContext?.characterGender,
     });
@@ -730,6 +740,8 @@ export function registerConversationRoutes(app: Express): void {
     const snapshot = metrics.getSnapshot();
     res.json({
       ...snapshot,
+      qualityTier: metrics.qualityTier,
+      tierConfig: metrics.tierConfig,
       responseCache: responseCache.getStats(),
     });
   });
