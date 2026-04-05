@@ -10,6 +10,69 @@ Started: Sun Mar 29 13:53:35 CDT 2026
 - Test files must be under `shared/__tests__/`, `server/__tests__/`, or `client/__tests__/` (not `shared/game-engine/__tests__/`) to match vitest include patterns
 - `WorldLanguageContext` has no `nativeLanguage` field — use hardcoded 'English' or derive from world data
 - Engine drift hook blocks commits when `shared/game-engine/rendering/` files change — run `npm run drift:update` after changes to BabylonChatPanel.ts
+- `buildLanguageAwareSystemPrompt()` accepts optional `cefrLevel` as 6th param — must be passed explicitly for NPC language mode to work
+- `chatPanel.show()` accepts optional 4th param `cefrLevel` — BabylonGame must pass `this.playerCefrLevel`
+- `ConversationMetadataRequest` in `packages/typescript/src/types.ts` — add fields here when metadata requests need new data
+- Vocabulary frequency enforcement lives in `shared/language/vocabulary-frequency.ts` — import `buildFrequencyDirective()` for LLM prompts, `loadFrequencyData()` + `validateVocabularyFrequency()` for runtime validation
+- `buildLanguageModeDirective()` now accepts optional 4th param `cefrLevel` — when provided, appends vocabulary frequency constraints to the directive
+- Word frequency data: `data/seed/language/word-frequency-ranks.json` — organized by language → CEFR band → word arrays
+- `Set` iteration with `for...of` causes TS errors in this project — use `Array.from(set).forEach()` instead
+---
+
+## 2026-04-05 - US-008: Enforce vocabulary frequency ranges in LLM prompts
+- Created `shared/language/vocabulary-frequency.ts` — vocabulary frequency enforcement module with:
+  - `getFrequencyRange()` — maps CEFR level to frequency range with human-readable labels
+  - `loadFrequencyData()` / `isWordInFrequencyRange()` — runtime word frequency lookup (cumulative across CEFR bands)
+  - `validateVocabularyFrequency()` — validates text against frequency-appropriate word lists, returns out-of-range words
+  - `buildFrequencyDirective()` — generates LLM prompt directives constraining vocabulary by CEFR level
+  - `buildVocabularyRangeSummary()` — concise range summary for metadata
+- Created `data/seed/language/word-frequency-ranks.json` — French word frequency data organized by CEFR band (A1: ~200, A2: ~200, B1: ~300, B2: ~170 words)
+- Updated `buildLanguageModeDirective()` in `cefr-adaptation.ts` — now accepts optional `cefrLevel` param, appends frequency directive
+- Updated `getNPCLanguageBehavior()` — passes cefrLevel through to buildLanguageModeDirective
+- Updated `getCEFRTextComplexity()` — added `frequencyRange` field with min/max/label
+- Updated `buildPlayerProficiencySection()` in `utils.ts` — adds standalone frequency directive when cefrLevel available but no NPC-specific behavior
+- Updated `buildProficiencyPrompt()` in `quest-generator.ts` — accepts cefrLevel + targetLanguage, appends frequency directive to quest generation prompts
+- Updated both quest generation call sites (`generateQuestForType` and conversation-based) to derive CEFR level and pass to proficiency prompt
+- Added `vocabularyRange` field to `ConversationMetadataRequest` in SDK types
+- Updated BabylonChatPanel metadata request to include vocabularyRange summary
+- Updated drift manifest
+- Files changed:
+  - `shared/language/vocabulary-frequency.ts` — new module
+  - `data/seed/language/word-frequency-ranks.json` — new frequency data
+  - `shared/language/cefr-adaptation.ts` — frequency integration in directives + text complexity
+  - `shared/language/utils.ts` — frequency directive in proficiency section
+  - `shared/quests/quest-generator.ts` — frequency constraints in quest generation
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — vocabularyRange in metadata requests
+  - `packages/typescript/src/types.ts` — vocabularyRange on ConversationMetadataRequest
+  - `shared/__tests__/vocabulary-frequency.test.ts` — 36 new tests
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - `buildProficiencyPrompt()` in quest-generator.ts is used in two places — both need updating when adding new context params
+  - `getQuestDifficultyInfo()` returns `CEFRLevel` type directly — can be used to derive CEFR for quest generation context
+  - The B2 frequency directive uses "full range" wording, not "unrestricted" — test assertions need to match actual output
+  - `Set` iteration in TypeScript requires `Array.from()` in this codebase due to target configuration
+---
+
+## 2026-04-05 - US-007: Mid-conversation NPC language mode re-evaluation
+- Added `playerCefrLevel` and `_previousCefrLevel` properties to BabylonChatPanel
+- Updated `show()` to accept optional `cefrLevel` param — stores it, invalidates system prompt cache
+- Added `updateCefrLevel()` public method for external CEFR level updates (e.g., mid-session advancement)
+- Updated `buildSystemPrompt()` to pass current CEFR level (from tracker or stored) to `buildLanguageAwareSystemPrompt()` as 6th parameter
+- Added NPC improvement acknowledgment: when `_previousCefrLevel !== currentCefr`, system prompt includes instruction for NPC to comment on improvement
+- Updated metadata requests to include `cefrLevel` field (added to SDK `ConversationMetadataRequest` type)
+- Wired BabylonGame: both `chatPanel.show()` call sites now pass `this.playerCefrLevel`
+- Wired `cefr_level_advanced` callback and `assessment_completed` handler to call `chatPanel.updateCefrLevel()`
+- Files changed:
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — cefrLevel tracking, show() param, buildSystemPrompt(), metadata, updateCefrLevel()
+  - `shared/game-engine/rendering/BabylonGame.ts` — pass cefrLevel to show(), wire level-up to chatPanel
+  - `packages/typescript/src/types.ts` — added cefrLevel to ConversationMetadataRequest
+  - `shared/__tests__/npc-language-mode-reevaluation.test.ts` — 10 new tests
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - `buildLanguageAwareSystemPrompt()` has 6 params; the cefrLevel (6th) was never passed before — the NPC language mode directive block was always skipped
+  - `getNPCLanguageBehavior()` is stateless (no caching) — calling with new cefrLevel naturally returns updated behavior
+  - BabylonGame has `playerCefrLevel` as a string; cast to `CEFRLevel` with `as any` when passing to typed methods
+  - Two places update `playerCefrLevel` in BabylonGame: the auto-level-up callback (`setOnCEFRAdvancement`) and `assessment_completed` event handler — both need to sync with chatPanel
 ---
 
 ## 2026-04-05 - US-006: Dynamic mid-conversation scaffolding
