@@ -31,6 +31,8 @@ export type MetricStage =
   | 'speculative_cache_hit'
   | 'speculative_cache_miss'
   | 'speculative_generation'
+  | 'response_cache_hit'
+  | 'response_cache_miss'
   | 'end_to_end';
 
 export interface LatencyEntry {

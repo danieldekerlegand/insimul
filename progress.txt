@@ -1664,3 +1664,31 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Map` iteration with `for...of` causes TS errors in this project — use `Array.from().forEach()` pattern (consistent with progress.txt codebase patterns)
   - Background correction uses `session.history.slice(0, -2)` to exclude the speculative user+assistant pair before generating the real response
   - The speculative cache is scoped by worldId+npcId (not playerId) since CEFR-appropriate responses are generated per-NPC and shared across players
+
+## 2026-04-05 - US-011: Response caching for identical exchanges
+- Created `server/services/conversation/response-cache.ts` — ResponseCache with LRU (max 500, 15-min TTL):
+  - `isCacheableMessage()` — pattern-based check: greetings, farewells, simple social patterns only; excludes quest-related and long (>100 char) messages
+  - `ResponseCache.makeKey(npcId, cefrLevel, message, turnNumber)` — canonical cache key using `canonicalizeMessage()` from speculative-cache
+  - `get()` — randomly selects from up to 3 stored variants; filters expired responses; LRU refresh on access
+  - `set()` — stores up to 3 unique response variants per key; deduplicates identical responses
+  - `getStats()` — returns hits, misses, hitRate, size, totalVariants for metrics endpoint
+- Added `response_cache_hit` and `response_cache_miss` to `MetricStage` type in `conversation-metrics.ts`
+- Wired into `ws-bridge.ts handleTextInput()`:
+  - After speculative cache check, before LLM provider resolution: checks `isCacheableMessage()`, builds key, looks up cache
+  - On hit: serves cached response instantly (same pattern as speculative cache), records `response_cache_hit` metric, returns
+  - On miss: records `response_cache_miss` metric, continues to LLM streaming
+  - After LLM response completes: stores response in cache if message was cacheable
+- Added `responseCache` stats to `GET /api/metrics/conversation` endpoint in `http-bridge.ts`
+- Files changed:
+  - `server/services/conversation/response-cache.ts` — new module
+  - `server/services/conversation/conversation-metrics.ts` — response_cache_hit/miss stages
+  - `server/services/conversation/ws-bridge.ts` — cache check before LLM, cache store after LLM
+  - `server/services/conversation/http-bridge.ts` — responseCache stats in metrics endpoint
+  - `server/__tests__/response-cache.test.ts` — 26 new tests
+  - `tasks/prd.json` — US-011 passes: true
+- **Learnings for future iterations:**
+  - `canonicalizeMessage()` is exported from `speculative-cache.ts` and reusable for any message normalization
+  - The ws-bridge pipeline order is: context cache → speculative cache → response cache → LLM streaming → store response
+  - `isCacheableMessage()` replicates patterns from `conversation-classifier.ts` (GREETING_PATTERNS, FAREWELL_PATTERNS, SIMPLE_SOCIAL_PATTERNS) — could share but kept separate to avoid coupling caching to routing
+  - Response cache is scoped per NPC + CEFR (not per player), so responses are shared across players for the same NPC
+---

@@ -36,6 +36,7 @@ import { greetingCache } from './greeting-cache.js';
 import { classifyConversation } from './conversation-classifier.js';
 import type { ModelTier } from './conversation-classifier.js';
 import { speculativeCache, canonicalizeMessage } from './speculative-cache.js';
+import { responseCache, ResponseCache, isCacheableMessage } from './response-cache.js';
 import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -216,6 +217,36 @@ async function handleTextInput(
     }
   }
 
+  // ── Response cache check (generic messages only) ──────────────────
+  // Check for cached responses to common greetings/farewells/social exchanges.
+  const cefrForCache = (session.languageCode !== 'en' ? session.languageCode : 'A1') as string;
+  const responseCacheKey = isCacheableMessage(text)
+    ? ResponseCache.makeKey(characterId, cefrForCache, text, turnNumber)
+    : null;
+
+  if (responseCacheKey) {
+    const cachedResp = responseCache.get(responseCacheKey);
+    if (cachedResp) {
+      const cacheTimer = new PipelineTimer('response_cache_hit');
+
+      // Stream the cached response
+      sendJSON(ws, { type: 'text', text: cachedResp.text, isFinal: false, languageCode, sessionId });
+      sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
+
+      // Store in history
+      addToHistory(session, 'assistant', cachedResp.text);
+      const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
+      conversationContextCache.append(cacheKey, { role: 'user', content: text });
+      conversationContextCache.append(cacheKey, { role: 'assistant', content: cachedResp.text });
+
+      cacheTimer.stop();
+      sendJSON(ws, { type: 'done' });
+      return;
+    } else {
+      getConversationMetrics().record('response_cache_miss', 0);
+    }
+  }
+
   // Resolve LLM provider
   let llmProvider: IStreamingLLMProvider;
   try {
@@ -367,6 +398,11 @@ async function handleTextInput(
     const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
     conversationContextCache.append(cacheKey, { role: 'user', content: text });
     conversationContextCache.append(cacheKey, { role: 'assistant', content: fullResponse });
+
+    // Cache the response for future identical exchanges (generic messages only)
+    if (responseCacheKey) {
+      responseCache.set(responseCacheKey, fullResponse);
+    }
   }
 
   sendJSON(ws, { type: 'done' });

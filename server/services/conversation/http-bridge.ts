@@ -25,6 +25,7 @@ import './tts/google-tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
 import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
+import { responseCache } from './response-cache.js';
 import { analyzeConversation } from './quest-trigger-analyzer.js';
 import type { ActiveQuest } from './quest-trigger-analyzer.js';
 
@@ -726,7 +727,11 @@ export function registerConversationRoutes(app: Express): void {
    */
   app.get('/api/metrics/conversation', (_req: Request, res: Response) => {
     const metrics = getConversationMetrics();
-    res.json(metrics.getSnapshot());
+    const snapshot = metrics.getSnapshot();
+    res.json({
+      ...snapshot,
+      responseCache: responseCache.getStats(),
+    });
   });
 
   /**
