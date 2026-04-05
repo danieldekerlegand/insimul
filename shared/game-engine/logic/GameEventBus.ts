@@ -194,7 +194,9 @@ export type GameEvent =
   | { type: 'inventory_opened' }
   | { type: 'quest_log_opened' }
   // CEFR level advancement (auto-level-up after conversation)
-  | { type: 'cefr_level_advanced'; oldLevel: string; newLevel: string };
+  | { type: 'cefr_level_advanced'; oldLevel: string; newLevel: string }
+  // Grammar weakness events (fired when a pattern crosses the weakness threshold)
+  | { type: 'grammar_weakness_detected'; pattern: string; errorRate: number; totalAttempts: number };
 
 export type GameEventType = GameEvent['type'];
 

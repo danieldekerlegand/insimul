@@ -213,6 +213,7 @@ import type { QuestOfferData } from "@shared/game-engine/rendering/QuestOfferPan
 import { QuestNotificationManager } from "@shared/game-engine/rendering/QuestNotificationManager";
 import { ReputationManager } from "@shared/game-engine/rendering/ReputationManager";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
+import { checkForNewWeaknesses } from "@shared/language/grammar-weakness-analyzer";
 import { LanguageProgressTracker } from "@shared/game-engine/logic/LanguageProgressTracker";
 import { getCEFRDescription } from "@shared/assessment/cefr-mapping";
 import type { CEFRLevel } from "@shared/assessment/cefr-mapping";
@@ -3107,6 +3108,8 @@ export class BabylonGame {
         this.questLanguageFeedbackTracker.processGrammarFeedback(feedback);
         this.questNotificationManager?.updateLanguageProgress(this.questLanguageFeedbackTracker.getState());
       }
+      // Check for newly-weak grammar patterns and emit events
+      this.checkGrammarWeaknessesAfterFeedback(feedback);
     });
 
     // Initialize quest tracker
@@ -14331,6 +14334,31 @@ export class BabylonGame {
     // Restart the player's CharacterController
     if (this.playerController) {
       this.playerController.start();
+    }
+  }
+
+  /**
+   * Check for newly-weak grammar patterns after grammar feedback.
+   * Emits grammar_weakness_detected events for patterns that just crossed the threshold.
+   */
+  private checkGrammarWeaknessesAfterFeedback(feedback: any): void {
+    const tracker = this.chatPanel?.getLanguageTracker();
+    if (!tracker || !feedback?.errors) return;
+    const progress = tracker.getProgress();
+    const newlyWeak = checkForNewWeaknesses(progress, feedback);
+    for (const pattern of newlyWeak) {
+      const gp = progress.grammarPatterns.find(
+        (p: any) => p.pattern.toLowerCase() === pattern.toLowerCase(),
+      );
+      if (gp) {
+        const total = gp.timesUsedCorrectly + gp.timesUsedIncorrectly;
+        this.eventBus.emit({
+          type: 'grammar_weakness_detected',
+          pattern: gp.pattern,
+          errorRate: total > 0 ? gp.timesUsedIncorrectly / total : 0,
+          totalAttempts: total,
+        });
+      }
     }
   }
 

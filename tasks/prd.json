@@ -157,7 +157,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "parseGrammarFeedbackBlock() at progress.ts line 253 tracks correctCount/incorrectCount per pattern but nothing analyzes or acts on weaknesses."
     },
     {

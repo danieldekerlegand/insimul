@@ -8,9 +8,10 @@
  */
 
 import type { AssessmentDefinition } from './assessment-types';
-import type { DimensionScoreEntry, EvalDimensionScores } from '../language/progress';
+import type { DimensionScoreEntry, EvalDimensionScores, LanguageProgress } from '../language/progress';
 import { computeAverageDimensionScores, computeDimensionTrend } from '../language/progress';
 import type { DimensionTrend } from '../language/progress';
+import { analyzeGrammarWeaknesses, type GrammarWeakness } from '../language/grammar-weakness-analyzer';
 
 /** Levels at which a periodic assessment is triggered */
 export const PERIODIC_ASSESSMENT_LEVELS = [5, 10, 15, 20] as const;
@@ -155,4 +156,41 @@ export function buildPeriodicAssessmentDimensionContext(
   }
 
   return { recentAverages, trends, weakestDimension, strongestDimension };
+}
+
+/** Context about grammar weaknesses for periodic assessment targeting */
+export interface PeriodicAssessmentGrammarContext {
+  /** Weak grammar patterns to probe during the assessment */
+  weakPatterns: string[];
+  /** Full weakness data for the top patterns */
+  weaknesses: GrammarWeakness[];
+  /** Prompt addition instructing the assessor to test weak patterns */
+  assessmentPromptAddition: string;
+}
+
+/**
+ * Build grammar weakness context for a periodic assessment.
+ * The assessment will include questions targeting the player's
+ * weakest grammar patterns to get a more accurate proficiency picture.
+ */
+export function buildPeriodicAssessmentGrammarContext(
+  progress: LanguageProgress,
+): PeriodicAssessmentGrammarContext {
+  const analysis = analyzeGrammarWeaknesses(progress, { maxWeaknesses: 3 });
+
+  if (analysis.weaknesses.length === 0) {
+    return { weakPatterns: [], weaknesses: [], assessmentPromptAddition: '' };
+  }
+
+  const weakPatterns = analysis.weaknesses.map(w => w.pattern);
+  const patternList = weakPatterns.join(', ');
+
+  const assessmentPromptAddition =
+    `\n[GRAMMAR ASSESSMENT FOCUS]\n` +
+    `The player has been struggling with these grammar patterns: ${patternList}.\n` +
+    `Include at least 2-3 conversational prompts that naturally require using these patterns.\n` +
+    `Evaluate whether the player can use them correctly in context.\n` +
+    `Note: This is an assessment — observe and score, don't teach or correct during the assessment.\n`;
+
+  return { weakPatterns, weaknesses: analysis.weaknesses, assessmentPromptAddition };
 }

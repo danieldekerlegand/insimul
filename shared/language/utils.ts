@@ -13,6 +13,7 @@ import { cefrToFluencyTier } from '../assessment/cefr-mapping';
 import { getSpeechComplexity, buildDialogueRulesFromComplexity } from './speech-complexity';
 import { getNPCLanguageBehavior } from './cefr-adaptation';
 import { buildFrequencyDirective } from './vocabulary-frequency';
+import { buildWeakPatternDirective } from './grammar-weakness-analyzer';
 
 // ==========================================
 // Types
@@ -796,10 +797,9 @@ export function buildPlayerProficiencySection(
   // Build dialogue rules from speech complexity params
   section += '\n' + buildDialogueRulesFromComplexity(complexity, targetLanguage);
 
-  // Target weak patterns
+  // Target weak patterns — structured grammar modeling directive
   if (weakGrammarPatterns.length > 0 && complexity.effectiveFluency >= 20) {
-    section += `\nFOCUS AREA: The player struggles with ${weakGrammarPatterns.slice(0, 2).join(' and ')}. `;
-    section += `Try to naturally use these patterns in your speech so the player can learn by example.\n`;
+    section += buildWeakPatternDirective(weakGrammarPatterns, targetLanguage);
   }
 
   // Avoid re-teaching mastered patterns

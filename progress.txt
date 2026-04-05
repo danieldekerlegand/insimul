@@ -17,6 +17,8 @@ Started: Sun Mar 29 13:53:35 CDT 2026
 - `buildLanguageModeDirective()` now accepts optional 4th param `cefrLevel` — when provided, appends vocabulary frequency constraints to the directive
 - Word frequency data: `data/seed/language/word-frequency-ranks.json` — organized by language → CEFR band → word arrays
 - `Set` iteration with `for...of` causes TS errors in this project — use `Array.from(set).forEach()` instead
+- Grammar weakness analysis lives in `shared/language/grammar-weakness-analyzer.ts` — use `analyzeGrammarWeaknesses()` for weakness detection, `buildWeakPatternDirective()` for NPC prompts
+- Grammar quest generation lives in `shared/quests/grammar-quest-generator.ts` — 3 types: grammar_drill, correction_challenge, writing_practice; use `shouldGenerateGrammarQuest()` for quick checks
 ---
 
 ## 2026-04-05 - US-008: Enforce vocabulary frequency ranges in LLM prompts
@@ -1197,4 +1199,45 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The existing assessment_completed handler in BabylonGame already handles CEFR persistence, quest objective completion, and gamification recording — periodic assessments can reuse it by emitting the same event
   - NoticeArticle assessmentHook.assessmentType was originally union 'arrival' | 'departure' — extended to include 'periodic'
   - MenuJournalData is constructed in two places in BabylonGame: one for offline/exported games, one for server-backed games — both need updating
+---
+
+## 2026-04-05 - US-009: Generate error-correction quests from weak grammar patterns
+- Created `shared/language/grammar-weakness-analyzer.ts` — grammar weakness analysis module with:
+  - `analyzeGrammarWeaknesses()` — identifies patterns with >50% error rate and 3+ attempts, returns prioritized weaknesses
+  - `isPatternWeak()` — single-pattern threshold check
+  - `getWeakPatternNames()` / `getStrongPatternNames()` — extract pattern names for prompt inclusion
+  - `createErrorRateSnapshot()` / `measurePatternImprovement()` — effectiveness tracking between snapshots
+  - `checkForNewWeaknesses()` — detect patterns that just crossed the threshold after grammar feedback
+  - `buildWeakPatternDirective()` — structured NPC system prompt directive for grammar modeling
+- Created `shared/quests/grammar-quest-generator.ts` — targeted quest generation with 3 types:
+  - Grammar Drill — guided conversation with teacher NPC, progressive exercises
+  - Correction Challenge — read passage with intentional errors, find/fix them
+  - Writing Practice — write sentences using the pattern, LLM-scored
+  - `generateGrammarQuests()` — generates quests from weak patterns, skipping patterns with active quests
+  - `measureQuestEffectiveness()` — compares pre/post error rates to evaluate quest impact
+  - `shouldGenerateGrammarQuest()` — quick check for whether quest generation is warranted
+- Wired grammar weakness detection in BabylonGame.ts:
+  - `checkGrammarWeaknessesAfterFeedback()` method calls `checkForNewWeaknesses()` after each grammar feedback
+  - Emits `grammar_weakness_detected` event on GameEventBus when patterns cross the threshold
+- Enhanced NPC system prompts:
+  - `buildPlayerProficiencySection()` in utils.ts now uses `buildWeakPatternDirective()` for structured grammar modeling
+  - Directive instructs NPC to naturally model correct usage without lecturing
+- Integrated with periodic assessment:
+  - `buildPeriodicAssessmentGrammarContext()` in periodic-encounter.ts builds weak-pattern context
+  - Assessment prompt addition instructs assessor to probe weak patterns with natural conversation prompts
+- Files changed:
+  - `shared/language/grammar-weakness-analyzer.ts` — new module
+  - `shared/quests/grammar-quest-generator.ts` — new module
+  - `shared/game-engine/rendering/BabylonGame.ts` — import + checkGrammarWeaknessesAfterFeedback() + grammar feedback wiring
+  - `shared/game-engine/logic/GameEventBus.ts` — added grammar_weakness_detected event type
+  - `shared/language/utils.ts` — import buildWeakPatternDirective, use in buildPlayerProficiencySection
+  - `shared/assessment/periodic-encounter.ts` — import analyzer, add buildPeriodicAssessmentGrammarContext()
+  - `shared/__tests__/grammar-weakness-quests.test.ts` — 37 new tests
+  - `shared/game-engine/drift-manifest.json` — updated hash
+  - `tasks/prd.json` — US-009 passes: true
+- **Learnings for future iterations:**
+  - `error-correction-quest-generator.ts` already existed with `analyzeErrorPatterns()` (different thresholds: 30% min error, 2 min uses) — the new grammar-weakness-analyzer uses stricter thresholds (50%, 3) as specified in requirements
+  - Grammar feedback callback in BabylonGame is `setOnGrammarFeedbackExternal` — it's a good integration point for real-time weakness detection
+  - `buildPlayerProficiencySection()` in utils.ts is the central NPC prompt builder — add grammar directives there, not in individual NPC modules
+  - `PeriodicAssessmentDimensionContext` in periodic-encounter.ts is the pattern for adding assessment context — follow same pattern for grammar context
 ---
