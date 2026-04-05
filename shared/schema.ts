@@ -1380,6 +1380,9 @@ export const playerProgress = pgTable("player_progress", {
   currentPosition: jsonb("current_position").$type<{ x: number; y: number; z: number }>().default({ x: 0, y: 0, z: 0 }),
   currentLocation: text("current_location"), // Settlement or location name
 
+  // CEFR language proficiency level (A1, A2, B1, B2, C1, C2)
+  cefrLevel: text("cefr_level"),
+
   // Progress tracking
   questsCompleted: jsonb("quests_completed").$type<string[]>().default([]),
   achievementsUnlocked: jsonb("achievements_unlocked").$type<string[]>().default([]),

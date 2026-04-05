@@ -126,6 +126,16 @@ export function createNpcExamRoutes(storage: IStorage): Router {
         result.cefrLevel,
       );
 
+      // Mirror cefrLevel to playerProgress for direct server-side queries
+      if (result.cefrLevel) {
+        const playerProg = await storage.getPlayerProgressByUser(playerId, worldId);
+        if (playerProg) {
+          await storage.updatePlayerProgress(playerProg.id, { cefrLevel: result.cefrLevel } as any).catch(err =>
+            console.warn('[NpcExam] Failed to mirror cefrLevel to playerProgress:', err)
+          );
+        }
+      }
+
       res.json({ result, sessionId: session.id });
     } catch (error) {
       console.error('Score NPC exam error:', error);

@@ -772,6 +772,14 @@ export class ApiDataSource implements DataSource {
     return { sessionId, phaseId, ...data };
   }
 
+  async updatePlayerProgressCefrLevel(userId: string, worldId: string, cefrLevel: string, playthroughId?: string): Promise<void> {
+    await fetch(`${this.baseUrl}/api/player-progress/cefr-level`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ userId, worldId, cefrLevel, playthroughId }),
+    });
+  }
+
   async completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any> {
     // TODO: Replace with Prolog fact assertion: assessment_complete(PlayerID, SessionID, Score, CEFR).
     console.warn('[DataSource] completeAssessment stubbed — TODO: integrate via Prolog');
@@ -2351,6 +2359,13 @@ export class FileDataSource implements DataSource {
       this._storage.setItem(key, JSON.stringify(existing));
     } catch { /* storage full or unavailable */ }
     return result;
+  }
+
+  async updatePlayerProgressCefrLevel(userId: string, worldId: string, cefrLevel: string, playthroughId?: string): Promise<void> {
+    const key = `insimul_player_progress_cefr_${userId}_${worldId}` + (playthroughId ? `_${playthroughId}` : '');
+    try {
+      this._storage.setItem(key, cefrLevel);
+    } catch { /* storage full or unavailable */ }
   }
 
   async completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any> {

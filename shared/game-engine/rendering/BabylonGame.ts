@@ -4166,9 +4166,15 @@ export class BabylonGame {
       // Track CEFR level for main quest gating
       if (event.cefrLevel) {
         this.playerCefrLevel = event.cefrLevel;
-        // Try to unlock next chapter if CEFR-gated
+        // Persist cefrLevel to playerProgress for server-side queries
         const worldId = this.config.worldId;
         const playerId = this.config.userId || 'player';
+        this.dataSource.updatePlayerProgressCefrLevel(
+          playerId, worldId, event.cefrLevel, this.playthroughId || undefined,
+        ).catch(err =>
+          console.warn('[BabylonGame] Failed to persist assessment cefrLevel to playerProgress:', err)
+        );
+        // Try to unlock next chapter if CEFR-gated
         this.dataSource.tryUnlockMainQuest(worldId, playerId, event.cefrLevel)
           .then(() => this.fetchMainQuestJournalData()).catch(() => {});
       }
@@ -4813,6 +4819,16 @@ export class BabylonGame {
               `player_cefr_level(player, ${newLevel.toLowerCase()})`
             ).catch(err =>
               console.warn('[BabylonGame] Failed to assert CEFR level:', err)
+            );
+          }
+
+          // Persist cefrLevel to playerProgress for server-side queries
+          if (this.dataSource) {
+            const playerId = this.config.userId || 'player';
+            this.dataSource.updatePlayerProgressCefrLevel(
+              playerId, this.config.worldId, newLevel, this.playthroughId || undefined,
+            ).catch(err =>
+              console.warn('[BabylonGame] Failed to persist cefrLevel to playerProgress:', err)
             );
           }
 

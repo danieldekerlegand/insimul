@@ -514,6 +514,13 @@ export class SaveFileDataSource implements DataSource {
     console.warn('[SaveFileDS] submitAssessmentPhase stubbed — TODO: integrate via Prolog');
     return { sessionId, phaseId, ...data };
   }
+  async updatePlayerProgressCefrLevel(_userId: string, _worldId: string, cefrLevel: string, _playthroughId?: string): Promise<void> {
+    // Persist in in-memory state; will be flushed on next save
+    if (!this.state) return;
+    (this.state as any).cefrLevel = cefrLevel;
+    this.dirty = true;
+  }
+
   async completeAssessment(sessionId: string, data: any) {
     // TODO: Replace with Prolog fact: assessment_complete(PlayerID, SessionID, Score, CEFR).
     console.warn('[SaveFileDS] completeAssessment stubbed — TODO: integrate via Prolog');

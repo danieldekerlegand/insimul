@@ -125,6 +125,18 @@ export function createAssessmentRoutes(storage: IStorage): Router {
         return res.status(404).json({ message: 'Assessment session not found' });
       }
 
+      // Mirror cefrLevel to playerProgress for direct server-side queries
+      if (cefrLevel && session.playerId && session.worldId) {
+        const playerProg = await storage.getPlayerProgressByUser(
+          session.playerId, session.worldId, (session as any).playthroughId,
+        );
+        if (playerProg) {
+          await storage.updatePlayerProgress(playerProg.id, { cefrLevel } as any).catch(err =>
+            console.warn('[Assessment] Failed to mirror cefrLevel to playerProgress:', err)
+          );
+        }
+      }
+
       res.json(session);
     } catch (error) {
       console.error('Complete assessment session error:', error);

@@ -88,6 +88,15 @@ export function createTelemetryRoutes(storage: any): Router {
       // Upsert progress if provided
       if (progress) {
         results.progress = await storage.upsertLanguageProgress(playerId, worldId, progress, playthroughId);
+
+        // Mirror cefrLevel to playerProgress for direct server-side queries
+        if (progress.cefrLevel) {
+          const userId = (req as any).user?.id || playerId;
+          const playerProg = await storage.getPlayerProgressByUser(userId, worldId, playthroughId);
+          if (playerProg) {
+            await storage.updatePlayerProgress(playerProg.id, { cefrLevel: progress.cefrLevel } as any);
+          }
+        }
       }
 
       // Upsert vocabulary entries
@@ -1102,6 +1111,52 @@ export function createTelemetryRoutes(storage: any): Router {
     } catch (error) {
       console.error('Quest peer comparison error:', error);
       res.status(500).json({ message: 'Failed to get quest peer comparison' });
+    }
+  });
+
+  // ============= PLAYER PROGRESS CEFR LEVEL =============
+
+  // PATCH /api/player-progress/cefr-level — update cefrLevel on playerProgress
+  router.patch('/player-progress/cefr-level', async (req: Request, res: Response) => {
+    try {
+      const { userId, worldId, playthroughId, cefrLevel } = req.body;
+      const validLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+      if (!userId || !worldId || !cefrLevel) {
+        return res.status(400).json({ message: 'Missing required fields: userId, worldId, cefrLevel' });
+      }
+      if (!validLevels.includes(cefrLevel)) {
+        return res.status(400).json({ message: `Invalid cefrLevel: ${cefrLevel}. Must be one of ${validLevels.join(', ')}` });
+      }
+
+      const playerProg = await storage.getPlayerProgressByUser(userId, worldId, playthroughId);
+      if (!playerProg) {
+        return res.status(404).json({ message: 'Player progress not found' });
+      }
+
+      await storage.updatePlayerProgress(playerProg.id, { cefrLevel } as any);
+      res.json({ updated: true, cefrLevel });
+    } catch (error) {
+      console.error('Update player progress cefrLevel error:', error);
+      res.status(500).json({ message: 'Failed to update cefrLevel' });
+    }
+  });
+
+  // GET /api/player-progress/:userId/:worldId/cefr-level — read cefrLevel from playerProgress
+  router.get('/player-progress/:userId/:worldId/cefr-level', async (req: Request, res: Response) => {
+    try {
+      const { userId, worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+
+      const playerProg = await storage.getPlayerProgressByUser(userId, worldId, playthroughId);
+      if (!playerProg) {
+        return res.status(404).json({ message: 'Player progress not found' });
+      }
+
+      res.json({ cefrLevel: (playerProg as any).cefrLevel || null });
+    } catch (error) {
+      console.error('Get player progress cefrLevel error:', error);
+      res.status(500).json({ message: 'Failed to get cefrLevel' });
     }
   });
 

@@ -11635,7 +11635,10 @@ Make the action names thematic and immersive.`;
         playerId, worldId, typeof playthroughId === 'string' ? playthroughId : undefined,
       );
       const playerVocabulary = langProgress?.vocabulary ?? [];
-      const cefrLevel = langProgress?.cefrLevel;
+      // Prefer cefrLevel from playerProgress (direct column) over langProgress blob
+      const userId = (req as any).user?.id || playerId;
+      const playerProg = await storage.getPlayerProgressByUser(userId, worldId, typeof playthroughId === 'string' ? playthroughId : undefined);
+      const cefrLevel = (playerProg as any)?.cefrLevel || langProgress?.cefrLevel;
 
       // Extract quest vocab input from quest data
       const objectives = (quest.objectives as any[]) ?? [];

@@ -146,6 +146,9 @@ export interface IDataSource {
   loadReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null>;
   syncReadingProgress(data: { playerId: string; worldId: string; playthroughId?: string; quizAnswers: any[]; totalCorrect: number; totalAttempted: number }): Promise<void>;
 
+  // ── Player progress CEFR ──
+  updatePlayerProgressCefrLevel(userId: string, worldId: string, cefrLevel: string, playthroughId?: string): Promise<void>;
+
   // ── Assessment ──
   createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any>;
   submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any>;
