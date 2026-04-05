@@ -1499,3 +1499,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `session.history` array contains alternating user/assistant messages — `Math.floor(length / 2) + 1` gives correct 1-based turn number
   - DB queries in `buildContext()` are fast (in-memory MongoDB) — the real latency savings come from shorter system prompts reducing LLM inference time
   - Pre-existing TS errors in client/ files are unrelated — check only server/ and shared/ for regressions
+---
+
+## 2026-04-05 - US-005: Pre-generate NPC-NPC conversation pool
+- Created `server/services/conversation/npc-conversation-pool.ts` — NpcConversationPool class with:
+  - `add()` — stores conversations per world, respects capacity (default 50)
+  - `take(worldId, npc1Id, npc2Id, gameHour?)` — best-match retrieval: exact NPC pair > partial match > any available
+  - `isFull()` / `needsReplenishment()` — capacity and threshold checks (default threshold: 30)
+  - `evictStale()` — removes conversations older than 3 game-days, deprioritizes >1 game-day old
+  - `getStats()` / `getGeneratedTopics()` — topic diversity tracking and pool statistics
+  - `replenishPool()` — async helper that generates conversations in batches respecting maxConcurrent rate limit
+  - Singleton `npcConversationPool` export for shared use
+- Integrated pool into `npc-conversation-engine.ts` `initiateConversation()`:
+  - Pool checked BEFORE LLM call — if pool has a match, returns instantly with pool data
+  - Emits both start and end events for pool-sourced conversations
+  - Falls through to existing LLM/fallback path on pool miss
+- Files changed:
+  - `server/services/conversation/npc-conversation-pool.ts` — new pool module
+  - `server/services/conversation/npc-conversation-engine.ts` — pool integration + re-exports
+  - `server/__tests__/npc-conversation-pool.test.ts` — 25 new tests
+  - `tasks/prd.json` — marked US-005 as passing
+- **Learnings for future iterations:**
+  - When `evictStale()` replaces the pool array via `filter()`, local references in `take()` become stale — must re-fetch from map after eviction
+  - `replenishPool()` batches with `Math.min(remaining, maxConcurrent)` so the last batch may be smaller than maxConcurrent
+  - The `take()` scoring system: exact pair = +100, partial match = +10, stale penalty = -50 — ensures exact matches win even when stale
+  - Pre-existing TS errors in `server/tests/test-npc-conversation-engine.ts` are about missing `ContextManagerStorage` fields — not related to pool changes

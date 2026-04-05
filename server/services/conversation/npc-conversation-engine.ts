@@ -23,6 +23,8 @@ import type { Character, World } from '@shared/schema';
 import type { WorldLanguage } from '@shared/language';
 import type { WeatherCondition } from '@shared/npc-awareness-context';
 import { describeWeather, describeTime } from '@shared/npc-awareness-context';
+import { npcConversationPool } from './npc-conversation-pool.js';
+import type { PooledConversation } from './npc-conversation-pool.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -577,6 +579,34 @@ export async function initiateConversation(
       topic,
     });
 
+    // Check pre-generated pool first
+    const pooled = npcConversationPool.take(
+      worldId, npc1Id, npc2Id, environment?.gameHour,
+    );
+    if (pooled) {
+      const durationMs = Date.now() - startTime;
+      options?.eventEmitter?.emit({
+        type: 'ambient_conversation_ended',
+        conversationId,
+        participants: [npc1Id, npc2Id],
+        locationId: location,
+        topic: pooled.topic,
+        durationMs,
+        vocabularyCount: 0,
+      });
+      return {
+        conversationId,
+        npc1Id,
+        npc2Id,
+        worldId,
+        topic: pooled.topic,
+        exchanges: pooled.exchanges,
+        relationshipDelta: pooled.relationshipDelta,
+        durationMs,
+        languageUsed: pooled.languageUsed,
+      };
+    }
+
     // Try LLM-based conversation
     let exchanges: ConversationExchange[];
     const llm = options?.llmProvider;
@@ -664,3 +694,7 @@ export {
   FALLBACK_TEMPLATES,
   MAX_CONCURRENT_PER_WORLD,
 };
+
+// Re-export pool for external access
+export { npcConversationPool } from './npc-conversation-pool.js';
+export type { PooledConversation, PoolStats } from './npc-conversation-pool.js';

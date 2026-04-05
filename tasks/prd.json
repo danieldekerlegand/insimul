@@ -89,7 +89,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "No conversation pre-generation exists — HIGH severity bottleneck. Expected: near-instant NPC-NPC display."
     },
     {
