@@ -1835,3 +1835,18 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `GreetingVariant` interface is exported and used by greeting-cache tests — adding optional fields is backward compatible
   - The TTS cache's TTL eviction is lazy (on access) not proactive — no background sweep needed for 200-entry cache
 ---
+
+## 2026-04-05 - US-017: Automated tests for chat performance systems
+- Created integration test at `server/__tests__/chat-performance-integration.test.ts` — 15 tests covering the full player flow
+- Test phases: (1) pre-warm greeting/context/speculative caches, (2) serve cached greeting, (3) 3-turn conversation with context caching + response cache + classifier, (4) NPC-NPC from pool, (5) full sequential pipeline, (6) adaptive quality degradation/recovery, (7) cross-layer cache invalidation + canonicalization
+- All 8 unit test files (221 tests) + integration test (15 tests) = 236 total tests pass
+- Files changed:
+  - `server/__tests__/chat-performance-integration.test.ts` — new integration test (15 tests)
+- **Learnings for future iterations:**
+  - `ConversationMetricsCollector.getSnapshot()` only includes a hardcoded subset of MetricStage in its `stages` record — use `getStageStats(stage)` for stages like `speculative_cache_hit`, `npc_npc_pool_served` that aren't in the snapshot
+  - `GreetingCache` uses `set()` / `get()` (returns `string | null`), not `addGreetings` / `getGreeting`
+  - `SpeculativeResponseCache` uses `set()` not `store()`, `ResponseCache` uses `set()` not `store()`
+  - `NpcConversationPool` uses `getStats()` not `stats()`
+  - `ConversationExchange` uses `speakerId`/`speakerName`/`timestamp` fields, `RelationshipDelta` uses `friendshipChange`/`trustChange`/`romanceSpark`
+  - Pre-existing TS errors in `shared/quests/` and `shared/schema.ts` — not related to chat performance work
+---
