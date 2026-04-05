@@ -1471,6 +1471,18 @@ export class BabylonGame {
       }
     });
 
+    // Pre-warm LLM context when player approaches an NPC
+    this.eventBus.on('player_near_npc', (event) => {
+      const insimulClient = this.chatPanel?.getInsimulClient();
+      if (insimulClient) {
+        const worldId = this.config.worldId;
+        const playerId = this.config.userId || 'player';
+        insimulClient.preWarm(event.npcId, worldId, playerId).catch(() => {
+          // Pre-warm is best-effort
+        });
+      }
+    });
+
     // Show toast notification when a new clue is discovered
     this.eventBus.on('clue_discovered', (event) => {
       this.guiManager?.showToast({

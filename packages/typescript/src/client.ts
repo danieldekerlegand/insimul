@@ -293,6 +293,16 @@ export class InsimulClient {
     return this.sendText(transcript, options);
   }
 
+  /**
+   * Pre-warm LLM context for an NPC so the first conversation turn is fast.
+   * Best-effort — silently ignores failures. Only works with server chat provider.
+   */
+  async preWarm(characterId: string, worldId: string, playerId: string): Promise<void> {
+    if (this.chatType === 'server' && 'preWarm' in this.chatProvider) {
+      await (this.chatProvider as any).preWarm(characterId, worldId, playerId);
+    }
+  }
+
   abort(): void {
     this.chatProvider?.abort();
     this.ttsProvider?.abort();

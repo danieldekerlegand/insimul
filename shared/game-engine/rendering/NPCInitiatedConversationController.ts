@@ -95,6 +95,12 @@ const GREETING_TIMEOUT_MS = 15000;
 /** Cooldown after an NPC approaches (successful or not), in ms */
 const APPROACH_COOLDOWN_MS = 120000;
 
+/** Radius at which to trigger LLM context pre-warming */
+const PRE_WARM_RADIUS = 10;
+
+/** Cooldown between pre-warm triggers for the same NPC (ms) */
+const PRE_WARM_COOLDOWN_MS = 60000;
+
 /** Max simultaneous approach attempts */
 const MAX_APPROACHES = 1;
 
@@ -213,6 +219,8 @@ export class NPCInitiatedConversationController {
   private npcs: Map<string, ApproachableNPC> = new Map();
   private activeApproach: ApproachAttempt | null = null;
   private approachCooldowns: Map<string, number> = new Map();
+  private preWarmCooldowns: Map<string, number> = new Map();
+  private lastPreWarmedNpcId: string | null = null;
   private accumulatedGameMinutes = 0;
   private lastEvalGameMinute = 0;
   private greetingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -303,6 +311,9 @@ export class NPCInitiatedConversationController {
       this.evaluateApproach();
     }
 
+    // Evaluate pre-warm on every update tick (debounced by cooldown per NPC)
+    this.evaluatePreWarm();
+
     // Update active approach (check if NPC reached player)
     if (this.activeApproach && !this.activeApproach.hasReached) {
       this.updateApproach();
@@ -345,6 +356,61 @@ export class NPCInitiatedConversationController {
     }
 
     return Math.max(0, Math.min(1, prob));
+  }
+
+  /**
+   * Evaluate whether to pre-warm LLM context for the nearest NPC within range.
+   * Debounced: only fires for the single nearest NPC, with a 60s cooldown per NPC.
+   * Cancels pre-warm if player moves away (lastPreWarmedNpcId reset).
+   */
+  private evaluatePreWarm(): void {
+    if (this.callbacks.isPlayerInConversation()) return;
+
+    const playerPos = this.callbacks.getPlayerPosition();
+    if (!playerPos) return;
+
+    const now = Date.now();
+    let nearestNpc: ApproachableNPC | null = null;
+    let nearestDist = PRE_WARM_RADIUS + 1;
+
+    const npcList = Array.from(this.npcs.values());
+    for (const npc of npcList) {
+      if (npc.isInConversation) continue;
+
+      const dx = playerPos.x - npc.position.x;
+      const dz = playerPos.z - npc.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      if (dist <= PRE_WARM_RADIUS && dist < nearestDist) {
+        nearestDist = dist;
+        nearestNpc = npc;
+      }
+    }
+
+    // If no NPC in range, reset tracking
+    if (!nearestNpc) {
+      this.lastPreWarmedNpcId = null;
+      return;
+    }
+
+    // Skip if already pre-warmed this NPC recently
+    const lastPreWarm = this.preWarmCooldowns.get(nearestNpc.id) ?? 0;
+    if (now - lastPreWarm < PRE_WARM_COOLDOWN_MS) return;
+
+    // Skip if this is the same NPC we just pre-warmed (player hasn't moved away)
+    if (this.lastPreWarmedNpcId === nearestNpc.id) return;
+
+    // Fire pre-warm event
+    this.preWarmCooldowns.set(nearestNpc.id, now);
+    this.lastPreWarmedNpcId = nearestNpc.id;
+
+    this.callbacks.onEmitEvent?.({
+      type: 'player_near_npc',
+      npcId: nearestNpc.id,
+      npcName: nearestNpc.name,
+      worldId: '', // Filled by BabylonGame listener
+      distance: nearestDist,
+    });
   }
 
   /** Evaluate whether any NPC should approach the player. */
@@ -511,5 +577,7 @@ export class NPCInitiatedConversationController {
     this.activeApproach = null;
     this.npcs.clear();
     this.approachCooldowns.clear();
+    this.preWarmCooldowns.clear();
+    this.lastPreWarmedNpcId = null;
   }
 }

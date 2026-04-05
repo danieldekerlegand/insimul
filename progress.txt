@@ -1397,3 +1397,41 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `sessions` Map in grpc-server.ts is private — use `getSession(sessionId)` to access individual sessions; for world-level invalidation, `cache.clear()` is simplest
   - Pre-existing TS errors in ws-bridge.ts (line ~415, `assignVoiceProfile({})`) and many client files — these are not caused by this change
 ---
+
+## 2026-04-05 - US-002: Pre-warm LLM context on player proximity
+- Added `player_near_npc` event to GameEventBus with npcId, npcName, worldId, distance fields
+- Added `pre_warm` metric stage to conversation-metrics.ts (MetricStage type + allStages array)
+- Added proximity-based pre-warm evaluation in NPCInitiatedConversationController:
+  - `evaluatePreWarm()` runs on every update tick (alongside existing evaluateApproach)
+  - Detects nearest NPC within 10-unit radius (PRE_WARM_RADIUS constant)
+  - Debounced: only fires for nearest NPC, 60s cooldown per NPC (PRE_WARM_COOLDOWN_MS)
+  - Resets when player moves away (lastPreWarmedNpcId tracking)
+  - Emits `player_near_npc` event via onEmitEvent callback
+- Added `handlePreWarm()` in ws-bridge.ts:
+  - Accepts preWarm message with characterId, worldId, playerId
+  - Checks cache first (skips if already cached), builds context via buildContext()
+  - Stores in conversationContextCache for instant first-turn access
+  - Records `pre_warm` metric via PipelineTimer
+  - Fire-and-forget from WebSocket handler (non-blocking)
+  - Sends `pre_warm_ack` response with status (already_cached/warmed/error)
+- Added `preWarm()` method to ServerChatProvider (SDK) for sending preWarm WS message
+- Added `preWarm()` method to InsimulClient (delegates to server chat provider)
+- Wired BabylonGame.ts: listens for `player_near_npc` event, calls `insimulClient.preWarm()`
+- Added `pre_warm_ack` case to ServerChatProvider dispatch (silent acknowledgment)
+- Files changed:
+  - `shared/game-engine/logic/GameEventBus.ts` — added player_near_npc event type
+  - `server/services/conversation/conversation-metrics.ts` — added pre_warm metric stage
+  - `shared/game-engine/rendering/NPCInitiatedConversationController.ts` — proximity detection + pre-warm evaluation
+  - `server/services/conversation/ws-bridge.ts` — handlePreWarm() + preWarm message handler
+  - `packages/typescript/src/providers/chat/server-chat-provider.ts` — preWarm() method + pre_warm_ack dispatch
+  - `packages/typescript/src/client.ts` — preWarm() on InsimulClient
+  - `shared/game-engine/rendering/BabylonGame.ts` — player_near_npc event listener
+  - `shared/__tests__/pre-warm-proximity.test.ts` — 12 new tests
+  - `tasks/prd.json` — US-002 passes: true
+- **Learnings for future iterations:**
+  - NPCInitiatedConversationController.evaluateApproach() uses APPROACH_EVAL_RADIUS (15 units); pre-warm uses a tighter PRE_WARM_RADIUS (10 units) since it fires more eagerly
+  - The controller runs on the client (Babylon.js) but pre-warming is a server operation — the client sends a fire-and-forget WS message; server builds context async
+  - `conversationContextCache.has()` is available for quick existence checks without touching TTL/LRU
+  - InsimulClient.preWarm() uses `'preWarm' in this.chatProvider` type guard since only ServerChatProvider implements it
+  - BabylonGame.ts event handlers are wired in the initialization block around line 1410-1475 alongside clue discovery handlers
+---

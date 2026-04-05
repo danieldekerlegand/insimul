@@ -477,6 +477,43 @@ function handleSystemCommand(
   }
 }
 
+// ── LLM context pre-warming ──────────────────────────────────────────
+
+/**
+ * Pre-warm the LLM context for an NPC before the player opens chat.
+ * Builds context and caches it so that the first turn is instant.
+ * Fire-and-forget — does not block the WebSocket message loop.
+ */
+async function handlePreWarm(
+  ws: WebSocket,
+  msg: { characterId: string; worldId: string; playerId: string },
+): Promise<void> {
+  const { characterId, worldId, playerId } = msg;
+  const cacheKey = ConversationContextCache.chatKey(worldId, characterId, playerId);
+
+  // Skip if already cached
+  if (conversationContextCache.has(cacheKey)) {
+    sendJSON(ws, { type: 'pre_warm_ack', characterId, status: 'already_cached' });
+    return;
+  }
+
+  const timer = new PipelineTimer('pre_warm');
+  try {
+    const fullCtx = await buildContext(characterId, playerId, worldId, `prewarm-${Date.now()}`);
+    conversationContextCache.set(cacheKey, {
+      messages: [],
+      formattedContext: JSON.stringify(fullCtx.conversationContext),
+      systemPrompt: fullCtx.conversationContext.systemPrompt,
+    });
+    const elapsed = timer.stop();
+    sendJSON(ws, { type: 'pre_warm_ack', characterId, status: 'warmed', durationMs: elapsed });
+  } catch (err: any) {
+    timer.stop();
+    console.error('[WS-Bridge] Pre-warm error:', err.message);
+    sendJSON(ws, { type: 'pre_warm_ack', characterId, status: 'error' });
+  }
+}
+
 // ── Context cache invalidation ────────────────────────────────────────
 
 /**
@@ -566,6 +603,13 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
             if (sess) sess.conversationContext = null;
           }
           sendJSON(ws, { type: 'context_invalidated', reason });
+        } else if (message.preWarm) {
+          // Pre-warm LLM context for an NPC before conversation starts
+          const { characterId, worldId, playerId } = message.preWarm;
+          // Fire-and-forget — don't await, let it run in background
+          handlePreWarm(ws, { characterId, worldId, playerId }).catch((err: any) => {
+            console.error('[WS-Bridge] Pre-warm background error:', err.message);
+          });
         } else if (message.resumeSession) {
           // Reconnection: client provides previous sessionId to resume
           const { sessionId } = message.resumeSession;

@@ -35,7 +35,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "LLM cold start is 1-4+ seconds. NPCInitiatedConversationController already tracks proximity at 15-unit radius. Expected: -1-2s first token latency."
     },
     {

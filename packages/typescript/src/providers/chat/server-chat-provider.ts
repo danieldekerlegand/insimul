@@ -227,6 +227,9 @@ export class ServerChatProvider implements ChatProvider {
       case 'vocab_hints': case 'grammar_feedback': case 'quest_assign': case 'eval':
         this.callbacks.onMetadata?.(parsed.type, parsed.content ?? '');
         break;
+      case 'pre_warm_ack':
+        // Silently acknowledge pre-warm result — no user-facing action needed
+        break;
       case 'error':
         this.callbacks.onError?.(new Error(parsed.message || 'Server error'));
         break;
@@ -284,6 +287,25 @@ export class ServerChatProvider implements ChatProvider {
         reject(err);
       }
     });
+  }
+
+  // ── Pre-warm ──────────────────────────────────────────────────────────
+
+  /**
+   * Pre-warm LLM context for an NPC. Fire-and-forget — builds and caches
+   * the context on the server so that the first conversation turn is fast.
+   */
+  async preWarm(characterId: string, worldId: string, playerId: string): Promise<void> {
+    try {
+      await this.ensureWSConnected();
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({
+          preWarm: { characterId, worldId, playerId },
+        }));
+      }
+    } catch {
+      // Pre-warm is best-effort — silently ignore failures
+    }
   }
 
   // ── SSE fallback transport ────────────────────────────────────────────
