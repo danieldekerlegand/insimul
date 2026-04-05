@@ -1356,3 +1356,22 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Drift manifest must be updated when any file in `shared/game-engine/rendering/` changes
   - `ImmersionTransitionController` uses `Date.now()` — use `vi.useFakeTimers()` in tests
 ---
+
+## 2026-04-05 - US-012: Automated tests for assessment-adaptation pipeline
+- Created `shared/__tests__/cefr-advancement.test.ts` — 14 tests covering checkCEFRAdvancement() at/below/above thresholds, max level behavior, progress tracking, threshold data integrity
+- Verified `shared/__tests__/mastery-consistency.test.ts` — 14 tests verifying all mastery definitions agree (vocabulary-constants, progress.ts, vocabulary-review, cefr-adaptation, knowledge-acquisition)
+- Verified `shared/__tests__/cefr-adaptation.test.ts` — 42 tests covering getNPCLanguageBehavior(), getHintBehavior(), shouldShowVocabHint(), filterQuestsByCEFR(), cefrToVocabularyRange(), getCEFRTextComplexity(), buildScaffoldingDirective() per level
+- Verified `shared/__tests__/ConversationDifficultyMonitor.test.ts` — 22 tests covering struggle detection, scaffolding activation, stretch activation, de-escalation, reset between conversations, callbacks, interrupted streaks
+- Verified `shared/__tests__/periodic-assessment-trigger.test.ts` — 22 tests covering milestone levels, cooldown, PERIODIC_ENCOUNTER structure, LanguageGamificationTracker integration, buildPeriodicAssessmentDimensionContext
+- Created `shared/__tests__/assessment-adaptation-pipeline.test.ts` — 4 integration tests simulating full journey: initial assessment → A1 → conversations → scaffolding → auto-level-up → A2 → periodic assessment → grammar weakness → quest generation → B1 → stretch challenge
+- Total: 118 tests across 6 files, all passing
+- Files changed:
+  - `shared/__tests__/cefr-advancement.test.ts` — new test file (14 tests)
+  - `shared/__tests__/assessment-adaptation-pipeline.test.ts` — new integration test file (4 tests)
+  - `tasks/prd.json` — US-012 passes: true
+- **Learnings for future iterations:**
+  - Test files must be under `shared/__tests__/` (not `shared/assessment/__tests__/` or `shared/game-engine/__tests__/`) per vitest include patterns
+  - `calculateMasteryLevel()` has encounter-based fallback: 10 encounters + 0 correct → 'learning', not 'new'. Tests comparing with `getMasteryForCorrectCount()` must account for this
+  - A1→A2 has textsRead=0, so textsProgress is always 1.0 — don't assert it equals 0
+  - Pre-existing TS errors (831) are unrelated to assessment-adaptation code; new test files compile cleanly
+---
