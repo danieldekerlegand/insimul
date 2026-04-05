@@ -1579,3 +1579,31 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `npcTalkingIndicator` (not `talkingIndicator`) is the correct field name on BabylonGame
   - The eavesdrop key is `KEY_EAVESDROP = 'KeyY'` (not V, which is vocabulary panel)
   - Pre-existing TS errors exist in client/ files (AdminAssetsHub, DataSource, etc.) — unrelated to this change
+---
+
+## 2026-04-05 - US-008: Proximity greetings from NPCs
+- Added `evaluateCallout()` method to `NPCInitiatedConversationController`, running every 30 game-seconds
+- Callout probability: base 20%, +20% for extroverts (>0.7), -10% for introverts (<0.3), 50% fixed for quest-bearers
+- Callout range: 8 units from player
+- Speech bubble via `NPCTalkingIndicator.show()` with `❗` prefix for quest-bearer NPCs
+- '[G] Respond' toast shown for 7 seconds (4s bubble + 3s respond window); G key opens full conversation
+- Cooldowns: 60s per NPC, 15s global; also respects approach cooldown
+- Added `CalloutAttempt` type, `acceptCallout()` public method, `calculateCalloutProbability()` public method
+- Added `npc_callout` event type to `GameEventBus` with `{ npcId, npcName, accepted, isQuestBearer }`
+- Added `onShowCallout`, `onDismissCallout`, `isNpcQuestBearer` callbacks to `ApproachCallbacks` interface
+- Wired G key (`KEY_NPC_INTERACT`) in `BabylonGame.ts` to accept callouts (tries callout first, then approach)
+- Quest-bearer detection via `questObjectManager.getActiveQuests()` checking `assignedByCharacterId`
+- Updated drift manifest for GameEventBus changes
+- Files changed:
+  - `shared/game-engine/rendering/NPCInitiatedConversationController.ts` — CalloutAttempt type, callout callbacks, evaluateCallout(), calculateCalloutProbability(), acceptCallout(), callout timers
+  - `shared/game-engine/logic/GameEventBus.ts` — npc_callout event type
+  - `shared/game-engine/rendering/BabylonGame.ts` — callout callback wiring, G key handler, KEY_NPC_INTERACT import
+  - `shared/game-engine/drift-manifest.json` — updated hash
+  - `shared/__tests__/npc-proximity-callouts.test.ts` — 20 new tests
+  - `tasks/prd.json` — US-008 passes: true
+- **Learnings for future iterations:**
+  - `KEY_NPC_INTERACT = 'KeyG'` is defined in KeyboardMap.ts but was not previously imported in BabylonGame.ts — Enter key was the only NPC interaction key
+  - `questObjectManager.getActiveQuests()` returns quests with `assignedByCharacterId` — use this to check if an NPC is a quest bearer
+  - The callout system runs independently from the approach system — both use `evaluateApproach` cooldowns to avoid duplicate interactions
+  - `NPCTalkingIndicator.show()` needs the NPC mesh reference — access via `this.npcMeshes.get(npcId)` in BabylonGame
+  - Game-seconds accumulation requires converting from gameMinutesDelta * 60 (not from msPerGameHour directly)

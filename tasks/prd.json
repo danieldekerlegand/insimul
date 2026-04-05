@@ -144,7 +144,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Analysis identifies 'No NPC-to-player initiation' as a gap."
     },
     {

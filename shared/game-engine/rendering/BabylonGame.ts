@@ -251,6 +251,7 @@ import {
   KEY_PHOTO_BOOK,
   KEY_CYCLE_VEHICLE,
   KEY_PHYSICAL_ACTION,
+  KEY_NPC_INTERACT,
 } from "@shared/game-engine/logic/KeyboardMap";
 import { BabylonPhotographySystem, type SceneObject } from "@shared/game-engine/rendering/BabylonPhotographySystem";
 import { BabylonPhotoBookPanel } from "@shared/game-engine/rendering/BabylonPhotoBookPanel";
@@ -4557,6 +4558,26 @@ export class BabylonGame {
         hasActiveQuestForPlayer: false, // TODO: wire to quest system
         playerIsNew: false, // TODO: wire to playthrough state
       }),
+      onShowCallout: (npcId, npcName, text, isQuestBearer) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.mesh && this.npcTalkingIndicator) {
+          const displayText = isQuestBearer ? `❗ ${text}` : text;
+          this.npcTalkingIndicator.show(npcId, instance.mesh, displayText);
+        }
+        // Show respond prompt as toast
+        this.guiManager?.showToast({
+          title: npcName,
+          description: `"${text}" [G] Respond`,
+          duration: 7000, // 4s bubble + 3s respond window
+        });
+      },
+      onDismissCallout: (npcId) => {
+        this.npcTalkingIndicator?.hide(npcId);
+      },
+      isNpcQuestBearer: (npcId) => {
+        const activeQuests = this.questObjectManager?.getActiveQuests() || [];
+        return activeQuests.some((q: any) => q.assignedByCharacterId === npcId);
+      },
     });
 
     // Initialize procedural generators
@@ -12839,6 +12860,18 @@ export class BabylonGame {
         if (!accepted) {
           // Dispatch based on unified interaction prompt target
           await this.handleUnifiedInteraction();
+        }
+      }
+    }
+
+    // G - Accept callout or approach from NPC
+    if (event.code === KEY_NPC_INTERACT && !event.repeat) {
+      event.preventDefault();
+      if (!this.conversationNPCId) {
+        // Try accepting a callout first, then an approach
+        const calloutAccepted = await this.npcInitiatedConversationController?.acceptCallout();
+        if (!calloutAccepted) {
+          await this.npcInitiatedConversationController?.acceptApproach();
         }
       }
     }

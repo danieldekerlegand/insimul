@@ -126,6 +126,8 @@ export type GameEvent =
   | { type: 'npc_exam_completed'; examId: string; npcId: string; score?: number; maxScore?: number; percentage?: number; passed?: boolean; totalScore?: number; totalMaxPoints?: number; cefrLevel?: string; category?: string }
   // NPC-initiated conversation events
   | { type: 'npc_initiated_conversation'; npcId: string; npcName: string; accepted: boolean }
+  // NPC proximity callout events (brief speech bubble when player is nearby)
+  | { type: 'npc_callout'; npcId: string; npcName: string; accepted: boolean; isQuestBearer: boolean }
   // NPC passive greeting events (target-language greetings when player walks by)
   | { type: 'npc_greeting'; npcId: string; npcName: string; language: string; greetingText: string; isFirstMeeting: boolean }
   // Skill reward events

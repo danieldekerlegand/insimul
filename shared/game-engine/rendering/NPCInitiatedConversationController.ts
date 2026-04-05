@@ -42,6 +42,15 @@ export interface ApproachAttempt {
   promptShown: boolean;
 }
 
+/** State of an active callout (brief proximity greeting without NPC walking toward player) */
+export interface CalloutAttempt {
+  npcId: string;
+  npcName: string;
+  startTime: number;
+  greeting: string;
+  isQuestBearer: boolean;
+}
+
 /** Environment context for context-aware greetings */
 export interface GreetingEnvironment {
   weather: string;
@@ -78,6 +87,12 @@ export interface ApproachCallbacks {
   getEnvironment?: () => GreetingEnvironment | null;
   /** Get a cached greeting from the server greeting cache (returns null on miss) */
   getCachedGreeting?: (npcId: string, context?: string) => string | null;
+  /** Show a brief speech bubble callout above an NPC (4 seconds) */
+  onShowCallout?: (npcId: string, npcName: string, text: string, isQuestBearer: boolean) => void;
+  /** Dismiss a callout speech bubble */
+  onDismissCallout?: (npcId: string) => void;
+  /** Check if an NPC is a quest bearer (has quests available for the player) */
+  isNpcQuestBearer?: (npcId: string) => boolean;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -105,6 +120,32 @@ const PRE_WARM_COOLDOWN_MS = 60000;
 
 /** Max simultaneous approach attempts */
 const MAX_APPROACHES = 1;
+
+// ── Callout Constants ─────────────────────────────────────────────────
+
+/** How often to evaluate callouts (in game-seconds) */
+const CALLOUT_EVAL_INTERVAL_GAME_SECONDS = 30;
+
+/** Range at which NPCs can call out to the player */
+const CALLOUT_RADIUS = 8;
+
+/** Base probability for a callout */
+const CALLOUT_BASE_PROBABILITY = 0.2;
+
+/** How long the callout speech bubble is visible (ms) */
+const CALLOUT_BUBBLE_DURATION_MS = 4000;
+
+/** How long the '[G] Respond' prompt stays visible after the bubble (ms) */
+const CALLOUT_RESPOND_DURATION_MS = 3000;
+
+/** Cooldown per NPC after a callout (ms) */
+const CALLOUT_NPC_COOLDOWN_MS = 60000;
+
+/** Global cooldown between any callout (ms) */
+const CALLOUT_GLOBAL_COOLDOWN_MS = 15000;
+
+/** Probability override for quest-bearer NPCs */
+const CALLOUT_QUEST_BEARER_PROBABILITY = 0.5;
 
 // ── Greetings ──────────────────────────────────────────────────────────
 
@@ -228,6 +269,15 @@ export class NPCInitiatedConversationController {
   private greetingTimer: ReturnType<typeof setTimeout> | null = null;
   private _paused = false;
 
+  // Callout state
+  private calloutCooldowns: Map<string, number> = new Map();
+  private lastGlobalCalloutTime = 0;
+  private activeCallout: CalloutAttempt | null = null;
+  private calloutBubbleTimer: ReturnType<typeof setTimeout> | null = null;
+  private calloutRespondTimer: ReturnType<typeof setTimeout> | null = null;
+  private accumulatedGameSeconds = 0;
+  private lastCalloutEvalGameSecond = 0;
+
   constructor(callbacks: ApproachCallbacks) {
     this.callbacks = callbacks;
   }
@@ -273,6 +323,16 @@ export class NPCInitiatedConversationController {
     return this.activeApproach?.npcId ?? null;
   }
 
+  /** Whether a callout is currently active. */
+  hasActiveCallout(): boolean {
+    return this.activeCallout !== null;
+  }
+
+  /** Get the active callout attempt (for testing). */
+  getActiveCallout(): CalloutAttempt | null {
+    return this.activeCallout;
+  }
+
   /**
    * Player accepted the NPC's conversation request (pressed G near approaching NPC).
    * Opens chat and cleans up the approach state.
@@ -297,6 +357,31 @@ export class NPCInitiatedConversationController {
   }
 
   /**
+   * Player responded to a callout (pressed G near calling-out NPC).
+   * Opens chat and cleans up the callout state.
+   */
+  async acceptCallout(): Promise<boolean> {
+    if (!this.activeCallout) return false;
+
+    const npcId = this.activeCallout.npcId;
+    const npcName = this.activeCallout.npcName;
+    this.clearCalloutTimers();
+    this.callbacks.onDismissCallout?.(npcId);
+
+    this.callbacks.onEmitEvent?.({
+      type: 'npc_callout',
+      npcId,
+      npcName,
+      accepted: true,
+      isQuestBearer: this.activeCallout.isQuestBearer,
+    });
+
+    this.activeCallout = null;
+    await this.callbacks.onOpenChat(npcId);
+    return true;
+  }
+
+  /**
    * Frame update. Call every frame with delta time.
    * @param deltaTimeMs Real time since last frame
    * @param msPerGameHour Real ms per game hour
@@ -307,10 +392,19 @@ export class NPCInitiatedConversationController {
     const gameMinutesDelta = (deltaTimeMs / msPerGameHour) * 60;
     this.accumulatedGameMinutes += gameMinutesDelta;
 
+    const gameSecondsDelta = gameMinutesDelta * 60;
+    this.accumulatedGameSeconds += gameSecondsDelta;
+
     // Evaluate approach periodically
     if (this.accumulatedGameMinutes - this.lastEvalGameMinute >= EVAL_INTERVAL_GAME_MINUTES) {
       this.lastEvalGameMinute = this.accumulatedGameMinutes;
       this.evaluateApproach();
+    }
+
+    // Evaluate callouts every 30 game-seconds
+    if (this.accumulatedGameSeconds - this.lastCalloutEvalGameSecond >= CALLOUT_EVAL_INTERVAL_GAME_SECONDS) {
+      this.lastCalloutEvalGameSecond = this.accumulatedGameSeconds;
+      this.evaluateCallout();
     }
 
     // Evaluate pre-warm on every update tick (debounced by cooldown per NPC)
@@ -588,13 +682,162 @@ export class NPCInitiatedConversationController {
     }
   }
 
+  // ── Callout System ──────────────────────────────────────────────────
+
+  /**
+   * Calculate the probability of an NPC calling out to the player.
+   * Uses personality traits similar to calculateApproachProbability().
+   */
+  calculateCalloutProbability(npc: ApproachableNPC, isQuestBearer: boolean): number {
+    // Quest bearers have a fixed high probability
+    if (isQuestBearer) return CALLOUT_QUEST_BEARER_PROBABILITY;
+
+    let prob = CALLOUT_BASE_PROBABILITY;
+
+    // Extroverts are more likely to call out (+20% if extroversion > 0.7)
+    if (npc.personality.extroversion > 0.7) {
+      prob += 0.2;
+    }
+
+    // Introverts are less likely (-10% if extroversion < 0.3)
+    if (npc.personality.extroversion < 0.3) {
+      prob -= 0.1;
+    }
+
+    return Math.max(0, Math.min(1, prob));
+  }
+
+  /**
+   * Evaluate whether any nearby NPC should call out to the player.
+   * Runs every 30 game-seconds. Fires a brief speech bubble without
+   * the NPC walking toward the player.
+   */
+  private evaluateCallout(): void {
+    // Don't callout if there's already an active callout, approach, or conversation
+    if (this.activeCallout) return;
+    if (this.activeApproach) return;
+    if (this.callbacks.isPlayerInConversation()) return;
+
+    const playerPos = this.callbacks.getPlayerPosition();
+    if (!playerPos) return;
+
+    const now = Date.now();
+
+    // Global cooldown check
+    if (now - this.lastGlobalCalloutTime < CALLOUT_GLOBAL_COOLDOWN_MS) return;
+
+    const candidates: Array<{ npc: ApproachableNPC; dist: number; isQuestBearer: boolean; prob: number }> = [];
+
+    const npcList = Array.from(this.npcs.values());
+    for (const npc of npcList) {
+      if (npc.isInConversation) continue;
+
+      // Per-NPC cooldown
+      const lastCallout = this.calloutCooldowns.get(npc.id) ?? 0;
+      if (now - lastCallout < CALLOUT_NPC_COOLDOWN_MS) continue;
+
+      // Also skip if on approach cooldown (recently approached)
+      const lastApproach = this.approachCooldowns.get(npc.id) ?? 0;
+      if (now - lastApproach < APPROACH_COOLDOWN_MS) continue;
+
+      // Distance check
+      const dx = playerPos.x - npc.position.x;
+      const dz = playerPos.z - npc.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > CALLOUT_RADIUS) continue;
+
+      const isQuestBearer = this.callbacks.isNpcQuestBearer?.(npc.id) ?? false;
+      const prob = this.calculateCalloutProbability(npc, isQuestBearer);
+
+      candidates.push({ npc, dist, isQuestBearer, prob });
+    }
+
+    if (candidates.length === 0) return;
+
+    // Sort by probability descending (quest bearers first), then distance
+    candidates.sort((a, b) => b.prob - a.prob || a.dist - b.dist);
+
+    const best = candidates[0];
+
+    // Roll against probability
+    if (Math.random() >= best.prob) return;
+
+    this.startCallout(best.npc, best.isQuestBearer);
+  }
+
+  /** Start a callout from an NPC. */
+  private startCallout(npc: ApproachableNPC, isQuestBearer: boolean): void {
+    const env = this.callbacks.getEnvironment?.() ?? null;
+    const greetingContext = env ? this.mapEnvToGreetingContext(env) : undefined;
+    const cachedGreeting = this.callbacks.getCachedGreeting?.(npc.id, greetingContext);
+    const greeting = cachedGreeting ?? getGreeting(npc.mood, npc.name, env);
+
+    const now = Date.now();
+    this.calloutCooldowns.set(npc.id, now);
+    this.lastGlobalCalloutTime = now;
+
+    this.activeCallout = {
+      npcId: npc.id,
+      npcName: npc.name,
+      startTime: now,
+      greeting,
+      isQuestBearer,
+    };
+
+    // Show the speech bubble
+    this.callbacks.onShowCallout?.(npc.id, npc.name, greeting, isQuestBearer);
+
+    // Emit callout event
+    this.callbacks.onEmitEvent?.({
+      type: 'npc_callout',
+      npcId: npc.id,
+      npcName: npc.name,
+      accepted: false,
+      isQuestBearer,
+    });
+
+    // Auto-dismiss bubble after 4 seconds, then show respond prompt for 3 seconds
+    this.calloutBubbleTimer = setTimeout(() => {
+      this.calloutBubbleTimer = null;
+      // After bubble dismisses, the respond window continues for 3 more seconds
+      this.calloutRespondTimer = setTimeout(() => {
+        this.calloutRespondTimer = null;
+        this.dismissCallout();
+      }, CALLOUT_RESPOND_DURATION_MS);
+    }, CALLOUT_BUBBLE_DURATION_MS);
+  }
+
+  /** Dismiss the active callout. */
+  private dismissCallout(): void {
+    if (!this.activeCallout) return;
+    const npcId = this.activeCallout.npcId;
+    this.clearCalloutTimers();
+    this.callbacks.onDismissCallout?.(npcId);
+    this.activeCallout = null;
+  }
+
+  private clearCalloutTimers(): void {
+    if (this.calloutBubbleTimer !== null) {
+      clearTimeout(this.calloutBubbleTimer);
+      this.calloutBubbleTimer = null;
+    }
+    if (this.calloutRespondTimer !== null) {
+      clearTimeout(this.calloutRespondTimer);
+      this.calloutRespondTimer = null;
+    }
+  }
+
   /** Clean up all resources. */
   dispose(): void {
     this.clearGreetingTimer();
+    this.clearCalloutTimers();
     this.activeApproach = null;
+    this.activeCallout = null;
     this.npcs.clear();
     this.approachCooldowns.clear();
     this.preWarmCooldowns.clear();
+    this.calloutCooldowns.clear();
     this.lastPreWarmedNpcId = null;
+    this.lastGlobalCalloutTime = 0;
   }
 }
