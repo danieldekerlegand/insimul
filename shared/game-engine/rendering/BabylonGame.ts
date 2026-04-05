@@ -599,6 +599,7 @@ export class BabylonGame {
   private playerGold: number = 100;
   private playerHealth: number = 100;
   private playerCefrLevel: string | null = null;
+  private _uiImmersionMode: import('../../language/ui-localization').UIImmersionMode = 'auto';
   private mainQuestJournalData: MenuJournalData | null = null;
   private portfolioData: import('@shared/quest/portfolio-types').PortfolioData | null = null;
   private clueStore: ClueStore | null = null;
@@ -2703,6 +2704,8 @@ export class BabylonGame {
       onToggleVR: () => this.handleToggleVR(),
       getAIProvider: () => this.chatPanel?.getAIProvider() || 'auto',
       onSetAIProvider: (provider: string) => this.chatPanel?.setAIProvider(provider),
+      getUIImmersionMode: () => this._uiImmersionMode,
+      onSetUIImmersionMode: (mode: string) => this.setUIImmersionMode(mode as any),
       getSaveSlots: () => this.getSaveSlots(),
       onSaveGame: (slotIndex: number) => this.handleSaveGame(slotIndex),
       onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
@@ -4187,6 +4190,9 @@ export class BabylonGame {
         if (this.chatPanel) {
           this.chatPanel.updateCefrLevel(event.cefrLevel as any);
         }
+        // Propagate CEFR level to UI immersion consumers
+        this.contextualActionMenu?.setCEFRLevel(event.cefrLevel as any);
+        this.buildingInfoDisplay?.setCEFRLevel(event.cefrLevel as any);
         // Persist cefrLevel to playerProgress for server-side queries
         const worldId = this.config.worldId;
         const playerId = this.config.userId || 'player';
@@ -4860,6 +4866,10 @@ export class BabylonGame {
           if (this.chatPanel) {
             this.chatPanel.updateCefrLevel(newLevel);
           }
+
+          // Propagate CEFR level to UI immersion consumers
+          this.contextualActionMenu?.setCEFRLevel(newLevel as any);
+          this.buildingInfoDisplay?.setCEFRLevel(newLevel as any);
 
           // Emit event for other systems (quest gating, periodic assessment, etc.)
           this.eventBus.emit({
@@ -15057,6 +15067,13 @@ export class BabylonGame {
       title: 'VR Mode Deactivated',
       description: 'You have exited VR mode',
     });
+  }
+
+  /** Update UI language immersion mode and propagate to all consumers. */
+  private setUIImmersionMode(mode: import('../../language/ui-localization').UIImmersionMode): void {
+    this._uiImmersionMode = mode;
+    this.contextualActionMenu?.setImmersionMode(mode);
+    this.buildingInfoDisplay?.setImmersionMode(mode);
   }
 
   private handleToggleFullscreen(): void {

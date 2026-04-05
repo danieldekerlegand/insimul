@@ -194,7 +194,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "ALL UI is currently in English regardless of CEFR level."
     },
     {

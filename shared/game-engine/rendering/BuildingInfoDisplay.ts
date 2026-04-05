@@ -7,16 +7,31 @@
 
 import { Scene, Mesh, ActionManager, ExecuteCodeAction, Vector3 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
+import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import { getBilingualDisplay, type UIImmersionMode, shouldTranslateUIKey } from '../../language/ui-localization';
 
 export class BuildingInfoDisplay {
   private scene: Scene;
   private advancedTexture: GUI.AdvancedDynamicTexture;
   private infoLabel: GUI.Rectangle | null = null;
   private currentBuilding: Mesh | null = null;
+  private _cefrLevel: CEFRLevel = 'A1';
+  private _immersionMode: UIImmersionMode = 'auto';
+  private _tooltipLabel: GUI.Rectangle | null = null;
 
   constructor(scene: Scene, advancedTexture: GUI.AdvancedDynamicTexture) {
     this.scene = scene;
     this.advancedTexture = advancedTexture;
+  }
+
+  /** Update the CEFR level for immersion-aware building labels. */
+  setCEFRLevel(level: CEFRLevel): void {
+    this._cefrLevel = level;
+  }
+
+  /** Update the UI immersion mode preference. */
+  setImmersionMode(mode: UIImmersionMode): void {
+    this._immersionMode = mode;
   }
 
   /**
@@ -91,20 +106,47 @@ export class BuildingInfoDisplay {
     stack.spacing = 5;
     this.infoLabel.addControl(stack);
 
-    // Building name/type header
-    const nameText = new GUI.TextBlock('buildingName');
+    // Building name/type header — CEFR-aware bilingual display
+    let englishName: string;
     if (metadata.buildingType === 'business') {
-      nameText.text = metadata.businessName || metadata.businessType || 'Business';
+      englishName = metadata.businessName || metadata.businessType || 'Business';
     } else if (metadata.buildingType === 'residence') {
-      nameText.text = 'Residence';
+      englishName = 'Residence';
     } else {
-      nameText.text = 'Building';
+      englishName = 'Building';
     }
+    const translatedName: string | undefined = metadata.translatedName;
+    const bilingual = getBilingualDisplay(englishName, translatedName, this._cefrLevel);
+
+    const nameText = new GUI.TextBlock('buildingName');
+    nameText.text = bilingual.primary;
     nameText.height = '24px';
     nameText.fontSize = 18;
     nameText.fontWeight = 'bold';
     nameText.color = 'white';
     stack.addControl(nameText);
+
+    // Show subtitle if bilingual display provides one
+    if (bilingual.subtitle) {
+      const subtitleText = new GUI.TextBlock('buildingNameSub');
+      subtitleText.text = bilingual.subtitle;
+      subtitleText.height = '18px';
+      subtitleText.fontSize = 12;
+      subtitleText.color = '#AAAAAA';
+      subtitleText.fontStyle = 'italic';
+      stack.addControl(subtitleText);
+    }
+
+    // Hover-to-reveal tooltip for translated labels
+    if (bilingual.showTooltip && translatedName) {
+      nameText.isPointerBlocker = true;
+      nameText.onPointerEnterObservable.add(() => {
+        this._showTooltip(englishName);
+      });
+      nameText.onPointerOutObservable.add(() => {
+        this._hideTooltip();
+      });
+    }
 
     // Building type subtitle
     const typeText = new GUI.TextBlock('buildingType');
@@ -168,10 +210,44 @@ export class BuildingInfoDisplay {
     // Could be enhanced to follow building position in world space
   }
 
+  /** Show a hover-to-reveal tooltip with the English text. */
+  private _showTooltip(text: string): void {
+    this._hideTooltip();
+    const tip = new GUI.Rectangle('buildingTooltip');
+    tip.width = '200px';
+    tip.height = '28px';
+    tip.cornerRadius = 4;
+    tip.background = 'rgba(0, 0, 0, 0.9)';
+    tip.thickness = 1;
+    tip.color = '#666';
+    tip.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+    tip.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    tip.top = '70px';
+    this.advancedTexture.addControl(tip);
+
+    const tipText = new GUI.TextBlock('buildingTooltipText', text);
+    tipText.fontSize = 12;
+    tipText.color = '#CCCCCC';
+    tipText.fontStyle = 'italic';
+    tip.addControl(tipText);
+
+    this._tooltipLabel = tip;
+  }
+
+  /** Hide the hover tooltip. */
+  private _hideTooltip(): void {
+    if (this._tooltipLabel) {
+      this.advancedTexture.removeControl(this._tooltipLabel);
+      this._tooltipLabel.dispose();
+      this._tooltipLabel = null;
+    }
+  }
+
   /**
    * Clean up resources
    */
   public dispose(): void {
+    this._hideTooltip();
     if (this.infoLabel) {
       this.advancedTexture.removeControl(this.infoLabel);
       this.infoLabel.dispose();

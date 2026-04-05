@@ -5,6 +5,13 @@
  * based on the player's CEFR proficiency level. At lower levels,
  * the UI remains in English. As proficiency increases, more UI
  * elements transition to the target language for immersion.
+ *
+ * Immersion levels:
+ *   A1-A2 = 0% (pure English)
+ *   B1    = 10% (location names, action prompts)
+ *   B2    = 30% (action prompts, inventory, menus)
+ *   C1    = 60% (quest descriptions, notifications)
+ *   C2    = 90% (nearly everything except system messages)
  */
 
 import type { CEFRLevel } from '../assessment/cefr-mapping';
@@ -17,19 +24,24 @@ export type UIImmersionMode = 'auto' | 'english_only' | 'maximum';
  * Lower-numbered namespaces are translated first as CEFR increases.
  */
 const NAMESPACE_PRIORITY: Record<string, number> = {
-  // Priority 1: Action prompts (translate at B1+)
+  // Priority 1: Location names and action prompts (translate at B1+)
   'actions': 1,
+  'locations': 1,
   // Priority 2: Map labels and inventory categories (translate at B2)
   'map': 2,
   'inventory': 2,
-  // Priority 3: Main UI labels (translate at B2)
+  // Priority 3: Main UI labels / menus (translate at B2)
   'ui': 3,
-  // Priority 4: Notifications (translate at B2)
-  'notifications': 4,
-  // Priority 5: Empty states (translate at B2)
-  'emptyStates': 5,
-  // Priority 6: Photo UI (translate at B2)
-  'photo': 6,
+  // Priority 4: Quest descriptions (translate at C1)
+  'quests': 4,
+  // Priority 5: Notifications (translate at C1)
+  'notifications': 5,
+  // Priority 6: Empty states (translate at C1)
+  'emptyStates': 6,
+  // Priority 7: Photo UI (translate at C2)
+  'photo': 7,
+  // Priority 8: Miscellaneous UI (translate at C2)
+  'misc': 8,
   // Never translated: system-critical messages
   'system': Infinity,
 };
@@ -37,19 +49,20 @@ const NAMESPACE_PRIORITY: Record<string, number> = {
 /**
  * CEFR-based immersion percentages.
  *
- * Since the codebase uses A1-B2, we map immersion as:
- * A1 = 0% (pure English UI)
- * A2 = 0% (pure English UI)
- * B1 = 20% (action prompts and location names)
- * B2 = 80% (most UI except system-critical)
+ * A1 = 0%  (pure English UI)
+ * A2 = 0%  (pure English UI)
+ * B1 = 10% (location names and action prompts)
+ * B2 = 30% (action prompts, inventory, menus)
+ * C1 = 60% (quest descriptions, notifications)
+ * C2 = 90% (nearly everything except system messages)
  */
 const CEFR_IMMERSION_LEVELS: Record<CEFRLevel, number> = {
   A1: 0,
   A2: 0,
-  B1: 20,
-  B2: 80,
-  C1: 90,
-  C2: 95,
+  B1: 10,
+  B2: 30,
+  C1: 60,
+  C2: 90,
 };
 
 /**
@@ -59,10 +72,10 @@ const CEFR_IMMERSION_LEVELS: Record<CEFRLevel, number> = {
 const CEFR_MAX_PRIORITY: Record<CEFRLevel, number> = {
   A1: 0,   // Nothing translates
   A2: 0,   // Nothing translates
-  B1: 1,   // Only actions namespace
-  B2: 6,   // Everything except system
-  C1: 8,   // Nearly everything
-  C2: 10,  // Everything including system-adjacent
+  B1: 1,   // actions + locations only
+  B2: 3,   // + map, inventory, ui
+  C1: 6,   // + quests, notifications, emptyStates
+  C2: 8,   // + photo, misc — nearly everything
 };
 
 /**
@@ -168,10 +181,112 @@ export function getBilingualDisplay(
     case 'B2':
     case 'C1':
     case 'C2':
-      // Target language only
+      // Target language only, hover reveals English
       return {
         primary: translatedText,
-        showTooltip: false,
+        showTooltip: true,
       };
+  }
+}
+
+// ── Progressive Rollout ──────────────────────────────────────────────────────
+
+/**
+ * ImmersionTransitionController manages smooth phase-in of UI translations
+ * when a CEFR level changes. Instead of switching all elements at once,
+ * it progressively enables namespaces over a configurable duration.
+ */
+export class ImmersionTransitionController {
+  /** Timestamp when the transition started (ms). */
+  private _transitionStartTime: number = 0;
+  /** Duration in ms to phase in all new namespaces after a level change. */
+  private _transitionDurationMs: number = 3 * 60 * 1000; // 3 minutes
+  /** The previous CEFR level (before advancement). */
+  private _previousLevel: CEFRLevel | null = null;
+  /** The current CEFR level. */
+  private _currentLevel: CEFRLevel = 'A1';
+  /** Whether a transition is in progress. */
+  private _transitioning: boolean = false;
+
+  get isTransitioning(): boolean {
+    if (!this._transitioning) return false;
+    const elapsed = Date.now() - this._transitionStartTime;
+    if (elapsed >= this._transitionDurationMs) {
+      this._transitioning = false;
+      return false;
+    }
+    return true;
+  }
+
+  get currentLevel(): CEFRLevel {
+    return this._currentLevel;
+  }
+
+  /** Set a custom transition duration (for testing). */
+  setTransitionDuration(ms: number): void {
+    this._transitionDurationMs = ms;
+  }
+
+  /**
+   * Notify the controller that the CEFR level has changed.
+   * Starts a smooth transition if the new level has more immersion.
+   */
+  onLevelChanged(newLevel: CEFRLevel): void {
+    if (newLevel === this._currentLevel) return;
+    const oldImmersion = CEFR_IMMERSION_LEVELS[this._currentLevel];
+    const newImmersion = CEFR_IMMERSION_LEVELS[newLevel];
+    this._previousLevel = this._currentLevel;
+    this._currentLevel = newLevel;
+    // Only animate transition when immersion increases
+    if (newImmersion > oldImmersion) {
+      this._transitioning = true;
+      this._transitionStartTime = Date.now();
+    }
+  }
+
+  /**
+   * Get the effective max namespace priority for the current moment,
+   * accounting for progressive rollout during transitions.
+   */
+  getEffectiveMaxPriority(mode: UIImmersionMode = 'auto'): number {
+    if (mode === 'english_only') return 0;
+    if (mode === 'maximum') return Infinity;
+
+    const targetPriority = CEFR_MAX_PRIORITY[this._currentLevel];
+
+    if (!this._transitioning || !this._previousLevel) {
+      return targetPriority;
+    }
+
+    const elapsed = Date.now() - this._transitionStartTime;
+    const progress = Math.min(1, elapsed / this._transitionDurationMs);
+
+    const previousPriority = CEFR_MAX_PRIORITY[this._previousLevel];
+    const range = targetPriority - previousPriority;
+
+    // Lerp between previous and target priority, rounding down
+    // so namespaces phase in one at a time
+    return previousPriority + Math.floor(range * progress);
+  }
+
+  /**
+   * Check if a UI key should be translated, respecting transition progress.
+   */
+  shouldTranslateWithTransition(
+    key: string,
+    mode: UIImmersionMode = 'auto',
+  ): boolean {
+    if (mode === 'english_only') return false;
+
+    const namespace = key.split('.')[0];
+    const priority = NAMESPACE_PRIORITY[namespace];
+
+    if (priority === Infinity) return false;
+    if (priority === undefined) return false;
+
+    if (mode === 'maximum') return true;
+
+    const effectiveMax = this.getEffectiveMaxPriority(mode);
+    return priority <= effectiveMax;
   }
 }

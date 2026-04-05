@@ -328,6 +328,10 @@ export interface GameMenuCallbacks {
   getAIProvider?: () => string;
   /** Change AI provider */
   onSetAIProvider?: (provider: string) => void;
+  /** Current UI language immersion mode: 'auto' | 'english_only' | 'maximum' */
+  getUIImmersionMode?: () => string;
+  /** Change UI language immersion mode */
+  onSetUIImmersionMode?: (mode: string) => void;
   onToggleModule?: (moduleId: string, enabled: boolean) => void;
   getSaveSlots?: () => Promise<Array<SaveSlotInfo | null>>;
   onSaveGame?: (slotIndex: number) => Promise<boolean>;
@@ -3442,6 +3446,86 @@ export class GameMenuSystem {
         row.onPointerClickObservable.add(() => {
           this.callbacks.onSetAIProvider?.(opt.id);
           // Re-render to update radio buttons
+          this.renderSystemTab();
+        });
+      }
+
+      this.addDivider(stack);
+    }
+
+    // UI Language Immersion setting
+    if (this.callbacks.onSetUIImmersionMode) {
+      const immTitle = new TextBlock();
+      immTitle.text = "UI Language Immersion";
+      immTitle.color = COLORS.textPrimary;
+      immTitle.fontSize = 15;
+      immTitle.fontWeight = "bold";
+      immTitle.height = "29px";
+      immTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(immTitle);
+
+      const immDesc = new TextBlock();
+      immDesc.text = "Control how much of the UI appears in the target language.";
+      immDesc.color = COLORS.textMuted;
+      immDesc.fontSize = 11;
+      immDesc.height = "18px";
+      immDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(immDesc);
+
+      const currentMode = this.callbacks.getUIImmersionMode?.() || 'auto';
+
+      const immersionOptions: Array<{ id: string; label: string; desc: string }> = [
+        { id: 'auto', label: 'Auto', desc: 'Increases with your CEFR level' },
+        { id: 'english_only', label: 'English Only', desc: 'All UI stays in English' },
+        { id: 'maximum', label: 'Maximum', desc: 'Translate as much UI as possible' },
+      ];
+
+      const immCard = this.makeCard(stack);
+      for (const opt of immersionOptions) {
+        const row = new StackPanel(`immMode_${opt.id}`);
+        row.isVertical = false;
+        row.width = 1;
+        row.height = "32px";
+        row.paddingBottom = "2px";
+        immCard.addControl(row);
+
+        const isSelected = currentMode === opt.id;
+
+        const radio = Button.CreateSimpleButton(`immRadio_${opt.id}`, isSelected ? '◉' : '○');
+        radio.width = "28px";
+        radio.height = "28px";
+        radio.color = isSelected ? COLORS.accent : COLORS.textMuted;
+        radio.background = "transparent";
+        radio.thickness = 0;
+        radio.fontSize = 16;
+        row.addControl(radio);
+
+        const labelCol = new StackPanel(`immLabel_${opt.id}`);
+        labelCol.isVertical = true;
+        labelCol.width = 1;
+        labelCol.height = "32px";
+        row.addControl(labelCol);
+
+        const labelText = new TextBlock();
+        labelText.text = opt.label;
+        labelText.color = isSelected ? COLORS.textPrimary : COLORS.textSecondary;
+        labelText.fontSize = 12;
+        labelText.fontWeight = isSelected ? "bold" : "normal";
+        labelText.height = "16px";
+        labelText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        labelCol.addControl(labelText);
+
+        const descText = new TextBlock();
+        descText.text = opt.desc;
+        descText.color = COLORS.textMuted;
+        descText.fontSize = 9;
+        descText.height = "14px";
+        descText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        labelCol.addControl(descText);
+
+        row.isPointerBlocker = true;
+        row.onPointerClickObservable.add(() => {
+          this.callbacks.onSetUIImmersionMode?.(opt.id);
           this.renderSystemTab();
         });
       }

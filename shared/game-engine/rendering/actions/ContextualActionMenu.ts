@@ -16,6 +16,8 @@
 
 import * as GUI from '@babylonjs/gui';
 import type * as BABYLON from '@babylonjs/core';
+import type { CEFRLevel } from '../../../assessment/cefr-mapping';
+import { shouldTranslateUIKey, type UIImmersionMode } from '../../../language/ui-localization';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,6 +95,8 @@ export class ContextualActionMenu {
   private onSelect?: (action: ContextualAction) => void;
   private onClose?: () => void;
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
+  private _cefrLevel: CEFRLevel = 'A1';
+  private _immersionMode: UIImmersionMode = 'auto';
 
   constructor(scene: BABYLON.Scene) {
     this.advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI(
@@ -101,6 +105,16 @@ export class ContextualActionMenu {
       scene,
     );
     this.advancedTexture.idealWidth = 1280;
+  }
+
+  /** Update the CEFR level for immersion-aware label display. */
+  setCEFRLevel(level: CEFRLevel): void {
+    this._cefrLevel = level;
+  }
+
+  /** Update the UI immersion mode preference. */
+  setImmersionMode(mode: UIImmersionMode): void {
+    this._immersionMode = mode;
   }
 
   // ── Public API ───────────────────────────────────────────────────────────
@@ -306,7 +320,12 @@ export class ContextualActionMenu {
     icon.height = `${ROW_HEIGHT}px`;
     hStack.addControl(icon);
 
-    // Label column (French + English)
+    // Label column — CEFR-aware display: at lower levels, English primary;
+    // at B1+ (when actions namespace translates), target language primary
+    const useTargetLanguage = shouldTranslateUIKey('actions.label', this._cefrLevel, this._immersionMode);
+    const primaryText = useTargetLanguage ? action.label : action.labelTranslation;
+    const secondaryText = useTargetLanguage ? action.labelTranslation : action.label;
+
     const labelCol = new GUI.StackPanel(`ctxLabels_${index}`);
     labelCol.isVertical = true;
     labelCol.spacing = 1;
@@ -314,21 +333,21 @@ export class ContextualActionMenu {
     labelCol.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     hStack.addControl(labelCol);
 
-    const frenchLabel = new GUI.TextBlock(`ctxFr_${index}`, action.label);
-    frenchLabel.fontSize = 13;
-    frenchLabel.fontWeight = 'bold';
-    frenchLabel.color = action.canPerform ? TEXT_PRIMARY : TEXT_DISABLED;
-    frenchLabel.height = '20px';
-    frenchLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    frenchLabel.textWrapping = true;
-    labelCol.addControl(frenchLabel);
+    const mainLabel = new GUI.TextBlock(`ctxPrimary_${index}`, primaryText);
+    mainLabel.fontSize = 13;
+    mainLabel.fontWeight = 'bold';
+    mainLabel.color = action.canPerform ? TEXT_PRIMARY : TEXT_DISABLED;
+    mainLabel.height = '20px';
+    mainLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    mainLabel.textWrapping = true;
+    labelCol.addControl(mainLabel);
 
-    const englishLabel = new GUI.TextBlock(`ctxEn_${index}`, action.labelTranslation);
-    englishLabel.fontSize = 10;
-    englishLabel.color = TEXT_SECONDARY;
-    englishLabel.height = '14px';
-    englishLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    labelCol.addControl(englishLabel);
+    const subLabel = new GUI.TextBlock(`ctxSecondary_${index}`, secondaryText);
+    subLabel.fontSize = 10;
+    subLabel.color = TEXT_SECONDARY;
+    subLabel.height = '14px';
+    subLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    labelCol.addControl(subLabel);
 
     // Unavailable reason
     if (!action.canPerform && action.reason) {

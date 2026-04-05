@@ -20,6 +20,11 @@ Started: Sun Mar 29 13:53:35 CDT 2026
 - Grammar weakness analysis lives in `shared/language/grammar-weakness-analyzer.ts` — use `analyzeGrammarWeaknesses()` for weakness detection, `buildWeakPatternDirective()` for NPC prompts
 - Grammar quest generation lives in `shared/quests/grammar-quest-generator.ts` — 3 types: grammar_drill, correction_challenge, writing_practice; use `shouldGenerateGrammarQuest()` for quick checks
 - `CEFRLevel` type is defined in 6+ locations — grep for `type CEFRLevel =` and `type CefrLevel =` to find all; many `Record<CEFRLevel>` maps must be updated exhaustively when adding/changing levels
+- UI localization system lives in `shared/language/ui-localization.ts` — use `shouldTranslateUIKey()` for namespace-priority gating, `getGameString()` for Babylon.js strings, `getBilingualDisplay()` for building labels
+- `ImmersionTransitionController` in `ui-localization.ts` provides smooth progressive rollout when CEFR level changes — use `shouldTranslateWithTransition()` for transition-aware checks
+- `ContextualActionMenu` (replaces ActionQuickBar) has `setCEFRLevel()` and `setImmersionMode()` — call these when CEFR level or immersion preference changes
+- `BuildingInfoDisplay` has `setCEFRLevel()` and `setImmersionMode()` — uses `getBilingualDisplay()` for CEFR-aware building name display with hover-to-reveal tooltip
+- `GameMenuCallbacks` interface must be updated when adding new system settings — follow the AI Provider pattern: `getX()` getter + `onSetX()` setter
 ---
 
 ## 2026-04-05 - US-008: Enforce vocabulary frequency ranges in LLM prompts
@@ -1294,4 +1299,60 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Some files have `default:` fallback in switch statements (safe), others don't (will cause TS errors if not updated)
   - Test files also use `Record<CefrLevel, ...>` — don't forget to update test fixtures
   - The narrative-arc-types.ts already had C1/C2 — was designed with expansion in mind
+---
+
+## 2026-04-05 - US-011: Gradual UI immersion at B2+
+- Updated `shared/language/ui-localization.ts`:
+  - Fixed CEFR immersion percentages to match AC: A1-A2=0%, B1=10%, B2=30%, C1=60%, C2=90%
+  - Added `locations` namespace at priority 1 (with actions), `quests` at priority 4, `misc` at priority 8
+  - Updated `CEFR_MAX_PRIORITY` for progressive namespace gating: B1=actions+locations, B2=+map/inventory/ui, C1=+quests/notifications, C2=nearly everything
+  - Updated `getBilingualDisplay()`: B2/C1/C2 now show target language with `showTooltip: true` for hover-to-reveal
+  - Added `ImmersionTransitionController` class: smooth phase-in of namespaces over 3 minutes when CEFR level advances
+  - `onLevelChanged()` detects immersion increase, starts transition
+  - `getEffectiveMaxPriority()` lerps between previous and target namespace priority
+  - `shouldTranslateWithTransition()` for transition-aware key checks
+- Updated `shared/game-engine/rendering/actions/ContextualActionMenu.ts`:
+  - Added `setCEFRLevel()` and `setImmersionMode()` methods
+  - Action label display is now CEFR-aware: at A1-A2 English primary / French subtitle; at B1+ French primary / English subtitle
+  - Uses `shouldTranslateUIKey('actions.label', ...)` to determine display order
+- Updated `shared/game-engine/rendering/BuildingInfoDisplay.ts`:
+  - Added `setCEFRLevel()` and `setImmersionMode()` methods
+  - Building name display uses `getBilingualDisplay()` for CEFR-aware text
+  - Added hover-to-reveal tooltip: when `showTooltip` is true, hovering the building name shows English translation
+  - Subtitle display for bilingual mode at B1 (target language primary, English subtitle)
+- Updated `shared/game-engine/rendering/GameMenuSystem.ts`:
+  - Added `getUIImmersionMode` and `onSetUIImmersionMode` to `GameMenuCallbacks` interface
+  - Added UI Language Immersion radio selector in System tab (Auto / English Only / Maximum)
+  - Follows same UI pattern as AI Provider selector
+- Updated `shared/game-engine/rendering/BabylonGame.ts`:
+  - Added `_uiImmersionMode` property
+  - Added `setUIImmersionMode()` method that propagates to ContextualActionMenu and BuildingInfoDisplay
+  - Wired game menu callbacks for immersion setting
+  - Propagates CEFR level changes to ContextualActionMenu and BuildingInfoDisplay in both auto-level-up and assessment_completed handlers
+- Updated `shared/game-engine/drift-manifest.json` — updated hash for changed rendering files
+- Updated `shared/__tests__/ui-localization.test.ts` — 48 tests covering:
+  - getUIImmersionLevel for all CEFR levels and modes
+  - shouldTranslateUIKey progressive namespace gating
+  - getGameString CEFR-aware text selection
+  - getBilingualDisplay with hover-to-reveal at B2+
+  - ImmersionTransitionController: transition lifecycle, progressive rollout, mode overrides
+  - Immersion level monotonic progression validation
+- Updated `shared/__tests__/immersion-progression.test.ts` — 10 tests covering full journey A1→C2
+- Files changed:
+  - `shared/language/ui-localization.ts` — corrected percentages, added ImmersionTransitionController
+  - `shared/game-engine/rendering/actions/ContextualActionMenu.ts` — CEFR-aware label display
+  - `shared/game-engine/rendering/BuildingInfoDisplay.ts` — CEFR-aware building names with tooltip
+  - `shared/game-engine/rendering/GameMenuSystem.ts` — UI Language Immersion setting
+  - `shared/game-engine/rendering/BabylonGame.ts` — wiring and propagation
+  - `shared/game-engine/drift-manifest.json` — updated hash
+  - `shared/__tests__/ui-localization.test.ts` — 48 tests
+  - `shared/__tests__/immersion-progression.test.ts` — 10 tests (updated for new percentages)
+  - `tasks/prd.json` — US-011 passes: true
+- **Learnings for future iterations:**
+  - `ContextualActionMenu` already had French/English label pairs — just needed to swap display order based on CEFR
+  - `BuildingInfoDisplay` uses `metadata.translatedName` for translated building names — must be set on building mesh metadata
+  - `GameMenuCallbacks` follows a consistent pattern for settings: `getX()` + `onSetX()` callbacks wired in BabylonGame
+  - `getBilingualDisplay()` at B2+ returns `showTooltip: true` but no subtitle — tooltip is separate from subtitle display
+  - Drift manifest must be updated when any file in `shared/game-engine/rendering/` changes
+  - `ImmersionTransitionController` uses `Date.now()` — use `vi.useFakeTimers()` in tests
 ---
