@@ -179,7 +179,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Expected: near-zero latency for first response in ~40-60% of conversations."
     },
     {

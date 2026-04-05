@@ -1635,3 +1635,32 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Pre-existing TS error: `assignVoiceProfile({})` in ws-bridge.ts line 485 expects `CharacterVoiceAttributes` — not introduced by this change
   - http-bridge.ts also calls `streamCompletion()` but was not wired to the classifier — can be done in a future story
   - The classifier checks system prompt for quest indicators using regex — this is a heuristic; could be improved with explicit quest-bearer flags on the session
+---
+
+## 2026-04-05 - US-010: Speculative generation for likely opening messages
+- Created `SpeculativeResponseCache` at `server/services/conversation/speculative-cache.ts`:
+  - Nested Map: `worldId:npcId` → canonical message → `SpeculativeResponse` (text + optional audio + timestamp)
+  - CEFR-based likely openings: A1 ['hello','hi','bonjour','who are you'], A2 adds French phrases, B1+ adds complex phrases
+  - `canonicalizeMessage()` strips punctuation, lowercases, trims for fuzzy matching
+  - `generate()` pre-generates top 3 likely responses in parallel using FAST model tier
+  - Optional TTS audio pre-generation alongside text responses
+  - LRU eviction with max 10 NPC entries, 5-minute TTL per response
+  - Hit rate tracking (hits/misses/hitRate)
+  - `invalidate()` and `invalidateWorld()` for cache clearing
+- Wired into `handlePreWarm()` in ws-bridge.ts: after context is built and cached, fire-and-forget `generateSpeculativeResponses()` for likely openings
+- Wired into `handleTextInput()` in ws-bridge.ts: on turn 1, check speculative cache before LLM; if hit, serve cached response instantly, then run background correction
+- Background correction: `generateBackgroundCorrection()` generates real FULL-tier response and sends `speculative_correction` WebSocket message if significantly different (>30% length divergence or content mismatch)
+- Added `speculative_cache_hit`, `speculative_cache_miss`, `speculative_generation` metric stages to `conversation-metrics.ts`
+- Speculative cache invalidated alongside context cache and greeting cache in `invalidateContextCache()`
+- Files changed:
+  - `server/services/conversation/speculative-cache.ts` — new module (SpeculativeResponseCache, canonicalizeMessage, speculativeCache singleton)
+  - `server/services/conversation/ws-bridge.ts` — speculative cache check in handleTextInput, generation in handlePreWarm, invalidation, background correction
+  - `server/services/conversation/conversation-metrics.ts` — 3 new metric stages
+  - `server/__tests__/speculative-cache.test.ts` — 37 new tests
+  - `tasks/prd.json` — US-010 passes: true
+- **Learnings for future iterations:**
+  - `handlePreWarm()` does NOT receive `WSBridgeOptions` — pass `{}` to `generateSpeculativeResponses()` which resolves providers itself via `getProvider()` and dynamic TTS import
+  - `Date.now()` in tight loops returns same value — LRU tests need `vi.useFakeTimers()` + `vi.setSystemTime()` for deterministic eviction order
+  - `Map` iteration with `for...of` causes TS errors in this project — use `Array.from().forEach()` pattern (consistent with progress.txt codebase patterns)
+  - Background correction uses `session.history.slice(0, -2)` to exclude the speculative user+assistant pair before generating the real response
+  - The speculative cache is scoped by worldId+npcId (not playerId) since CEFR-appropriate responses are generated per-NPC and shared across players
