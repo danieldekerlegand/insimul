@@ -576,6 +576,9 @@ export class BabylonGame {
   private socializationController: NPCSocializationController | null = null;
   private vehicleSystem: VehicleSystem | null = null;
   private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
+  // Walking interrupt: player velocity tracking
+  private _lastPlayerPosition: { x: number; z: number } | null = null;
+  private _playerVelocity = 0;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
   private mainMenuScreen: MainMenuScreen | null = null;
@@ -4577,6 +4580,23 @@ export class BabylonGame {
       isNpcQuestBearer: (npcId) => {
         const activeQuests = this.questObjectManager?.getActiveQuests() || [];
         return activeQuests.some((q: any) => q.assignedByCharacterId === npcId);
+      },
+      getPlayerVelocity: () => this._playerVelocity,
+      onShowWalkingInterrupt: (npcId, npcName, text, isQuestBearer) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.mesh && this.npcTalkingIndicator) {
+          const displayText = isQuestBearer ? `❗ ${text}` : text;
+          this.npcTalkingIndicator.show(npcId, instance.mesh, displayText);
+        }
+        // Show faded '[G] Stop and chat' prompt as toast
+        this.guiManager?.showToast({
+          title: npcName,
+          description: `"${text}" [G] Stop and chat`,
+          duration: 5000, // 2s bubble + 3s respond window
+        });
+      },
+      onDismissWalkingInterrupt: (npcId) => {
+        this.npcTalkingIndicator?.hide(npcId);
       },
     });
 
@@ -11287,6 +11307,19 @@ export class BabylonGame {
         }
       }
 
+      // Track player velocity for walking interrupt detection
+      if (this.playerMesh) {
+        const px = this.playerMesh.position.x;
+        const pz = this.playerMesh.position.z;
+        if (this._lastPlayerPosition && dt > 0) {
+          const dx = px - this._lastPlayerPosition.x;
+          const dz = pz - this._lastPlayerPosition.z;
+          const distMoved = Math.sqrt(dx * dx + dz * dz);
+          this._playerVelocity = distMoved / (dt / 1000); // units per second
+        }
+        this._lastPlayerPosition = { x: px, z: pz };
+      }
+
       // Update NPC-initiated conversation controller (position sync throttled to 500ms via ground snap timer)
       if (this.npcInitiatedConversationController) {
         if (this._npcGroundSnapTimer === 0) {
@@ -12864,14 +12897,17 @@ export class BabylonGame {
       }
     }
 
-    // G - Accept callout or approach from NPC
+    // G - Accept walking interrupt, callout, or approach from NPC
     if (event.code === KEY_NPC_INTERACT && !event.repeat) {
       event.preventDefault();
       if (!this.conversationNPCId) {
-        // Try accepting a callout first, then an approach
-        const calloutAccepted = await this.npcInitiatedConversationController?.acceptCallout();
-        if (!calloutAccepted) {
-          await this.npcInitiatedConversationController?.acceptApproach();
+        // Try accepting a walking interrupt first, then callout, then approach
+        const walkingAccepted = await this.npcInitiatedConversationController?.acceptWalkingInterrupt();
+        if (!walkingAccepted) {
+          const calloutAccepted = await this.npcInitiatedConversationController?.acceptCallout();
+          if (!calloutAccepted) {
+            await this.npcInitiatedConversationController?.acceptApproach();
+          }
         }
       }
     }

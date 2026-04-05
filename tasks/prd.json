@@ -269,7 +269,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Distinct from proximity greetings — these fire when player is MOVING THROUGH an area."
     },
     {

@@ -51,6 +51,18 @@ export interface CalloutAttempt {
   isQuestBearer: boolean;
 }
 
+/** State of an active walking interrupt (brief one-liner as player walks past NPC) */
+export interface WalkingInterruptAttempt {
+  npcId: string;
+  npcName: string;
+  startTime: number;
+  phrase: string;
+  isQuestBearer: boolean;
+}
+
+/** Walking interrupt setting: On (include vocabulary), Reduced (simple only), Off */
+export type WalkingInterruptSetting = 'on' | 'reduced' | 'off';
+
 /** Environment context for context-aware greetings */
 export interface GreetingEnvironment {
   weather: string;
@@ -93,6 +105,12 @@ export interface ApproachCallbacks {
   onDismissCallout?: (npcId: string) => void;
   /** Check if an NPC is a quest bearer (has quests available for the player) */
   isNpcQuestBearer?: (npcId: string) => boolean;
+  /** Get current player velocity in units per second */
+  getPlayerVelocity?: () => number;
+  /** Show a brief walking interrupt speech bubble above NPC (2 seconds, smaller) */
+  onShowWalkingInterrupt?: (npcId: string, npcName: string, text: string, isQuestBearer: boolean) => void;
+  /** Dismiss a walking interrupt speech bubble */
+  onDismissWalkingInterrupt?: (npcId: string) => void;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -146,6 +164,38 @@ const CALLOUT_GLOBAL_COOLDOWN_MS = 15000;
 
 /** Probability override for quest-bearer NPCs */
 const CALLOUT_QUEST_BEARER_PROBABILITY = 0.5;
+
+// ── Walking Interrupt Constants ───────────────────────────────────────
+
+/** Minimum player velocity (units/sec) to be considered walking */
+const WALKING_VELOCITY_THRESHOLD = 1.0;
+
+/** Range within which NPCs can fire walking interrupts */
+const WALKING_INTERRUPT_RADIUS = 6;
+
+/** Base probability for a walking interrupt */
+const WALKING_INTERRUPT_BASE_PROBABILITY = 0.1;
+
+/** Extrovert bonus for walking interrupts */
+const WALKING_INTERRUPT_EXTROVERT_BONUS = 0.1;
+
+/** Quest-bearer bonus for walking interrupts */
+const WALKING_INTERRUPT_QUEST_BEARER_BONUS = 0.15;
+
+/** How long the walking interrupt speech bubble is visible (ms) */
+const WALKING_INTERRUPT_BUBBLE_DURATION_MS = 2000;
+
+/** How long the '[G] Stop and chat' prompt stays visible after the bubble (ms) */
+const WALKING_INTERRUPT_RESPOND_DURATION_MS = 3000;
+
+/** Cooldown per NPC after a walking interrupt (ms) — 3 minutes */
+const WALKING_INTERRUPT_NPC_COOLDOWN_MS = 180000;
+
+/** Global cooldown between any walking interrupt (ms) — 8 seconds */
+const WALKING_INTERRUPT_GLOBAL_COOLDOWN_MS = 8000;
+
+/** How often to evaluate walking interrupts (real ms) */
+const WALKING_INTERRUPT_EVAL_INTERVAL_MS = 1500;
 
 // ── Greetings ──────────────────────────────────────────────────────────
 
@@ -221,6 +271,55 @@ const GREETINGS_BY_CONTEXT: Record<string, string[]> = {
   ],
 };
 
+// ── Walking Interrupt Phrases ─────────────────────────────────────────
+
+const WALKING_INTERRUPT_PHRASES: Record<string, string[]> = {
+  happy: [
+    'Hey, nice day!',
+    'Good to see you!',
+    'Looking good out there!',
+  ],
+  excited: [
+    'Oh! Come back later!',
+    'Hey, I have news!',
+    'Wait — never mind, go on!',
+  ],
+  sad: [
+    'Take care out there...',
+    'Be safe...',
+    'Sigh... carry on.',
+  ],
+  angry: [
+    'Watch where you\'re going!',
+    'Hmph.',
+    'In a rush, are we?',
+  ],
+  neutral: [
+    'Hey there!',
+    'Morning!',
+    'Off somewhere?',
+    'Safe travels!',
+    'Good day!',
+    'Hello!',
+  ],
+};
+
+const WALKING_INTERRUPT_QUEST_PHRASES: string[] = [
+  'Hey! I could use your help!',
+  'Wait — got a job for you!',
+  'Excuse me! Got a moment?',
+  'Over here! I need someone!',
+  'Hey you! I have work!',
+];
+
+function getWalkingInterruptPhrase(mood: string, isQuestBearer: boolean): string {
+  if (isQuestBearer && Math.random() < 0.6) {
+    return WALKING_INTERRUPT_QUEST_PHRASES[Math.floor(Math.random() * WALKING_INTERRUPT_QUEST_PHRASES.length)];
+  }
+  const phrases = WALKING_INTERRUPT_PHRASES[mood] || WALKING_INTERRUPT_PHRASES.neutral;
+  return phrases[Math.floor(Math.random() * phrases.length)];
+}
+
 function getGreeting(mood: string, _npcName: string, env?: GreetingEnvironment | null): string {
   // Try context-aware greetings first (30% chance each if applicable)
   if (env) {
@@ -277,6 +376,15 @@ export class NPCInitiatedConversationController {
   private calloutRespondTimer: ReturnType<typeof setTimeout> | null = null;
   private accumulatedGameSeconds = 0;
   private lastCalloutEvalGameSecond = 0;
+
+  // Walking interrupt state
+  private walkingInterruptCooldowns: Map<string, number> = new Map();
+  private lastGlobalWalkingInterruptTime = 0;
+  private activeWalkingInterrupt: WalkingInterruptAttempt | null = null;
+  private walkingInterruptBubbleTimer: ReturnType<typeof setTimeout> | null = null;
+  private walkingInterruptRespondTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastWalkingInterruptEvalTime = 0;
+  private _walkingInterruptSetting: WalkingInterruptSetting = 'on';
 
   constructor(callbacks: ApproachCallbacks) {
     this.callbacks = callbacks;
@@ -381,6 +489,57 @@ export class NPCInitiatedConversationController {
     return true;
   }
 
+  /** Whether a walking interrupt is currently active. */
+  hasActiveWalkingInterrupt(): boolean {
+    return this.activeWalkingInterrupt !== null;
+  }
+
+  /** Get the active walking interrupt (for testing). */
+  getActiveWalkingInterrupt(): WalkingInterruptAttempt | null {
+    return this.activeWalkingInterrupt;
+  }
+
+  /** Set the walking interrupt setting. */
+  setWalkingInterruptSetting(setting: WalkingInterruptSetting): void {
+    this._walkingInterruptSetting = setting;
+  }
+
+  /** Get the walking interrupt setting. */
+  getWalkingInterruptSetting(): WalkingInterruptSetting {
+    return this._walkingInterruptSetting;
+  }
+
+  /** Check if player is currently walking (velocity above threshold). */
+  isPlayerWalking(): boolean {
+    const velocity = this.callbacks.getPlayerVelocity?.() ?? 0;
+    return velocity > WALKING_VELOCITY_THRESHOLD;
+  }
+
+  /**
+   * Player responded to a walking interrupt (pressed G near interrupting NPC).
+   * Opens chat and cleans up the walking interrupt state.
+   */
+  async acceptWalkingInterrupt(): Promise<boolean> {
+    if (!this.activeWalkingInterrupt) return false;
+
+    const npcId = this.activeWalkingInterrupt.npcId;
+    const npcName = this.activeWalkingInterrupt.npcName;
+    this.clearWalkingInterruptTimers();
+    this.callbacks.onDismissWalkingInterrupt?.(npcId);
+
+    this.callbacks.onEmitEvent?.({
+      type: 'walking_interrupt',
+      npcId,
+      npcName,
+      accepted: true,
+      isQuestBearer: this.activeWalkingInterrupt.isQuestBearer,
+    });
+
+    this.activeWalkingInterrupt = null;
+    await this.callbacks.onOpenChat(npcId);
+    return true;
+  }
+
   /**
    * Frame update. Call every frame with delta time.
    * @param deltaTimeMs Real time since last frame
@@ -405,6 +564,17 @@ export class NPCInitiatedConversationController {
     if (this.accumulatedGameSeconds - this.lastCalloutEvalGameSecond >= CALLOUT_EVAL_INTERVAL_GAME_SECONDS) {
       this.lastCalloutEvalGameSecond = this.accumulatedGameSeconds;
       this.evaluateCallout();
+    }
+
+    // Evaluate walking interrupts every 1.5 seconds (real time) when player is walking
+    if (this._walkingInterruptSetting !== 'off') {
+      const nowMs = Date.now();
+      if (nowMs - this.lastWalkingInterruptEvalTime >= WALKING_INTERRUPT_EVAL_INTERVAL_MS) {
+        this.lastWalkingInterruptEvalTime = nowMs;
+        if (this.isPlayerWalking()) {
+          this.evaluateWalkingInterrupt();
+        }
+      }
     }
 
     // Evaluate pre-warm on every update tick (debounced by cooldown per NPC)
@@ -827,17 +997,160 @@ export class NPCInitiatedConversationController {
     }
   }
 
+  // ── Walking Interrupt System ─────────────────────────────────────────
+
+  /**
+   * Calculate the probability of an NPC firing a walking interrupt.
+   * Lower base probability than callouts since these fire more frequently.
+   */
+  calculateWalkingInterruptProbability(npc: ApproachableNPC, isQuestBearer: boolean): number {
+    let prob = WALKING_INTERRUPT_BASE_PROBABILITY;
+
+    // Extroverts are more likely to call out
+    if (npc.personality.extroversion > 0.7) {
+      prob += WALKING_INTERRUPT_EXTROVERT_BONUS;
+    }
+
+    // Quest-bearers get a bonus
+    if (isQuestBearer) {
+      prob += WALKING_INTERRUPT_QUEST_BEARER_BONUS;
+    }
+
+    return Math.max(0, Math.min(1, prob));
+  }
+
+  /**
+   * Evaluate whether any nearby NPC should fire a walking interrupt.
+   * Runs every 1-2 seconds when the player is walking.
+   * NPCs within 6 units call out brief one-liners.
+   */
+  private evaluateWalkingInterrupt(): void {
+    // Don't interrupt if there's already an active interrupt, callout, approach, or conversation
+    if (this.activeWalkingInterrupt) return;
+    if (this.activeCallout) return;
+    if (this.activeApproach) return;
+    if (this.callbacks.isPlayerInConversation()) return;
+
+    const playerPos = this.callbacks.getPlayerPosition();
+    if (!playerPos) return;
+
+    const now = Date.now();
+
+    // Global cooldown check
+    if (now - this.lastGlobalWalkingInterruptTime < WALKING_INTERRUPT_GLOBAL_COOLDOWN_MS) return;
+
+    const candidates: Array<{ npc: ApproachableNPC; dist: number; isQuestBearer: boolean; prob: number }> = [];
+
+    const npcList = Array.from(this.npcs.values());
+    for (const npc of npcList) {
+      if (npc.isInConversation) continue;
+
+      // Per-NPC walking interrupt cooldown (3 minutes)
+      const lastInterrupt = this.walkingInterruptCooldowns.get(npc.id) ?? 0;
+      if (now - lastInterrupt < WALKING_INTERRUPT_NPC_COOLDOWN_MS) continue;
+
+      // Also skip if on callout cooldown (recently called out)
+      const lastCallout = this.calloutCooldowns.get(npc.id) ?? 0;
+      if (now - lastCallout < CALLOUT_NPC_COOLDOWN_MS) continue;
+
+      // Distance check — tighter radius than callouts (6 vs 8)
+      const dx = playerPos.x - npc.position.x;
+      const dz = playerPos.z - npc.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > WALKING_INTERRUPT_RADIUS) continue;
+
+      const isQuestBearer = this.callbacks.isNpcQuestBearer?.(npc.id) ?? false;
+      const prob = this.calculateWalkingInterruptProbability(npc, isQuestBearer);
+
+      candidates.push({ npc, dist, isQuestBearer, prob });
+    }
+
+    if (candidates.length === 0) return;
+
+    // Sort by probability descending, then distance
+    candidates.sort((a, b) => b.prob - a.prob || a.dist - b.dist);
+
+    const best = candidates[0];
+
+    // Roll against probability
+    if (Math.random() >= best.prob) return;
+
+    this.startWalkingInterrupt(best.npc, best.isQuestBearer);
+  }
+
+  /** Start a walking interrupt from an NPC. */
+  private startWalkingInterrupt(npc: ApproachableNPC, isQuestBearer: boolean): void {
+    const phrase = getWalkingInterruptPhrase(npc.mood, isQuestBearer);
+
+    const now = Date.now();
+    this.walkingInterruptCooldowns.set(npc.id, now);
+    this.lastGlobalWalkingInterruptTime = now;
+
+    this.activeWalkingInterrupt = {
+      npcId: npc.id,
+      npcName: npc.name,
+      startTime: now,
+      phrase,
+      isQuestBearer,
+    };
+
+    // Show the brief speech bubble
+    this.callbacks.onShowWalkingInterrupt?.(npc.id, npc.name, phrase, isQuestBearer);
+
+    // Emit walking interrupt event
+    this.callbacks.onEmitEvent?.({
+      type: 'walking_interrupt',
+      npcId: npc.id,
+      npcName: npc.name,
+      accepted: false,
+      isQuestBearer,
+    });
+
+    // Auto-dismiss bubble after 2 seconds, then respond prompt for 3 seconds
+    this.walkingInterruptBubbleTimer = setTimeout(() => {
+      this.walkingInterruptBubbleTimer = null;
+      this.walkingInterruptRespondTimer = setTimeout(() => {
+        this.walkingInterruptRespondTimer = null;
+        this.dismissWalkingInterrupt();
+      }, WALKING_INTERRUPT_RESPOND_DURATION_MS);
+    }, WALKING_INTERRUPT_BUBBLE_DURATION_MS);
+  }
+
+  /** Dismiss the active walking interrupt. */
+  private dismissWalkingInterrupt(): void {
+    if (!this.activeWalkingInterrupt) return;
+    const npcId = this.activeWalkingInterrupt.npcId;
+    this.clearWalkingInterruptTimers();
+    this.callbacks.onDismissWalkingInterrupt?.(npcId);
+    this.activeWalkingInterrupt = null;
+  }
+
+  private clearWalkingInterruptTimers(): void {
+    if (this.walkingInterruptBubbleTimer !== null) {
+      clearTimeout(this.walkingInterruptBubbleTimer);
+      this.walkingInterruptBubbleTimer = null;
+    }
+    if (this.walkingInterruptRespondTimer !== null) {
+      clearTimeout(this.walkingInterruptRespondTimer);
+      this.walkingInterruptRespondTimer = null;
+    }
+  }
+
   /** Clean up all resources. */
   dispose(): void {
     this.clearGreetingTimer();
     this.clearCalloutTimers();
+    this.clearWalkingInterruptTimers();
     this.activeApproach = null;
     this.activeCallout = null;
+    this.activeWalkingInterrupt = null;
     this.npcs.clear();
     this.approachCooldowns.clear();
     this.preWarmCooldowns.clear();
     this.calloutCooldowns.clear();
+    this.walkingInterruptCooldowns.clear();
     this.lastPreWarmedNpcId = null;
     this.lastGlobalCalloutTime = 0;
+    this.lastGlobalWalkingInterruptTime = 0;
   }
 }

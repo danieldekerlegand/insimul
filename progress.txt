@@ -1767,3 +1767,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `ttsBehavior: 'first_sentence'` is tracked via sentence counter in synthesizeSentence closure — counter must reset per request
   - The `modelTierOverride` in tier config takes precedence over conversation classifier result
 ---
+
+## 2026-04-05 - US-015: Walking interrupt callouts
+- Added `WalkingInterruptAttempt` type and `WalkingInterruptSetting` type ('on'/'reduced'/'off')
+- Added walking interrupt constants: 6-unit radius, 10% base probability, +10% extrovert bonus, +15% quest-bearer bonus, 2s bubble + 3s respond window, 8s global cooldown, 3-min per-NPC cooldown, 1.5s eval interval
+- Created walking interrupt phrase pool: mood-based one-liners + quest-bearer-specific phrases
+- Added `getWalkingInterruptPhrase()` helper with 60% chance quest-bearer override
+- Added `getPlayerVelocity`, `onShowWalkingInterrupt`, `onDismissWalkingInterrupt` callbacks to `ApproachCallbacks`
+- Added walking interrupt state tracking: cooldowns, active interrupt, bubble/respond timers, eval timer, settings
+- Added `isPlayerWalking()` (velocity > 1.0 units/sec threshold)
+- Added `evaluateWalkingInterrupt()` — runs every 1.5s real-time when walking; checks 6-unit radius, per-NPC and global cooldowns, callout cooldown cross-check, probability roll
+- Added `calculateWalkingInterruptProbability()` — base 10%, +10% extroverts, +15% quest-bearers (additive, not override like callouts)
+- Added `startWalkingInterrupt()` — sets cooldowns, fires callback, emits event, sets auto-dismiss timers (2s + 3s)
+- Added `acceptWalkingInterrupt()` — G key handler opens chat, emits accepted event
+- Walking interrupt setting toggle: 'off' skips evaluation entirely; 'on'/'reduced' both evaluate
+- Wired BabylonGame.ts: player velocity tracking via position delta every frame, new callbacks for walking interrupt display/dismiss, G key priority (walking interrupt → callout → approach)
+- Files changed:
+  - `shared/game-engine/rendering/NPCInitiatedConversationController.ts` — types, constants, phrase pool, evaluation, probability, start/dismiss/accept, settings
+  - `shared/game-engine/rendering/BabylonGame.ts` — velocity tracking, walking interrupt callbacks, G key handler
+  - `shared/__tests__/npc-walking-interrupts.test.ts` — 26 new tests
+- **Learnings for future iterations:**
+  - Walking interrupt eval uses real time (Date.now()) not game time — different from callout eval which uses accumulated game-seconds
+  - When testing walking interrupts, use small dt values to avoid accidentally triggering the callout eval (30 game-seconds = 500ms dt at 60000 msPerGameHour)
+  - Walking interrupt probability is additive (base + extrovert + quest-bearer) unlike callout probability which overrides base for quest-bearers
+  - `vi.useFakeTimers()` mocks Date.now() to real system time, not epoch 0 — cooldown checks against initial value of 0 always pass
+---
