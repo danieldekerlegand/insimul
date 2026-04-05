@@ -151,11 +151,12 @@ describe('shouldShowVocabHint', () => {
 });
 
 describe('isWordMastered', () => {
-  it('requires 5+ encounters and 1+ correct usage', () => {
-    expect(isWordMastered(4, 1)).toBe(false);
-    expect(isWordMastered(5, 0)).toBe(false);
-    expect(isWordMastered(5, 1)).toBe(true);
-    expect(isWordMastered(10, 3)).toBe(true);
+  it('requires 1+ encounters and 8+ correct uses (canonical thresholds)', () => {
+    expect(isWordMastered(0, 8)).toBe(false);   // no encounters
+    expect(isWordMastered(1, 7)).toBe(false);   // below mastered threshold
+    expect(isWordMastered(1, 8)).toBe(true);    // meets both
+    expect(isWordMastered(5, 8)).toBe(true);    // exceeds both
+    expect(isWordMastered(10, 10)).toBe(true);  // well above both
   });
 });
 

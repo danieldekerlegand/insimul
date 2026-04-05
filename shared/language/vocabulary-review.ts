@@ -6,24 +6,11 @@
  */
 
 import type { VocabularyEntry, MasteryLevel } from './progress';
-
-// ── Review Interval Configuration ────────────────────────────────────────────
-
-/** Review intervals in milliseconds by mastery level. */
-const REVIEW_INTERVALS: Record<MasteryLevel, number> = {
-  new: 5 * 60 * 1000,           // 5 minutes
-  learning: 30 * 60 * 1000,     // 30 minutes
-  familiar: 4 * 60 * 60 * 1000, // 4 hours
-  mastered: 24 * 60 * 60 * 1000, // 24 hours
-};
-
-/** Mastery upgrade thresholds: correct uses needed to reach each level. */
-const MASTERY_THRESHOLDS: Record<MasteryLevel, number> = {
-  new: 0,
-  learning: 3,
-  familiar: 5,
-  mastered: 8,
-};
+import {
+  MASTERY_THRESHOLDS,
+  REVIEW_INTERVALS,
+  getMasteryForCorrectCount,
+} from './vocabulary-constants';
 
 /** Probability of triggering a review quiz when approaching an already-collected word. */
 export const REVIEW_TRIGGER_CHANCE = 0.25;
@@ -115,12 +102,8 @@ export function selectWordsForReview(
  * Determine what mastery level a word should be at based on correct usage count.
  * Uses thresholds: 0=new, 3=learning, 5=familiar, 8=mastered.
  */
-export function getMasteryForCorrectCount(timesUsedCorrectly: number): MasteryLevel {
-  if (timesUsedCorrectly >= MASTERY_THRESHOLDS.mastered) return 'mastered';
-  if (timesUsedCorrectly >= MASTERY_THRESHOLDS.familiar) return 'familiar';
-  if (timesUsedCorrectly >= MASTERY_THRESHOLDS.learning) return 'learning';
-  return 'new';
-}
+// Re-export from canonical source for backward compatibility
+export { getMasteryForCorrectCount };
 
 export interface ReviewResult {
   correct: boolean;

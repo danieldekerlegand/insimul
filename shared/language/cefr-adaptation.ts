@@ -181,10 +181,11 @@ export function shouldShowVocabHint(
 
 // ── Word Mastery ──────────────────────────────────────────────────────────────
 
-/** A word is "mastered" when seen 5+ times and used correctly at least once. */
-export function isWordMastered(timesEncountered: number, timesUsedCorrectly: number): boolean {
-  return timesEncountered >= 5 && timesUsedCorrectly >= 1;
-}
+/**
+ * A word is "mastered" when it meets the canonical mastery thresholds.
+ * Delegates to vocabulary-constants.ts for the single source of truth.
+ */
+export { isWordMastered } from './vocabulary-constants';
 
 // ── Quest CEFR Filtering ─────────────────────────────────────────────────────
 

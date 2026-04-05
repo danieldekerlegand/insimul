@@ -18,13 +18,9 @@ export type MasteryLevel = 'new' | 'learning' | 'familiar' | 'mastered';
 
 export const MASTERY_LEVELS: MasteryLevel[] = ['new', 'learning', 'familiar', 'mastered'];
 
-/** Thresholds for advancing mastery (correct uses required). */
-export const DEFAULT_MASTERY_THRESHOLDS: Record<MasteryLevel, number> = {
-  new: 0,
-  learning: 3,
-  familiar: 5,
-  mastered: 8,
-};
+/** Thresholds for advancing mastery (correct uses required). Canonical source: vocabulary-constants.ts */
+import { MASTERY_THRESHOLDS as _CANONICAL_THRESHOLDS } from '../../language/vocabulary-constants';
+export const DEFAULT_MASTERY_THRESHOLDS: Record<MasteryLevel, number> = _CANONICAL_THRESHOLDS;
 
 // ---------------------------------------------------------------------------
 // Knowledge entry

@@ -16,6 +16,7 @@ import type { AssessmentDimensionScores } from './assessment/assessment-types';
 // The generic module defines the same union type.
 export type { MasteryLevel } from '../feature-modules/knowledge-acquisition/types';
 import type { MasteryLevel } from '../feature-modules/knowledge-acquisition/types';
+import { getMasteryForCorrectCount, ENCOUNTER_LEARNING_THRESHOLD } from './vocabulary-constants';
 
 export interface VocabularyEntry {
   word: string;
@@ -150,11 +151,9 @@ export interface FluencyGainResult {
 /**
  * Calculate mastery level based on encounter and usage counts.
  *
- * Delegates to the SRS thresholds (3/5/8 correct uses) so that mastery
- * levels stay consistent between the spaced-repetition review system
- * and the general language progress tracker.  The encounter count gates
- * only the first transition: a word must be encountered at least once
- * before it can leave the "new" tier.
+ * Delegates to the canonical thresholds in vocabulary-constants.ts so
+ * that mastery levels stay consistent across all systems (SRS, progress
+ * tracking, CEFR adaptation, etc.).
  */
 export function calculateMasteryLevel(
   timesEncountered: number,
@@ -163,13 +162,12 @@ export function calculateMasteryLevel(
   // Must have at least one encounter to progress past 'new'
   if (timesEncountered === 0) return 'new';
 
-  // Use the same thresholds as the SRS system (vocabulary-review.ts)
-  if (timesUsedCorrectly >= 8) return 'mastered';
-  if (timesUsedCorrectly >= 5) return 'familiar';
-  if (timesUsedCorrectly >= 3) return 'learning';
+  // Use canonical thresholds from vocabulary-constants.ts
+  const level = getMasteryForCorrectCount(timesUsedCorrectly);
+  if (level !== 'new') return level;
 
   // Some encounters but few correct uses — still learning
-  if (timesEncountered >= 2) return 'learning';
+  if (timesEncountered >= ENCOUNTER_LEARNING_THRESHOLD) return 'learning';
   return 'new';
 }
 

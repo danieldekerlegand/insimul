@@ -12,6 +12,7 @@
  */
 
 import type { KnowledgeAcquisitionConfig } from './knowledge-acquisition/types';
+import { MASTERY_THRESHOLDS } from '../language/vocabulary-constants';
 import type { ProficiencyConfig, ProficiencyTier, ProficiencyDimension } from './proficiency/types';
 import type { PatternRecognitionConfig } from './pattern-recognition/types';
 import type { GamificationConfig } from './gamification/types';
@@ -30,7 +31,7 @@ export const LANGUAGE_KNOWLEDGE_CONFIG: KnowledgeAcquisitionConfig = {
   entryLabel: 'Vocabulary Word',
   entryLabelPlural: 'Vocabulary Words',
   masteryLabels: ['New', 'Learning', 'Familiar', 'Mastered'],
-  masteryThresholds: { new: 0, learning: 3, familiar: 5, mastered: 8 },
+  masteryThresholds: MASTERY_THRESHOLDS,
   spacedRepetitionEnabled: true,
   reviewTriggerChance: 0.25,
 };
