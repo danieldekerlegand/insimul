@@ -639,7 +639,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: { word, translation, context? }
    */
   app.post('/api/conversation/translate-word', async (req: Request, res: Response) => {
-    const { word, targetLanguage } = req.body;
+    const { word, targetLanguage, worldId } = req.body;
 
     if (!word || !targetLanguage) {
       res.status(400).json({ error: 'Missing required fields: word, targetLanguage' });
@@ -647,7 +647,20 @@ export function registerConversationRoutes(app: Express): void {
     }
 
     try {
+      // Check translation cache first (if worldId provided)
+      if (worldId) {
+        const stor = await import('../../db/storage.js').then(m => m.storage);
+        const cached = await (stor as any).findTranslation(worldId, word, targetLanguage);
+        if (cached) {
+          // Cache hit — increment lookup count and return cached result
+          (stor as any).incrementTranslationLookup(worldId, word, targetLanguage).catch(() => {});
+          return res.json({ word, translation: cached.translation, context: cached.partOfSpeech || '', cached: true });
+        }
+      }
+
       const prompt = `Translate the following ${targetLanguage} word to English. Return ONLY valid JSON with no markdown.\n\nWord: "${word}"\n\n{"translation": "English meaning", "context": "brief usage note or empty string"}`;
+
+      let translationResult: { translation: string; context?: string } | null = null;
 
       let llmProvider: IStreamingLLMProvider;
       try {
@@ -663,10 +676,18 @@ export function registerConversationRoutes(app: Express): void {
         const text = result.text || '';
         try {
           const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
-          return res.json({ word, translation: parsed.translation, context: parsed.context });
+          translationResult = { translation: parsed.translation, context: parsed.context };
         } catch {
-          return res.json({ word, translation: text.trim() });
+          translationResult = { translation: text.trim() };
         }
+
+        // Cache the result
+        if (worldId && translationResult) {
+          const storForCache = await import('../../db/storage.js').then(m => m.storage);
+          (storForCache as any).upsertTranslation(worldId, word, targetLanguage, translationResult.translation, translationResult.context).catch(() => {});
+        }
+
+        return res.json({ word, ...translationResult });
       }
 
       let fullText = '';
@@ -680,10 +701,18 @@ export function registerConversationRoutes(app: Express): void {
 
       try {
         const parsed = JSON.parse(fullText.replace(/```json\n?|\n?```/g, '').trim());
-        res.json({ word, translation: parsed.translation, context: parsed.context });
+        translationResult = { translation: parsed.translation, context: parsed.context };
       } catch {
-        res.json({ word, translation: fullText.trim() });
+        translationResult = { translation: fullText.trim() };
       }
+
+      // Cache the result
+      if (worldId && translationResult) {
+        const storForCache2 = await import('../../db/storage.js').then(m => m.storage);
+        (storForCache2 as any).upsertTranslation(worldId, word, targetLanguage, translationResult.translation, translationResult.context).catch(() => {});
+      }
+
+      res.json({ word, ...translationResult });
     } catch (err: any) {
       console.error('[ConversationBridge] Word translation error:', err.message);
       res.status(500).json({ error: 'Translation failed' });

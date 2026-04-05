@@ -515,6 +515,9 @@ const QuestSchema = new Schema({
   assignedByCharacterId: { type: String, default: null },
   title: { type: String, required: true },
   description: { type: String, required: true },
+  titleTranslation: { type: String, default: null },
+  descriptionTranslation: { type: String, default: null },
+  objectivesTranslation: { type: [String], default: null },
   questType: { type: String, required: true },
   difficulty: { type: String, required: true },
   cefrLevel: { type: String, default: null }, // A1, A2, B1, B2
@@ -948,6 +951,20 @@ TelemetrySchema.index({ sessionId: 1 });
 TelemetrySchema.index({ playerId: 1, worldId: 1 });
 TelemetrySchema.index({ category: 1 });
 
+// Word Translation Cache — caches individual word/phrase translations to avoid repeated LLM calls
+const WordTranslationCacheSchema = new Schema({
+  worldId: { type: String, required: true },
+  sourceWord: { type: String, required: true },
+  targetLanguage: { type: String, required: true },
+  translation: { type: String, required: true },
+  partOfSpeech: { type: String, default: null },
+  context: { type: String, default: null },
+  lookupCount: { type: Number, default: 1 },
+  createdAt: { type: Date, default: Date.now }
+});
+WordTranslationCacheSchema.index({ worldId: 1, sourceWord: 1, targetLanguage: 1 }, { unique: true });
+WordTranslationCacheSchema.index({ worldId: 1, lookupCount: -1 });
+
 // ApiKeySchema removed — API keys are now stored on user accounts (UserSchema.apiKey)
 
 // GeographicFeatureSchema removed — geographic features are now merged into LocationSchema
@@ -994,6 +1011,7 @@ const PlaythroughDeltaModel = _removedModel as any;
 const PlaythroughConversationModel = _removedModel as any;
 // ReputationModel removed — use TruthModel with entryType='reputation'
 // PlaythroughRelationshipModel removed — use TruthModel with entryType='relationship'
+const WordTranslationCacheModel = mongoose.model('WordTranslationCache', WordTranslationCacheSchema, 'word_translation_cache');
 const SaveFileModel = mongoose.model('SaveFile', SaveFileSchema, 'saves');
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema, 'languages');
 const LocationModel = mongoose.model('Location', LocationSchema, 'locations');
@@ -4284,6 +4302,70 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const result = await SaveFileModel.findOneAndDelete({ userId, worldId, slotIndex });
     return !!result;
+  }
+
+  // ── Word Translation Cache ──────────────────────────────────────────────────
+
+  async findTranslation(worldId: string, word: string, targetLanguage: string): Promise<{ translation: string; partOfSpeech?: string } | null> {
+    await this.connect();
+    const doc = await WordTranslationCacheModel.findOne({
+      worldId,
+      sourceWord: word.toLowerCase(),
+      targetLanguage,
+    });
+    if (!doc) return null;
+    return { translation: doc.translation, partOfSpeech: doc.partOfSpeech ?? undefined };
+  }
+
+  async upsertTranslation(worldId: string, word: string, targetLanguage: string, translation: string, partOfSpeech?: string): Promise<void> {
+    await this.connect();
+    await WordTranslationCacheModel.findOneAndUpdate(
+      { worldId, sourceWord: word.toLowerCase(), targetLanguage },
+      {
+        $set: { translation, partOfSpeech: partOfSpeech ?? null },
+        $setOnInsert: { createdAt: new Date(), lookupCount: 1 },
+      },
+      { upsert: true },
+    );
+  }
+
+  async incrementTranslationLookup(worldId: string, word: string, targetLanguage: string): Promise<void> {
+    await this.connect();
+    await WordTranslationCacheModel.updateOne(
+      { worldId, sourceWord: word.toLowerCase(), targetLanguage },
+      { $inc: { lookupCount: 1 } },
+    );
+  }
+
+  async bulkUpsertTranslations(worldId: string, targetLanguage: string, translations: Array<{ word: string; translation: string; partOfSpeech?: string }>): Promise<number> {
+    await this.connect();
+    const ops = translations.map(t => ({
+      updateOne: {
+        filter: { worldId, sourceWord: t.word.toLowerCase(), targetLanguage },
+        update: {
+          $set: { translation: t.translation, partOfSpeech: t.partOfSpeech ?? null },
+          $setOnInsert: { createdAt: new Date(), lookupCount: 1 },
+        },
+        upsert: true,
+      },
+    }));
+    if (ops.length === 0) return 0;
+    const result = await WordTranslationCacheModel.bulkWrite(ops);
+    return result.upsertedCount + result.modifiedCount;
+  }
+
+  async getTranslationCacheStats(worldId: string): Promise<{ totalWords: number; topWords: Array<{ word: string; lookupCount: number }> }> {
+    await this.connect();
+    const totalWords = await WordTranslationCacheModel.countDocuments({ worldId });
+    const topWords = await WordTranslationCacheModel.find({ worldId })
+      .sort({ lookupCount: -1 })
+      .limit(20)
+      .select({ sourceWord: 1, lookupCount: 1, _id: 0 })
+      .lean();
+    return {
+      totalWords,
+      topWords: topWords.map(w => ({ word: w.sourceWord, lookupCount: w.lookupCount })),
+    };
   }
 
 }

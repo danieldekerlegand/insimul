@@ -51,6 +51,26 @@ export class HoverTranslationSystem {
   private _wordMastery: Map<string, { encountered: number; usedCorrectly: number }> = new Map();
   /** Counter for new words seen (for hint frequency modulo) */
   private _newWordIndex: number = 0;
+  /** Callback fired when a word is looked up via hover-translate, for vocabulary progress tracking */
+  private _onWordEncounter: ((encounter: {
+    word: string;
+    translation: string;
+    source: 'passive_hover';
+    timestamp: number;
+  }) => void) | null = null;
+
+  /**
+   * Set a callback that fires when a word is looked up via hover-translate.
+   * Used to connect hover-translate lookups to the vocabulary progress tracker.
+   */
+  setOnWordEncounter(fn: (encounter: {
+    word: string;
+    translation: string;
+    source: 'passive_hover';
+    timestamp: number;
+  }) => void): void {
+    this._onWordEncounter = fn;
+  }
 
   setTargetLanguage(lang: string): void {
     this._targetLanguage = lang;
@@ -157,6 +177,8 @@ export class HoverTranslationSystem {
     // Check cache first
     const cached = this._translations.get(normalized);
     if (cached) {
+      // Record passive encounter even for cached lookups
+      this._recordPassiveEncounter(cached.word, cached.translation);
       return { word: cached.word, translation: cached.translation, context: cached.context, source: 'cache' };
     }
 
@@ -171,10 +193,44 @@ export class HoverTranslationSystem {
 
     try {
       const result = await promise;
+      // Record passive encounter for API-fetched translations
+      if (result) {
+        this._recordPassiveEncounter(result.word, result.translation);
+      }
       return result;
     } finally {
       this._pendingRequests.delete(normalized);
     }
+  }
+
+  /**
+   * Record a passive vocabulary encounter from a hover-translate lookup.
+   * Fires the onWordEncounter callback if set, connecting to vocabulary progress tracking.
+   */
+  private _recordPassiveEncounter(word: string, translation: string): void {
+    // Update local mastery tracking
+    const normalized = this.normalizeWord(word);
+    const mastery = this._wordMastery.get(normalized) ?? { encountered: 0, usedCorrectly: 0 };
+    mastery.encountered += 1;
+    this._wordMastery.set(normalized, mastery);
+
+    // Fire external callback for progress persistence
+    if (this._onWordEncounter) {
+      this._onWordEncounter({
+        word,
+        translation,
+        source: 'passive_hover',
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  /**
+   * Get the number of times a word has been looked up via hover-translate.
+   */
+  getWordEncounterCount(word: string): number {
+    const mastery = this._wordMastery.get(this.normalizeWord(word));
+    return mastery?.encountered ?? 0;
   }
 
   /**
