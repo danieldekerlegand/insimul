@@ -29,10 +29,12 @@ import {
   calculateMasteryLevel,
   calculateFluencyGain,
   parseGrammarFeedbackBlock,
+  parseEvalBlock,
   vocabularyEntryToKnowledgeEntry,
   grammarPatternToPatternEntry,
   conversationRecordToGeneric,
 } from '@shared/language/language-progress';
+import type { EvalDimensionScores, DimensionScoreEntry } from '@shared/language/language-progress';
 import type { KnowledgeEntry } from '@shared/feature-modules/knowledge-acquisition/types';
 import type { PatternEntry } from '@shared/feature-modules/pattern-recognition/types';
 import type { ProficiencyProgress } from '@shared/feature-modules/proficiency/types';
@@ -57,6 +59,9 @@ export class LanguageProgressTracker {
   // Per-conversation word tracking
   private conversationNewWords: VocabularyEntry[] = [];
   private conversationReinforcedWords: Set<string> = new Set();
+
+  // Per-conversation EVAL dimension scores (accumulated across turns)
+  private conversationEvalScores: EvalDimensionScores[] = [];
 
   // DataSource for server communication
   private dataSource: IDataSource | null = null;
@@ -87,6 +92,7 @@ export class LanguageProgressTracker {
       playthroughId,
       language,
       overallFluency: 0,
+      dimensionScores: [],
       vocabulary: [],
       grammarPatterns: [],
       conversations: [],
@@ -132,6 +138,20 @@ export class LanguageProgressTracker {
     this.conversationGrammarErrors = 0;
     this.conversationNewWords = [];
     this.conversationReinforcedWords = new Set();
+    this.conversationEvalScores = [];
+  }
+
+  /**
+   * Parse and record EVAL dimension scores from a raw NPC response.
+   * Call this BEFORE stripping marker blocks so the EVAL block is still present.
+   * Returns the cleaned response (EVAL block removed).
+   */
+  public recordEvalScores(rawResponse: string): string {
+    const { scores, cleanedResponse } = parseEvalBlock(rawResponse);
+    if (scores) {
+      this.conversationEvalScores.push(scores);
+    }
+    return cleanedResponse;
   }
 
   /**
@@ -402,6 +422,7 @@ export class LanguageProgressTracker {
       this.conversationGrammarErrors = 0;
       this.conversationNewWords = [];
       this.conversationReinforcedWords = new Set();
+      this.conversationEvalScores = [];
       return null;
     }
 
@@ -436,6 +457,38 @@ export class LanguageProgressTracker {
     this.progress.overallFluency = result.newFluency;
     conv.fluencyGained = result.gain;
 
+    // Aggregate EVAL dimension scores from this conversation
+    if (this.conversationEvalScores.length > 0) {
+      const avgScores: EvalDimensionScores = {
+        vocabulary: 0, grammar: 0, fluency: 0, comprehension: 0, taskCompletion: 0,
+      };
+      for (const s of this.conversationEvalScores) {
+        avgScores.vocabulary += s.vocabulary;
+        avgScores.grammar += s.grammar;
+        avgScores.fluency += s.fluency;
+        avgScores.comprehension += s.comprehension;
+        avgScores.taskCompletion += s.taskCompletion;
+      }
+      const n = this.conversationEvalScores.length;
+      avgScores.vocabulary = Math.round((avgScores.vocabulary / n) * 10) / 10;
+      avgScores.grammar = Math.round((avgScores.grammar / n) * 10) / 10;
+      avgScores.fluency = Math.round((avgScores.fluency / n) * 10) / 10;
+      avgScores.comprehension = Math.round((avgScores.comprehension / n) * 10) / 10;
+      avgScores.taskCompletion = Math.round((avgScores.taskCompletion / n) * 10) / 10;
+
+      const entry: DimensionScoreEntry = {
+        timestamp: Date.now(),
+        conversationId: conv.id || `conv_${Date.now()}`,
+        npcId: conv.characterId,
+        scores: avgScores,
+      };
+      if (!this.progress.dimensionScores) {
+        this.progress.dimensionScores = [];
+      }
+      this.progress.dimensionScores.push(entry);
+      result.evalDimensionScores = avgScores;
+    }
+
     // Save conversation
     this.progress.conversations.push(conv);
     this.progress.totalConversations++;
@@ -446,6 +499,7 @@ export class LanguageProgressTracker {
     this.conversationGrammarErrors = 0;
     this.conversationNewWords = [];
     this.conversationReinforcedWords = new Set();
+    this.conversationEvalScores = [];
 
     this.currentConversation = null;
     this._conversationsSinceLastAdvancement++;

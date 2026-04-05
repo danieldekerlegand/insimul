@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-05T17:27:18.319Z",
+  "lastUpdated": "2026-04-05T17:44:08.359Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "8a4b077ec7024feceaa122356cf0ede973cefdf9b6ab513df874e4cba1fdd5bb",
+      "hash": "765bcb24aed5385e58966a422509bd1383fe189fe467074eb39faa9c349d4365",
       "engineMappings": [
         {
           "engine": "unity",

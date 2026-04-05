@@ -1752,6 +1752,11 @@ export class BabylonChatPanel {
     // Check for quest branch markers before stripping
     await this.parseAndHandleQuestBranch(responseText);
 
+    // Parse EVAL block for dimension scores BEFORE stripping
+    if (this.languageTracker) {
+      this.languageTracker.recordEvalScores(responseText);
+    }
+
     // Defensive strip — the LLM should no longer include these, but just in case
     const cleanedResponse = responseText
       .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')

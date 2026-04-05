@@ -11,7 +11,12 @@
  *
  * Each dimension produces a 0–100 sub-score. The overall quality score is
  * a weighted average, also 0–100, and maps to a letter grade (A/B/C/D/F).
+ *
+ * When EVAL dimension scores are available (from NPC LLM assessments),
+ * they are blended into the overall score as an additional signal.
  */
+
+import type { EvalDimensionScores } from '../language/progress';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +53,8 @@ export interface ConversationQualityScore {
   totalPlayerWords: number;
   /** Unique words spoken by the player. */
   uniquePlayerWords: number;
+  /** EVAL dimension signal (0-100 average), if EVAL scores were provided. */
+  evalSignal?: number;
 }
 
 /** Weights for each dimension (must sum to 1). */
@@ -193,15 +200,27 @@ export function scoreConversationFlow(turns: ConversationTurn[]): number {
 // ── Main Scorer ─────────────────────────────────────────────────────────────
 
 /**
+ * Convert EVAL dimension scores (1-5 scale) to a 0-100 signal.
+ * Averages all 5 dimensions and maps [1,5] → [0,100].
+ */
+export function evalScoresToSignal(scores: EvalDimensionScores): number {
+  const avg = (scores.vocabulary + scores.grammar + scores.fluency +
+    scores.comprehension + scores.taskCompletion) / 5;
+  return clamp100(((avg - 1) / 4) * 100);
+}
+
+/**
  * Score the quality of a conversation transcript for quest objective evaluation.
  *
  * @param turns - The conversation transcript
  * @param targetVocabulary - Optional set of known target-language words for L2 usage scoring
+ * @param evalDimensionScores - Optional EVAL dimension scores from NPC LLM assessment; blended at 20% weight
  * @returns A ConversationQualityScore with overall score, grade, and per-dimension breakdown
  */
 export function scoreConversationQuality(
   turns: ConversationTurn[],
   targetVocabulary?: Set<string>,
+  evalDimensionScores?: EvalDimensionScores,
 ): ConversationQualityScore {
   const playerTurns = turns.filter(t => t.role === 'player');
   const playerTexts = playerTurns.map(t => t.text);
@@ -216,12 +235,22 @@ export function scoreConversationQuality(
     conversationFlow: scoreConversationFlow(turns),
   };
 
-  const overall = clamp100(
+  let automatedScore = clamp100(
     Object.entries(DIMENSION_WEIGHTS).reduce(
       (sum, [key, weight]) => sum + dimensions[key as keyof ConversationQualityDimensions] * weight,
       0,
     ),
   );
+
+  // Blend EVAL signal at 20% weight when available
+  let evalSignal: number | undefined;
+  let overall: number;
+  if (evalDimensionScores) {
+    evalSignal = evalScoresToSignal(evalDimensionScores);
+    overall = clamp100(automatedScore * 0.8 + evalSignal * 0.2);
+  } else {
+    overall = automatedScore;
+  }
 
   return {
     overall,
@@ -230,6 +259,7 @@ export function scoreConversationQuality(
     playerTurnCount: playerTurns.length,
     totalPlayerWords: allPlayerWords.length,
     uniquePlayerWords: uniqueWords.size,
+    evalSignal,
   };
 }
 

@@ -8,6 +8,9 @@
  */
 
 import type { AssessmentDefinition } from './assessment-types';
+import type { DimensionScoreEntry, EvalDimensionScores } from '../language/progress';
+import { computeAverageDimensionScores, computeDimensionTrend } from '../language/progress';
+import type { DimensionTrend } from '../language/progress';
 
 /** Levels at which a periodic assessment is triggered */
 export const PERIODIC_ASSESSMENT_LEVELS = [5, 10, 15, 20] as const;
@@ -106,4 +109,50 @@ export function isPeriodicAssessmentCooldownMet(
 ): boolean {
   if (lastAssessmentTimestamp === null) return true;
   return now - lastAssessmentTimestamp >= PERIODIC_ASSESSMENT_COOLDOWN_MS;
+}
+
+/** Context about recent dimension performance for periodic assessments */
+export interface PeriodicAssessmentDimensionContext {
+  recentAverages: EvalDimensionScores | null;
+  trends: Record<keyof EvalDimensionScores, DimensionTrend>;
+  weakestDimension: keyof EvalDimensionScores | null;
+  strongestDimension: keyof EvalDimensionScores | null;
+}
+
+/**
+ * Build dimension context from recent EVAL scores for a periodic assessment.
+ * Uses the last 10 conversations to compute averages and trends.
+ */
+export function buildPeriodicAssessmentDimensionContext(
+  dimensionScores: DimensionScoreEntry[],
+): PeriodicAssessmentDimensionContext {
+  const recentAverages = computeAverageDimensionScores(dimensionScores, 10);
+  const dims: Array<keyof EvalDimensionScores> = [
+    'vocabulary', 'grammar', 'fluency', 'comprehension', 'taskCompletion',
+  ];
+
+  const trends = {} as Record<keyof EvalDimensionScores, DimensionTrend>;
+  for (const dim of dims) {
+    trends[dim] = computeDimensionTrend(dimensionScores, dim, 10);
+  }
+
+  let weakestDimension: keyof EvalDimensionScores | null = null;
+  let strongestDimension: keyof EvalDimensionScores | null = null;
+
+  if (recentAverages) {
+    let minScore = Infinity;
+    let maxScore = -Infinity;
+    for (const dim of dims) {
+      if (recentAverages[dim] < minScore) {
+        minScore = recentAverages[dim];
+        weakestDimension = dim;
+      }
+      if (recentAverages[dim] > maxScore) {
+        maxScore = recentAverages[dim];
+        strongestDimension = dim;
+      }
+    }
+  }
+
+  return { recentAverages, trends, weakestDimension, strongestDimension };
 }

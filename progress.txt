@@ -1002,3 +1002,62 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - GameEventBus event types are a union type — adding new events requires adding to the union in GameEventBus.ts
   - Prolog fact pattern: `player_cefr_level(player, <lowercase_level>)` — must match AssessmentEngine._assertAssessmentResult
 ---
+
+## 2026-04-05 - US-002: Unify progress schema with cefrLevel column
+- **What was implemented**: Added `cefrLevel` as a direct column on `playerProgress` so server-side queries can access CEFR level without loading the full LanguageProgress blob. Wired all cefrLevel write paths (assessment completion, auto-level-up, language progress sync) to also update playerProgress. Added API endpoints for direct cefrLevel read/write.
+- **Key changes**:
+  - Added `cefrLevel: text("cefr_level")` to `playerProgress` table in `shared/schema.ts`
+  - Added `updatePlayerProgressCefrLevel` to `IDataSource` interface and all implementations (ApiDataSource, FileDataSource, SaveFileDataSource)
+  - New server endpoints: `PATCH /api/player-progress/cefr-level` and `GET /api/player-progress/:userId/:worldId/cefr-level`
+  - Language progress sync endpoint mirrors cefrLevel to playerProgress when present
+  - Assessment completion (both `/api/assessments/:id/complete` and `/api/npc-exams/score`) now persists cefrLevel to playerProgress
+  - BabylonGame.ts: both CEFR advancement callback and assessment_completed handler call `updatePlayerProgressCefrLevel`
+  - Quest vocab introduction reads cefrLevel from playerProgress first, falls back to langProgress
+- **Files changed**:
+  - `shared/schema.ts` — added cefrLevel column to playerProgress
+  - `shared/game-engine/data-source.ts` — added updatePlayerProgressCefrLevel to IDataSource
+  - `shared/game-engine/rendering/BabylonGame.ts` — wired cefrLevel persistence to both advancement and assessment handlers
+  - `client/src/components/3DGame/DataSource.ts` — implemented updatePlayerProgressCefrLevel in ApiDataSource and FileDataSource
+  - `client/src/components/3DGame/SaveFileDataSource.ts` — implemented updatePlayerProgressCefrLevel
+  - `server/routes/telemetry-routes.ts` — enhanced sync endpoint + new PATCH/GET endpoints
+  - `server/routes/assessment-routes.ts` — mirrors cefrLevel to playerProgress on completion
+  - `server/routes/npc-exam-routes.ts` — mirrors cefrLevel to playerProgress on exam scoring
+  - `server/routes.ts` — quest vocab introduction prefers playerProgress.cefrLevel
+  - `shared/__tests__/cefr-level-on-player-progress.test.ts` — 14 new tests
+- **Learnings for future iterations:**
+  - PlayerProgress is stored as Truth documents with `entryType: 'player_progress'` — fields go in `sourceData` blob, not separate Mongoose schema columns
+  - `truthToPlayerProgress()` spreads `sourceData` into the result, so any field in sourceData is directly accessible
+  - No Mongoose schema migration needed — MongoDB's flexible documents accept new fields automatically
+  - Drift check pre-commit hook blocks commits when DataSource.ts changes — run `npm run drift:update` to refresh manifest
+  - Export templates (Godot/Unity/Unreal) have DataLoader equivalents tracked by drift-manifest.json
+---
+
+## 2026-04-05 - US-003: Aggregate EVAL dimension scores into long-term tracking
+- What was implemented:
+  - Added `EvalDimensionScores`, `DimensionScoreEntry`, and `DimensionTrend` types to `shared/language/progress.ts`
+  - Added `dimensionScores?: DimensionScoreEntry[]` history array to `LanguageProgress` interface
+  - Created `parseEvalBlock()` function in progress.ts (shared, not client-only) to parse EVAL blocks from NPC responses
+  - Created `computeAverageDimensionScores(entries, lastN?)` for rolling averages across 5 dimensions
+  - Created `computeDimensionTrend(entries, dimension, windowSize)` returning improving/stable/declining
+  - Hooked EVAL parsing into `BabylonChatPanel.processAssistantResponse()` before block stripping
+  - Added `recordEvalScores()` to `LanguageProgressTracker` for per-turn accumulation
+  - Aggregated per-conversation EVAL scores in `endConversation()` and pushed to history
+  - Added `evalDimensionScores` to `FluencyGainResult` so conversation summary includes dimension data
+  - Blended EVAL signal into `conversation-quality-scoring.ts` at 20% weight via `evalScoresToSignal()`
+  - Added `buildPeriodicAssessmentDimensionContext()` to periodic-encounter.ts with recent averages, trends, and weakest/strongest dimension identification
+- Files changed:
+  - `shared/language/progress.ts` — new types, EVAL parser, aggregation functions
+  - `shared/game-engine/logic/LanguageProgressTracker.ts` — EVAL score accumulation per-conversation, aggregation in endConversation()
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — parse EVAL before stripping
+  - `shared/assessment/conversation-quality-scoring.ts` — evalScoresToSignal(), 20% EVAL blend
+  - `shared/assessment/periodic-encounter.ts` — buildPeriodicAssessmentDimensionContext()
+  - `shared/__tests__/eval-dimension-tracking.test.ts` — 24 new tests
+  - `tasks/prd.json` — US-003 passes: true
+- **Learnings for future iterations:**
+  - Two `AssessmentDimensionScores` types exist: client-side (`taskCompletion`) and shared/assessment (`pronunciation`). EVAL blocks use `taskCompletion`. The new `EvalDimensionScores` type matches the EVAL block format.
+  - `parseAssessmentEvalBlock` in client/src/assessment/ is only used during formal assessments (AssessmentConversationController). Regular NPC conversations strip EVAL blocks without parsing.
+  - Server-side http-bridge extracts EVAL blocks as raw SSE events but doesn't parse dimensions.
+  - BabylonChatPanel.processAssistantResponse() is the right hook point for parsing NPC response blocks BEFORE they are stripped.
+  - LanguageProgressTracker.endConversation() aggregates per-turn EVAL scores into per-conversation averages and pushes to history.
+  - 830 pre-existing TypeScript errors; 131 pre-existing test file failures. Changes did not increase either.
+---

@@ -35,7 +35,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "playerProgress table at shared/schema.ts line 1364 has level, experience, gold, stats but NO cefrLevel."
     },
     {
@@ -53,7 +53,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "EVAL blocks referenced in BabylonChatPanel.ts ~line 1762 and progress.ts line 232. Similar to parseGrammarFeedbackBlock() at progress.ts line 253."
     },
     {
