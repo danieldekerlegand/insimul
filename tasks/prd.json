@@ -53,7 +53,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Currently first NPC message requires full LLM round-trip. Expected: instant first response."
     },
     {

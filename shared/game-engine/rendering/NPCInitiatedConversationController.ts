@@ -76,6 +76,8 @@ export interface ApproachCallbacks {
   onEmitEvent?: (event: any) => void;
   /** Get current environment for context-aware greetings */
   getEnvironment?: () => GreetingEnvironment | null;
+  /** Get a cached greeting from the server greeting cache (returns null on miss) */
+  getCachedGreeting?: (npcId: string, context?: string) => string | null;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -464,7 +466,11 @@ export class NPCInitiatedConversationController {
     if (!playerPos) return;
 
     const env = this.callbacks.getEnvironment?.() ?? null;
-    const greeting = getGreeting(npc.mood, npc.name, env);
+    // Prefer server-side cached greeting (LLM-generated, CEFR-aware);
+    // fall back to local template greetings
+    const greetingContext = env ? this.mapEnvToGreetingContext(env) : undefined;
+    const cachedGreeting = this.callbacks.getCachedGreeting?.(npc.id, greetingContext);
+    const greeting = cachedGreeting ?? getGreeting(npc.mood, npc.name, env);
 
     this.activeApproach = {
       npcId: npc.id,
@@ -562,6 +568,17 @@ export class NPCInitiatedConversationController {
     this.callbacks.onDismissGreeting(npcId);
     this.callbacks.onAnimationChange(npcId, 'idle');
     this.activeApproach = null;
+  }
+
+  /** Map environment info to greeting cache context key. */
+  private mapEnvToGreetingContext(
+    env: GreetingEnvironment,
+  ): 'morning' | 'afternoon' | 'evening' | 'rainy' | 'general' {
+    if (env.weather === 'rain' || env.weather === 'storm') return 'rainy';
+    if (env.timePeriod === 'dawn' || env.timePeriod === 'morning') return 'morning';
+    if (env.timePeriod === 'evening' || env.timePeriod === 'night') return 'evening';
+    if (env.timePeriod === 'afternoon') return 'afternoon';
+    return 'general';
   }
 
   private clearGreetingTimer(): void {

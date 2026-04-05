@@ -32,6 +32,8 @@ import {
   ConversationContextCache,
 } from './conversation-context-cache.js';
 import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
+import { greetingCache } from './greeting-cache.js';
+import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -514,6 +516,52 @@ async function handlePreWarm(
   }
 }
 
+// ── Greeting cache serving ───────────────────────────────────────────
+
+/**
+ * Serve a cached greeting instantly for a NEW conversation.
+ * If a greeting is cached, sends it immediately via WebSocket.
+ * The client can display this while the LLM pipeline builds the full context.
+ */
+function handleGreetingRequest(
+  ws: WebSocket,
+  msg: {
+    characterId: string;
+    worldId: string;
+    cefrLevel?: string;
+    context?: 'morning' | 'afternoon' | 'evening' | 'rainy' | 'general';
+  },
+): void {
+  const { characterId, worldId, cefrLevel, context } = msg;
+
+  const greeting = greetingCache.get(
+    worldId,
+    characterId,
+    context,
+    cefrLevel as CEFRLevel | undefined,
+  );
+
+  if (greeting) {
+    const timer = new PipelineTimer('greeting_cache_hit');
+    sendJSON(ws, {
+      type: 'greeting',
+      characterId,
+      text: greeting,
+      source: 'cache',
+    });
+    timer.stop();
+  } else {
+    const timer = new PipelineTimer('greeting_cache_miss');
+    sendJSON(ws, {
+      type: 'greeting',
+      characterId,
+      text: null,
+      source: 'miss',
+    });
+    timer.stop();
+  }
+}
+
 // ── Context cache invalidation ────────────────────────────────────────
 
 /**
@@ -535,6 +583,13 @@ export function invalidateContextCache(
   } else {
     // World-level invalidation — clear entire cache
     conversationContextCache.clear();
+  }
+
+  // Also invalidate greeting cache on context invalidation
+  if (characterId) {
+    greetingCache.invalidate(worldId, characterId);
+  } else {
+    greetingCache.invalidateWorld(worldId);
   }
 }
 
@@ -610,6 +665,10 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
           handlePreWarm(ws, { characterId, worldId, playerId }).catch((err: any) => {
             console.error('[WS-Bridge] Pre-warm background error:', err.message);
           });
+        } else if (message.requestGreeting) {
+          // Serve cached greeting instantly for new conversation
+          const { characterId, worldId, cefrLevel, context } = message.requestGreeting;
+          handleGreetingRequest(ws, { characterId, worldId, cefrLevel, context });
         } else if (message.resumeSession) {
           // Reconnection: client provides previous sessionId to resume
           const { sessionId } = message.resumeSession;

@@ -1435,3 +1435,40 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - InsimulClient.preWarm() uses `'preWarm' in this.chatProvider` type guard since only ServerChatProvider implements it
   - BabylonGame.ts event handlers are wired in the initialization block around line 1410-1475 alongside clue discovery handlers
 ---
+
+## 2026-04-05 - US-003: Implement greeting cache for instant first response
+- Created `server/services/conversation/greeting-cache.ts` — GreetingCache class with:
+  - Map keyed by `worldId:npcId`, storing up to 5 GreetingVariant per NPC
+  - Variants include context (morning/afternoon/evening/rainy/general) and CEFR level
+  - `get()` with optional context and CEFR level filtering, random selection among candidates
+  - `has()` with TTL check (1 hour expiration)
+  - `invalidate()` per NPC, `invalidateWorld()` for CEFR level changes
+  - `buildBatchPrompt()` — single LLM prompt generates greetings for multiple NPCs (batch of 5)
+  - `parseBatchResponse()` — parses `===NPC:id===` delimited sections with context-labeled lines
+  - `generateBatch()` — async LLM generation with concurrent batch limit (max 3)
+  - `warmOnLoad()` — generates greetings for up to 20 nearest NPCs in batches on session load
+  - Greeting language mode via `getNPCLanguageBehavior()` matches player CEFR level
+- Added `greeting_cache_hit` / `greeting_cache_miss` metric stages to `conversation-metrics.ts`
+- Wired into `ws-bridge.ts`:
+  - `requestGreeting` WebSocket message handler serves cached greeting instantly
+  - `handleGreetingRequest()` checks cache, sends `{ type: 'greeting', text, source }` response
+  - `invalidateContextCache()` now also invalidates greeting cache (per-NPC or per-world)
+- Integrated with `NPCInitiatedConversationController`:
+  - Added `getCachedGreeting` optional callback to `ApproachCallbacks` interface
+  - `startApproach()` now prefers cached greeting (LLM-generated, CEFR-aware) over local templates
+  - Added `mapEnvToGreetingContext()` helper to convert GreetingEnvironment to cache context key
+- Files changed:
+  - `server/services/conversation/greeting-cache.ts` — new module
+  - `server/services/conversation/conversation-metrics.ts` — added greeting cache metric stages
+  - `server/services/conversation/ws-bridge.ts` — greeting request handler, cache invalidation integration
+  - `shared/game-engine/rendering/NPCInitiatedConversationController.ts` — cached greeting preference
+  - `server/__tests__/greeting-cache.test.ts` — 29 new tests
+  - `tasks/prd.json` — US-003 passes: true
+- **Learnings for future iterations:**
+  - `CEFRLevel` type is exported from `@shared/assessment/cefr-mapping`, NOT from `@shared/language/progress` (progress.ts imports but does not re-export it)
+  - Server files use `@shared/` path alias, not relative `../../shared/` imports
+  - `getNPCLanguageBehavior()` from `@shared/language/cefr-adaptation` is the canonical way to get CEFR-aware language directives for NPC prompts
+  - NPCInitiatedConversationController runs client-side; server-side greeting cache needs a callback bridge (`getCachedGreeting`) to communicate across the boundary
+  - The `===NPC:id===` delimiter pattern works well for batch LLM parsing — reusable for batch NPC-NPC generation (US-013)
+  - `GreetingCache` is a simple Map (not LRU) since the max entry count is bounded by NPCs per world (~20-50)
+---
