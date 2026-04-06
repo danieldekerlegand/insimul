@@ -191,7 +191,6 @@ export class NpcListeningExamController {
       examType: 'listening_comprehension',
     });
 
-    console.log(`[NpcListeningExam] Starting exam ${examId} — ${config.businessType} (${config.cefrLevel})`);
 
     try {
       // Step 1: Generate listening content
@@ -269,7 +268,6 @@ export class NpcListeningExamController {
         passed: result.passed,
       });
 
-      console.log(`[NpcListeningExam] Exam ${examId} complete — ${result.totalScore}/${result.maxScore} (${result.passed ? 'PASSED' : 'FAILED'})`);
       return result;
 
     } catch (error) {
@@ -285,7 +283,6 @@ export class NpcListeningExamController {
    */
   cancelExam(): void {
     if (this.activeExam) {
-      console.log(`[NpcListeningExam] Cancelling exam ${this.activeExam.examId}`);
       this.activeExam.status = 'error';
       this.activeExam = null;
       this._onExitListeningMode?.();

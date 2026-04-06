@@ -172,7 +172,6 @@ export class InteriorSceneManager {
     const fileName = parts.pop() || '';
     const rootUrl = parts.join('/') + '/';
 
-    console.log(`[Interior] Loading interior model: ${rootUrl}${fileName}`);
 
     const result = await SceneLoader.ImportMeshAsync('', rootUrl, fileName, scene);
     const meshes = result.meshes;
@@ -196,13 +195,11 @@ export class InteriorSceneManager {
     const size = maxVec.subtract(minVec);
     const maxDim = Math.max(size.x, size.y, size.z);
 
-    console.log(`[Interior] Model loaded: ${meshes.length} meshes, size=(${size.x.toFixed(1)}, ${size.y.toFixed(1)}, ${size.z.toFixed(1)}), maxDim=${maxDim.toFixed(1)}`);
 
     // If the model is very large (Sketchfab models vary wildly), normalize to ~10m
     const targetSize = 10;
     if (maxDim > 0.01 && (maxDim > targetSize * 3 || maxDim < targetSize * 0.1)) {
       const scale = targetSize / maxDim;
-      console.log(`[Interior] Rescaling model by ${scale.toFixed(4)} (maxDim ${maxDim.toFixed(1)} -> ${targetSize})`);
       for (const m of meshes) {
         if (m.parent === null) {
           m.scaling.scaleInPlace(scale);

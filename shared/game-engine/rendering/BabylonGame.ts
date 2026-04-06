@@ -1083,7 +1083,6 @@ export class BabylonGame {
       if (res.ok) {
         this.config.authToken = savedToken;
         this.cloudDataSource = new ApiDataSource(savedToken, apiUrl);
-        console.log('[BabylonGame] Restored cloud session from saved token');
       } else {
         // Token expired or invalid
         localStorage.removeItem('insimul_token');
@@ -1091,7 +1090,6 @@ export class BabylonGame {
       }
     } catch {
       // Server unreachable — proceed offline silently
-      console.log('[BabylonGame] Could not reach API server — playing offline');
     }
   }
 
@@ -3966,7 +3964,6 @@ export class BabylonGame {
             instance.mesh.isVisible = true;
           }
         }
-        console.log(`[BabylonGame] NPC ${npcId} is now being escorted`);
       }
     });
     this.eventBus.on('escort_completed', (event: any) => {
@@ -3976,7 +3973,6 @@ export class BabylonGame {
       if (instance) {
         instance.isBeingEscorted = false;
         instance.wanderTarget = undefined;
-        console.log(`[BabylonGame] NPC ${npcId} escort completed`);
       }
     });
 
@@ -4203,7 +4199,6 @@ export class BabylonGame {
           for (const obj of quest.objectives || []) {
             if (obj.type === 'complete_assessment' && !obj.completed) {
               engine.completeObjective(quest.id, obj.id!);
-              console.log(`[Assessment] Quest objective completed: ${quest.id} / ${obj.id}`);
             }
           }
         }
@@ -4271,7 +4266,6 @@ export class BabylonGame {
         if (!bestId && fallbackId) {
           const instance = this.npcMeshes.get(fallbackId);
           if (instance) {
-            console.log(`[BabylonGame] No outdoor NPC found — bringing ${fallbackId} outside for assessment`);
             instance.isInsideBuilding = false;
             instance.insideBuildingId = undefined;
             instance.mesh.setEnabled(true);
@@ -4289,7 +4283,6 @@ export class BabylonGame {
             instance.mesh.position.z = safePos.z;
           }
         }
-        console.log(`[BabylonGame] Highlighting NPC ${targetId} for assessment conversation (outdoor: ${!!bestId})`);
         this._assessmentTargetNpcId = targetId;
         this.guiManager?.setHighlightedNpc(targetId);
       } else {
@@ -4609,7 +4602,6 @@ export class BabylonGame {
     this.waterRenderer = new WaterRenderer(scene);
     // Initialize interior scene system — must happen before BuildingEntrySystem
     // which depends on interiorGenerator.
-    console.log('[Init] Creating InteriorSceneManager. engine:', !!this.engine, 'scene:', !!scene);
     this.interiorSceneManager = new InteriorSceneManager(this.engine!, scene);
     const interiorScene = this.interiorSceneManager.getInteriorScene();
     this.interiorGenerator = new BuildingInteriorGenerator(interiorScene);
@@ -4617,7 +4609,6 @@ export class BabylonGame {
     this.interiorItemManager = new InteriorItemManager(interiorScene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
     this.bookSpawnManager = new BookSpawnManager(interiorScene);
     this.fetchWorldTextsForBooks();
-    console.log('[Init] InteriorSceneManager ready:', !!this.interiorSceneManager);
     this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
       onTeleportPlayer: (pos: Vector3) => {
         if (this.playerMesh) {
@@ -4809,7 +4800,6 @@ export class BabylonGame {
       if (this.gameQuestManager) {
         this.gameQuestManager.distributeRadiantQuests(5).then(count => {
           if (count > 0) {
-            console.log(`[BabylonGame] Distributed ${count} radiant quests to NPCs`);
             // Reload quests to pick up the status/assignment changes
             this.dataSource.loadQuests(this.config.worldId).then(updated => {
               this.quests = updated;
@@ -4901,7 +4891,6 @@ export class BabylonGame {
 
         // Wire CEFR level-up celebration and Prolog assertion
         this.languageProgressTracker.setOnCEFRAdvancement((oldLevel: CEFRLevel, newLevel: CEFRLevel) => {
-          console.log(`[BabylonGame] CEFR advancement: ${oldLevel} → ${newLevel}`);
 
           // Show celebration toast with level description
           const description = getCEFRDescription(newLevel);
@@ -5141,9 +5130,6 @@ export class BabylonGame {
     }
 
     // Diagnostic: log what the asset collection provides
-    console.log('[applyWorld3DConfig] buildingModels:', Object.keys(config3D.buildingModels || {}));
-    console.log('[applyWorld3DConfig] proceduralPresets:', (config3D as any).proceduralBuildings?.stylePresets?.length ?? 0);
-    console.log('[applyWorld3DConfig] worldAssets count:', worldAssets.length);
 
     const scene = this.scene;
 
@@ -5544,7 +5530,6 @@ export class BabylonGame {
     const proceduralBuildingConfig = this.world3DConfig?.proceduralBuildings || null;
     const biome = ProceduralNatureGenerator.getBiomeFromWorldType(worldType);
 
-    console.log(`[generateProceduralWorld] worldType=${worldType}, presets=${proceduralBuildingConfig?.stylePresets?.length ?? 0}, typeOverrides=${proceduralBuildingConfig?.buildingTypeOverrides ? Object.keys(proceduralBuildingConfig.buildingTypeOverrides).length : 0}`);
 
 
     const scaledSettlements = worldScaleManager.distributeSettlements(
@@ -5721,7 +5706,6 @@ export class BabylonGame {
                 }
               }
               this.npcScheduleSystem.addStreetNetwork(streetNetwork as any, (x: number, z: number) => this.projectToGround(x, z).y);
-              console.log(`[Topology] Registered ${streetNetwork.segments.length} streets with NPC schedule system`);
             }
           } catch (e) {
             console.warn('[BabylonGame] Failed to resolve topological lots:', e);
@@ -5862,11 +5846,11 @@ export class BabylonGame {
         const settlementBuildingSpecs: { position: Vector3; rotation: number; depth: number; width: number }[] = [];
 
         // First, spawn businesses at their lots
-        console.log(`[BuildingPlacement] Settlement ${settlement.name}: businesses=${businesses.length}, lots=${lots.length}, lotsHavePos=${lotsNowHavePositions}, topology=${lotsHaveTopology}, lotOffset=(${lotOffsetX.toFixed(1)}, ${lotOffsetZ.toFixed(1)}), settlementPos=(${scaledSettlement.position.x.toFixed(1)}, ${scaledSettlement.position.z.toFixed(1)})`);
+        // console.log(`[BuildingPlacement] Settlement ${settlement.name}: businesses=${businesses.length}, lots=${lots.length}, lotsHavePos=${lotsNowHavePositions}, topology=${lotsHaveTopology}, lotOffset=(${lotOffsetX.toFixed(1)}, ${lotOffsetZ.toFixed(1)}), settlementPos=(${scaledSettlement.position.x.toFixed(1)}, ${scaledSettlement.position.z.toFixed(1)})`);
         for (const business of businesses) {
           const lotInfo = resolveBuildingPosition(business);
           if (businesses.indexOf(business) === 0) {
-            console.log(`[BuildingPlacement] First building: pos=(${lotInfo.position.x.toFixed(1)}, ${lotInfo.position.y.toFixed(1)}, ${lotInfo.position.z.toFixed(1)}), lotId=${business.lotId}`);
+            //console.log(`[BuildingPlacement] First building: pos=(${lotInfo.position.x.toFixed(1)}, ${lotInfo.position.y.toFixed(1)}, ${lotInfo.position.z.toFixed(1)}), lotId=${business.lotId}`);
           }
 
           const bizLot = business.lotId ? lotById.get(business.lotId) : null;
@@ -6722,7 +6706,6 @@ export class BabylonGame {
           );
           spawnEdge.y += 0.5;
           this.firstSettlementSpawnPosition = spawnEdge;
-          console.log(`[Spawn] Player spawn set to edge of town: (${spawnEdge.x.toFixed(1)}, ${spawnEdge.y.toFixed(1)}, ${spawnEdge.z.toFixed(1)}), offset=${offsetDist.toFixed(1)} from center (${settlementCenter.x.toFixed(1)}, ${settlementCenter.z.toFixed(1)})`);
         }
 
         // ── Town Square ──────────────────────────────────────────────────────
@@ -7075,7 +7058,6 @@ export class BabylonGame {
         this.outdoorHotspotMeshes.push(marker);
       }
       if (this.outdoorHotspotMeshes.length > 0) {
-        console.log(`[ActionHotspots] Registered ${this.outdoorHotspotMeshes.length} outdoor hotspots`);
       }
     }
 
@@ -8073,7 +8055,6 @@ export class BabylonGame {
       // Check if this is an editor-created playthrough that needs initialization
       const ptData = await this.dataSource.getPlaythrough(this.config.playthroughId);
       if (ptData?.needsInitialization) {
-        console.log('[BabylonGame] Editor-created playthrough needs initialization — running new-game flow');
         this.guiManager?.showToast({
           title: "Starting Adventure",
           description: "This adventure was started but not yet played. Starting from the beginning...",
@@ -8777,15 +8758,15 @@ export class BabylonGame {
     }
 
     // Log NPC itineraries for debugging
-    console.log('=== NPC Itineraries ===');
-    this.npcMeshes.forEach((instance, npcId) => {
-      const name = instance.characterData
-        ? `${instance.characterData.firstName || ''} ${instance.characterData.lastName || ''}`.trim()
-        : npcId;
-      const itinerary = this.npcScheduleSystem.getItinerary(npcId);
-      console.log(`  ${name}: ${itinerary}`);
-    });
-    console.log(`=== ${this.npcMeshes.size} NPCs loaded ===`);
+    // console.log('=== NPC Itineraries ===');
+    // this.npcMeshes.forEach((instance, npcId) => {
+    //   const name = instance.characterData
+    //     ? `${instance.characterData.firstName || ''} ${instance.characterData.lastName || ''}`.trim()
+    //     : npcId;
+    //   const itinerary = this.npcScheduleSystem.getItinerary(npcId);
+    //   console.log(`  ${name}: ${itinerary}`);
+    // });
+    // console.log(`=== ${this.npcMeshes.size} NPCs loaded ===`);
 
     // Update quest indicators after NPCs are loaded
     this.updateQuestIndicators();
@@ -8806,7 +8787,6 @@ export class BabylonGame {
       },
     );
     if (result.totalCustomersAssigned > 0) {
-      console.log(`[BabylonGame] Populated businesses with ${result.totalCustomersAssigned} customer NPCs across ${result.customersByBusiness.size} businesses`);
     }
   }
 
@@ -9050,7 +9030,7 @@ export class BabylonGame {
       const npcCount = ((this as any)._npcAnimLogCount || 0) + 1;
       (this as any)._npcAnimLogCount = npcCount;
       if (npcCount <= 5) {
-        console.log(`[NPC Animations] #${npcCount} ${character.firstName} ${character.lastName}: ${animationGroups.length} groups [${animationGroups.map((ag: any) => ag.name).join(', ')}]`);
+        // console.log(`[NPC Animations] #${npcCount} ${character.firstName} ${character.lastName}: ${animationGroups.length} groups [${animationGroups.map((ag: any) => ag.name).join(', ')}]`);
       }
 
       const npcInstance: NPCInstance = {
@@ -9736,7 +9716,6 @@ export class BabylonGame {
 
     // Lazy-init interior scene manager
     if (!this.interiorSceneManager && this.engine && this.scene) {
-      console.log('[Interior] Lazy-creating InteriorSceneManager');
       this.interiorSceneManager = new InteriorSceneManager(this.engine, this.scene);
       if (this.interiorGenerator) {
         const interiorScene = this.interiorSceneManager.getInteriorScene();
@@ -9889,17 +9868,14 @@ export class BabylonGame {
     const interiorAssetPath = buildingInfo?.metadata?.interiorAssetPath || null;
 
     if (interiorAssetPath) {
-      console.log(`[Interior] Loading asset interior: ${interiorAssetPath} for ${businessType || buildingType}`);
       try {
         const { spawnPosition, meshCount } = await this.interiorSceneManager.loadInteriorModel(interiorAssetPath);
         spawnPos = spawnPosition;
-        console.log(`[Interior] Asset interior loaded: ${meshCount} meshes`);
       } catch (err) {
         console.warn('[Interior] Failed to load asset interior, falling back to procedural:', err);
         spawnPos = await this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
       }
     } else {
-      console.log(`[Interior] Using procedural interior for ${businessType || buildingType}`);
       spawnPos = await this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
     }
 
@@ -11476,7 +11452,6 @@ export class BabylonGame {
     if (actions.size > 0 && !(this as any)._loggedScheduleActions) {
       (this as any)._loggedScheduleActions = true;
       const sample = Array.from(actions.entries()).slice(0, 3);
-      console.log(`[Schedule] ${actions.size} actions:`, sample.map(([id, a]) => `${this.npcMeshes.get(id)?.characterData?.firstName}: ${a?.type}`));
     }
     if (actions.size === 0) return;
 
@@ -11796,6 +11771,52 @@ export class BabylonGame {
       this.volitionSystem.updateNPCState(npcId, { currentLocation: location } as any);
     }
 
+    // Pre-pass: NPCs in conversation ALWAYS face their partner (runs every frame, outside budget)
+    for (let i = 0; i < count; i++) {
+      const { instance } = npcList[i];
+      if (!instance.mesh || !instance.controller) continue;
+
+      const convCharId = instance.characterData?.id;
+      const inPlayerConv = instance.isInConversation;
+      const inAmbientConv = !!(convCharId && this.ambientConversationManager?.isInConversation(convCharId));
+      if (!inPlayerConv && !inAmbientConv) continue;
+
+      instance.controller.walk(false);
+      instance.controller.turnLeft(false);
+      instance.controller.turnRight(false);
+
+      let faceTarget: Vector3 | null = null;
+      if (inPlayerConv && this.playerMesh) {
+        faceTarget = this.playerMesh.position;
+      } else if (inAmbientConv) {
+        const partner = this.ambientConversationManager!.getConversationPartner(convCharId!);
+        if (partner) {
+          const partnerInst = this.npcMeshes.get(partner.partnerId);
+          if (partnerInst?.mesh) faceTarget = partnerInst.mesh.position;
+        }
+      }
+
+      if (faceTarget) {
+        const fdx = faceTarget.x - instance.mesh.position.x;
+        const fdz = faceTarget.z - instance.mesh.position.z;
+        const targetAngle = Math.atan2(fdx, fdz);
+        const dt = Math.min(this.scene!.getEngine().getDeltaTime() / 1000, 0.1);
+        let angleDiff = targetAngle - instance.mesh.rotation.y;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        const turnSpeed = 5.0;
+        const step = turnSpeed * dt;
+        if (Math.abs(angleDiff) <= step) {
+          instance.mesh.rotation.y = targetAngle;
+        } else {
+          instance.mesh.rotation.y += Math.sign(angleDiff) * step;
+        }
+      }
+
+      const isTalking = convCharId && this.npcTalkingIndicator?.isShowing?.(convCharId);
+      this.playNPCAnimation(instance, isTalking ? 'talk' : 'idle');
+    }
+
     // Pass 2: AI behavior updates (budget-limited, round-robin)
     const startTime = performance.now();
     if (this._npcBatchIndex >= count) this._npcBatchIndex = 0;
@@ -11809,47 +11830,11 @@ export class BabylonGame {
       if (!instance.mesh || !instance.controller) continue;
       if (!instance.mesh.isEnabled()) continue; // Skip hidden NPCs
 
-      // NPCs in conversation ALWAYS face their partner (bypass throttle/distance)
+      // Skip NPCs in conversation — handled in pre-pass above
       const convCharId = instance.characterData?.id;
       if (instance.isInConversation ||
           (convCharId && this.ambientConversationManager?.isInConversation(convCharId))) {
-        instance.controller.walk(false);
-        instance.controller.turnLeft(false);
-        instance.controller.turnRight(false);
-
-        // Determine face target
-        let faceTarget: Vector3 | null = null;
-        if (instance.isInConversation && this.conversationNPCId === convCharId && this.playerMesh) {
-          faceTarget = this.playerMesh.position;
-        } else if (convCharId && this.ambientConversationManager?.isInConversation(convCharId)) {
-          const partner = this.ambientConversationManager.getConversationPartner(convCharId);
-          if (partner) {
-            const partnerInst = this.npcMeshes.get(partner.partnerId);
-            if (partnerInst?.mesh) faceTarget = partnerInst.mesh.position;
-          }
-        }
-
-        if (faceTarget && instance.mesh) {
-          const fdx = faceTarget.x - instance.mesh.position.x;
-          const fdz = faceTarget.z - instance.mesh.position.z;
-          const targetAngle = Math.atan2(fdx, fdz);
-          const dt = Math.min(this.scene!.getEngine().getDeltaTime() / 1000, 0.1);
-          let angleDiff = targetAngle - instance.mesh.rotation.y;
-          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-          const turnSpeed = 5.0;
-          const step = turnSpeed * dt;
-          if (Math.abs(angleDiff) <= step) {
-            instance.mesh.rotation.y = targetAngle;
-          } else {
-            instance.mesh.rotation.y += Math.sign(angleDiff) * step;
-          }
-        }
-
-        // Play talk/idle animation
-        const isTalking = convCharId && this.npcTalkingIndicator?.isShowing?.(convCharId);
-        this.playNPCAnimation(instance, isTalking ? 'talk' : 'idle');
-        continue; // Skip normal AI behavior
+        continue;
       }
 
       // Beyond skip-AI distance: no wandering, just idle
@@ -12476,6 +12461,8 @@ export class BabylonGame {
    */
   private updateNPCRandomWander(instance: NPCInstance, now: number): void {
     if (!instance.mesh || !instance.controller) return;
+    // Skip movement if NPC is in conversation — they should stay put and face the player
+    if (instance.isInConversation) return;
     // Use home position, or settlement center as fallback (never (0,0,0))
     const settlementCenter = this._getSettlementCenter();
     const homePos = instance.homePosition
@@ -13372,6 +13359,11 @@ export class BabylonGame {
 
       // Fetch NPC quest guidance (non-blocking — sets context before or shortly after show)
       this.fetchQuestGuidance(npcId, this.config.worldId);
+
+      // Tell chat panel where the player is so the NPC turns to face them
+      if (this.playerMesh) {
+        this.chatPanel.setPlayerPosition(this.playerMesh.position);
+      }
 
       // Open the chat panel — this is the core action
       // Pass current CEFR level so NPC language mode reflects player's latest progress
@@ -16361,7 +16353,6 @@ export class BabylonGame {
         });
       }
 
-      console.log(`[BabylonGame] Assessment phase ${phaseId} completed (score: ${score}/${maxScore}). All complete: ${allComplete}`);
     } catch (error) {
       console.error('[BabylonGame] Failed to handle assessment phase completion:', error);
     }
@@ -16574,32 +16565,32 @@ export class BabylonGame {
         });
         this.questWorldObjectLinker.updateLinks(quests, this.buildingData, npcBuildingMap);
 
+        // Collect NPC positions from spawned NPC meshes (shared by quest tracker + waypoint director)
+        const npcPositions: Array<{ id: string; position: { x: number; y: number; z: number }; role?: string; name?: string }> = [];
+        this.npcMeshes.forEach((instance) => {
+          if (!instance?.mesh) return;
+          const charId = instance.characterId || instance.mesh.metadata?.characterId;
+          if (charId) {
+            npcPositions.push({
+              id: charId,
+              position: { x: instance.mesh.position.x, y: instance.mesh.position.y, z: instance.mesh.position.z },
+              role: instance.mesh.metadata?.occupation,
+              name: instance.mesh.metadata?.name,
+            });
+          }
+        });
+
+        // Convert buildingData to the director's format (shared by quest tracker + waypoint director)
+        const directorBuildingData = new Map<string, { position: { x: number; y: number; z: number }; metadata: any }>();
+        this.buildingData.forEach((data, id) => {
+          directorBuildingData.set(id, {
+            position: { x: data.position.x, y: data.position.y, z: data.position.z },
+            metadata: data.metadata,
+          });
+        });
+
         // Pass world data to quest tracker for dynamic waypoint resolution
         if (this.questTracker) {
-          // Collect NPC positions from spawned NPC meshes
-          const npcPositions: Array<{ id: string; position: { x: number; y: number; z: number }; role?: string; name?: string }> = [];
-          this.npcMeshes.forEach((instance) => {
-            if (!instance?.mesh) return;
-            const charId = instance.characterId || instance.mesh.metadata?.characterId;
-            if (charId) {
-              npcPositions.push({
-                id: charId,
-                position: { x: instance.mesh.position.x, y: instance.mesh.position.y, z: instance.mesh.position.z },
-                role: instance.mesh.metadata?.occupation,
-                name: instance.mesh.metadata?.name,
-              });
-            }
-          });
-
-          // Convert buildingData to the director's format (positions are already Vector3-compatible)
-          const directorBuildingData = new Map<string, { position: { x: number; y: number; z: number }; metadata: any }>();
-          this.buildingData.forEach((data, id) => {
-            directorBuildingData.set(id, {
-              position: { x: data.position.x, y: data.position.y, z: data.position.z },
-              metadata: data.metadata,
-            });
-          });
-
           this.questTracker.setWorldData(directorBuildingData, npcBuildingMap, npcPositions);
         }
 

@@ -136,7 +136,6 @@ export class QuestWaypointManager {
     this.waypoints.set(objectiveId, beam);
     this.waypointBaseAlphas.set(objectiveId, 0.6);
 
-    console.log(`[QuestWaypointManager] Created waypoint for objective: ${objectiveId}`);
   }
 
   /**
@@ -203,7 +202,6 @@ export class QuestWaypointManager {
       this.waypoints.delete(objectiveId);
       this.waypointBaseAlphas.delete(objectiveId);
 
-      console.log(`[QuestWaypointManager] Removed waypoint for objective: ${objectiveId}`);
     }
   }
 
@@ -245,6 +243,5 @@ export class QuestWaypointManager {
 
   public dispose(): void {
     this.clearAll();
-    console.log('[QuestWaypointManager] Disposed all waypoints');
   }
 }

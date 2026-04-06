@@ -374,6 +374,5 @@ export class NpcExamEngine {
       totalMaxPoints: result.totalMaxPoints,
       cefrLevel: result.cefrLevel,
     });
-    console.log(`[NpcExam] Result persisted via Prolog: ${result.totalScore}/${result.totalMaxPoints} (${result.cefrLevel})`);
   }
 }

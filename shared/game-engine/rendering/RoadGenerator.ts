@@ -134,7 +134,7 @@ export class RoadGenerator {
       }
     }
 
-    console.log(`[RoadGenerator] Generated ${segments.length} road segments connecting ${settlements.length} settlements`);
+    // console.log(`[RoadGenerator] Generated ${segments.length} road segments connecting ${settlements.length} settlements`);
     return segments;
   }
 
@@ -272,11 +272,11 @@ export class RoadGenerator {
 
     this.placeStreetSigns(settlementId, network, sampleHeight);
 
-    console.log(
-      `[RoadGenerator] Rendered ${network.segments.length} streets, ` +
-      `${network.nodes.filter(n => n.intersectionOf.length >= 2).length} intersections ` +
-      `for settlement ${settlementId}`
-    );
+    // console.log(
+    //   `[RoadGenerator] Rendered ${network.segments.length} streets, ` +
+    //   `${network.nodes.filter(n => n.intersectionOf.length >= 2).length} intersections ` +
+    //   `for settlement ${settlementId}`
+    // );
   }
 
   /**
@@ -968,9 +968,9 @@ export class RoadGenerator {
       }
     }
 
-    console.log(
-      `[RoadGenerator] Generated ${meshes.length} street meshes from street network (${network.edges.length} edges)`
-    );
+    // console.log(
+    //   `[RoadGenerator] Generated ${meshes.length} street meshes from street network (${network.edges.length} edges)`
+    // );
     return meshes;
   }
 
@@ -1517,7 +1517,7 @@ export class RoadGenerator {
       }
     }
 
-    console.log(`[RoadGenerator] Placed ${lampCount} lamp posts for settlement ${settlementId}`);
+    // console.log(`[RoadGenerator] Placed ${lampCount} lamp posts for settlement ${settlementId}`);
     return newLights;
   }
 

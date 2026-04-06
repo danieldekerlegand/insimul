@@ -70,14 +70,12 @@ export class AudioManager {
       return;
     }
 
-    console.log('[AudioManager] Initializing audio system');
 
     if (audioConfig) {
       await this.loadAudioFromConfig(audioConfig, worldAssets);
     }
 
     this.isInitialized = true;
-    console.log('[AudioManager] Audio system initialized');
   }
 
   /**
@@ -102,7 +100,6 @@ export class AudioManager {
       if (asset && asset.filePath) {
         try {
           await this.loadSound(role, asset.filePath, assetId);
-          console.log(`[AudioManager] Loaded ${role} audio from asset collection`);
         } catch (error) {
           console.warn(`[AudioManager] Failed to load ${role} audio:`, error);
         }
@@ -452,7 +449,6 @@ export class AudioManager {
       this.updateSpatialBindings();
     });
 
-    console.log('[AudioManager] VR spatial audio enabled');
   }
 
   /**
@@ -473,7 +469,6 @@ export class AudioManager {
     }
     this.spatialBindings = [];
 
-    console.log('[AudioManager] VR spatial audio disabled');
   }
 
   /**
@@ -589,7 +584,6 @@ export class AudioManager {
    * Dispose of all audio resources
    */
   public dispose(): void {
-    console.log('[AudioManager] Disposing audio resources');
 
     this.disableVRSpatialAudio();
 

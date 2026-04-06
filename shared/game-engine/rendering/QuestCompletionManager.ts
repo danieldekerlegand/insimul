@@ -200,7 +200,6 @@ export class QuestCompletionManager {
    * and emit events.
    */
   public async completeQuest(quest: CompletedQuestData): Promise<void> {
-    console.log(`[QuestCompletionManager] Completing quest: "${quest.title}"`);
 
     // 1. Call server to persist completion and get bonus info
     const serverResult = await this.completeQuestOnServer(quest.worldId, quest.id);
@@ -643,7 +642,6 @@ export class QuestCompletionManager {
           this.questTracker.updateQuests(quest.worldId);
         }
 
-        console.log(`[QuestCompletionManager] Auto-assigned next chain quest: "${nextQuest.title}"`);
         return null; // Chain not complete yet
       }
 
@@ -654,7 +652,6 @@ export class QuestCompletionManager {
 
       if (allCompleted) {
         const meta = this.extractChainMeta(chainQuests);
-        console.log(`[QuestCompletionManager] Chain complete: "${meta.name}"`);
 
         this.eventBus?.emit({
           type: 'quest_chain_completed',

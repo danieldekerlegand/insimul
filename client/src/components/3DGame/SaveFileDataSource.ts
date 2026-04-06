@@ -119,7 +119,6 @@ export class SaveFileDataSource implements DataSource {
       // Playtraces disabled — skip flush
 
       this.dirty = false;
-      console.log('[SaveFileDS] Saved to server');
     } catch (e) {
       console.error('[SaveFileDS] Failed to persist:', e);
     }

@@ -542,7 +542,6 @@ export class BuildingPlacementSystem {
     this.applyBuildingEffects(building);
 
     const terrainY = this.sampleHeight(position.x, position.z);
-    console.log(`[BuildingSystem] Placed ${def.name} at (${position.x}, ${terrainY.toFixed(2)}, ${position.z})`);
     return building;
   }
 
@@ -627,7 +626,6 @@ export class BuildingPlacementSystem {
     }
 
     this.onBuildingComplete?.(building);
-    console.log(`[BuildingSystem] ${building.name} construction complete`);
   }
 
   /**
@@ -720,7 +718,6 @@ export class BuildingPlacementSystem {
     const mat = this.buildingMaterials.get(upgradeDef.category);
     if (mat) building.mesh.material = mat;
 
-    console.log(`[BuildingSystem] Upgraded ${currentDef.name} to ${upgradeDef.name}`);
     return true;
   }
 

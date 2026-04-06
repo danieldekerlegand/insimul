@@ -72,7 +72,7 @@ export class QuestIndicatorManager {
       if (!sample) sample = { id: npcId, occupation: npcData.character?.occupation, type: indicatorType };
       this.setIndicator(npcId, npcData.mesh, indicatorType);
     });
-    console.log(`[QuestIndicatorManager] Updated ${npcs.size} NPCs, ${created} indicators created, ${quests.length} quests, sample NPC:`, sample);
+    // console.log(`[QuestIndicatorManager] Updated ${npcs.size} NPCs, ${created} indicators created, ${quests.length} quests, sample NPC:`, sample);
   }
 
   /**

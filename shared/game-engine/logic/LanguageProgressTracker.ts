@@ -886,7 +886,6 @@ export class LanguageProgressTracker {
 
       // Update the sync timestamp so we don't immediately re-sync
       this.lastSyncTimestamp = Date.now();
-      console.log(`[LanguageProgressTracker] Loaded from server: ${this.progress.vocabulary.length} words, ${this.progress.grammarPatterns.length} patterns`);
       return true;
     } catch (err) {
       console.warn('[LanguageProgressTracker] Failed to load from server:', err);

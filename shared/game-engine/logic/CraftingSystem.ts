@@ -410,7 +410,6 @@ export class CraftingSystem {
 
     this.onCraftComplete?.(item);
 
-    console.log(`[CraftingSystem] Crafted ${item.quantity}x ${item.name}`);
   }
 
   /**

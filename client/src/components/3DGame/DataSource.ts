@@ -92,7 +92,6 @@ export class ApiDataSource implements DataSource {
     await this.directSave(worldId, playthroughId, slotIndex, result.resolvedState);
     this.lastKnownServerState.set(key, result.resolvedState);
 
-    console.log(`[ApiDataSource] Conflict resolved via ${result.resolution}`, result.fieldSummary);
     return 'resolved';
   }
 
@@ -1939,11 +1938,9 @@ export class FileDataSource implements DataSource {
     if (settlement?.businesses?.length) return settlement.businesses;
     // Fall back to deriving from buildings data
     const allBuildings = this.worldData?.buildings || [];
-    console.log(`[FileDS] loadSettlementBusinesses(${settlementId}): total buildings=${allBuildings.length}, sample=${JSON.stringify(allBuildings[0] ? {id: allBuildings[0].id, settlementId: allBuildings[0].settlementId, businessId: allBuildings[0].businessId} : 'none')}`);
     const buildings = allBuildings.filter(
       (b: any) => b.settlementId === settlementId && b.businessId
     );
-    console.log(`[FileDS] Matched ${buildings.length} businesses for settlement ${settlementId}`);
     // Look up BusinessIR data for ownerId/businessType fallback
     const businessIRs: any[] = this.worldData?.businesses || [];
     return buildings.map((b: any) => {

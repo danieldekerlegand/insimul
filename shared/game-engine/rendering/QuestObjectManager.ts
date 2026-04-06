@@ -241,7 +241,7 @@ export class QuestObjectManager {
   public registerQuestModelTemplate(role: string, mesh: Mesh): void {
     mesh.setEnabled(false);
     this.questModelTemplates.set(role, mesh);
-    console.log(`[QuestObjectManager] Registered quest model template for role: ${role}`);
+    // console.log(`[QuestObjectManager] Registered quest model template for role: ${role}`);
   }
 
   /**
@@ -275,7 +275,6 @@ export class QuestObjectManager {
    * Load and spawn objects for a quest
    */
   public async loadQuest(quest: Quest) {
-    console.log(`Loading quest objects for: ${quest.title}`);
 
     // Add to active quests
     this.activeQuests.push(quest);
@@ -291,7 +290,7 @@ export class QuestObjectManager {
     const questObjectives = quest.objectives as Array<{ type: string }> | undefined;
     const convOnly = quest.conversationOnly || (questObjectives && isConversationOnlyQuest(questObjectives));
     if (convOnly) {
-      console.log(`[QuestObjectManager] Conversation-only quest "${quest.title}" — skipping physical object spawning`);
+      // console.log(`[QuestObjectManager] Conversation-only quest "${quest.title}" — skipping physical object spawning`);
       return;
     }
 
@@ -751,13 +750,11 @@ export class QuestObjectManager {
 
       case 'talk_to_npc':
         // NPC objectives don't need spawning, just tracking
-        console.log(`Quest objective: Talk to ${objective.npcName}`);
         break;
 
       case 'use_vocabulary':
       case 'complete_conversation':
         // These are tracked through conversation, no physical spawn
-        console.log(`Quest objective: ${objective.description}`);
         break;
 
       case 'identify_object':
@@ -776,12 +773,12 @@ export class QuestObjectManager {
         if (this.onStoryTTS && objective.description) {
           this.onStoryTTS(objective.description, objective.listeningStoryNpcId);
         }
-        console.log(`[QuestObjectManager] listening_comprehension objective: ${objective.description}`);
+        // console.log(`[QuestObjectManager] listening_comprehension objective: ${objective.description}`);
         break;
 
       case 'translation_challenge':
         // These are conversation-based, no physical spawn needed
-        console.log(`[QuestObjectManager] ${objective.type} objective: ${objective.description}`);
+        // console.log(`[QuestObjectManager] ${objective.type} objective: ${objective.description}`);
         break;
 
       case 'navigate_language':
@@ -830,7 +827,7 @@ export class QuestObjectManager {
           item.setEnabled(true);
         }
         item.position = position;
-        console.log(`[QuestObjectManager] Using collectible model from asset collection`);
+        // console.log(`[QuestObjectManager] Using collectible model from asset collection`);
       } else {
         // Fallback: Use procedural mesh generator for contextual shape
         const objectType = objective.itemName?.toLowerCase() || 'gem';
@@ -958,7 +955,7 @@ export class QuestObjectManager {
       }
       beacon.position = objective.locationPosition.clone();
       beacon.position.y += 5; // Raise it up
-      console.log(`[QuestObjectManager] Using location marker model from asset collection`);
+      // console.log(`[QuestObjectManager] Using location marker model from asset collection`);
     } else {
       // Fallback: Create a beacon/pillar of light
       beacon = MeshBuilder.CreateCylinder(
@@ -1194,7 +1191,7 @@ export class QuestObjectManager {
 
       this.locationMarkers.set(markerId, beacon);
 
-      console.log(`[QuestObjectManager] Direction waypoint spawned for step 0: "${step.instruction}"`);
+      // console.log(`[QuestObjectManager] Direction waypoint spawned for step 0: "${step.instruction}"`);
     }
   }
 
@@ -1239,7 +1236,7 @@ export class QuestObjectManager {
     this.scene.beginAnimation(beacon, 0, 60, true);
 
     this.locationMarkers.set(markerId, beacon);
-    console.log(`[QuestObjectManager] Navigation waypoint spawned for step 0: "${wp.instruction}"`);
+    // console.log(`[QuestObjectManager] Navigation waypoint spawned for step 0: "${wp.instruction}"`);
   }
 
   /**
@@ -1277,7 +1274,7 @@ export class QuestObjectManager {
     this.scene.beginAnimation(beacon, 0, 60, true);
 
     this.locationMarkers.set(markerId, beacon);
-    console.log(`[QuestObjectManager] Combat zone marker spawned for defeat_enemies: ${objective.description}`);
+    // console.log(`[QuestObjectManager] Combat zone marker spawned for defeat_enemies: ${objective.description}`);
   }
 
   /**
@@ -1330,7 +1327,7 @@ export class QuestObjectManager {
       });
     }
 
-    console.log(`[QuestObjectManager] Escort destination marker spawned for: ${objective.description}`);
+    // console.log(`[QuestObjectManager] Escort destination marker spawned for: ${objective.description}`);
   }
 
   /**
@@ -1483,10 +1480,10 @@ export class QuestObjectManager {
           const distance = Math.sqrt(dx * dx + dz * dz);
           const radius = objective.locationRadius || 8;
 
-          console.debug(`[QuestObjectManager] Proximity check: objective=${objective.id} distance=${distance.toFixed(1)} radius=${radius}`);
+          // console.debug(`[QuestObjectManager] Proximity check: objective=${objective.id} distance=${distance.toFixed(1)} radius=${radius}`);
 
           if (distance <= radius) {
-            console.log(`[QuestObjectManager] Location proximity triggered: objective=${objective.id} quest=${quest.id} distance=${distance.toFixed(1)}`);
+            // console.log(`[QuestObjectManager] Location proximity triggered: objective=${objective.id} quest=${quest.id} distance=${distance.toFixed(1)}`);
             this.visitLocation(quest.id, objective.id, objective.description);
           }
         }
@@ -1709,7 +1706,6 @@ export class QuestObjectManager {
    * Complete a quest
    */
   private completeQuest(questId: string) {
-    console.log(`Quest completed: ${questId}`);
 
     // Remove quest objects
     this.cleanupQuest(questId);
@@ -1886,7 +1882,7 @@ export class QuestObjectManager {
 
     const prompt = this.visualVocabDetector.triggerPrompt(objectiveId);
     if (prompt) {
-      console.log(`[QuestObjectManager] Visual vocabulary prompt triggered for: ${objectiveId}`);
+      // console.log(`[QuestObjectManager] Visual vocabulary prompt triggered for: ${objectiveId}`);
     }
   }
 
@@ -2038,7 +2034,7 @@ export class QuestObjectManager {
       this.scene.beginAnimation(beacon, 0, 60, true);
 
       this.locationMarkers.set(markerId, beacon);
-      console.log(`[QuestObjectManager] Next navigation waypoint: step ${nextIdx} "${wp.instruction}"`);
+      // console.log(`[QuestObjectManager] Next navigation waypoint: step ${nextIdx} "${wp.instruction}"`);
     }
   }
 

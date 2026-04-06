@@ -10,7 +10,7 @@ import {
   TextBlock,
   TextWrapping
 } from "@babylonjs/gui";
-import { Scene, Mesh } from "@babylonjs/core";
+import { Scene, Mesh, Vector3 } from "@babylonjs/core";
 import { BabylonDialogueActions } from "./BabylonDialogueActions";
 import { BabylonGesturePanel } from "./BabylonGesturePanel";
 import { HoverTranslationSystem } from "./HoverTranslationSystem";
@@ -158,6 +158,8 @@ export class BabylonChatPanel {
   private _gameEventBus: any = null;
   // Per-NPC conversation counter for friendship tracking
   private _npcConversationCounts: Map<string, number> = new Map();
+  // Player position for NPC-facing (set by BabylonGame before show())
+  private _playerPosition: Vector3 | null = null;
   private streamingAudioPlayer: StreamingAudioPlayer | null = null;
   private lipSyncController: LipSyncController | null = null;
   private _grpcAvailable: boolean | null = null; // null = unchecked
@@ -250,9 +252,6 @@ export class BabylonChatPanel {
     this.talkingIndicator = new NPCTalkingIndicator(scene);
     
     // Test if GUI texture is working
-    console.log('[ChatPanel] Constructor - advancedTexture:', advancedTexture);
-    console.log('[ChatPanel] Constructor - scene:', scene);
-    console.log('[ChatPanel] Constructor - rootContainer children:', advancedTexture.rootContainer.children.length);
     
     // Add window resize listener
     this.handleResize = this.handleResize.bind(this);
@@ -304,7 +303,6 @@ export class BabylonChatPanel {
    */
   public updateCefrLevel(level: CEFRLevel): void {
     if (level !== this.playerCefrLevel) {
-      console.log(`[ChatPanel] CEFR level updated: ${this.playerCefrLevel} → ${level}`);
       this._previousCefrLevel = this.playerCefrLevel;
       this.playerCefrLevel = level;
       this._cachedSystemPrompt = null;
@@ -331,8 +329,6 @@ export class BabylonChatPanel {
   }
 
   public show(character: Character, truths: Truth[], npcMesh?: Mesh, cefrLevel?: CEFRLevel | null) {
-    console.log('[ChatPanel] SHOW() called for:', character.firstName, character.lastName);
-    console.log('[ChatPanel] Current time:', Date.now());
     this.character = character;
     this.truths = truths;
     this.npcMesh = npcMesh || null;
@@ -349,7 +345,6 @@ export class BabylonChatPanel {
     // Lock voice/gender at conversation start so it never drifts mid-conversation
     this._lockedGender = (character.gender || 'neutral').toLowerCase();
     this._lockedVoice = this._lockedGender === 'female' ? 'Kore' : 'Charon';
-    console.log(`[ChatPanel] Locked voice: ${this._lockedVoice} (gender: ${this._lockedGender}, raw: ${character.gender})`);
 
     // Clear previous messages and translation state for new conversation
     this.messages = [];
@@ -357,7 +352,6 @@ export class BabylonChatPanel {
     this._interactiveMessages.clear();
     this._difficultyMonitor.reset();
     if (this._scaffoldingIndicator) this._scaffoldingIndicator.isVisible = false;
-    console.log('[ChatPanel] Cleared previous messages');
 
     // Initialize streaming conversation client
     this.initConversationClient(character, npcMesh);
@@ -457,7 +451,6 @@ export class BabylonChatPanel {
         serverUrl: '', // empty = same origin
         llmModel: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
         onLoadProgress: (pct: number, status: string) => {
-          console.log(`[ChatPanel] AI loading: ${status} (${Math.round(pct * 100)}%)`);
         },
         systemPromptBuilder: this.buildSystemPrompt.bind(this),
       });
@@ -465,7 +458,6 @@ export class BabylonChatPanel {
       // Initialize async — don't block chat panel creation
       this.insimulClient.initialize().then(() => {
         this._grpcAvailable = true;
-        console.log(`[ChatPanel] InsimulClient ready (chat=${this.insimulClient?.getChatType()}, tts=${this.insimulClient?.getTTSType()})`);
       }).catch((err: any) => {
         console.warn('[ChatPanel] InsimulClient init failed:', err.message);
         this._grpcAvailable = false;
@@ -540,21 +532,17 @@ export class BabylonChatPanel {
     if (this._grpcAvailable === null) {
       this.insimulClient.isAvailable().then((available: boolean) => {
         this._grpcAvailable = available;
-        console.log('[ChatPanel] Conversation service:', available ? 'available' : 'unavailable (fallback to Gemini)');
       });
     }
   }
 
   private handleResize() {
     if (this.chatContainer && this.isVisible) {
-      console.log('[ChatPanel] Handling resize, refreshing GUI');
       this._advancedTexture.markAsDirty();
     }
   }
 
   public hide(userInitiated: boolean = false) {
-    console.log('[ChatPanel] Hide() called - was isVisible:', this.isVisible, 'userInitiated:', userInitiated);
-    console.log('[ChatPanel] Call stack:', new Error().stack);
     this.clearHintTimer();
     this.disableHandsFreeMode();
     // Clean up listening mode if active
@@ -579,9 +567,7 @@ export class BabylonChatPanel {
       const result = this.languageTracker.endConversation();
       if (result) {
         if (result.gain > 0) {
-          console.log(`[LanguageTracker] Fluency: ${result.previousFluency.toFixed(1)} → ${result.newFluency.toFixed(1)} (+${result.gain.toFixed(2)})`);
           if (result.bonuses.length > 0) {
-            console.log(`[LanguageTracker] Bonuses: ${result.bonuses.join(", ")}`);
           }
         }
         // Always fire conversation summary — assessment depends on this to advance phases
@@ -607,7 +593,6 @@ export class BabylonChatPanel {
 
     // Only call onClose if user-initiated
     if (userInitiated) {
-      console.log('[ChatPanel] Calling onClose callback');
       this.onClose?.();
     }
   }
@@ -732,13 +717,11 @@ export class BabylonChatPanel {
         this.languageTracker.setWorldLanguageContext(this.worldLanguageContext);
       }
       this.languageTracker.setOnFluencyGain((result) => {
-        console.log(`[LanguageTracker] Fluency: ${result.previousFluency.toFixed(1)} → ${result.newFluency.toFixed(1)} (+${result.gain.toFixed(2)})`);
         this._proficiencyDirty = true;
         this._cachedSystemPrompt = null; // Force prompt rebuild next message
         this.onFluencyGain?.(result.newFluency, result.gain);
       });
       this.languageTracker.setOnWordMastered((entry) => {
-        console.log(`[LanguageTracker] Word mastered: ${entry.word}!`);
         this._proficiencyDirty = true;
       });
     }
@@ -753,7 +736,6 @@ export class BabylonChatPanel {
 
 
   private createChatUI() {
-    console.log('[ChatPanel] Creating chat UI...');
 
     // Main container - top-right, below minimap when collapsed; expands for chat
     this.chatContainer = new Rectangle("chatContainer");
@@ -1046,7 +1028,6 @@ export class BabylonChatPanel {
 
     this._advancedTexture.addControl(this._translationTooltip);
 
-    console.log('[ChatPanel] Chat UI created');
   }
 
   /** Copy full dialogue to clipboard and briefly show an overlay notification. */
@@ -1752,7 +1733,6 @@ export class BabylonChatPanel {
         }
       },
       onMetadata: (type: string, content: string) => {
-        console.log(`[ChatPanel] Metadata in stream: ${type}`, content.substring(0, 80));
       },
       onError: (err: Error) => {
         console.error('[ChatPanel] Streaming error:', err);
@@ -1999,7 +1979,6 @@ export class BabylonChatPanel {
         if (metadata.grammarFeedback && this.languageTracker) {
           const feedback = metadata.grammarFeedback;
           if (feedback.status === 'corrected' && feedback.errors?.length > 0) {
-            console.log(`[LanguageTracker] Grammar corrections: ${feedback.errors.length}`);
             this.languageTracker.recordGrammarFeedback(feedback);
             const corrections = feedback.errors.map((err: any) =>
               `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
@@ -2025,7 +2004,6 @@ export class BabylonChatPanel {
 
         // Process vocab hints — feed into hover-to-translate system
         if (metadata.vocabHints?.length > 0) {
-          console.log('[VocabHints]', metadata.vocabHints);
           this.hoverTranslation.addVocabHints(metadata.vocabHints as VocabHint[]);
           this.rebuildMessagesWithTranslations();
 
@@ -2882,7 +2860,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    */
   public setAIProvider(provider: string): void {
     this._aiProvider = provider;
-    console.log(`[ChatPanel] AI provider set to: ${provider}`);
 
     // Dispose current client and recreate with new provider
     if (this.insimulClient) {
@@ -3257,6 +3234,11 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    * When set, the NPC will steer the conversation to help the player complete
    * relevant quest objectives. Call before show().
    */
+  /** Set the player's current position so NPCs can turn to face them during conversation. */
+  public setPlayerPosition(position: Vector3) {
+    this._playerPosition = position;
+  }
+
   public setQuestGuidancePrompt(prompt: string | null) {
     this.questGuidancePrompt = prompt;
     // Invalidate cached system prompt so it rebuilds with guidance
@@ -3570,7 +3552,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
           : null;
 
         if (createdQuest) {
-          console.log('[BabylonChatPanel] Quest created:', createdQuest);
 
           // Notify quest assigned callback
           if (this.onQuestAssigned) {
@@ -3739,7 +3720,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
             : null;
 
           if (result) {
-            console.log('[BabylonChatPanel] Quest branched:', result);
 
             if (choice.consequence) {
               this.messages.push({
@@ -3849,7 +3829,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     this.voiceWSClient = new VoiceWebSocketClient(
       {
         onStateChange: (state) => {
-          console.log('[ChatPanel] Voice WS state:', state);
           if (state === 'in_room' && this.voiceMode === 'always-on') {
             this.voiceWSClient?.startCapture().catch(err => {
               console.warn('[ChatPanel] Failed to start capture:', err);
@@ -3872,7 +3851,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
           console.warn('[ChatPanel] Voice WS error:', msg);
         },
         onFallbackToHTTP: () => {
-          console.log('[ChatPanel] WebSocket voice failed, falling back to push-to-talk');
           this.voiceMode = 'push-to-talk';
           if (this.inputText) {
             this.inputText.text = "WS unavailable, using push-to-talk";
@@ -4045,7 +4023,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       // Update visual indicator
       this.updateScaffoldingIndicator(adjustment.level);
 
-      console.log(`[ChatPanel] Difficulty adjustment: ${adjustment.level} — ${adjustment.reason}`);
     }
   }
 

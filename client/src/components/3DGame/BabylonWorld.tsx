@@ -40,33 +40,28 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
 
     async function startGame() {
       try {
-        console.log('[BabylonWorld] Loading save file...');
         const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
         let saveFile: any;
 
         if (saveId) {
           // Load existing save by ID
-          console.log('[BabylonWorld] Loading existing save:', saveId);
           const res = await fetch(`/api/saves/${saveId}`, { headers });
           if (!res.ok) throw new Error('Failed to load save file');
           saveFile = await res.json();
         } else {
           // Check for an existing save first (reuse the most recent one)
-          console.log('[BabylonWorld] Checking for existing saves...');
           const listRes = await fetch(`/api/worlds/${worldId}/saves`, { headers });
           const existingSaves = listRes.ok ? await listRes.json() : [];
 
           if (existingSaves.length > 0) {
             // Resume most recent save
             const mostRecent = existingSaves[0];
-            console.log('[BabylonWorld] Found existing save:', mostRecent.name);
             const res = await fetch(`/api/saves/${mostRecent.id}`, { headers });
             if (!res.ok) throw new Error('Failed to load existing save');
             saveFile = await res.json();
           } else {
             // Start new game — create save file with embedded snapshot
-            console.log('[BabylonWorld] No existing saves, creating new game...');
             const res = await fetch(`/api/worlds/${worldId}/saves/new-game`, {
               method: 'POST',
               headers,
@@ -87,7 +82,6 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
 
         if (disposed) return;
 
-        console.log(`[BabylonWorld] Save file loaded: ${saveFile.name} (${saveFile.worldSnapshot?.characters?.length || 0} characters)`);
 
         // Create save-file-backed data source
         const ds = new SaveFileDataSource(saveFile, token!);
@@ -124,7 +118,6 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
 
     return () => {
       disposed = true;
-      console.log('[BabylonWorld] useEffect cleanup: disposing game');
       if (dataSourceRef.current) {
         dataSourceRef.current.dispose();
         dataSourceRef.current = null;

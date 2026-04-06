@@ -573,7 +573,6 @@ export class CharacterController {
     
     public setMovementPlane(plane: 'free' | 'xy' | 'xz') {
         this._movementPlane = plane;
-        console.log(`[CharacterController] Movement plane set to: ${plane}`);
     }
     
     public getMovementPlane(): 'free' | 'xy' | 'xz' {

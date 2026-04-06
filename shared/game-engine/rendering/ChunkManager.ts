@@ -246,7 +246,6 @@ export class ChunkManager {
     }
 
     if (keysToDelete.length > 0) {
-      console.log(`[ChunkManager] Disposed ${keysToDelete.length} distant chunks`);
     }
   }
 

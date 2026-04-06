@@ -19,7 +19,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "All UI text is hardcoded English. No i18n framework exists."
     },
     {
@@ -37,7 +37,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Quests have target-language title/description but NO English translation fields, unlike GameText."
     },
     {
@@ -55,7 +55,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "translate-word API hits LLM for EVERY request with no caching."
     },
     {
@@ -73,7 +73,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "HoverTranslationSystem.ts fetches translations but lookups are NOT connected to vocabulary progress tracking."
     },
     {
@@ -91,7 +91,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Only item names are batch-translated currently. All other translations are on-the-fly."
     },
     {
@@ -108,7 +108,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Uses translation fields from US-002. Quest display is target-language only with no English fallback."
     },
     {
@@ -125,7 +125,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Action prompts and building labels are always English regardless of proficiency."
     },
     {
@@ -143,7 +143,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "All toasts, notifications, achievement descriptions are English-only."
     },
     {
@@ -161,7 +161,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -179,7 +179,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "i18n framework starts with hardcoded French but Insimul supports multiple target languages."
     },
     {
@@ -197,7 +197,7 @@
         "Typecheck passes, tests pass"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "In-world 3D text elements don't adapt to player proficiency level."
     },
     {
@@ -214,7 +214,7 @@
         "All tests pass"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

@@ -87,7 +87,6 @@ export class VRManager {
    */
   public async initializeVR(ground?: GroundMesh): Promise<boolean> {
     try {
-      console.log('Initializing VR with WebXR...');
 
       // Create WebXR experience
       this.xrExperience = await this.scene.createDefaultXRExperienceAsync({
@@ -106,7 +105,6 @@ export class VRManager {
       if (ground && this.xrExperience.teleportation) {
         this.teleportationFloorMeshes.push(ground);
         this.xrExperience.teleportation.addFloorMesh(ground);
-        console.log('Teleportation enabled on ground mesh');
       }
 
       // Set up session state handlers
@@ -130,7 +128,6 @@ export class VRManager {
         this.handleControllerRemoved(controller);
       });
 
-      console.log('VR initialized successfully');
       return true;
     } catch (error) {
       console.error('Failed to initialize VR:', error);
@@ -308,7 +305,6 @@ export class VRManager {
    * Handle VR session start
    */
   private handleVRSessionStart(): void {
-    console.log('VR session started');
     this.isInVRSession = true;
 
     if (this.onVRSessionStart) {
@@ -320,7 +316,6 @@ export class VRManager {
    * Handle VR session end
    */
   private handleVRSessionEnd(): void {
-    console.log('VR session ended');
     this.isInVRSession = false;
     this.isARMode = false;
 
@@ -342,7 +337,6 @@ export class VRManager {
    * Handle controller added
    */
   private handleControllerAdded(controller: WebXRInputSource): void {
-    console.log('VR controller added:', controller.uniqueId);
 
     const hand = controller.inputSource.handedness as 'left' | 'right' | 'none';
 
@@ -356,7 +350,6 @@ export class VRManager {
 
     // Set up controller button events (only for left/right hands)
     controller.onMotionControllerInitObservable.add((motionController) => {
-      console.log(`Motion controller initialized for ${hand} hand`);
       if (hand === 'none') return;
 
       const validHand = hand; // narrow type to 'left' | 'right'
@@ -403,7 +396,6 @@ export class VRManager {
    * Handle controller removed
    */
   private handleControllerRemoved(controller: WebXRInputSource): void {
-    console.log('VR controller removed:', controller.uniqueId);
 
     this.controllers.delete(controller.uniqueId);
 
@@ -582,7 +574,6 @@ export class VRManager {
       const xrHelper = this.xrExperience.baseExperience;
       await xrHelper.enterXRAsync('immersive-ar', 'local-floor');
       this.isARMode = true;
-      console.log('[VRManager] Entered AR mode');
       return true;
     } catch (error) {
       console.warn('[VRManager] AR not supported or failed to enter:', error);
@@ -650,7 +641,6 @@ export class VRManager {
       });
 
       this.arHitTestEnabled = true;
-      console.log('[VRManager] AR hit testing enabled');
     } catch (error) {
       console.warn('[VRManager] Failed to enable AR hit test:', error);
     }

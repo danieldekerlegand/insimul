@@ -1557,7 +1557,6 @@ export class BabylonQuestTracker {
     if (this.prologEngine && quest.status === 'active') {
       this.evaluateQuestCompletion(quest.id).then(complete => {
         if (complete && quest.status === 'active') {
-          console.log(`[BabylonQuestTracker] Prolog reports quest "${quest.title}" is complete`);
         }
       }).catch(() => { /* non-fatal */ });
     }
@@ -1703,7 +1702,6 @@ export class BabylonQuestTracker {
       this.resolvedWaypoints.push(...resolved);
     }
 
-    console.log(`[BabylonQuestTracker] Updated ${this.waypointManager.getWaypointCount()} waypoints`);
   }
 
   private updateWaypointsForTrackedQuest() {
@@ -1725,7 +1723,6 @@ export class BabylonQuestTracker {
     }
 
     this.resolvedWaypoints = resolved;
-    console.log(`[BabylonQuestTracker] Tracking "${quest.title}" with ${this.waypointManager.getWaypointCount()} waypoints`);
   }
 
   public toggleWaypoints(): boolean {

@@ -332,7 +332,6 @@ export class ProceduralNatureGenerator {
     hideOne(this.bushOverrideTemplate);
     this.treeVariantTemplates.forEach(hideOne);
     this.rockVariantTemplates.forEach(hideOne);
-    console.log('[NatureGen] Hidden all prototype templates (moved off-screen)');
   }
 
   private async loadTreeModel(
@@ -1772,7 +1771,6 @@ export class ProceduralNatureGenerator {
     this.geologicalMeshes = cleanList(this.geologicalMeshes);
 
     if (removed > 0) {
-      console.log(`[NatureGen] Post-spawn cleanup removed ${removed} nature meshes from road zones`);
     }
     return removed;
   }

@@ -205,10 +205,6 @@ export class ListeningComprehensionManager {
     // Mark story as heard after first substantial response
     if (quest.storyText.length >= 20) {
       quest.storyHeard = true;
-      console.log(
-        `[ListeningComprehension] Story captured for quest ${quest.questId}: ` +
-        `${quest.storyText.substring(0, 80)}...`
-      );
     }
   }
 
@@ -240,8 +236,8 @@ export class ListeningComprehensionManager {
         const client = getInsimulClient();
         if (client) {
           sdkResult = await client.evaluateComprehension({
-            questions: quest.questions.map((q: string, i: number) => ({
-              question: q,
+            questions: quest.questions.map((q, i) => ({
+              question: q.question,
               playerAnswer: quest.playerAnswers[i] || '',
             })),
             targetLanguage: quest.targetLanguage || 'the target language',
@@ -273,11 +269,6 @@ export class ListeningComprehensionManager {
       quest.comprehensionScore = evaluation.score;
 
       const passed = evaluation.score >= this.passThreshold;
-      console.log(
-        `[ListeningComprehension] Quest ${quest.questId} scored ${evaluation.score}/100 — ` +
-        `${passed ? 'PASSED' : 'FAILED'}`
-      );
-
       this.onComplete?.(quest.questId, evaluation.score, quest.storyText, passed);
       return evaluation;
     } catch (error) {

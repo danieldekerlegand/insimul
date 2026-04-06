@@ -117,7 +117,6 @@ export class GenreUIManager {
         break;
     }
 
-    console.log(`[GenreUIManager] Created ${this.config.layout} HUD layout`);
   }
 
   // ==========================================

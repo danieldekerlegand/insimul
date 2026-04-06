@@ -26,7 +26,6 @@ export class OnboardingManager {
     onStepCompleted?: (stepId: string, stepIndex: number, totalSteps: number, durationMs: number) => void;
     onCompleted?: (totalSteps: number, totalDurationMs: number) => void;
   }): Promise<void> {
-    console.log('[OnboardingManager] Starting onboarding flow');
     this._startedAt = Date.now();
     this._onCompleted = config.onCompleted;
 
@@ -45,7 +44,6 @@ export class OnboardingManager {
   completeCurrentStep(): void {
     if (this._disposed) return;
     const durationMs = Date.now() - this._startedAt;
-    console.log(`[OnboardingManager] Onboarding complete after ${Math.round(durationMs / 1000)}s`);
     this._onCompleted?.(this._totalSteps, durationMs);
   }
 

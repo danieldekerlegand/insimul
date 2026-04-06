@@ -79,7 +79,6 @@ export class BabylonGame {
       this.assets = assets;
       this.config3D = config3D;
 
-      console.log('[BabylonGame] World data loaded successfully');
     } catch (error) {
       console.error('[BabylonGame] Failed to load world data:', error);
       this.sceneStatus = "error";
@@ -100,7 +99,6 @@ export class BabylonGame {
       
       if (playthrough) {
         this.playthroughId = playthrough.id;
-        console.log('[BabylonGame] Playthrough started:', playthrough);
       }
     } catch (error) {
       console.error('[BabylonGame] Failed to start playthrough:', error);

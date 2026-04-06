@@ -129,9 +129,6 @@ export class ConversationQuestBridge {
         continue;
       }
 
-      console.log(
-        `[QuestBridge] Objective met: ${evaluation.objectiveId} (confidence: ${(evaluation.confidence * 100).toFixed(0)}%) — ${evaluation.extractedInfo}`,
-      );
 
       // Fire to QuestCompletionEngine via trackEvent
       if (this.questTracker) {

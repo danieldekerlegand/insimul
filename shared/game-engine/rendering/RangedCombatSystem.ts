@@ -153,7 +153,6 @@ export class RangedCombatSystem {
     );
     
     this.notifyAmmoChanged();
-    console.log(`[RangedCombat] Switched to ${this.currentWeapon.name}`);
   }
 
   /**

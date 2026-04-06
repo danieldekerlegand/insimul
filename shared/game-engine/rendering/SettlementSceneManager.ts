@@ -208,7 +208,6 @@ export class SettlementSceneManager {
   enterSettlement(settlementId: string): void {
     if (this._isIsolated && this._activeSettlementId === settlementId) return;
 
-    console.log(`[SettlementSceneManager] Entering settlement: ${settlementId}`);
 
     // Save enabled state and apply isolation
     this.categorizedMeshes.forEach((entry) => {
@@ -246,7 +245,6 @@ export class SettlementSceneManager {
     if (!this._isIsolated) return;
 
     const prevId = this._activeSettlementId;
-    console.log(`[SettlementSceneManager] Exiting settlement: ${prevId}`);
 
     // Restore meshes to pre-isolation state
     this.categorizedMeshes.forEach((entry) => {

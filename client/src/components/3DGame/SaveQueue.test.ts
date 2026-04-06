@@ -15,7 +15,6 @@ let failed = 0;
 function assert(condition: boolean, message: string) {
   if (condition) {
     passed++;
-    console.log(`  ✓ ${message}`);
   } else {
     failed++;
     console.error(`  ✗ ${message}`);
@@ -92,7 +91,6 @@ class InMemorySaveQueue {
 // ---------------------------------------------------------------------------
 
 async function testEnqueueAndFlush() {
-  console.log('\n— enqueue and flush —');
   const executed: string[] = [];
   const queue = new InMemorySaveQueue(async (op) => { executed.push(op.dedupeKey); });
 
@@ -104,7 +102,6 @@ async function testEnqueueAndFlush() {
 }
 
 async function testOfflineQueuing() {
-  console.log('\n— offline queuing —');
   const executed: string[] = [];
   const queue = new InMemorySaveQueue(async (op) => { executed.push(op.dedupeKey); });
 
@@ -121,7 +118,6 @@ async function testOfflineQueuing() {
 }
 
 async function testDeduplication() {
-  console.log('\n— deduplication —');
   const executed: any[] = [];
   const queue = new InMemorySaveQueue(async (op) => { executed.push(op.payload); });
 
@@ -138,7 +134,6 @@ async function testDeduplication() {
 }
 
 async function testMultipleDifferentKeys() {
-  console.log('\n— multiple different keys —');
   const executed: string[] = [];
   const queue = new InMemorySaveQueue(async (op) => { executed.push(op.dedupeKey); });
 
@@ -155,7 +150,6 @@ async function testMultipleDifferentKeys() {
 }
 
 async function testRetryOnFailure() {
-  console.log('\n— retry on failure —');
   let callCount = 0;
   const queue = new InMemorySaveQueue(async (op) => {
     callCount++;
@@ -178,7 +172,6 @@ async function testRetryOnFailure() {
 }
 
 async function testDropAfterMaxRetries() {
-  console.log('\n— drop after max retries —');
   const queue = new InMemorySaveQueue(async () => { throw new Error('always fails'); });
 
   queue.setOnline(false);
@@ -192,7 +185,6 @@ async function testDropAfterMaxRetries() {
 }
 
 async function testOrderPreservation() {
-  console.log('\n— order preservation —');
   const executed: string[] = [];
   let shouldFail = true;
   const queue = new InMemorySaveQueue(async (op) => {
@@ -217,7 +209,6 @@ async function testOrderPreservation() {
 }
 
 async function testClear() {
-  console.log('\n— clear —');
   const queue = new InMemorySaveQueue(async () => {});
 
   queue.setOnline(false);
@@ -234,7 +225,6 @@ async function testClear() {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  console.log('SaveQueue Tests\n================');
   await testEnqueueAndFlush();
   await testOfflineQueuing();
   await testDeduplication();
@@ -244,7 +234,6 @@ async function main() {
   await testOrderPreservation();
   await testClear();
 
-  console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
 

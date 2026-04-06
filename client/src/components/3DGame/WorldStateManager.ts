@@ -428,7 +428,6 @@ export class WorldStateManager {
     const state = this.captureState(slotIndex, trigger);
     const diff = this.computeDiff(state);
     if (!diff) {
-      console.log('[WorldStateManager] No changes to save');
       return false;
     }
 
@@ -437,7 +436,6 @@ export class WorldStateManager {
       // Send full state for the slot (server stores by slot index)
       await this.dataSource.saveGameState(worldId, playthroughId, slotIndex, state);
       this.lastSavedState = state;
-      console.log(`[WorldStateManager] Saved to slot ${slotIndex}${trigger ? ` (trigger: ${trigger})` : ''}`);
       return true;
     } finally {
       this._isSaving = false;
@@ -455,7 +453,6 @@ export class WorldStateManager {
     const migrated = WorldStateManager.migrateSaveState(state);
     this.applyState(target, migrated);
     this.lastSavedState = migrated;
-    console.log(`[WorldStateManager] Loaded from slot ${slotIndex} (v${state.version}→v${migrated.version})`);
     return true;
   }
 
@@ -507,7 +504,6 @@ export class WorldStateManager {
       }));
     }
 
-    console.log('[WorldStateManager] Migrated save state from v2 to v3');
     return migrated;
   }
 

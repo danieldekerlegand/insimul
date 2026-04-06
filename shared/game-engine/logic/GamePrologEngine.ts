@@ -577,7 +577,6 @@ export class GamePrologEngine {
         itemType: item.type,
       });
     }
-    console.log(`[GamePrologEngine] Initialized ${items.length} inventory items as Prolog facts`);
   }
 
   /**
@@ -687,7 +686,6 @@ export class GamePrologEngine {
     }
 
     this.initialized = true;
-    console.log('[GamePrologEngine] Initialized:', this.engine.getStats());
   }
 
   /**
@@ -1223,7 +1221,6 @@ export class GamePrologEngine {
         itemType: item.itemType,
       });
     }
-    console.log(`[GamePrologEngine] Initialized ${items.length} world item definitions as Prolog facts`);
   }
 
   /**
@@ -1257,7 +1254,6 @@ sumlist([H|T], S) :- sumlist(T, S1), S is S1 + H.
 `;
     try {
       await this.engine.consult(rules);
-      console.log('[GamePrologEngine] Loaded item IS-A reasoning rules');
     } catch (e) {
       console.warn('[GamePrologEngine] Failed to load item reasoning rules:', e);
     }

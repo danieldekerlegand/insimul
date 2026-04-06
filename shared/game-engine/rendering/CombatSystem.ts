@@ -53,7 +53,6 @@ export class CombatSystem {
     this.critMultiplier = settings.critMultiplier;
     this.attackCooldown = settings.attackCooldown;
     this.combatRange = settings.combatRange;
-    console.log(`[CombatSystem] Combat style set to: ${style}`);
   }
 
   /**

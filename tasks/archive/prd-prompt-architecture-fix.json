@@ -1,0 +1,140 @@
+{
+  "project": "Insimul",
+  "branchName": "ralph/prompt-architecture-fix",
+  "description": "Prompt Architecture Unification — Fix the split prompt pipeline so language learning directives (CEFR modes, vocabulary frequency, scaffolding, critical language rule) actually reach the LLM on all conversation paths (SSE, WS, NPC-NPC), fix language learning detection fallback, add Vite WS proxy, and send game state from client to server",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Accept and use client-provided systemPrompt on SSE path",
+      "description": "As a developer, I need the /api/conversation/stream endpoint to use the client-provided system prompt when present so that language learning directives actually reach the LLM.",
+      "acceptanceCriteria": [
+        "In http-bridge.ts, read systemPrompt from req.body and pass it through to streamTextResponse()",
+        "In streamTextResponse(), if a systemPrompt string is provided AND the session needs a context rebuild, use it as the system prompt instead of calling buildContext()",
+        "If systemPrompt is NOT provided (e.g., non-game clients), fall back to buildContext() as before",
+        "Preserve the existing characterName, worldContext, and characterGender fields in conversationContext by extracting them from the buildContext() result or the session",
+        "Add a log: '[ConversationBridge] Using client-provided system prompt (N chars)' vs '[ConversationBridge] Using server-built system prompt'",
+        "Add test: POST to /api/conversation/stream with a systemPrompt field, verify the LLM receives that prompt (not the server-built one)",
+        "Add test: POST without systemPrompt, verify fallback to buildContext()",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "The client already sends systemPrompt in the SSE request body (server-chat-provider.ts:298). The server just doesn't read it. streamTextResponse() signature needs a new optional clientSystemPrompt parameter. The session caching logic (needsRebuild at line 109) should still work — if the client prompt is present, skip buildContext() entirely for this session turn."
+    },
+    {
+      "id": "US-002",
+      "title": "Accept and use client-provided systemPrompt on WS path",
+      "description": "As a developer, I need the WebSocket bridge to use a client-provided system prompt when present so that language learning directives reach the LLM via the WS transport.",
+      "acceptanceCriteria": [
+        "In ws-bridge.ts handleTextInput(), read systemPrompt from the msg object (the client sends it as textInput.systemPrompt in the WS JSON message)",
+        "If systemPrompt is provided and the session needs context rebuild, use it instead of calling buildContext()",
+        "If not provided, fall back to buildContext() as before",
+        "Add a log: '[WS-Bridge] Using client-provided system prompt (N chars)' vs '[WS-Bridge] Using server-built system prompt'",
+        "Update server-chat-provider.ts sendTextWS() to include systemPrompt in the textInput JSON message alongside text, sessionId, characterId, worldId, languageCode",
+        "Add test: send a WS textInput message with systemPrompt, verify the LLM receives it",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "The WS message format at server-chat-provider.ts:252-257 sends { textInput: { text, sessionId, characterId, worldId, languageCode } }. Add systemPrompt to this object. handleTextInput() at ws-bridge.ts:79 destructures msg — add systemPrompt to the destructure."
+    },
+    {
+      "id": "US-003",
+      "title": "Enrich server-side prompt with CEFR language mode directives",
+      "description": "As a developer, I need the server-side prompt builder to include CEFR-aware language mode directives as a fallback, so that even when the client prompt is unavailable the NPC still adapts to the player's level.",
+      "acceptanceCriteria": [
+        "In context-manager.ts buildSystemPrompt(), when languageLearning is not null, call assignNPCLanguageMode(characterId, cefrLevel) from shared/language/cefr-adaptation.ts and include the result",
+        "Append buildLanguageModeDirective(mode) output to the LANGUAGE LEARNING MODE section (e.g., 'Speak in simplified mode: 5-7 word sentences, high-frequency vocabulary only')",
+        "Append buildFrequencyDirective(cefrLevel) output from shared/language/vocabulary-frequency.ts to constrain vocabulary rank",
+        "Add the CRITICAL LANGUAGE RULE enforcement at the very end of the prompt: 'CRITICAL LANGUAGE RULE: Your ENTIRE response must be in [targetLanguage]. Do NOT use English. Every word must be in [targetLanguage]. This is non-negotiable.'",
+        "Determine CEFR level from player progress data: map profLabel (beginner/intermediate/advanced) to CEFR (A1/B1/B2) or pass through if available from gameState",
+        "Add test: build server prompt with languageLearning active and CEFR A1, verify prompt contains 'simplified' directive and frequency constraint '1-200'",
+        "Add test: build server prompt with languageLearning active and CEFR B2, verify prompt contains 'natural' directive",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "assignNPCLanguageMode() is in cefr-adaptation.ts:43-54. buildLanguageModeDirective() is in cefr-adaptation.ts:60-96. buildFrequencyDirective() is in vocabulary-frequency.ts. Need to map profLabel to CEFR: beginner -> A1, intermediate -> B1, advanced -> B2. Or accept explicit CEFR from gameState."
+    },
+    {
+      "id": "US-004",
+      "title": "Fix language learning detection fallback",
+      "description": "As a developer, I need language learning detection to work reliably so that the LANGUAGE LEARNING MODE section is never skipped for language learning worlds.",
+      "acceptanceCriteria": [
+        "In context-manager.ts buildContext() (around line 384), add a fallback: if languages.find(l => l.isLearningTarget) returns null, check world.targetLanguage — if set and not 'English', construct the languageLearning object using world.targetLanguage",
+        "Also check world.gameType === 'language-learning' as an additional signal",
+        "Log a warning when the fallback is used: '[Context] No isLearningTarget in languages, falling back to world.targetLanguage'",
+        "Add test: create context with world.targetLanguage = 'French' but no language with isLearningTarget: true, verify languageLearning is still populated",
+        "Add test: create context with world.targetLanguage = null, verify languageLearning is null",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The current code at line 384 does languages.find(l => l.isLearningTarget) which fails if the world has targetLanguage: 'French' but the languages collection doesn't have isLearningTarget: true on the French entry. This is the most likely root cause of the ~481-token prompt with no language directives the user observed."
+    },
+    {
+      "id": "US-005",
+      "title": "Send gameState context from client to server on SSE and WS paths",
+      "description": "As a developer, I need the client to send critical game state (CEFR level, player vocabulary, grammar patterns) to the server so that the server-side prompt builder can use them even when building its own prompt.",
+      "acceptanceCriteria": [
+        "In server-chat-provider.ts sendTextSSE(), add optional fields to the request body: cefrLevel, playerVocabulary (array of word objects with mastery), playerGrammarPatterns (array of pattern objects with accuracy)",
+        "In server-chat-provider.ts sendTextWS(), add the same fields to the textInput JSON message",
+        "In BabylonChatPanel.ts, when calling insimulClient.sendText(), pass the CEFR level and game state from languageTracker — extend SendTextOptions in the InsimulClient if needed",
+        "In http-bridge.ts, read cefrLevel, playerVocabulary, playerGrammarPatterns from req.body and pass them to buildContext() via the gameState parameter",
+        "In ws-bridge.ts, read the same fields from the textInput message and pass them to buildContext()",
+        "Add test: POST to /api/conversation/stream with cefrLevel: 'A1' and playerVocabulary, verify the server prompt includes vocabulary review words",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Currently buildContext() accepts a gameState parameter but only prologFacts is passed. It also supports playerVocabulary, playerGrammarPatterns, playerProgress, activeQuests. This is belt-and-suspenders: even if US-001 makes the server use the client prompt, this ensures the server has the data for a rich fallback."
+    },
+    {
+      "id": "US-006",
+      "title": "Add Vite WebSocket proxy for /ws/conversation",
+      "description": "As a developer, I need the Vite dev server to proxy WebSocket connections to the Express backend so that the WS transport works in development without falling back to SSE.",
+      "acceptanceCriteria": [
+        "In vite.config.ts, add a proxy rule for /ws/conversation that forwards WebSocket connections to the Express backend (http://localhost:8000 or the configured port)",
+        "The proxy must support WebSocket upgrade (ws: true in Vite proxy config)",
+        "After the change, verify that ws://localhost:8080/ws/conversation successfully connects (the dev console no longer shows 'WebSocket connection failed')",
+        "Verify the InsimulClient logs '[ChatPanel] InsimulClient ready (chat=server, tts=server)' and the SSE fallback warning does NOT appear",
+        "Add comment in vite.config.ts explaining why the WS proxy is needed",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Currently the client connects to ws://localhost:8080/ws/conversation (Vite dev port) but the WS bridge is on the Express server at port 8000. Vite proxy config: '/ws': { target: 'http://localhost:8000', ws: true }. The Express server registers the WS bridge at server/index.ts:604-605."
+    },
+    {
+      "id": "US-007",
+      "title": "Consolidate NPC-NPC prompt builder with language learning support",
+      "description": "As a developer, I need NPC-NPC conversations to include language learning directives so that overheard/eavesdropped NPC conversations are also in the target language.",
+      "acceptanceCriteria": [
+        "In npc-conversation-engine.ts buildNpcNpcSystemPrompt(), add a languageDirective section: if the world has a target language, append 'LANGUAGE: This conversation must be entirely in [targetLanguage]. Both NPCs are native speakers. Write all dialogue in [targetLanguage] only — no English.' to the prompt",
+        "Pass the world's target language through to buildNpcNpcSystemPrompt() — identify it from the world's languages collection or targetLanguage field",
+        "Verify the generated NPC-NPC exchanges are in the target language when the world has one",
+        "Add test: build NPC-NPC prompt with target language 'French', verify prompt contains French language directive",
+        "Add test: build NPC-NPC prompt with no target language, verify no language directive added",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Currently NPC-NPC conversations say 'They speak French and English. Use this language naturally in dialogue.' — this is too vague. Needs a stronger directive matching the player-NPC treatment. The initiateConversation() function at line 567 already extracts worldLangs. Need to also identify which is the learning target."
+    },
+    {
+      "id": "US-008",
+      "title": "Add integration test verifying full prompt pipeline",
+      "description": "As a developer, I need an integration test that verifies the complete prompt pipeline — from client prompt through to the system prompt that reaches the LLM — to prevent future regressions.",
+      "acceptanceCriteria": [
+        "Create a test that simulates a full player-NPC chat exchange via /api/conversation/stream with a systemPrompt provided, and verifies the LLM receives the client-provided system prompt containing 'LANGUAGE LEARNING MODE' or 'CRITICAL LANGUAGE RULE'",
+        "Create a test that simulates a chat exchange WITHOUT a client systemPrompt, and verifies the server builds its own prompt with LANGUAGE LEARNING MODE section (when world has target language) including CEFR language mode and frequency directives",
+        "Create a test for NPC-NPC conversation verifying the prompt contains target language directive when applicable",
+        "All tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "These integration tests should mock the LLM provider to capture the system prompt and verify its contents, rather than making real Gemini API calls."
+    }
+  ]
+}

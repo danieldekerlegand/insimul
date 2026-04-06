@@ -119,6 +119,10 @@ export class InsimulClient {
   private ttsType: TTSProviderType;
   private sttType: STTProviderType;
 
+  // Pending character/voice settings (applied after init if set before provider is ready)
+  private pendingCharacter: { characterId: string; worldId: string } | null = null;
+  private pendingVoice: { gender?: string; language?: string; voiceId?: string } | null = null;
+
   constructor(options: InsimulClientOptions = {}) {
     this.options = options;
 
@@ -228,6 +232,19 @@ export class InsimulClient {
         this.sttProvider.initialize(),
       ]);
 
+      // Apply any character/voice settings that were set before init completed
+      if (this.pendingCharacter) {
+        this.chatProvider.setCharacter(this.pendingCharacter.characterId, this.pendingCharacter.worldId);
+        if (this.options.systemPromptBuilder) {
+          this.chatProvider.setSystemPrompt(
+            this.options.systemPromptBuilder(this.pendingCharacter.characterId, this.pendingCharacter.worldId),
+          );
+        }
+      }
+      if (this.pendingVoice) {
+        this.ttsProvider.setVoice(this.pendingVoice);
+      }
+
       this.initialized = true;
       this.initPromise = null;
     })();
@@ -240,17 +257,18 @@ export class InsimulClient {
   }
 
   setCharacter(characterId: string, worldId: string): void {
+    this.pendingCharacter = { characterId, worldId };
     if (this.chatProvider) {
       this.chatProvider.setCharacter(characterId, worldId);
-    }
-
-    if (this.options.systemPromptBuilder && this.chatProvider) {
-      this.chatProvider.setSystemPrompt(this.options.systemPromptBuilder(characterId, worldId));
+      if (this.options.systemPromptBuilder) {
+        this.chatProvider.setSystemPrompt(this.options.systemPromptBuilder(characterId, worldId));
+      }
     }
   }
 
   /** Set TTS voice for the current character */
   setVoice(options: { gender?: string; language?: string; voiceId?: string }): void {
+    this.pendingVoice = options;
     if (this.ttsProvider) {
       this.ttsProvider.setVoice(options);
     }

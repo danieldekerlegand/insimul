@@ -101,7 +101,6 @@ export class VRAccessibilityManager {
       this.update();
     });
 
-    console.log('[VRAccessibility] Enabled', this.settings);
   }
 
   /**
@@ -173,7 +172,6 @@ export class VRAccessibilityManager {
     if (camera) {
       camera.position.y += this.settings.seatedHeightOffset;
       this.seatedHeightApplied = true;
-      console.log(`[VRAccessibility] Seated mode: +${this.settings.seatedHeightOffset}m height`);
     }
   }
 

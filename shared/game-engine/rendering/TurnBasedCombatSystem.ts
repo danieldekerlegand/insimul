@@ -304,7 +304,6 @@ export class TurnBasedCombatSystem {
     this.setPhase('player_turn');
     this.beginCurrentTurn();
     
-    console.log(`[TurnBasedCombat] Combat started with ${this.combatants.size} combatants`);
   }
 
   /**
@@ -355,7 +354,6 @@ export class TurnBasedCombatSystem {
     // Check if stunned
     const stunEffect = combatant.statusEffects.find(e => e.type === 'stun' || e.type === 'freeze');
     if (stunEffect) {
-      console.log(`[TurnBasedCombat] ${combatant.name} is stunned/frozen, skipping turn`);
       this.currentTurnIndex++;
       this.beginCurrentTurn();
       return;

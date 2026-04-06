@@ -273,7 +273,6 @@ export class RunManager {
     this.meta.totalRuns++;
 
     this.onRunStart?.(runId);
-    console.log(`[RunManager] Run started: ${runId} with ${this.activeModifiers.length} modifiers`);
 
     return runId;
   }
@@ -317,7 +316,6 @@ export class RunManager {
     this.onRunEnd?.(this.currentRun, this.meta);
     this.onMetaCurrencyChanged?.(this.meta.metaCurrency);
 
-    console.log(`[RunManager] Run ended. Score: ${this.currentRun.score}, Meta earned: ${metaEarned}`);
 
     const stats = { ...this.currentRun };
     this.currentRun = null;
@@ -441,7 +439,6 @@ export class RunManager {
     this.onUpgradePurchased?.(upgrade);
     this.onMetaCurrencyChanged?.(this.meta.metaCurrency);
 
-    console.log(`[RunManager] Upgraded ${upgrade.name} to level ${upgrade.currentLevel}`);
     return true;
   }
 

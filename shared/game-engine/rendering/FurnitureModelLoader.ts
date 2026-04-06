@@ -69,7 +69,6 @@ export class FurnitureModelLoader {
 
     // In exported games (file:// protocol), polyhaven furniture models are not bundled — skip
     if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
-      console.log('[FurnitureModelLoader] Skipping — furniture models not bundled in export');
       this.loading = false;
       return;
     }

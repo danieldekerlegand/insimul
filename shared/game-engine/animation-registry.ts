@@ -318,14 +318,8 @@ export function getAnimationSummary(): {
 
 export function logAnimationSummary(): void {
   const summary = getAnimationSummary();
-  console.log('=== Animation Registry Summary ===');
-  console.log(`Total unique animations: ${summary.totalUniqueAnimations}`);
-  console.log('\nAnimations per category:');
   for (const [cat, count] of Object.entries(summary.categoryCounts).sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${cat}: ${count}`);
   }
-  console.log('\nRichest animation sets:');
   for (const { modelId, count } of summary.richestModels.slice(0, 5)) {
-    console.log(`  ${modelId}: ${count} animations`);
   }
 }

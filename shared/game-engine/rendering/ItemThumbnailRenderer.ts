@@ -161,7 +161,6 @@ export class ItemThumbnailRenderer {
     light.dispose();
     cam.dispose();
 
-    console.log(`[ItemThumbnailRenderer] Generated ${this.thumbnails.size} thumbnails`);
   }
 
   /**

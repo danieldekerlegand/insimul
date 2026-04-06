@@ -120,7 +120,6 @@ export class VRHandTrackingManager {
         this.handleHandRemoved(hand);
       });
 
-      console.log('[VRHandTracking] Hand tracking initialized');
       return true;
     } catch (error) {
       console.warn('[VRHandTracking] Hand tracking not available:', error);
@@ -174,11 +173,9 @@ export class VRHandTrackingManager {
     if (handedness === 'left') {
       this.xrLeftHand = hand;
       this.leftHand.tracked = true;
-      console.log('[VRHandTracking] Left hand tracked');
     } else if (handedness === 'right') {
       this.xrRightHand = hand;
       this.rightHand.tracked = true;
-      console.log('[VRHandTracking] Right hand tracked');
     }
   }
 

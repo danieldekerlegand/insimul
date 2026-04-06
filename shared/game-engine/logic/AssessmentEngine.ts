@@ -155,7 +155,6 @@ export class AssessmentEngine {
     worldId: string;
     targetLanguage: string;
   }): Promise<void> {
-    console.log('[AssessmentEngine] Starting assessment —', config.assessmentType, 'for', config.targetLanguage);
     this.targetLanguage = config.targetLanguage;
 
     let totalScore = 0;
@@ -165,7 +164,6 @@ export class AssessmentEngine {
       if (this._aborted) return;
 
       const phase = ASSESSMENT_PHASES[i];
-      console.log(`[AssessmentEngine] Section ${i + 1}/${ASSESSMENT_PHASES.length}: ${phase.name}`);
 
       this._onPhaseStarted?.(phase.id, i, 0);
 
@@ -182,7 +180,6 @@ export class AssessmentEngine {
       if (this._aborted) return;
 
       totalScore += score;
-      console.log(`[AssessmentEngine] ${phase.name} complete: ${score}/${phase.maxScore}`);
       this._onHideInstruction?.();
       this._onPhaseCompleted?.(phase.id, score, phase.maxScore);
 
@@ -221,7 +218,6 @@ export class AssessmentEngine {
       dimensionScores,
     };
 
-    console.log(`[AssessmentEngine] Assessment complete — CEFR: ${cefrLevel}, Score: ${result.totalScore}/${TOTAL_MAX_SCORE}`);
     this._onCompleted?.(result);
   }
 
@@ -421,7 +417,6 @@ export class AssessmentEngine {
     }
 
     // Return undefined — AssessmentModalUI will fall back to browser SpeechSynthesis
-    console.log('[Assessment] TTS unavailable — modal will use browser SpeechSynthesis fallback');
     return undefined;
   }
 
@@ -545,7 +540,6 @@ export class AssessmentEngine {
         this._unsubscribeConversation = this.eventBus.on(
           'assessment_conversation_initiated',
           () => {
-            console.log('[AssessmentEngine] Player initiated conversation with highlighted NPC');
             if (this._unsubscribeConversation) {
               this._unsubscribeConversation();
               this._unsubscribeConversation = null;
@@ -593,7 +587,6 @@ export class AssessmentEngine {
         this._unsubscribeConversation = this.eventBus.on(
           'assessment_conversation_completed',
           (event: any) => {
-            console.log('[AssessmentEngine] Conversation completed — scoring');
             if (this._unsubscribeConversation) {
               this._unsubscribeConversation();
               this._unsubscribeConversation = null;

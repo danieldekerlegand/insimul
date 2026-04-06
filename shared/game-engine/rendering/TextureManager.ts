@@ -258,7 +258,6 @@ export class TextureManager {
       }
     }
 
-    console.log(`Applied ground texture: ${asset.name}`);
   }
 
   /**
@@ -286,7 +285,6 @@ export class TextureManager {
       material.diffuseTexture = texture;
     });
 
-    console.log(`Applied settlement textures: ${asset.name} to ${settlements.length} buildings`);
   }
 
   /**
@@ -312,7 +310,6 @@ export class TextureManager {
       material.diffuseTexture = texture;
     });
 
-    console.log(`Applied road textures: ${asset.name} to ${roads.length} roads`);
   }
 
   /**

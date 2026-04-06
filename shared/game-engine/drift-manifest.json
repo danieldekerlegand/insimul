@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-05T22:28:41.785Z",
+  "lastUpdated": "2026-04-06T23:38:32.762Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -33,7 +33,7 @@
     {
       "path": "shared/game-engine/rendering/CombatSystem.ts",
       "description": "Combat system: damage, critical hits, blocks, dodge. Changes require updating combat templates in all engines.",
-      "hash": "689448bf4514f81c20f11ee66b5ff213a6b607c52fbf2a9ee8f4c7394e2f38d4",
+      "hash": "e342d035ccd9858e590871d6cd769ae3b9bf8c008618159b730fa71c63f1deaa",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -79,7 +79,7 @@
     {
       "path": "shared/game-engine/logic/CraftingSystem.ts",
       "description": "Crafting: recipe matching, ingredient deduction, output production.",
-      "hash": "d0dcf6c86a91f4daacde03c292e65fe9878c74d936be99291877b042e7fab5d1",
+      "hash": "f76b845536776c4ce59a42ea5a94b99744596efb673956fe6cb78763b6523540",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "shared/game-engine/logic/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "e29fec10a634c05c98f077e29b670841fa8cc1c9a7ba4b603a21412f7ff4338b",
+      "hash": "88e31bcf499078e9495f0f09457494855e100b1aa921f7c0ae8bcb7be627a54b",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "bf9a38cc8946b811823058e4f74e60dd6f8346f48f76d0bad2a27df2e69fe550",
+      "hash": "bece1a8d8cf09ce5dc8f85bda3dbe6ba01af88eb2b33002144445058c15f8c5e",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -392,7 +392,7 @@
     {
       "path": "shared/game-engine/rendering/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "52907b7c0ebe2f70aefc6dd8e933ad666052de820491913fd036f32db5bf2d16",
+      "hash": "1ea5afb55bb7c037a62b7452e70524f9b7d8da58a8a5426aa4201ce5a8022647",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -461,7 +461,7 @@
     {
       "path": "shared/game-engine/rendering/TurnBasedCombatSystem.ts",
       "description": "Turn-based RPG combat: speed-ordered turns, status effects, MP system.",
-      "hash": "714992f754ce54e15da3c55fa8b33f5f5e29cd90276106515bc97431045983b1",
+      "hash": "0367771bea3d8f8ae5dcb72477af8b04cc2ce77baad616082e129fc70397b37a",
       "engineMappings": [
         {
           "engine": "unity",
@@ -476,7 +476,7 @@
     {
       "path": "shared/game-engine/rendering/RangedCombatSystem.ts",
       "description": "Ranged weapon combat: hitscan/projectile, spread, magazine, reload.",
-      "hash": "33fd3f0a548a15d885ab74adbf772061519fea6dadf8146cc3fb10dc95e05502",
+      "hash": "0401babdcc8604aa7aa1b94c9aa527a461588ec8931d7708ca9688b8676d2d4b",
       "engineMappings": [
         {
           "engine": "unity",
@@ -531,7 +531,7 @@
     {
       "path": "shared/game-engine/rendering/ProceduralNatureGenerator.ts",
       "description": "Biome-driven nature placement: 4 tree types, rocks, geological features, grass.",
-      "hash": "9810747b8723cc94ee2df208f81d3decdc6660cac4399ca9ffcddbd45136abc8",
+      "hash": "396b1115d76e3d35890cc980e0121fb653281246c27b1e557c1bd9ce171040fc",
       "engineMappings": [
         {
           "engine": "unity",
@@ -551,7 +551,7 @@
     {
       "path": "shared/game-engine/rendering/RoadGenerator.ts",
       "description": "Road network: ribbon meshes, sidewalks, center lines, crosswalks, street lights.",
-      "hash": "ab6d8212923fe2beae65a91569a4d4b4666f6e3502cb40152741c3f4665150a8",
+      "hash": "b77cbf9d1cc7cf092b5983a5db3c20c18cec2d159f618f87a06636ef7d57c023",
       "engineMappings": [
         {
           "engine": "unity",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "d0d36d2c8fe98fd2895b9d60f44fe0bbb07c53dffa740cdb98004d3e4781e8e2",
+      "hash": "e2e28620d248eeb23dcc5d9f971aff4f4fb013aaefe65ba5d582c954768af6ec",
       "engineMappings": [
         {
           "engine": "unity",
@@ -652,7 +652,7 @@
     {
       "path": "shared/game-engine/logic/AssessmentEngine.ts",
       "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
-      "hash": "3c2facae81b1ac06c7e200b2ae2b680e29c8610257a48c7209bf4eb6400bb905",
+      "hash": "ccd0c2a5d2024eb4b437e0ee1a74aabc3e9dcee927994eb292bf0cb43e8a4e22",
       "engineMappings": [
         {
           "engine": "babylon",

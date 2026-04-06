@@ -107,7 +107,6 @@ export class RiverGenerator {
       }
     }
 
-    console.log(`[RiverGenerator] Generated ${rivers.length} rivers`);
     return rivers;
   }
 

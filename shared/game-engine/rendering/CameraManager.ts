@@ -249,7 +249,6 @@ export class CameraManager {
     // Fire callback
     this.onModeChanged?.(mode);
     
-    console.log(`[CameraManager] Switched to ${mode} mode`);
   }
 
   /**

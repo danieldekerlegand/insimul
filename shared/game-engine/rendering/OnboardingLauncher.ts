@@ -362,11 +362,9 @@ async function findAssessmentQuest(
 
     const existing = quests.find((q: any) => isArrivalAssessmentQuest(q));
     if (existing) {
-      console.log('[OnboardingLauncher] Found existing assessment quest:', existing.id);
       return existing.id;
     }
 
-    console.log('[OnboardingLauncher] No existing assessment quest found in world');
     return null;
   } catch (err) {
     console.warn('[OnboardingLauncher] Could not find assessment quest:', err);
@@ -406,7 +404,6 @@ async function storeCefrLevel(
       grammarPatterns: [],
       conversations: [],
     });
-    console.log('[OnboardingLauncher] CEFR level stored:', cefrLevel, 'fluency:', effectiveFluency);
   } catch (err) {
     console.warn('[OnboardingLauncher] Failed to store CEFR level:', err);
   }
