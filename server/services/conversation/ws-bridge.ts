@@ -47,6 +47,8 @@ import { compressConversationHistory, type GeminiMessage } from './conversation-
 import { GEMINI_MODELS } from '../../config/gemini.js';
 import { getLiveSessionManager } from './live/live-session-manager.js';
 import type { LiveSessionCallbacks } from './live/live-session-manager.js';
+import { runSideChannel } from './live/live-side-channel.js';
+import type { SideChannelContext } from './live/live-side-channel.js';
 
 // ── Greeting/farewell classification ────────────────────────────────────
 
@@ -638,9 +640,13 @@ async function handleStartLiveSession(
     systemPrompt?: string;
     voiceName?: string;
     languageCode?: string;
+    targetLanguage?: string;
+    playerProficiency?: string;
+    activeQuests?: any[];
+    activeObjectives?: any[];
   },
 ): Promise<void> {
-  const { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode } = msg;
+  const { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode, targetLanguage, playerProficiency, activeQuests, activeObjectives } = msg;
   const resolvedLangCode = resolveLanguageCode(languageCode || 'en');
 
   // Build system prompt if not provided
@@ -661,6 +667,21 @@ async function handleStartLiveSession(
     session = createSession(sessionId, characterId, worldId, sessionId, resolvedLangCode);
   }
   connectionSessions.set(ws, sessionId);
+
+  // Track turn count for side-channel analysis; player message comes from
+  // the LiveConversationSession (set by sendText or transcription callback)
+  let liveSessionRef: { lastPlayerMessage: string } | null = null;
+  let turnCount = 0;
+
+  // Build side-channel context for parallel language analysis
+  const sideChannelCtx: SideChannelContext = {
+    targetLanguage: targetLanguage || '',
+    playerProficiency: playerProficiency,
+    activeQuests: activeQuests,
+    activeObjectives: activeObjectives,
+    npcCharacterId: characterId,
+    conversationTurnCount: 0,
+  };
 
   // Wire Live session callbacks to WS events
   const callbacks: LiveSessionCallbacks = {
@@ -688,6 +709,30 @@ async function handleStartLiveSession(
         addToHistory(session, 'assistant', fullText);
       }
       sendJSON(ws, { type: 'done' });
+
+      // Fork side-channel language analysis (fire-and-forget, never blocks audio)
+      if (fullText && sideChannelCtx.targetLanguage) {
+        turnCount++;
+        sideChannelCtx.conversationTurnCount = turnCount;
+        const playerMsg = liveSessionRef?.lastPlayerMessage || '';
+        runSideChannel(playerMsg, fullText, sideChannelCtx, {
+          onVocabHints: (hints) => {
+            sendJSON(ws, { type: 'vocab_hints', hints, sessionId });
+          },
+          onGrammarFeedback: (feedback) => {
+            sendJSON(ws, { type: 'grammar_feedback', feedback, sessionId });
+          },
+          onEval: (scores) => {
+            sendJSON(ws, { type: 'eval', scores, sessionId });
+          },
+          onQuestProgress: (triggers, markerContent) => {
+            sendJSON(ws, { type: 'quest_progress', triggers, content: markerContent, sessionId });
+          },
+          onGoalEvaluation: (evaluations) => {
+            sendJSON(ws, { type: 'goal_evaluation', evaluations, sessionId });
+          },
+        });
+      }
     },
     onInterrupted: () => {
       sendJSON(ws, { type: 'interrupted', sessionId });
@@ -697,6 +742,10 @@ async function handleStartLiveSession(
       // Store player's transcribed speech in history
       if (text.trim()) {
         addToHistory(session, 'user', text.trim());
+        // Also set on session ref so side-channel can read it
+        if (liveSessionRef) {
+          liveSessionRef.lastPlayerMessage = text.trim();
+        }
       }
     },
     onGenerationComplete: () => {
@@ -718,8 +767,9 @@ async function handleStartLiveSession(
       callbacks,
     );
 
-    // Track the live session for this WS connection
+    // Track the live session for this WS connection and side-channel
     connectionLiveSessions.set(ws, liveSession.id);
+    liveSessionRef = liveSession;
 
     console.log(`[WS-Bridge] Live session ${liveSession.id} started for character ${characterId}`);
     sendJSON(ws, { type: 'live_session_started', sessionId, liveSessionId: liveSession.id });
@@ -1366,9 +1416,9 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
           handleGreetingRequest(ws, { characterId, worldId, cefrLevel, context });
         } else if (message.startLiveSession) {
           // Start a Gemini Live session for bidirectional audio streaming
-          const { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode } = message.startLiveSession;
+          const { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode, targetLanguage, playerProficiency, activeQuests, activeObjectives } = message.startLiveSession;
           currentSessionId = sessionId;
-          await handleStartLiveSession(ws, { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode });
+          await handleStartLiveSession(ws, { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode, targetLanguage, playerProficiency, activeQuests, activeObjectives });
         } else if (message.audioInput) {
           // Relay mic audio to the active Live session
           const { data } = message.audioInput;

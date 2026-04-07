@@ -52,6 +52,8 @@ export class LiveConversationSession {
   private lastActivity: number;
   private accumulatedText: string = '';
   private closed: boolean = false;
+  /** Last player message (set by transcription or typed text) — used by side-channel */
+  public lastPlayerMessage: string = '';
 
   constructor(
     public readonly rawSession: Session,
@@ -76,6 +78,7 @@ export class LiveConversationSession {
   sendText(text: string): void {
     if (this.closed) return;
     this.lastActivity = Date.now();
+    this.lastPlayerMessage = text;
     this.rawSession.sendClientContent({
       turns: [{ role: 'user', parts: [{ text }] }],
       turnComplete: true,
