@@ -1960,3 +1960,21 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `liveSessionRef` pattern: callbacks are defined before `createSession()` returns — use a mutable ref variable assigned after session creation so callbacks can access the session
   - `lastPlayerMessage` needs two sources: `sendText()` for typed input and `onTranscription` for voice input — both must be tracked for accurate side-channel analysis
 ---
+
+## 2026-04-07 - US-007: Add Live session support to SSE fallback path
+- Added `streamLiveResponse()` function to `http-bridge.ts` — creates a per-request Gemini Live session, sends player text, streams audio+text responses via SSE events, then closes the session
+- Wired `useLiveSession: true` flag in `/api/conversation/stream` request body — when set, routes through Live session first, falls back to text+TTS pipeline on failure
+- Live session callbacks mapped to SSE events: `onAudioChunk` → `audio` (base64), `onTextChunk` → `text`, `onTurnComplete` → final text marker + side-channel fork, `onInterrupted` → `interrupted`, `onTranscription` → `transcript`
+- Side-channel callbacks emit SSE events: `vocab_hints`, `grammar_feedback`, `eval`, `quest_progress`, `goal_evaluation`
+- Added 30s timeout for Live session turn to prevent hung connections
+- Session cleanup: `manager.endSession()` called after turnComplete (per-request, not persistent)
+- Files changed:
+  - `server/services/conversation/http-bridge.ts` — imports, streamLiveResponse(), updated /api/conversation/stream route
+  - `server/__tests__/http-bridge-live-session.test.ts` — 10 new tests covering Live SSE path, fallback, side-channel SSE callbacks
+- **Learnings for future iterations:**
+  - `vi.mock` factory functions are hoisted — class definitions must be inline in the factory, not defined above as top-level variables
+  - Mock paths in vitest must match the import path from the MODULE UNDER TEST (e.g. `../services/foo.js`), not from the test file's perspective of the source
+  - `prologLLMRouter.tryPrologFirst()` default mock returns truthy — must explicitly mock `{ answered: false, confidence: 0 }` to test LLM fallback path
+  - SSE Live session is per-request (not persistent like WS) since SSE doesn't support continuous bidirectional communication — still faster than text+TTS because it eliminates sentence splitting
+  - `res.writableEnded` check is essential in all callbacks since the response may be closed by timeout while callbacks fire asynchronously
+---

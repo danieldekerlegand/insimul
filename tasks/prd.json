@@ -129,7 +129,7 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Lower priority than WS path. SSE creates a new Live session per request (not persistent) since SSE doesn't support continuous bidirectional communication. Still faster than text+TTS because it eliminates sentence splitting."
     },
     {
