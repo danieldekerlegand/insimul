@@ -77,7 +77,7 @@ const CLEAN_MARKDOWN_BOLD_ITALIC = /\*{1,3}([^*]+)\*{1,3}/g;
 const CLEAN_MARKDOWN_HEADERS = /^#{1,6}\s+/gm;
 const CLEAN_MARKDOWN_LINKS = /\[([^\]]+)\]\([^)]+\)/g;
 const CLEAN_PARENS_TRANSLATIONS = /\s*\([A-Z][^)]{1,60}\)/g;
-const CLEAN_ACTION_DESCRIPTIONS = /\*[^*]{1,80}\*/g;
+const CLEAN_ACTION_DESCRIPTIONS = /\*[^*]+\*/g;
 const CLEAN_FRENCH_GUILLEMETS = /[«»]/g;
 const CLEAN_WHITESPACE = /\s+/g;
 
@@ -299,7 +299,6 @@ export async function streamChatWithTTS(
       config: {
         temperature,
         maxOutputTokens: maxTokens,
-        thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
       },
     });
     const { textToSpeech } = await import('./tts-stt.js');

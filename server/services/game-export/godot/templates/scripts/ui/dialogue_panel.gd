@@ -32,6 +32,8 @@ const TYPEWRITER_SPEED := 30.0  # characters per second
 const MAX_RESPONSE_BUTTONS := 4
 
 var _current_character_id := ""
+var _current_world_id := ""
+var _current_character_gender := ""
 var _is_open := false
 var _is_typing := false
 var _is_recording := false
@@ -102,8 +104,10 @@ func _unhandled_input(event: InputEvent) -> void:
 func perform_gesture(gesture_id: String) -> void:
 	gesture_performed.emit(gesture_id)
 
-func open_dialogue(character_id: String) -> void:
+func open_dialogue(character_id: String, world_id: String = "", gender: String = "") -> void:
 	_current_character_id = character_id
+	_current_world_id = world_id
+	_current_character_gender = gender
 	_is_open = true
 	visible = true
 	_clear_responses()
@@ -197,6 +201,16 @@ func set_playthrough_id(id: String) -> void:
 ## Set the target language for language-learning dialogue.
 func set_target_language(lang: String) -> void:
 	_target_language = lang
+
+## Called after world data finishes loading. Re-sets character on the AI service
+## so the system prompt is rebuilt with language context that may not have been
+## available at initial open_dialogue() time.
+func on_world_data_loaded() -> void:
+	if _current_character_id == "":
+		return
+	var ai := get_node_or_null("/root/AIService")
+	if ai and ai.has_method("set_character"):
+		ai.set_character(_current_character_id, _current_world_id, _current_character_gender)
 
 ## Set player inventory context for NPC dialogue awareness.
 func set_player_inventory_context(items: Array, gold: int) -> void:

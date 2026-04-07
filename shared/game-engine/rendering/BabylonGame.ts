@@ -8966,6 +8966,34 @@ export class BabylonGame {
       root.metadata = { npcId: character.id, npcRole: role };
       root.checkCollisions = true;
 
+      // GLB imports set rotationQuaternion on meshes, which causes Babylon.js to
+      // IGNORE Euler rotation (rotation.y). Clear it so rotation.y works.
+      root.rotationQuaternion = null;
+      for (const child of root.getChildMeshes(false)) {
+        child.rotationQuaternion = null;
+      }
+
+      // Strip root-node rotation/position tracks from animation groups so that
+      // animations (idle, walk, etc.) don't override programmatic NPC facing.
+      const rootName = root.name;
+      for (const ag of animationGroups) {
+        if (ag?.targetedAnimations) {
+          const toRemove = ag.targetedAnimations
+            .filter((ta: any) => {
+              const isRoot = ta.target === root || ta.target?.name === rootName;
+              if (isRoot) {
+                const prop = ta.animation?.targetProperty || '';
+                return prop.startsWith('rotation') || prop.startsWith('position');
+              }
+              return false;
+            })
+            .map((ta: any) => ta.animation);
+          for (const anim of toRemove) {
+            ag.removeTargetedAnimation(anim);
+          }
+        }
+      }
+
       // Collision ellipsoid for NPCs (same as player)
       root.ellipsoid = new Vector3(0.5, 1, 0.5);
       root.ellipsoidOffset = new Vector3(0, 1, 0);
@@ -8973,6 +9001,8 @@ export class BabylonGame {
       // Phase 8A: Place NPC near their workplace/residence building if found
       const spawnPos = this.findNPCSpawnPosition(character, role);
       root.position = spawnPos;
+      // Random initial facing so NPCs don't all face the same direction
+      root.rotation.y = Math.random() * Math.PI * 2;
 
       // Phase 8B: Apply procedural appearance variation for visual distinction
       // Complete character models and modular assembly have appearance baked in;
@@ -11296,21 +11326,21 @@ export class BabylonGame {
         this._lastPlayerPosition = { x: px, z: pz };
       }
 
-      // Update NPC-initiated conversation controller (position sync throttled to 500ms via ground snap timer)
-      if (this.npcInitiatedConversationController) {
-        if (this._npcGroundSnapTimer === 0) {
-          // Sync NPC positions alongside ground snapping
-          this.npcMeshes.forEach((instance, npcId) => {
-            if (instance?.mesh) {
-              this.npcInitiatedConversationController!.updateNPC(npcId, {
-                position: instance.mesh.position.clone(),
-                isInConversation: instance.isInConversation || false,
-              });
-            }
-          });
-        }
-        this.npcInitiatedConversationController.update(dt, 60000);
-      }
+      // DISABLED FOR DEBUGGING — NPC-initiated conversation controller has onMoveTo/onFaceDirection
+      // that set rotation.y and call controller.walk(true)
+      // if (this.npcInitiatedConversationController) {
+      //   if (this._npcGroundSnapTimer === 0) {
+      //     this.npcMeshes.forEach((instance, npcId) => {
+      //       if (instance?.mesh) {
+      //         this.npcInitiatedConversationController!.updateNPC(npcId, {
+      //           position: instance.mesh.position.clone(),
+      //           isInConversation: instance.isInConversation || false,
+      //         });
+      //       }
+      //     });
+      //   }
+      //   this.npcInitiatedConversationController.update(dt, 60000);
+      // }
 
       // Update minimap markers at most every 250ms
       this._minimapUpdateTimer += dt;
@@ -11410,8 +11440,9 @@ export class BabylonGame {
       this._npcBehaviorAccum = 0;
       this.updateNPCBehaviorsBatched();
 
-      // Update socialization controller — uses 60s real = 1 game hour
-      if (this.socializationController) {
+      // DISABLED FOR DEBUGGING — socialization controller has onMoveTo/onFaceDirection
+      // that set rotation.y and call controller.walk(true)
+      if (false && this.socializationController) {
         this.socializationController.update(dt, 60000);
         // Sync NPC positions into the controller
         this.npcMeshes.forEach((instance, npcId) => {
@@ -11799,7 +11830,7 @@ export class BabylonGame {
       if (faceTarget) {
         const fdx = faceTarget.x - instance.mesh.position.x;
         const fdz = faceTarget.z - instance.mesh.position.z;
-        const targetAngle = Math.atan2(fdx, fdz);
+        const targetAngle = Math.atan2(fdx, fdz) + Math.PI;
         const dt = Math.min(this.scene!.getEngine().getDeltaTime() / 1000, 0.1);
         let angleDiff = targetAngle - instance.mesh.rotation.y;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
@@ -11964,192 +11995,76 @@ export class BabylonGame {
       // Fall through to normal wander movement logic which handles wanderTarget
     }
 
-    // --- Handle NPC inside a building (hidden) ---
-    // Building exit is now handled by processScheduleExecutorActions(),
-    // but we still need to skip AI for NPCs that are inside
-    if (instance.isInsideBuilding) {
-      return;
-    }
+    // ============================================================
+    // ALL NPC MOVEMENT/SCHEDULE AI DISABLED FOR DEBUGGING
+    // NPCs will stand idle at their spawn positions.
+    // Re-enable sections one at a time to isolate the issue.
+    // ============================================================
+    //
+    // DISABLED SYSTEMS (in execution order):
+    // 1. BUILDING_CHECK — Skip AI for NPCs inside buildings
+    // 2. IDLE_WAIT — Idle pause + ambient life behaviors (face targets, ambient animations)
+    // 3. AMBIENT_CLEAR — Clear ambient activity when NPC starts moving
+    // 4. VOLITION — Spontaneous goal formation from VolitionSystem (overrides schedule)
+    // 5. SCHEDULE_BOUNDS — Boundary confinement redirect when NPC drifts outside settlement
+    // 6. SCHEDULE_PATHFOLLOW — Follow sidewalk path waypoints (stuck detection, waypoint advancement, building entry)
+    // 7. SCHEDULE_EVALUATE — Force ScheduleExecutor to pick new goals when no active path
+    // 8. RANDOM_WANDER — Legacy random wander fallback (when no street data)
+    //
+    // To re-enable: uncomment the section and test conversation facing + NPC behavior.
 
-    // --- If waiting (idle pause), try ambient activity or stay idle ---
-    if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
-      instance.controller.walk(false);
-      instance.controller.turnLeft(false);
-      instance.controller.turnRight(false);
+    // --- [1] BUILDING_CHECK ---
+    // if (instance.isInsideBuilding) {
+    //   return;
+    // }
 
-      // Try ambient life behavior instead of standing idle
-      if (characterId) {
-        const behavior = this.updateAmbientLifeBehavior(instance, characterId, now);
-        if (behavior?.faceTargetPosition && instance.mesh) {
-          // Smoothly face the activity target
-          const dx = behavior.faceTargetPosition.x - instance.mesh.position.x;
-          const dz = behavior.faceTargetPosition.z - instance.mesh.position.z;
-          if (dx * dx + dz * dz > 0.01) {
-            instance.mesh.rotation.y = Math.atan2(dx, dz);
-          }
-        }
-      }
-      return;
-    }
+    // --- [2] IDLE_WAIT ---
+    // if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
+    //   instance.controller.walk(false);
+    //   instance.controller.turnLeft(false);
+    //   instance.controller.turnRight(false);
+    //   if (characterId) {
+    //     const behavior = this.updateAmbientLifeBehavior(instance, characterId, now);
+    //     if (behavior?.faceTargetPosition && instance.mesh) {
+    //       const dx = behavior.faceTargetPosition.x - instance.mesh.position.x;
+    //       const dz = behavior.faceTargetPosition.z - instance.mesh.position.z;
+    //       if (dx * dx + dz * dz > 0.01) {
+    //         instance.mesh.rotation.y = Math.atan2(dx, dz);
+    //       }
+    //     }
+    //   }
+    //   return;
+    // }
 
-    // Clear ambient activity when NPC starts moving again
-    if (characterId) {
-      this.scheduleExecutor.clearAmbientBehavior(characterId);
-      if (instance.ambientActivityAnimation) {
-        this.playNPCAnimation(instance, 'idle');
-        instance.ambientActivityAnimation = undefined;
-      }
-    }
+    // --- [3] AMBIENT_CLEAR ---
+    // if (characterId) {
+    //   this.scheduleExecutor.clearAmbientBehavior(characterId);
+    //   if (instance.ambientActivityAnimation) {
+    //     this.playNPCAnimation(instance, 'idle');
+    //     instance.ambientActivityAnimation = undefined;
+    //   }
+    // }
 
-    // --- Volition override: spontaneous behavior from VolitionSystem ---
-    if (this.volitionSystem.isOnScheduleOverride(characterId)) {
-      const override = this.volitionSystem.getScheduleOverride(characterId);
-      if (override && !instance.volitionGoalId) {
-        // Start executing the volition goal
-        instance.volitionGoalId = override.goalId;
-        const goals = this.volitionSystem.getTopGoals(characterId, 10);
-        const activeGoal = goals.find(g => g.goalId === override.goalId);
-        if (activeGoal) {
-          instance.volitionActionId = activeGoal.actionId;
-          instance.volitionTargetNpcId = activeGoal.targetId;
-          this.executeVolitionGoal(instance, activeGoal, now);
-          return;
-        }
-      }
+    // --- [4] VOLITION ---
+    // if (this.volitionSystem.isOnScheduleOverride(characterId)) { ... }
 
-      // Continue executing an active volition goal (follow path)
-      if (instance.volitionGoalId && instance.schedulePathWaypoints) {
-        const waypoints = instance.schedulePathWaypoints;
-        const wpIdx = instance.schedulePathIndex ?? 0;
-        if (wpIdx < waypoints.length) {
-          const targetWP = waypoints[wpIdx];
-          const dx = targetWP.x - currentPos.x;
-          const dz = targetWP.z - currentPos.z;
-          const dist = Math.sqrt(dx * dx + dz * dz);
-          if (dist < 1.5) {
-            instance.schedulePathIndex = wpIdx + 1;
-            if (wpIdx + 1 >= waypoints.length) {
-              // Arrived at volition destination — complete the goal
-              this.completeVolitionGoal(instance, characterId);
-              return;
-            }
-          }
-          this.moveNPCToward(instance, targetWP);
-          return;
-        } else {
-          // Path exhausted — complete
-          this.completeVolitionGoal(instance, characterId);
-          return;
-        }
-      }
-    } else if (instance.volitionGoalId) {
-      // Override was cleared externally — clean up volition state
-      instance.volitionGoalId = undefined;
-      instance.volitionActionId = undefined;
-      instance.volitionTargetNpcId = undefined;
-    }
+    // --- [5] SCHEDULE_BOUNDS ---
+    // if (!this.npcScheduleSystem.isWithinNPCBounds(characterId, currentPos)) { ... }
 
-    // --- Schedule-driven behavior via ScheduleExecutor ---
-    if (this.npcScheduleSystem.hasStreetData()) {
-      const entry = this.npcScheduleSystem.getEntry(characterId);
+    // --- [6] SCHEDULE_PATHFOLLOW ---
+    // if (waypoints && wpIdx < waypoints.length) { ... moveNPCToward ... }
 
-      // Boundary confinement: if NPC has drifted outside their settlement, redirect them back
-      if (!this.npcScheduleSystem.isWithinNPCBounds(characterId, currentPos)) {
-        const clamped = this.npcScheduleSystem.clampToSettlementBounds(characterId, currentPos);
-        const path = this.npcScheduleSystem.findSidewalkPathForNPC(characterId, currentPos, clamped);
-        instance.schedulePathWaypoints = path.length > 0 ? path : [clamped];
-        instance.schedulePathIndex = 0;
-        if (entry) entry.currentGoal = { type: 'wander_sidewalk', expiresAt: 0 };
-      }
+    // --- [7] SCHEDULE_EVALUATE ---
+    // if (!this.scheduleExecutor.hasPendingAction(characterId)) { forceEvaluateNPC ... }
 
-      // --- Follow the sidewalk path ---
-      const waypoints = instance.schedulePathWaypoints;
-      const wpIdx = instance.schedulePathIndex ?? 0;
+    // --- [8] RANDOM_WANDER ---
+    // this.updateNPCRandomWander(instance, now);
 
-      if (waypoints && wpIdx < waypoints.length) {
-        const targetWP = waypoints[wpIdx];
-
-        // Stuck detection — turn away from obstacle, skip waypoints, or abandon path
-        if (instance.lastWanderPosition) {
-          const moved = Vector3.Distance(currentPos, instance.lastWanderPosition);
-          if (moved < 0.05) {
-            instance.stuckTicks = (instance.stuckTicks || 0) + 1;
-            if (instance.stuckTicks >= 2 && instance.stuckTicks < 5) {
-              // First response: stop walking and rotate away from the wall
-              instance.controller.walk(false);
-              const turnAngle = (Math.PI / 2) + Math.random() * Math.PI;
-              instance.mesh.rotation.y += turnAngle;
-              return;
-            }
-            if (instance.stuckTicks >= 5) {
-              // Persistent stuck: abandon the path and let ScheduleExecutor pick a new goal
-              instance.controller.walk(false);
-              instance.controller.turnLeft(false);
-              instance.controller.turnRight(false);
-              instance.schedulePathWaypoints = undefined;
-              instance.stuckTicks = 0;
-              this.scheduleExecutor.abandonGoal(characterId);
-              this.scheduleExecutor.setIdle(characterId, now);
-              instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
-              instance.lastWanderPosition = currentPos.clone();
-              return;
-            }
-          } else {
-            instance.stuckTicks = 0;
-          }
-        }
-        instance.lastWanderPosition = currentPos.clone();
-
-        const dx = targetWP.x - currentPos.x;
-        const dz = targetWP.z - currentPos.z;
-        const dist = Math.sqrt(dx * dx + dz * dz);
-
-        if (dist < 1.0) {
-          // Reached this waypoint — advance to next
-          instance.schedulePathIndex = wpIdx + 1;
-          this.scheduleExecutor.advancePathIndex(characterId);
-
-          // If this was the last waypoint, we've arrived at destination
-          if (wpIdx + 1 >= waypoints.length) {
-            instance.controller.walk(false);
-            instance.controller.turnLeft(false);
-            instance.controller.turnRight(false);
-
-            const goal = entry?.currentGoal;
-            if ((goal?.type === 'go_to_building' || goal?.type === 'visit_friend') && goal.buildingId) {
-              // Enter the building via ScheduleExecutor (handles duration calculation)
-              this.scheduleExecutor.enterBuilding(characterId, goal.buildingId, now);
-            } else {
-              // Wander/idle goal complete — let ScheduleExecutor manage idle + re-evaluation
-              this.scheduleExecutor.setIdle(characterId, now);
-              instance.wanderWaitUntil = now + 3000 + Math.random() * 5000;
-              instance.schedulePathWaypoints = undefined;
-              if (entry) entry.currentGoal = null;
-            }
-          }
-          return;
-        }
-
-        // Walk toward the current waypoint
-        this.moveNPCToward(instance, targetWP);
-        return;
-      }
-
-      // No active path — force the ScheduleExecutor to pick a new goal immediately
-      if (!this.scheduleExecutor.hasPendingAction(characterId)) {
-        this.scheduleExecutor.forceEvaluateNPC(characterId);
-        // Brief pause to avoid re-evaluating every tick if no goal is available
-        if (!this.scheduleExecutor.hasPendingAction(characterId)) {
-          instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
-          instance.schedulePathWaypoints = undefined;
-          if (entry) entry.currentGoal = null;
-        }
-      }
-      return;
-    }
-
-    // --- Fallback: random wander if no street data ---
-    this.updateNPCRandomWander(instance, now);
+    // NPCs just idle in place
+    instance.controller.walk(false);
+    instance.controller.turnLeft(false);
+    instance.controller.turnRight(false);
+    this.playNPCAnimation(instance, 'idle');
   }
 
   /**
@@ -12768,8 +12683,8 @@ export class BabylonGame {
       // Update physical action progress (fishing, mining, cooking, etc.)
       this.playerActionSystem?.update(this.engine!.getDeltaTime());
 
-      // Process NPC schedule actions from the unified routine manager
-      this.processScheduleExecutorActions();
+      // DISABLED FOR DEBUGGING — ScheduleExecutor pushes goals that drive NPC movement
+      // this.processScheduleExecutorActions();
 
       // Update time HUD indicator
       this.guiManager?.updateTime(

@@ -78,7 +78,7 @@ export class BrowserChatProvider implements ChatProvider {
 
   setCallbacks(callbacks: ChatProviderCallbacks): void { this.callbacks = callbacks; }
 
-  setCharacter(characterId: string, worldId: string): void {
+  setCharacter(characterId: string, worldId: string, _gender?: string): void {
     this.characterId = characterId;
     this.worldId = worldId;
     this.history = []; // Reset history for new character

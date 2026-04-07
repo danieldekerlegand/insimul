@@ -143,7 +143,7 @@ export function registerTTSProvider(name: string, factory: TTSProviderFactory): 
 }
 
 export function getTTSProvider(name?: string): ITTSProvider {
-  const providerName = name ?? process.env.TTS_PROVIDER ?? 'google';
+  const providerName = name ?? process.env.TTS_PROVIDER ?? 'gemini-tts';
   const factory = ttsProviders.get(providerName);
   if (!factory) {
     const available = Array.from(ttsProviders.keys());

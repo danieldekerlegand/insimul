@@ -24,6 +24,7 @@ import { buildContext, getLastPromptSectionTokens } from './context-manager.js';
 import type { IStreamingLLMProvider, ConversationContext } from './providers/llm-provider.js';
 import type { ITTSProvider, VoiceProfile } from './tts/tts-provider.js';
 import { splitAtSentenceBoundaries, assignVoiceProfile } from './tts/tts-provider.js';
+import './tts/gemini-tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
 import { initiateConversation } from './npc-conversation-engine.js';
@@ -293,7 +294,8 @@ async function handleTextInput(
   // Stream LLM tokens
   let fullResponse = '';
   let sentenceBuffer = '';
-  const ttsPromises: Array<Promise<void>> = [];
+  // TTS serialization: chain promises so audio plays in sentence order
+  let ttsChain: Promise<void> = Promise.resolve();
   let ttsSentenceCount = 0;
 
   const synthesizeSentence = (sentence: string) => {
@@ -304,7 +306,8 @@ async function handleTextInput(
     const voice: VoiceProfile = assignVoiceProfile({
       gender: (session as any)?.conversationContext?.characterGender,
     });
-    const promise = (async () => {
+    // Chain TTS calls sequentially so audio arrives in sentence order
+    ttsChain = ttsChain.then(async () => {
       try {
         const audioChunks = ttsProvider!.synthesize(sentence, voice, {
           languageCode: languageCode || undefined,
@@ -330,8 +333,7 @@ async function handleTextInput(
       } catch (err: any) {
         console.error('[WS-Bridge] TTS error:', err.message);
       }
-    })();
-    ttsPromises.push(promise);
+    });
   };
 
   // Classify conversation to determine model tier
@@ -403,10 +405,8 @@ async function handleTextInput(
   // Final text marker
   sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
 
-  // Wait for TTS to complete
-  if (ttsPromises.length > 0) {
-    await Promise.all(ttsPromises);
-  }
+  // Wait for TTS chain to complete
+  await ttsChain;
 
   // Store response
   if (fullResponse) {
@@ -927,16 +927,28 @@ export function invalidateContextCache(
 let wss: WebSocketServer | null = null;
 
 export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
-  const wssOptions: { port?: number; server?: HTTPServer; path?: string } = {};
+  let server: WebSocketServer;
 
   if (options.httpServer) {
-    wssOptions.server = options.httpServer;
-    wssOptions.path = '/ws/conversation';
-  } else {
-    wssOptions.port = options.port ?? parseInt(process.env.WS_BRIDGE_PORT ?? '50052', 10);
-  }
+    // Use noServer mode + manual upgrade handling to avoid conflicts with
+    // Vite's middleware-mode upgrade handler on the same HTTP server.
+    server = new WebSocketServer({ noServer: true });
 
-  const server = new WebSocketServer(wssOptions);
+    options.httpServer.on('upgrade', (request, socket, head) => {
+      const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+      if (pathname === '/ws/conversation') {
+        server.handleUpgrade(request, socket, head, (ws) => {
+          server.emit('connection', ws, request);
+        });
+      }
+      // Other upgrade requests (Vite HMR, etc.) are left unhandled here
+      // so their respective handlers can pick them up.
+    });
+  } else {
+    server = new WebSocketServer({
+      port: options.port ?? parseInt(process.env.WS_BRIDGE_PORT ?? '50052', 10),
+    });
+  }
   wss = server;
 
   server.on('connection', (ws: WebSocket) => {
@@ -999,11 +1011,11 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
           const { characterId, worldId, cefrLevel, context } = message.requestGreeting;
           handleGreetingRequest(ws, { characterId, worldId, cefrLevel, context });
         } else if (message.resumeSession) {
-          // Reconnection: client provides previous sessionId to resume
+          // Reconnection or initial connect: client provides sessionId
           const { sessionId } = message.resumeSession;
+          currentSessionId = sessionId;
           const session = getSession(sessionId);
           if (session) {
-            currentSessionId = sessionId;
             connectionSessions.set(ws, sessionId);
             session.lastActivity = Date.now();
             sendJSON(ws, { type: 'meta', sessionId, state: 'ACTIVE' });
@@ -1013,7 +1025,9 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
               historyLength: session.history.length,
             });
           } else {
-            sendJSON(ws, { type: 'error', message: 'Session not found or expired' });
+            // New session — acknowledge without error. Session will be
+            // created on the first textInput message.
+            sendJSON(ws, { type: 'meta', sessionId, state: 'ACTIVE' });
           }
         }
       } catch (err: any) {

@@ -7047,7 +7047,7 @@ Return ONLY valid JSON array.`;
       const result = await ai.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: chatHistory,
-        config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        config: { temperature, maxOutputTokens: maxTokens },
       });
       const rawResponse = (result.text || '');
 
@@ -7110,7 +7110,7 @@ Return ONLY valid JSON array.`;
       const result = await ai.models.generateContent({
         model: GEMINI_MODELS.FLASH,
         contents: prompt,
-        config: { temperature: 0.1, maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        config: { temperature: 0.1, maxOutputTokens: 1024 },
       });
       const responseText = (result.text || '').trim();
 
@@ -7311,7 +7311,7 @@ Return ONLY valid JSON array.`;
           const streamResult = await ai.models.generateContentStream({
             model: selectedModel,
             contents: chatContents,
-            config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+            config: { temperature, maxOutputTokens: maxTokens },
           });
 
           for await (const chunk of streamResult) {
@@ -7400,7 +7400,7 @@ Return ONLY valid JSON array.`;
       const result = await ai.models.generateContent({
         model: selectedModel,
         contents: chatContents,
-        config: { temperature, maxOutputTokens: maxTokens, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MEDIUM } },
+        config: { temperature, maxOutputTokens: maxTokens },
       });
 
       const response = (result.text || '');

@@ -739,6 +739,7 @@ function buildSystemPrompt(p: PromptParts): string {
 
   // Behavioral instructions (always included)
   lines.push(`\nStay in character. Respond as ${p.character.firstName} would based on personality, mood, and current surroundings. Keep responses concise and natural.`);
+  lines.push(`IMPORTANT: Your response is read aloud by text-to-speech. Do NOT include action descriptions, stage directions, or narration (e.g., *sighs*, *looks around*, *pauses*). Write ONLY spoken dialogue — the words ${p.character.firstName} would actually say out loud.`);
 
   const prompt = lines.join('\n');
 

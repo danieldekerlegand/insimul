@@ -65,9 +65,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
     void ClearHistory();
 
-    /** Set the NPC name and portrait texture */
+    /** Set the NPC name, portrait, and optional world/gender context */
     UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
-    void SetNPCInfo(const FString& Name, UTexture2D* Portrait);
+    void SetNPCInfo(const FString& Name, UTexture2D* Portrait, const FString& WorldId = TEXT(""), const FString& Gender = TEXT(""));
 
     /** Show the typing indicator with animated dots */
     UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
@@ -116,6 +116,11 @@ public:
     /** Set the target language for language-learning dialogue */
     UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
     void SetTargetLanguage(const FString& Language);
+
+    /** Called after world data finishes loading. Re-sets character on the AI service
+     *  so the system prompt is rebuilt with language context. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
+    void OnWorldDataLoaded();
 
     /** Set player inventory context for NPC dialogue awareness */
     UFUNCTION(BlueprintCallable, Category = "Insimul|Chat")
@@ -313,6 +318,14 @@ private:
     /** Current NPC character ID for active conversation. */
     UPROPERTY()
     FString CurrentNPCId;
+
+    /** World ID for the current character's world. */
+    UPROPERTY()
+    FString CurrentWorldId;
+
+    /** Gender of the current NPC character. */
+    UPROPERTY()
+    FString CurrentCharacterGender;
 
     /** Timer handle for typing indicator animation */
     FTimerHandle TypingAnimTimerHandle;

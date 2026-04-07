@@ -65,9 +65,17 @@ export class VoiceChatManager {
 
   /** Attach to an existing HTTP server on path `/ws/voice` */
   attach(server: HttpServer): WebSocketServer {
-    this.wss = new WebSocketServer({
-      server,
-      path: '/ws/voice',
+    // Use noServer mode to avoid the ws library's built-in upgrade handler
+    // which rejects non-matching paths with 400 — blocking other WS servers.
+    this.wss = new WebSocketServer({ noServer: true });
+
+    server.on('upgrade', (request, socket, head) => {
+      const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+      if (pathname === '/ws/voice') {
+        this.wss!.handleUpgrade(request, socket, head, (ws) => {
+          this.wss!.emit('connection', ws, request);
+        });
+      }
     });
 
     this.wss.on('connection', (ws, req) => this.handleConnection(ws, req));

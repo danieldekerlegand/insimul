@@ -425,6 +425,18 @@ export class BabylonChatPanel {
           this.world?.targetLanguage,
         );
       }
+
+      // World data loaded — re-trigger setCharacter to rebuild the system prompt
+      // now that worldLanguageContext is available. The initial prompt built during
+      // initConversationClient may have been missing language directives.
+      if (this.insimulClient && this.character) {
+        this._cachedSystemPrompt = null; // force rebuild
+        this.insimulClient.setCharacter(
+          this.character.id,
+          this.character.worldId,
+          this.character.gender || undefined,
+        );
+      }
     } catch (error) {
       console.error('Failed to fetch world data:', error);
     }
@@ -464,7 +476,7 @@ export class BabylonChatPanel {
       });
     }
 
-    this.insimulClient.setCharacter(character.id, character.worldId);
+    this.insimulClient.setCharacter(character.id, character.worldId, character.gender || undefined);
 
     // Set TTS voice to match character gender + target language
     const gender = (character.gender || 'male').toLowerCase();
@@ -1739,8 +1751,11 @@ export class BabylonChatPanel {
       },
     });
 
-    const langCode = this.worldLanguageContext?.learningTargetLanguage?.name
-      ? getLanguageBCP47(this.worldLanguageContext.learningTargetLanguage.name)
+    const targetLangName = this.worldLanguageContext?.learningTargetLanguage?.name
+      || this.worldLanguageContext?.targetLanguage
+      || this.world?.targetLanguage;
+    const langCode = targetLangName
+      ? getLanguageBCP47(targetLangName)
       : 'en';
 
     try {

@@ -419,6 +419,13 @@ export class QuaterniusNPCLoader {
     if (!root) return null;
     root.setEnabled(true);
 
+    // GLB imports set rotationQuaternion which causes Babylon to ignore Euler rotation.y.
+    // Clear it so rotation.y works for NPC facing.
+    root.rotationQuaternion = null;
+    for (const child of root.getChildMeshes(false)) {
+      child.rotationQuaternion = null;
+    }
+
     // Clone skeleton for independent animation
     let skeleton: Skeleton | null = null;
     if (template.skeleton) {
@@ -453,18 +460,29 @@ export class QuaterniusNPCLoader {
       const clonedAg = ag.clone(`${ag.name}_${characterId}`);
       clonedAg.stop();
 
-      // Retarget every animation target to the corresponding node in the clone
+      // Retarget animation targets to the cloned hierarchy, and strip
+      // root-node rotation/position tracks to preserve programmatic NPC facing.
       if (clonedAg.targetedAnimations) {
+        const rootAnimsToRemove: any[] = [];
         for (const ta of clonedAg.targetedAnimations) {
           const targetName = ta.target?.name;
           if (targetName) {
-            // Try exact match first, then strip suffixes from previous clones
             const match = clonedNodes.get(targetName)
               || clonedNodes.get(targetName.replace(/_[a-f0-9]+$/i, ''));
             if (match) {
               ta.target = match;
             }
+            const isRoot = match === root || ta.target === root || ta.target?.name === root.name;
+            if (isRoot) {
+              const prop = ta.animation?.targetProperty || '';
+              if (prop.startsWith('rotation') || prop.startsWith('position')) {
+                rootAnimsToRemove.push(ta.animation);
+              }
+            }
           }
+        }
+        for (const anim of rootAnimsToRemove) {
+          clonedAg.removeTargetedAnimation(anim);
         }
       }
 

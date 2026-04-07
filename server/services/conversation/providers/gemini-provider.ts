@@ -17,7 +17,7 @@ export class GeminiStreamingProvider implements IStreamingLLMProvider {
   private modelName: string;
 
   constructor(modelName?: string) {
-    this.modelName = modelName || GEMINI_MODELS.PRO;
+    this.modelName = modelName || GEMINI_MODELS.FLASH;
   }
 
   async *streamCompletion(
@@ -46,19 +46,24 @@ export class GeminiStreamingProvider implements IStreamingLLMProvider {
 
     // Select model and parameters based on tier
     const isFastTier = options?.modelTier === 'fast';
-    const modelName = isFastTier ? GEMINI_MODELS.FLASH : this.modelName;
+    const modelName = isFastTier ? GEMINI_MODELS.FLASH_LITE : this.modelName;
     const defaultMaxTokens = isFastTier ? 256 : 1024;
     const defaultTemperature = isFastTier ? 0.7 : 0.8;
-    const thinkingLevel = isFastTier ? THINKING_LEVELS.MINIMAL : THINKING_LEVELS.LOW;
+
+    // Only include thinkingConfig for models that support it (gemini-3.x series)
+    const supportsThinking = modelName.includes('3.');
+    const config: Record<string, any> = {
+      temperature: options?.temperature ?? defaultTemperature,
+      maxOutputTokens: options?.maxTokens ?? defaultMaxTokens,
+    };
+    if (supportsThinking) {
+      config.thinkingConfig = { thinkingLevel: isFastTier ? THINKING_LEVELS.MINIMAL : THINKING_LEVELS.LOW };
+    }
 
     const response = await ai.models.generateContentStream({
       model: modelName,
       contents,
-      config: {
-        temperature: options?.temperature ?? defaultTemperature,
-        maxOutputTokens: options?.maxTokens ?? defaultMaxTokens,
-        thinkingConfig: { thinkingLevel },
-      },
+      config,
     });
 
     for await (const chunk of response) {

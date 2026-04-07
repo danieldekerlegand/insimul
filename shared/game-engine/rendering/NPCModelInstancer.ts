@@ -328,6 +328,13 @@ export class NPCModelInstancer {
 
       clonedRoot.setEnabled(true);
 
+      // GLB imports set rotationQuaternion which causes Babylon to ignore Euler rotation.y.
+      // Clear it so rotation.y works for NPC facing.
+      clonedRoot.rotationQuaternion = null;
+      for (const child of clonedRoot.getChildMeshes(false)) {
+        child.rotationQuaternion = null;
+      }
+
       // Clone skeleton if present (each NPC needs its own for independent animation)
       if (template.skeleton) {
         const clonedSkeleton = template.skeleton.clone(`skeleton_${npcId}`);
@@ -340,14 +347,52 @@ export class NPCModelInstancer {
         }
       }
 
-      // Clone animation groups targeting this skeleton/mesh
+      // Clone animation groups, retarget to cloned nodes, and strip root
+      // rotation/position tracks to preserve programmatic NPC facing.
       const clonedAnimGroups: any[] = [];
+      const clonedNodes = new Map<string, any>();
+      clonedNodes.set(clonedRoot.name, clonedRoot);
+      for (const child of clonedRoot.getChildTransformNodes(false)) {
+        clonedNodes.set(child.name, child);
+      }
+      if (clonedRoot.skeleton) {
+        for (const bone of clonedRoot.skeleton.bones) {
+          clonedNodes.set(bone.name, bone);
+        }
+      }
+
       for (const ag of template.animationGroups) {
         if (ag && typeof ag.clone === 'function') {
           const clonedAG = ag.clone(`${ag.name}_${npcId}`);
+          clonedAG.stop();
+
+          if (clonedAG.targetedAnimations) {
+            const rootAnimsToRemove: any[] = [];
+            for (const ta of clonedAG.targetedAnimations) {
+              const targetName = ta.target?.name;
+              if (targetName) {
+                const match = clonedNodes.get(targetName)
+                  || clonedNodes.get(targetName.replace(/_[a-f0-9]+$/i, ''));
+                if (match) {
+                  ta.target = match;
+                }
+                const isRoot = match === clonedRoot || ta.target === clonedRoot || ta.target?.name === clonedRoot.name;
+                if (isRoot) {
+                  const prop = ta.animation?.targetProperty || '';
+                  if (prop.startsWith('rotation') || prop.startsWith('position')) {
+                    rootAnimsToRemove.push(ta.animation);
+                  }
+                }
+              }
+            }
+            for (const anim of rootAnimsToRemove) {
+              clonedAG.removeTargetedAnimation(anim);
+            }
+          }
+
+          clonedAG.name = ag.name;
           clonedAnimGroups.push(clonedAG);
         } else {
-          // Share the animation group reference if cloning isn't available
           clonedAnimGroups.push(ag);
         }
       }

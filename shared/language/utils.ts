@@ -422,9 +422,10 @@ export function buildLanguageSection(
   if (isLanguageLearning && targetLanguage && targetLanguage !== 'English') {
     section += `1. You live in a ${targetLanguage}-speaking world. Speak ${targetLanguage} by default.\n`;
     section += `2. NEVER put English translations, glosses, parenthetical hints, or vocabulary blocks inline in your response. Your ENTIRE response is read aloud by TTS — anything non-dialogue will be spoken.\n`;
-    section += `3. If the player struggles, use simpler ${targetLanguage} words or rephrase — but stay in ${targetLanguage}.\n`;
-    section += `4. Always respond in ${targetLanguage} — this is a language immersion experience.\n`;
-    section += `5. Your response must contain ONLY spoken dialogue. No metadata, no markup, no structured blocks.\n`;
+    section += `3. Do NOT include action descriptions, stage directions, or narration (e.g., *sighs*, *looks around*, *pauses*). Write ONLY the words you would actually say out loud.\n`;
+    section += `4. If the player struggles, use simpler ${targetLanguage} words or rephrase — but stay in ${targetLanguage}.\n`;
+    section += `5. Always respond in ${targetLanguage} — this is a language immersion experience.\n`;
+    section += `6. Your response must contain ONLY spoken dialogue. No metadata, no markup, no structured blocks.\n`;
   } else {
     section += `1. Speak ${dominant.language} by default.\n`;
 

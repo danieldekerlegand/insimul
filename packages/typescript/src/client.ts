@@ -120,7 +120,7 @@ export class InsimulClient {
   private sttType: STTProviderType;
 
   // Pending character/voice settings (applied after init if set before provider is ready)
-  private pendingCharacter: { characterId: string; worldId: string } | null = null;
+  private pendingCharacter: { characterId: string; worldId: string; gender?: string } | null = null;
   private pendingVoice: { gender?: string; language?: string; voiceId?: string } | null = null;
 
   constructor(options: InsimulClientOptions = {}) {
@@ -234,7 +234,7 @@ export class InsimulClient {
 
       // Apply any character/voice settings that were set before init completed
       if (this.pendingCharacter) {
-        this.chatProvider.setCharacter(this.pendingCharacter.characterId, this.pendingCharacter.worldId);
+        this.chatProvider.setCharacter(this.pendingCharacter.characterId, this.pendingCharacter.worldId, this.pendingCharacter.gender);
         if (this.options.systemPromptBuilder) {
           this.chatProvider.setSystemPrompt(
             this.options.systemPromptBuilder(this.pendingCharacter.characterId, this.pendingCharacter.worldId),
@@ -256,10 +256,10 @@ export class InsimulClient {
     if (!this.initialized) await this.initialize();
   }
 
-  setCharacter(characterId: string, worldId: string): void {
-    this.pendingCharacter = { characterId, worldId };
+  setCharacter(characterId: string, worldId: string, gender?: string): void {
+    this.pendingCharacter = { characterId, worldId, gender };
     if (this.chatProvider) {
-      this.chatProvider.setCharacter(characterId, worldId);
+      this.chatProvider.setCharacter(characterId, worldId, gender);
       if (this.options.systemPromptBuilder) {
         this.chatProvider.setSystemPrompt(this.options.systemPromptBuilder(characterId, worldId));
       }

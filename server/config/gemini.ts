@@ -11,17 +11,20 @@ import { GoogleGenAI, ThinkingLevel } from '@google/genai';
  * Gemini model configurations — Gemini 3.1 series
  */
 export const GEMINI_MODELS = {
-  /** Primary model for complex tasks (chat, rule generation, etc.) */
-  PRO: 'gemini-3.1-pro-preview',
+  /** Primary model for complex tasks (rule generation, world building, etc.) */
+  PRO: 'gemini-2.5-pro',
 
-  /** Fast model for simple/high-volume tasks */
-  FLASH: 'gemini-3.1-flash-lite-preview',
+  /** Fast model for NPC chat and high-volume tasks — best speed/quality balance */
+  FLASH: 'gemini-2.5-flash',
+
+  /** Ultra-light model for simple tasks (translation, classification) */
+  FLASH_LITE: 'gemini-2.5-flash-lite',
 
   /** Model for speech/TTS tasks */
-  SPEECH: 'gemini-3.1-flash-preview-tts',
+  SPEECH: 'gemini-2.5-flash-preview-tts',
 
   /** Real-time audio-to-audio model (Flash Live) */
-  LIVE: 'gemini-3.1-flash-live',
+  LIVE: 'gemini-3.1-flash-live-preview',
 } as const;
 
 /**
@@ -77,9 +80,19 @@ export function getGenAI(): GoogleGenAI {
 
 /**
  * Build a thinkingConfig object for the @google/genai SDK.
+ * Returns an empty object for models that don't support thinking (gemini-2.x).
  * @param level - Thinking level (defaults to MEDIUM for balanced cost/quality)
+ * @param model - Model name to check for thinking support
  */
-export function buildThinkingConfig(level: ThinkingLevel = ThinkingLevel.MEDIUM) {
+export function buildThinkingConfig(level: ThinkingLevel = ThinkingLevel.MEDIUM, model?: string) {
+  // gemini-2.x models don't support thinkingConfig
+  if (model && !model.includes('3.')) {
+    return {};
+  }
+  // If no model specified, skip thinking by default (safe for all models)
+  if (!model) {
+    return {};
+  }
   return { thinkingConfig: { thinkingLevel: level } };
 }
 
@@ -89,7 +102,7 @@ export function buildThinkingConfig(level: ThinkingLevel = ThinkingLevel.MEDIUM)
 export function logGeminiStatus() {
   if (isGeminiConfigured()) {
     console.log('✅ Gemini AI configured');
-    console.log(`   Model: ${GEMINI_MODELS.PRO}`);
+    console.log(`   Models: PRO=${GEMINI_MODELS.PRO}, FLASH=${GEMINI_MODELS.FLASH}`);
   } else {
     console.warn('⚠️  Gemini API key not found');
     console.warn('   Set GEMINI_API_KEY or GEMINI_FREE_API_KEY in .env');

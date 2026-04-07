@@ -35,7 +35,7 @@ export interface ChatProvider {
   setCallbacks(callbacks: ChatProviderCallbacks): void;
 
   /** Set the character and world context */
-  setCharacter(characterId: string, worldId: string): void;
+  setCharacter(characterId: string, worldId: string, gender?: string): void;
 
   /** Set or update the system prompt */
   setSystemPrompt(prompt: string): void;

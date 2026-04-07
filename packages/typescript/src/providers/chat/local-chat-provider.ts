@@ -44,7 +44,7 @@ export class LocalChatProvider implements ChatProvider {
 
   setCallbacks(callbacks: ChatProviderCallbacks): void { this.callbacks = callbacks; }
 
-  setCharacter(_characterId: string, _worldId: string): void {
+  setCharacter(_characterId: string, _worldId: string, _gender?: string): void {
     // Local provider uses system prompt, not character/world IDs
   }
 

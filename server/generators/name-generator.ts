@@ -287,7 +287,7 @@ export class NameGenerator {
       const result = await this.ai.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: prompt,
-        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        config: {  },
       });
       const name = (result.text || '').trim();
 
@@ -361,7 +361,7 @@ export class NameGenerator {
       const result = await this.ai.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: prompt,
-        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        config: {  },
       });
       const text = (result.text || '').trim();
 
@@ -607,7 +607,7 @@ export class NameGenerator {
       const result = await this.ai.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: prompt,
-        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        config: {  },
       });
       const text = (result.text || '').trim();
 
@@ -675,7 +675,7 @@ export class NameGenerator {
       const result = await this.ai.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: prompt,
-        config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+        config: {  },
       });
       const text = (result.text || '').trim();
 
@@ -827,7 +827,6 @@ export class NameGenerator {
         config: {
           temperature: 0.9,
           responseMimeType: 'application/json',
-          thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
         },
       });
 
@@ -1206,7 +1205,7 @@ export class NameGenerator {
         const result = await this.ai.models.generateContent({
           model: GEMINI_MODELS.PRO,
           contents: prompt,
-          config: { thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW } },
+          config: {  },
         });
         const text = (result.text || '').trim();
         const parsed = this.parseNamePoolResponse(text, remainingMale, remainingFemale, remainingSurnames);

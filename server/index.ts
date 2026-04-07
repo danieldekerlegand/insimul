@@ -588,11 +588,13 @@ process.on('unhandledRejection', async (reason, promise) => {
       console.error(err);
     });
 
-    // Setup Vite in development or serve static files in production
-    if (app.get("env") === "development") {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
+    // Attach WebSocket conversation bridge BEFORE Vite middleware so the WS
+    // upgrade handler is registered first and Vite doesn't intercept /ws/* requests.
+    try {
+      const { startWSBridge } = await import('./services/conversation/ws-bridge.js');
+      startWSBridge({ httpServer: server });
+    } catch (err: any) {
+      console.warn('[WS-Bridge] ❌ Conversation WebSocket bridge failed to start:', err.message);
     }
 
     // Start gRPC conversation server (non-blocking — failure doesn't prevent HTTP startup)
@@ -600,10 +602,12 @@ process.on('unhandledRejection', async (reason, promise) => {
       .then(({ startGrpcServer }) => startGrpcServer())
       .catch((err) => console.warn('[gRPC] Conversation server failed to start:', err.message));
 
-    // Attach WebSocket conversation bridge to the HTTP server (shares origin with the app)
-    import('./services/conversation/ws-bridge.js')
-      .then(({ startWSBridge }) => startWSBridge({ httpServer: server }))
-      .catch((err) => console.warn('[WS-Bridge] Conversation WebSocket bridge failed to start:', err.message));
+    // Setup Vite in development or serve static files in production
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
 
     // Start server
     const port = parseInt(process.env.PORT || '8000', 10);

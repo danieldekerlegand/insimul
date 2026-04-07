@@ -23,6 +23,7 @@ export class ServerChatProvider implements ChatProvider {
   private callbacks: ChatProviderCallbacks = {};
   private characterId = '';
   private worldId = '';
+  private characterGender = '';
   private sessionId: string;
   private systemPrompt = '';
 
@@ -67,9 +68,10 @@ export class ServerChatProvider implements ChatProvider {
 
   setCallbacks(callbacks: ChatProviderCallbacks): void { this.callbacks = callbacks; }
 
-  setCharacter(characterId: string, worldId: string): void {
+  setCharacter(characterId: string, worldId: string, gender?: string): void {
     this.characterId = characterId;
     this.worldId = worldId;
+    if (gender) this.characterGender = gender;
   }
 
   setSystemPrompt(prompt: string): void { this.systemPrompt = prompt; }
@@ -318,6 +320,7 @@ export class ServerChatProvider implements ChatProvider {
       sessionId: this.sessionId, characterId: this.characterId,
       worldId: this.worldId, text, languageCode: lang,
       systemPrompt: this.systemPrompt || undefined,
+      characterGender: this.characterGender || undefined,
     };
 
     // Warn if required fields are missing — setCharacter() may not have been called

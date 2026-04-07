@@ -87,9 +87,11 @@ void UInsimulChatPanel::ClearHistory()
     }
 }
 
-void UInsimulChatPanel::SetNPCInfo(const FString& Name, UTexture2D* Portrait)
+void UInsimulChatPanel::SetNPCInfo(const FString& Name, UTexture2D* Portrait, const FString& WorldId, const FString& Gender)
 {
     CurrentNPCId = Name; // Use name as ID for NPC conversation tracking
+    CurrentWorldId = WorldId;
+    CurrentCharacterGender = Gender;
 
     if (NPCNameText)
     {
@@ -159,6 +161,19 @@ void UInsimulChatPanel::SetPronunciationQuestActive(bool bActive)
 {
     bPronunciationQuestActive = bActive;
     UE_LOG(LogTemp, Log, TEXT("[InsimulChatPanel] Pronunciation quest active: %s"), bActive ? TEXT("true") : TEXT("false"));
+}
+
+void UInsimulChatPanel::OnWorldDataLoaded()
+{
+    // Re-set character on the AI service so the system prompt is rebuilt with
+    // world language context that may not have been available at SetNPCInfo time.
+    if (CurrentNPCId.IsEmpty()) return;
+
+    UE_LOG(LogTemp, Log, TEXT("[InsimulChatPanel] World data loaded — re-initializing character '%s' with gender '%s'"),
+        *CurrentNPCId, *CurrentCharacterGender);
+
+    // Notify the AI service to rebuild its system prompt with the new world context.
+    // The AI service should implement SetCharacter(NPCId, WorldId, Gender).
 }
 
 void UInsimulChatPanel::ShowPanel()

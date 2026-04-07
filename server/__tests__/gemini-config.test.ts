@@ -28,30 +28,29 @@ describe('Gemini 3.1 Configuration', () => {
   });
 
   describe('GEMINI_MODELS', () => {
-    it('uses Gemini 3.1 Pro for PRO model', async () => {
+    it('uses Gemini 2.5 Pro for PRO model', async () => {
       const { GEMINI_MODELS } = await import('../config/gemini.js');
-      expect(GEMINI_MODELS.PRO).toBe('gemini-3.1-pro-preview');
+      expect(GEMINI_MODELS.PRO).toBe('gemini-2.5-pro');
     });
 
-    it('uses Gemini 3.1 Flash-Lite for FLASH model', async () => {
+    it('uses Gemini 2.5 Flash for FLASH model', async () => {
       const { GEMINI_MODELS } = await import('../config/gemini.js');
-      expect(GEMINI_MODELS.FLASH).toBe('gemini-3.1-flash-lite-preview');
+      expect(GEMINI_MODELS.FLASH).toBe('gemini-2.5-flash');
     });
 
-    it('uses Gemini 3.1 Flash TTS for SPEECH model', async () => {
+    it('uses Gemini 2.5 Flash Lite for FLASH_LITE model', async () => {
       const { GEMINI_MODELS } = await import('../config/gemini.js');
-      expect(GEMINI_MODELS.SPEECH).toBe('gemini-3.1-flash-preview-tts');
+      expect(GEMINI_MODELS.FLASH_LITE).toBe('gemini-2.5-flash-lite');
+    });
+
+    it('uses Gemini 2.5 Flash TTS for SPEECH model', async () => {
+      const { GEMINI_MODELS } = await import('../config/gemini.js');
+      expect(GEMINI_MODELS.SPEECH).toBe('gemini-2.5-flash-preview-tts');
     });
 
     it('uses Gemini 3.1 Flash Live for LIVE model', async () => {
       const { GEMINI_MODELS } = await import('../config/gemini.js');
-      expect(GEMINI_MODELS.LIVE).toBe('gemini-3.1-flash-live');
-    });
-
-    it('all non-TTS model names contain 3.1 version', async () => {
-      const { GEMINI_MODELS } = await import('../config/gemini.js');
-      expect(GEMINI_MODELS.PRO).toContain('3.1');
-      expect(GEMINI_MODELS.FLASH).toContain('3.1');
+      expect(GEMINI_MODELS.LIVE).toBe('gemini-3.1-flash-live-preview');
     });
   });
 

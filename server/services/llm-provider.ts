@@ -142,7 +142,6 @@ export class GeminiProvider implements ILLMProvider {
         systemInstruction: request.systemPrompt,
         temperature: request.temperature ?? this.defaultTemperature,
         maxOutputTokens: request.maxTokens || this.maxTokens,
-        thinkingConfig: { thinkingLevel: THINKING_LEVELS.LOW },
         ...(request.responseMimeType ? { responseMimeType: request.responseMimeType } : {}),
       },
     });

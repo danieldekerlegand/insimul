@@ -22,6 +22,7 @@ import type { ITTSProvider, VoiceProfile } from './tts/tts-provider.js';
 import { splitAtSentenceBoundaries, assignVoiceProfile, getTTSProvider } from './tts/tts-provider.js';
 // Side-effect import: registers 'google' TTS provider in the provider registry
 import './tts/google-tts-provider.js';
+import './tts/gemini-tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
 import { PipelineTimer, getConversationMetrics, QUALITY_TIER_CONFIGS } from './conversation-metrics.js';
@@ -72,6 +73,8 @@ async function streamTextResponse(
   languageCode: string,
   activeQuests?: ActiveQuest[],
   prologFacts?: Array<{ predicate: string; args: Array<string | number> }>,
+  clientSystemPrompt?: string,
+  clientCharacterGender?: string,
 ): Promise<void> {
   const metrics = getConversationMetrics();
   const e2eTimer = new PipelineTimer('end_to_end');
@@ -82,23 +85,42 @@ async function streamTextResponse(
     session = createSession(sessionId, characterId, worldId, sessionId, languageCode);
   }
 
-  // Build context on first message, character change, or when prologFacts are provided
-  const needsRebuild = !session.conversationContext || session.characterId !== characterId || prologFacts;
-  if (needsRebuild) {
-    session.characterId = characterId;
-    const ctxTimer = new PipelineTimer('context');
-    try {
-      const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
-        prologFacts,
-      });
-      session.conversationContext = fullCtx.conversationContext;
-    } catch {
+  // Always use the client-provided system prompt if present (it has the latest
+  // language directives, CEFR modes, scaffolding, etc.)
+  if (clientSystemPrompt) {
+    if (!session.conversationContext) {
       session.conversationContext = {
-        systemPrompt: 'You are an NPC in a game world. Respond in character.',
+        systemPrompt: clientSystemPrompt,
         characterName: characterId,
-      };
+        characterGender: clientCharacterGender || undefined,
+      } as any;
+    } else {
+      // Update the prompt on an existing session (may have changed since last turn)
+      session.conversationContext.systemPrompt = clientSystemPrompt;
+      if (clientCharacterGender) {
+        (session.conversationContext as any).characterGender = clientCharacterGender;
+      }
     }
-    ctxTimer.stop();
+    session.characterId = characterId;
+  } else {
+    // No client prompt — build server-side context on first message or character change
+    const needsRebuild = !session.conversationContext || session.characterId !== characterId || prologFacts;
+    if (needsRebuild) {
+      session.characterId = characterId;
+      const ctxTimer = new PipelineTimer('context');
+      try {
+        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
+          prologFacts,
+        });
+        session.conversationContext = fullCtx.conversationContext;
+      } catch {
+        session.conversationContext = {
+          systemPrompt: 'You are an NPC in a game world. Respond in character.',
+          characterName: characterId,
+        };
+      }
+      ctxTimer.stop();
+    }
   }
 
   // Add user message to history
@@ -142,7 +164,8 @@ async function streamTextResponse(
   // Stream LLM tokens
   let fullResponse = '';
   let sentenceBuffer = '';
-  const ttsPromises: Array<Promise<void>> = [];
+  // TTS serialization: chain promises so audio plays in sentence order
+  let ttsChain: Promise<void> = Promise.resolve();
   let ttsSentenceCount = 0;
 
   // Adaptive quality: use tier-based viseme quality
@@ -159,7 +182,8 @@ async function streamTextResponse(
     const voice: VoiceProfile = assignVoiceProfile({
       gender: (session as any)?.conversationContext?.characterGender,
     });
-    const promise = (async () => {
+    // Chain TTS calls sequentially so audio arrives in sentence order
+    ttsChain = ttsChain.then(async () => {
       const ttsTimer = new PipelineTimer('tts_total');
       let firstChunkRecorded = false;
       const ttsFirstChunkTimer = new PipelineTimer('tts_first_chunk');
@@ -198,8 +222,7 @@ async function streamTextResponse(
       }
       if (!firstChunkRecorded) ttsFirstChunkTimer.stop();
       ttsTimer.stop();
-    })();
-    ttsPromises.push(promise);
+    });
   };
 
   const llmTotalTimer = new PipelineTimer('llm_total');
@@ -325,10 +348,8 @@ async function streamTextResponse(
   // Final text marker
   sendSSE(res, { type: 'text', text: '', isFinal: true });
 
-  // Wait for TTS to complete before closing the SSE stream
-  if (ttsPromises.length > 0) {
-    await Promise.all(ttsPromises);
-  }
+  // Wait for TTS chain to complete before closing the SSE stream
+  await ttsChain;
 
   // Store response in history
   if (fullResponse) {
@@ -408,7 +429,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: SSE stream of text/audio/facial/meta events
    */
   app.post('/api/conversation/stream', async (req: Request, res: Response) => {
-    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts } = req.body;
+    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts, systemPrompt, characterGender } = req.body;
 
     if (!sessionId || !characterId || !worldId || !text) {
       res.status(400).json({ error: 'Missing required fields: sessionId, characterId, worldId, text' });
@@ -423,7 +444,7 @@ export function registerConversationRoutes(app: Express): void {
     res.flushHeaders();
 
     try {
-      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts);
+      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts, systemPrompt, characterGender);
     } catch (err: any) {
       console.error('[ConversationBridge] Stream error:', err);
       if (!res.writableEnded) {
@@ -552,7 +573,7 @@ export function registerConversationRoutes(app: Express): void {
           const result = await ai.models.generateContent({
             model: GEMINI_MODELS.FLASH,
             contents: prompt,
-            config: { temperature: 0.1, maxOutputTokens: 500, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
+            config: { temperature: 0.1, maxOutputTokens: 500 },
           });
           const text = result.text || '';
           try {
@@ -590,7 +611,7 @@ export function registerConversationRoutes(app: Express): void {
           const result = await ai.models.generateContent({
             model: GEMINI_MODELS.FLASH,
             contents: goalPrompt,
-            config: { temperature: 0.0, maxOutputTokens: 300, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
+            config: { temperature: 0.0, maxOutputTokens: 300 },
           });
           const text = result.text || '';
           try {
@@ -657,7 +678,7 @@ export function registerConversationRoutes(app: Express): void {
         const result = await ai.models.generateContent({
           model: GEMINI_MODELS.FLASH,
           contents: prompt,
-          config: { temperature: 0.1, maxOutputTokens: 100, thinkingConfig: { thinkingLevel: THINKING_LEVELS.MINIMAL } },
+          config: { temperature: 0.1, maxOutputTokens: 100 },
         });
         const text = result.text || '';
         try {
