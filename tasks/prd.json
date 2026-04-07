@@ -38,7 +38,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "onmessage receives LiveServerMessage with serverContent.modelTurn.parts[] containing interleaved text and audio Part objects. Audio parts have inlineData.data (base64), text parts have text field."
     },
     {

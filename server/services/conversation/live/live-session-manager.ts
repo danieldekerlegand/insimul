@@ -21,6 +21,8 @@ export interface LiveSessionCallbacks {
   onInterrupted?: () => void;
   /** Called when input audio transcription is available */
   onTranscription?: (text: string) => void;
+  /** Called when the model's generation is fully complete (all processing done) */
+  onGenerationComplete?: () => void;
 }
 
 export interface LiveSessionConfig {
@@ -111,11 +113,21 @@ export class LiveConversationSession {
         }
       }
 
+      // Input transcription (player's speech transcribed by Live API)
+      if (serverContent.inputTranscription?.text) {
+        this.callbacks.onTranscription?.(serverContent.inputTranscription.text);
+      }
+
       // Turn complete
       if (serverContent.turnComplete) {
         const fullText = this.accumulatedText;
         this.accumulatedText = '';
         this.callbacks.onTurnComplete?.(fullText);
+      }
+
+      // Generation complete (all processing done, distinct from turnComplete)
+      if (serverContent.generationComplete) {
+        this.callbacks.onGenerationComplete?.();
       }
     }
   }

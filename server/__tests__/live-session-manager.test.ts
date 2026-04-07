@@ -74,6 +74,7 @@ function makeCallbacks(overrides?: Partial<LiveSessionCallbacks>): LiveSessionCa
     onTurnComplete: vi.fn(),
     onInterrupted: vi.fn(),
     onTranscription: vi.fn(),
+    onGenerationComplete: vi.fn(),
     ...overrides,
   };
 }
@@ -306,5 +307,191 @@ describe('LiveConversationSession', () => {
 
     expect(mockSendClientContent).not.toHaveBeenCalled();
     expect(mockSendRealtimeInput).not.toHaveBeenCalled();
+  });
+
+  it('dispatches input transcription', async () => {
+    const callbacks = makeCallbacks();
+    const session = await manager.createSession(makeConfig(), callbacks);
+
+    session.handleMessage({
+      serverContent: {
+        inputTranscription: { text: 'Bonjour monsieur', finished: true },
+      },
+    } as any);
+
+    expect(callbacks.onTranscription).toHaveBeenCalledWith('Bonjour monsieur');
+  });
+
+  it('does not dispatch transcription when text is empty', async () => {
+    const callbacks = makeCallbacks();
+    const session = await manager.createSession(makeConfig(), callbacks);
+
+    session.handleMessage({
+      serverContent: {
+        inputTranscription: { text: '', finished: false },
+      },
+    } as any);
+
+    expect(callbacks.onTranscription).not.toHaveBeenCalled();
+  });
+
+  it('dispatches generationComplete', async () => {
+    const onGenerationComplete = vi.fn();
+    const callbacks = makeCallbacks({ onGenerationComplete });
+    const session = await manager.createSession(makeConfig(), callbacks);
+
+    session.handleMessage({
+      serverContent: { generationComplete: true },
+    } as any);
+
+    expect(onGenerationComplete).toHaveBeenCalled();
+  });
+
+  it('handles turnComplete and generationComplete in same message', async () => {
+    const onGenerationComplete = vi.fn();
+    const callbacks = makeCallbacks({ onGenerationComplete });
+    const session = await manager.createSession(makeConfig(), callbacks);
+
+    // Accumulate some text first
+    session.handleMessage({
+      serverContent: {
+        modelTurn: { role: 'model', parts: [{ text: 'Au revoir!' }] },
+      },
+    } as any);
+
+    // Both turnComplete and generationComplete in one message
+    session.handleMessage({
+      serverContent: { turnComplete: true, generationComplete: true },
+    } as any);
+
+    expect(callbacks.onTurnComplete).toHaveBeenCalledWith('Au revoir!');
+    expect(onGenerationComplete).toHaveBeenCalled();
+  });
+
+  it('handles interleaved audio and text parts in a single message', async () => {
+    const callbacks = makeCallbacks();
+    const session = await manager.createSession(makeConfig(), callbacks);
+
+    session.handleMessage({
+      serverContent: {
+        modelTurn: {
+          role: 'model',
+          parts: [
+            { text: 'Salut!' },
+            { inlineData: { data: 'audio1', mimeType: 'audio/pcm;rate=24000' } },
+            { text: ' Comment ça va?' },
+            { inlineData: { data: 'audio2', mimeType: 'audio/pcm;rate=24000' } },
+          ],
+        },
+      },
+    } as any);
+
+    expect(callbacks.onTextChunk).toHaveBeenCalledTimes(2);
+    expect(callbacks.onTextChunk).toHaveBeenCalledWith('Salut!');
+    expect(callbacks.onTextChunk).toHaveBeenCalledWith(' Comment ça va?');
+    expect(callbacks.onAudioChunk).toHaveBeenCalledTimes(2);
+    expect(callbacks.onAudioChunk).toHaveBeenCalledWith('audio1', 'audio/pcm;rate=24000');
+    expect(callbacks.onAudioChunk).toHaveBeenCalledWith('audio2', 'audio/pcm;rate=24000');
+  });
+
+  it('defaults audio mimeType when not provided', async () => {
+    const callbacks = makeCallbacks();
+    const session = await manager.createSession(makeConfig(), callbacks);
+
+    session.handleMessage({
+      serverContent: {
+        modelTurn: {
+          role: 'model',
+          parts: [{ inlineData: { data: 'audiodata' } }],
+        },
+      },
+    } as any);
+
+    expect(callbacks.onAudioChunk).toHaveBeenCalledWith('audiodata', 'audio/pcm;rate=24000');
+  });
+
+  it('full round-trip: send text, receive audio+text, turn complete', async () => {
+    const callbacks = makeCallbacks();
+    const session = await manager.createSession(makeConfig(), callbacks);
+    mockSendClientContent.mockClear();
+
+    // Player sends text
+    session.sendText('Bonjour!');
+    expect(mockSendClientContent).toHaveBeenCalledWith({
+      turns: [{ role: 'user', parts: [{ text: 'Bonjour!' }] }],
+      turnComplete: true,
+    });
+
+    // Model responds with interleaved audio + text
+    session.handleMessage({
+      serverContent: {
+        modelTurn: {
+          role: 'model',
+          parts: [
+            { text: 'Bonjour! ' },
+            { inlineData: { data: 'chunk1', mimeType: 'audio/pcm;rate=24000' } },
+          ],
+        },
+      },
+    } as any);
+
+    session.handleMessage({
+      serverContent: {
+        modelTurn: {
+          role: 'model',
+          parts: [
+            { text: 'Je suis Pierre.' },
+            { inlineData: { data: 'chunk2', mimeType: 'audio/pcm;rate=24000' } },
+          ],
+        },
+      },
+    } as any);
+
+    // Turn and generation complete
+    session.handleMessage({
+      serverContent: { turnComplete: true, generationComplete: true },
+    } as any);
+
+    // Verify all callbacks fired correctly
+    expect(callbacks.onTextChunk).toHaveBeenCalledTimes(2);
+    expect(callbacks.onAudioChunk).toHaveBeenCalledTimes(2);
+    expect(callbacks.onTurnComplete).toHaveBeenCalledWith('Bonjour! Je suis Pierre.');
+    expect(callbacks.onGenerationComplete).toHaveBeenCalled();
+  });
+
+  it('sendAudio uses default mimeType when not provided', async () => {
+    const session = await manager.createSession(makeConfig(), makeCallbacks());
+
+    session.sendAudio('base64data');
+
+    expect(mockSendRealtimeInput).toHaveBeenCalledWith({
+      audio: { data: 'base64data', mimeType: 'audio/pcm;rate=16000' },
+    });
+  });
+
+  it('updates lastActivity on sendText, sendAudio, and handleMessage', async () => {
+    const session = await manager.createSession(makeConfig(), makeCallbacks());
+
+    const initialIdle = session.idleMs;
+    // idleMs should be very small right after creation
+    expect(initialIdle).toBeLessThan(100);
+
+    // Manually set lastActivity to the past
+    (session as any).lastActivity = Date.now() - 5000;
+    expect(session.idleMs).toBeGreaterThanOrEqual(4900);
+
+    // sendText should reset
+    session.sendText('test');
+    expect(session.idleMs).toBeLessThan(100);
+
+    // Set to past again and test sendAudio
+    (session as any).lastActivity = Date.now() - 5000;
+    session.sendAudio('data');
+    expect(session.idleMs).toBeLessThan(100);
+
+    // Set to past again and test handleMessage
+    (session as any).lastActivity = Date.now() - 5000;
+    session.handleMessage({ serverContent: { turnComplete: true } } as any);
+    expect(session.idleMs).toBeLessThan(100);
   });
 });

@@ -1850,3 +1850,19 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `ConversationExchange` uses `speakerId`/`speakerName`/`timestamp` fields, `RelationshipDelta` uses `friendshipChange`/`trustChange`/`romanceSpark`
   - Pre-existing TS errors in `shared/quests/` and `shared/schema.ts` — not related to chat performance work
 ---
+
+## 2026-04-07 - US-002: Implement LiveConversationSession wrapper
+- Added `onGenerationComplete` callback to `LiveSessionCallbacks` interface
+- Added `inputTranscription` dispatching in `handleMessage()` — fires `onTranscription` when the Live API transcribes player speech
+- Added `generationComplete` signal handling — fires `onGenerationComplete` when model is fully done generating
+- Added `onGenerationComplete` to `makeCallbacks()` test helper
+- Added 10 new tests: transcription dispatch, empty transcription guard, generationComplete, combined turnComplete+generationComplete, interleaved audio+text parts, default audio mimeType, full round-trip flow, default sendAudio mimeType, lastActivity tracking
+- Files changed:
+  - `server/services/conversation/live/live-session-manager.ts` — transcription + generationComplete handling, onGenerationComplete callback
+  - `server/__tests__/live-session-manager.test.ts` — 10 new tests (21 total)
+- **Learnings for future iterations:**
+  - `LiveServerContent` has `inputTranscription` and `outputTranscription` (both type `Transcription` with `text` and `finished` fields) — input is player speech, output is model speech transcription
+  - `generationComplete` is distinct from `turnComplete` — turnComplete means the model's turn text is done, generationComplete means all processing (including audio generation) is finished
+  - Both can arrive in the same `LiveServerMessage`
+  - `Transcription.text` can be empty string — guard with truthiness check before dispatching
+---
