@@ -61,7 +61,7 @@ export class GeminiStreamingProvider implements IStreamingLLMProvider {
     }
 
     const response = await ai.models.generateContentStream({
-      model: modelName,
+      model: options?.modelOverride || modelName,
       contents,
       config,
     });

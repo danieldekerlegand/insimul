@@ -1,4 +1,4 @@
-import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
+import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../../config/gemini.js';
 
 /**
  * A message in Gemini's conversation format.

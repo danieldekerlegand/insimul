@@ -118,44 +118,90 @@ interface FallbackTemplate {
   lines: Array<{ speaker: 'A' | 'B'; text: string }>;
 }
 
-const FALLBACK_TEMPLATES: FallbackTemplate[] = [
-  {
-    topic: 'greeting',
-    lines: [
-      { speaker: 'A', text: 'Good day! How have you been?' },
-      { speaker: 'B', text: "I've been well, thank you. And yourself?" },
-      { speaker: 'A', text: "Can't complain. The weather has been pleasant lately." },
-      { speaker: 'B', text: 'Indeed it has. Well, I should be on my way.' },
-    ],
-  },
-  {
-    topic: 'work',
-    lines: [
-      { speaker: 'A', text: "Busy day at work today, wasn't it?" },
-      { speaker: 'B', text: 'Tell me about it. I could use a break.' },
-      { speaker: 'A', text: "At least it's almost over. Any plans for the evening?" },
-      { speaker: 'B', text: 'Just a quiet night at home, I think.' },
-    ],
-  },
-  {
-    topic: 'gossip',
-    lines: [
-      { speaker: 'A', text: 'Have you heard the latest news around town?' },
-      { speaker: 'B', text: 'No, what happened?' },
-      { speaker: 'A', text: "Oh, just the usual comings and goings. Nothing too exciting." },
-      { speaker: 'B', text: "Well, that's how it goes in a small town." },
-    ],
-  },
-  {
-    topic: 'weather',
-    lines: [
-      { speaker: 'A', text: "Looks like it might rain later, don't you think?" },
-      { speaker: 'B', text: "I hope not. I didn't bring anything to cover myself." },
-      { speaker: 'A', text: "You can always duck into a shop if it starts." },
-      { speaker: 'B', text: "Good idea. Let's hope it holds off though." },
-    ],
-  },
-];
+const FALLBACK_TEMPLATES: Record<string, FallbackTemplate[]> = {
+  en: [
+    {
+      topic: 'greeting',
+      lines: [
+        { speaker: 'A', text: 'Good day! How have you been?' },
+        { speaker: 'B', text: "I've been well, thank you. And yourself?" },
+        { speaker: 'A', text: "Can't complain. The weather has been pleasant lately." },
+        { speaker: 'B', text: 'Indeed it has. Well, I should be on my way.' },
+      ],
+    },
+    {
+      topic: 'work',
+      lines: [
+        { speaker: 'A', text: "Busy day at work today, wasn't it?" },
+        { speaker: 'B', text: 'Tell me about it. I could use a break.' },
+        { speaker: 'A', text: "At least it's almost over. Any plans for the evening?" },
+        { speaker: 'B', text: 'Just a quiet night at home, I think.' },
+      ],
+    },
+    {
+      topic: 'gossip',
+      lines: [
+        { speaker: 'A', text: 'Have you heard the latest news around town?' },
+        { speaker: 'B', text: 'No, what happened?' },
+        { speaker: 'A', text: "Oh, just the usual comings and goings. Nothing too exciting." },
+        { speaker: 'B', text: "Well, that's how it goes in a small town." },
+      ],
+    },
+    {
+      topic: 'weather',
+      lines: [
+        { speaker: 'A', text: "Looks like it might rain later, don't you think?" },
+        { speaker: 'B', text: "I hope not. I didn't bring anything to cover myself." },
+        { speaker: 'A', text: "You can always duck into a shop if it starts." },
+        { speaker: 'B', text: "Good idea. Let's hope it holds off though." },
+      ],
+    },
+  ],
+  fr: [
+    {
+      topic: 'greeting',
+      lines: [
+        { speaker: 'A', text: 'Bonjour ! Comment allez-vous ?' },
+        { speaker: 'B', text: 'Très bien, merci. Et vous ?' },
+        { speaker: 'A', text: 'Pas mal. Le temps est agréable ces derniers jours.' },
+        { speaker: 'B', text: "En effet. Bon, je dois y aller. À bientôt !" },
+      ],
+    },
+    {
+      topic: 'work',
+      lines: [
+        { speaker: 'A', text: "Quelle journée chargée aujourd'hui, n'est-ce pas ?" },
+        { speaker: 'B', text: "Vous pouvez le dire. J'aurais bien besoin d'une pause." },
+        { speaker: 'A', text: "Au moins, c'est bientôt fini. Vous avez des projets pour ce soir ?" },
+        { speaker: 'B', text: 'Juste une soirée tranquille à la maison, je pense.' },
+      ],
+    },
+    {
+      topic: 'gossip',
+      lines: [
+        { speaker: 'A', text: 'Vous avez entendu les dernières nouvelles du village ?' },
+        { speaker: 'B', text: "Non, qu'est-ce qui s'est passé ?" },
+        { speaker: 'A', text: 'Oh, rien de bien extraordinaire. Les allées et venues habituelles.' },
+        { speaker: 'B', text: "C'est comme ça dans un petit village." },
+      ],
+    },
+    {
+      topic: 'weather',
+      lines: [
+        { speaker: 'A', text: "On dirait qu'il va pleuvoir plus tard, vous ne trouvez pas ?" },
+        { speaker: 'B', text: "J'espère que non. Je n'ai rien pour me couvrir." },
+        { speaker: 'A', text: "Vous pouvez toujours vous abriter dans une boutique si ça commence." },
+        { speaker: 'B', text: "Bonne idée. Espérons que ça tienne." },
+      ],
+    },
+  ],
+};
+
+/** Get fallback templates for a language, falling back to English */
+function getFallbackTemplates(targetLanguage?: string): FallbackTemplate[] {
+  const lang = targetLanguage?.toLowerCase().slice(0, 2) || 'en';
+  return FALLBACK_TEMPLATES[lang] || FALLBACK_TEMPLATES.en;
+}
 
 // ── Topic selection ──────────────────────────────────────────────────
 
@@ -462,6 +508,7 @@ function generateFallbackConversation(
   npc2: Character,
   topic: string,
   cefrTier?: CEFRTier,
+  targetLanguage?: string,
 ): ConversationExchange[] {
   const p1: BigFivePersonality = (npc1.personality as BigFivePersonality) ?? {
     openness: 0, conscientiousness: 0, extroversion: 0, agreeableness: 0, neuroticism: 0,
@@ -470,7 +517,14 @@ function generateFallbackConversation(
     openness: 0, conscientiousness: 0, extroversion: 0, agreeableness: 0, neuroticism: 0,
   };
 
-  const template = selectTemplate(topic, p1, p2, cefrTier);
+  // Use personality-based template selection, falling back to language-aware simple templates
+  let template: FallbackTemplate;
+  try {
+    template = selectTemplate(topic, p1, p2, cefrTier);
+  } catch {
+    const templates = getFallbackTemplates(targetLanguage);
+    template = templates.find((t) => topic.includes(t.topic)) ?? templates[0];
+  }
 
   const now = Date.now();
   return template.lines.map((line, i) => {
@@ -778,7 +832,7 @@ export async function initiateConversation(
       }
     } else {
       // 3. No LLM available — use template only
-      exchanges = generateFallbackConversation(npc1, npc2, topic, cefrTier);
+      exchanges = generateFallbackConversation(npc1, npc2, topic, cefrTier, languageUsed);
       source = 'template';
       metrics.record('npc_npc_template_served', 1);
     }

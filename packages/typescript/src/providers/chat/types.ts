@@ -41,7 +41,7 @@ export interface ChatProvider {
   setSystemPrompt(prompt: string): void;
 
   /** Send text, receive streaming responses via callbacks. Returns full response text. */
-  sendText(text: string, languageCode?: string): Promise<string>;
+  sendText(text: string, languageCode?: string, prologFacts?: Array<{ predicate: string; args: Array<string | number> }>): Promise<string>;
 
   /** Send audio for STT+LLM pipeline (server path). Returns full response text. */
   sendAudio(audioBlob: Blob, languageCode?: string): Promise<string>;

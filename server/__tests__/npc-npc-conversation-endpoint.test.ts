@@ -154,6 +154,28 @@ describe('NPC-NPC ambient conversation integration', () => {
       const exchanges = generateFallbackConversation(npc1, npc2, 'quantum_physics');
       expect(exchanges.length).toBeGreaterThanOrEqual(2);
     });
+
+    it('produces French exchanges when targetLanguage is French', () => {
+      const exchanges = generateFallbackConversation(npc1, npc2, 'greeting', 'French');
+      expect(exchanges.length).toBeGreaterThanOrEqual(2);
+      // French greeting template starts with "Bonjour"
+      const allText = exchanges.map(e => e.text).join(' ');
+      expect(allText).toContain('Bonjour');
+    });
+
+    it('produces English exchanges when no targetLanguage', () => {
+      const exchanges = generateFallbackConversation(npc1, npc2, 'greeting');
+      expect(exchanges.length).toBeGreaterThanOrEqual(2);
+      const allText = exchanges.map(e => e.text).join(' ');
+      expect(allText).toContain('Good day');
+    });
+
+    it('falls back to English for unsupported languages', () => {
+      const exchanges = generateFallbackConversation(npc1, npc2, 'greeting', 'Japanese');
+      expect(exchanges.length).toBeGreaterThanOrEqual(2);
+      const allText = exchanges.map(e => e.text).join(' ');
+      expect(allText).toContain('Good day');
+    });
   });
 
   describe('full conversation flow (no LLM)', () => {

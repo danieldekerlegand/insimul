@@ -19,6 +19,7 @@ import {
   endSession,
 } from '../services/conversation/grpc-server.js';
 import type { IStreamingLLMProvider, ConversationContext, StreamCompletionOptions } from '../services/conversation/providers/llm-provider.js';
+import { conversationContextCache, ConversationContextCache } from '../services/conversation/conversation-context-cache.js';
 
 // ── Mock LLM Provider ─────────────────────────────────────────────────
 
@@ -34,6 +35,18 @@ class MockLLMProvider implements IStreamingLLMProvider {
     for (const word of words) {
       yield word + ' ';
     }
+  }
+}
+
+class EmptyLLMProvider implements IStreamingLLMProvider {
+  readonly name = 'mock-empty';
+
+  async *streamCompletion(
+    _prompt: string,
+    _context: ConversationContext,
+    _options?: StreamCompletionOptions,
+  ): AsyncIterable<string> {
+    // Returns nothing — simulates empty/filtered LLM response
   }
 }
 
@@ -108,6 +121,7 @@ describe('WebSocket Bridge', () => {
     if (getSession(sessionId)) {
       endSession(sessionId);
     }
+    conversationContextCache.clear();
   });
 
   it('should accept WebSocket connections', async () => {
@@ -124,9 +138,10 @@ describe('WebSocket Bridge', () => {
     const ws = await connectWS();
     const messagesPromise = waitForDone(ws);
 
+    // Use a non-greeting message to avoid Prolog-first interception
     ws.send(JSON.stringify({
       textInput: {
-        text: 'Hello NPC!',
+        text: 'Tell me about this place.',
         sessionId: 'test-session-1',
         characterId: 'char-1',
         worldId: 'world-1',
@@ -148,7 +163,7 @@ describe('WebSocket Bridge', () => {
     const finalText = textMessages.find((m: any) => m.isFinal === true);
     expect(finalText).toBeDefined();
 
-    // Non-final text chunks should contain actual text
+    // Non-final text chunks should contain actual text from mock LLM
     const nonFinalText = textMessages.filter((m: any) => !m.isFinal);
     expect(nonFinalText.length).toBeGreaterThan(0);
     const fullText = nonFinalText.map((m: any) => m.text).join('');
@@ -317,5 +332,205 @@ describe('WebSocket Bridge', () => {
 
     // Session should still exist
     expect(getSession('test-session-1')).toBeDefined();
+  });
+
+  it('should cache context after first message and hit cache on second', async () => {
+    // Pre-create session with context to avoid MongoDB call
+    const session = createSession('test-session-1', 'char-1', 'world-1', 'player-1', 'en');
+    session.conversationContext = { systemPrompt: 'You are an NPC.', characterName: 'TestNPC' };
+
+    const cacheKey = ConversationContextCache.chatKey('world-1', 'char-1', 'player-1');
+
+    // Cache should be empty initially
+    expect(conversationContextCache.has(cacheKey)).toBe(false);
+
+    const ws = await connectWS();
+
+    // First message
+    let messagesPromise = waitForDone(ws);
+    ws.send(JSON.stringify({
+      textInput: {
+        text: 'Hello!',
+        sessionId: 'test-session-1',
+        characterId: 'char-1',
+        worldId: 'world-1',
+        languageCode: 'en',
+      },
+    }));
+    await messagesPromise;
+
+    // After first message, cache should be populated with the conversation
+    const cached = conversationContextCache.get(cacheKey);
+    expect(cached).toBeDefined();
+    expect(cached!.messages.length).toBeGreaterThan(0);
+
+    // Second message — context should be reused from session (no rebuild)
+    messagesPromise = waitForDone(ws);
+    ws.send(JSON.stringify({
+      textInput: {
+        text: 'How are you?',
+        sessionId: 'test-session-1',
+        characterId: 'char-1',
+        worldId: 'world-1',
+        languageCode: 'en',
+      },
+    }));
+    await messagesPromise;
+
+    // Cache should have more messages now
+    const updatedCache = conversationContextCache.get(cacheKey);
+    expect(updatedCache!.messages.length).toBeGreaterThan(cached!.messages.length);
+
+    ws.close();
+  });
+
+  it('should fall through to LLM for complex messages (Prolog routing)', async () => {
+    // Pre-create session with context
+    const session = createSession('test-session-1', 'char-1', 'world-1', 'player-1', 'en');
+    session.conversationContext = { systemPrompt: 'You are an NPC.', characterName: 'TestNPC' };
+
+    const ws = await connectWS();
+    const messagesPromise = waitForDone(ws);
+
+    // Complex message should NOT be intercepted by Prolog
+    ws.send(JSON.stringify({
+      textInput: {
+        text: 'Can you tell me about the history of this village?',
+        sessionId: 'test-session-1',
+        characterId: 'char-1',
+        worldId: 'world-1',
+        languageCode: 'en',
+      },
+    }));
+
+    const messages = await messagesPromise;
+
+    // Should have text responses from the LLM (not Prolog template)
+    const textMessages = messages.filter((m: any) => m.type === 'text' && !m.isFinal);
+    expect(textMessages.length).toBeGreaterThan(0);
+    const fullText = textMessages.map((m: any) => m.text).join('');
+    expect(fullText).toContain('Hello'); // From mock LLM
+
+    ws.close();
+  });
+
+  it('should attempt Prolog-first routing for greetings (falls through in test env)', async () => {
+    // Pre-create session with context
+    const session = createSession('test-session-1', 'char-1', 'world-1', 'player-1', 'en');
+    session.conversationContext = { systemPrompt: 'You are an NPC.', characterName: 'TestNPC' };
+
+    const ws = await connectWS();
+    const messagesPromise = waitForDone(ws);
+
+    // 'bonjour' is a greeting — Prolog routing will be attempted but fall through
+    // (no Prolog engine in test env), so LLM will handle it
+    ws.send(JSON.stringify({
+      textInput: {
+        text: 'bonjour',
+        sessionId: 'test-session-1',
+        characterId: 'char-1',
+        worldId: 'world-1',
+        languageCode: 'fr',
+      },
+    }));
+
+    const messages = await messagesPromise;
+
+    // Should still get a response (either from Prolog or LLM fallback)
+    const textMessages = messages.filter((m: any) => m.type === 'text');
+    expect(textMessages.length).toBeGreaterThan(0);
+    const doneMsg = messages.find((m: any) => m.type === 'done');
+    expect(doneMsg).toBeDefined();
+
+    ws.close();
+  });
+
+  it('should accept prologFacts field in textInput without breaking', async () => {
+    // Pre-create session with context
+    const session = createSession('test-session-1', 'char-1', 'world-1', 'player-1', 'en');
+    session.conversationContext = { systemPrompt: 'You are an NPC.', characterName: 'TestNPC' };
+
+    const ws = await connectWS();
+    const messagesPromise = waitForDone(ws);
+
+    // Send message with empty prologFacts — verifies the WS bridge
+    // correctly destructures the field without errors (non-empty facts
+    // trigger buildContext() which requires MongoDB, not available in test)
+    ws.send(JSON.stringify({
+      textInput: {
+        text: 'What do you sell?',
+        sessionId: 'test-session-1',
+        characterId: 'char-1',
+        worldId: 'world-1',
+        languageCode: 'en',
+        prologFacts: [],
+      },
+    }));
+
+    const messages = await messagesPromise;
+
+    const doneMsg = messages.find((m: any) => m.type === 'done');
+    expect(doneMsg).toBeDefined();
+    const textMessages = messages.filter((m: any) => m.type === 'text');
+    expect(textMessages.length).toBeGreaterThan(0);
+
+    ws.close();
+  });
+});
+
+describe('WebSocket Bridge - Empty Response Detection', () => {
+  const emptyLLM = new EmptyLLMProvider();
+  const EMPTY_PORT = 50098;
+
+  beforeEach(async () => {
+    startWSBridge({ port: EMPTY_PORT, llmProvider: emptyLLM });
+  });
+
+  afterEach(async () => {
+    await stopWSBridge();
+    const sessionId = 'test-empty-1';
+    if (getSession(sessionId)) {
+      endSession(sessionId);
+    }
+  });
+
+  it('should detect empty LLM response and send fallback text', async () => {
+    const session = createSession('test-empty-1', 'char-1', 'world-1', 'player-1', 'en');
+    session.conversationContext = { systemPrompt: 'You are an NPC.', characterName: 'TestNPC' };
+
+    const ws = await new Promise<WebSocket>((resolve, reject) => {
+      const w = new WebSocket(`ws://localhost:${EMPTY_PORT}`);
+      w.on('open', () => resolve(w));
+      w.on('error', reject);
+    });
+
+    const messagesPromise = waitForDone(ws);
+
+    ws.send(JSON.stringify({
+      textInput: {
+        text: 'Tell me something.',
+        sessionId: 'test-empty-1',
+        characterId: 'char-1',
+        worldId: 'world-1',
+        languageCode: 'en',
+      },
+    }));
+
+    const messages = await messagesPromise;
+
+    // Should have an error event about empty response
+    const errorMsg = messages.find((m: any) => m.type === 'error' && m.message?.includes('empty'));
+    expect(errorMsg).toBeDefined();
+
+    // Should have fallback text
+    const textMessages = messages.filter((m: any) => m.type === 'text');
+    const fallbackText = textMessages.find((m: any) => m.text?.includes('lost my train of thought'));
+    expect(fallbackText).toBeDefined();
+
+    // Should still complete with done
+    const doneMsg = messages.find((m: any) => m.type === 'done');
+    expect(doneMsg).toBeDefined();
+
+    ws.close();
   });
 });

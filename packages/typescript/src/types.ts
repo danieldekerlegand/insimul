@@ -224,6 +224,8 @@ export interface SendTextOptions {
   languageCode?: string;
   /** Additional context passed to the chat provider (e.g., prolog facts) */
   context?: Record<string, unknown>;
+  /** Prolog facts from the client-side game engine, sent to enrich server-side prompts */
+  prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
 }
 
 // ── Conversation Metadata (language learning) ────────────────────────────

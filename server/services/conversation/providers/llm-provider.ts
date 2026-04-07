@@ -12,6 +12,8 @@ export interface StreamCompletionOptions {
   languageCode?: string;
   /** Model tier: 'fast' uses lighter/faster model, 'full' uses primary model */
   modelTier?: 'fast' | 'full';
+  /** Override model for this call (e.g., FLASH for simple, PRO for complex) */
+  modelOverride?: string;
   characterPersonality?: {
     openness: number;
     conscientiousness: number;

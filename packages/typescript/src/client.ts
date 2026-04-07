@@ -287,7 +287,7 @@ export class InsimulClient {
 
   async sendText(text: string, options?: SendTextOptions): Promise<string> {
     await this.ensureInitialized();
-    return this.chatProvider.sendText(text, options?.languageCode || this.options.languageCode);
+    return this.chatProvider.sendText(text, options?.languageCode || this.options.languageCode, options?.prologFacts);
   }
 
   async sendAudio(audioBlob: Blob, options?: SendTextOptions): Promise<string> {

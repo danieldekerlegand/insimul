@@ -27,21 +27,67 @@ interface PrologRouterResult {
 
 // ── Template responses ────────────────────────────────────────────────────
 
-const GREETING_TEMPLATES = [
-  'Good day, traveler.',
-  'Well met!',
-  'Hello there.',
-  'Greetings, friend.',
-  'Welcome.',
-];
+const GREETING_TEMPLATES: Record<string, string[]> = {
+  en: [
+    'Good day, traveler.',
+    'Well met!',
+    'Hello there.',
+    'Greetings, friend.',
+    'Welcome.',
+  ],
+  fr: [
+    'Bonjour, voyageur.',
+    'Bienvenue!',
+    'Salut!',
+    'Bonjour, comment allez-vous?',
+    'Bonne journée!',
+  ],
+  es: [
+    '¡Buenos días, viajero!',
+    '¡Bienvenido!',
+    '¡Hola!',
+    '¿Cómo estás?',
+    '¡Buenas!',
+  ],
+  de: [
+    'Guten Tag, Reisender.',
+    'Willkommen!',
+    'Hallo!',
+    'Grüß Gott!',
+    'Sei gegrüßt!',
+  ],
+};
 
-const FAREWELL_TEMPLATES = [
-  'Farewell, safe travels.',
-  'Until next time.',
-  'May your path be clear.',
-  'Take care out there.',
-  'Goodbye for now.',
-];
+const FAREWELL_TEMPLATES: Record<string, string[]> = {
+  en: [
+    'Farewell, safe travels.',
+    'Until next time.',
+    'May your path be clear.',
+    'Take care out there.',
+    'Goodbye for now.',
+  ],
+  fr: [
+    'Au revoir, bon voyage.',
+    'À bientôt!',
+    'Bonne route!',
+    'À la prochaine.',
+    'Portez-vous bien!',
+  ],
+  es: [
+    '¡Adiós, buen viaje!',
+    '¡Hasta luego!',
+    '¡Hasta la próxima!',
+    '¡Cuídate!',
+    '¡Que te vaya bien!',
+  ],
+  de: [
+    'Auf Wiedersehen, gute Reise.',
+    'Bis zum nächsten Mal!',
+    'Pass auf dich auf!',
+    'Leb wohl!',
+    'Bis bald!',
+  ],
+};
 
 const TRADE_TEMPLATES = [
   'I have fine wares for sale. Care to take a look?',
@@ -53,6 +99,17 @@ function pickTemplate(templates: string[]): string {
   return templates[Math.floor(Math.random() * templates.length)];
 }
 
+/** Get templates for a language, falling back to English */
+function getGreetingTemplates(targetLanguage?: string): string[] {
+  const lang = targetLanguage?.toLowerCase().slice(0, 2) || 'en';
+  return GREETING_TEMPLATES[lang] || GREETING_TEMPLATES.en;
+}
+
+function getFarewellTemplates(targetLanguage?: string): string[] {
+  const lang = targetLanguage?.toLowerCase().slice(0, 2) || 'en';
+  return FAREWELL_TEMPLATES[lang] || FAREWELL_TEMPLATES.en;
+}
+
 // ── Router ────────────────────────────────────────────────────────────────
 
 export class PrologLLMRouter {
@@ -62,7 +119,8 @@ export class PrologLLMRouter {
   async tryPrologFirst(
     worldId: string,
     queryType: string,
-    params: Record<string, any>
+    params: Record<string, any>,
+    targetLanguage?: string,
   ): Promise<PrologRouterResult> {
     try {
       const engine = prologAutoSync.getEngine(worldId);
@@ -150,7 +208,7 @@ export class PrologLLMRouter {
 
           return {
             answered: true,
-            answer: pickTemplate(GREETING_TEMPLATES),
+            answer: pickTemplate(getGreetingTemplates(targetLanguage)),
             source: 'template',
             confidence: 0.6,
           };
@@ -159,7 +217,7 @@ export class PrologLLMRouter {
         case 'farewell':
           return {
             answered: true,
-            answer: pickTemplate(FAREWELL_TEMPLATES),
+            answer: pickTemplate(getFarewellTemplates(targetLanguage)),
             source: 'template',
             confidence: 0.6,
           };

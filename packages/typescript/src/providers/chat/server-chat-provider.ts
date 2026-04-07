@@ -76,19 +76,21 @@ export class ServerChatProvider implements ChatProvider {
 
   setSystemPrompt(prompt: string): void { this.systemPrompt = prompt; }
 
-  async sendText(text: string, languageCode?: string): Promise<string> {
+  async sendText(text: string, languageCode?: string, prologFacts?: Array<{ predicate: string; args: Array<string | number> }>): Promise<string> {
     const lang = languageCode || this.config.languageCode || 'en';
+    // Cap prologFacts at 50 entries to avoid bloating the request
+    const cappedFacts = prologFacts?.slice(0, 50);
 
     // Try WebSocket first
     if (this.config.preferWebSocket !== false) {
       try {
-        return await this.sendTextWS(text, lang);
+        return await this.sendTextWS(text, lang, cappedFacts);
       } catch (err: any) {
         console.warn('[ServerChat] WebSocket unavailable, falling back to SSE:', err.message);
       }
     }
 
-    return this.sendTextSSE(text, lang);
+    return this.sendTextSSE(text, lang, cappedFacts);
   }
 
   async sendAudio(audioBlob: Blob, languageCode?: string): Promise<string> {
@@ -246,7 +248,7 @@ export class ServerChatProvider implements ChatProvider {
     this.pendingResolve = null;
   }
 
-  private async sendTextWS(text: string, lang: string): Promise<string> {
+  private async sendTextWS(text: string, lang: string, prologFacts?: Array<{ predicate: string; args: Array<string | number> }>): Promise<string> {
     await this.ensureWSConnected();
     this.resetPendingState();
     this.callbacks.onStateChange?.('thinking');
@@ -258,6 +260,7 @@ export class ServerChatProvider implements ChatProvider {
           textInput: {
             text, sessionId: this.sessionId, characterId: this.characterId,
             worldId: this.worldId, languageCode: lang,
+            ...(prologFacts?.length ? { prologFacts } : {}),
           },
         }));
       } catch (err: any) {
@@ -312,7 +315,7 @@ export class ServerChatProvider implements ChatProvider {
 
   // ── SSE fallback transport ────────────────────────────────────────────
 
-  private async sendTextSSE(text: string, lang: string): Promise<string> {
+  private async sendTextSSE(text: string, lang: string, prologFacts?: Array<{ predicate: string; args: Array<string | number> }>): Promise<string> {
     this.abortController = new AbortController();
     this.callbacks.onStateChange?.('thinking');
 
@@ -321,6 +324,7 @@ export class ServerChatProvider implements ChatProvider {
       worldId: this.worldId, text, languageCode: lang,
       systemPrompt: this.systemPrompt || undefined,
       characterGender: this.characterGender || undefined,
+      ...(prologFacts?.length ? { prologFacts } : {}),
     };
 
     // Warn if required fields are missing — setCharacter() may not have been called

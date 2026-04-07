@@ -289,7 +289,7 @@
     {
       "path": "shared/game-engine/logic/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "88e31bcf499078e9495f0f09457494855e100b1aa921f7c0ae8bcb7be627a54b",
+      "hash": "bb5903d1e8ad1d31dd80f169229132610e53eea9bc8d8b4ba874afa06aee063a",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "a5e46736d398712165db32be65e9ce049c1228e05acfbe0b9edba953b62a264d",
+      "hash": "c015b0ffdb9c10ae609af70cf724d1903cfcc00e745c6475854e4255cadd276f",
       "engineMappings": [
         {
           "engine": "unity",

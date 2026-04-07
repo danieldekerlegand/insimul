@@ -1759,7 +1759,12 @@ export class BabylonChatPanel {
       : 'en';
 
     try {
-      const fullText = await this.insimulClient!.sendText(userMessage, { languageCode: langCode });
+      // Collect Prolog facts from the game engine (if available)
+      const prologFacts = this._prologFactsProvider?.() ?? undefined;
+      const fullText = await this.insimulClient!.sendText(userMessage, {
+        languageCode: langCode,
+        prologFacts,
+      });
       return fullText || accumulatedText;
     } catch (err: any) {
       console.error('[ChatPanel] Conversation failed:', err?.message || err);
@@ -2842,9 +2847,15 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   }
   private persistentLanguageTracker: import('./LanguageProgressTracker').LanguageProgressTracker | null = null;
   private _dataSource: DataSource | null = null;
+  private _prologFactsProvider: (() => Array<{ predicate: string; args: Array<string | number> }>) | null = null;
 
   public setDataSource(ds: DataSource): void {
     this._dataSource = ds;
+  }
+
+  /** Set a callback that returns current Prolog facts for sending to the server */
+  public setPrologFactsProvider(provider: () => Array<{ predicate: string; args: Array<string | number> }>): void {
+    this._prologFactsProvider = provider;
   }
 
   /** Get the current AI provider setting */

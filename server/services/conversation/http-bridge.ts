@@ -31,6 +31,44 @@ import { responseCache } from './response-cache.js';
 import { analyzeConversation } from './quest-trigger-analyzer.js';
 import type { ActiveQuest } from './quest-trigger-analyzer.js';
 import { cleanForSpeech } from './streaming-chat.js';
+import { conversationContextCache, ConversationContextCache } from './conversation-context-cache.js';
+import { compressConversationHistory, type GeminiMessage } from './conversation-compression.js';
+import { prologLLMRouter } from '../prolog-llm-router.js';
+import { GEMINI_MODELS } from '../../config/gemini.js';
+
+// ── Message complexity classification ───────────────────────────────────
+
+/**
+ * Classify message as 'simple' or 'complex' for tiered model routing.
+ * Simple: short messages with history (continuation), no question marks or quest keywords.
+ * Complex: everything else — defaults to PRO model.
+ */
+export function classifyMessageComplexity(
+  text: string,
+  historyLength: number,
+): 'simple' | 'complex' {
+  const wordCount = text.trim().split(/\s+/).length;
+  const hasQuestion = text.includes('?');
+  const questKeywords = /quest|mission|task|objective|help|explain|tell me|how|why|what|where|who|history/i;
+  const hasQuestKeyword = questKeywords.test(text);
+
+  if (wordCount < 15 && historyLength > 2 && !hasQuestion && !hasQuestKeyword) {
+    return 'simple';
+  }
+  return 'complex';
+}
+
+// ── Greeting/farewell classification ────────────────────────────────────
+
+const GREETING_PATTERNS = /^(hello|hi|hey|bonjour|salut|bonsoir|hola|buenos?\s*d[ií]as|guten\s*tag|guten\s*morgen|hallo|good\s*(morning|afternoon|evening|day)|greetings|howdy|yo)\b/i;
+const FAREWELL_PATTERNS = /^(bye|goodbye|farewell|au\s*revoir|adieu|adi[oó]s|hasta\s*(luego|la\s*vista)|auf\s*wiedersehen|tsch[uü]ss?|see\s*ya|later|take\s*care|good\s*night|bonne\s*nuit)\b/i;
+
+function classifyGreetingFarewell(text: string): 'greeting' | 'farewell' | null {
+  const trimmed = text.trim();
+  if (GREETING_PATTERNS.test(trimmed)) return 'greeting';
+  if (FAREWELL_PATTERNS.test(trimmed)) return 'farewell';
+  return null;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -85,6 +123,9 @@ async function streamTextResponse(
     session = createSession(sessionId, characterId, worldId, sessionId, languageCode);
   }
 
+  // Check context cache key for later use
+  const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
+
   // Always use the client-provided system prompt if present (it has the latest
   // language directives, CEFR modes, scaffolding, etc.)
   if (clientSystemPrompt) {
@@ -104,20 +145,40 @@ async function streamTextResponse(
     session.characterId = characterId;
   } else {
     // No client prompt — build server-side context on first message or character change
-    const needsRebuild = !session.conversationContext || session.characterId !== characterId || prologFacts;
+    const hasPrologFacts = prologFacts && prologFacts.length > 0;
+    const needsRebuild = !session.conversationContext || session.characterId !== characterId || hasPrologFacts;
     if (needsRebuild) {
       session.characterId = characterId;
       const ctxTimer = new PipelineTimer('context');
-      try {
-        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
-          prologFacts,
-        });
-        session.conversationContext = fullCtx.conversationContext;
-      } catch {
+
+      // Try cache first (skip if prologFacts provided — those change per turn)
+      const cached = !hasPrologFacts ? conversationContextCache.get(cacheKey) : undefined;
+      if (cached?.systemPrompt) {
+        console.log(`[ConversationBridge] Context cache HIT for ${cacheKey}`);
         session.conversationContext = {
-          systemPrompt: 'You are an NPC in a game world. Respond in character.',
-          characterName: characterId,
+          systemPrompt: cached.systemPrompt,
+          characterName: cached.formattedContext || characterId,
         };
+      } else {
+        console.log(`[ConversationBridge] Context cache MISS for ${cacheKey}`);
+        try {
+          const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
+            prologFacts,
+          });
+          session.conversationContext = fullCtx.conversationContext;
+
+          // Cache the built context
+          conversationContextCache.set(cacheKey, {
+            messages: [],
+            systemPrompt: fullCtx.conversationContext.systemPrompt,
+            formattedContext: fullCtx.conversationContext.characterName,
+          });
+        } catch {
+          session.conversationContext = {
+            systemPrompt: 'You are an NPC in a game world. Respond in character.',
+            characterName: characterId,
+          };
+        }
       }
       ctxTimer.stop();
     }
@@ -125,6 +186,63 @@ async function streamTextResponse(
 
   // Add user message to history
   addToHistory(session, 'user', text);
+
+  // Prolog-first routing: intercept greetings and farewells
+  const greetingType = classifyGreetingFarewell(text);
+  if (greetingType) {
+    try {
+      const prologResult = await prologLLMRouter.tryPrologFirst(worldId, greetingType, {
+        speakerId: characterId,
+      }, languageCode);
+      if (prologResult.answered && prologResult.confidence >= 0.6 && prologResult.answer) {
+        console.log(`[ConversationBridge] Prolog-first: ${text} -> answered (confidence: ${prologResult.confidence})`);
+        const prologResponse = prologResult.answer;
+
+        // Send the Prolog response as text
+        sendSSE(res, { type: 'text', text: prologResponse, isFinal: false });
+        sendSSE(res, { type: 'text', text: '', isFinal: true });
+
+        // TTS for the Prolog response
+        let ttsProvider: ITTSProvider | null = null;
+        try { ttsProvider = getTTSProvider(); } catch { /* TTS not available */ }
+        if (ttsProvider) {
+          const voice: VoiceProfile = assignVoiceProfile({
+            gender: (session as any)?.conversationContext?.characterGender,
+          });
+          try {
+            const audioChunks = ttsProvider.synthesize(prologResponse, voice, {
+              languageCode: languageCode || undefined,
+            });
+            for await (const chunk of audioChunks) {
+              const base64 = Buffer.from(chunk.data).toString('base64');
+              sendSSE(res, {
+                type: 'audio',
+                data: base64,
+                encoding: chunk.encoding,
+                sampleRate: chunk.sampleRate,
+                durationMs: chunk.durationMs,
+              });
+            }
+          } catch (err: any) {
+            console.error('[ConversationBridge] Prolog TTS error:', err.message);
+          }
+        }
+
+        // Store in history and cache
+        addToHistory(session, 'assistant', prologResponse);
+        conversationContextCache.append(cacheKey, { role: 'user', content: text }, session.conversationContext?.systemPrompt);
+        conversationContextCache.append(cacheKey, { role: 'assistant', content: prologResponse });
+
+        e2eTimer.stop();
+        res.write('data: [DONE]\n\n');
+        res.end();
+        return;
+      }
+      console.log(`[ConversationBridge] Prolog-first: ${text} -> fell through to LLM`);
+    } catch {
+      // Prolog routing failed, fall through to LLM
+    }
+  }
 
   // Get LLM provider
   let llmProvider: IStreamingLLMProvider;
@@ -236,9 +354,15 @@ async function streamTextResponse(
   let dialogueBuffer = '';     // accumulates tokens outside marker blocks (for text SSE)
 
   try {
+    // Tiered model routing: simple messages → FLASH, complex → PRO
+    const complexity = classifyMessageComplexity(text, session.history.length);
+    const modelOverride = complexity === 'simple' ? GEMINI_MODELS.FLASH : undefined;
+    console.log(`[ConversationBridge] Message complexity: ${complexity} -> ${complexity === 'simple' ? 'FLASH' : 'PRO'}`);
+
     const tokens = llmProvider.streamCompletion(text, session.conversationContext!, {
       languageCode,
       conversationHistory: session.history.slice(0, -1),
+      modelOverride,
     });
 
     for await (const token of tokens) {
@@ -340,20 +464,61 @@ async function streamTextResponse(
   if (!firstTokenRecorded) llmFirstTokenTimer.stop();
   llmTotalTimer.stop();
 
-  // Synthesize remaining text
-  if (ttsProvider && sentenceBuffer.trim()) {
-    synthesizeSentence(sentenceBuffer.trim());
-  }
+  // Detect empty LLM response
+  if (!fullResponse.trim()) {
+    console.warn(`[ConversationBridge] WARNING: Empty LLM response for session ${sessionId}`);
+    sendSSE(res, { type: 'error', message: 'NPC response was empty. This may be due to safety filters or a temporary issue.' });
+    const fallbackText = '*pauses and looks confused* ... Pardon, I lost my train of thought.';
+    sendSSE(res, { type: 'text', text: fallbackText, isFinal: true });
+    fullResponse = fallbackText;
+  } else {
+    // Synthesize remaining text
+    if (ttsProvider && sentenceBuffer.trim()) {
+      synthesizeSentence(sentenceBuffer.trim());
+    }
 
-  // Final text marker
-  sendSSE(res, { type: 'text', text: '', isFinal: true });
+    // Final text marker
+    sendSSE(res, { type: 'text', text: '', isFinal: true });
+  }
 
   // Wait for TTS chain to complete before closing the SSE stream
   await ttsChain;
 
-  // Store response in history
+  // Store response in history and append to context cache
   if (fullResponse) {
     addToHistory(session, 'assistant', fullResponse);
+    conversationContextCache.append(cacheKey, { role: 'user', content: text }, session.conversationContext?.systemPrompt);
+    conversationContextCache.append(cacheKey, { role: 'assistant', content: fullResponse });
+
+    // Update player-NPC relationship (fire-and-forget, non-fatal)
+    const relExchangeCount = session.history.filter(h => h.role === 'user').length;
+    const relAgreeableness = (session.conversationContext as any)?.characterPersonality?.agreeableness ?? 0.5;
+    const relQuality = 0.02 + (relAgreeableness * 0.03) * (relExchangeCount / 5);
+    import('../../extensions/tott/social-dynamics-system.js')
+      .then(({ updateRelationship }) =>
+        updateRelationship(characterId, session.playerId, relQuality, new Date().getFullYear())
+      )
+      .then(() => console.log(`[ConversationBridge] Relationship updated: ${characterId} += ${relQuality.toFixed(3)}`))
+      .catch((err: any) => console.warn('[ConversationBridge] Relationship update failed (non-fatal):', err.message));
+  }
+
+  // Compress history if it exceeds threshold
+  if (session.history.length > 20) {
+    try {
+      const geminiMessages: GeminiMessage[] = session.history.map(h => ({
+        role: h.role === 'assistant' ? 'model' as const : 'user' as const,
+        parts: [{ text: h.content }],
+      }));
+      const compressed = await compressConversationHistory(geminiMessages);
+      const oldLength = session.history.length;
+      session.history = compressed.map(m => ({
+        role: m.role === 'model' ? 'assistant' as const : 'user' as const,
+        content: m.parts.map(p => p.text).join(' '),
+      }));
+      console.log(`[ConversationBridge] Compressed history: ${oldLength} -> ${session.history.length} messages`);
+    } catch (err: any) {
+      console.warn('[ConversationBridge] History compression failed:', err.message);
+    }
   }
 
   // Run quest trigger analysis on the player message

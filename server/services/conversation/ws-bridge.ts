@@ -40,6 +40,22 @@ import type { ModelTier } from './conversation-classifier.js';
 import { speculativeCache, canonicalizeMessage } from './speculative-cache.js';
 import { responseCache, ResponseCache, isCacheableMessage } from './response-cache.js';
 import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import { prologLLMRouter } from '../prolog-llm-router.js';
+import { classifyMessageComplexity } from './http-bridge.js';
+import { compressConversationHistory, type GeminiMessage } from './conversation-compression.js';
+import { GEMINI_MODELS } from '../../config/gemini.js';
+
+// ── Greeting/farewell classification ────────────────────────────────────
+
+const GREETING_PATTERNS = /^(hello|hi|hey|bonjour|salut|bonsoir|hola|buenos?\s*d[ií]as|guten\s*tag|guten\s*morgen|hallo|good\s*(morning|afternoon|evening|day)|greetings|howdy|yo)\b/i;
+const FAREWELL_PATTERNS = /^(bye|goodbye|farewell|au\s*revoir|adieu|adi[oó]s|hasta\s*(luego|la\s*vista)|auf\s*wiedersehen|tsch[uü]ss?|see\s*ya|later|take\s*care|good\s*night|bonne\s*nuit)\b/i;
+
+function classifyGreetingFarewell(text: string): 'greeting' | 'farewell' | null {
+  const trimmed = text.trim();
+  if (GREETING_PATTERNS.test(trimmed)) return 'greeting';
+  if (FAREWELL_PATTERNS.test(trimmed)) return 'farewell';
+  return null;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -97,10 +113,11 @@ async function handleTextInput(
     characterId: string;
     worldId: string;
     languageCode?: string;
+    prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
   },
   options: WSBridgeOptions,
 ): Promise<void> {
-  const { text, sessionId, characterId, worldId, languageCode = 'en' } = msg;
+  const { text, sessionId, characterId, worldId, languageCode = 'en', prologFacts } = msg;
 
   // Get or create session
   let session = getSession(sessionId);
@@ -111,12 +128,15 @@ async function handleTextInput(
 
   // Derive turn number from conversation history (each turn = 1 user + 1 assistant message)
   const turnNumber = Math.floor(session.history.length / 2) + 1;
+  const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
+  const hasPrologFacts = prologFacts && prologFacts.length > 0;
 
   // Build context on first message or character change, using cache when possible
-  if (!session.conversationContext || session.characterId !== characterId) {
+  if (!session.conversationContext || session.characterId !== characterId || hasPrologFacts) {
     session.characterId = characterId;
-    const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
-    const cached = conversationContextCache.get(cacheKey);
+
+    // Skip cache if prologFacts provided (they change per turn)
+    const cached = !hasPrologFacts ? conversationContextCache.get(cacheKey) : undefined;
 
     if (cached?.formattedContext) {
       // Cache hit — restore LLM context from cached data
@@ -133,7 +153,9 @@ async function handleTextInput(
       // Cache miss — full buildContext() call
       const contextTimer = new PipelineTimer('context_cache_miss');
       try {
-        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, undefined, turnNumber);
+        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
+          prologFacts,
+        }, turnNumber);
         session.conversationContext = fullCtx.conversationContext;
 
         // Store full context in cache (turn 1 prompt for future cache hits)
@@ -249,6 +271,65 @@ async function handleTextInput(
     }
   }
 
+  // Prolog-first routing: intercept greetings and farewells
+  const greetingType = classifyGreetingFarewell(text);
+  if (greetingType) {
+    try {
+      const prologResult = await prologLLMRouter.tryPrologFirst(worldId, greetingType, {
+        speakerId: characterId,
+      }, languageCode);
+      if (prologResult.answered && prologResult.confidence >= 0.6 && prologResult.answer) {
+        console.log(`[WS-Bridge] Prolog-first: ${text} -> answered (confidence: ${prologResult.confidence})`);
+        const prologResponse = prologResult.answer;
+
+        // Send the Prolog response as text
+        sendJSON(ws, { type: 'text', text: prologResponse, isFinal: false, languageCode, sessionId });
+        sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
+
+        // TTS for the Prolog response
+        let ttsForProlog: ITTSProvider | null = options.ttsProvider ?? null;
+        if (!ttsForProlog) {
+          try {
+            const ttsModule = await import('./tts/tts-provider.js');
+            ttsForProlog = ttsModule.getTTSProvider?.() ?? null;
+          } catch { /* TTS not available */ }
+        }
+        if (ttsForProlog) {
+          const voice: VoiceProfile = assignVoiceProfile({
+            gender: (session as any)?.conversationContext?.characterGender,
+          });
+          try {
+            const audioChunks = ttsForProlog.synthesize(prologResponse, voice, {
+              languageCode: languageCode || undefined,
+            });
+            for await (const chunk of audioChunks) {
+              sendBinary(ws, chunk.data instanceof Uint8Array ? chunk.data : new Uint8Array(chunk.data));
+              sendJSON(ws, {
+                type: 'audio_meta',
+                encoding: chunk.encoding,
+                sampleRate: chunk.sampleRate,
+                durationMs: chunk.durationMs,
+              });
+            }
+          } catch (err: any) {
+            console.error('[WS-Bridge] Prolog TTS error:', err.message);
+          }
+        }
+
+        // Store in history and cache
+        addToHistory(session, 'assistant', prologResponse);
+        conversationContextCache.append(cacheKey, { role: 'user', content: text }, session.conversationContext?.systemPrompt);
+        conversationContextCache.append(cacheKey, { role: 'assistant', content: prologResponse });
+
+        sendJSON(ws, { type: 'done' });
+        return;
+      }
+      console.log(`[WS-Bridge] Prolog-first: ${text} -> fell through to LLM`);
+    } catch {
+      // Prolog routing failed, fall through to LLM
+    }
+  }
+
   // Resolve LLM provider
   let llmProvider: IStreamingLLMProvider;
   try {
@@ -355,10 +436,16 @@ async function handleTextInput(
   let firstTokenRecorded = false;
 
   try {
+    // Tiered model routing: simple messages → FLASH, complex → PRO
+    const complexity = classifyMessageComplexity(text, session.history.length);
+    const modelOverride = complexity === 'simple' ? GEMINI_MODELS.FLASH : undefined;
+    console.log(`[WS-Bridge] Message complexity: ${complexity} -> ${complexity === 'simple' ? 'FLASH' : 'PRO'}`);
+
     const tokens = llmProvider.streamCompletion(text, session.conversationContext!, {
       languageCode,
       conversationHistory: session.history.slice(0, -1),
       modelTier,
+      modelOverride,
     });
 
     for await (const token of tokens) {
@@ -397,29 +484,67 @@ async function handleTextInput(
     sendJSON(ws, { type: 'error', message: 'LLM streaming failed' });
   }
 
-  // Remaining sentence buffer
-  if (ttsProvider && sentenceBuffer.trim()) {
-    synthesizeSentence(sentenceBuffer.trim());
-  }
+  // Detect empty LLM response
+  if (!fullResponse.trim()) {
+    console.warn(`[WS-Bridge] WARNING: Empty LLM response for session ${sessionId}`);
+    sendJSON(ws, { type: 'error', message: 'NPC response was empty. This may be due to safety filters or a temporary issue.' });
+    const fallbackText = '*pauses and looks confused* ... Pardon, I lost my train of thought.';
+    sendJSON(ws, { type: 'text', text: fallbackText, isFinal: true, languageCode, sessionId });
+    fullResponse = fallbackText;
+  } else {
+    // Remaining sentence buffer
+    if (ttsProvider && sentenceBuffer.trim()) {
+      synthesizeSentence(sentenceBuffer.trim());
+    }
 
-  // Final text marker
-  sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
+    // Final text marker
+    sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
+  }
 
   // Wait for TTS chain to complete
   await ttsChain;
 
-  // Store response
+  // Store response and append to context cache
   if (fullResponse) {
     addToHistory(session, 'assistant', fullResponse);
 
     // Append messages to context cache for follow-up continuity
-    const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
-    conversationContextCache.append(cacheKey, { role: 'user', content: text });
+    conversationContextCache.append(cacheKey, { role: 'user', content: text }, session.conversationContext?.systemPrompt);
     conversationContextCache.append(cacheKey, { role: 'assistant', content: fullResponse });
 
     // Cache the response for future identical exchanges (generic messages only)
     if (responseCacheKey) {
       responseCache.set(responseCacheKey, fullResponse);
+    }
+
+    // Update player-NPC relationship (fire-and-forget, non-fatal)
+    const relExchangeCount = session.history.filter(h => h.role === 'user').length;
+    const relAgreeableness = (session.conversationContext as any)?.characterPersonality?.agreeableness ?? 0.5;
+    const relQuality = 0.02 + (relAgreeableness * 0.03) * (relExchangeCount / 5);
+    import('../../extensions/tott/social-dynamics-system.js')
+      .then(({ updateRelationship }) =>
+        updateRelationship(characterId, session.playerId, relQuality, new Date().getFullYear())
+      )
+      .then(() => console.log(`[WS-Bridge] Relationship updated: ${characterId} += ${relQuality.toFixed(3)}`))
+      .catch((err: any) => console.warn('[WS-Bridge] Relationship update failed (non-fatal):', err.message));
+  }
+
+  // Compress history if it exceeds threshold
+  if (session.history.length > 20) {
+    try {
+      const geminiMessages: GeminiMessage[] = session.history.map(h => ({
+        role: h.role === 'assistant' ? 'model' as const : 'user' as const,
+        parts: [{ text: h.content }],
+      }));
+      const compressed = await compressConversationHistory(geminiMessages);
+      const oldLength = session.history.length;
+      session.history = compressed.map(m => ({
+        role: m.role === 'model' ? 'assistant' as const : 'user' as const,
+        content: m.parts.map(p => p.text).join(' '),
+      }));
+      console.log(`[WS-Bridge] Compressed history: ${oldLength} -> ${session.history.length} messages`);
+    } catch (err: any) {
+      console.warn('[WS-Bridge] History compression failed:', err.message);
     }
   }
 
@@ -969,9 +1094,9 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
         const message = JSON.parse(raw.toString());
 
         if (message.textInput) {
-          const { text, sessionId, characterId, worldId, languageCode } = message.textInput;
+          const { text, sessionId, characterId, worldId, languageCode, prologFacts } = message.textInput;
           currentSessionId = sessionId;
-          await handleTextInput(ws, { text, sessionId, characterId, worldId, languageCode }, options);
+          await handleTextInput(ws, { text, sessionId, characterId, worldId, languageCode, prologFacts }, options);
         } else if (message.audioChunk) {
           const { sessionId, characterId, worldId, languageCode, data } = message.audioChunk;
           currentSessionId = sessionId;

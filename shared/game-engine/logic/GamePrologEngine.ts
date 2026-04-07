@@ -977,6 +977,11 @@ export class GamePrologEngine {
     return this.engine.getStats();
   }
 
+  /** Get all facts currently in the knowledge base */
+  getAllFacts(): string[] {
+    return this.engine.getAllFacts();
+  }
+
   // ── NPC Intelligence Queries ──────────────────────────────────────────────
 
   /**

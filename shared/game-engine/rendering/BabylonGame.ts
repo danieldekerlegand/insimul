@@ -2845,6 +2845,17 @@ export class BabylonGame {
     // Initialize chat panel
     this.chatPanel = new BabylonChatPanel(this.guiManager.advancedTexture, scene);
     this.chatPanel.setDataSource(this.dataSource);
+    // Provide Prolog facts to send with each conversation turn
+    this.chatPanel.setPrologFactsProvider(() => {
+      if (!this.prologEngine) return [];
+      try {
+        const allFacts = this.prologEngine.getAllFacts?.() ?? [];
+        // Cap at 50 facts, convert to predicate/args format
+        return allFacts.slice(0, 50).map(fact => ({ predicate: fact, args: [] }));
+      } catch {
+        return [];
+      }
+    });
     // Initialize chat panel UI (hidden until player talks to an NPC)
     this.chatPanel.initialize();
     // Register InsimulClient globally for other systems (TTS, translation, NPC sim)
