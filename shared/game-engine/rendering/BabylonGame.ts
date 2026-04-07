@@ -379,6 +379,8 @@ interface NPCInstance {
   isBeingEscorted?: boolean;
   // Ambient life behavior — current animation override
   ambientActivityAnimation?: string;
+  // Movement state — tracks whether NPC is actively walking (for animation sync)
+  isWalking?: boolean;
   // Debug
   _debugLogged?: boolean;
 }
@@ -9138,11 +9140,6 @@ export class BabylonGame {
           return this.scene?.animationGroups?.find((ag: any) => ag.name === name) ?? null;
         };
 
-        // Don't set animations on the CharacterController for NPCs.
-        // We handle NPC animations directly via playNPCAnimation() to avoid
-        // the controller overriding our animation state every frame.
-        // The controller only handles movement physics (walk speed, turning).
-        
         // Disable keyboard control - NPCs are controlled programmatically
         controller.enableKeyBoard(false);
 
@@ -9151,8 +9148,14 @@ export class BabylonGame {
         // Faster turn speed for NPCs so they don't circle around targets (default ~22.5 deg/s)
         controller.setTurnSpeed(180);
 
-        // Start the controller
+        // Start the controller (registers per-frame movement physics)
         controller.start();
+
+        // Disable the CC's built-in animation management. The CC auto-detects
+        // animation groups at setup and tries to start/stop them every frame,
+        // which conflicts with our playNPCAnimation() calls. Setting _stopAnim
+        // prevents the CC from touching animations while keeping movement physics active.
+        (controller as any)._stopAnim = true;
         
       } catch (controllerError) {
         console.error(`Failed to create NPC controller for ${character.id}:`, controllerError);
@@ -11552,7 +11555,76 @@ export class BabylonGame {
           }
         });
       }
+
+      // NPC-NPC and NPC-player proximity separation (soft collision).
+      // Babylon's moveWithCollisions doesn't support ellipsoid-vs-ellipsoid,
+      // so we enforce minimum distance manually.
+      this.enforceNPCProximitySeparation();
     });
+  }
+
+  /**
+   * Push overlapping NPCs apart and prevent NPCs from overlapping the player.
+   * Runs every 100ms alongside the behavior batch.
+   */
+  private enforceNPCProximitySeparation(): void {
+    const MIN_NPC_DIST = 1.2;    // Minimum distance between NPC centers
+    const MIN_PLAYER_DIST = 1.0; // Minimum distance from player
+    const PUSH_STRENGTH = 0.3;   // How far to push per tick (meters)
+
+    const playerPos = this.playerMesh?.position;
+    const npcList: { id: string; instance: NPCInstance }[] = [];
+    this.npcMeshes.forEach((instance, id) => {
+      if (instance.mesh?.isEnabled() && !instance.isInsideBuilding) {
+        npcList.push({ id, instance });
+      }
+    });
+
+    // NPC-NPC separation
+    for (let i = 0; i < npcList.length; i++) {
+      const a = npcList[i].instance;
+      if (!a.mesh) continue;
+      for (let j = i + 1; j < npcList.length; j++) {
+        const b = npcList[j].instance;
+        if (!b.mesh) continue;
+        const dx = a.mesh.position.x - b.mesh.position.x;
+        const dz = a.mesh.position.z - b.mesh.position.z;
+        const distSq = dx * dx + dz * dz;
+        if (distSq < MIN_NPC_DIST * MIN_NPC_DIST && distSq > 0.001) {
+          const dist = Math.sqrt(distSq);
+          const overlap = MIN_NPC_DIST - dist;
+          const pushX = (dx / dist) * overlap * PUSH_STRENGTH;
+          const pushZ = (dz / dist) * overlap * PUSH_STRENGTH;
+          // Skip push for NPCs in conversation (they should stay close to partner)
+          if (!a.isInConversation) {
+            a.mesh.position.x += pushX;
+            a.mesh.position.z += pushZ;
+          }
+          if (!b.isInConversation) {
+            b.mesh.position.x -= pushX;
+            b.mesh.position.z -= pushZ;
+          }
+        }
+      }
+    }
+
+    // NPC-player separation
+    if (playerPos) {
+      for (const { instance } of npcList) {
+        if (!instance.mesh || instance.isInConversation) continue;
+        const dx = instance.mesh.position.x - playerPos.x;
+        const dz = instance.mesh.position.z - playerPos.z;
+        const distSq = dx * dx + dz * dz;
+        if (distSq < MIN_PLAYER_DIST * MIN_PLAYER_DIST && distSq > 0.001) {
+          const dist = Math.sqrt(distSq);
+          const overlap = MIN_PLAYER_DIST - dist;
+          const pushX = (dx / dist) * overlap * 0.5;
+          const pushZ = (dz / dist) * overlap * 0.5;
+          instance.mesh.position.x += pushX;
+          instance.mesh.position.z += pushZ;
+        }
+      }
+    }
   }
 
 
@@ -11913,6 +11985,7 @@ export class BabylonGame {
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+      instance.isWalking = false;
 
       let faceTarget: Vector3 | null = null;
       if (inPlayerConv && this.playerMesh) {
@@ -12185,25 +12258,33 @@ export class BabylonGame {
       const wpIdx = instance.schedulePathIndex ?? 0;
       if (waypoints && wpIdx < waypoints.length) {
         const targetWP = waypoints[wpIdx];
-        // Stuck detection
+        // Stuck detection — skip waypoints or abandon path (no teleporting)
         if (instance.lastWanderPosition) {
           const moved = Vector3.Distance(currentPos, instance.lastWanderPosition);
-          if (moved < 0.05) {
+          if (moved < 0.1) {
             instance.stuckTicks = (instance.stuckTicks || 0) + 1;
-            if (instance.stuckTicks >= 2 && instance.stuckTicks < 5) {
-              instance.controller.walk(false);
-              instance.mesh.rotation.y += (Math.PI / 2) + Math.random() * Math.PI;
+            if (instance.stuckTicks >= 5 && instance.stuckTicks < 10) {
+              // Skip to next waypoint — obstacle avoidance steering in moveNPCToward
+              // should eventually route around, but if NPC is truly stuck, skip ahead
+              if (wpIdx + 1 < waypoints.length) {
+                instance.schedulePathIndex = wpIdx + 1;
+                this.scheduleExecutor.advancePathIndex(characterId);
+                instance.stuckTicks = 0;
+              }
               return;
             }
-            if (instance.stuckTicks >= 5) {
+            if (instance.stuckTicks >= 10) {
+              // Persistent stuck: abandon path entirely and idle
               instance.controller.walk(false);
               instance.controller.turnLeft(false);
               instance.controller.turnRight(false);
+              instance.isWalking = false;
+              this.playNPCAnimation(instance, 'idle');
               instance.schedulePathWaypoints = undefined;
               instance.stuckTicks = 0;
               this.scheduleExecutor.abandonGoal(characterId);
               this.scheduleExecutor.setIdle(characterId, now);
-              instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
+              instance.wanderWaitUntil = now + 3000 + Math.random() * 4000;
               instance.lastWanderPosition = currentPos.clone();
               return;
             }
@@ -12480,45 +12561,120 @@ export class BabylonGame {
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+      instance.isWalking = false;
       this.playNPCAnimation(instance, 'idle');
       return;
     }
 
     instance.controller.run(false);
 
-    // Smooth direct rotation toward target (+ PI for GLB model visual forward offset)
-    const targetRotation = Math.atan2(dx, dz) + Math.PI;
-    let rotationDiff = targetRotation - instance.mesh.rotation.y;
+    // Calculate desired direction toward target (+ PI for GLB model visual forward offset)
+    let desiredRotation = Math.atan2(dx, dz) + Math.PI;
+
+    // Obstacle avoidance: raycast ahead and to the sides to steer around buildings
+    const avoidance = this.getObstacleAvoidanceSteering(instance.mesh, desiredRotation);
+    if (avoidance !== 0) {
+      desiredRotation += avoidance;
+    }
+
+    // Smooth rotation toward desired direction
+    let rotationDiff = desiredRotation - instance.mesh.rotation.y;
     while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
     while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
 
+    const dt = Math.min(this.scene.getEngine().getDeltaTime() / 1000, 0.1);
+    const turnSpeed = 5.0;
     const turnThreshold = 0.15;
     if (Math.abs(rotationDiff) > turnThreshold) {
-      // Smooth interpolation: rotate toward target at ~5 rad/s, capped by dt
-      const dt = Math.min(this.scene.getEngine().getDeltaTime() / 1000, 0.1);
-      const turnSpeed = 5.0; // radians per second
       const step = turnSpeed * dt;
       if (Math.abs(rotationDiff) <= step) {
-        instance.mesh.rotation.y = targetRotation;
+        instance.mesh.rotation.y = desiredRotation;
       } else {
         instance.mesh.rotation.y += Math.sign(rotationDiff) * step;
       }
     } else {
-      instance.mesh.rotation.y = targetRotation;
+      instance.mesh.rotation.y = desiredRotation;
     }
 
-    // Stop discrete turn commands — rotation is handled directly above
     instance.controller.turnLeft(false);
     instance.controller.turnRight(false);
 
-    // Only walk forward when roughly facing the target
+    // Walk forward when roughly facing the desired direction
     if (Math.abs(rotationDiff) < Math.PI / 3) {
       instance.controller.walk(true);
+      instance.isWalking = true;
       this.playNPCAnimation(instance, 'walk');
     } else {
       instance.controller.walk(false);
+      instance.isWalking = false;
       this.playNPCAnimation(instance, 'idle');
     }
+  }
+
+  /**
+   * Raycast ahead and to the sides to determine obstacle avoidance steering.
+   * Returns a rotation offset: negative = steer left, positive = steer right, 0 = no obstacle.
+   */
+  private getObstacleAvoidanceSteering(npcMesh: Mesh, desiredRotation: number): number {
+    const rot = desiredRotation - Math.PI; // Convert back from visual rotation to world direction
+    const origin = npcMesh.position.clone();
+    origin.y += 0.5; // Hip height
+
+    const LOOKAHEAD = 6.0;         // Detect obstacles early (6m ahead)
+    const NARROW_ANGLE = Math.PI / 6;  // 30° feelers
+    const WIDE_ANGLE = Math.PI / 3;    // 60° feelers
+
+    // Forward ray
+    const fwdDir = new Vector3(Math.sin(rot), 0, Math.cos(rot));
+    const fwdHit = this.raycastForBuilding(origin, fwdDir, LOOKAHEAD, npcMesh);
+
+    if (!fwdHit) return 0; // Path is clear
+
+    // How urgently to steer depends on how close the obstacle is
+    const urgency = 1.0 - (fwdHit.distance / LOOKAHEAD); // 0 = far, 1 = touching
+
+    // Cast 4 feeler rays: narrow left/right and wide left/right
+    const narrowLeft = this.raycastForBuilding(origin, new Vector3(Math.sin(rot - NARROW_ANGLE), 0, Math.cos(rot - NARROW_ANGLE)), LOOKAHEAD, npcMesh);
+    const narrowRight = this.raycastForBuilding(origin, new Vector3(Math.sin(rot + NARROW_ANGLE), 0, Math.cos(rot + NARROW_ANGLE)), LOOKAHEAD, npcMesh);
+    const wideLeft = this.raycastForBuilding(origin, new Vector3(Math.sin(rot - WIDE_ANGLE), 0, Math.cos(rot - WIDE_ANGLE)), LOOKAHEAD, npcMesh);
+    const wideRight = this.raycastForBuilding(origin, new Vector3(Math.sin(rot + WIDE_ANGLE), 0, Math.cos(rot + WIDE_ANGLE)), LOOKAHEAD, npcMesh);
+
+    // Score each side: farther = more clearance = higher score
+    const leftScore = (narrowLeft?.distance ?? LOOKAHEAD) + (wideLeft?.distance ?? LOOKAHEAD);
+    const rightScore = (narrowRight?.distance ?? LOOKAHEAD) + (wideRight?.distance ?? LOOKAHEAD);
+
+    // Steer strength scales with urgency (gentle turn when far, sharp turn when close)
+    const baseSteer = Math.PI / 4;  // 45° base
+    const maxSteer = Math.PI / 2;   // 90° max
+    const steerAmount = baseSteer + urgency * (maxSteer - baseSteer);
+
+    if (leftScore > rightScore) {
+      return -steerAmount; // Steer left
+    } else {
+      return steerAmount; // Steer right
+    }
+  }
+
+  /**
+   * Raycast in a direction to detect building meshes.
+   * Returns pick info if a building is hit, null otherwise.
+   */
+  private raycastForBuilding(origin: Vector3, direction: Vector3, distance: number, excludeMesh: Mesh): { hit: boolean; distance: number } | null {
+    const ray = new Ray(origin, direction, distance);
+    const hit = this.scene.pickWithRay(ray, (mesh) => {
+      if (mesh === excludeMesh) return false;
+      if (!mesh.checkCollisions) return false;
+      const name = mesh.name.toLowerCase();
+      // Match building-related meshes
+      return name.includes('building') || name.includes('wall') ||
+             name.includes('foundation') || name.includes('porch') ||
+             name.includes('step') || name.includes('roof') ||
+             name.includes('structure') || name.includes('house');
+    });
+    if (hit?.hit && hit.distance != null) {
+      return { hit: true, distance: hit.distance };
+    }
+    return null;
   }
 
   /**
@@ -12531,28 +12687,35 @@ export class BabylonGame {
    */
   private playNPCAnimation(instance: NPCInstance, animName: string): void {
     if (!instance.animationGroups?.length) return;
-    // Use exact Quaternius animation names
+    // Map logical animation names to Quaternius model names (exact match first, then case-insensitive)
     const nameMap: Record<string, string[]> = {
-      idle: ['Idle_Neutral', 'Idle'],
-      walk: ['Walk'],
-      run: ['Run'],
-      talk: ['Interact', 'Wave'],
-      listen: ['Idle_Neutral'],
-      work: ['Interact'],
-      sit: ['Idle_Neutral'],
-      eat: ['Interact'],
-      wave: ['Wave'],
-      sleep: ['Idle_Neutral'],
+      idle: ['Idle_Neutral', 'Idle', 'idle'],
+      walk: ['Walk', 'walk', 'Walking', 'walking'],
+      run: ['Run', 'run', 'Running', 'running'],
+      talk: ['Interact', 'Wave', 'Talk', 'talk', 'interact'],
+      listen: ['Idle_Neutral', 'Idle', 'Listen', 'listen', 'idle'],
+      work: ['Interact', 'Work', 'work', 'interact'],
+      sit: ['Idle_Neutral', 'Sit', 'sit', 'idle'],
+      eat: ['Interact', 'Eat', 'eat', 'interact'],
+      wave: ['Wave', 'wave'],
+      sleep: ['Idle_Neutral', 'Sleep', 'sleep', 'idle'],
     };
     const search = nameMap[animName] || [animName];
-    const group = instance.animationGroups.find((ag: any) =>
+    // Try exact name match first
+    let group = instance.animationGroups.find((ag: any) =>
       search.some((n: string) => ag.name === n)
     );
+    // Fallback: case-insensitive substring match
+    if (!group) {
+      const lowerSearch = search.map(n => n.toLowerCase());
+      group = instance.animationGroups.find((ag: any) =>
+        lowerSearch.some((n: string) => ag.name?.toLowerCase().includes(n))
+      );
+    }
     if (group && instance.currentAnimation !== group) {
       for (const ag of instance.animationGroups) {
         ag.stop();
       }
-      // Scale animation speed to match NPC movement speed
       const speed = (animName === 'walk') ? 1.2 : (animName === 'run') ? 1.0 : 1.0;
       group.start(true, speed, group.from, group.to, false);
       instance.currentAnimation = group;

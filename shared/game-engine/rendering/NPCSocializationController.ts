@@ -54,6 +54,9 @@ export interface SocializationPair {
   conversationText: string[];
   /** Location where socialization started */
   locationId: string;
+  /** Pre-conversation positions so NPCs return after talking */
+  npc1OriginalPos?: Vector3;
+  npc2OriginalPos?: Vector3;
 }
 
 /** Callbacks for socialization events */
@@ -123,6 +126,11 @@ export class NPCSocializationController {
 
   // Active socialization pairs
   private activePairs: Map<string, SocializationPair> = new Map();
+
+  // Post-conversation cooldowns: npcId → timestamp when last conversation ended
+  // NPCs cannot start a new socialization for SOCIALIZATION_COOLDOWN_MS after ending one
+  private _npcCooldowns: Map<string, number> = new Map();
+  private static readonly SOCIALIZATION_COOLDOWN_MS = 120_000; // 2 minutes real-time
 
   // Timing
   private accumulatedGameMinutes = 0;
@@ -235,9 +243,13 @@ export class NPCSocializationController {
     const groups = new Map<string, SocializableNPC[]>();
     const npcList = Array.from(this.npcs.values());
 
+    const now = Date.now();
     for (const npc of npcList) {
       // Skip NPCs in conversation with player or already socializing
       if (npc.isInConversation || this.isSocializing(npc.id)) continue;
+      // Skip NPCs on post-conversation cooldown
+      const lastConv = this._npcCooldowns.get(npc.id);
+      if (lastConv && now - lastConv < NPCSocializationController.SOCIALIZATION_COOLDOWN_MS) continue;
 
       const locId = npc.locationId || 'overworld';
       const group = groups.get(locId);
@@ -351,6 +363,8 @@ export class NPCSocializationController {
       hasReached: false,
       conversationText: [],
       locationId,
+      npc1OriginalPos: npc1.position.clone(),
+      npc2OriginalPos: npc2.position.clone(),
     };
 
     this.activePairs.set(pairId, pair);
@@ -530,6 +544,19 @@ export class NPCSocializationController {
     // Return NPCs to idle
     this.callbacks.onAnimationChange?.(pair.npc1Id, 'idle');
     this.callbacks.onAnimationChange?.(pair.npc2Id, 'idle');
+
+    // Return NPCs to their original positions so they don't cluster
+    if (pair.npc1OriginalPos) {
+      this.callbacks.onMoveTo?.(pair.npc1Id, pair.npc1OriginalPos, 'stroll');
+    }
+    if (pair.npc2OriginalPos) {
+      this.callbacks.onMoveTo?.(pair.npc2Id, pair.npc2OriginalPos, 'stroll');
+    }
+
+    // Set cooldown so these NPCs don't immediately re-pair
+    const now = Date.now();
+    this._npcCooldowns.set(pair.npc1Id, now);
+    this._npcCooldowns.set(pair.npc2Id, now);
 
     // Clear any pending text stream
     const timer = this.textStreamTimers.get(pairId);

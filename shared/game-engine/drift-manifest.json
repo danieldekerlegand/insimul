@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-07T20:01:33.379Z",
+  "lastUpdated": "2026-04-07T20:45:59.133Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -551,7 +551,7 @@
     {
       "path": "shared/game-engine/rendering/RoadGenerator.ts",
       "description": "Road network: ribbon meshes, sidewalks, center lines, crosswalks, street lights.",
-      "hash": "b77cbf9d1cc7cf092b5983a5db3c20c18cec2d159f618f87a06636ef7d57c023",
+      "hash": "3f9871942be47c6552ea2fc1911b5d0293114b399e36f6636253b26f09e32e53",
       "engineMappings": [
         {
           "engine": "unity",

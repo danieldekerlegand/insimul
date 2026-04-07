@@ -370,6 +370,7 @@ export class RoadGenerator {
           mat.diffuseColor = color;
           mat.emissiveColor = color.scale(0.2);
           mat.specularColor = new Color3(0.05, 0.05, 0.05);
+          mat.zOffset = -2;
           stripe.material = mat;
           stripe.alwaysSelectAsActiveMesh = true;
           stripe.freezeWorldMatrix();
@@ -470,6 +471,7 @@ export class RoadGenerator {
 
       const mat = new StandardMaterial(`${id}_mat`, this.scene);
       mat.backFaceCulling = false;
+      mat.zOffset = -1;
       mat.specularColor = new Color3(0.05, 0.05, 0.05); // Very low specular — matte surface
 
       if (colorOverride) {
@@ -623,6 +625,7 @@ export class RoadGenerator {
       mat.diffuseColor = color;
       mat.emissiveColor = color.scale(0.3); // Slightly brighter so stripes are visible
       mat.specularColor = new Color3(0.05, 0.05, 0.05);
+      mat.zOffset = -2;
       mesh.material = mat;
       mesh.alwaysSelectAsActiveMesh = true;
       mesh.freezeWorldMatrix();
@@ -1045,6 +1048,7 @@ export class RoadGenerator {
 
       const mat = new StandardMaterial(`street_${id}_mat`, this.scene);
       mat.backFaceCulling = false;
+      mat.zOffset = -1;
       mat.specularColor = new Color3(0.05, 0.05, 0.05);
 
       if (this.roadTexture) {
@@ -1201,6 +1205,7 @@ export class RoadGenerator {
 
       const mat = new StandardMaterial(`${id}_mat`, this.scene);
       mat.backFaceCulling = false;
+      mat.zOffset = -1;
       mat.specularColor = new Color3(0.05, 0.05, 0.05);
       if (this.roadTexture) {
         const tex = this.roadTexture.clone();

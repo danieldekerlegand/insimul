@@ -73,7 +73,7 @@ export class NPCAmbientConversationManager {
 
   // Settings
   private checkIntervalMs = 5000;
-  private minCooldownMs = 30000;
+  private minCooldownMs = 120000; // 2 minutes — prevents rapid re-pairing and NPC clustering
   private maxSimultaneous = 3;
   /** How long each NPC "talks" before the other responds (ms) */
   private talkTurnDurationMs = 3000;
