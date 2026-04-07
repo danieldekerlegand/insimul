@@ -1866,3 +1866,29 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Both can arrive in the same `LiveServerMessage`
   - `Transcription.text` can be empty string — guard with truthiness check before dispatching
 ---
+
+## 2026-04-07 - US-003: Wire Live sessions into WebSocket bridge
+- Added `connectionLiveSessions` map to track active Live sessions per WS connection
+- Added `handleStartLiveSession()` — creates Live session via `getLiveSessionManager()`, wires callbacks to WS events:
+  - `onAudioChunk` → binary frame + `audio_meta` JSON (parses sample rate from mimeType)
+  - `onTextChunk` → `{ type: 'text', isFinal: false }` JSON
+  - `onTurnComplete` → final text marker + `done` + history update
+  - `onInterrupted` → `{ type: 'interrupted' }` JSON
+  - `onTranscription` → `{ type: 'transcript' }` JSON + history update
+- Added Live session routing in `handleTextInput()` — checks `connectionLiveSessions` first, routes text through `liveSession.sendText()`, falls back to text+TTS pipeline if session is gone
+- Added binary frame routing — if Live session active, converts to base64 and sends via `liveSession.sendAudio()`
+- Added `audioInput` JSON message type for base64-encoded audio relay to Live session
+- Added `endLiveSession` message type to tear down Live session
+- Added cleanup on WS close/error — ends Live session automatically
+- New WS message types: `startLiveSession`, `audioInput`, `endLiveSession`
+- New WS response types: `live_session_started`, `live_session_ended`, `interrupted`, `transcript`
+- Files changed:
+  - `server/services/conversation/ws-bridge.ts` — Live session imports, tracking map, handlers, routing, dispatch
+  - `server/__tests__/ws-bridge-live-session.test.ts` — 19 new tests
+- **Learnings for future iterations:**
+  - ws-bridge.ts uses `import './tts/gemini-tts-provider.js'` for side-effects (auto-registration) — tests must mock this module too
+  - `wssOptions` on ~line 1422 is a pre-existing bug (should be `options`) — not introduced by this change
+  - `assignVoiceProfile({})` has a pre-existing type error (expects CharacterVoiceAttributes) — not introduced by this change
+  - WS message dispatch is pattern-based on message properties (e.g., `message.startLiveSession`) not a `type` discriminant
+  - `connectionLiveSessions` is keyed by WS reference, not sessionId — allows one Live session per WS connection
+---

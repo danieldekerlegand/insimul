@@ -57,7 +57,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "The existing handleTextInput() flow should remain as fallback. Live session is an alternative path selected when client requests it. Text input should work alongside voice input in the same session."
     },
     {
