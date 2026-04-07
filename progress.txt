@@ -1917,3 +1917,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `startLiveSession` flow temporarily replaces `ws.onmessage` to intercept the acknowledgment, then restores the normal handler — non-ack messages are forwarded to the original handler
   - Audio data flows as base64 in JSON `audioInput` messages (not binary frames) from client to server, but server sends audio back as binary frames
 ---
+
+## 2026-04-07 - US-005: Integrate Live session into BabylonChatPanel
+- Implemented Live session integration in BabylonChatPanel for bidirectional audio streaming NPC conversations
+- Added `tryStartLiveSession()` — called after InsimulClient initializes, falls back silently on failure
+- Added `wireLiveSessionCallbacks()` — sets up onTextChunk, onAudioChunk, onComplete, onTranscript, onInterrupted handlers for async voice responses
+- Added `startLiveAudioCapture()` / `stopLiveAudioCapture()` — captures raw PCM from mic via ScriptProcessorNode and streams via sendAudioChunk()
+- Modified `enableHandsFreeMode()` to stream raw PCM in Live sessions (server handles STT) instead of using HandsFreeController
+- Modified `disableHandsFreeMode()` to stop Live audio capture
+- Modified `hide()` to end Live session and clean up audio resources
+- StreamingAudioPlayer callbacks skip hands-free pause/resume during Live sessions (server handles echo cancellation, continuous audio needed for interruption)
+- Re-wires Live callbacks in `sendMessage()` finally block after `sendMessageViaGrpc()` overwrites them
+- Files changed:
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — Live session integration (properties, tryStartLiveSession, wireLiveSessionCallbacks, audio capture, hands-free mode, hide cleanup)
+  - `shared/__tests__/babylon-chat-panel-live.test.ts` — 16 new tests
+- **Learnings for future iterations:**
+  - `InsimulClient.on()` uses spread merge (`{ ...this.callbacks, ...callbacks }`) — new callbacks merge with existing ones, don't replace all
+  - `sendMessageViaGrpc()` re-wires callbacks per request; must re-establish Live callbacks in the finally block after it completes
+  - For Live sessions, don't pause mic during NPC speech — server handles echo cancellation and continuous audio is needed for natural interruption
+  - `isProcessing` flag distinguishes typed text flow (sendMessage active) from async voice response flow in shared callbacks
+  - ScriptProcessorNode is deprecated but still widely supported; AudioWorklet would require a separate file
+---

@@ -95,7 +95,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "HandsFreeController currently captures audio and runs browser STT. With Live sessions, it should stream raw PCM directly — the Live session handles STT natively. Typed text input should still work in the same session."
     },
     {

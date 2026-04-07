@@ -177,6 +177,12 @@ export class BabylonChatPanel {
   private handsFreeController: HandsFreeController | null = null;
   private isHandsFreeMode = false;
 
+  // Gemini Live session state
+  private _liveResponsePlaceholder: Message | null = null;
+  private _liveAudioStream: MediaStream | null = null;
+  private _liveAudioContext: AudioContext | null = null;
+  private _liveAudioProcessor: ScriptProcessorNode | null = null;
+
   // Dialogue Actions
   private dialogueActions: BabylonDialogueActions | null = null;
   private actionsContainer: Container | null = null;
@@ -480,11 +486,13 @@ export class BabylonChatPanel {
         systemPromptBuilder: this.buildSystemPrompt.bind(this),
       });
 
-      // Initialize async — apply character settings once provider is ready
-      this.insimulClient.initialize().then(() => {
+      // Initialize async — apply character settings once provider is ready, then try Live session
+      this.insimulClient.initialize().then(async () => {
         this._grpcAvailable = true;
         applyCharacterSettings();
         console.log(`[ChatPanel] InsimulClient ready (chat=${this.insimulClient?.getChatType()}, tts=${this.insimulClient?.getTTSType()})`);
+        // Attempt to start a Gemini Live session for bidirectional audio streaming
+        await this.tryStartLiveSession();
       }).catch((err: any) => {
         console.warn('[ChatPanel] InsimulClient init failed:', err.message);
         this._grpcAvailable = false;
@@ -516,7 +524,11 @@ export class BabylonChatPanel {
           this.talkingIndicator.show(this.character.id, this.npcMesh);
         }
         this.updateConversationStateIndicator('speaking');
-        this.handsFreeController?.pause();
+        // Don't pause mic during Live sessions — server handles echo cancellation
+        // and continuous audio is needed for natural interruption support
+        if (!this.insimulClient?.isLiveSession) {
+          this.handsFreeController?.pause();
+        }
       },
       onComplete: () => {
         this.isSpeaking = false;
@@ -524,7 +536,9 @@ export class BabylonChatPanel {
           this.talkingIndicator.hide(this.character.id);
         }
         this.updateConversationStateIndicator('idle');
-        this.handsFreeController?.resume();
+        if (!this.insimulClient?.isLiveSession) {
+          this.handsFreeController?.resume();
+        }
       },
     });
 
@@ -563,6 +577,166 @@ export class BabylonChatPanel {
       this.insimulClient.isAvailable().then((available: boolean) => {
         this._grpcAvailable = available;
       });
+    }
+  }
+
+  /**
+   * Attempt to start a Gemini Live session for bidirectional audio streaming.
+   * Falls back silently to text+TTS pipeline if Live session creation fails.
+   */
+  private async tryStartLiveSession(): Promise<void> {
+    if (!this.insimulClient || !this.character) return;
+    try {
+      const lang = this.world?.targetLanguage
+        ? getLanguageBCP47(this.world.targetLanguage)
+        : 'en';
+      await this.insimulClient.startLiveSession({
+        characterId: this.character.id,
+        worldId: this.character.worldId,
+        systemPrompt: this.buildSystemPrompt(),
+        voiceName: this._lockedVoice,
+        languageCode: lang,
+      });
+      this.wireLiveSessionCallbacks();
+      console.log('[ChatPanel] Live session started');
+    } catch (err: any) {
+      console.warn('[ChatPanel] Live session failed, using text+TTS fallback:', err?.message || err);
+    }
+  }
+
+  /**
+   * Wire InsimulClient callbacks for handling Live session voice responses.
+   * These handle the case where NPC text/audio arrives asynchronously from
+   * server-side STT of the player's speech (not from sendMessage/sendText).
+   */
+  private wireLiveSessionCallbacks(): void {
+    if (!this.insimulClient) return;
+
+    this.insimulClient.on({
+      onTextChunk: (text: string, _isFinal: boolean) => {
+        // During a typed sendMessage(), isProcessing is true and sendMessageViaGrpc
+        // has its own callbacks that handle the placeholder. This callback only
+        // creates a new placeholder for Live voice responses (isProcessing === false).
+        if (!this.isProcessing && this.insimulClient?.isLiveSession) {
+          if (!this._liveResponsePlaceholder) {
+            this._liveResponsePlaceholder = { role: 'assistant', content: '', timestamp: new Date() };
+            this.messages.push(this._liveResponsePlaceholder);
+            this.updateMessagesDisplay();
+            this.updateConversationStateIndicator('speaking');
+            if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
+          }
+          this._liveResponsePlaceholder.content += text;
+          this.updateLastMessageText(this._liveResponsePlaceholder.content);
+          this.onNPCSpeechUpdate?.(this._liveResponsePlaceholder.content);
+        }
+      },
+      onAudioChunk: (chunk: AudioChunkOutput) => {
+        this._receivedStreamingAudio = true;
+        if (this.streamingAudioPlayer) {
+          this.streamingAudioPlayer.pushChunk(chunk as StreamingAudioChunk);
+        }
+      },
+      onFacialData: (data: FacialData) => {
+        if (this.lipSyncController) {
+          this.lipSyncController.pushFacialData(data);
+        }
+      },
+      onComplete: (fullText: string) => {
+        if (!this.isProcessing && this.insimulClient?.isLiveSession && this._liveResponsePlaceholder) {
+          const responseText = fullText || this._liveResponsePlaceholder.content;
+          this.streamingAudioPlayer?.finish();
+          this.lipSyncController?.start();
+          // Process grammar, vocabulary, quest handling for the voice response
+          this.processAssistantResponse('', responseText, this._liveResponsePlaceholder);
+          // Notify listeners of the chat exchange
+          if (this.onChatExchange && this.character?.id) {
+            this.onChatExchange(this.character.id, '', this._liveResponsePlaceholder.content);
+          }
+          this._liveResponsePlaceholder = null;
+          this.updateConversationStateIndicator('idle');
+        }
+      },
+      onTranscript: (text: string, isFinal: boolean) => {
+        if (isFinal && text.trim()) {
+          // Display player's transcribed speech in chat
+          this.messages.push({ role: 'user', content: text.trim(), timestamp: new Date() });
+          this.updateMessagesDisplay();
+        } else if (!isFinal && this.inputText) {
+          // Show interim transcript in input field
+          this.inputText.text = text || 'Listening...';
+          this.inputText.color = '#ffd93d';
+        }
+      },
+      onInterrupted: () => {
+        // Stop audio playback and show visual indicator
+        this.streamingAudioPlayer?.stop();
+        this.lipSyncController?.stop();
+        this.isSpeaking = false;
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        this.updateConversationStateIndicator('idle');
+        this._liveResponsePlaceholder = null;
+      },
+      onStateChange: (state: ConversationState) => {
+        this._conversationState = state;
+        this.updateConversationStateIndicator(state);
+      },
+      onError: (err: Error) => {
+        console.error('[ChatPanel] InsimulClient error:', err);
+      },
+    });
+  }
+
+  /**
+   * Start capturing raw PCM audio from the microphone and streaming it
+   * to the active Live session via sendAudioChunk().
+   */
+  private async startLiveAudioCapture(): Promise<void> {
+    if (this._liveAudioStream) return; // already capturing
+
+    try {
+      this._liveAudioStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
+      });
+
+      this._liveAudioContext = new AudioContext({ sampleRate: 16000 });
+      const source = this._liveAudioContext.createMediaStreamSource(this._liveAudioStream);
+      // ScriptProcessorNode captures raw PCM samples from the mic
+      this._liveAudioProcessor = this._liveAudioContext.createScriptProcessor(4096, 1, 1);
+
+      this._liveAudioProcessor.onaudioprocess = (e: AudioProcessingEvent) => {
+        if (!this.insimulClient?.isLiveSession) return;
+        const float32 = e.inputBuffer.getChannelData(0);
+        // Convert float32 samples to 16-bit PCM
+        const int16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          const s = Math.max(-1, Math.min(1, float32[i]));
+          int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        this.insimulClient!.sendAudioChunk(new Uint8Array(int16.buffer));
+      };
+
+      source.connect(this._liveAudioProcessor);
+      this._liveAudioProcessor.connect(this._liveAudioContext.destination);
+    } catch (err: any) {
+      console.warn('[ChatPanel] Failed to start live audio capture:', err?.message || err);
+    }
+  }
+
+  /** Stop live audio capture and release mic resources. */
+  private stopLiveAudioCapture(): void {
+    if (this._liveAudioProcessor) {
+      this._liveAudioProcessor.disconnect();
+      this._liveAudioProcessor = null;
+    }
+    if (this._liveAudioContext) {
+      this._liveAudioContext.close();
+      this._liveAudioContext = null;
+    }
+    if (this._liveAudioStream) {
+      this._liveAudioStream.getTracks().forEach(t => t.stop());
+      this._liveAudioStream = null;
     }
   }
 
@@ -618,6 +792,12 @@ export class BabylonChatPanel {
     // Stop streaming audio and lip sync
     this.streamingAudioPlayer?.stop();
     this.lipSyncController?.stop();
+    // End Live session if active, then abort the client
+    if (this.insimulClient?.isLiveSession) {
+      this.stopLiveAudioCapture();
+      this.insimulClient.endLiveSession().catch(() => {});
+    }
+    this._liveResponsePlaceholder = null;
     this.insimulClient?.abort();
     this.updateConversationStateIndicator('idle');
 
@@ -1780,6 +1960,10 @@ export class BabylonChatPanel {
       this.isProcessing = false;
       if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
       this.updateConversationStateIndicator('idle');
+      // Re-establish Live session callbacks after sendMessageViaGrpc overwrote them
+      if (this.insimulClient?.isLiveSession) {
+        this.wireLiveSessionCallbacks();
+      }
     }
   }
 
@@ -4075,6 +4259,20 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       this.stopRecording();
     }
 
+    this.isHandsFreeMode = true;
+
+    if (this.inputText) {
+      this.inputText.text = 'Speak or type...';
+      this.inputText.color = '#88cc88';
+    }
+
+    // Live session mode: stream raw PCM directly to server, which handles STT natively
+    if (this.insimulClient?.isLiveSession) {
+      this.startLiveAudioCapture();
+      return;
+    }
+
+    // Non-Live: use HandsFreeController with browser/server STT
     // Use _targetLanguage (set synchronously) or fall back to async world data
     const targetLang = this._targetLanguage || this.worldLanguageContext?.targetLanguage;
     const lang = targetLang
@@ -4118,13 +4316,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       { lang },
     );
 
-    this.isHandsFreeMode = true;
-
-    if (this.inputText) {
-      this.inputText.text = 'Speak or type...';
-      this.inputText.color = '#88cc88';
-    }
-
     this.handsFreeController.start();
   }
 
@@ -4132,6 +4323,9 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     if (!this.isHandsFreeMode) return;
 
     this.isHandsFreeMode = false;
+
+    // Stop Live audio capture if active
+    this.stopLiveAudioCapture();
 
     if (this.handsFreeController) {
       this.handsFreeController.stop();
