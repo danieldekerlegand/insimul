@@ -6,8 +6,8 @@
  * Layout strategy:
  *  - The grid (from StreetNetworkLayout) creates blocks between intersections.
  *  - Each block gets a fixed 3×2 grid of building lots, inset from the streets.
- *  - The bottom-center block is reserved as a park / town square (like Jackson
- *    Square in the French Quarter).
+ *  - A 2×3 cluster of center blocks is reserved for special zones:
+ *    town square (2 blocks), grove (2 blocks), and cemetery (2 blocks).
  *  - Buildings face the nearest street edge.
  *  - Commercial buildings cluster in blocks near the settlement center;
  *    residential buildings fill the outer blocks.
@@ -48,6 +48,8 @@ export interface PlacedLot {
   isCorner: boolean;
   /** Urban zone classification based on lot position */
   zone: ZoneType;
+  /** Sub-type for park-zone lots */
+  parkType?: 'town_square' | 'cemetery' | 'grove';
 }
 
 export interface StreetAlignedResult {
@@ -218,9 +220,30 @@ export function generateStreetAlignedLots(
   const { gridSize, spacing, halfGrid } = getGridParams(radius);
   const blockCount = gridSize - 1; // e.g., 3 for gridSize=4
 
-  // Park block: center of grid, matching server-side street-network-generator
-  const parkCol = Math.floor(blockCount / 2);
-  const parkRow = Math.floor(blockCount / 2);
+  // Special zone blocks: 2×3 cluster matching server-side street-network-generator.
+  // For small grids (blockCount < 4), fall back to a single center park block.
+  const useFullSpecialZone = blockCount >= 4;
+  const specialStartCol = Math.floor(blockCount / 2) - 1;
+  const specialStartRow = Math.floor(blockCount / 2) - 1;
+  const singleParkCol = Math.floor(blockCount / 2);
+  const singleParkRow = Math.floor(blockCount / 2);
+  function getSpecialType(col: number, row: number): 'town_square' | 'cemetery' | 'grove' | null {
+    if (!useFullSpecialZone) {
+      // Fallback: single center park block
+      return (col === singleParkCol && row === singleParkRow) ? 'town_square' : null;
+    }
+    const dc = col - specialStartCol;
+    const dr = row - specialStartRow;
+    if (dc < 0 || dc > 1 || dr < 0 || dr > 2) return null;
+    if (dr === 0) return 'town_square';
+    if (dr === 1) return 'grove';
+    return 'cemetery';
+  }
+  const specialNames: Record<string, string> = {
+    town_square: 'Town Square',
+    grove: 'Grove',
+    cemetery: 'Cemetery',
+  };
 
   const streetHalfWidth = GRID_STREET_WIDTH / 2;
   const INSET = streetHalfWidth + 1; // 1 unit margin from street edge
@@ -240,7 +263,7 @@ export function generateStreetAlignedLots(
 
   for (let row = 0; row < blockCount; row++) {
     for (let col = 0; col < blockCount; col++) {
-      const isPark = (row === parkRow && col === parkCol);
+      const specialType = getSpecialType(col, row);
 
       // Block corners (grid-node positions)
       const blockMinX = center.x - halfGrid + col * spacing;
@@ -257,8 +280,8 @@ export function generateStreetAlignedLots(
       const interiorW = intMaxX - intMinX;
       const interiorD = intMaxZ - intMinZ;
 
-      if (isPark) {
-        // Place a few park-zone lots (trees / benches will go here)
+      if (specialType) {
+        // Place a few park-zone lots for this special block
         const parkSlots = 4;
         for (let pi = 0; pi < parkSlots; pi++) {
           const px = intMinX + (pi % 2 + 0.5) * (interiorW / 2);
@@ -267,11 +290,12 @@ export function generateStreetAlignedLots(
             position: new Vector3(px, 0, pz),
             facingAngle: 0,
             houseNumber: 0,
-            streetName: 'Town Square',
+            streetName: specialNames[specialType],
             nearIntersection: false,
             onMainStreet: false,
             isCorner: false,
             zone: 'park',
+            parkType: specialType,
           });
         }
         continue;
@@ -319,7 +343,8 @@ export function generateStreetAlignedLots(
           const nearIntersection = isCorner;
 
           // On main street: blocks adjacent to the center column
-          const onMainStreet = col === parkCol || col === parkCol - 1 || col === parkCol + 1;
+          const centerCol = Math.floor(blockCount / 2);
+          const onMainStreet = col === centerCol || col === centerCol - 1 || col === centerCol + 1;
 
           lots.push({
             position: new Vector3(lotX, 0, lotZ),
@@ -453,9 +478,8 @@ export interface CenterBlockBounds {
 }
 
 /**
- * Compute the bounding rectangle of the town-square block.
- * Positioned at the bottom-center of the grid (like Jackson Square
- * in the French Quarter — center column, last row).
+ * Compute the bounding rectangle of the special zone area
+ * (2-column × 3-row cluster: town square, grove, cemetery).
  */
 function computeCenterBlockBounds(
   center: Vector3,
@@ -464,15 +488,25 @@ function computeCenterBlockBounds(
   const { gridSize, spacing, halfGrid } = getGridParams(radius);
   const blockCount = gridSize - 1;
 
-  // Center block: matches server-side street-network-generator park placement
-  const parkCol = Math.floor(blockCount / 2);
-  const parkRow = Math.floor(blockCount / 2);
-
-  // Inset from grid-node positions by the street half-width + margin
-  // so the bounds represent the usable park interior, not the full block
-  // (which extends into streets). This matches the INSET used for lot placement.
   const streetHalfWidth = GRID_STREET_WIDTH / 2;
   const INSET = streetHalfWidth + 1;
+
+  if (blockCount >= 4) {
+    // Special zone: 2 cols × 3 rows, matching server-side getSpecialBlockType
+    const startCol = Math.floor(blockCount / 2) - 1;
+    const startRow = Math.floor(blockCount / 2) - 1;
+
+    const minX = center.x - halfGrid + startCol * spacing + INSET;
+    const maxX = center.x - halfGrid + (startCol + 2) * spacing - INSET;
+    const minZ = center.z - halfGrid + startRow * spacing + INSET;
+    const maxZ = center.z - halfGrid + (startRow + 3) * spacing - INSET;
+
+    return { minX, maxX, minZ, maxZ };
+  }
+
+  // Fallback: single center block
+  const parkCol = Math.floor(blockCount / 2);
+  const parkRow = Math.floor(blockCount / 2);
 
   const minX = center.x - halfGrid + parkCol * spacing + INSET;
   const maxX = center.x - halfGrid + (parkCol + 1) * spacing - INSET;

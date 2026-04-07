@@ -655,6 +655,32 @@ export interface TopologicalLotPlacement {
   side: 'left' | 'right';
   /** Zone classification — 'park' lots are green space, not buildings */
   zone?: 'commercial' | 'residential' | 'park';
+  /** Sub-type for park blocks: town_square, cemetery, or grove */
+  parkType?: 'town_square' | 'cemetery' | 'grove';
+}
+
+/** Number of blocks reserved for special zones (town square, cemetery, grove — 2 each) */
+export const SPECIAL_BLOCK_COUNT = 6;
+
+/**
+ * Determine the special-zone type for a block position, or null if it's a normal block.
+ * The special zone is a 2-column × 3-row cluster centered on the grid:
+ *   Row 0: town_square, town_square
+ *   Row 1: grove, grove
+ *   Row 2: cemetery, cemetery
+ */
+export function getSpecialBlockType(
+  col: number, row: number,
+  numBlockCols: number, numBlockRows: number,
+): 'town_square' | 'cemetery' | 'grove' | null {
+  const startCol = Math.floor(numBlockCols / 2) - 1;
+  const startRow = Math.floor(numBlockRows / 2) - 1;
+  const dc = col - startCol;
+  const dr = row - startRow;
+  if (dc < 0 || dc > 1 || dr < 0 || dr > 2) return null;
+  if (dr === 0) return 'town_square';
+  if (dr === 1) return 'grove';
+  return 'cemetery';
 }
 
 /**
@@ -669,16 +695,15 @@ export function placeLotsTopological(
   const placements: TopologicalLotPlacement[] = [];
   const numBlockCols = gridSize - 1;
   const numBlockRows = gridSize - 1;
-  const parkCol = Math.floor(numBlockCols / 2);
-  const parkRow = Math.floor(numBlockRows / 2);
   const LOTS_COLS = 3;
 
   let houseNum = 1;
 
   for (let col = 0; col < numBlockCols; col++) {
     for (let row = 0; row < numBlockRows; row++) {
-      // Park block
-      if (col === parkCol && row === parkRow) {
+      // Special zone blocks (town square, grove, cemetery — 2 blocks each)
+      const specialType = getSpecialBlockType(col, row, numBlockCols, numBlockRows);
+      if (specialType) {
         placements.push({
           blockCol: col,
           blockRow: row,
@@ -688,6 +713,7 @@ export function placeLotsTopological(
           houseNumber: 0,
           side: 'right',
           zone: 'park',
+          parkType: specialType,
         });
         continue;
       }

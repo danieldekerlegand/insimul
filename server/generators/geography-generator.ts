@@ -200,10 +200,12 @@ export class GeographyGenerator {
     const businesses = Math.max(1, Math.ceil(config.population / 15));
     const lotsNeeded = residences + businesses;
     const buildableBlocksNeeded = Math.ceil(lotsNeeded / LOTS_PER_BLOCK);
-    // Total blocks = buildable + 1 park. Grid has (gridSize-1)^2 total blocks.
-    // Find smallest gridSize where (gridSize-1)^2 >= buildableBlocksNeeded + 1
-    let gridSize = 2;
-    while ((gridSize - 1) * (gridSize - 1) < buildableBlocksNeeded + 1) {
+    // Total blocks = buildable + 6 special (2 town square + 2 grove + 2 cemetery).
+    // Grid has (gridSize-1)^2 total blocks. The special zone is a 2×3 cluster,
+    // so we also need at least 4 cols and 5 rows of blocks (gridSize >= 6).
+    const SPECIAL_BLOCKS = 6;
+    let gridSize = 6; // minimum to fit the 2×3 special zone cluster
+    while ((gridSize - 1) * (gridSize - 1) < buildableBlocksNeeded + SPECIAL_BLOCKS) {
       gridSize++;
     }
     const streetPattern = config.streetPattern || 'grid';
@@ -1419,42 +1421,35 @@ export class GeographyGenerator {
   ): Promise<string[]> {
     const lotDocs: any[] = [];
 
-    // Park sub-lot types: 6 lots matching the block's 2×3 layout
-    // Top row: Town Square, Town Square, Grove
-    // Bottom row: Grove, Cemetery, Cemetery
-    const parkSubLots = [
-      { lotType: 'park', name: 'Town Square' },
-      { lotType: 'park', name: 'Town Square' },
-      { lotType: 'forest', name: 'Grove' },
-      { lotType: 'forest', name: 'Grove' },
-      { lotType: 'cemetery', name: 'Cemetery' },
-      { lotType: 'cemetery', name: 'Cemetery' },
-    ];
+    // Park type → lot type and display name mapping
+    const parkTypeMap: Record<string, { lotType: string; name: string }> = {
+      town_square: { lotType: 'park', name: 'Town Square' },
+      grove: { lotType: 'forest', name: 'Grove' },
+      cemetery: { lotType: 'cemetery', name: 'Cemetery' },
+    };
 
     for (const p of placements) {
       const districtIndex = (p.blockCol + p.blockRow) % districts.length;
       const district = districts[districtIndex];
 
-      if (p.zone === 'park') {
-        // Split the park block into 6 sub-lots (2 town square, 2 grove, 2 cemetery)
-        for (let si = 0; si < parkSubLots.length; si++) {
-          const sub = parkSubLots[si];
-          lotDocs.push({
-            worldId: config.worldId,
-            settlementId: config.settlementId,
-            address: sub.name,
-            streetName: p.streetName,
-            streetId: p.streetId,
-            blockCol: p.blockCol,
-            blockRow: p.blockRow,
-            lotIndex: si,
-            districtName: district?.name || null,
-            lotType: sub.lotType,
-            side: p.side,
-            building: null,
-            name: sub.name,
-          });
-        }
+      if (p.zone === 'park' && p.parkType) {
+        // Each special block becomes a single lot of its designated type
+        const info = parkTypeMap[p.parkType];
+        lotDocs.push({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          address: info.name,
+          streetName: p.streetName,
+          streetId: p.streetId,
+          blockCol: p.blockCol,
+          blockRow: p.blockRow,
+          lotIndex: 0,
+          districtName: district?.name || null,
+          lotType: info.lotType,
+          side: p.side,
+          building: null,
+          name: info.name,
+        });
       } else {
         const address = p.houseNumber > 0 ? `${p.houseNumber} ${p.streetName}` : undefined;
         lotDocs.push({

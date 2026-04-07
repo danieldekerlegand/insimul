@@ -25,7 +25,7 @@ import type { VocabularyEntry } from '@shared/language/language-progress';
 
 export interface BuildingSignData {
   buildingId: string;
-  nativeName: string;       // English name (e.g. "Bakery")
+  nativeName?: string;      // Secondary text in parentheses (e.g. address for businesses)
   targetName: string;       // Target language name (e.g. "Boulangerie")
   targetDetail?: string;    // Advanced detail in target language
   buildingType: string;     // 'business' | 'residence' | 'municipal'
@@ -95,20 +95,40 @@ export class BuildingSignManager {
     const tier = this.getFluencyTier();
     const signText = this.formatSignText(data, tier);
 
-    // Building dimensions from metadata or bounding box
+    // Building dimensions from spec metadata or bounding box.
+    // Use spec dimensions (width/depth) when available since the bounding box
+    // may include porch/steps geometry that extends beyond the wall face.
+    const meta = buildingMesh.metadata as Record<string, any> | undefined;
+    const specDepth: number | undefined = meta?.specDepth;
+
     const bounds = buildingMesh.getBoundingInfo();
     const meshHeight = bounds
       ? (bounds.boundingBox.maximumWorld.y - bounds.boundingBox.minimumWorld.y)
       : 4;
-    const meshDepth = bounds
-      ? (bounds.boundingBox.maximumWorld.z - bounds.boundingBox.minimumWorld.z)
-      : 4;
+    // For depth, prefer the spec depth (wall-to-wall) over the bounding box
+    // which may include porches, steps, or other protruding geometry.
+    const wallDepth = specDepth
+      ?? (bounds ? (bounds.boundingBox.maximumWorld.z - bounds.boundingBox.minimumWorld.z) : 4);
+
     // Door top is at ~2.2 units above ground; sign sits just above it.
     // Building origin is at vertical center, so ground = -meshHeight/2.
     const doorTopY = -meshHeight / 2 + 2.5;
-    const signY = doorTopY + 0.6;
-    // Front face of building (door is on +Z face)
-    const frontZ = meshDepth / 2 + 0.05;
+    const signY = doorTopY + 1.4;
+
+    // For porch buildings, ProceduralBuildingGenerator shifts all child geometry
+    // back in local -Z by porchExtension * 0.75. The sign must match that offset
+    // so it stays flush with the wall rather than floating over the porch steps.
+    let porchSetback = 0;
+    if (meta?.hasPorch) {
+      const porchDepth = meta.porchDepth ?? 3;
+      const porchSteps = meta.porchSteps ?? 3;
+      const porchExtension = porchDepth + porchSteps * 0.4;
+      porchSetback = porchExtension * 0.75;
+    }
+
+    // Front face of building wall (door is on +Z face).
+    // Use wall depth, not bounding box depth, so the sign is flush with the wall.
+    const frontZ = wallDepth / 2 + 0.05 - porchSetback;
 
     // Texture dimensions — larger for a real storefront sign
     const texW = 1024;
@@ -125,7 +145,7 @@ export class BuildingSignManager {
     this.renderSignTexture(texture, signText, colors, texW, texH, tier);
 
     // Sign plane — mounted flat on the building front, not a billboard
-    const planeW = 3.5;
+    const planeW = 2.5;
     const planeH = planeW * (texH / texW);
     const plane = MeshBuilder.CreatePlane(
       `building_sign_${data.buildingId}`,
@@ -141,10 +161,11 @@ export class BuildingSignManager {
     mat.useAlphaFromDiffuseTexture = true;
     plane.material = mat;
 
-    // Position above the door on the front face, facing outward (+Z)
+    // Position above the door on the front face, facing outward (+Z).
+    // CreatePlane faces -Z by default, so rotate π to face the street.
     plane.position = new Vector3(0, signY, frontZ);
+    plane.rotation.y = Math.PI;
     plane.parent = buildingMesh;
-    // No billboard mode — sign stays flat against the building wall
     plane.isPickable = true;
 
     // Click to add word to vocabulary

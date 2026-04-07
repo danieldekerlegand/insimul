@@ -5806,30 +5806,29 @@ export class BabylonGame {
             zone: l.zone,
           }));
 
-          // Place trees at park lot positions (center block = town square park)
-          // Reserve one park lot for cemetery if there are deceased characters
+          // Place features at park lot positions based on their parkType
           const genAllChars = this.characters || this.worldData?.characters || [];
           const genDeceasedChars = genAllChars.filter((c: any) =>
             (c.isAlive === false || c.status === 'deceased') &&
             (c.currentLocation === settlement.id || c.currentLocation === settlement.name)
           );
-          let genCemeteryCenter: Vector3 | null = null;
-          let genCemeteryUsed = false;
-          const genCemW = BabylonGame.CEMETERY_WIDTH;
-          const genCemD = BabylonGame.CEMETERY_DEPTH;
+          let genCemeteryPlaced = false;
           for (const parkLot of parkLots) {
             const parkPos = this.projectToGround(parkLot.position.x, parkLot.position.z);
-            if (!genCemeteryUsed && genDeceasedChars.length > 0) {
-              genCemeteryUsed = true;
-              genCemeteryCenter = parkPos.clone();
-              this.placeCemeteryGravestones(scene, parkPos, genDeceasedChars, settlement.id);
-              // Don't place a tree on top of the cemetery lot
+            if (parkLot.parkType === 'cemetery') {
+              // Place gravestones on cemetery lots (only once for the first lot)
+              if (!genCemeteryPlaced && genDeceasedChars.length > 0) {
+                genCemeteryPlaced = true;
+                this.placeCemeteryGravestones(scene, parkPos, genDeceasedChars, settlement.id);
+              }
+              // Cemetery lots get no trees
               continue;
             }
-            // Skip trees that would overlap the cemetery
-            if (genCemeteryCenter && Math.abs(parkPos.x - genCemeteryCenter.x) < genCemW / 2 + 1 && Math.abs(parkPos.z - genCemeteryCenter.z) < genCemD / 2 + 1) {
+            if (parkLot.parkType === 'town_square') {
+              // Town square lots are open space — no trees
               continue;
             }
+            // Grove lots (and any untyped park lots) get trees
             this.placeTreeAtPosition(scene, parkPos, settlement.id);
           }
         }
@@ -5962,7 +5961,12 @@ export class BabylonGame {
             businessName: business.name,
             settlementId: settlement.id,
             ownerId: business.ownerId,
-            employees: business.employees || []
+            employees: business.employees || [],
+            specWidth: buildingSpec.width,
+            specDepth: buildingSpec.depth,
+            hasPorch: buildingSpec.hasPorch,
+            porchDepth: buildingSpec.style?.porchDepth,
+            porchSteps: buildingSpec.style?.porchSteps,
           };
           building.isPickable = true;
 
@@ -6026,23 +6030,17 @@ export class BabylonGame {
             const lang = (this.worldData as any)?.targetLanguage || '';
             const signEntry = lang ? getBusinessSign(lang, business.id, business.businessType || '', business.name) : null;
             const displayName = signEntry?.targetText || business.name || business.businessType || 'Business';
+            const bizAddress = bizLot?.houseNumber && bizLot?.streetName
+              ? `${bizLot.houseNumber} ${bizLot.streetName}`
+              : bizLot?.streetName || undefined;
             this.buildingSignManager.createBuildingSign(building, {
               buildingId: business.id,
-              nativeName: business.businessType || 'Business',
+              nativeName: bizAddress,
               targetName: displayName,
               targetDetail: signEntry?.detailText,
               buildingType: 'business',
-              businessType: business.businessType,
             });
           }
-
-          // Door-mounted business name plaque
-          this.createDoorLabel(
-            scene, business.id,
-            business.name || business.businessType || 'Business',
-            building.position, buildingSpec.rotation,
-            buildingSpec.depth, buildingSpec.width
-          );
 
         }
 
@@ -6116,7 +6114,12 @@ export class BabylonGame {
             buildingType: 'residence',
             residenceId: residence.id,
             settlementId: settlement.id,
-            occupants: residence.residentIds || residence.occupants
+            occupants: residence.residentIds || residence.occupants,
+            specWidth: buildingSpec.width,
+            specDepth: buildingSpec.depth,
+            hasPorch: buildingSpec.hasPorch,
+            porchDepth: buildingSpec.style?.porchDepth,
+            porchSteps: buildingSpec.style?.porchSteps,
           };
           building.isPickable = true;
 
@@ -6188,21 +6191,12 @@ export class BabylonGame {
                 : resType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
             this.buildingSignManager.createBuildingSign(building, {
               buildingId: residence.id,
-              nativeName: addressLabel,
-              targetName: signEntry?.targetText || addressLabel,
-              buildingType: 'residence',
+              targetName: addressLabel,
+              buildingType: 'business',
             });
           }
 
-          // Door-mounted address number
-          const doorNumber = resLot?.houseNumber ? String(resLot.houseNumber) : null;
-          if (doorNumber) {
-            this.createDoorLabel(
-              scene, residence.id, doorNumber,
-              building.position, buildingSpec.rotation,
-              buildingSpec.depth, buildingSpec.width
-            );
-          }
+          // (Door labels removed — BuildingSignManager handles all sign display)
         }
 
         // Place trees/features at DB park lots (park, forest, cemetery, garden)
@@ -6386,7 +6380,12 @@ export class BabylonGame {
               businessName: biz.name,
               settlementId: settlement.id,
               ownerId: null,
-              employees: []
+              employees: [],
+              specWidth: buildingSpec.width,
+              specDepth: buildingSpec.depth,
+              hasPorch: buildingSpec.hasPorch,
+              porchDepth: buildingSpec.style?.porchDepth,
+              porchSteps: buildingSpec.style?.porchSteps,
             };
             building.isPickable = true;
 
@@ -6442,19 +6441,10 @@ export class BabylonGame {
             if (this.buildingSignManager) {
               this.buildingSignManager.createBuildingSign(building, {
                 buildingId: bizId,
-                nativeName: biz.businessType,
                 targetName: biz.name,
                 buildingType: 'business',
-                businessType: biz.businessType,
               });
             }
-
-            // Door-mounted business name plaque
-            this.createDoorLabel(
-              scene, bizId, biz.name,
-              building.position, buildingSpec.rotation,
-              buildingSpec.depth, buildingSpec.width
-            );
 
             autoFillIdx++;
           }
@@ -6515,7 +6505,12 @@ export class BabylonGame {
             buildingType: 'residence',
             residenceId: genericResId,
             settlementId: settlement.id,
-            occupants: []
+            occupants: [],
+            specWidth: buildingSpec.width,
+            specDepth: buildingSpec.depth,
+            hasPorch: buildingSpec.hasPorch,
+            porchDepth: buildingSpec.style?.porchDepth,
+            porchSteps: buildingSpec.style?.porchSteps,
           };
           building.isPickable = true;
 
@@ -6564,9 +6559,8 @@ export class BabylonGame {
             const typeLabel = residenceType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
             this.buildingSignManager.createBuildingSign(building, {
               buildingId: genericResId,
-              nativeName: typeLabel,
               targetName: typeLabel,
-              buildingType: 'residence',
+              buildingType: 'business',
             });
           }
 
