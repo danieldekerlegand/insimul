@@ -40,6 +40,9 @@ export interface ChatProvider {
   /** Set or update the system prompt */
   setSystemPrompt(prompt: string): void;
 
+  /** Set game context (CEFR level, vocabulary, grammar) sent with each message */
+  setGameContext?(context: Record<string, unknown>): void;
+
   /** Send text, receive streaming responses via callbacks. Returns full response text. */
   sendText(text: string, languageCode?: string, prologFacts?: Array<{ predicate: string; args: Array<string | number> }>): Promise<string>;
 

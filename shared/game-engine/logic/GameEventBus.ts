@@ -83,8 +83,8 @@ export type GameEvent =
   | { type: 'onboarding_step_started'; stepId: string; stepIndex: number; totalSteps: number }
   | { type: 'onboarding_step_completed'; stepId: string; stepIndex: number; totalSteps: number; durationMs: number }
   | { type: 'onboarding_completed'; totalSteps: number; totalDurationMs: number }
-  // Periodic assessment trigger (emitted when a level-up milestone requires a proficiency check)
-  | { type: 'periodic_assessment_triggered'; level: number; tier: string }
+  // Periodic assessment trigger (emitted when a quest-count milestone requires a proficiency check)
+  | { type: 'periodic_assessment_triggered'; level: number; tier: string; assessmentDefinition?: any; grammarContext?: any }
   // Assessment conversation quest start (engine requests a waypoint on an NPC)
   | { type: 'assessment_conversation_quest_start'; phaseId: string; topics: string[]; minExchanges: number; maxExchanges: number }
   // Player initiated a conversation with the highlighted assessment NPC

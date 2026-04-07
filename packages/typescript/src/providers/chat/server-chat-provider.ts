@@ -26,6 +26,7 @@ export class ServerChatProvider implements ChatProvider {
   private characterGender = '';
   private sessionId: string;
   private systemPrompt = '';
+  private gameContext: Record<string, unknown> = {};
 
   // WebSocket state
   private ws: WebSocket | null = null;
@@ -75,6 +76,8 @@ export class ServerChatProvider implements ChatProvider {
   }
 
   setSystemPrompt(prompt: string): void { this.systemPrompt = prompt; }
+
+  setGameContext(context: Record<string, unknown>): void { this.gameContext = context; }
 
   async sendText(text: string, languageCode?: string, prologFacts?: Array<{ predicate: string; args: Array<string | number> }>): Promise<string> {
     const lang = languageCode || this.config.languageCode || 'en';
@@ -261,6 +264,10 @@ export class ServerChatProvider implements ChatProvider {
             text, sessionId: this.sessionId, characterId: this.characterId,
             worldId: this.worldId, languageCode: lang,
             ...(prologFacts?.length ? { prologFacts } : {}),
+            systemPrompt: this.systemPrompt || undefined,
+            cefrLevel: this.gameContext.cefrLevel || undefined,
+            playerVocabulary: this.gameContext.playerVocabulary || undefined,
+            playerGrammarPatterns: this.gameContext.playerGrammarPatterns || undefined,
           },
         }));
       } catch (err: any) {
@@ -325,6 +332,9 @@ export class ServerChatProvider implements ChatProvider {
       systemPrompt: this.systemPrompt || undefined,
       characterGender: this.characterGender || undefined,
       ...(prologFacts?.length ? { prologFacts } : {}),
+      cefrLevel: this.gameContext.cefrLevel || undefined,
+      playerVocabulary: this.gameContext.playerVocabulary || undefined,
+      playerGrammarPatterns: this.gameContext.playerGrammarPatterns || undefined,
     };
 
     // Warn if required fields are missing — setCharacter() may not have been called

@@ -11,6 +11,13 @@
  */
 
 import type { GamePrologEngine } from '../logic/GamePrologEngine';
+import { addDebugLogEntry, createEntryContainer, disposeEntryStores } from './DebugConsoleEntries';
+import { getDebugEventBus, resetDebugEventBus } from '../debug-event-bus';
+import type { DebugEvent } from '../debug-event-bus';
+export { addDebugLogEntry, getTabEntryCount, clearTabEntries, getCategoryColor } from './DebugConsoleEntries';
+export type { DebugLogCategory, DebugLogEntryData } from './DebugConsoleEntries';
+export { getDebugEventBus, resetDebugEventBus } from '../debug-event-bus';
+export type { DebugEvent, DebugEventBus, DebugEventCallback } from '../debug-event-bus';
 
 // ── Entity Hover Enrichment ─────────────────────────────────────────────────
 
@@ -188,15 +195,104 @@ let _historyEl: HTMLDivElement | null = null;
 let _prologEngine: GamePrologEngine | null = null;
 const _queryHistory: string[] = [];
 let _historyIndex = -1;
+let _busUnsubscribe: (() => void) | null = null;
 
 /**
- * Create and show the Prolog debug panel.
+ * Map DebugEvent category to the corresponding debug console tab.
+ */
+function categoryToTab(category: DebugEvent['category']): 'prolog' | 'llm' | 'language' {
+  switch (category) {
+    case 'prolog': return 'prolog';
+    case 'llm': return 'llm';
+    case 'language': return 'language';
+    case 'error': return 'llm'; // errors default to LLM tab (most common source)
+  }
+}
+
+/**
+ * Bridge: subscribe to DebugEventBus and forward events to the UI via addDebugLogEntry().
+ */
+function connectEventBusToUI(): void {
+  if (_busUnsubscribe) return; // already connected
+  const bus = getDebugEventBus();
+  _busUnsubscribe = bus.subscribe((event: DebugEvent) => {
+    const tab = categoryToTab(event.category);
+    addDebugLogEntry(tab, {
+      tag: event.tag,
+      category: event.category,
+      summary: event.summary,
+      detail: event.detail,
+      timestamp: new Date(event.timestamp),
+    });
+  });
+}
+
+// ── Tab System State ────────────────────────────────────────────────────────
+
+type DebugTab = 'prolog' | 'llm' | 'language';
+
+let _activeTab: DebugTab = 'prolog';
+let _tabBtns: Record<DebugTab, HTMLButtonElement> | null = null;
+let _tabPanels: Record<DebugTab, HTMLDivElement> | null = null;
+let _titleLabel: HTMLSpanElement | null = null;
+
+// Scroll position preservation per tab
+const _scrollPositions: Record<DebugTab, number> = { prolog: 0, llm: 0, language: 0 };
+
+const TAB_LABELS: Record<DebugTab, string> = {
+  prolog: 'Prolog',
+  llm: 'LLM',
+  language: 'Language',
+};
+
+/**
+ * Switch active debug console tab, preserving scroll positions.
+ */
+export function switchDebugTab(tab: DebugTab): void {
+  if (!_tabPanels || !_tabBtns || tab === _activeTab) return;
+
+  // Save scroll position of outgoing tab
+  const outgoing = _tabPanels[_activeTab];
+  const scrollable = outgoing.querySelector('[data-scroll]') as HTMLElement | null;
+  if (scrollable) _scrollPositions[_activeTab] = scrollable.scrollTop;
+
+  // Hide outgoing, show incoming
+  outgoing.style.display = 'none';
+  _tabBtns[_activeTab].style.borderBottom = '2px solid transparent';
+  _tabBtns[_activeTab].style.color = '#060';
+
+  _activeTab = tab;
+  const incoming = _tabPanels[tab];
+  incoming.style.display = 'flex';
+  _tabBtns[tab].style.borderBottom = '2px solid #0f0';
+  _tabBtns[tab].style.color = '#0f0';
+
+  // Restore scroll position of incoming tab
+  const inScrollable = incoming.querySelector('[data-scroll]') as HTMLElement | null;
+  if (inScrollable) inScrollable.scrollTop = _scrollPositions[tab];
+
+  // Update title
+  if (_titleLabel) _titleLabel.textContent = `Debug Console — ${TAB_LABELS[tab]}`;
+}
+
+/**
+ * Get the currently active debug tab.
+ */
+export function getActiveDebugTab(): DebugTab {
+  return _activeTab;
+}
+
+/**
+ * Create and show the unified debug console panel.
  */
 export function showPrologDebugPanel(
   container: HTMLElement,
   engine: GamePrologEngine,
 ): void {
   _prologEngine = engine;
+
+  // Connect event bus → UI bridge
+  connectEventBusToUI();
 
   if (_panelDiv) {
     _panelDiv.style.display = 'flex';
@@ -217,7 +313,11 @@ export function showPrologDebugPanel(
     'padding:6px 10px;background:rgba(0,80,0,0.5);display:flex;' +
     'justify-content:space-between;align-items:center;cursor:move;' +
     'border-bottom:1px solid #0f0;user-select:none;';
-  titleBar.innerHTML = '<span style="font-weight:bold;">Prolog KB Inspector</span>';
+  const titleLabel = document.createElement('span');
+  titleLabel.style.fontWeight = 'bold';
+  titleLabel.textContent = 'Debug Console — Prolog';
+  titleBar.appendChild(titleLabel);
+  _titleLabel = titleLabel;
 
   // Collapse button
   const collapseBtn = document.createElement('button');
@@ -226,24 +326,56 @@ export function showPrologDebugPanel(
     'background:none;border:1px solid #0f0;color:#0f0;cursor:pointer;' +
     'font:bold 13px monospace;padding:0 6px;border-radius:3px;';
   collapseBtn.onclick = () => {
-    const body = panel.querySelector('#prolog-debug-body') as HTMLElement;
-    if (body) body.style.display = body.style.display === 'none' ? 'flex' : 'none';
+    const bodyEl = panel.querySelector('#prolog-debug-body') as HTMLElement;
+    if (bodyEl) bodyEl.style.display = bodyEl.style.display === 'none' ? 'flex' : 'none';
   };
   titleBar.appendChild(collapseBtn);
   panel.appendChild(titleBar);
 
-  // Body
+  // ── Tab Bar ──────────────────────────────────────────────────────────────
+  const tabBar = document.createElement('div');
+  tabBar.style.cssText =
+    'display:flex;border-bottom:1px solid #060;background:rgba(0,0,0,0.8);';
+
+  const tabs: DebugTab[] = ['prolog', 'llm', 'language'];
+  const tabBtns = {} as Record<DebugTab, HTMLButtonElement>;
+
+  for (const tab of tabs) {
+    const btn = document.createElement('button');
+    btn.textContent = TAB_LABELS[tab];
+    btn.dataset.tab = tab;
+    btn.style.cssText =
+      'flex:1;background:none;border:none;border-bottom:2px solid transparent;' +
+      'color:#060;font:12px monospace;padding:5px 8px;cursor:pointer;';
+    if (tab === 'prolog') {
+      btn.style.borderBottom = '2px solid #0f0';
+      btn.style.color = '#0f0';
+    }
+    btn.onclick = () => switchDebugTab(tab);
+    tabBar.appendChild(btn);
+    tabBtns[tab] = btn;
+  }
+  _tabBtns = tabBtns;
+  panel.appendChild(tabBar);
+
+  // ── Body (contains all tab panels) ───────────────────────────────────────
   const body = document.createElement('div');
   body.id = 'prolog-debug-body';
   body.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden;';
 
+  // ── Prolog Tab Panel ─────────────────────────────────────────────────────
+  const prologPanel = document.createElement('div');
+  prologPanel.dataset.tabPanel = 'prolog';
+  prologPanel.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden;';
+
   // Output area
   const output = document.createElement('pre');
+  output.dataset.scroll = 'true';
   output.style.cssText =
     'flex:1;overflow-y:auto;padding:8px;margin:0;font:12px monospace;' +
     'color:#0f0;max-height:280px;white-space:pre-wrap;word-break:break-all;';
   output.textContent = '% Prolog Knowledge Base Inspector\n% Type a query and press Enter.\n% Examples:\n%   person(X).\n%   quest_active(player, Q).\n%   pronunciation_score(player, P, S, T).\n%   has(player, X).\n';
-  body.appendChild(output);
+  prologPanel.appendChild(output);
   _outputEl = output;
 
   // Quick-action buttons
@@ -266,7 +398,7 @@ export function showPrologDebugPanel(
     btn.onclick = () => executeQuery(qq.query);
     quickBar.appendChild(btn);
   }
-  body.appendChild(quickBar);
+  prologPanel.appendChild(quickBar);
 
   // Input area
   const inputRow = document.createElement('div');
@@ -305,12 +437,69 @@ export function showPrologDebugPanel(
     }
   };
   inputRow.appendChild(input);
-  body.appendChild(inputRow);
+  prologPanel.appendChild(inputRow);
   _inputEl = input;
+
+  body.appendChild(prologPanel);
+
+  // ── LLM Tab Panel ────────────────────────────────────────────────────────
+  const llmPanel = createEntryTabPanel('llm', 'No LLM events yet. Chat with an NPC to see prompt/response summaries here.');
+  body.appendChild(llmPanel);
+
+  // ── Language Tab Panel ───────────────────────────────────────────────────
+  const langPanel = createEntryTabPanel('language', 'No language events yet. Complete a conversation to see EVAL scores, grammar feedback, and vocabulary tracking here.');
+  body.appendChild(langPanel);
+
+  _tabPanels = { prolog: prologPanel, llm: llmPanel, language: langPanel };
 
   panel.appendChild(body);
   container.appendChild(panel);
   _panelDiv = panel;
+  _activeTab = 'prolog';
+}
+
+/**
+ * Create a placeholder tab panel with a "no events" message.
+ */
+function createPlaceholderTab(tab: DebugTab, message: string): HTMLDivElement {
+  const tabPanel = document.createElement('div');
+  tabPanel.dataset.tabPanel = tab;
+  tabPanel.style.cssText = 'display:none;flex-direction:column;flex:1;overflow:hidden;';
+
+  const content = document.createElement('pre');
+  content.dataset.scroll = 'true';
+  content.style.cssText =
+    'flex:1;overflow-y:auto;padding:8px;margin:0;font:12px monospace;' +
+    'color:#0f0;max-height:280px;white-space:pre-wrap;word-break:break-all;';
+  content.textContent = `% ${message}\n`;
+  tabPanel.appendChild(content);
+
+  return tabPanel;
+}
+
+/**
+ * Create a tab panel with an entry container for collapsible log entries.
+ * Shows a placeholder message when empty; entries are added via addDebugLogEntry().
+ */
+function createEntryTabPanel(tab: DebugTab, placeholderMessage: string): HTMLDivElement {
+  const tabPanel = document.createElement('div');
+  tabPanel.dataset.tabPanel = tab;
+  tabPanel.style.cssText = 'display:none;flex-direction:column;flex:1;overflow:hidden;';
+
+  // Placeholder shown when no entries exist
+  const placeholder = document.createElement('pre');
+  placeholder.dataset.placeholder = 'true';
+  placeholder.style.cssText =
+    'padding:8px;margin:0;font:12px monospace;color:#060;' +
+    'white-space:pre-wrap;word-break:break-all;';
+  placeholder.textContent = `% ${placeholderMessage}\n`;
+  tabPanel.appendChild(placeholder);
+
+  // Scrollable entry container
+  const entryContainer = createEntryContainer(tab);
+  tabPanel.appendChild(entryContainer);
+
+  return tabPanel;
 }
 
 /**
@@ -330,6 +519,18 @@ export function disposePrologDebugPanel(): void {
     _inputEl = null;
     _outputEl = null;
     _prologEngine = null;
+    _tabBtns = null;
+    _tabPanels = null;
+    _titleLabel = null;
+    _activeTab = 'prolog';
+    _scrollPositions.prolog = 0;
+    _scrollPositions.llm = 0;
+    _scrollPositions.language = 0;
+    disposeEntryStores();
+    if (_busUnsubscribe) {
+      _busUnsubscribe();
+      _busUnsubscribe = null;
+    }
   }
 }
 

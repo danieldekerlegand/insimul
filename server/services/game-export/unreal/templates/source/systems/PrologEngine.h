@@ -214,15 +214,19 @@ public:
 
     /** Assert a new fact into the knowledge base */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
-    void AssertFact(const FString& Fact);
+    void AssertFact(const FString& Fact, const FString& Source = TEXT(""));
 
     /** Retract a fact from the knowledge base */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
-    void RetractFact(const FString& Fact);
+    void RetractFact(const FString& Fact, const FString& Reason = TEXT(""));
 
     /** Run an arbitrary Prolog query (stub: logs and returns empty) */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     TArray<FString> Query(const FString& Goal);
+
+    /** Whether debug logging is enabled for Prolog operations */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Insimul|PrologEngine")
+    bool bDebugLoggingEnabled = false;
 
     /** Export the current knowledge base as Prolog text */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")

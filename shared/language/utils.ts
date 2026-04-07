@@ -11,7 +11,7 @@ import { getQuestTypeForWorld, type QuestTypeDefinition } from '../quest-types';
 import type { CEFRLevel } from '../assessment/cefr-mapping';
 import { cefrToFluencyTier } from '../assessment/cefr-mapping';
 import { getSpeechComplexity, buildDialogueRulesFromComplexity } from './speech-complexity';
-import { getNPCLanguageBehavior } from './cefr-adaptation';
+import { assignNPCLanguageMode, buildLanguageModeDirective } from './cefr-adaptation';
 import { buildFrequencyDirective } from './vocabulary-frequency';
 import { buildWeakPatternDirective } from './grammar-weakness-analyzer';
 
@@ -786,15 +786,6 @@ export function buildPlayerProficiencySection(
     section += `\nAs a ${npcOccupation}, you naturally use formal and complex language. You may be less accommodating but still helpful.\n`;
   }
 
-  // Add CEFR-based language mode directive when CEFR level and NPC ID are available
-  if (cefrLevel && npcId) {
-    const behavior = getNPCLanguageBehavior(cefrLevel, npcId, targetLanguage);
-    section += '\n' + behavior.promptDirective;
-  } else if (cefrLevel) {
-    // Even without NPC-specific mode, enforce vocabulary frequency constraints
-    section += '\n' + buildFrequencyDirective(cefrLevel, targetLanguage);
-  }
-
   // Build dialogue rules from speech complexity params
   section += '\n' + buildDialogueRulesFromComplexity(complexity, targetLanguage);
 
@@ -861,6 +852,14 @@ ${buildLanguageSection(fluencies, worldContext?.targetLanguage, isLanguageLearni
   // Add player proficiency section for language-learning games
   if (isLanguageLearning && playerProficiency && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
     prompt += buildPlayerProficiencySection(playerProficiency, worldContext.targetLanguage, occupation, cefrLevel, character.id);
+    prompt += '\n';
+  }
+
+  // Add NPC language mode and vocabulary frequency directives
+  if (isLanguageLearning && cefrLevel && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
+    const npcId = character.id || `${character.firstName}-${character.lastName}`;
+    const mode = assignNPCLanguageMode(cefrLevel, npcId);
+    prompt += buildLanguageModeDirective(mode, worldContext.targetLanguage, 'English', cefrLevel);
     prompt += '\n';
   }
 

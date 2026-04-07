@@ -36,6 +36,7 @@ import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/ty
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
 import { LipSyncController } from "./LipSyncController";
+import { logLLMChatExchange, logLLMError } from "./LLMDebugLogger";
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
 import { processRecordedAudio } from "@/lib/audio-utils";
 import { HandsFreeController } from "@/lib/hands-free-controller";
@@ -134,6 +135,8 @@ export class BabylonChatPanel {
   private isPlayingQueue = false;
   private expectedSentenceCount = -1; // set by server's totalSentences signal
   private _receivedStreamingAudio = false; // tracks whether streaming audio arrived during this response
+  private _debugTimeToFirstChunk = 0; // captures time-to-first-chunk for LLM debug logging
+  private _debugStreamStartTime = 0; // request start time for TTFC calculation
 
   // Voice locked at conversation start — prevents mid-conversation voice drift
   // if the character object is mutated by external systems (NPC scheduler, etc.)
@@ -454,6 +457,16 @@ export class BabylonChatPanel {
     // Resolve chat provider type from AI provider setting
     const chatType: ChatProviderType = this._aiProvider === 'browser' ? 'browser' : 'server';
 
+    // Helper to apply character + voice settings once the provider is ready
+    const applyCharacterSettings = () => {
+      this.insimulClient!.setCharacter(character.id, character.worldId);
+      const gender = (character.gender || 'male').toLowerCase();
+      const lang = this.world?.targetLanguage
+        ? getLanguageBCP47(this.world.targetLanguage)
+        : 'en';
+      this.insimulClient!.setVoice({ gender, language: lang });
+    };
+
     // Create InsimulClient (reuses session across same character)
     if (!this.insimulClient) {
       this.insimulClient = new InsimulClient({
@@ -467,13 +480,18 @@ export class BabylonChatPanel {
         systemPromptBuilder: this.buildSystemPrompt.bind(this),
       });
 
-      // Initialize async — don't block chat panel creation
+      // Initialize async — apply character settings once provider is ready
       this.insimulClient.initialize().then(() => {
         this._grpcAvailable = true;
+        applyCharacterSettings();
+        console.log(`[ChatPanel] InsimulClient ready (chat=${this.insimulClient?.getChatType()}, tts=${this.insimulClient?.getTTSType()})`);
       }).catch((err: any) => {
         console.warn('[ChatPanel] InsimulClient init failed:', err.message);
         this._grpcAvailable = false;
       });
+    } else {
+      // Client already initialized — apply settings immediately
+      applyCharacterSettings();
     }
 
     this.insimulClient.setCharacter(character.id, character.worldId, character.gender || undefined);
@@ -1574,13 +1592,33 @@ export class BabylonChatPanel {
       let responseText: string;
       this._receivedStreamingAudio = false;
 
+      // Capture timing for debug logging
+      const debugSystemPrompt = this.buildSystemPrompt();
+      const debugStartTime = performance.now();
+      this._debugTimeToFirstChunk = 0;
+
       // Route through InsimulClient (handles WebSocket → SSE fallback internally)
       responseText = await this.sendMessageViaGrpc(cue, placeholderMsg);
+
+      const debugTotalTime = performance.now() - debugStartTime;
 
       // Hide loading indicator
       if (this.loadingIndicator) {
         this.loadingIndicator.isVisible = false;
       }
+
+      // Log NPC greeting to debug console (before marker stripping)
+      const greetNpcName = this.character
+        ? `${this.character.firstName} ${this.character.lastName || ''}`.trim()
+        : 'NPC';
+      logLLMChatExchange({
+        npcName: greetNpcName,
+        systemPrompt: debugSystemPrompt,
+        userMessage: `[NPC greeting cue] ${cue}`,
+        fullResponse: responseText,
+        timeToFirstChunk: this._debugTimeToFirstChunk || debugTotalTime,
+        totalTimeMs: debugTotalTime,
+      });
 
       // Process the response (grammar, vocab, quests, TTS fallback)
       await this.processAssistantResponse(cue, responseText, placeholderMsg);
@@ -1666,13 +1704,33 @@ export class BabylonChatPanel {
       let responseText: string;
       this._receivedStreamingAudio = false;
 
+      // Capture system prompt and timing for debug logging
+      const debugSystemPrompt = this.buildSystemPrompt();
+      const debugStartTime = performance.now();
+      this._debugTimeToFirstChunk = 0;
+
       // Route through InsimulClient (handles WebSocket → SSE fallback internally)
       responseText = await this.sendMessageViaGrpc(userMessage, placeholderMsg);
+
+      const debugTotalTime = performance.now() - debugStartTime;
 
       // Hide loading indicator
       if (this.loadingIndicator) {
         this.loadingIndicator.isVisible = false;
       }
+
+      // Log LLM exchange to debug console (before marker stripping)
+      const npcName = this.character
+        ? `${this.character.firstName} ${this.character.lastName || ''}`.trim()
+        : 'NPC';
+      logLLMChatExchange({
+        npcName,
+        systemPrompt: debugSystemPrompt,
+        userMessage,
+        fullResponse: responseText,
+        timeToFirstChunk: this._debugTimeToFirstChunk || debugTotalTime,
+        totalTimeMs: debugTotalTime,
+      });
 
       // Process the response: grammar feedback, vocabulary, quests, TTS
       await this.processAssistantResponse(userMessage, responseText, placeholderMsg);
@@ -1688,6 +1746,11 @@ export class BabylonChatPanel {
     } catch (error) {
       console.error('Chat error:', error);
       if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
+      logLLMError(
+        this.character ? `${this.character.firstName} ${this.character.lastName || ''}`.trim() : 'NPC',
+        userMessage,
+        error instanceof Error ? error.message : String(error),
+      );
       this.messages.push({
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.',
@@ -1715,9 +1778,17 @@ export class BabylonChatPanel {
     // from also doing a fallback TTS call (which would cause duplicate speech).
     this._receivedStreamingAudio = true;
 
+    // Track time-to-first-chunk for debug logging
+    this._debugStreamStartTime = performance.now();
+    let firstChunkRecorded = false;
+
     // Wire callbacks for this specific request
     this.insimulClient!.on({
       onTextChunk: (text: string, _isFinal: boolean) => {
+        if (!firstChunkRecorded && text) {
+          this._debugTimeToFirstChunk = performance.now() - this._debugStreamStartTime;
+          firstChunkRecorded = true;
+        }
         accumulatedText += text;
         placeholderMsg.content = accumulatedText;
         this.updateLastMessageText(accumulatedText);
@@ -1758,6 +1829,15 @@ export class BabylonChatPanel {
       ? getLanguageBCP47(targetLangName)
       : 'en';
 
+    // Send game state context (CEFR level, vocabulary, grammar) to the server
+    if (this.languageTracker) {
+      this.insimulClient!.setGameContext({
+        cefrLevel: this.languageTracker.getCEFRLevel(),
+        playerVocabulary: this.languageTracker.getVocabulary(),
+        playerGrammarPatterns: this.languageTracker.getGrammarPatterns(),
+      });
+    }
+
     try {
       // Collect Prolog facts from the game engine (if available)
       const prologFacts = this._prologFactsProvider?.() ?? undefined;
@@ -1765,12 +1845,34 @@ export class BabylonChatPanel {
         languageCode: langCode,
         prologFacts,
       });
-      return fullText || accumulatedText;
+      // sendText may resolve with empty string on server error+done sequence
+      const result = fullText || accumulatedText;
+      if (result) return result;
+
+      // Both paths empty — server sent error or no content
+      console.warn('[ChatPanel] Empty response from conversation service');
+      const fallback = 'Hmm, I lost my train of thought. Could you say that again?';
+      placeholderMsg.content = fallback;
+      this.updateLastMessageText(fallback);
+      return fallback;
     } catch (err: any) {
-      console.error('[ChatPanel] Conversation failed:', err?.message || err);
-      placeholderMsg.content = 'Sorry, I cannot respond right now.';
-      this.updateLastMessageText(placeholderMsg.content);
-      return placeholderMsg.content;
+      const msg = err?.message || String(err);
+      console.error('[ChatPanel] Conversation failed:', msg);
+
+      // Provide a more specific in-game message based on the error type
+      let displayMsg: string;
+      if (/timeout|WS timeout/i.test(msg)) {
+        displayMsg = 'Sorry, the connection timed out. Please try again.';
+      } else if (/LLM.*not available|provider/i.test(msg)) {
+        displayMsg = 'The conversation service is temporarily unavailable.';
+      } else if (/safety|blocked|empty response/i.test(msg)) {
+        displayMsg = "I'm not sure how to respond to that. Could you rephrase?";
+      } else {
+        displayMsg = 'Sorry, I cannot respond right now. Please try again.';
+      }
+      placeholderMsg.content = displayMsg;
+      this.updateLastMessageText(displayMsg);
+      return displayMsg;
     }
   }
 
@@ -2210,6 +2312,19 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     }
     this._cachedSystemPrompt = prompt;
     this._systemPromptCharId = this.character.id as string;
+
+    // ── Debug: log client-side system prompt (sent via systemPromptBuilder) ──
+    console.debug('[LLM:ClientPrompt] ══════════════════════════════════════════');
+    console.debug('[LLM:ClientPrompt] Character:', this.character.firstName, this.character.lastName);
+    console.debug('[LLM:ClientPrompt] CEFR level:', currentCefr || 'none');
+    console.debug('[LLM:ClientPrompt] World language context:', this.worldLanguageContext ? `target=${this.worldLanguageContext.targetLanguage}` : 'none');
+    console.debug('[LLM:ClientPrompt] Proficiency:', proficiency ? JSON.stringify(proficiency).slice(0, 200) : 'none');
+    console.debug('[LLM:ClientPrompt] Difficulty monitor:', this._difficultyMonitor.currentLevel);
+    console.debug('[LLM:ClientPrompt] Prompt length:', prompt.length, 'chars (~', Math.ceil(prompt.length / 4), 'tokens)');
+    console.debug('[LLM:ClientPrompt] ── FULL SYSTEM PROMPT ──');
+    console.debug(prompt);
+    console.debug('[LLM:ClientPrompt] ══════════════════════════════════════════');
+
     return prompt;
   }
 
@@ -2831,6 +2946,10 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
 
   public getLanguageTracker(): import('./LanguageProgressTracker').LanguageProgressTracker | null {
     return this.languageTracker;
+  }
+
+  public getHoverTranslation(): HoverTranslationSystem {
+    return this.hoverTranslation;
   }
 
   public getIsVisible(): boolean {

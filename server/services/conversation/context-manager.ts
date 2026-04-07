@@ -23,6 +23,8 @@ import {
 import { getMainQuestNPCDefinition, isMainQuestNPC } from '@shared/quest/main-quest-npcs';
 import { generateMVTContext } from '@shared/prolog/mvt-context';
 import type { SerializedFact } from '@shared/game-engine/logic/GameTruthSync';
+import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import { assignNPCLanguageMode, buildLanguageModeDirective } from '@shared/language/cefr-adaptation';
 
 // ── Storage interface (subset needed by context manager) ──────────────
 
@@ -57,6 +59,7 @@ export interface LanguageLearningDirectives {
   targetLanguage: string;
   targetLanguageCode: string | null;
   playerProficiency: string;
+  cefrLevel: CEFRLevel;
   learnedVocabulary: string[];
 }
 
@@ -309,6 +312,7 @@ export async function buildContext(
     playerVocabulary?: VocabularyEntry[];
     playerGrammarPatterns?: GrammarPattern[];
     prologFacts?: SerializedFact[];
+    cefrLevel?: string;
   },
   turnNumber: number = 1,
 ): Promise<FullConversationContext> {
@@ -382,7 +386,27 @@ export async function buildContext(
   const businessContext = buildBusinessContext(business, occupationName, isOwner);
 
   // Language learning
-  const targetLang = languages.find((l: WorldLanguage) => l.isLearningTarget);
+  let targetLang = languages.find((l: WorldLanguage) => l.isLearningTarget);
+
+  // Fallback: if no language has isLearningTarget, check world.targetLanguage or world.gameType
+  if (!targetLang && world.targetLanguage && world.targetLanguage !== 'English') {
+    console.warn('[Context] No isLearningTarget in languages, falling back to world.targetLanguage:', world.targetLanguage);
+    // Find matching language in languages collection, or construct a minimal one
+    const matchingLang = languages.find((l: WorldLanguage) => l.name === world.targetLanguage);
+    if (matchingLang) {
+      targetLang = matchingLang;
+    } else {
+      targetLang = { name: world.targetLanguage!, realCode: null, id: world.targetLanguage!, isLearningTarget: true, worldId: worldId, scopeType: 'world', scopeId: worldId, kind: 'real', isPrimary: false } as WorldLanguage;
+    }
+  } else if (!targetLang && world.gameType === 'language-learning') {
+    // If gameType is language-learning but no targetLanguage is set, check for any non-English language
+    const nonEnglish = languages.find((l: WorldLanguage) => l.name !== 'English');
+    if (nonEnglish) {
+      console.warn('[Context] No isLearningTarget in languages, falling back to gameType=language-learning + first non-English language:', nonEnglish.name);
+      targetLang = nonEnglish;
+    }
+  }
+
   let languageLearning: LanguageLearningDirectives | null = null;
   if (targetLang) {
     const playerChar = charMap.get(playerId);
@@ -394,10 +418,16 @@ export async function buildContext(
         : proficiency >= 0.4
           ? 'intermediate'
           : 'beginner';
+
+    // Map proficiency label to CEFR level; prefer explicit gameState.cefrLevel if available
+    const cefrLevel: CEFRLevel = gameState?.cefrLevel as CEFRLevel
+      ?? (profLabel === 'advanced' ? 'B2' : profLabel === 'intermediate' ? 'B1' : 'A1');
+
     languageLearning = {
       targetLanguage: targetLang.name,
       targetLanguageCode: targetLang.realCode ?? null,
       playerProficiency: profLabel,
+      cefrLevel,
       learnedVocabulary: Object.keys(playerSkills).filter(
         (k) => k !== targetLang.id && k !== targetLang.name,
       ),
@@ -458,6 +488,17 @@ export async function buildContext(
     mvtContext: mvtContext || null,
     turnNumber,
   });
+
+  // ── Debug: log the constructed server-side system prompt ──
+  console.debug('[LLM:Context] ══════════════════════════════════════════');
+  console.debug('[LLM:Context] Built system prompt for:', `${character.firstName} ${character.lastName}`);
+  console.debug('[LLM:Context] Language learning:', languageLearning ? `target=${languageLearning.targetLanguage}, proficiency=${languageLearning.playerProficiency}` : 'disabled');
+  console.debug('[LLM:Context] Review words:', reviewWords.length, '| Weak grammar patterns:', weakGrammarPatterns.length);
+  console.debug('[LLM:Context] Active quests:', activeQuests.length);
+  console.debug('[LLM:Context] MVT context:', mvtContext ? `${mvtContext.length} chars` : 'none');
+  console.debug('[LLM:Context] ── FULL SYSTEM PROMPT ──');
+  console.debug(systemPrompt);
+  console.debug('[LLM:Context] ══════════════════════════════════════════');
 
   return {
     characterId,
@@ -656,11 +697,18 @@ function buildSystemPrompt(p: PromptParts): string {
     const ll = p.languageLearning;
     sectionLines.language.push(`\nLANGUAGE LEARNING MODE:`);
     sectionLines.language.push(`Target language: ${ll.targetLanguage}${ll.targetLanguageCode ? ` (${ll.targetLanguageCode})` : ''}.`);
-    sectionLines.language.push(`Player proficiency: ${ll.playerProficiency}.`);
+    sectionLines.language.push(`Player proficiency: ${ll.playerProficiency}${ll.cefrLevel ? ` (CEFR ${ll.cefrLevel})` : ''}.`);
     if (ll.learnedVocabulary.length > 0) {
       sectionLines.language.push(`Known vocabulary: ${ll.learnedVocabulary.slice(0, 20).join(', ')}.`);
     }
-    sectionLines.language.push(`Incorporate the target language naturally. For a ${ll.playerProficiency} learner, adjust complexity accordingly.`);
+    // CEFR-aware NPC language mode directive (simplified/natural/bilingual) with frequency constraints
+    if (ll.cefrLevel) {
+      const npcMode = assignNPCLanguageMode(ll.cefrLevel, p.character.id);
+      const modeDirective = buildLanguageModeDirective(npcMode, ll.targetLanguage, 'English', ll.cefrLevel);
+      sectionLines.language.push(modeDirective);
+    } else {
+      sectionLines.language.push(`Incorporate the target language naturally. For a ${ll.playerProficiency} learner, adjust complexity accordingly.`);
+    }
     sectionLines.language.push(`CRITICAL: Your ENTIRE response is read aloud by TTS. Respond with ONLY natural spoken dialogue — no English translations, no glosses, no parenthetical hints, no vocabulary blocks, no structured data, no markup of any kind.`);
 
     const vocabGrammarPrompt = buildVocabGrammarPrompt({
@@ -672,6 +720,7 @@ function buildSystemPrompt(p: PromptParts): string {
     if (vocabGrammarPrompt) {
       sectionLines.language.push(vocabGrammarPrompt);
     }
+
   }
 
   // ── Quest section (condensed on follow-up) ─────────────────────────
@@ -740,6 +789,11 @@ function buildSystemPrompt(p: PromptParts): string {
   // Behavioral instructions (always included)
   lines.push(`\nStay in character. Respond as ${p.character.firstName} would based on personality, mood, and current surroundings. Keep responses concise and natural.`);
   lines.push(`IMPORTANT: Your response is read aloud by text-to-speech. Do NOT include action descriptions, stage directions, or narration (e.g., *sighs*, *looks around*, *pauses*). Write ONLY spoken dialogue — the words ${p.character.firstName} would actually say out loud.`);
+
+  // CRITICAL LANGUAGE RULE — placed at the very end of the prompt to maximize LLM compliance
+  if (p.languageLearning) {
+    lines.push(`\nCRITICAL LANGUAGE RULE: Your ENTIRE response must be in ${p.languageLearning.targetLanguage}. Do NOT use English. Every word must be in ${p.languageLearning.targetLanguage}. This is non-negotiable.`);
+  }
 
   const prompt = lines.join('\n');
 

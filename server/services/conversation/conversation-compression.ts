@@ -46,8 +46,19 @@ export async function compressConversationHistory(
 
   const summary = await summarizeMessages(olderMessages);
   if (!summary) {
-    // Fallback: just keep recent messages if summarization fails
-    return recentMessages;
+    // Fallback: keep first message (context) + synthetic marker + recent messages
+    console.warn('[ConversationCompression] Summarization failed, using truncation fallback');
+    const firstMessage = messages[0];
+    const topics = extractTopicHints(olderMessages.slice(-5));
+    const syntheticMarker: GeminiMessage = {
+      role: 'user',
+      parts: [{ text: `[Earlier conversation summarized: ${olderMessages.length} messages about ${topics}]` }]
+    };
+    const syntheticAck: GeminiMessage = {
+      role: 'model',
+      parts: [{ text: 'I understand. Let me continue from where we left off.' }]
+    };
+    return [firstMessage, syntheticMarker, syntheticAck, ...recentMessages];
   }
 
   // Inject summary as a context-setting exchange at the start
@@ -63,6 +74,50 @@ export async function compressConversationHistory(
   ];
 
   return [...summaryMessages, ...recentMessages];
+}
+
+/**
+ * Extracts simple topic hints from messages for the truncation fallback marker.
+ * Takes the last N messages and extracts notable keywords.
+ */
+function extractTopicHints(messages: GeminiMessage[]): string {
+  // Common stop words to filter out
+  const stopWords = new Set([
+    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'shall', 'can', 'to', 'of', 'in', 'for',
+    'on', 'with', 'at', 'by', 'from', 'it', 'its', 'this', 'that',
+    'and', 'or', 'but', 'not', 'no', 'so', 'if', 'then', 'than',
+    'i', 'me', 'my', 'you', 'your', 'we', 'our', 'they', 'them',
+    'he', 'she', 'his', 'her', 'what', 'which', 'who', 'how', 'when',
+    'where', 'why', 'just', 'also', 'very', 'really', 'about', 'up',
+    'out', 'all', 'some', 'any', 'more', 'here', 'there', 'now',
+    'let', 'know', 'think', 'like', 'yes', 'ok', 'okay', 'sure',
+    'understand', 'continue', 'previous', 'conversation', 'message'
+  ]);
+
+  const allText = messages
+    .map(msg => msg.parts.map(p => p.text).join(' '))
+    .join(' ')
+    .toLowerCase();
+
+  const words = allText.split(/\s+/)
+    .map(w => w.replace(/[^a-z]/g, ''))
+    .filter(w => w.length > 3 && !stopWords.has(w));
+
+  // Count word frequency
+  const freq = new Map<string, number>();
+  for (const word of words) {
+    freq.set(word, (freq.get(word) || 0) + 1);
+  }
+
+  // Get top keywords by frequency
+  const topKeywords = Array.from(freq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word);
+
+  return topKeywords.length > 0 ? topKeywords.join(', ') : 'general conversation';
 }
 
 /**
@@ -129,7 +184,11 @@ export async function compressTextHistory(
   const recentText = formatTextHistory(recentMessages, languageName);
 
   if (!summary) {
-    return recentText;
+    console.warn('[ConversationCompression] Summarization failed, using truncation fallback');
+    const firstMessage = messages[0];
+    const firstLine = `${firstMessage.role === 'user' ? 'User' : 'Assistant'}: ${firstMessage.content}`;
+    const topics = extractTopicHints(geminiMessages.slice(-5));
+    return `${firstLine}\n\n[Earlier conversation summarized: ${olderMessages.length} messages about ${topics}]\n\n${recentText}`;
   }
 
   return `[Earlier conversation summary: ${summary}]\n\n${recentText}`;

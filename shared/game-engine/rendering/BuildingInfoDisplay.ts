@@ -8,7 +8,8 @@
 import { Scene, Mesh, ActionManager, ExecuteCodeAction, Vector3 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
 import type { CEFRLevel } from '../../assessment/cefr-mapping';
-import { getBilingualDisplay, type UIImmersionMode, shouldTranslateUIKey } from '../../language/ui-localization';
+import { type UIImmersionMode } from '../../language/ui-localization';
+import { buildBilingualBuildingPrompt } from '../../language/in-world-text';
 
 export class BuildingInfoDisplay {
   private scene: Scene;
@@ -116,7 +117,7 @@ export class BuildingInfoDisplay {
       englishName = 'Building';
     }
     const translatedName: string | undefined = metadata.translatedName;
-    const bilingual = getBilingualDisplay(englishName, translatedName, this._cefrLevel);
+    const bilingual = buildBilingualBuildingPrompt(englishName, translatedName, this._cefrLevel);
 
     const nameText = new GUI.TextBlock('buildingName');
     nameText.text = bilingual.primary;

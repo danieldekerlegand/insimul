@@ -17,7 +17,8 @@
 import * as GUI from '@babylonjs/gui';
 import type * as BABYLON from '@babylonjs/core';
 import type { CEFRLevel } from '../../../assessment/cefr-mapping';
-import { shouldTranslateUIKey, type UIImmersionMode } from '../../../language/ui-localization';
+import { type UIImmersionMode } from '../../../language/ui-localization';
+import { translateInteractionVerb } from '../../../language/in-world-text';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -320,11 +321,13 @@ export class ContextualActionMenu {
     icon.height = `${ROW_HEIGHT}px`;
     hStack.addControl(icon);
 
-    // Label column — CEFR-aware display: at lower levels, English primary;
-    // at B1+ (when actions namespace translates), target language primary
-    const useTargetLanguage = shouldTranslateUIKey('actions.label', this._cefrLevel, this._immersionMode);
-    const primaryText = useTargetLanguage ? action.label : action.labelTranslation;
-    const secondaryText = useTargetLanguage ? action.labelTranslation : action.label;
+    // Label column — CEFR-aware display via translateInteractionVerb():
+    // at A1-A2, English primary; at B1+, target language primary
+    const primaryText = translateInteractionVerb(
+      action.labelTranslation, action.label, this._cefrLevel, this._immersionMode,
+    );
+    const isTargetLanguage = primaryText === action.label;
+    const secondaryText = isTargetLanguage ? action.labelTranslation : action.label;
 
     const labelCol = new GUI.StackPanel(`ctxLabels_${index}`);
     labelCol.isVertical = true;

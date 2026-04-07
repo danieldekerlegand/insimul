@@ -27,6 +27,7 @@ import { splitAtSentenceBoundaries, assignVoiceProfile } from './tts/tts-provide
 import './tts/gemini-tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
+import { resolveLanguageCode } from './tts/language-voices.js';
 import { initiateConversation } from './npc-conversation-engine.js';
 import {
   conversationContextCache,
@@ -114,10 +115,15 @@ async function handleTextInput(
     worldId: string;
     languageCode?: string;
     prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
+    systemPrompt?: string;
+    cefrLevel?: string;
+    playerVocabulary?: any[];
+    playerGrammarPatterns?: any[];
   },
   options: WSBridgeOptions,
 ): Promise<void> {
-  const { text, sessionId, characterId, worldId, languageCode = 'en', prologFacts } = msg;
+  const { text, sessionId, characterId, worldId, languageCode: rawLangCode, prologFacts, systemPrompt: clientSystemPrompt, cefrLevel, playerVocabulary, playerGrammarPatterns } = msg;
+  const languageCode = resolveLanguageCode(rawLangCode || 'en');
 
   // Get or create session
   let session = getSession(sessionId);
@@ -130,9 +136,36 @@ async function handleTextInput(
   const turnNumber = Math.floor(session.history.length / 2) + 1;
   const cacheKey = ConversationContextCache.chatKey(worldId, characterId, session.playerId);
   const hasPrologFacts = prologFacts && prologFacts.length > 0;
+  const gameStateOverrides = {
+    prologFacts,
+    ...(cefrLevel ? { cefrLevel } : {}),
+    ...(playerVocabulary ? { playerVocabulary } : {}),
+    ...(playerGrammarPatterns ? { playerGrammarPatterns } : {}),
+  };
 
-  // Build context on first message or character change, using cache when possible
-  if (!session.conversationContext || session.characterId !== characterId || hasPrologFacts) {
+  // Use client-provided system prompt if present
+  if (clientSystemPrompt) {
+    session.characterId = characterId;
+    console.log(`[WS-Bridge] Using client-provided system prompt (${clientSystemPrompt.length} chars)`);
+    session.conversationContext = {
+      systemPrompt: clientSystemPrompt,
+      characterName: session.conversationContext?.characterName ?? characterId,
+      worldContext: session.conversationContext?.worldContext,
+      characterGender: session.conversationContext?.characterGender,
+    };
+    // If we don't have characterName/worldContext yet, fetch them from buildContext
+    if (!session.conversationContext.characterName || session.conversationContext.characterName === characterId) {
+      try {
+        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, gameStateOverrides, turnNumber);
+        session.conversationContext.characterName = fullCtx.conversationContext.characterName;
+        (session.conversationContext as any).worldContext = fullCtx.conversationContext.worldContext;
+        (session.conversationContext as any).characterGender = fullCtx.conversationContext.characterGender;
+      } catch {
+        // Keep what we have — characterId as name is acceptable fallback
+      }
+    }
+  } else if (!session.conversationContext || session.characterId !== characterId || hasPrologFacts) {
+    // Build context on first message or character change, using cache when possible
     session.characterId = characterId;
 
     // Skip cache if prologFacts provided (they change per turn)
@@ -153,9 +186,7 @@ async function handleTextInput(
       // Cache miss — full buildContext() call
       const contextTimer = new PipelineTimer('context_cache_miss');
       try {
-        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
-          prologFacts,
-        }, turnNumber);
+        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, gameStateOverrides, turnNumber);
         session.conversationContext = fullCtx.conversationContext;
 
         // Store full context in cache (turn 1 prompt for future cache hits)
@@ -182,7 +213,6 @@ async function handleTextInput(
     }
   } else if (turnNumber >= 2) {
     // Follow-up turn with existing context — rebuild system prompt with trimmed content.
-    // The expensive DB data is already cached; only the prompt text shrinks.
     try {
       const trimmedCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, undefined, turnNumber);
       session.conversationContext = {
@@ -417,6 +447,21 @@ async function handleTextInput(
     });
   };
 
+  // ── Debug: log full LLM context sent for player-NPC chat (WS path) ──
+  console.debug('[LLM:PlayerNPC:WS] ══════════════════════════════════════════');
+  console.debug('[LLM:PlayerNPC:WS] Character:', session.conversationContext!.characterName);
+  console.debug('[LLM:PlayerNPC:WS] Language code:', languageCode);
+  console.debug('[LLM:PlayerNPC:WS] History length:', session.history.length - 1, 'messages');
+  console.debug('[LLM:PlayerNPC:WS] ── SYSTEM PROMPT ──');
+  console.debug(session.conversationContext!.systemPrompt);
+  console.debug('[LLM:PlayerNPC:WS] ── USER MESSAGE ──');
+  console.debug(text);
+  console.debug('[LLM:PlayerNPC:WS] ── CONVERSATION HISTORY ──');
+  for (const msg of session.history.slice(0, -1)) {
+    console.debug(`  [${msg.role}] ${msg.content.slice(0, 200)}${msg.content.length > 200 ? '...' : ''}`);
+  }
+  console.debug('[LLM:PlayerNPC:WS] ══════════════════════════════════════════');
+
   // Classify conversation to determine model tier
   const classification = classifyConversation({
     message: text,
@@ -547,6 +592,11 @@ async function handleTextInput(
       console.warn('[WS-Bridge] History compression failed:', err.message);
     }
   }
+
+  // ── Debug: log LLM response ──
+  console.debug('[LLM:PlayerNPC:WS] ── RESPONSE ──');
+  console.debug(fullResponse || '(empty response)');
+  console.debug('[LLM:PlayerNPC:WS] ── END ──');
 
   sendJSON(ws, { type: 'done' });
 }
@@ -1094,9 +1144,9 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
         const message = JSON.parse(raw.toString());
 
         if (message.textInput) {
-          const { text, sessionId, characterId, worldId, languageCode, prologFacts } = message.textInput;
+          const { text, sessionId, characterId, worldId, languageCode, prologFacts, systemPrompt, cefrLevel, playerVocabulary, playerGrammarPatterns } = message.textInput;
           currentSessionId = sessionId;
-          await handleTextInput(ws, { text, sessionId, characterId, worldId, languageCode, prologFacts }, options);
+          await handleTextInput(ws, { text, sessionId, characterId, worldId, languageCode, prologFacts, systemPrompt, cefrLevel, playerVocabulary, playerGrammarPatterns }, options);
         } else if (message.audioChunk) {
           const { sessionId, characterId, worldId, languageCode, data } = message.audioChunk;
           currentSessionId = sessionId;

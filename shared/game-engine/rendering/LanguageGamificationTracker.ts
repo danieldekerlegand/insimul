@@ -306,6 +306,9 @@ export class LanguageGamificationTracker {
 
     this.trackDailyProgress('quest_count', 1);
     this.checkAchievements();
+
+    // Check if quest count reached a periodic assessment milestone (5, 10, 15, 20)
+    this.checkQuestMilestoneAssessment();
   }
 
   /**
@@ -579,6 +582,21 @@ export class LanguageGamificationTracker {
 
     this.lastPeriodicAssessmentTimestamp = Date.now();
     this.onPeriodicAssessmentTriggered?.({ level, tier });
+  }
+
+  /**
+   * Check if quest completion count has reached a periodic assessment milestone.
+   * Milestones are at quest counts 5, 10, 15, 20 — same values as PERIODIC_ASSESSMENT_LEVELS.
+   * This is separate from XP-level-based checks and fires on quest count thresholds.
+   */
+  private checkQuestMilestoneAssessment(): void {
+    const questCount = this.state.questsCompleted;
+    if (!isPeriodicAssessmentLevel(questCount)) return;
+    if (!isPeriodicAssessmentCooldownMet(this.lastPeriodicAssessmentTimestamp)) return;
+
+    this.lastPeriodicAssessmentTimestamp = Date.now();
+    const tier = getLevelTier(this.state.xp.level);
+    this.onPeriodicAssessmentTriggered?.({ level: questCount, tier });
   }
 
   /**

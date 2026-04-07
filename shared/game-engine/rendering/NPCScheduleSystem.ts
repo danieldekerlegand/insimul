@@ -227,6 +227,24 @@ export class NPCScheduleSystem {
         }
       }
     }
+
+    // Connect nearby nodes from different segments at intersections.
+    // Segment sidewalk nodes have different perpendicular offsets, so they don't
+    // snap to the same grid key. At intersections with ~6m sidewalk offsets,
+    // nodes from perpendicular streets are ~8.5m apart.
+    const PROXIMITY_SQ = 12 * 12;
+    for (let i = 0; i < this.sidewalkNodes.length; i++) {
+      const ni = this.sidewalkNodes[i];
+      for (let j = i + 1; j < this.sidewalkNodes.length; j++) {
+        if (this.sidewalkGraph.get(i)?.has(j)) continue;
+        const nj = this.sidewalkNodes[j];
+        const dx = ni.x - nj.x;
+        const dz = ni.z - nj.z;
+        if (dx * dx + dz * dz < PROXIMITY_SQ) {
+          addEdge(i, j);
+        }
+      }
+    }
   }
 
   /**
@@ -720,10 +738,22 @@ export class NPCScheduleSystem {
   /**
    * Assign a settlement zone to an NPC for boundary confinement.
    */
+  private _effectiveZoneRadius: number | null = null;
   public setNPCSettlement(npcId: string, settlementId: string, center: Vector3, radius: number): void {
+    // Compute effective radius once — expand to encompass all registered buildings
+    if (this._effectiveZoneRadius === null) {
+      let maxDist = 0;
+      this.buildings.forEach((b) => {
+        const dx = b.position.x - center.x;
+        const dz = b.position.z - center.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxDist) maxDist = dist;
+      });
+      this._effectiveZoneRadius = Math.max(radius, maxDist + 15);
+    }
     const entry = this.schedules.get(npcId);
     if (entry) {
-      entry.settlementZone = { center: center.clone(), radius, settlementId };
+      entry.settlementZone = { center: center.clone(), radius: this._effectiveZoneRadius, settlementId };
     }
   }
 

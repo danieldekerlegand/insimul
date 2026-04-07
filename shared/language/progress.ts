@@ -146,6 +146,8 @@ export interface FluencyGainResult {
   newWordsList?: { word: string; meaning: string }[];  // words learned this conversation
   targetLanguagePercentage?: number;  // 0-100% target language usage
   evalDimensionScores?: EvalDimensionScores;  // Aggregated EVAL scores from this conversation
+  dimensionAverages?: EvalDimensionScores;    // Running averages across all conversations
+  dimensionTrends?: Record<keyof EvalDimensionScores, DimensionTrend>;  // Per-dimension trends
 }
 
 /**

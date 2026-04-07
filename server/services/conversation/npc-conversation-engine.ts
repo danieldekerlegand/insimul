@@ -412,6 +412,7 @@ function buildNpcNpcSystemPrompt(
   exchangeCount: number,
   relationshipStrength: number,
   environment?: NpcConversationEnvironment,
+  targetLanguage?: string | null,
 ): string {
   const personalityDesc = (name: string, p: BigFivePersonality) =>
     `${name}: openness ${p.openness?.toFixed(1) ?? '0'}, conscientiousness ${p.conscientiousness?.toFixed(1) ?? '0'}, extroversion ${p.extroversion?.toFixed(1) ?? '0'}, agreeableness ${p.agreeableness?.toFixed(1) ?? '0'}, neuroticism ${p.neuroticism?.toFixed(1) ?? '0'}`;
@@ -425,9 +426,11 @@ function buildNpcNpcSystemPrompt(
           ? 'acquaintances'
           : 'rivals';
 
-  const langInstruction = languages.length > 0
-    ? `They speak ${languages.join(' and ')}. Use this language naturally in dialogue.`
-    : '';
+  const langInstruction = targetLanguage && targetLanguage !== 'English'
+    ? `LANGUAGE: This conversation must be entirely in ${targetLanguage}. Both NPCs are native speakers. Write all dialogue in ${targetLanguage} only — no English.`
+    : languages.length > 0
+      ? `They speak ${languages.join(' and ')}. Use this language naturally in dialogue.`
+      : '';
 
   // Build environment description
   let envDesc = '';
@@ -694,9 +697,12 @@ export async function initiateConversation(
     // Exchange count from personality
     const maxExchanges = options?.maxExchanges ?? calculateExchangeCount(p1, p2);
 
-    // Language
+    // Language — identify target language for strong directive
     const worldLangs = languages.map((l: WorldLanguage) => l.name);
     const languageUsed = options?.languageCode ?? worldLangs[0] ?? 'English';
+    const learningTarget = languages.find((l: WorldLanguage) => l.isLearningTarget);
+    const targetLanguage = learningTarget?.name
+      ?? (world.targetLanguage && world.targetLanguage !== 'English' ? world.targetLanguage : null);
 
     // Emit start event
     const location = npc1.currentLocation ?? npc2.currentLocation ?? 'unknown';
@@ -759,7 +765,7 @@ export async function initiateConversation(
       // Start LLM generation (may replace template)
       try {
         const systemPrompt = buildNpcNpcSystemPrompt(
-          npc1, npc2, p1, p2, topic, world.name, worldLangs, maxExchanges, relationshipStrength, environment,
+          npc1, npc2, p1, p2, topic, world.name, worldLangs, maxExchanges, relationshipStrength, environment, targetLanguage,
         );
 
         const context: ConversationContext = {
@@ -767,6 +773,16 @@ export async function initiateConversation(
           characterName: `${npc1.firstName} & ${npc2.firstName}`,
           worldContext: world.name,
         };
+
+        // ── Debug: log full LLM context for NPC-NPC conversation ──
+        console.debug('[LLM:NPC-NPC] ══════════════════════════════════════════');
+        console.debug('[LLM:NPC-NPC] NPCs:', `${npc1.firstName} ${npc1.lastName}`, '&', `${npc2.firstName} ${npc2.lastName}`);
+        console.debug('[LLM:NPC-NPC] Topic:', topic);
+        console.debug('[LLM:NPC-NPC] Max exchanges:', maxExchanges);
+        console.debug('[LLM:NPC-NPC] Relationship strength:', relationshipStrength.toFixed(2));
+        console.debug('[LLM:NPC-NPC] ── SYSTEM PROMPT ──');
+        console.debug(systemPrompt);
+        console.debug('[LLM:NPC-NPC] ══════════════════════════════════════════');
 
         // Incremental line parsing: detect complete lines as they stream
         let fullResponse = '';
@@ -806,6 +822,11 @@ export async function initiateConversation(
             onLineReady(parsed.speakerName, parsed.speakerId, parsed.text, lineIndex);
           }
         }
+
+        // ── Debug: log NPC-NPC response ──
+        console.debug('[LLM:NPC-NPC] ── RESPONSE ──');
+        console.debug(fullResponse || '(empty response)');
+        console.debug('[LLM:NPC-NPC] ── END ──');
 
         // Full parse for relationship updates and persistence
         exchanges = parseLlmConversation(fullResponse, npc1, npc2);

@@ -113,6 +113,7 @@ async function streamTextResponse(
   prologFacts?: Array<{ predicate: string; args: Array<string | number> }>,
   clientSystemPrompt?: string,
   clientCharacterGender?: string,
+  clientGameState?: { cefrLevel?: string; playerVocabulary?: any[]; playerGrammarPatterns?: any[] },
 ): Promise<void> {
   const metrics = getConversationMetrics();
   const e2eTimer = new PipelineTimer('end_to_end');
@@ -143,6 +144,22 @@ async function streamTextResponse(
       }
     }
     session.characterId = characterId;
+    // If we don't have characterName/worldContext yet, fetch them from buildContext
+    if (!session.conversationContext!.characterName || session.conversationContext!.characterName === characterId) {
+      try {
+        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
+          prologFacts,
+          ...(clientGameState?.cefrLevel ? { cefrLevel: clientGameState.cefrLevel } : {}),
+          ...(clientGameState?.playerVocabulary ? { playerVocabulary: clientGameState.playerVocabulary } : {}),
+          ...(clientGameState?.playerGrammarPatterns ? { playerGrammarPatterns: clientGameState.playerGrammarPatterns } : {}),
+        });
+        session.conversationContext!.characterName = fullCtx.conversationContext.characterName;
+        (session.conversationContext as any).worldContext = fullCtx.conversationContext.worldContext;
+        (session.conversationContext as any).characterGender = fullCtx.conversationContext.characterGender;
+      } catch {
+        // Keep what we have — characterId as name is acceptable fallback
+      }
+    }
   } else {
     // No client prompt — build server-side context on first message or character change
     const hasPrologFacts = prologFacts && prologFacts.length > 0;
@@ -164,6 +181,9 @@ async function streamTextResponse(
         try {
           const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
             prologFacts,
+            ...(clientGameState?.cefrLevel ? { cefrLevel: clientGameState.cefrLevel } : {}),
+            ...(clientGameState?.playerVocabulary ? { playerVocabulary: clientGameState.playerVocabulary } : {}),
+            ...(clientGameState?.playerGrammarPatterns ? { playerGrammarPatterns: clientGameState.playerGrammarPatterns } : {}),
           });
           session.conversationContext = fullCtx.conversationContext;
 
@@ -353,6 +373,21 @@ async function streamTextResponse(
   let markerBuffer = '';       // accumulates content inside a marker block
   let dialogueBuffer = '';     // accumulates tokens outside marker blocks (for text SSE)
 
+  // ── Debug: log full LLM context sent for player-NPC chat (SSE path) ──
+  console.debug('[LLM:PlayerNPC:SSE] ══════════════════════════════════════════');
+  console.debug('[LLM:PlayerNPC:SSE] Character:', session.conversationContext!.characterName);
+  console.debug('[LLM:PlayerNPC:SSE] Language code:', languageCode);
+  console.debug('[LLM:PlayerNPC:SSE] History length:', session.history.length - 1, 'messages');
+  console.debug('[LLM:PlayerNPC:SSE] ── SYSTEM PROMPT ──');
+  console.debug(session.conversationContext!.systemPrompt);
+  console.debug('[LLM:PlayerNPC:SSE] ── USER MESSAGE ──');
+  console.debug(text);
+  console.debug('[LLM:PlayerNPC:SSE] ── CONVERSATION HISTORY ──');
+  for (const msg of session.history.slice(0, -1)) {
+    console.debug(`  [${msg.role}] ${msg.content.slice(0, 200)}${msg.content.length > 200 ? '...' : ''}`);
+  }
+  console.debug('[LLM:PlayerNPC:SSE] ══════════════════════════════════════════');
+
   try {
     // Tiered model routing: simple messages → FLASH, complex → PRO
     const complexity = classifyMessageComplexity(text, session.history.length);
@@ -521,6 +556,11 @@ async function streamTextResponse(
     }
   }
 
+  // ── Debug: log LLM response ──
+  console.debug('[LLM:PlayerNPC:SSE] ── RESPONSE ──');
+  console.debug(fullResponse || '(empty response)');
+  console.debug('[LLM:PlayerNPC:SSE] ── END ──');
+
   // Run quest trigger analysis on the player message
   if (activeQuests && activeQuests.length > 0) {
     try {
@@ -594,7 +634,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: SSE stream of text/audio/facial/meta events
    */
   app.post('/api/conversation/stream', async (req: Request, res: Response) => {
-    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts, systemPrompt, characterGender } = req.body;
+    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts, systemPrompt, characterGender, cefrLevel, playerVocabulary, playerGrammarPatterns } = req.body;
 
     if (!sessionId || !characterId || !worldId || !text) {
       res.status(400).json({ error: 'Missing required fields: sessionId, characterId, worldId, text' });
@@ -609,7 +649,7 @@ export function registerConversationRoutes(app: Express): void {
     res.flushHeaders();
 
     try {
-      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts, systemPrompt, characterGender);
+      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts, systemPrompt, characterGender, { cefrLevel, playerVocabulary, playerGrammarPatterns });
     } catch (err: any) {
       console.error('[ConversationBridge] Stream error:', err);
       if (!res.writableEnded) {

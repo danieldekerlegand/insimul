@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { GeminiMessage } from '../services/conversation/conversation-compression';
 
 // Mock the gemini config module
-vi.mock('../config/gemini.js', () => ({
+vi.mock('../config/gemini', () => ({
   isGeminiConfigured: vi.fn(() => true),
   getGenAI: vi.fn(() => ({
     models: {
@@ -75,24 +75,33 @@ describe('compressConversationHistory', () => {
     }
   });
 
-  it('falls back to recent-only when Gemini is not configured', async () => {
-    const geminiConfig = await import('../config/gemini.js');
+  it('falls back to truncation with synthetic marker when Gemini is not configured', async () => {
+    const geminiConfig = await import('../config/gemini');
     vi.mocked(geminiConfig.isGeminiConfigured).mockReturnValue(false);
 
     const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
     const messages = makeMessages(30);
     const result = await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
 
-    // Should just return recent messages without summary
-    expect(result.length).toBe(10);
-    expect(result[0].parts[0].text).toBe('Message 21');
+    // Should have: first message + synthetic marker pair + 10 recent = 13
+    expect(result.length).toBe(13);
+    // First message preserved (context)
+    expect(result[0].parts[0].text).toBe('Message 1');
+    // Synthetic marker with message count
+    expect(result[1].parts[0].text).toContain('[Earlier conversation summarized:');
+    expect(result[1].parts[0].text).toContain('20 messages about');
+    // Model acknowledgment
+    expect(result[2].role).toBe('model');
+    // Recent messages preserved
+    expect(result[3].parts[0].text).toBe('Message 21');
+    expect(result[12].parts[0].text).toBe('Message 30');
 
     // Restore for subsequent tests
     vi.mocked(geminiConfig.isGeminiConfigured).mockReturnValue(true);
   });
 
-  it('falls back to recent-only when summarization throws', async () => {
-    const geminiConfig = await import('../config/gemini.js');
+  it('falls back to truncation with synthetic marker when summarization throws', async () => {
+    const geminiConfig = await import('../config/gemini');
     vi.mocked(geminiConfig.getGenAI).mockReturnValue({
       models: {
         generateContent: vi.fn(async () => { throw new Error('API error'); })
@@ -103,8 +112,51 @@ describe('compressConversationHistory', () => {
     const messages = makeMessages(30);
     const result = await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
 
-    expect(result.length).toBe(10);
-    expect(result[0].parts[0].text).toBe('Message 21');
+    // Should have: first message + synthetic marker pair + 10 recent = 13
+    expect(result.length).toBe(13);
+    expect(result[0].parts[0].text).toBe('Message 1');
+    expect(result[1].parts[0].text).toContain('[Earlier conversation summarized:');
+    expect(result[1].parts[0].text).toContain('20 messages about');
+    expect(result[3].parts[0].text).toBe('Message 21');
+  });
+
+  it('synthetic marker contains message count and at least one topic keyword', async () => {
+    const geminiConfig = await import('../config/gemini');
+    vi.mocked(geminiConfig.isGeminiConfigured).mockReturnValue(false);
+
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
+    // Create messages with meaningful content for topic extraction
+    const messages: GeminiMessage[] = [];
+    for (let i = 0; i < 25; i++) {
+      messages.push({
+        role: i % 2 === 0 ? 'user' : 'model',
+        parts: [{ text: i < 15 ? `Let's discuss fishing and the marketplace` : `Message ${i + 1}` }]
+      });
+    }
+    const result = await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
+
+    const markerText = result[1].parts[0].text;
+    // Should contain the count of older messages
+    expect(markerText).toContain('15 messages about');
+    // Should contain at least one topic keyword (fishing, marketplace, discuss, etc.)
+    expect(markerText).toMatch(/fishing|marketplace|discuss/);
+
+    vi.mocked(geminiConfig.isGeminiConfigured).mockReturnValue(true);
+  });
+
+  it('logs a warning when truncation fallback is used', async () => {
+    const geminiConfig = await import('../config/gemini');
+    vi.mocked(geminiConfig.isGeminiConfigured).mockReturnValue(false);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { compressConversationHistory } = await import('../services/conversation/conversation-compression');
+    const messages = makeMessages(30);
+    await compressConversationHistory(messages, { threshold: 20, keepRecent: 10 });
+
+    expect(warnSpy).toHaveBeenCalledWith('[ConversationCompression] Summarization failed, using truncation fallback');
+
+    warnSpy.mockRestore();
+    vi.mocked(geminiConfig.isGeminiConfigured).mockReturnValue(true);
   });
 
   it('uses default threshold of 20 and keepRecent of 10', async () => {
@@ -119,7 +171,7 @@ describe('compressTextHistory', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     // Reset the mock to ensure Gemini is configured
-    const geminiMock = vi.mocked(await import('../config/gemini.js'));
+    const geminiMock = vi.mocked(await import('../config/gemini'));
     geminiMock.isGeminiConfigured.mockReturnValue(true);
     geminiMock.getGenAI.mockReturnValue({
       models: {

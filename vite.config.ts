@@ -34,5 +34,18 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // Proxy WebSocket paths to the Express backend so that WS connections
+    // work when Vite is run as a standalone dev server (e.g. `npx vite dev`).
+    // In middleware mode (setupVite in server/vite.ts) these are unused since
+    // Vite shares the same HTTP server as Express.
+    proxy: {
+      '/ws': {
+        target: 'http://localhost:8000',
+        ws: true,
+      },
+      '/api': {
+        target: 'http://localhost:8000',
+      },
+    },
   },
 });

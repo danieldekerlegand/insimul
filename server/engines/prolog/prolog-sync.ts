@@ -657,14 +657,19 @@ export class PrologSyncService {
     console.log(`  🏆 Syncing achievements...`);
     try {
       const achievements = await this.storage.getAchievementsByWorld(worldId);
+
       for (const achievement of achievements) {
         const achId = this.sanitizeAtom(achievement.name || achievement.id);
-        await this.prologManager.addFact(`achievement(${achId})`);
-        await this.prologManager.addFact(`achievement_name(${achId}, '${this.escapeString(achievement.name)}')`);
+        const achType = this.sanitizeAtom(achievement.achievementType || 'general');
+        // Unlock status defaults to false — world-level sync provides the catalog;
+        // player-specific unlock state is tracked via playerProgress.achievementsUnlocked
+        const isUnlocked = false;
 
-        if (achievement.achievementType) {
-          await this.prologManager.addFact(`achievement_type(${achId}, ${this.sanitizeAtom(achievement.achievementType)})`);
-        }
+        // Compound achievement/4 fact: achievement(id, name, type, unlocked)
+        await this.prologManager.addFact(
+          `achievement(${achId}, '${this.escapeString(achievement.name)}', ${achType}, ${isUnlocked})`
+        );
+
         if (achievement.rarity) {
           await this.prologManager.addFact(`achievement_rarity(${achId}, ${this.sanitizeAtom(achievement.rarity)})`);
         }

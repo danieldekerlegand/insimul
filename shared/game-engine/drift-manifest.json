@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-07T16:56:22.436Z",
+  "lastUpdated": "2026-04-07T17:25:36.249Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -262,7 +262,7 @@
     {
       "path": "shared/game-engine/logic/GameEventBus.ts",
       "description": "Centralized typed event bus (120+ event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "912cc1637df088195dee5b67f7f583abc3e9eaff154227d4a492c226c0939939",
+      "hash": "8b1222d6781dd8217506d08720a2c56515fdfc0166ee0fd1b6d7ad091bf2b1db",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "shared/game-engine/logic/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "bb5903d1e8ad1d31dd80f169229132610e53eea9bc8d8b4ba874afa06aee063a",
+      "hash": "fa03793cc1020488c9597567d7789ee8af92d64409261273588075563fd7c917",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "c015b0ffdb9c10ae609af70cf724d1903cfcc00e745c6475854e4255cadd276f",
+      "hash": "32941395562a443d7019d2e067be7a62abf9a38866453adffd6833960e892a18",
       "engineMappings": [
         {
           "engine": "unity",

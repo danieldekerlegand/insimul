@@ -12,6 +12,9 @@
 import type { InteractableTarget } from '../InteractionPromptSystem';
 import type { PlayerActionSystem, PhysicalActionType } from '../PlayerActionSystem';
 import type { ContextualAction } from './ContextualActionMenu';
+import type { CEFRLevel } from '../../../assessment/cefr-mapping';
+import { translateMenuTitle } from '../../../language/in-world-text';
+import type { UIImmersionMode } from '../../../language/ui-localization';
 
 // ── Action icons ─────────────────────────────────────────────────────────────
 
@@ -74,7 +77,19 @@ const ACTION_FRENCH_LABELS: Record<string, { label: string; labelTranslation: st
   farm_harvest: { label: 'Récolter', labelTranslation: 'Harvest' },
 };
 
-// ── Context required for resolution ──────────────────────────────────────────
+// ── French menu title translations ──────────────────────────────────────────
+
+const MENU_TITLE_FRENCH: Record<string, string> = {
+  'Object': 'Objet',
+  'Notice Board': "Tableau d'affichage",
+  'Furniture': 'Meuble',
+  'Actions': 'Actions',
+  'Container': 'Contenant',
+  'Crafting Station': 'Atelier',
+  'Interact': 'Interagir',
+};
+
+// ── Context required for resolution ─────��──────────────────────��─────────────
 
 export interface ActionResolverContext {
   /** PlayerActionSystem for checking physical action availability. */
@@ -128,8 +143,19 @@ export function resolveActions(
 
 /**
  * Resolve the menu title for a target.
+ * When cefrLevel is provided, translates fallback titles (Object, Furniture, etc.)
+ * using the locations namespace priority.
  */
-export function resolveMenuOptions(target: InteractableTarget): { title: string; titleIcon?: string } {
+export function resolveMenuOptions(
+  target: InteractableTarget,
+  cefrLevel?: CEFRLevel,
+  immersionMode?: UIImmersionMode,
+): { title: string; titleIcon?: string } {
+  const t = (english: string): string => {
+    if (!cefrLevel) return english;
+    return translateMenuTitle(english, MENU_TITLE_FRENCH[english], cefrLevel, immersionMode);
+  };
+
   switch (target.type) {
     case 'npc':
     case 'npc_eavesdrop':
@@ -138,19 +164,19 @@ export function resolveMenuOptions(target: InteractableTarget): { title: string;
       return { title: target.name, titleIcon: '🏠' };
     case 'sign':
     case 'object':
-      return { title: target.name || 'Object', titleIcon: '🔍' };
+      return { title: target.name || t('Object'), titleIcon: '🔍' };
     case 'notice_board':
-      return { title: target.name || 'Notice Board', titleIcon: '📋' };
+      return { title: target.name || t('Notice Board'), titleIcon: '📋' };
     case 'furniture':
-      return { title: target.name || 'Furniture', titleIcon: '🪑' };
+      return { title: target.name || t('Furniture'), titleIcon: '🪑' };
     case 'action_hotspot':
-      return { title: 'Actions', titleIcon: '💪' };
+      return { title: t('Actions'), titleIcon: '💪' };
     case 'container':
-      return { title: target.name || 'Container', titleIcon: '📦' };
+      return { title: target.name || t('Container'), titleIcon: '📦' };
     case 'crafting_station':
-      return { title: target.name || 'Crafting Station', titleIcon: '🔨' };
+      return { title: target.name || t('Crafting Station'), titleIcon: '🔨' };
     default:
-      return { title: 'Interact' };
+      return { title: t('Interact') };
   }
 }
 

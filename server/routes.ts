@@ -7385,6 +7385,23 @@ Return ONLY valid JSON array.`;
           if (userTranscript) doneData.userTranscript = userTranscript;
 
           safeWrite(`data: ${JSON.stringify(doneData)}\n\n`);
+
+          // Update player-NPC relationship after successful streaming chat
+          if (npcId && playerId && worldId) {
+            try {
+              const npcChar = await storage.getCharacter(npcId);
+              const npcAgreeableness = (npcChar as any)?.personality?.agreeableness ?? 0.5;
+              const exchangeCount = messages.filter((m: any) => m.role === 'user').length;
+              const friendshipChange = (0.02 + npcAgreeableness * 0.03) * (exchangeCount / 5);
+              const interactionQuality = Math.max(-1, Math.min(1, friendshipChange >= 0 ? 0.5 : -0.3));
+              const world = await storage.getWorld(worldId);
+              const currentYear = (world as any)?.currentGameYear ?? new Date().getFullYear();
+              await updateRelationship(npcId, playerId, interactionQuality, currentYear);
+            } catch (relErr) {
+              console.warn('[Chat] Non-fatal: failed to update player-NPC relationship:', relErr);
+            }
+          }
+
           res.end();
         } catch (streamError) {
           console.error("Streaming error:", streamError);
@@ -7424,6 +7441,22 @@ Return ONLY valid JSON array.`;
         const userText = lastMessageContent.text || userTranscript || '';
         conversationContextCache.append(cacheKey, { role: 'user', content: userText }, systemPrompt);
         conversationContextCache.append(cacheKey, { role: 'model', content: response });
+      }
+
+      // Update player-NPC relationship after successful chat response
+      if (npcId && playerId && worldId) {
+        try {
+          const npcChar = await storage.getCharacter(npcId);
+          const npcAgreeableness = (npcChar as any)?.personality?.agreeableness ?? 0.5;
+          const exchangeCount = messages.filter((m: any) => m.role === 'user').length;
+          const friendshipChange = (0.02 + npcAgreeableness * 0.03) * (exchangeCount / 5);
+          const interactionQuality = Math.max(-1, Math.min(1, friendshipChange >= 0 ? 0.5 : -0.3));
+          const world = await storage.getWorld(worldId);
+          const currentYear = (world as any)?.currentGameYear ?? new Date().getFullYear();
+          await updateRelationship(npcId, playerId, interactionQuality, currentYear);
+        } catch (relErr) {
+          console.warn('[Chat] Non-fatal: failed to update player-NPC relationship:', relErr);
+        }
       }
 
       // Prepare response object — send both raw (for parsing) and cleaned (for display)
@@ -8146,11 +8179,13 @@ Respond with this JSON structure:
         ? await (storage as any).getBusinessesByWorld(worldId)
         : [];
       const truths = await storage.getTruthsByWorld(worldId);
+      const quests = await storage.getQuestsByWorld(worldId);
       const tauStats = await prologAutoSync.syncWorld(worldId, {
         characters: characters as any[],
         settlements: settlements as any[],
         businesses,
         truths: truths as any[],
+        quests: quests as any[],
       });
 
       res.json({
@@ -8204,11 +8239,13 @@ Respond with this JSON structure:
           ? await (storage as any).getBusinessesByWorld(worldId)
           : [];
         const truths = await storage.getTruthsByWorld(worldId);
+        const quests = await storage.getQuestsByWorld(worldId);
         await prologAutoSync.syncWorld(worldId, {
           characters: characters as any[],
           settlements: settlements as any[],
           businesses,
           truths: truths as any[],
+          quests: quests as any[],
         });
       }
 
@@ -9731,6 +9768,7 @@ Respond with this JSON structure:
       }
 
       const quest = await storage.createQuest(questData);
+      prologAutoSync.onQuestChanged(req.params.worldId, quest as any).catch(e => console.warn('[PrologAutoSync] quest create:', e));
       res.status(201).json(quest);
     } catch (error) {
       res.status(500).json({ error: "Failed to create quest" });
@@ -9769,6 +9807,9 @@ Respond with this JSON structure:
       if (!quest) {
         return res.status(404).json({ error: "Quest not found" });
       }
+      if (quest.worldId) {
+        prologAutoSync.onQuestChanged(quest.worldId, quest as any).catch(e => console.warn('[PrologAutoSync] quest update:', e));
+      }
       res.json(quest);
     } catch (error) {
       res.status(500).json({ error: "Failed to update quest" });
@@ -9777,9 +9818,13 @@ Respond with this JSON structure:
 
   app.delete("/api/quests/:id", async (req, res) => {
     try {
+      const questToDelete = await storage.getQuest(req.params.id);
       const deleted = await storage.deleteQuest(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Quest not found" });
+      }
+      if (questToDelete?.worldId) {
+        prologAutoSync.onQuestDeleted(questToDelete.worldId, questToDelete.title || questToDelete.id).catch(e => console.warn('[PrologAutoSync] quest delete:', e));
       }
       res.status(204).send();
     } catch (error) {
@@ -9867,6 +9912,11 @@ Respond with this JSON structure:
         progress: { ...progress, percentComplete: 100 },
         streakCount: bonus.newStreakCount,
       });
+
+      // Sync completed quest to Prolog KB
+      if (updated) {
+        prologAutoSync.onQuestChanged(worldId, updated as any).catch(e => console.warn('[PrologAutoSync] quest complete:', e));
+      }
 
       // Apply skill rewards to the assigned character
       let skillRewardsApplied: Array<{ skillId: string; name: string; level: number }> = [];
@@ -10010,6 +10060,73 @@ Respond with this JSON structure:
         }
       }
 
+      // Check CEFR advancement after quest completion (server-side)
+      let cefrAdvancement = null;
+      try {
+        if (userId) {
+          const playerProg = await storage.getPlayerProgressByUser(userId, worldId);
+          if (playerProg) {
+            const playerId = playerProg.playerId || userId;
+            const langProgress = await storage.getLanguageProgress(playerId, worldId);
+            if (langProgress) {
+              const { checkCEFRAdvancement } = await import('../shared/language/cefr-adaptation.js');
+              const currentCefrLevel = (playerProg as any).cefrLevel || langProgress.cefrLevel || 'A1';
+              const snapshot = {
+                currentLevel: currentCefrLevel,
+                wordsLearned: langProgress.totalWordsLearned || 0,
+                wordsMastered: (langProgress.vocabulary || []).filter((v: any) => v.masteryLevel === 'mastered').length,
+                conversationsCompleted: langProgress.totalConversations || 0,
+                textsRead: langProgress.textsRead || 0,
+                grammarPatternsRecognized: (langProgress.grammarPatterns || []).length,
+              };
+              const result = checkCEFRAdvancement(snapshot);
+              if (result.shouldAdvance && result.nextLevel) {
+                await storage.updatePlayerProgress(playerProg.id, { cefrLevel: result.nextLevel } as any);
+                cefrAdvancement = { oldLevel: currentCefrLevel, newLevel: result.nextLevel };
+              }
+            }
+          }
+        }
+      } catch (cefrErr) {
+        console.warn('[Quest Complete] CEFR advancement check failed (non-fatal):', cefrErr);
+      }
+
+      // Check if quest count reached a periodic assessment milestone (5, 10, 15, 20)
+      let periodicAssessmentDue = null;
+      try {
+        const { isPeriodicAssessmentLevel, isPeriodicAssessmentCooldownMet, PERIODIC_ENCOUNTER, buildPeriodicAssessmentGrammarContext, buildPeriodicAssessmentDimensionContext } = await import('../shared/assessment/periodic-encounter.js');
+        // Count completed quests including this one (already marked completed above)
+        const allPlayerQuests = playerName ? await storage.getQuestsByPlayer(playerName) : [];
+        const completedCount = allPlayerQuests.filter(q => q.status === 'completed').length;
+        if (isPeriodicAssessmentLevel(completedCount)) {
+          const playerProg = userId ? await storage.getPlayerProgressByUser(userId, worldId) : null;
+          const lastAssessmentTs = (playerProg as any)?.lastPeriodicAssessmentTimestamp ?? null;
+          if (isPeriodicAssessmentCooldownMet(lastAssessmentTs)) {
+            // Store the trigger timestamp
+            if (playerProg) {
+              await storage.updatePlayerProgress(playerProg.id, {
+                lastPeriodicAssessmentTimestamp: Date.now(),
+              } as any);
+            }
+            // Build grammar context if language progress is available
+            const playerId = playerProg?.playerId || userId;
+            const langProgress = playerId ? await storage.getLanguageProgress(playerId, worldId) : null;
+            const grammarContext = langProgress ? buildPeriodicAssessmentGrammarContext(langProgress) : null;
+            const dimensionContext = langProgress?.dimensionScores
+              ? buildPeriodicAssessmentDimensionContext(langProgress.dimensionScores)
+              : null;
+            periodicAssessmentDue = {
+              questCount: completedCount,
+              assessmentDefinition: PERIODIC_ENCOUNTER,
+              grammarContext,
+              dimensionContext,
+            };
+          }
+        }
+      } catch (assessErr) {
+        console.warn('[Quest Complete] Periodic assessment check failed (non-fatal):', assessErr);
+      }
+
       res.json({
         quest: updated,
         bonus: {
@@ -10027,6 +10144,8 @@ Respond with this JSON structure:
           totalMoney: bonus.totalMoney,
         },
         chainCompletion,
+        cefrAdvancement,
+        periodicAssessmentDue,
         skillRewards: skillRewardsApplied,
         itemRewards: itemRewardsGranted.length > 0 ? itemRewardsGranted : undefined,
         questsUnlocked: questsUnlocked.length > 0 ? questsUnlocked : undefined,

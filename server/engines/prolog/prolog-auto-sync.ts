@@ -139,7 +139,25 @@ interface LanguageData {
   realCode?: string | null;
 }
 
-// ── Helper rules (loaded once per engine) ───────────────────────────────────
+interface QuestData {
+  id: string;
+  worldId: string;
+  title: string;
+  questType: string;
+  difficulty: string;
+  status?: string;
+  assignedTo?: string | null;
+  objectives?: any[] | null;
+  completionCriteria?: Record<string, any> | null;
+  content?: string | null;
+}
+
+// Quest predicates that onQuestChanged will assert/retract
+const QUEST_PREDICATES = [
+  'quest', 'quest_assigned_to', 'quest_objective', 'quest_status',
+];
+
+// ── Helper rules (loaded once per engine) ────────────���──────────────────────
 
 const HELPER_RULES = [
   'sibling_of(X, Y) :- parent_of(P, X), parent_of(P, Y), X \\= Y',
@@ -180,6 +198,10 @@ const SYNC_BACK_PREDICATES = [
   'wealth',
   'friend_of',
   'enemy_of',
+  'quest_status',
+  'quest_objective_complete',
+  'quest_completed',
+  'quest_failed',
 ] as const;
 
 type SyncBackPredicate = typeof SYNC_BACK_PREDICATES[number];
@@ -802,6 +824,40 @@ export class PrologAutoSync {
     await this.removeEntityFacts(engine, sanitizeAtom(languageName), ['language', 'language_name', 'language_kind', 'language_scope', 'language_primary', 'language_parent', 'language_real_code']);
   }
 
+  // ── Quest sync ─────────────────────────────────────────────────────
+
+  async onQuestChanged(worldId: string, quest: QuestData): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const questId = sanitizeAtom(quest.title || quest.id);
+
+    // Retract old quest facts
+    await this.removeEntityFacts(engine, questId, QUEST_PREDICATES);
+
+    const facts: string[] = [];
+    const status = sanitizeAtom(quest.status || 'active');
+    facts.push(`quest(${questId}, '${escapeString(quest.title)}', ${sanitizeAtom(quest.questType)}, ${status})`);
+    facts.push(`quest_status(${questId}, ${status})`);
+
+    if (quest.assignedTo) {
+      facts.push(`quest_assigned_to(${questId}, '${escapeString(quest.assignedTo)}')`);
+    }
+
+    // Assert objectives
+    const objectives = quest.objectives || [];
+    for (let i = 0; i < objectives.length; i++) {
+      const obj = objectives[i];
+      const desc = typeof obj === 'string' ? obj : (obj?.description || obj?.text || JSON.stringify(obj));
+      facts.push(`quest_objective(${questId}, ${i}, '${escapeString(desc)}')`);
+    }
+
+    await engine.assertFacts(facts);
+  }
+
+  async onQuestDeleted(worldId: string, questId: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(questId), QUEST_PREDICATES);
+  }
+
   // ── Generic entity fact removal helper ──────────────────────────────
 
   private async removeEntityFacts(engine: TauPrologEngine, entityId: string, predicates: string[]): Promise<void> {
@@ -909,6 +965,7 @@ export class PrologAutoSync {
     items?: ItemData[];
     achievements?: AchievementData[];
     languages?: LanguageData[];
+    quests?: QuestData[];
   }): Promise<{ factCount: number; ruleCount: number }> {
     // Reset engine for this world
     this.removeWorld(worldId);
@@ -998,6 +1055,13 @@ export class PrologAutoSync {
     if (data.languages) {
       for (const lang of data.languages) {
         await this.onLanguageChanged(worldId, lang);
+      }
+    }
+
+    // Quests
+    if (data.quests) {
+      for (const quest of data.quests) {
+        await this.onQuestChanged(worldId, quest);
       }
     }
 
@@ -1367,6 +1431,43 @@ export class PrologAutoSync {
         if (removals?.size) result.details.push(`Enemies removed for ${charId}: -${removals.size}`);
       } catch (e: any) {
         result.errors.push(`Failed to update enemies for ${charId}: ${e.message}`);
+      }
+    }
+
+    // 7. quest_completed(QuestId) — quest completed by Prolog rules
+    for (const factStr of Array.from(newFacts.get('quest_completed')!)) {
+      const parsed = this.parseFact(factStr);
+      if (!parsed || parsed.args.length < 1) continue;
+      const questTitle = parsed.args[0].replace(/^'|'$/g, '');
+      try {
+        // Find quest by title atom match — look through world quests
+        const worldQuests = await storage.getQuestsByWorld(worldId);
+        const quest = worldQuests.find(q => sanitizeAtom(q.title) === parsed.args[0] || sanitizeAtom(q.id) === parsed.args[0]);
+        if (quest && quest.status !== 'completed') {
+          await storage.updateQuest(quest.id, { status: 'completed', completedAt: new Date() });
+          result.changesApplied++;
+          result.details.push(`Quest completed (from Prolog): ${questTitle}`);
+        }
+      } catch (e: any) {
+        result.errors.push(`Failed to sync quest_completed ${questTitle}: ${e.message}`);
+      }
+    }
+
+    // 8. quest_failed(QuestId) — quest failed by Prolog rules
+    for (const factStr of Array.from(newFacts.get('quest_failed')!)) {
+      const parsed = this.parseFact(factStr);
+      if (!parsed || parsed.args.length < 1) continue;
+      const questTitle = parsed.args[0].replace(/^'|'$/g, '');
+      try {
+        const worldQuests = await storage.getQuestsByWorld(worldId);
+        const quest = worldQuests.find(q => sanitizeAtom(q.title) === parsed.args[0] || sanitizeAtom(q.id) === parsed.args[0]);
+        if (quest && quest.status !== 'failed') {
+          await storage.updateQuest(quest.id, { status: 'failed' });
+          result.changesApplied++;
+          result.details.push(`Quest failed (from Prolog): ${questTitle}`);
+        }
+      } catch (e: any) {
+        result.errors.push(`Failed to sync quest_failed ${questTitle}: ${e.message}`);
       }
     }
 

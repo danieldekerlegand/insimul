@@ -30,11 +30,13 @@ import {
   calculateFluencyGain,
   parseGrammarFeedbackBlock,
   parseEvalBlock,
+  computeAverageDimensionScores,
+  computeDimensionTrend,
   vocabularyEntryToKnowledgeEntry,
   grammarPatternToPatternEntry,
   conversationRecordToGeneric,
 } from '@shared/language/language-progress';
-import type { EvalDimensionScores, DimensionScoreEntry } from '@shared/language/language-progress';
+import type { EvalDimensionScores, DimensionScoreEntry, DimensionTrend } from '@shared/language/language-progress';
 import type { KnowledgeEntry } from '@shared/feature-modules/knowledge-acquisition/types';
 import type { PatternEntry } from '@shared/feature-modules/pattern-recognition/types';
 import type { ProficiencyProgress } from '@shared/feature-modules/proficiency/types';
@@ -46,6 +48,12 @@ import {
   type CEFRProgressSnapshot,
   type CEFRAdvancementResult,
 } from '@shared/language/cefr-adaptation';
+import {
+  logEvalScores,
+  logGrammarFeedback as logGrammarFeedbackDebug,
+  logVocabBatch,
+  logCEFRCheck,
+} from '@shared/game-engine/rendering/LanguageDebugLogger';
 
 export class LanguageProgressTracker {
   private progress: LanguageProgress;
@@ -300,6 +308,11 @@ export class LanguageProgressTracker {
       }
     }
 
+    // Debug log grammar feedback
+    if (feedback.status === 'corrected' && feedback.errors.length > 0) {
+      logGrammarFeedbackDebug(feedback);
+    }
+
     this.onGrammarFeedback?.(feedback);
   }
 
@@ -487,6 +500,44 @@ export class LanguageProgressTracker {
       }
       this.progress.dimensionScores.push(entry);
       result.evalDimensionScores = avgScores;
+
+      // Compute running averages and per-dimension trends
+      const runningAverages = computeAverageDimensionScores(this.progress.dimensionScores);
+      if (runningAverages) {
+        result.dimensionAverages = runningAverages;
+      }
+      const dims: Array<keyof EvalDimensionScores> = [
+        'vocabulary', 'grammar', 'fluency', 'comprehension', 'taskCompletion',
+      ];
+      const trends = {} as Record<keyof EvalDimensionScores, DimensionTrend>;
+      for (const dim of dims) {
+        trends[dim] = computeDimensionTrend(this.progress.dimensionScores, dim);
+      }
+      result.dimensionTrends = trends;
+
+      // Debug log EVAL scores
+      const cefrResult = checkCEFRAdvancement(this.getCEFRProgressSnapshot());
+      logEvalScores({
+        scores: avgScores,
+        runningAverages: runningAverages || undefined,
+        trends: trends,
+        cefrLevel: this._cefrLevel,
+        advancementProgress: cefrResult.progress,
+      });
+    }
+
+    // Debug log vocabulary batch
+    if (this.conversationNewWords.length > 0 || this.conversationReinforcedWords.size > 0) {
+      logVocabBatch({
+        newWords: this.conversationNewWords.map(w => ({
+          word: w.word,
+          translation: w.meaning,
+          source: 'active_use',
+        })),
+        reinforcedWords: Array.from(this.conversationReinforcedWords),
+        totalMastered: this.progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+        totalVocabulary: this.progress.vocabulary.length,
+      });
     }
 
     // Save conversation
@@ -699,6 +750,7 @@ export class LanguageProgressTracker {
       const currentIdx = LEVEL_ORDER.indexOf(this._cefrLevel);
       const nextIdx = LEVEL_ORDER.indexOf(result.nextLevel);
       if (nextIdx <= currentIdx) {
+        logCEFRCheck({ currentLevel: this._cefrLevel, result, didAdvance: false });
         return result;
       }
 
@@ -706,12 +758,14 @@ export class LanguageProgressTracker {
       const now = Date.now();
       if (this._lastAdvancementTimestamp > 0 &&
           (now - this._lastAdvancementTimestamp) < LanguageProgressTracker.MIN_ADVANCEMENT_INTERVAL_MS) {
+        logCEFRCheck({ currentLevel: this._cefrLevel, result, didAdvance: false });
         return result;
       }
 
       // Safeguard: minimum conversations since last advancement
       if (this._lastAdvancementTimestamp > 0 &&
           this._conversationsSinceLastAdvancement < LanguageProgressTracker.MIN_CONVERSATIONS_BETWEEN_ADVANCEMENTS) {
+        logCEFRCheck({ currentLevel: this._cefrLevel, result, didAdvance: false });
         return result;
       }
 
@@ -720,7 +774,21 @@ export class LanguageProgressTracker {
       this.progress.cefrLevel = result.nextLevel;
       this._lastAdvancementTimestamp = now;
       this._conversationsSinceLastAdvancement = 0;
+
+      logCEFRCheck({
+        currentLevel: oldLevel,
+        result,
+        didAdvance: true,
+        newLevel: result.nextLevel,
+      });
+
       this.onCEFRAdvancement?.(oldLevel, result.nextLevel);
+    } else {
+      logCEFRCheck({
+        currentLevel: this._cefrLevel,
+        result,
+        didAdvance: false,
+      });
     }
 
     return result;
@@ -919,6 +987,49 @@ export class LanguageProgressTracker {
         category: category || 'general',
         timesEncountered: 1,
         timesUsedCorrectly: usedCorrectly ? 1 : 0,
+        timesUsedIncorrectly: 0,
+        lastEncountered: Date.now(),
+        masteryLevel: 'new',
+      };
+      this.progress.vocabulary.push(entry);
+      this.progress.totalWordsLearned++;
+      this.onNewWordLearned?.(entry);
+    }
+    return entry;
+  }
+
+  /**
+   * Record a vocabulary encounter from an external source (e.g., hover-translate).
+   * Supports weighted encounters where weight < 1.0 means partial credit
+   * (e.g., passive_hover at 0.5 means 2 encounters = 1 full encounter).
+   */
+  public recordVocabularyEncounter(encounter: {
+    word: string;
+    translation: string;
+    source: string;
+    weight: number;
+  }): VocabularyEntry {
+    const { word, translation, weight } = encounter;
+    let entry = this.progress.vocabulary.find(v => v.word === word);
+    if (entry) {
+      entry.timesEncountered += weight;
+      entry.lastEncountered = Date.now();
+      const oldMastery = entry.masteryLevel;
+      entry.masteryLevel = calculateMasteryLevel(
+        Math.floor(entry.timesEncountered),
+        entry.timesUsedCorrectly,
+      );
+      if (oldMastery !== 'mastered' && entry.masteryLevel === 'mastered') {
+        this.onWordMastered?.(entry);
+      }
+    } else {
+      entry = {
+        word,
+        language: this.progress.language,
+        meaning: translation,
+        category: 'general',
+        timesEncountered: weight,
+        timesUsedCorrectly: 0,
         timesUsedIncorrectly: 0,
         lastEncountered: Date.now(),
         masteryLevel: 'new',

@@ -23,6 +23,9 @@ var _facts: Array[String] = []
 ## Whether initialize() has been called successfully.
 var _initialized: bool = false
 
+## Whether debug logging is enabled for Prolog operations.
+var debug_logging_enabled: bool = false
+
 ## IDs of quests currently being tracked for auto-completion.
 var _active_quest_ids: Array[String] = []
 
@@ -410,20 +413,26 @@ func get_stats() -> Dictionary:
 # ---------------------------------------------------------------------------
 
 ## Assert a new fact into the dynamic fact store.
-func assert_fact(fact: String) -> void:
+func assert_fact(fact: String, source: String = "") -> void:
 	if not _initialized:
 		return
 	_assert_internal(fact)
 	_reevaluate_quests()
+	if debug_logging_enabled:
+		var source_info: String = " (source: %s)" % source if source != "" else ""
+		print("[PrologDebug] assert: %s%s" % [fact.strip_edges().trim_suffix("."), source_info])
 
 
 ## Retract a fact from the dynamic fact store.
-func retract_fact(fact: String) -> void:
+func retract_fact(fact: String, reason: String = "") -> void:
 	if not _initialized:
 		return
 	var clean: String = fact.strip_edges().trim_suffix(".")
 	_facts.erase(clean)
 	_reevaluate_quests()
+	if debug_logging_enabled:
+		var reason_info: String = " (reason: %s)" % reason if reason != "" else ""
+		print("[PrologDebug] retract: %s%s" % [clean, reason_info])
 
 
 ## Run a query against the knowledge base.
@@ -438,6 +447,9 @@ func query(goal: String) -> Array[Dictionary]:
 		results.append({"result": true, "goal": clean_goal})
 	if _kb_content.contains(clean_goal):
 		results.append({"result": true, "goal": clean_goal, "source": "kb"})
+	if debug_logging_enabled:
+		var success: String = "true" if results.size() > 0 else "false"
+		print("[PrologDebug] query: %s -> %s (%d results)" % [clean_goal, success, results.size()])
 	return results
 
 

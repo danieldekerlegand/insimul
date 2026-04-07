@@ -234,7 +234,7 @@ import {
   computeProgress,
 } from "@shared/services/assessment-quest-bridge-shared";
 import type { OnboardingLaunchResult } from "@shared/game-engine/rendering/OnboardingLauncher";
-import { PERIODIC_ASSESSMENT_LEVELS } from "@shared/assessment/periodic-encounter";
+import { PERIODIC_ASSESSMENT_LEVELS, PERIODIC_ENCOUNTER, buildPeriodicAssessmentGrammarContext } from "@shared/assessment/periodic-encounter";
 import {
   KEY_BUILDING_INTERACT,
   KEY_ATTACK,
@@ -3149,6 +3149,19 @@ export class BabylonGame {
       this.checkGrammarWeaknessesAfterFeedback(feedback);
     });
 
+    // Wire hover-translate lookups to vocabulary progress tracking
+    this.chatPanel.getHoverTranslation().setOnWordEncounter((encounter) => {
+      const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
+      if (tracker) {
+        tracker.recordVocabularyEncounter({
+          word: encounter.word,
+          translation: encounter.translation,
+          source: 'passive_hover',
+          weight: 0.5,
+        });
+      }
+    });
+
     // Initialize quest tracker
     this.questTracker = new BabylonQuestTracker(this.guiManager.advancedTexture, scene);
     this.questTracker.setDataSource(this.dataSource);
@@ -3666,6 +3679,7 @@ export class BabylonGame {
     });
     this.gamificationTracker.setOnPeriodicAssessmentTriggered((event) => {
       this.showPeriodicAssessmentNotification(event);
+      this.emitPeriodicAssessmentEvent(event);
     });
 
     // Set world ID for server XP sync
@@ -3848,6 +3862,9 @@ export class BabylonGame {
         });
       }
 
+      // Check CEFR advancement after quest completion (quest XP may push player over threshold)
+      this.languageProgressTracker?.checkAndAdvanceCEFR();
+
       // If a periodic assessment was postponed, retry after this quest completes
       if (this.postponedPeriodicAssessment && this.pendingPeriodicAssessment) {
         this.postponedPeriodicAssessment = false;
@@ -3950,6 +3967,9 @@ export class BabylonGame {
       const engine = this.questObjectManager?.getCompletionEngine();
       engine?.trackEvent({ type: 'text_read', textId: event.textId });
       this.updateQuestIndicators();
+
+      // Increment textsRead counter for CEFR advancement tracking
+      this.languageProgressTracker?.recordTextRead();
     });
     this.eventBus.on('questions_answered', (event) => {
       const engine = this.questObjectManager?.getCompletionEngine();
@@ -4433,7 +4453,7 @@ export class BabylonGame {
           const dir = targetPos.subtract(instance.mesh.position);
           dir.y = 0;
           if (dir.lengthSquared() > 0.001) {
-            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
             instance.controller.walk(true);
           }
         }
@@ -4515,7 +4535,7 @@ export class BabylonGame {
           const dir = targetPos.subtract(instance.mesh.position);
           dir.y = 0;
           if (dir.lengthSquared() > 0.001) {
-            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
             instance.controller.walk(true);
           }
         }
@@ -4667,7 +4687,7 @@ export class BabylonGame {
         const instance = this.npcMeshes.get(npcId);
         if (instance?.mesh) {
           const dir = targetPos.subtract(instance.mesh.position);
-          instance.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+          instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
         }
       },
       onNPCGreeting: (npcId: string, greeting: string) => {
@@ -8290,6 +8310,25 @@ export class BabylonGame {
   }
 
   /**
+   * Emit a periodic_assessment_triggered event on the GameEventBus,
+   * including the full assessment definition and grammar context so
+   * subscribers can present the assessment UI.
+   */
+  private emitPeriodicAssessmentEvent(event: { level: number; tier: string }): void {
+    const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
+    const progress = tracker?.getProgress?.();
+    const grammarContext = progress ? buildPeriodicAssessmentGrammarContext(progress) : undefined;
+
+    this.eventBus.emit({
+      type: 'periodic_assessment_triggered',
+      level: event.level,
+      tier: event.tier,
+      assessmentDefinition: PERIODIC_ENCOUNTER,
+      grammarContext,
+    });
+  }
+
+  /**
    * Launch a periodic assessment (conversation-only, 25 points).
    * Highlights nearest NPC, injects assessment conversation prompt,
    * and scores the result when conversation completes.
@@ -11337,21 +11376,19 @@ export class BabylonGame {
         this._lastPlayerPosition = { x: px, z: pz };
       }
 
-      // DISABLED FOR DEBUGGING — NPC-initiated conversation controller has onMoveTo/onFaceDirection
-      // that set rotation.y and call controller.walk(true)
-      // if (this.npcInitiatedConversationController) {
-      //   if (this._npcGroundSnapTimer === 0) {
-      //     this.npcMeshes.forEach((instance, npcId) => {
-      //       if (instance?.mesh) {
-      //         this.npcInitiatedConversationController!.updateNPC(npcId, {
-      //           position: instance.mesh.position.clone(),
-      //           isInConversation: instance.isInConversation || false,
-      //         });
-      //       }
-      //     });
-      //   }
-      //   this.npcInitiatedConversationController.update(dt, 60000);
-      // }
+      if (this.npcInitiatedConversationController) {
+        if (this._npcGroundSnapTimer === 0) {
+          this.npcMeshes.forEach((instance, npcId) => {
+            if (instance?.mesh) {
+              this.npcInitiatedConversationController!.updateNPC(npcId, {
+                position: instance.mesh.position.clone(),
+                isInConversation: instance.isInConversation || false,
+              });
+            }
+          });
+        }
+        this.npcInitiatedConversationController.update(dt, 60000);
+      }
 
       // Update minimap markers at most every 250ms
       this._minimapUpdateTimer += dt;
@@ -11451,9 +11488,7 @@ export class BabylonGame {
       this._npcBehaviorAccum = 0;
       this.updateNPCBehaviorsBatched();
 
-      // DISABLED FOR DEBUGGING — socialization controller has onMoveTo/onFaceDirection
-      // that set rotation.y and call controller.walk(true)
-      if (false && this.socializationController) {
+      if (this.socializationController) {
         this.socializationController.update(dt, 60000);
         // Sync NPC positions into the controller
         this.npcMeshes.forEach((instance, npcId) => {
@@ -11961,7 +11996,7 @@ export class BabylonGame {
       if (faceTarget && instance.mesh) {
         const fdx = faceTarget.x - instance.mesh.position.x;
         const fdz = faceTarget.z - instance.mesh.position.z;
-        const targetAngle = Math.atan2(fdx, fdz);
+        const targetAngle = Math.atan2(fdx, fdz) + Math.PI;
         let angleDiff = targetAngle - instance.mesh.rotation.y;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
@@ -12006,76 +12041,166 @@ export class BabylonGame {
       // Fall through to normal wander movement logic which handles wanderTarget
     }
 
-    // ============================================================
-    // ALL NPC MOVEMENT/SCHEDULE AI DISABLED FOR DEBUGGING
-    // NPCs will stand idle at their spawn positions.
-    // Re-enable sections one at a time to isolate the issue.
-    // ============================================================
-    //
-    // DISABLED SYSTEMS (in execution order):
-    // 1. BUILDING_CHECK — Skip AI for NPCs inside buildings
-    // 2. IDLE_WAIT — Idle pause + ambient life behaviors (face targets, ambient animations)
-    // 3. AMBIENT_CLEAR — Clear ambient activity when NPC starts moving
-    // 4. VOLITION — Spontaneous goal formation from VolitionSystem (overrides schedule)
-    // 5. SCHEDULE_BOUNDS — Boundary confinement redirect when NPC drifts outside settlement
-    // 6. SCHEDULE_PATHFOLLOW — Follow sidewalk path waypoints (stuck detection, waypoint advancement, building entry)
-    // 7. SCHEDULE_EVALUATE — Force ScheduleExecutor to pick new goals when no active path
-    // 8. RANDOM_WANDER — Legacy random wander fallback (when no street data)
-    //
-    // To re-enable: uncomment the section and test conversation facing + NPC behavior.
-
     // --- [1] BUILDING_CHECK ---
-    // if (instance.isInsideBuilding) {
-    //   return;
-    // }
+    if (instance.isInsideBuilding) {
+      return;
+    }
 
-    // --- [2] IDLE_WAIT ---
-    // if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
-    //   instance.controller.walk(false);
-    //   instance.controller.turnLeft(false);
-    //   instance.controller.turnRight(false);
-    //   if (characterId) {
-    //     const behavior = this.updateAmbientLifeBehavior(instance, characterId, now);
-    //     if (behavior?.faceTargetPosition && instance.mesh) {
-    //       const dx = behavior.faceTargetPosition.x - instance.mesh.position.x;
-    //       const dz = behavior.faceTargetPosition.z - instance.mesh.position.z;
-    //       if (dx * dx + dz * dz > 0.01) {
-    //         instance.mesh.rotation.y = Math.atan2(dx, dz);
-    //       }
-    //     }
-    //   }
-    //   return;
-    // }
+    // --- [2] IDLE_WAIT + ambient life behaviors ---
+    if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
+      instance.controller.walk(false);
+      instance.controller.turnLeft(false);
+      instance.controller.turnRight(false);
+      if (characterId) {
+        const behavior = this.updateAmbientLifeBehavior(instance, characterId, now);
+        if (behavior?.faceTargetPosition && instance.mesh) {
+          const dx = behavior.faceTargetPosition.x - instance.mesh.position.x;
+          const dz = behavior.faceTargetPosition.z - instance.mesh.position.z;
+          if (dx * dx + dz * dz > 0.01) {
+            instance.mesh.rotation.y = Math.atan2(dx, dz) + Math.PI;
+          }
+        }
+      }
+      return;
+    }
 
     // --- [3] AMBIENT_CLEAR ---
-    // if (characterId) {
-    //   this.scheduleExecutor.clearAmbientBehavior(characterId);
-    //   if (instance.ambientActivityAnimation) {
-    //     this.playNPCAnimation(instance, 'idle');
-    //     instance.ambientActivityAnimation = undefined;
-    //   }
-    // }
+    if (characterId) {
+      this.scheduleExecutor.clearAmbientBehavior(characterId);
+      if (instance.ambientActivityAnimation) {
+        this.playNPCAnimation(instance, 'idle');
+        instance.ambientActivityAnimation = undefined;
+      }
+    }
 
     // --- [4] VOLITION ---
-    // if (this.volitionSystem.isOnScheduleOverride(characterId)) { ... }
+    if (this.volitionSystem.isOnScheduleOverride(characterId)) {
+      const override = this.volitionSystem.getScheduleOverride(characterId);
+      if (override && !instance.volitionGoalId) {
+        instance.volitionGoalId = override.goalId;
+        const goals = this.volitionSystem.getTopGoals(characterId, 10);
+        const activeGoal = goals.find(g => g.goalId === override.goalId);
+        if (activeGoal) {
+          instance.volitionActionId = activeGoal.actionId;
+          instance.volitionTargetNpcId = activeGoal.targetId;
+          this.executeVolitionGoal(instance, activeGoal, now);
+          return;
+        }
+      }
+      if (instance.volitionGoalId && instance.schedulePathWaypoints) {
+        const waypoints = instance.schedulePathWaypoints;
+        const wpIdx = instance.schedulePathIndex ?? 0;
+        if (wpIdx < waypoints.length) {
+          const targetWP = waypoints[wpIdx];
+          const dx = targetWP.x - currentPos.x;
+          const dz = targetWP.z - currentPos.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < 1.5) {
+            instance.schedulePathIndex = wpIdx + 1;
+            if (wpIdx + 1 >= waypoints.length) {
+              this.completeVolitionGoal(instance, characterId);
+              return;
+            }
+          }
+          this.moveNPCToward(instance, targetWP);
+          return;
+        } else {
+          this.completeVolitionGoal(instance, characterId);
+          return;
+        }
+      }
+    } else if (instance.volitionGoalId) {
+      instance.volitionGoalId = undefined;
+      instance.volitionActionId = undefined;
+      instance.volitionTargetNpcId = undefined;
+    }
 
-    // --- [5] SCHEDULE_BOUNDS ---
-    // if (!this.npcScheduleSystem.isWithinNPCBounds(characterId, currentPos)) { ... }
+    // --- [5-7] Schedule-driven behavior ---
+    if (this.npcScheduleSystem.hasStreetData()) {
+      const entry = this.npcScheduleSystem.getEntry(characterId);
 
-    // --- [6] SCHEDULE_PATHFOLLOW ---
-    // if (waypoints && wpIdx < waypoints.length) { ... moveNPCToward ... }
+      // [5] Boundary confinement
+      if (!this.npcScheduleSystem.isWithinNPCBounds(characterId, currentPos)) {
+        const clamped = this.npcScheduleSystem.clampToSettlementBounds(characterId, currentPos);
+        const path = this.npcScheduleSystem.findSidewalkPathForNPC(characterId, currentPos, clamped);
+        instance.schedulePathWaypoints = path.length > 0 ? path : [clamped];
+        instance.schedulePathIndex = 0;
+        if (entry) entry.currentGoal = { type: 'wander_sidewalk', expiresAt: 0 };
+      }
 
-    // --- [7] SCHEDULE_EVALUATE ---
-    // if (!this.scheduleExecutor.hasPendingAction(characterId)) { forceEvaluateNPC ... }
+      // [6] Follow sidewalk path
+      const waypoints = instance.schedulePathWaypoints;
+      const wpIdx = instance.schedulePathIndex ?? 0;
+      if (waypoints && wpIdx < waypoints.length) {
+        const targetWP = waypoints[wpIdx];
+        // Stuck detection
+        if (instance.lastWanderPosition) {
+          const moved = Vector3.Distance(currentPos, instance.lastWanderPosition);
+          if (moved < 0.05) {
+            instance.stuckTicks = (instance.stuckTicks || 0) + 1;
+            if (instance.stuckTicks >= 2 && instance.stuckTicks < 5) {
+              instance.controller.walk(false);
+              instance.mesh.rotation.y += (Math.PI / 2) + Math.random() * Math.PI;
+              return;
+            }
+            if (instance.stuckTicks >= 5) {
+              instance.controller.walk(false);
+              instance.controller.turnLeft(false);
+              instance.controller.turnRight(false);
+              instance.schedulePathWaypoints = undefined;
+              instance.stuckTicks = 0;
+              this.scheduleExecutor.abandonGoal(characterId);
+              this.scheduleExecutor.setIdle(characterId, now);
+              instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
+              instance.lastWanderPosition = currentPos.clone();
+              return;
+            }
+          } else {
+            instance.stuckTicks = 0;
+          }
+        }
+        instance.lastWanderPosition = currentPos.clone();
 
-    // --- [8] RANDOM_WANDER ---
-    // this.updateNPCRandomWander(instance, now);
+        const dx = targetWP.x - currentPos.x;
+        const dz = targetWP.z - currentPos.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < 1.0) {
+          instance.schedulePathIndex = wpIdx + 1;
+          this.scheduleExecutor.advancePathIndex(characterId);
+          if (wpIdx + 1 >= waypoints.length) {
+            instance.controller.walk(false);
+            instance.controller.turnLeft(false);
+            instance.controller.turnRight(false);
+            const goal = entry?.currentGoal;
+            if ((goal?.type === 'go_to_building' || goal?.type === 'visit_friend') && goal.buildingId) {
+              this.scheduleExecutor.enterBuilding(characterId, goal.buildingId, now);
+            } else {
+              this.scheduleExecutor.setIdle(characterId, now);
+              instance.wanderWaitUntil = now + 3000 + Math.random() * 5000;
+              instance.schedulePathWaypoints = undefined;
+              if (entry) entry.currentGoal = null;
+            }
+          }
+          return;
+        }
+        this.moveNPCToward(instance, targetWP);
+        return;
+      }
 
-    // NPCs just idle in place
-    instance.controller.walk(false);
-    instance.controller.turnLeft(false);
-    instance.controller.turnRight(false);
-    this.playNPCAnimation(instance, 'idle');
+      // [7] No active path — evaluate for new goal
+      if (!this.scheduleExecutor.hasPendingAction(characterId)) {
+        this.scheduleExecutor.forceEvaluateNPC(characterId);
+        if (!this.scheduleExecutor.hasPendingAction(characterId)) {
+          instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
+          instance.schedulePathWaypoints = undefined;
+          if (entry) entry.currentGoal = null;
+        }
+      }
+      return;
+    }
+
+    // --- [8] Fallback random wander ---
+    this.updateNPCRandomWander(instance, now);
   }
 
   /**
@@ -12309,8 +12434,8 @@ export class BabylonGame {
 
     instance.controller.run(false);
 
-    // Smooth direct rotation toward target
-    const targetRotation = Math.atan2(dx, dz);
+    // Smooth direct rotation toward target (+ PI for GLB model visual forward offset)
+    const targetRotation = Math.atan2(dx, dz) + Math.PI;
     let rotationDiff = targetRotation - instance.mesh.rotation.y;
     while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
     while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
@@ -12694,8 +12819,8 @@ export class BabylonGame {
       // Update physical action progress (fishing, mining, cooking, etc.)
       this.playerActionSystem?.update(this.engine!.getDeltaTime());
 
-      // DISABLED FOR DEBUGGING — ScheduleExecutor pushes goals that drive NPC movement
-      // this.processScheduleExecutorActions();
+      // Process NPC schedule actions from the unified routine manager
+      this.processScheduleExecutorActions();
 
       // Update time HUD indicator
       this.guiManager?.updateTime(
@@ -13012,7 +13137,7 @@ export class BabylonGame {
     };
 
     const actions = resolveActions(target, resolverContext);
-    const menuOptions = resolveMenuOptions(target);
+    const menuOptions = resolveMenuOptions(target, (this.playerCefrLevel as any) || undefined);
 
     if (actions.length === 0) {
       await this.handleProximityInteraction();

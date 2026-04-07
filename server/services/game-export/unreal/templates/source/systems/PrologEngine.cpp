@@ -533,7 +533,7 @@ bool UPrologEngine::EvaluateCondition(const FString& PrologGoal)
 
 // ── Fact Management ─────────────────────────────────────────────────────────
 
-void UPrologEngine::AssertFact(const FString& Fact)
+void UPrologEngine::AssertFact(const FString& Fact, const FString& Source)
 {
     FString CleanFact = Fact.TrimStartAndEnd();
     CleanFact.RemoveFromEnd(TEXT("."));
@@ -547,9 +547,15 @@ void UPrologEngine::AssertFact(const FString& Fact)
         // Also append to raw KB for export
         KnowledgeBase += FString::Printf(TEXT("\n%s."), *CleanFact);
     }
+
+    if (bDebugLoggingEnabled)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[PrologDebug] assert: %s %s"), *CleanFact,
+            Source.IsEmpty() ? TEXT("") : *FString::Printf(TEXT("(source: %s)"), *Source));
+    }
 }
 
-void UPrologEngine::RetractFact(const FString& Fact)
+void UPrologEngine::RetractFact(const FString& Fact, const FString& Reason)
 {
     FString CleanFact = Fact.TrimStartAndEnd();
     CleanFact.RemoveFromEnd(TEXT("."));
@@ -562,6 +568,12 @@ void UPrologEngine::RetractFact(const FString& Fact)
     {
         FactCount = Facts.Num();
     }
+
+    if (bDebugLoggingEnabled)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[PrologDebug] retract: %s %s"), *CleanFact,
+            Reason.IsEmpty() ? TEXT("") : *FString::Printf(TEXT("(reason: %s)"), *Reason));
+    }
 }
 
 TArray<FString> UPrologEngine::Query(const FString& Goal)
@@ -573,16 +585,24 @@ TArray<FString> UPrologEngine::Query(const FString& Goal)
     FString CleanGoal = Goal.TrimStartAndEnd();
     CleanGoal.RemoveFromEnd(TEXT("."));
 
+    TArray<FString> Results;
+
     // Extract predicate name for prefix matching
     int32 ParenIdx = INDEX_NONE;
     CleanGoal.FindChar(TEXT('('), ParenIdx);
     if (ParenIdx != INDEX_NONE)
     {
         FString Prefix = CleanGoal.Left(ParenIdx + 1);
-        return FindFacts(Prefix);
+        Results = FindFacts(Prefix);
     }
 
-    return {};
+    if (bDebugLoggingEnabled)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[PrologDebug] query: %s -> %s (%d results)"),
+            *CleanGoal, Results.Num() > 0 ? TEXT("true") : TEXT("false"), Results.Num());
+    }
+
+    return Results;
 }
 
 FString UPrologEngine::ExportKnowledgeBase() const

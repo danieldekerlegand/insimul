@@ -285,6 +285,11 @@ export class InsimulClient {
 
   // ── Messaging ─────────────────────────────────────────────────────────
 
+  /** Set game context (CEFR level, vocabulary, grammar) sent with each message to the server */
+  setGameContext(context: Record<string, unknown>): void {
+    this.chatProvider.setGameContext?.(context);
+  }
+
   async sendText(text: string, options?: SendTextOptions): Promise<string> {
     await this.ensureInitialized();
     return this.chatProvider.sendText(text, options?.languageCode || this.options.languageCode, options?.prologFacts);

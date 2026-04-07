@@ -18,6 +18,8 @@ import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
 import { HELPER_PREDICATES_PROLOG } from '@shared/prolog/helper-predicates';
 import type { GameEventBus, GameEvent, ItemTaxonomy } from './GameEventBus';
+import { isDebugLabelsEnabled } from '../rendering/DebugLabelUtils';
+import { getDebugEventBus } from '../debug-event-bus';
 
 export interface GameState {
   playerCharacterId: string;
@@ -949,17 +951,41 @@ export class GamePrologEngine {
   /**
    * Assert a new fact during gameplay (e.g., item pickup, quest progress).
    */
-  async assertFact(fact: string): Promise<void> {
+  async assertFact(fact: string, source?: string): Promise<void> {
     if (!this.initialized) return;
     await this.engine.assertFact(fact);
+    if (isDebugLabelsEnabled()) {
+      console.debug('[PrologDebug] assert:', fact, source ? `(source: ${source})` : '');
+      getDebugEventBus().emit({
+        timestamp: Date.now(),
+        category: 'prolog',
+        level: 'info',
+        tag: 'Prolog',
+        summary: `[+] ${fact}`,
+        detail: `Fact: ${fact}\nSource: ${source || 'unknown'}`,
+        source: 'client',
+      });
+    }
   }
 
   /**
    * Retract a fact during gameplay (e.g., item used, status removed).
    */
-  async retractFact(fact: string): Promise<void> {
+  async retractFact(fact: string, reason?: string): Promise<void> {
     if (!this.initialized) return;
     await this.engine.retractFact(fact);
+    if (isDebugLabelsEnabled()) {
+      console.debug('[PrologDebug] retract:', fact, reason ? `(reason: ${reason})` : '');
+      getDebugEventBus().emit({
+        timestamp: Date.now(),
+        category: 'prolog',
+        level: 'info',
+        tag: 'Prolog',
+        summary: `[-] ${fact}`,
+        detail: `Fact: ${fact}\nReason: ${reason || 'unknown'}`,
+        source: 'client',
+      });
+    }
   }
 
   /**
@@ -967,7 +993,26 @@ export class GamePrologEngine {
    */
   async query(goal: string): Promise<Record<string, any>[]> {
     if (!this.initialized) return [];
-    return this.engine.query(goal);
+    const startTime = isDebugLabelsEnabled() ? performance.now() : 0;
+    const results = await this.engine.query(goal);
+    if (isDebugLabelsEnabled()) {
+      const elapsed = (performance.now() - startTime).toFixed(1);
+      const success = results && results.length > 0;
+      const bindingSummary = success
+        ? results.map(r => Object.entries(r).map(([k, v]) => `${k}=${v}`).join(', ')).join('; ')
+        : 'false';
+      console.debug('[PrologDebug] query:', goal, '->', bindingSummary, `(${elapsed}ms)`);
+      getDebugEventBus().emit({
+        timestamp: Date.now(),
+        category: 'prolog',
+        level: 'info',
+        tag: 'Prolog',
+        summary: `[?] ${goal} -> ${success ? 'true' : 'false'}`,
+        detail: `Query: ${goal}\nResults: ${bindingSummary}\nExecution time: ${elapsed}ms`,
+        source: 'client',
+      });
+    }
+    return results;
   }
 
   /**
