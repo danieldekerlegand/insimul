@@ -35,6 +35,10 @@ import { conversationContextCache, ConversationContextCache } from './conversati
 import { compressConversationHistory, type GeminiMessage } from './conversation-compression.js';
 import { prologLLMRouter } from '../prolog-llm-router.js';
 import { GEMINI_MODELS } from '../../config/gemini.js';
+import { getLiveSessionManager } from './live/live-session-manager.js';
+import type { LiveSessionCallbacks } from './live/live-session-manager.js';
+import { runSideChannel } from './live/live-side-channel.js';
+import type { SideChannelContext, SideChannelCallbacks } from './live/live-side-channel.js';
 
 // ── Message complexity classification ───────────────────────────────────
 
@@ -625,6 +629,193 @@ IMPORTANT: Only set goalMet=true if you are genuinely confident (0.7+) that the 
 Return JSON array only, no explanation:`;
 }
 
+// ── Live session SSE pipeline ───────────────────────────────────────────
+
+/**
+ * Stream a conversation response using a Gemini Live session via SSE.
+ * Creates a per-request Live session (not persistent) since SSE doesn't
+ * support continuous bidirectional communication. Still faster than text+TTS
+ * because it eliminates sentence splitting — the Live API handles audio synthesis.
+ *
+ * Falls back to the text+TTS pipeline if Live session creation fails.
+ */
+async function streamLiveResponse(
+  res: Response,
+  text: string,
+  sessionId: string,
+  characterId: string,
+  worldId: string,
+  languageCode: string,
+  activeQuests?: ActiveQuest[],
+  clientSystemPrompt?: string,
+  voiceName?: string,
+  targetLanguage?: string,
+  playerProficiency?: string,
+  activeObjectives?: Array<{ questId: string; objectiveId: string; objectiveType: string; description: string; npcId?: string }>,
+  prologFacts?: Array<{ predicate: string; args: Array<string | number> }>,
+  clientCharacterGender?: string,
+  clientGameState?: { cefrLevel?: string; playerVocabulary?: any[]; playerGrammarPatterns?: any[] },
+): Promise<boolean> {
+  const manager = getLiveSessionManager();
+
+  // Build system prompt (use client-provided or build a default)
+  let systemPrompt = clientSystemPrompt || 'You are an NPC in a game world. Respond in character.';
+
+  // Get or create conversation session for history tracking
+  let session = getSession(sessionId);
+  if (!session) {
+    session = createSession(sessionId, characterId, worldId, sessionId, languageCode);
+  }
+  if (clientSystemPrompt) {
+    if (!session.conversationContext) {
+      session.conversationContext = {
+        systemPrompt: clientSystemPrompt,
+        characterName: characterId,
+        characterGender: clientCharacterGender || undefined,
+      } as any;
+    } else {
+      session.conversationContext.systemPrompt = clientSystemPrompt;
+    }
+  }
+
+  // Add user message to history
+  addToHistory(session, 'user', text);
+
+  let liveSession;
+  try {
+    // Build side-channel context
+    const sideChannelCtx: SideChannelContext = {
+      targetLanguage: targetLanguage || '',
+      playerProficiency: playerProficiency,
+      activeQuests: activeQuests,
+      activeObjectives: activeObjectives,
+      npcCharacterId: characterId,
+      conversationTurnCount: session.history.filter(h => h.role === 'user').length,
+    };
+
+    // Build side-channel callbacks that emit SSE events
+    const sideChannelCbs: SideChannelCallbacks = {
+      onVocabHints: (hints) => {
+        if (!res.writableEnded) sendSSE(res, { type: 'vocab_hints', content: JSON.stringify(hints) });
+      },
+      onGrammarFeedback: (feedback) => {
+        if (!res.writableEnded) sendSSE(res, { type: 'grammar_feedback', content: JSON.stringify(feedback) });
+      },
+      onEval: (scores) => {
+        if (!res.writableEnded) sendSSE(res, { type: 'eval', content: JSON.stringify(scores) });
+      },
+      onQuestProgress: (triggers, markerContent) => {
+        if (!res.writableEnded) sendSSE(res, { type: 'quest_progress', content: markerContent, triggers });
+      },
+      onGoalEvaluation: (evaluations) => {
+        if (!res.writableEnded) sendSSE(res, { type: 'goal_evaluation', evaluations });
+      },
+    };
+
+    // Create a promise that resolves when turnComplete fires
+    let resolveTurn: () => void;
+    const turnCompletePromise = new Promise<void>(resolve => { resolveTurn = resolve; });
+
+    const callbacks: LiveSessionCallbacks = {
+      onAudioChunk: (data: string, mimeType: string) => {
+        if (res.writableEnded) return;
+        // Send audio as base64 SSE event (same format as existing pipeline)
+        const sampleRate = mimeType.includes('24000') ? 24000 : 16000;
+        sendSSE(res, {
+          type: 'audio',
+          data,
+          encoding: 'pcm',
+          sampleRate,
+          durationMs: 0,
+        });
+      },
+      onTextChunk: (chunkText: string) => {
+        if (res.writableEnded) return;
+        sendSSE(res, { type: 'text', text: chunkText, isFinal: false, languageCode, sessionId });
+      },
+      onTurnComplete: (fullText: string) => {
+        // Final text marker
+        if (!res.writableEnded) {
+          sendSSE(res, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
+        }
+
+        // Store in history
+        if (fullText) {
+          addToHistory(session!, 'assistant', fullText);
+        }
+
+        // Fork side-channel (fire-and-forget, never blocks SSE)
+        if (text && fullText && sideChannelCtx.targetLanguage) {
+          runSideChannel(text, fullText, sideChannelCtx, sideChannelCbs);
+        }
+
+        resolveTurn!();
+      },
+      onInterrupted: () => {
+        if (!res.writableEnded) {
+          sendSSE(res, { type: 'interrupted', sessionId });
+        }
+        resolveTurn!();
+      },
+      onTranscription: (transcribedText: string) => {
+        if (!res.writableEnded) {
+          sendSSE(res, { type: 'transcript', text: transcribedText, sessionId });
+        }
+      },
+      onGenerationComplete: () => {
+        // No-op — turnComplete already resolves the promise
+      },
+    };
+
+    liveSession = await manager.createSession(
+      {
+        systemPrompt,
+        voiceName: voiceName,
+        languageCode: languageCode || undefined,
+        characterId,
+        worldId,
+        playerId: sessionId,
+      },
+      callbacks,
+    );
+
+    console.log(`[ConversationBridge] Live session ${liveSession.id} created for SSE request`);
+
+    // Send the player's text through the Live session
+    liveSession.sendText(text);
+
+    // Wait for the turn to complete (with timeout)
+    const LIVE_TURN_TIMEOUT_MS = 30_000;
+    const timeoutPromise = new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error('Live session turn timed out')), LIVE_TURN_TIMEOUT_MS),
+    );
+
+    await Promise.race([turnCompletePromise, timeoutPromise]);
+
+    // Allow a brief window for side-channel SSE events to flush before closing
+    await new Promise<void>(resolve => setTimeout(resolve, 100));
+
+    // Close the Live session (per-request, not persistent)
+    manager.endSession(liveSession.id);
+
+    if (!res.writableEnded) {
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
+
+    return true;
+  } catch (err: any) {
+    console.error('[ConversationBridge] Live session SSE failed, falling back to text+TTS:', err.message);
+
+    // Clean up the Live session if it was created
+    if (liveSession) {
+      try { manager.endSession(liveSession.id); } catch { /* ignore */ }
+    }
+
+    return false; // Signal caller to fall back to text+TTS
+  }
+}
+
 // ── Route registration ───────────────────────────────────────────────────
 
 export function registerConversationRoutes(app: Express): void {
@@ -634,7 +825,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: SSE stream of text/audio/facial/meta events
    */
   app.post('/api/conversation/stream', async (req: Request, res: Response) => {
-    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts, systemPrompt, characterGender, cefrLevel, playerVocabulary, playerGrammarPatterns } = req.body;
+    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts, systemPrompt, characterGender, cefrLevel, playerVocabulary, playerGrammarPatterns, useLiveSession, voiceName, targetLanguage, playerProficiency, activeObjectives } = req.body;
 
     if (!sessionId || !characterId || !worldId || !text) {
       res.status(400).json({ error: 'Missing required fields: sessionId, characterId, worldId, text' });
@@ -649,6 +840,19 @@ export function registerConversationRoutes(app: Express): void {
     res.flushHeaders();
 
     try {
+      // If useLiveSession requested, try Live session first
+      if (useLiveSession) {
+        const liveSuccess = await streamLiveResponse(
+          res, text, sessionId, characterId, worldId, languageCode || 'en',
+          activeQuests, systemPrompt, voiceName, targetLanguage, playerProficiency,
+          activeObjectives, prologFacts, characterGender,
+          { cefrLevel, playerVocabulary, playerGrammarPatterns },
+        );
+        if (liveSuccess) return; // Live session handled the response
+        // Live session failed — fall through to text+TTS pipeline
+        console.log('[ConversationBridge] Live session failed, falling back to text+TTS pipeline');
+      }
+
       await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts, systemPrompt, characterGender, { cefrLevel, playerVocabulary, playerGrammarPatterns });
     } catch (err: any) {
       console.error('[ConversationBridge] Stream error:', err);
