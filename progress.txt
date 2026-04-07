@@ -1892,3 +1892,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - WS message dispatch is pattern-based on message properties (e.g., `message.startLiveSession`) not a `type` discriminant
   - `connectionLiveSessions` is keyed by WS reference, not sessionId — allows one Live session per WS connection
 ---
+
+## 2026-04-07 - US-004: Add client-side Live session support to InsimulClient
+- Added `startLiveSession(options)` to ServerChatProvider — sends `startLiveSession` WS message, waits for `live_session_started` acknowledgment, returns liveSessionId
+- Added `sendAudioChunk(data: Uint8Array)` to ServerChatProvider — base64-encodes PCM audio and sends via `audioInput` WS message
+- Added `endLiveSession()` to ServerChatProvider — sends `endLiveSession` WS message, resets live session state
+- Added `isLiveSession` getter to ServerChatProvider for checking active state
+- Added `LiveSessionOptions` interface to ServerChatProvider
+- Updated `dispatchWSEvent()` to handle `transcript`, `interrupted`, `live_session_started`, `live_session_ended` WS event types
+- Added `onTranscript` and `onInterrupted` callbacks to `ChatProviderCallbacks`
+- Added `onInterrupted` to `InsimulEventCallbacks`
+- Wired new callbacks in InsimulClient `wireProviderCallbacks()`
+- Exposed `startLiveSession()`, `sendAudioChunk()`, `endLiveSession()`, `isLiveSession` on InsimulClient public API
+- `dispose()` now ends Live session before closing WS connection
+- Files changed:
+  - `packages/typescript/src/providers/chat/server-chat-provider.ts` — Live session methods, WS event handling, dispose cleanup
+  - `packages/typescript/src/providers/chat/types.ts` — onTranscript, onInterrupted callbacks
+  - `packages/typescript/src/client.ts` — public Live session API, callback wiring
+  - `packages/typescript/src/types.ts` — onInterrupted on InsimulEventCallbacks
+  - `shared/__tests__/live-session-client.test.ts` — 15 new tests
+- **Learnings for future iterations:**
+  - `vi.useFakeTimers()` doesn't work well with Promise-based timeout patterns — use setTimeout monkey-patching for short timeout tests instead
+  - ServerChatProvider's `ensureWSConnected()` returns a cached promise if already connecting — safe to call from `startLiveSession` without double-connecting
+  - The `startLiveSession` flow temporarily replaces `ws.onmessage` to intercept the acknowledgment, then restores the normal handler — non-ack messages are forwarded to the original handler
+  - Audio data flows as base64 in JSON `audioInput` messages (not binary frames) from client to server, but server sends audio back as binary frames
+---

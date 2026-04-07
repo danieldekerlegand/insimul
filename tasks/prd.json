@@ -75,7 +75,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Client already has StreamingAudioPlayer for PCM playback and HandsFreeController for mic capture. Live session connects these directly through the server. ServerTTSProvider (no-op marker) remains correct."
     },
     {
