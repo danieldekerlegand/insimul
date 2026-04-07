@@ -16,6 +16,10 @@ export interface ChatProviderCallbacks {
   onComplete?: (fullText: string) => void;
   onStateChange?: (state: string) => void;
   onError?: (error: Error) => void;
+  /** Player speech transcription from Live session (server-side STT) */
+  onTranscript?: (text: string) => void;
+  /** Live session was interrupted (e.g., player spoke while NPC was speaking) */
+  onInterrupted?: () => void;
 }
 
 export interface ChatProvider {

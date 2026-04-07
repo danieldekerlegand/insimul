@@ -187,6 +187,8 @@ export class InsimulClient {
       },
       onStateChange: (state) => this.setState(state as ConversationState),
       onError: (err) => this.callbacks.onError?.(err),
+      onTranscript: (text) => this.callbacks.onTranscript?.(text, true),
+      onInterrupted: () => this.callbacks.onInterrupted?.(),
     });
 
     this.ttsProvider.setCallbacks({
@@ -324,6 +326,51 @@ export class InsimulClient {
     if (this.chatType === 'server' && 'preWarm' in this.chatProvider) {
       await (this.chatProvider as any).preWarm(characterId, worldId, playerId);
     }
+  }
+
+  // ── Live Session ───────────────────────────────────────────────────────
+
+  /**
+   * Start a Gemini Live session for bidirectional audio streaming.
+   * Only works with server chat provider. Returns the liveSessionId.
+   */
+  async startLiveSession(options: {
+    characterId: string;
+    worldId: string;
+    systemPrompt?: string;
+    voiceName?: string;
+    languageCode?: string;
+  }): Promise<string> {
+    await this.ensureInitialized();
+    if (this.chatType !== 'server' || !('startLiveSession' in this.chatProvider)) {
+      throw new Error('Live sessions require the server chat provider');
+    }
+    return (this.chatProvider as any).startLiveSession(options);
+  }
+
+  /**
+   * Send raw audio chunk to the active Live session.
+   * Data should be PCM audio as a Uint8Array.
+   */
+  sendAudioChunk(data: Uint8Array): void {
+    if (this.chatType !== 'server' || !('sendAudioChunk' in this.chatProvider)) {
+      throw new Error('Live sessions require the server chat provider');
+    }
+    (this.chatProvider as any).sendAudioChunk(data);
+  }
+
+  /**
+   * End the active Live session.
+   */
+  async endLiveSession(): Promise<void> {
+    if (this.chatType !== 'server' || !('endLiveSession' in this.chatProvider)) return;
+    await (this.chatProvider as any).endLiveSession();
+  }
+
+  /** Whether a Live session is currently active */
+  get isLiveSession(): boolean {
+    if (this.chatType !== 'server' || !this.chatProvider) return false;
+    return (this.chatProvider as any).isLiveSession ?? false;
   }
 
   abort(): void {

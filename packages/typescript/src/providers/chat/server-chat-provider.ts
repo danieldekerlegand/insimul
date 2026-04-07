@@ -16,6 +16,14 @@ export interface ServerChatProviderConfig {
   languageCode?: string;
 }
 
+export interface LiveSessionOptions {
+  characterId: string;
+  worldId: string;
+  systemPrompt?: string;
+  voiceName?: string;
+  languageCode?: string;
+}
+
 export class ServerChatProvider implements ChatProvider {
   readonly type = 'server' as const;
 
@@ -36,6 +44,10 @@ export class ServerChatProvider implements ChatProvider {
   private pendingTextComplete = false;
   private pendingHasAudio = false;
   private pendingAudioMetaQueue: Array<{ encoding: number; sampleRate: number; durationMs: number }> = [];
+
+  // Live session state
+  private liveSessionActive = false;
+  private liveSessionId: string | null = null;
 
   // SSE fallback state
   private abortController: AbortController | null = null;
@@ -124,6 +136,9 @@ export class ServerChatProvider implements ChatProvider {
 
   async dispose(): Promise<void> {
     this.abort();
+    if (this.liveSessionActive) {
+      try { await this.endLiveSession(); } catch { /* best effort */ }
+    }
     if (this.ws) {
       try {
         this.ws.send(JSON.stringify({ systemCommand: { type: 'END', sessionId: this.sessionId } }));
@@ -231,6 +246,19 @@ export class ServerChatProvider implements ChatProvider {
         this.pendingResolve = null;
         this.callbacks.onStateChange?.('idle');
         break;
+      case 'transcript':
+        this.callbacks.onTranscript?.(parsed.text ?? '');
+        break;
+      case 'interrupted':
+        this.callbacks.onInterrupted?.();
+        break;
+      case 'live_session_started':
+        // Handled in startLiveSession() promise — ignore here for normal dispatch
+        break;
+      case 'live_session_ended':
+        this.liveSessionActive = false;
+        this.liveSessionId = null;
+        break;
       case 'vocab_hints': case 'grammar_feedback': case 'quest_assign': case 'eval':
         this.callbacks.onMetadata?.(parsed.type, parsed.content ?? '');
         break;
@@ -299,6 +327,104 @@ export class ServerChatProvider implements ChatProvider {
         reject(err);
       }
     });
+  }
+
+  // ── Live session ──────────────────────────────────────────────────────
+
+  /** Whether a Live session is currently active */
+  get isLiveSession(): boolean { return this.liveSessionActive; }
+
+  /**
+   * Start a Gemini Live session for bidirectional audio streaming.
+   * Returns the liveSessionId assigned by the server.
+   */
+  async startLiveSession(options: LiveSessionOptions): Promise<string> {
+    await this.ensureWSConnected();
+
+    return new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Live session start timeout'));
+      }, 10000);
+
+      // Temporarily listen for the acknowledgment
+      const origHandler = this.ws!.onmessage;
+      this.ws!.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          try {
+            const parsed = JSON.parse(event.data);
+            if (parsed.type === 'live_session_started') {
+              clearTimeout(timeout);
+              this.liveSessionActive = true;
+              this.liveSessionId = parsed.liveSessionId;
+              // Restore normal handler
+              this.ws!.onmessage = origHandler;
+              resolve(parsed.liveSessionId);
+              return;
+            }
+            if (parsed.type === 'error') {
+              clearTimeout(timeout);
+              this.ws!.onmessage = origHandler;
+              reject(new Error(parsed.message || 'Failed to start Live session'));
+              return;
+            }
+          } catch { /* skip malformed */ }
+        }
+        // Forward non-ack messages to normal handler
+        if (origHandler) (origHandler as any)(event);
+      };
+
+      try {
+        this.ws!.send(JSON.stringify({
+          startLiveSession: {
+            characterId: options.characterId,
+            worldId: options.worldId,
+            sessionId: this.sessionId,
+            systemPrompt: options.systemPrompt,
+            voiceName: options.voiceName,
+            languageCode: options.languageCode,
+          },
+        }));
+      } catch (err: any) {
+        clearTimeout(timeout);
+        this.ws!.onmessage = origHandler;
+        reject(err);
+      }
+    });
+  }
+
+  /**
+   * Send raw audio data to the active Live session.
+   * Data should be PCM audio as a Uint8Array.
+   */
+  sendAudioChunk(data: Uint8Array): void {
+    if (!this.liveSessionActive || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('No active Live session');
+    }
+    // Encode to base64 for the audioInput message
+    const base64 = this.uint8ArrayToBase64(data);
+    this.ws.send(JSON.stringify({
+      audioInput: { data: base64 },
+    }));
+  }
+
+  /** End the active Live session */
+  async endLiveSession(): Promise<void> {
+    if (!this.liveSessionActive || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify({ endLiveSession: {} }));
+    this.liveSessionActive = false;
+    this.liveSessionId = null;
+  }
+
+  private uint8ArrayToBase64(bytes: Uint8Array): string {
+    // Use btoa if available (browser), otherwise Buffer (Node)
+    if (typeof btoa === 'function') {
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+    return Buffer.from(bytes).toString('base64');
   }
 
   // ── Pre-warm ──────────────────────────────────────────────────────────

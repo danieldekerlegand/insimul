@@ -216,6 +216,8 @@ export interface InsimulEventCallbacks {
   onError?: (error: Error) => void;
   /** Player speech transcription (from STT) */
   onTranscript?: (text: string, isFinal: boolean) => void;
+  /** Live session was interrupted (e.g., player spoke while NPC was speaking) */
+  onInterrupted?: () => void;
 }
 
 // ── Conversation context ──────────────────────────────────────────────────
