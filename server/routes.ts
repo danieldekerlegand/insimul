@@ -10573,6 +10573,201 @@ Respond with this JSON structure:
     }
   });
 
+  // Batch-translate quest titles/descriptions for quests missing English translations
+  app.post("/api/worlds/:worldId/quests/batch-translate", async (req, res) => {
+    try {
+      const worldId = req.params.worldId;
+      const allQuests = await storage.getQuestsByWorld(worldId);
+      // Filter to quests missing translation fields
+      const untranslated = allQuests.filter(
+        (q: any) => !q.titleTranslation && q.title && q.targetLanguage && q.targetLanguage !== 'English'
+      );
+
+      if (untranslated.length === 0) {
+        return res.json({ translated: 0, message: 'All quests already have translations' });
+      }
+
+      const { batchTranslateQuests } = await import("./services/quest-translation.js");
+      const translations = await batchTranslateQuests(
+        untranslated.map((q: any) => ({
+          id: q.id,
+          title: q.title,
+          description: q.description || '',
+          objectives: q.objectives,
+          targetLanguage: q.targetLanguage,
+        })),
+      );
+
+      // Update each quest with its translation
+      let updated = 0;
+      for (const t of translations) {
+        await storage.updateQuest(t.id, {
+          titleTranslation: t.titleTranslation,
+          descriptionTranslation: t.descriptionTranslation,
+          objectivesTranslation: t.objectivesTranslation,
+        });
+        updated++;
+      }
+
+      res.json({ translated: updated, total: allQuests.length });
+    } catch (error) {
+      console.error('[Quest Batch Translate] Error:', error);
+      res.status(500).json({ error: "Failed to batch translate quests" });
+    }
+  });
+
+  // ── Translation Cache ──────────────────────────────────────────────────────
+
+  // Bulk cache warming — pre-translate words for a world
+  app.post("/api/worlds/:worldId/translation-cache/warm", async (req, res) => {
+    try {
+      const worldId = req.params.worldId;
+      const { words, targetLanguage, cefrLevel } = req.body;
+
+      if (!targetLanguage) {
+        return res.status(400).json({ error: "Missing required field: targetLanguage" });
+      }
+
+      const { preGenerateWorldTranslations } = await import("./services/world-translation-generator.js");
+
+      // If specific words provided, translate them along with game terms
+      if (words && Array.isArray(words) && words.length > 0) {
+        const genResult = await preGenerateWorldTranslations(worldId, targetLanguage, {
+          customWords: words,
+          cefrLevel: cefrLevel || 'A1',
+        });
+
+        return res.json({
+          warmed: genResult.translated,
+          errors: genResult.errors,
+        });
+      }
+
+      // No specific words — warm with game terms + CEFR-appropriate vocabulary
+      // Also gather location names and NPC titles from the world
+      const [settlements, characters] = await Promise.all([
+        storage.getSettlementsByWorld(worldId),
+        storage.getCharactersByWorld(worldId),
+      ]);
+
+      const locationNames = settlements.map((s: any) => s.name).filter(Boolean);
+      const npcTitles = Array.from(new Set(
+        characters
+          .map((c: any) => c.occupation)
+          .filter(Boolean)
+      )) as string[];
+
+      const result = await preGenerateWorldTranslations(worldId, targetLanguage, {
+        locationNames,
+        npcTitles,
+        cefrLevel: cefrLevel || 'A1',
+      });
+
+      res.json({
+        warmed: result.translated,
+        errors: result.errors,
+        locationNames: locationNames.length,
+        npcTitles: npcTitles.length,
+      });
+    } catch (error) {
+      console.error('[Translation Cache Warm] Error:', error);
+      res.status(500).json({ error: "Failed to warm translation cache" });
+    }
+  });
+
+  // Get translation cache statistics for a world
+  app.get("/api/worlds/:worldId/translation-cache/stats", async (req, res) => {
+    try {
+      const worldId = req.params.worldId;
+      const stats = await storage.getTranslationCacheStats(worldId);
+      res.json(stats);
+    } catch (error) {
+      console.error('[Translation Cache Stats] Error:', error);
+      res.status(500).json({ error: "Failed to fetch translation cache stats" });
+    }
+  });
+
+  // Batch lookup cached translations by English words
+  app.post("/api/worlds/:worldId/translation-cache/batch-lookup", async (req, res) => {
+    try {
+      const worldId = req.params.worldId;
+      const { words, targetLanguage } = req.body;
+
+      if (!targetLanguage || !Array.isArray(words) || words.length === 0) {
+        return res.status(400).json({ error: "Missing required fields: words (array), targetLanguage" });
+      }
+
+      const results: Record<string, string> = {};
+      for (const word of words) {
+        if (typeof word !== 'string') continue;
+        const entry = await storage.findTranslation(worldId, word, targetLanguage);
+        if (entry) {
+          results[word] = entry.translation;
+        }
+      }
+
+      res.json({ translations: results });
+    } catch (error) {
+      console.error('[Translation Cache Batch Lookup] Error:', error);
+      res.status(500).json({ error: "Failed to batch lookup translations" });
+    }
+  });
+
+  // ── UI Translation Files (LLM-generated full translation bundles) ──
+
+  // Get the generated UI translation file for a world
+  app.get("/api/worlds/:worldId/ui-translations/:languageCode", async (req, res) => {
+    try {
+      const { worldId, languageCode } = req.params;
+      const file = await storage.getUITranslationFile(worldId, languageCode);
+      if (!file) {
+        return res.status(404).json({ error: "No UI translations found for this language" });
+      }
+      res.json(file);
+    } catch (error) {
+      console.error('[UI Translations GET] Error:', error);
+      res.status(500).json({ error: "Failed to fetch UI translations" });
+    }
+  });
+
+  // Generate (or regenerate) UI translations for a world's target language
+  app.post("/api/worlds/:worldId/ui-translations/generate", async (req, res) => {
+    try {
+      const worldId = req.params.worldId;
+      const world = await storage.getWorld(worldId);
+      if (!world) return res.status(404).json({ error: "World not found" });
+
+      const { languageToCode } = await import('./services/world-translation-generator.js');
+      const targetLanguage = req.body.targetLanguage || world.targetLanguage;
+      const languageCode = req.body.languageCode || languageToCode(targetLanguage || '');
+      if (!targetLanguage) {
+        return res.status(400).json({ error: "No target language specified" });
+      }
+
+      // Load the English translation file as source
+      const { default: enCommon } = await import('../client/src/i18n/locales/en/common.json', { with: { type: 'json' } });
+
+      const { generateUITranslations } = await import('./services/ui-translation-generator.js');
+      const translations = await generateUITranslations(enCommon, targetLanguage, {
+        languageVariant: req.body.languageVariant,
+      });
+
+      await storage.upsertUITranslationFile(worldId, languageCode, targetLanguage, translations);
+
+      res.json({
+        languageCode,
+        targetLanguage,
+        namespaces: Object.keys(translations),
+        keyCount: Object.values(translations).reduce(
+          (sum, ns) => sum + (typeof ns === 'object' && ns ? Object.keys(ns).length : 0), 0,
+        ),
+      });
+    } catch (error) {
+      console.error('[UI Translations Generate] Error:', error);
+      res.status(500).json({ error: "Failed to generate UI translations" });
+    }
+  });
+
   // ============= ITEMS =============
 
   // Get all items for a world (includes matching base items, respecting disabled config)

@@ -189,6 +189,103 @@ export function getBilingualDisplay(
   }
 }
 
+// ── Immersion Progress Data ─────────────────────────────────────────────────
+
+/** Description of a UI namespace for the progress indicator. */
+export interface NamespaceStatus {
+  /** Namespace key (e.g., 'actions') */
+  namespace: string;
+  /** Human-readable label for display */
+  label: string;
+  /** Priority tier (lower = translates sooner) */
+  priority: number;
+  /** Whether this namespace is currently being translated */
+  active: boolean;
+}
+
+/** All display-friendly namespace labels. */
+const NAMESPACE_LABELS: Record<string, string> = {
+  actions: 'Actions',
+  locations: 'Locations',
+  map: 'Map Labels',
+  inventory: 'Inventory',
+  ui: 'Menus',
+  quests: 'Quests',
+  notifications: 'Notifications',
+  emptyStates: 'Empty States',
+  photo: 'Photo UI',
+  misc: 'Miscellaneous',
+};
+
+/** CEFR level descriptions for the progress indicator. */
+const CEFR_DESCRIPTIONS: Record<CEFRLevel, string> = {
+  A1: 'Beginner',
+  A2: 'Elementary',
+  B1: 'Intermediate',
+  B2: 'Upper-Intermediate',
+  C1: 'Advanced',
+  C2: 'Mastery',
+};
+
+/** Data returned by getImmersionProgressData() for UI rendering. */
+export interface ImmersionProgressData {
+  /** Current CEFR level */
+  cefrLevel: CEFRLevel;
+  /** Human-readable CEFR description */
+  cefrDescription: string;
+  /** Current immersion percentage (0-90) */
+  immersionPercent: number;
+  /** Status of each translatable namespace */
+  namespaces: NamespaceStatus[];
+  /** Number of active (translated) namespaces */
+  activeCount: number;
+  /** Total translatable namespaces (excludes 'system') */
+  totalCount: number;
+  /** Whether a transition animation is in progress */
+  isTransitioning: boolean;
+}
+
+/**
+ * Compute immersion progress data for the settings UI.
+ * Shows which namespaces are active and the overall immersion level.
+ */
+export function getImmersionProgressData(
+  cefrLevel: CEFRLevel,
+  mode: UIImmersionMode = 'auto',
+  transitioning: boolean = false,
+): ImmersionProgressData {
+  const immersionPercent = getUIImmersionLevel(cefrLevel, mode);
+  const maxPriority = mode === 'english_only' ? 0
+    : mode === 'maximum' ? Infinity
+    : CEFR_MAX_PRIORITY[cefrLevel];
+
+  const namespaces: NamespaceStatus[] = [];
+  for (const [ns, priority] of Object.entries(NAMESPACE_PRIORITY)) {
+    if (ns === 'system') continue; // Never shown
+    namespaces.push({
+      namespace: ns,
+      label: NAMESPACE_LABELS[ns] || ns,
+      priority,
+      active: priority <= maxPriority && priority !== Infinity,
+    });
+  }
+
+  // Sort by priority (lowest first)
+  namespaces.sort((a, b) => a.priority - b.priority);
+
+  const activeCount = namespaces.filter(n => n.active).length;
+
+  return {
+    cefrLevel,
+    cefrDescription: CEFR_DESCRIPTIONS[cefrLevel],
+    immersionPercent,
+    namespaces,
+    activeCount,
+    totalCount: namespaces.length,
+    isTransitioning: transitioning,
+  };
+}
+
 // ── Progressive Rollout ──────────────────────────────────────────────────────
 
 /**

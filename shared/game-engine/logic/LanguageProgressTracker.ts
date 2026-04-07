@@ -35,7 +35,9 @@ import {
   vocabularyEntryToKnowledgeEntry,
   grammarPatternToPatternEntry,
   conversationRecordToGeneric,
+  ENCOUNTER_WEIGHTS,
 } from '@shared/language/language-progress';
+import type { EncounterType } from '@shared/language/language-progress';
 import type { EvalDimensionScores, DimensionScoreEntry, DimensionTrend } from '@shared/language/language-progress';
 import type { KnowledgeEntry } from '@shared/feature-modules/knowledge-acquisition/types';
 import type { PatternEntry } from '@shared/feature-modules/pattern-recognition/types';
@@ -962,10 +964,16 @@ export class LanguageProgressTracker {
   }
 
   /**
-   * Directly add a vocabulary word (e.g., from reading a notice or document).
-   * If the word already exists, increments its encounter count and marks it as correctly used.
+   * Directly add a vocabulary word (e.g., from reading a notice, hover-translate, or active use).
+   * If the word already exists, increments its encounter count.
+   *
+   * @param encounterType - How the word was encountered. Passive encounters (hover, read) count
+   *   at 0.5x weight toward mastery. Defaults to 'active_use' for backward compatibility.
    */
-  public addVocabularyWord(word: string, meaning: string, category?: string, usedCorrectly?: boolean): VocabularyEntry {
+  public addVocabularyWord(word: string, meaning: string, category?: string, usedCorrectly?: boolean, encounterType?: EncounterType): VocabularyEntry {
+    const encType: EncounterType = encounterType || (usedCorrectly ? 'active_use' : 'passive_read');
+    const weight = ENCOUNTER_WEIGHTS[encType];
+
     let entry = this.progress.vocabulary.find(v => v.word === word);
     if (entry) {
       entry.timesEncountered++;
@@ -974,8 +982,14 @@ export class LanguageProgressTracker {
         entry.timesUsedCorrectly++;
         this.progress.totalCorrectUsages++;
       }
+      // Track encounter type breakdown
+      if (!entry.encounterTypes) entry.encounterTypes = {};
+      entry.encounterTypes[encType] = (entry.encounterTypes[encType] || 0) + 1;
+      // Update weighted encounters
+      entry.weightedEncounters = (entry.weightedEncounters || 0) + weight;
+
       const oldMastery = entry.masteryLevel;
-      entry.masteryLevel = calculateMasteryLevel(entry.timesEncountered, entry.timesUsedCorrectly);
+      entry.masteryLevel = calculateMasteryLevel(entry.timesEncountered, entry.timesUsedCorrectly, entry.weightedEncounters);
       if (oldMastery !== 'mastered' && entry.masteryLevel === 'mastered') {
         this.onWordMastered?.(entry);
       }
@@ -990,6 +1004,8 @@ export class LanguageProgressTracker {
         timesUsedIncorrectly: 0,
         lastEncountered: Date.now(),
         masteryLevel: 'new',
+        encounterTypes: { [encType]: 1 },
+        weightedEncounters: weight,
       };
       this.progress.vocabulary.push(entry);
       this.progress.totalWordsLearned++;
@@ -1039,6 +1055,35 @@ export class LanguageProgressTracker {
       this.onNewWordLearned?.(entry);
     }
     return entry;
+  }
+
+  /**
+   * Get count of words looked up today via hover-translate (passive_hover encounters).
+   * Useful for progress dashboard display.
+   */
+  public getWordsLookedUpToday(): number {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
+
+    return this.progress.vocabulary.filter(v =>
+      v.lastEncountered >= todayMs &&
+      v.encounterTypes?.passive_hover !== undefined &&
+      v.encounterTypes.passive_hover > 0
+    ).length;
+  }
+
+  /**
+   * Get total passive_hover encounter count for today (includes repeat lookups).
+   */
+  public getHoverLookupsToday(): number {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
+
+    return this.progress.vocabulary
+      .filter(v => v.lastEncountered >= todayMs && v.encounterTypes?.passive_hover)
+      .reduce((sum, v) => sum + (v.encounterTypes?.passive_hover || 0), 0);
   }
 
   // Callback setters

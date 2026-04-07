@@ -58,13 +58,17 @@ async function callLLM(prompt: string, provider?: ILLMProvider): Promise<string>
 
   const systemPrompt = `You are a quest designer for a language-learning game. Generate a single quest as a JSON object with these fields:
 {
-  "title": "Short quest title",
-  "description": "Quest story and goals",
+  "title": "Short quest title (in the target language)",
+  "titleTranslation": "English translation of the title",
+  "description": "Quest story and goals (in the target language)",
+  "descriptionTranslation": "English translation of the description",
   "category": "combat" | "exploration" | "social" | "crafting" | "vocabulary" | "grammar" | "conversation",
   "difficulty": "beginner" | "easy" | "normal" | "hard" | "expert",
-  "objectives": [{ "type": "string", "description": "string", "target": "string", "required": number, "hints": [...] }],
+  "objectives": [{ "type": "string", "description": "string (in the target language)", "descriptionTranslation": "English translation", "target": "string", "required": number, "hints": [...] }],
   "rewards": { "experience": number, "gold": number, "items": [{ "name": "string", "quantity": number }] }
 }
+
+IMPORTANT: The title, description, and objective descriptions MUST be in the target language. Always provide English translations in the corresponding Translation fields.
 
 ${objectiveTypeConstraints}
 
@@ -210,6 +214,12 @@ Generate a quest following the format specified above.`;
   const tempQuestId = `temp-${Date.now()}`;
   const hintsData = buildQuestHints(tempQuestId, validObjectives, aiHints);
 
+  // Extract English translations from objectives before stripping hints
+  const objectivesTranslation = validObjectives.map((_obj: any, idx: number) => {
+    const rawObj = questData.objectives?.[idx];
+    return rawObj?.descriptionTranslation || null;
+  }).filter((t: string | null): t is string => t !== null);
+
   // Map to InsertQuest schema
   const quest: InsertQuest & { hintsData?: QuestHintsData } = {
     worldId: world.id,
@@ -221,6 +231,9 @@ Generate a quest following the format specified above.`;
     estimatedMinutes: difficultyInfo.estimatedMinutes,
     title: questData.title,
     description: questData.description,
+    titleTranslation: questData.titleTranslation || null,
+    descriptionTranslation: questData.descriptionTranslation || null,
+    objectivesTranslation: objectivesTranslation.length > 0 ? objectivesTranslation : null,
     objectives: validObjectives,
     experienceReward: questData.rewards?.experience || scaling.xp || 50,
     rewards: questData.rewards || {},
@@ -426,6 +439,12 @@ Return JSON format as specified above.`;
   const tempQuestId = `temp-${Date.now()}`;
   const hintsData = buildQuestHints(tempQuestId, validObjectives, aiHints);
 
+  // Extract English translations from objectives
+  const dialogueObjectivesTranslation = validObjectives.map((_obj: any, idx: number) => {
+    const rawObj = questData.objectives?.[idx];
+    return rawObj?.descriptionTranslation || null;
+  }).filter((t: string | null): t is string => t !== null);
+
   const quest: InsertQuest & { hintsData?: QuestHintsData } = {
     worldId: world.id,
     gameType: questType.id,
@@ -436,6 +455,9 @@ Return JSON format as specified above.`;
     estimatedMinutes: difficultyInfo.estimatedMinutes,
     title: questData.title,
     description: questData.description,
+    titleTranslation: questData.titleTranslation || null,
+    descriptionTranslation: questData.descriptionTranslation || null,
+    objectivesTranslation: dialogueObjectivesTranslation.length > 0 ? dialogueObjectivesTranslation : null,
     objectives: validObjectives,
     experienceReward: questData.rewards?.experience || scaling.xp || 50,
     rewards: questData.rewards || {},

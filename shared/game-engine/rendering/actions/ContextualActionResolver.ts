@@ -15,6 +15,7 @@ import type { ContextualAction } from './ContextualActionMenu';
 import type { CEFRLevel } from '../../../assessment/cefr-mapping';
 import { translateMenuTitle } from '../../../language/in-world-text';
 import type { UIImmersionMode } from '../../../language/ui-localization';
+import { getActionLabel, type TranslationLookupFn } from '../../../language/action-labels';
 
 // ── Action icons ─────────────────────────────────────────────────────────────
 
@@ -35,47 +36,23 @@ const PHYSICAL_ACTION_ICONS: Record<string, string> = {
   farm_harvest: '🌾',
 };
 
-// ── French action labels ─────────────────────────────────────────────────────
+// ── Dynamic action labels ────────────────────────────────────────────────────
 
-const ACTION_FRENCH_LABELS: Record<string, { label: string; labelTranslation: string }> = {
-  // Social
-  talk: { label: 'Parler', labelTranslation: 'Talk' },
-  eavesdrop: { label: 'Écouter', labelTranslation: 'Eavesdrop' },
+/** Module-level translation lookup — set via setActionTranslationLookup(). */
+let _translationLookup: TranslationLookupFn | undefined;
 
-  // Navigation
-  enter: { label: 'Entrer', labelTranslation: 'Enter' },
+/**
+ * Set the translation lookup function for action labels.
+ * Call this once when the game initialises (e.g., from the HoverTranslationSystem cache).
+ */
+export function setActionTranslationLookup(fn: TranslationLookupFn): void {
+  _translationLookup = fn;
+}
 
-  // Examine
-  examine: { label: 'Examiner', labelTranslation: 'Examine' },
-  read: { label: 'Lire', labelTranslation: 'Read' },
-  pick_up: { label: 'Ramasser', labelTranslation: 'Pick Up' },
-
-  // Romance / Social
-  give_gift: { label: 'Offrir un cadeau', labelTranslation: 'Give Gift' },
-
-  // Containers
-  open: { label: 'Ouvrir', labelTranslation: 'Open' },
-
-  // Furniture
-  sit: { label: "S'asseoir", labelTranslation: 'Sit' },
-  use: { label: 'Utiliser', labelTranslation: 'Use' },
-
-  // Physical actions
-  fishing: { label: 'Pêcher', labelTranslation: 'Fish' },
-  mining: { label: 'Miner', labelTranslation: 'Mine' },
-  harvesting: { label: 'Récolter', labelTranslation: 'Harvest' },
-  cooking: { label: 'Cuisiner', labelTranslation: 'Cook' },
-  crafting: { label: 'Fabriquer', labelTranslation: 'Craft' },
-  painting: { label: 'Peindre', labelTranslation: 'Paint' },
-  reading: { label: 'Lire', labelTranslation: 'Read' },
-  praying: { label: 'Prier', labelTranslation: 'Pray' },
-  sweeping: { label: 'Balayer', labelTranslation: 'Sweep' },
-  chopping: { label: 'Couper', labelTranslation: 'Chop' },
-  herbalism: { label: 'Herboriser', labelTranslation: 'Gather Herbs' },
-  farm_plant: { label: 'Planter', labelTranslation: 'Plant' },
-  farm_water: { label: 'Arroser', labelTranslation: 'Water' },
-  farm_harvest: { label: 'Récolter', labelTranslation: 'Harvest' },
-};
+/** Resolve the label pair for an action id, using the current translation lookup. */
+function actionLabels(actionId: string): { label: string; labelTranslation: string } {
+  return getActionLabel(actionId, _translationLookup);
+}
 
 // ── French menu title translations ──────────────────────────────────────────
 
@@ -192,7 +169,7 @@ function resolveNPCActions(
   actions.push({
     id: '__talk__',
     icon: '💬',
-    ...ACTION_FRENCH_LABELS.talk,
+    ...actionLabels('talk'),
     canPerform: true,
     category: 'social',
   });
@@ -213,7 +190,7 @@ function resolveNPCActions(
   actions.push({
     id: '__give_gift__',
     icon: '🎁',
-    ...ACTION_FRENCH_LABELS.give_gift,
+    ...actionLabels('give_gift'),
     canPerform: context.hasInventoryItems,
     reason: context.hasInventoryItems ? undefined : 'No items to give',
     category: 'social',
@@ -226,7 +203,7 @@ function resolveEavesdropActions(_target: InteractableTarget): ContextualAction[
   return [{
     id: '__eavesdrop__',
     icon: '👂',
-    ...ACTION_FRENCH_LABELS.eavesdrop,
+    ...actionLabels('eavesdrop'),
     canPerform: true,
     category: 'social',
   }];
@@ -236,7 +213,7 @@ function resolveBuildingActions(target: InteractableTarget): ContextualAction[] 
   return [{
     id: '__enter_building__',
     icon: '🚪',
-    ...ACTION_FRENCH_LABELS.enter,
+    ...actionLabels('enter'),
     description: target.name,
     canPerform: true,
     category: 'navigation',
@@ -251,7 +228,7 @@ function resolveObjectActions(target: InteractableTarget): ContextualAction[] {
     actions.push({
       id: '__pick_up_book__',
       icon: '📕',
-      ...ACTION_FRENCH_LABELS.pick_up,
+      ...actionLabels('pick_up'),
       canPerform: true,
       category: 'inventory',
     });
@@ -260,7 +237,7 @@ function resolveObjectActions(target: InteractableTarget): ContextualAction[] {
     actions.push({
       id: '__pick_up__',
       icon: '🤲',
-      ...ACTION_FRENCH_LABELS.pick_up,
+      ...actionLabels('pick_up'),
       canPerform: true,
       category: 'inventory',
     });
@@ -270,7 +247,7 @@ function resolveObjectActions(target: InteractableTarget): ContextualAction[] {
   actions.push({
     id: '__examine__',
     icon: '🔍',
-    ...ACTION_FRENCH_LABELS.examine,
+    ...actionLabels('examine'),
     canPerform: true,
     category: 'examine',
   });
@@ -282,7 +259,7 @@ function resolveNoticeBoardActions(_target: InteractableTarget): ContextualActio
   return [{
     id: '__read_notice_board__',
     icon: '📋',
-    ...ACTION_FRENCH_LABELS.read,
+    ...actionLabels('read'),
     canPerform: true,
     category: 'examine',
   }];
@@ -296,7 +273,7 @@ function resolveFurnitureActions(target: InteractableTarget): ContextualAction[]
     actions.push({
       id: '__furniture_sit__',
       icon: fType === 'bed' ? '🛏️' : '🪑',
-      ...ACTION_FRENCH_LABELS.sit,
+      ...actionLabels('sit'),
       canPerform: true,
       category: 'physical',
     });
@@ -304,7 +281,7 @@ function resolveFurnitureActions(target: InteractableTarget): ContextualAction[]
     actions.push({
       id: '__furniture_read__',
       icon: '📚',
-      ...ACTION_FRENCH_LABELS.read,
+      ...actionLabels('read'),
       canPerform: true,
       category: 'examine',
     });
@@ -312,7 +289,7 @@ function resolveFurnitureActions(target: InteractableTarget): ContextualAction[]
     actions.push({
       id: '__furniture_use__',
       icon: '🔧',
-      ...ACTION_FRENCH_LABELS.use,
+      ...actionLabels('use'),
       canPerform: true,
       category: 'physical',
     });
@@ -321,7 +298,7 @@ function resolveFurnitureActions(target: InteractableTarget): ContextualAction[]
     actions.push({
       id: '__furniture_use__',
       icon: '✋',
-      ...ACTION_FRENCH_LABELS.use,
+      ...actionLabels('use'),
       canPerform: true,
       category: 'physical',
     });
@@ -348,15 +325,16 @@ function resolvePhysicalActions(
   );
 
   return availability.map((entry) => {
-    const frenchLabels = ACTION_FRENCH_LABELS[entry.definition.type] ?? {
-      label: entry.definition.displayName,
-      labelTranslation: entry.definition.displayName,
-    };
+    const labels = actionLabels(entry.definition.type);
+    // If no translation was found, fall back to the action system's displayName
+    const finalLabels = labels.label !== entry.definition.type
+      ? labels
+      : { label: entry.definition.displayName, labelTranslation: entry.definition.displayName };
 
     return {
       id: `__physical_${entry.definition.type}__`,
       icon: PHYSICAL_ACTION_ICONS[entry.definition.type] ?? '⚙️',
-      ...frenchLabels,
+      ...finalLabels,
       energyCost: entry.definition.energyCost,
       duration: entry.definition.duration,
       requiredTool: entry.definition.requiredTool,
@@ -373,7 +351,7 @@ function resolveContainerActions(target: InteractableTarget): ContextualAction[]
   actions.push({
     id: '__open_container__',
     icon: target.containerType === 'chest' ? '🗃️' : target.containerType === 'barrel' ? '🛢️' : '📦',
-    ...ACTION_FRENCH_LABELS.open,
+    ...actionLabels('open'),
     description: target.name,
     canPerform: true,
     category: 'inventory',
@@ -384,18 +362,18 @@ function resolveContainerActions(target: InteractableTarget): ContextualAction[]
 
 function resolveCraftingStationActions(target: InteractableTarget): ContextualAction[] {
   const stationType = target.craftingStationType ?? 'workbench';
-  const labels: Record<string, { label: string; labelTranslation: string; icon: string }> = {
-    kitchen_stove: { label: 'Cuisiner', labelTranslation: 'Cook', icon: '🍳' },
-    alchemy_table: { label: 'Préparer', labelTranslation: 'Brew', icon: '⚗️' },
-    workbench: { label: 'Fabriquer', labelTranslation: 'Craft', icon: '🔨' },
+  const stationActionMap: Record<string, { actionId: string; icon: string }> = {
+    kitchen_stove: { actionId: 'cooking', icon: '🍳' },
+    alchemy_table: { actionId: 'brew', icon: '⚗️' },
+    workbench: { actionId: 'crafting', icon: '🔨' },
   };
-  const info = labels[stationType] ?? labels.workbench;
+  const info = stationActionMap[stationType] ?? stationActionMap.workbench;
+  const stationLabels = actionLabels(info.actionId);
 
   return [{
     id: `__craft_at_${stationType}__`,
     icon: info.icon,
-    label: info.label,
-    labelTranslation: info.labelTranslation,
+    ...stationLabels,
     canPerform: true,
     category: 'physical',
   }];

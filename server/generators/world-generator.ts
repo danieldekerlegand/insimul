@@ -323,6 +323,43 @@ export class WorldGenerator {
       historyFidelity: config.historyFidelity,
     });
 
+    // Pre-generate translation cache for language-learning worlds
+    let translationsCached = 0;
+    if (world.targetLanguage && world.gameType === 'language-learning') {
+      try {
+        console.log('\n🌐 Pre-generating translation cache...');
+        const { preGenerateWorldTranslations } = await import('../services/world-translation-generator.js');
+        const settlements = await storage.getSettlementsByWorld(world.id);
+        const characters = await storage.getCharactersByWorld(world.id);
+        const locationNames = settlements.map((s: any) => s.name).filter(Boolean);
+        const npcTitles = Array.from(new Set(
+          characters.map((c: any) => c.occupation).filter(Boolean)
+        )) as string[];
+        const translationResult = await preGenerateWorldTranslations(world.id, world.targetLanguage, {
+          locationNames,
+          npcTitles,
+          cefrLevel: 'A1',
+        });
+        translationsCached = translationResult.translated;
+        console.log(`   Cached ${translationsCached} translations`);
+
+        // Generate full UI translation file for this language
+        const { languageToCode } = await import('../services/world-translation-generator.js');
+        const { generateUITranslations } = await import('../services/ui-translation-generator.js');
+        const langCode = languageToCode(world.targetLanguage);
+        try {
+          const { default: enCommon } = await import('../../client/src/i18n/locales/en/common.json', { with: { type: 'json' } });
+          const uiTranslations = await generateUITranslations(enCommon, world.targetLanguage);
+          await storage.upsertUITranslationFile(world.id, langCode, world.targetLanguage, uiTranslations);
+          console.log(`   Generated UI translation file (${langCode})`);
+        } catch (uiErr: any) {
+          console.warn('[WorldGenerator] UI translation generation failed:', uiErr.message);
+        }
+      } catch (err: any) {
+        console.warn('[WorldGenerator] Translation pre-generation failed:', err.message);
+      }
+    }
+
     // GenAI Visual Asset Generation (world-level, stays here)
     let portraitCount = 0;
     let buildingAssetCount = 0;
@@ -362,6 +399,7 @@ export class WorldGenerator {
       events: result.events,
       itemsPlaced: result.itemsPlaced,
       textsSeeded: result.textsSeeded,
+      translationsCached,
       visualAssets: {
         portraits: portraitCount,
         buildings: buildingAssetCount,

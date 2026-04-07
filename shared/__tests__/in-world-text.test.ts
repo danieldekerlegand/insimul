@@ -1,157 +1,281 @@
 import { describe, it, expect } from 'vitest';
 import {
+  INTERACTION_VERB_WORDS,
+  QUEST_HINT_WORDS,
+  IN_WORLD_TEXT_WORDS,
   translateInteractionVerb,
+  translateObjectName,
+  translateQuestHint,
+  buildTranslatedPrompt,
+  buildTranslatedNPCPrompt,
+  buildTranslatedEavesdropPrompt,
   buildBilingualBuildingPrompt,
-  translateMenuTitle,
 } from '../language/in-world-text';
-import { shouldTranslateUIKey, getGameString } from '../language/ui-localization';
 import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { UIImmersionMode } from '../language/ui-localization';
+import type { TranslationLookupFn } from '../language/action-labels';
 
-// ── AC: shouldTranslateUIKey('actions.talk', 'B2') returns true
-//        shouldTranslateUIKey('actions.talk', 'A1') returns false ──────────
+// ── Constants ──────────────────────────────────────────────────────────────
 
-describe('shouldTranslateUIKey for actions namespace', () => {
-  it('returns false for actions.talk at A1', () => {
-    expect(shouldTranslateUIKey('actions.talk', 'A1')).toBe(false);
-  });
-
-  it('returns false for actions.talk at A2', () => {
-    expect(shouldTranslateUIKey('actions.talk', 'A2')).toBe(false);
-  });
-
-  it('returns true for actions.talk at B1', () => {
-    expect(shouldTranslateUIKey('actions.talk', 'B1')).toBe(true);
-  });
-
-  it('returns true for actions.talk at B2', () => {
-    expect(shouldTranslateUIKey('actions.talk', 'B2')).toBe(true);
-  });
-
-  it('returns true for actions.talk at C1 and C2', () => {
-    expect(shouldTranslateUIKey('actions.talk', 'C1')).toBe(true);
-    expect(shouldTranslateUIKey('actions.talk', 'C2')).toBe(true);
+describe('INTERACTION_VERB_WORDS', () => {
+  it('contains all expected interaction verbs', () => {
+    const expected = ['Talk to', 'Eavesdrop', 'Enter', 'Read', 'Pick up',
+      'Examine', 'Sit on', 'Sleep in', 'Use', 'Interact with', 'Open'];
+    for (const verb of expected) {
+      expect(INTERACTION_VERB_WORDS).toContain(verb);
+    }
   });
 });
 
-// ── AC: at A1 action prompts return English; at B2 return target language ────
+describe('QUEST_HINT_WORDS', () => {
+  it('contains all quest hint strings', () => {
+    expect(QUEST_HINT_WORDS).toContain('Quest Available');
+    expect(QUEST_HINT_WORDS).toContain('Quest In Progress');
+    expect(QUEST_HINT_WORDS).toContain('Quest Ready to Turn In!');
+  });
+});
+
+describe('IN_WORLD_TEXT_WORDS', () => {
+  it('includes verbs, quest hints, and connector', () => {
+    expect(IN_WORLD_TEXT_WORDS).toContain('Talk to');
+    expect(IN_WORLD_TEXT_WORDS).toContain('Quest Available');
+    expect(IN_WORLD_TEXT_WORDS).toContain('and');
+  });
+
+  it('has no duplicates', () => {
+    const unique = new Set(IN_WORLD_TEXT_WORDS);
+    expect(unique.size).toBe(IN_WORLD_TEXT_WORDS.length);
+  });
+});
+
+// ── Test helpers ───────────────────────────────────────────────────────────
+
+const frenchLookup: TranslationLookupFn = (word: string) => {
+  const translations: Record<string, string> = {
+    'Talk to': 'Parler à',
+    'Eavesdrop': 'Écouter',
+    'Enter': 'Entrer',
+    'Read': 'Lire',
+    'Pick up': 'Ramasser',
+    'Examine': 'Examiner',
+    'Sit on': "S'asseoir sur",
+    'Sleep in': 'Dormir dans',
+    'Use': 'Utiliser',
+    'Open': 'Ouvrir',
+    'Interact with': 'Interagir avec',
+    'and': 'et',
+    'Quest Available': 'Quête disponible',
+    'Quest In Progress': 'Quête en cours',
+    'Quest Ready to Turn In!': 'Quête prête à rendre !',
+    'Bakery': 'Boulangerie',
+    'Tavern': 'Taverne',
+    'Notice Board': 'Panneau d\'affichage',
+  };
+  return translations[word];
+};
+
+// ── translateInteractionVerb ──────────────────────────────────────────────
 
 describe('translateInteractionVerb', () => {
-  const verbs = [
-    { english: 'Talk', target: 'Parler' },
-    { english: 'Enter', target: 'Entrer' },
-    { english: 'Pick Up', target: 'Ramasser' },
-    { english: 'Examine', target: 'Examiner' },
-    { english: 'Fish', target: 'Pêcher' },
-  ];
+  it('returns English at A1 (no translation)', () => {
+    expect(translateInteractionVerb('Talk to', 'A1', 'auto', frenchLookup)).toBe('Talk to');
+  });
 
-  it('returns English for all verbs at A1', () => {
-    for (const { english, target } of verbs) {
-      expect(translateInteractionVerb(english, target, 'A1')).toBe(english);
+  it('returns English at A2 (no translation)', () => {
+    expect(translateInteractionVerb('Enter', 'A2', 'auto', frenchLookup)).toBe('Enter');
+  });
+
+  it('returns translated verb at B1', () => {
+    expect(translateInteractionVerb('Talk to', 'B1', 'auto', frenchLookup)).toBe('Parler à');
+  });
+
+  it('returns translated verb at B2', () => {
+    expect(translateInteractionVerb('Read', 'B2', 'auto', frenchLookup)).toBe('Lire');
+  });
+
+  it('returns translated verb at C1', () => {
+    expect(translateInteractionVerb('Eavesdrop', 'C1', 'auto', frenchLookup)).toBe('Écouter');
+  });
+
+  it('returns English when no lookup provided', () => {
+    expect(translateInteractionVerb('Talk to', 'B1', 'auto')).toBe('Talk to');
+  });
+
+  it('returns English when english_only mode', () => {
+    expect(translateInteractionVerb('Talk to', 'B1', 'english_only', frenchLookup)).toBe('Talk to');
+  });
+
+  it('returns translated in maximum mode even at A1', () => {
+    expect(translateInteractionVerb('Enter', 'A1', 'maximum', frenchLookup)).toBe('Entrer');
+  });
+
+  it('falls back to English when lookup returns undefined', () => {
+    const partialLookup: TranslationLookupFn = () => undefined;
+    expect(translateInteractionVerb('Talk to', 'B1', 'auto', partialLookup)).toBe('Talk to');
+  });
+});
+
+// ── translateObjectName ───────────────────────────────────────────────────
+
+describe('translateObjectName', () => {
+  it('returns English at A1', () => {
+    expect(translateObjectName('Bakery', 'A1', 'auto', frenchLookup)).toBe('Bakery');
+  });
+
+  it('returns translated name at B1', () => {
+    expect(translateObjectName('Bakery', 'B1', 'auto', frenchLookup)).toBe('Boulangerie');
+  });
+
+  it('returns English when no translation exists', () => {
+    expect(translateObjectName('Unknown Place', 'B1', 'auto', frenchLookup)).toBe('Unknown Place');
+  });
+});
+
+// ── translateQuestHint ────────────────────────────────────────────────────
+
+describe('translateQuestHint', () => {
+  it('returns English at A1 through B2', () => {
+    const levels: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
+    for (const level of levels) {
+      expect(translateQuestHint('Quest Available', level, 'auto', frenchLookup)).toBe('Quest Available');
     }
   });
 
-  it('returns English for all verbs at A2', () => {
-    for (const { english, target } of verbs) {
-      expect(translateInteractionVerb(english, target, 'A2')).toBe(english);
-    }
+  it('returns translated hint at C1', () => {
+    expect(translateQuestHint('Quest Available', 'C1', 'auto', frenchLookup)).toBe('Quête disponible');
   });
 
-  it('returns target language for all verbs at B1+', () => {
-    for (const level of ['B1', 'B2', 'C1', 'C2'] as CEFRLevel[]) {
-      for (const { english, target } of verbs) {
-        expect(translateInteractionVerb(english, target, level)).toBe(target);
+  it('returns translated hint at C2', () => {
+    expect(translateQuestHint('Quest In Progress', 'C2', 'auto', frenchLookup)).toBe('Quête en cours');
+  });
+
+  it('returns English in english_only mode at C1', () => {
+    expect(translateQuestHint('Quest Available', 'C1', 'english_only', frenchLookup)).toBe('Quest Available');
+  });
+
+  it('returns translated in maximum mode at A1', () => {
+    expect(translateQuestHint('Quest Available', 'A1', 'maximum', frenchLookup)).toBe('Quête disponible');
+  });
+});
+
+// ── buildTranslatedPrompt ─────────────────────────────────────────────────
+
+describe('buildTranslatedPrompt', () => {
+  it('builds English prompt at A1', () => {
+    const result = buildTranslatedPrompt('Enter', 'Read', 'Notice Board', 'A1', 'auto', frenchLookup);
+    expect(result).toBe('[Enter]: Read Notice Board');
+  });
+
+  it('builds translated prompt at B1', () => {
+    const result = buildTranslatedPrompt('Enter', 'Read', 'Notice Board', 'B1', 'auto', frenchLookup);
+    expect(result).toBe("[Enter]: Lire Panneau d'affichage");
+  });
+
+  it('handles missing object translation at B1', () => {
+    const result = buildTranslatedPrompt('G', 'Pick up', 'Stone', 'B1', 'auto', frenchLookup);
+    expect(result).toBe('[G]: Ramasser Stone');
+  });
+});
+
+// ── buildTranslatedNPCPrompt ──────────────────────────────────────────────
+
+describe('buildTranslatedNPCPrompt', () => {
+  it('returns English prompt at A1', () => {
+    const result = buildTranslatedNPCPrompt('Enter', 'Talk to', 'Maria', 'A1', 'auto', frenchLookup);
+    expect(result).toBe('[Enter]: Talk to Maria');
+  });
+
+  it('translates verb but keeps NPC name at B1', () => {
+    const result = buildTranslatedNPCPrompt('Enter', 'Talk to', 'Maria', 'B1', 'auto', frenchLookup);
+    expect(result).toBe('[Enter]: Parler à Maria');
+  });
+
+  it('keeps NPC name untranslated at C2', () => {
+    const result = buildTranslatedNPCPrompt('Enter', 'Talk to', 'Maria', 'C2', 'auto', frenchLookup);
+    expect(result).toBe('[Enter]: Parler à Maria');
+  });
+});
+
+// ── buildTranslatedEavesdropPrompt ────────────────────────────────────────
+
+describe('buildTranslatedEavesdropPrompt', () => {
+  it('returns English at A1', () => {
+    const result = buildTranslatedEavesdropPrompt('Y', 'Maria', 'Pierre', 'A1', 'auto', frenchLookup);
+    expect(result).toBe('[Y]: Eavesdrop Maria and Pierre');
+  });
+
+  it('translates verb and connector at B1', () => {
+    const result = buildTranslatedEavesdropPrompt('Y', 'Maria', 'Pierre', 'B1', 'auto', frenchLookup);
+    expect(result).toBe('[Y]: Écouter Maria et Pierre');
+  });
+
+  it('keeps NPC names untranslated', () => {
+    const result = buildTranslatedEavesdropPrompt('Y', 'Maria', 'Pierre', 'C2', 'auto', frenchLookup);
+    expect(result).toContain('Maria');
+    expect(result).toContain('Pierre');
+  });
+});
+
+// ── buildBilingualBuildingPrompt ──────────────────────────────────────────
+
+describe('buildBilingualBuildingPrompt', () => {
+  it('returns English-only prompt at A1', () => {
+    const result = buildBilingualBuildingPrompt('Enter', 'Enter', 'Bakery', 'A1', 'auto', frenchLookup);
+    expect(result.promptText).toBe('[Enter]: Enter Bakery');
+    expect(result.subtitleText).toBeUndefined();
+  });
+
+  it('returns bilingual prompt at A2 with subtitle', () => {
+    // A2 still doesn't translate locations (priority 0), so should be English
+    const result = buildBilingualBuildingPrompt('Enter', 'Enter', 'Bakery', 'A2', 'auto', frenchLookup);
+    expect(result.promptText).toContain('Bakery');
+  });
+
+  it('returns translated prompt with subtitle at B1', () => {
+    const result = buildBilingualBuildingPrompt('Enter', 'Enter', 'Bakery', 'B1', 'auto', frenchLookup);
+    // At B1, getBilingualDisplay returns target as primary, English as subtitle
+    expect(result.promptText).toContain('Boulangerie');
+    expect(result.subtitleText).toBe('(Bakery)');
+  });
+
+  it('returns translated prompt without subtitle at B2+', () => {
+    const result = buildBilingualBuildingPrompt('Enter', 'Enter', 'Bakery', 'B2', 'auto', frenchLookup);
+    expect(result.promptText).toContain('Boulangerie');
+    // At B2+, getBilingualDisplay only shows target language (tooltip, not subtitle)
+    expect(result.subtitleText).toBeUndefined();
+  });
+
+  it('returns English in english_only mode', () => {
+    const result = buildBilingualBuildingPrompt('Enter', 'Enter', 'Bakery', 'B1', 'english_only', frenchLookup);
+    expect(result.promptText).toBe('[Enter]: Enter Bakery');
+    expect(result.subtitleText).toBeUndefined();
+  });
+});
+
+// ── CEFR level progression ────────────────────────────────────────────────
+
+describe('CEFR level progression for in-world text', () => {
+  const levels: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+  it('verbs remain English at A1-A2, translate at B1+', () => {
+    for (const level of levels) {
+      const result = translateInteractionVerb('Talk to', level, 'auto', frenchLookup);
+      if (level === 'A1' || level === 'A2') {
+        expect(result).toBe('Talk to');
+      } else {
+        expect(result).toBe('Parler à');
       }
     }
   });
 
-  it('returns English when no translation available', () => {
-    expect(translateInteractionVerb('Talk', undefined, 'B2')).toBe('Talk');
-  });
-
-  it('returns English in english_only mode regardless of level', () => {
-    expect(translateInteractionVerb('Talk', 'Parler', 'C2', 'english_only')).toBe('Talk');
-  });
-
-  it('returns target language in maximum mode even at A1', () => {
-    expect(translateInteractionVerb('Talk', 'Parler', 'A1', 'maximum')).toBe('Parler');
-  });
-});
-
-// ── AC: building labels use buildBilingualBuildingPrompt() ───────────────────
-
-describe('buildBilingualBuildingPrompt', () => {
-  it('shows English primary with target subtitle at A1', () => {
-    const result = buildBilingualBuildingPrompt('Bakery', 'Boulangerie', 'A1');
-    expect(result.primary).toBe('Bakery');
-    expect(result.subtitle).toBe('Boulangerie');
-    expect(result.showTooltip).toBe(false);
-  });
-
-  it('shows English primary with target subtitle at A2', () => {
-    const result = buildBilingualBuildingPrompt('Bakery', 'Boulangerie', 'A2');
-    expect(result.primary).toBe('Bakery');
-    expect(result.subtitle).toBe('Boulangerie');
-    expect(result.showTooltip).toBe(false);
-  });
-
-  it('shows target language with English subtitle at B1', () => {
-    const result = buildBilingualBuildingPrompt('Bakery', 'Boulangerie', 'B1');
-    expect(result.primary).toBe('Boulangerie');
-    expect(result.subtitle).toBe('Bakery');
-    expect(result.showTooltip).toBe(true);
-  });
-
-  it('shows target language only (hover for English) at B2+', () => {
-    for (const level of ['B2', 'C1', 'C2'] as CEFRLevel[]) {
-      const result = buildBilingualBuildingPrompt('Bakery', 'Boulangerie', level);
-      expect(result.primary).toBe('Boulangerie');
-      expect(result.subtitle).toBeUndefined();
-      expect(result.showTooltip).toBe(true);
+  it('quest hints remain English at A1-B2, translate at C1+', () => {
+    for (const level of levels) {
+      const result = translateQuestHint('Quest Available', level, 'auto', frenchLookup);
+      if (level === 'C1' || level === 'C2') {
+        expect(result).toBe('Quête disponible');
+      } else {
+        expect(result).toBe('Quest Available');
+      }
     }
-  });
-
-  it('shows English when no translation available', () => {
-    const result = buildBilingualBuildingPrompt('Bakery', undefined, 'B2');
-    expect(result.primary).toBe('Bakery');
-    expect(result.showTooltip).toBe(false);
-  });
-});
-
-// ── translateMenuTitle ───────────────────────────────────────────────────────
-
-describe('translateMenuTitle', () => {
-  it('returns English at A1-A2 (locations namespace not active)', () => {
-    expect(translateMenuTitle('Object', 'Objet', 'A1')).toBe('Object');
-    expect(translateMenuTitle('Furniture', 'Meuble', 'A2')).toBe('Furniture');
-  });
-
-  it('returns target language at B1+ (locations namespace active)', () => {
-    expect(translateMenuTitle('Object', 'Objet', 'B1')).toBe('Objet');
-    expect(translateMenuTitle('Furniture', 'Meuble', 'B2')).toBe('Meuble');
-    expect(translateMenuTitle('Container', 'Contenant', 'C1')).toBe('Contenant');
-  });
-
-  it('returns English when no translation available', () => {
-    expect(translateMenuTitle('Custom Place', undefined, 'B2')).toBe('Custom Place');
-  });
-});
-
-// ── getGameString direct usage (backing function for translateInteractionVerb) ─
-
-describe('getGameString for action verbs', () => {
-  it('returns English at A1 for actions namespace', () => {
-    expect(getGameString('Talk', 'Parler', 'actions.talk', 'A1')).toBe('Talk');
-    expect(getGameString('Enter', 'Entrer', 'actions.enter', 'A1')).toBe('Enter');
-    expect(getGameString('Pick Up', 'Ramasser', 'actions.pickup', 'A1')).toBe('Pick Up');
-    expect(getGameString('Examine', 'Examiner', 'actions.examine', 'A1')).toBe('Examine');
-    expect(getGameString('Fish', 'Pêcher', 'actions.fish', 'A1')).toBe('Fish');
-  });
-
-  it('returns target language at B2 for actions namespace', () => {
-    expect(getGameString('Talk', 'Parler', 'actions.talk', 'B2')).toBe('Parler');
-    expect(getGameString('Enter', 'Entrer', 'actions.enter', 'B2')).toBe('Entrer');
-    expect(getGameString('Pick Up', 'Ramasser', 'actions.pickup', 'B2')).toBe('Ramasser');
-    expect(getGameString('Examine', 'Examiner', 'actions.examine', 'B2')).toBe('Examiner');
-    expect(getGameString('Fish', 'Pêcher', 'actions.fish', 'B2')).toBe('Pêcher');
   });
 });

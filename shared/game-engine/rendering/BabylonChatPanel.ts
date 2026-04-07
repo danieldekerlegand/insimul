@@ -741,6 +741,20 @@ export class BabylonChatPanel {
       }, 500);
     }
 
+    // Wire hover-translate word lookups to vocabulary progress tracker
+    if (this.languageTracker) {
+      const tracker = this.languageTracker;
+      this.hoverTranslation.setOnWordEncounter((encounter) => {
+        tracker.addVocabularyWord(
+          encounter.word,
+          encounter.translation,
+          undefined,       // category — not known from hover context
+          false,           // not used correctly — passive encounter
+          'passive_hover', // encounter type for weighting
+        );
+      });
+    }
+
     // Set up language tracker callbacks
     if (this.languageTracker) {
       if (this.worldLanguageContext) {
@@ -1329,6 +1343,11 @@ export class BabylonChatPanel {
     let tooltipText = `${hint.word} → ${hint.translation}`;
     if (hint.context) {
       tooltipText += `\n${hint.context}`;
+    }
+    // Show encounter count from vocabulary tracker
+    const encounterCount = this.hoverTranslation.getWordEncounterCount(hint.word);
+    if (encounterCount > 0) {
+      tooltipText += `\nSeen ${encounterCount} time${encounterCount !== 1 ? 's' : ''}`;
     }
     this._translationTooltipText.text = tooltipText;
 

@@ -26,6 +26,11 @@ import type { GameEventBus } from "../logic/GameEventBus";
 import type { QuestLanguageFeedbackState } from "@shared/language/quest-language-feedback";
 import { createTickerText, disposeTickers, type TickerHandle } from "./GUITickerText";
 import { NotificationStore } from "../logic/NotificationStore";
+import type { CEFRLevel } from "../../assessment/cefr-mapping";
+import { getLocalizedQuestText, getLocalizedObjectives } from "../../language/quest-localization";
+import type { NotificationTranslationLookupFn } from "../../language/notification-labels";
+import { getNotificationTitle, getNotificationDescription } from "../../language/notification-labels";
+import type { UIImmersionMode } from "../../language/ui-localization";
 
 // ── Toast config per event type ─────────────────────────────────────────────
 
@@ -54,6 +59,7 @@ const TOAST_CONFIGS: Record<string, QuestToastConfig> = {
 export interface ActiveQuestObjective {
   type: string;
   description: string;
+  descriptionTranslation?: string;
   completed: boolean;
   current?: number;
   required?: number;
@@ -63,9 +69,11 @@ export interface ActiveQuestObjective {
 export interface ActiveQuestData {
   id: string;
   title: string;
+  titleTranslation?: string;
   questType: string;
   objectives: ActiveQuestObjective[];
   progress?: number; // 0-1 overall
+  cefrLevel?: CEFRLevel;
 }
 
 // ── Sizing constants ────────────────────────────────────────────────────────
@@ -104,6 +112,11 @@ export class QuestNotificationManager {
 
   // State
   private activeQuest: ActiveQuestData | null = null;
+
+  // CEFR-aware notification translation state
+  private _cefrLevel: CEFRLevel = 'A1';
+  private _immersionMode: UIImmersionMode = 'auto';
+  private _translationLookup: NotificationTranslationLookupFn | undefined;
 
   // Event unsubscribe functions
   private unsubscribers: Array<() => void> = [];
@@ -367,7 +380,18 @@ export class QuestNotificationManager {
 
     // --- Active Quest panel ---
     if (this.activeQuestPanel) this.activeQuestPanel.isVisible = true;
-    if (this.questTitleText) this.questTitleText.text = this.activeQuest.title;
+    if (this.questTitleText) {
+      if (this.activeQuest.cefrLevel && this.activeQuest.titleTranslation) {
+        const titleDisplay = getLocalizedQuestText(
+          { targetText: this.activeQuest.title, englishText: this.activeQuest.titleTranslation },
+          this.activeQuest.cefrLevel,
+          'title',
+        );
+        this.questTitleText.text = titleDisplay.primary;
+      } else {
+        this.questTitleText.text = this.activeQuest.title;
+      }
+    }
 
     // Overall progress from objectives
     const objectives = this.activeQuest.objectives;
@@ -405,6 +429,16 @@ export class QuestNotificationManager {
 
     if (this.taskPanel) this.taskPanel.isVisible = true;
 
+    // Compute CEFR-localized objective text when translation data is available
+    const cefrLevel = this.activeQuest.cefrLevel;
+    const localizedObjectives = cefrLevel
+      ? getLocalizedObjectives(
+          objectives.map(o => o.description || o.type.replace(/_/g, ' ')),
+          objectives.map(o => o.descriptionTranslation ?? null) as string[],
+          cefrLevel,
+        )
+      : null;
+
     // Available width for description text (panel - padding - checkbox - optional progress)
     const descAvailableWidth = PANEL_WIDTH - 50;
     const hintAvailableWidth = PANEL_WIDTH - 24;
@@ -440,7 +474,9 @@ export class QuestNotificationManager {
       labelRow.addControl(check);
 
       // Clip container for the description text (enables ticker scroll)
-      const descText = obj.description || obj.type.replace(/_/g, ' ');
+      // Use CEFR-localized text when available
+      const rawDescText = obj.description || obj.type.replace(/_/g, ' ');
+      const descText = localizedObjectives?.[idx]?.primary ?? rawDescText;
       const hasProgress = !obj.completed && obj.required && obj.required > 1;
       const effectiveWidth = hasProgress ? descAvailableWidth - 28 : descAvailableWidth;
       const descClip = createTickerText({
@@ -521,9 +557,16 @@ export class QuestNotificationManager {
 
   private showQuestToast(eventType: string, title: string, description: string): void {
     const config = TOAST_CONFIGS[eventType] || TOAST_CONFIGS.quest_accepted;
+    // At C1+, translate notification titles progressively
+    const displayTitle = getNotificationTitle(
+      eventType, this._cefrLevel, this._translationLookup, this._immersionMode,
+    );
+    const displayDescription = getNotificationDescription(
+      eventType, description, this._cefrLevel, this._translationLookup, this._immersionMode,
+    );
     NotificationStore.push({
-      title,
-      description,
+      title: displayTitle,
+      description: displayDescription,
       icon: config.icon,
       color: config.color,
       category: "quest",
@@ -600,6 +643,21 @@ export class QuestNotificationManager {
   /** Register callback when Active Quest panel is clicked. */
   public setOnHudClicked(callback: () => void): void {
     this.onHudClicked = callback;
+  }
+
+  /** Set the player's CEFR level for notification translation gating. */
+  public setCEFRLevel(level: CEFRLevel): void {
+    this._cefrLevel = level;
+  }
+
+  /** Set the player's UI immersion mode preference. */
+  public setImmersionMode(mode: UIImmersionMode): void {
+    this._immersionMode = mode;
+  }
+
+  /** Set the translation lookup function for notification strings. */
+  public setTranslationLookup(lookup: NotificationTranslationLookupFn): void {
+    this._translationLookup = lookup;
   }
 
   /** Show/hide both panels. */

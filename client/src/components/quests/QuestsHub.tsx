@@ -30,6 +30,9 @@ interface Quest {
   assignedByCharacterId: string | null;
   title: string;
   description: string;
+  titleTranslation: string | null;
+  descriptionTranslation: string | null;
+  objectivesTranslation: string[] | null;
   questType: string;
   difficulty: string;
   targetLanguage: string;
@@ -355,6 +358,16 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                   <p className="text-xs text-muted-foreground">
                     {selectedQuest.description}
                   </p>
+                  {selectedQuest.titleTranslation && (
+                    <p className="text-xs text-muted-foreground italic mt-0.5">
+                      EN: {selectedQuest.titleTranslation}
+                    </p>
+                  )}
+                  {selectedQuest.descriptionTranslation && (
+                    <p className="text-[10px] text-muted-foreground/70 italic mt-0.5">
+                      EN: {selectedQuest.descriptionTranslation}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Button

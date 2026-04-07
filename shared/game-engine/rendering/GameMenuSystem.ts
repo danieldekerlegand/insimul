@@ -51,6 +51,7 @@ import {
   type GuildSkillStats,
 } from '@shared/guild-skill-tree';
 import { GUILD_DEFINITIONS, type GuildId } from '@shared/guild-definitions';
+import type { ImmersionProgressData } from '@shared/language/ui-localization';
 
 // ─── Data interfaces ────────────────────────────────────────────────────────
 
@@ -332,6 +333,8 @@ export interface GameMenuCallbacks {
   getUIImmersionMode?: () => string;
   /** Change UI language immersion mode */
   onSetUIImmersionMode?: (mode: string) => void;
+  /** Get immersion progress data for the settings progress indicator */
+  getImmersionProgress?: () => ImmersionProgressData | null;
   onToggleModule?: (moduleId: string, enabled: boolean) => void;
   getSaveSlots?: () => Promise<Array<SaveSlotInfo | null>>;
   onSaveGame?: (slotIndex: number) => Promise<boolean>;
@@ -3528,6 +3531,104 @@ export class GameMenuSystem {
           this.callbacks.onSetUIImmersionMode?.(opt.id);
           this.renderSystemTab();
         });
+      }
+
+      // ── Immersion Progress Indicator ──
+      const progressData = this.callbacks.getImmersionProgress?.();
+      if (progressData) {
+        // Spacer
+        const spacer = new Rectangle();
+        spacer.width = 1;
+        spacer.height = "8px";
+        spacer.thickness = 0;
+        spacer.background = "transparent";
+        stack.addControl(spacer);
+
+        // CEFR level badge + immersion percentage
+        const headerRow = new StackPanel("immProgressHeader");
+        headerRow.isVertical = false;
+        headerRow.width = 1;
+        headerRow.height = "24px";
+        stack.addControl(headerRow);
+
+        const cefrBadge = Button.CreateSimpleButton("cefrBadge", progressData.cefrLevel);
+        cefrBadge.width = "36px";
+        cefrBadge.height = "22px";
+        cefrBadge.color = "#fff";
+        cefrBadge.background = COLORS.accent;
+        cefrBadge.fontSize = 11;
+        cefrBadge.fontWeight = "bold";
+        cefrBadge.cornerRadius = 4;
+        cefrBadge.thickness = 0;
+        cefrBadge.isHitTestVisible = false;
+        headerRow.addControl(cefrBadge);
+
+        const cefrLabel = new TextBlock();
+        cefrLabel.text = `  ${progressData.cefrDescription}  ·  ${progressData.immersionPercent}% immersion`;
+        cefrLabel.color = COLORS.textSecondary;
+        cefrLabel.fontSize = 11;
+        cefrLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        headerRow.addControl(cefrLabel);
+
+        if (progressData.isTransitioning) {
+          const transLabel = new TextBlock();
+          transLabel.text = "  ↻ transitioning";
+          transLabel.color = COLORS.accentYellow;
+          transLabel.fontSize = 10;
+          transLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+          headerRow.addControl(transLabel);
+        }
+
+        // Overall progress bar
+        this.addProgressBar(
+          stack,
+          progressData.immersionPercent,
+          90, // Max immersion is 90%
+          COLORS.accent,
+          `${progressData.activeCount} / ${progressData.totalCount} categories`,
+        );
+
+        // Namespace breakdown card
+        const nsCard = this.makeCard(stack);
+        const nsTitle = new TextBlock();
+        nsTitle.text = "Translation Categories";
+        nsTitle.color = COLORS.textSecondary;
+        nsTitle.fontSize = 10;
+        nsTitle.fontWeight = "bold";
+        nsTitle.height = "16px";
+        nsTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        nsCard.addControl(nsTitle);
+
+        for (const ns of progressData.namespaces) {
+          const nsRow = new StackPanel(`ns_${ns.namespace}`);
+          nsRow.isVertical = false;
+          nsRow.width = 1;
+          nsRow.height = "20px";
+          nsCard.addControl(nsRow);
+
+          const dot = new TextBlock();
+          dot.text = ns.active ? "●" : "○";
+          dot.color = ns.active ? COLORS.accentGreen : COLORS.textMuted;
+          dot.fontSize = 10;
+          dot.width = "18px";
+          dot.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          nsRow.addControl(dot);
+
+          const nsLabel = new TextBlock();
+          nsLabel.text = ns.label;
+          nsLabel.color = ns.active ? COLORS.textPrimary : COLORS.textMuted;
+          nsLabel.fontSize = 11;
+          nsLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          nsRow.addControl(nsLabel);
+
+          const nsStatus = new TextBlock();
+          nsStatus.text = ns.active ? "Active" : "Locked";
+          nsStatus.color = ns.active ? COLORS.accentGreen : COLORS.textMuted;
+          nsStatus.fontSize = 10;
+          nsStatus.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+          nsStatus.paddingRight = "4px";
+          nsRow.addControl(nsStatus);
+        }
       }
 
       this.addDivider(stack);

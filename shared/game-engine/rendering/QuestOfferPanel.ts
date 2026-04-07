@@ -17,6 +17,8 @@ import {
   TextWrapping,
 } from '@babylonjs/gui';
 import { Scene } from '@babylonjs/core';
+import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import { getLocalizedQuestText } from '../../language/quest-localization';
 
 export interface QuestOfferData {
   npcId: string;
@@ -28,6 +30,14 @@ export interface QuestOfferData {
   objectives: string;
   category: string;
   rewards?: string;
+  /** Translation of the quest title (English when title is in target language) */
+  questTitleTranslation?: string;
+  /** Translation of the quest description */
+  questDescriptionTranslation?: string;
+  /** Translation of objectives text */
+  objectivesTranslation?: string;
+  /** Player's current CEFR level for localized display */
+  cefrLevel?: CEFRLevel;
 }
 
 export type QuestOfferResult = 'accepted' | 'declined';
@@ -118,9 +128,17 @@ export class QuestOfferPanel {
     npcLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(npcLabel);
 
-    // Quest title
+    // Quest title — CEFR-aware localization
+    const titleDisplay = offer.cefrLevel
+      ? getLocalizedQuestText(
+          { targetText: offer.questTitle, englishText: offer.questTitleTranslation },
+          offer.cefrLevel,
+          'title',
+        )
+      : { primary: offer.questTitle, secondary: undefined, showHoverTranslation: false, showToggleButton: false };
+
     const title = new TextBlock('qo_title');
-    title.text = offer.questTitle;
+    title.text = titleDisplay.primary;
     title.color = '#FFD700';
     title.fontSize = 20;
     title.fontWeight = 'bold';
@@ -128,6 +146,17 @@ export class QuestOfferPanel {
     title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     title.paddingTop = '4px';
     stack.addControl(title);
+
+    // Secondary title text (e.g. A1 shows English primary + target subtitle)
+    if (titleDisplay.secondary) {
+      const titleSub = new TextBlock('qo_title_sub');
+      titleSub.text = titleDisplay.secondary;
+      titleSub.color = '#A0A8C0';
+      titleSub.fontSize = 14;
+      titleSub.height = '22px';
+      titleSub.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      stack.addControl(titleSub);
+    }
 
     // Type + Difficulty row
     const metaRow = new TextBlock('qo_meta');
@@ -142,16 +171,43 @@ export class QuestOfferPanel {
     // Separator
     stack.addControl(this.makeSeparator('24px'));
 
-    // Description
+    // Description — CEFR-aware localization
+    const descDisplay = offer.cefrLevel
+      ? getLocalizedQuestText(
+          { targetText: offer.questDescription, englishText: offer.questDescriptionTranslation },
+          offer.cefrLevel,
+          'description',
+        )
+      : { primary: offer.questDescription, secondary: undefined, showHoverTranslation: false, showToggleButton: false };
+
     const desc = new TextBlock('qo_desc');
-    desc.text = offer.questDescription;
+    desc.text = descDisplay.primary;
     desc.color = '#E0E0E0';
     desc.fontSize = 14;
     desc.textWrapping = TextWrapping.WordWrap;
     desc.resizeToFit = true;
     desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    desc.paddingBottom = '24px';
     stack.addControl(desc);
+
+    // Secondary description (subtitle for A1)
+    if (descDisplay.secondary) {
+      const descSub = new TextBlock('qo_desc_sub');
+      descSub.text = descDisplay.secondary;
+      descSub.color = '#A0A8C0';
+      descSub.fontSize = 12;
+      descSub.textWrapping = TextWrapping.WordWrap;
+      descSub.resizeToFit = true;
+      descSub.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(descSub);
+    }
+
+    // Spacer after description
+    const descSpacer = new Rectangle('qo_desc_spacer');
+    descSpacer.width = '100%';
+    descSpacer.height = '24px';
+    descSpacer.thickness = 0;
+    descSpacer.background = 'transparent';
+    stack.addControl(descSpacer);
 
     // Objectives header
     if (offer.objectives) {
@@ -164,15 +220,43 @@ export class QuestOfferPanel {
       objHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       stack.addControl(objHeader);
 
+      // Objectives — CEFR-aware localization
+      const objDisplay = offer.cefrLevel
+        ? getLocalizedQuestText(
+            { targetText: offer.objectives, englishText: offer.objectivesTranslation },
+            offer.cefrLevel,
+            'objective',
+          )
+        : { primary: offer.objectives, secondary: undefined, showHoverTranslation: false, showToggleButton: false };
+
       const objText = new TextBlock('qo_obj');
-      objText.text = offer.objectives;
+      objText.text = objDisplay.primary;
       objText.color = '#D0D0D0';
       objText.fontSize = 13;
       objText.textWrapping = TextWrapping.WordWrap;
       objText.resizeToFit = true;
       objText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      objText.paddingBottom = '24px';
       stack.addControl(objText);
+
+      // Secondary objectives (A1 subtitle)
+      if (objDisplay.secondary) {
+        const objSub = new TextBlock('qo_obj_sub');
+        objSub.text = objDisplay.secondary;
+        objSub.color = '#A0A8C0';
+        objSub.fontSize = 11;
+        objSub.textWrapping = TextWrapping.WordWrap;
+        objSub.resizeToFit = true;
+        objSub.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        stack.addControl(objSub);
+      }
+
+      // Spacer after objectives
+      const objSpacer = new Rectangle('qo_obj_spacer');
+      objSpacer.width = '100%';
+      objSpacer.height = '24px';
+      objSpacer.thickness = 0;
+      objSpacer.background = 'transparent';
+      stack.addControl(objSpacer);
     }
 
     // Rewards

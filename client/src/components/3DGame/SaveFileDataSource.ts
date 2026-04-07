@@ -560,4 +560,6 @@ export class SaveFileDataSource implements DataSource {
     return assetId ? `${this.baseUrl}/api/assets/${assetId}` : null;
   }
   async getPortfolio(_worldId: string, _playerName: string) { return null; }
+  async fetchTranslationBatch(): Promise<Record<string, string>> { return {}; }
+  async fetchUITranslations(): Promise<Record<string, unknown> | null> { return null; }
 }

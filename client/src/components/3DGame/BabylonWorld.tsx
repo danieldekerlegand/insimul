@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { BabylonGame } from "@shared/game-engine/rendering/BabylonGame";
 import { SaveFileDataSource } from "./SaveFileDataSource";
 import { useAuth } from "@/contexts/AuthContext.tsx";
+import { loadWorldTranslations, setTargetLanguage } from "@/i18n";
 
 interface BabylonWorldProps {
   worldId: string;
@@ -103,6 +104,26 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
 
         gameRef.current = game;
         setLoading(false);
+
+        // Load LLM-generated UI translations for language-learning worlds
+        const worldData = saveFile.worldSnapshot?.world || saveFile.worldSnapshot;
+        const targetLang = worldData?.targetLanguage;
+        if (targetLang && worldData?.gameType === 'language-learning') {
+          try {
+            const langCode = targetLang.toLowerCase().slice(0, 2);
+            setTargetLanguage(langCode);
+            const uiRes = await fetch(`/api/worlds/${worldId}/ui-translations/${langCode}`, { headers });
+            if (uiRes.ok) {
+              const { translations } = await uiRes.json();
+              if (translations) {
+                loadWorldTranslations(langCode, translations);
+                console.log(`[BabylonWorld] Loaded UI translations for ${langCode}`);
+              }
+            }
+          } catch (err) {
+            console.warn('[BabylonWorld] Failed to load UI translations:', err);
+          }
+        }
 
         await game.init();
       } catch (err) {

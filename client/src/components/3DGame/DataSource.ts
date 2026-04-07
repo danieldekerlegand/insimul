@@ -857,6 +857,34 @@ export class ApiDataSource implements DataSource {
     }
   }
 
+  async fetchTranslationBatch(worldId: string, targetLanguage: string, words: string[]): Promise<Record<string, string>> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/translation-cache/batch-lookup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+        body: JSON.stringify({ words, targetLanguage }),
+      });
+      if (!res.ok) return {};
+      const data = await res.json();
+      return data.translations ?? {};
+    } catch {
+      return {};
+    }
+  }
+
+  async fetchUITranslations(worldId: string, languageCode: string): Promise<Record<string, unknown> | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/ui-translations/${encodeURIComponent(languageCode)}`, {
+        headers: this.getHeaders(),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.translations ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   async loadReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
     try {
       const query = playthroughId ? `?playthroughId=${encodeURIComponent(playthroughId)}` : '';
@@ -2396,6 +2424,14 @@ export class FileDataSource implements DataSource {
 
   async getPortfolio(): Promise<any | null> {
     return null; // No portfolio in exported mode
+  }
+
+  async fetchTranslationBatch(): Promise<Record<string, string>> {
+    return {}; // No translation cache in exported mode
+  }
+
+  async fetchUITranslations(): Promise<Record<string, unknown> | null> {
+    return null; // No dynamic UI translations in exported mode
   }
 
   async loadReadingProgress(): Promise<any | null> {

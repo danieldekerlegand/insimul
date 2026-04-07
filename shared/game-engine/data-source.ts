@@ -160,6 +160,12 @@ export interface IDataSource {
   // ── Quest storage provider (for shared quest generators) ──
   getQuestStorageProvider?(): any;
 
+  // ── Translation cache ──
+  /** Fetch cached translations for a batch of English words from the server. */
+  fetchTranslationBatch(worldId: string, targetLanguage: string, words: string[]): Promise<Record<string, string>>;
+  /** Fetch the LLM-generated UI translation file for a world's target language. */
+  fetchUITranslations(worldId: string, languageCode: string): Promise<Record<string, unknown> | null>;
+
   // ── Media & assets ──
   textToSpeech(text: string, voice: string, gender: string, targetLanguage?: string | null): Promise<Blob | null>;
   resolveAssetById(assetId: string): Promise<VisualAsset | null>;

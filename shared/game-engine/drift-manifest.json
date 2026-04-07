@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-07T17:26:02.469Z",
+  "lastUpdated": "2026-04-07T17:29:09.746Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "bece1a8d8cf09ce5dc8f85bda3dbe6ba01af88eb2b33002144445058c15f8c5e",
+      "hash": "142129b736bb07e87a4aa1e1f7374b5611fd4f3e80927b7e1dc79a7fb8cdd5e8",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "32941395562a443d7019d2e067be7a62abf9a38866453adffd6833960e892a18",
+      "hash": "9c8d49e41e00be26c3ab49a0f7b6930dd93faaafc468a6a64dade52f0f15b871",
       "engineMappings": [
         {
           "engine": "unity",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "9aa5975fbbc5f8408b2061ca963a64d3e4d7f22315cd003d3abcbf7b19585e5e",
+      "hash": "35e28b99fd5d932f4aef94aa1ee1928beabb5e3d52821709b46d6cd040f71860",
       "engineMappings": [
         {
           "engine": "unity",

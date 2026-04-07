@@ -85,11 +85,13 @@ Return ONLY valid JSON with the same keys. No markdown, no explanation.
 
 ${JSON.stringify(entries, null, 2)}`;
 
-  const response = await provider.generateText(prompt, {
+  const llmResponse = await provider.generate({
+    prompt,
     systemPrompt: 'You are a translation engine specializing in game UI localization. Return only valid JSON objects.',
     temperature: 0.1,
     maxTokens: 2000,
   });
+  const response = llmResponse.text;
 
   try {
     const cleaned = response.replace(/```json\n?|\n?```/g, '').trim();

@@ -25,6 +25,16 @@ import {
   Color3,
 } from '@babylonjs/core';
 import type { QuestIndicatorType } from './QuestIndicatorManager';
+import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import type { UIImmersionMode } from '../../language/ui-localization';
+import type { TranslationLookupFn } from '../../language/action-labels';
+import {
+  buildTranslatedNPCPrompt,
+  buildTranslatedEavesdropPrompt,
+  buildBilingualBuildingPrompt,
+  buildTranslatedPrompt,
+  translateQuestHint,
+} from '../../language/in-world-text';
 
 // ── Public types ──────────────────────────────────────────────────────────
 
@@ -64,6 +74,8 @@ export interface InteractableTarget {
   possessable?: boolean;
   /** For crafting station interactions */
   craftingStationType?: string;
+  /** Bilingual subtitle text (e.g., English name below translated name) */
+  subtitleText?: string;
 }
 
 export interface RegisteredNPC {
@@ -138,9 +150,16 @@ export class InteractionPromptSystem {
   private getQuestIndicator: GetQuestIndicatorFn | null = null;
   private isSignObject: IsSignObjectFn | null = null;
 
+  // CEFR-aware translation state
+  private _cefrLevel: CEFRLevel = 'A1';
+  private _immersionMode: UIImmersionMode = 'auto';
+  private _translationLookup: TranslationLookupFn | null = null;
+
   // State
   private _currentTarget: InteractableTarget | null = null;
   private currentPromptText = '';
+  /** Subtitle text rendered below main prompt (e.g., bilingual building name) */
+  private currentSubtitleText = '';
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -159,6 +178,21 @@ export class InteractionPromptSystem {
 
   setIsSignObjectCallback(fn: IsSignObjectFn): void {
     this.isSignObject = fn;
+  }
+
+  /** Update CEFR level for in-world text translation. */
+  setCEFRLevel(level: CEFRLevel): void {
+    this._cefrLevel = level;
+  }
+
+  /** Update immersion mode preference. */
+  setImmersionMode(mode: UIImmersionMode): void {
+    this._immersionMode = mode;
+  }
+
+  /** Set the translation lookup function (from shared translation cache). */
+  setTranslationLookup(lookup: TranslationLookupFn): void {
+    this._translationLookup = lookup;
   }
 
   // ── Registration ──────────────────────────────────────────────────────
@@ -370,7 +404,7 @@ export class InteractionPromptSystem {
         id: nb.id,
         name: nb.name,
         mesh,
-        promptText: `[Enter]: Read ${nb.name}`,
+        promptText: buildTranslatedPrompt('Enter', 'Read', nb.name, this._cefrLevel, this._immersionMode, this._translationLookup ?? undefined),
       };
     }
 
@@ -486,7 +520,7 @@ export class InteractionPromptSystem {
           id: nb.id,
           name: nb.name,
           mesh,
-          promptText: `[Enter]: Read ${nb.name}`,
+          promptText: buildTranslatedPrompt('Enter', 'Read', nb.name, this._cefrLevel, this._immersionMode, this._translationLookup ?? undefined),
         };
       }
     });
@@ -545,6 +579,7 @@ export class InteractionPromptSystem {
   private buildNPCTarget(npc: RegisteredNPC): InteractableTarget {
     const partner = this.getConversationPartner?.(npc.id);
     const questIndicator = this.getQuestIndicator?.(npc.id) ?? null;
+    const lookup = this._translationLookup ?? undefined;
 
     if (partner) {
       return {
@@ -552,7 +587,10 @@ export class InteractionPromptSystem {
         id: npc.id,
         name: npc.name,
         mesh: npc.mesh,
-        promptText: `[Y]: Eavesdrop ${npc.name} and ${partner.partnerName}`,
+        promptText: buildTranslatedEavesdropPrompt(
+          'Y', npc.name, partner.partnerName,
+          this._cefrLevel, this._immersionMode, lookup,
+        ),
         questIndicator: questIndicator ?? undefined,
         conversationPartnerName: partner.partnerName,
       };
@@ -563,7 +601,10 @@ export class InteractionPromptSystem {
       id: npc.id,
       name: npc.name,
       mesh: npc.mesh,
-      promptText: `[Enter]: Talk to ${npc.name}`,
+      promptText: buildTranslatedNPCPrompt(
+        'Enter', 'Talk to', npc.name,
+        this._cefrLevel, this._immersionMode, lookup,
+      ),
       questIndicator: questIndicator ?? undefined,
     };
   }
@@ -592,12 +633,18 @@ export class InteractionPromptSystem {
   }
 
   private buildBuildingTarget(building: RegisteredBuilding): InteractableTarget {
+    const lookup = this._translationLookup ?? undefined;
+    const { promptText, subtitleText } = buildBilingualBuildingPrompt(
+      'Enter', 'Enter', building.name,
+      this._cefrLevel, this._immersionMode, lookup,
+    );
     return {
       type: 'building',
       id: building.id,
       name: building.name,
       mesh: building.mesh,
-      promptText: `[Enter]: Enter ${building.name}`,
+      promptText,
+      subtitleText,
     };
   }
 
@@ -605,6 +652,7 @@ export class InteractionPromptSystem {
     const objectRole: string = (mesh.metadata?.objectRole || mesh.name || '').toLowerCase();
     const isSign = this.isSignObject?.(objectRole) ?? false;
     const prettyName = this.formatObjectName(objectRole);
+    const lookup = this._translationLookup ?? undefined;
 
     if (isSign) {
       return {
@@ -612,7 +660,7 @@ export class InteractionPromptSystem {
         id: objectRole,
         name: prettyName,
         mesh,
-        promptText: `[Enter]: Read ${prettyName}`,
+        promptText: buildTranslatedPrompt('Enter', 'Read', prettyName, this._cefrLevel, this._immersionMode, lookup),
         objectRole,
       };
     }
@@ -625,7 +673,7 @@ export class InteractionPromptSystem {
         id: mesh.metadata.bookData.textId || objectRole,
         name: bookTitle,
         mesh,
-        promptText: `[G]: Pick up "${bookTitle}"`,
+        promptText: buildTranslatedPrompt('G', 'Pick up', `"${bookTitle}"`, this._cefrLevel, this._immersionMode, lookup),
         objectRole: 'book',
         possessable: true,
       };
@@ -638,7 +686,9 @@ export class InteractionPromptSystem {
       id: objectRole,
       name: prettyName,
       mesh,
-      promptText: possessable ? `[G]: Pick up ${prettyName}` : `[Enter]: Examine ${prettyName}`,
+      promptText: possessable
+        ? buildTranslatedPrompt('G', 'Pick up', prettyName, this._cefrLevel, this._immersionMode, lookup)
+        : buildTranslatedPrompt('Enter', 'Examine', prettyName, this._cefrLevel, this._immersionMode, lookup),
       objectRole,
       possessable,
     };
@@ -649,29 +699,30 @@ export class InteractionPromptSystem {
     info: { furnitureType: FurnitureInteractionType; subType: string; buildingId?: string },
   ): InteractableTarget {
     const prettyName = this.formatObjectName(info.subType);
-    let promptText: string;
+    const lookup = this._translationLookup ?? undefined;
+    let verb: string;
     switch (info.furnitureType) {
       case 'seat':
-        promptText = `[Enter]: Sit on ${prettyName}`;
+        verb = 'Sit on';
         break;
       case 'bed':
-        promptText = `[Enter]: Sleep in ${prettyName}`;
+        verb = 'Sleep in';
         break;
       case 'bookshelf':
-        promptText = `[Enter]: Read ${prettyName}`;
+        verb = 'Read';
         break;
       case 'workstation':
-        promptText = `[Enter]: Use ${prettyName}`;
+        verb = 'Use';
         break;
       default:
-        promptText = `[Enter]: Interact with ${prettyName}`;
+        verb = 'Interact with';
     }
     return {
       type: 'furniture',
       id: `furniture_${info.furnitureType}_${mesh.uniqueId}`,
       name: prettyName,
       mesh,
-      promptText,
+      promptText: buildTranslatedPrompt('Enter', verb, prettyName, this._cefrLevel, this._immersionMode, lookup),
       furnitureType: info.furnitureType,
     };
   }
@@ -681,9 +732,9 @@ export class InteractionPromptSystem {
     info: { containerId: string; containerType: string; name: string; isLocked?: boolean },
   ): InteractableTarget {
     const prettyName = this.formatObjectName(info.name || info.containerType);
-    const promptText = info.isLocked
-      ? `[Enter]: Open ${prettyName} (Locked)`
-      : `[Enter]: Open ${prettyName}`;
+    const lookup = this._translationLookup ?? undefined;
+    const suffix = info.isLocked ? ' (Locked)' : '';
+    const promptText = buildTranslatedPrompt('Enter', 'Open', prettyName + suffix, this._cefrLevel, this._immersionMode, lookup);
     return {
       type: 'container',
       id: info.containerId,
@@ -814,10 +865,13 @@ export class InteractionPromptSystem {
   private showPrompt(target: InteractableTarget): void {
     if (!this.billboard) return;
 
+    const subtitle = target.subtitleText || '';
+
     // Update text only if changed
-    if (target.promptText !== this.currentPromptText) {
+    if (target.promptText !== this.currentPromptText || subtitle !== this.currentSubtitleText) {
       this.currentPromptText = target.promptText;
-      this.renderBillboardText(target.promptText);
+      this.currentSubtitleText = subtitle;
+      this.renderBillboardText(target.promptText, subtitle);
     }
 
     // Position above the target mesh
@@ -849,6 +903,7 @@ export class InteractionPromptSystem {
     if (this._currentTarget === null && this.currentPromptText === '') return;
     this._currentTarget = null;
     this.currentPromptText = '';
+    this.currentSubtitleText = '';
     if (this.billboard) this.billboard.isVisible = false;
     if (this.questBillboard) this.questBillboard.isVisible = false;
   }
@@ -874,14 +929,22 @@ export class InteractionPromptSystem {
     }
   }
 
-  private renderBillboardText(text: string): void {
+  private renderBillboardText(text: string, subtitle?: string): void {
     if (!this.billboardMat || !this.billboard) return;
 
     // Dispose old texture
     this.billboardTex?.dispose();
 
+    // If subtitle present, use a taller texture to fit both lines
+    const hasSubtitle = !!subtitle;
+    const texHeight = hasSubtitle ? TEX_HEIGHT + 32 : TEX_HEIGHT;
+    const billboardHeight = hasSubtitle
+      ? BILLBOARD_HEIGHT * (texHeight / TEX_HEIGHT)
+      : BILLBOARD_HEIGHT;
+    this.billboard.scaling.y = billboardHeight / BILLBOARD_HEIGHT;
+
     // Measure text width using an offscreen canvas to determine required texture size
-    const keyMatch = text.match(/^\[([A-Z])\]:/);
+    const keyMatch = text.match(/^\[([A-Za-z]+)\]:/);
     const measureCanvas = document.createElement('canvas');
     const mCtx = measureCanvas.getContext('2d')!;
     let totalTextWidth: number;
@@ -896,6 +959,13 @@ export class InteractionPromptSystem {
       totalTextWidth = mCtx.measureText(text).width;
     }
 
+    // Also measure subtitle width if present
+    if (hasSubtitle) {
+      mCtx.font = '22px Arial';
+      const subtitleWidth = mCtx.measureText(subtitle).width;
+      totalTextWidth = Math.max(totalTextWidth, subtitleWidth);
+    }
+
     // Size texture to fit text with padding (minimum TEX_WIDTH for short text)
     const padding = 60;
     const texWidth = Math.max(TEX_WIDTH, Math.ceil(totalTextWidth + padding));
@@ -905,21 +975,21 @@ export class InteractionPromptSystem {
 
     const tex = new DynamicTexture(
       'interaction_prompt_tex',
-      { width: texWidth, height: TEX_HEIGHT },
+      { width: texWidth, height: texHeight },
       this.scene,
     );
     tex.hasAlpha = true;
 
     const ctx = tex.getContext() as CanvasRenderingContext2D;
-    ctx.clearRect(0, 0, texWidth, TEX_HEIGHT);
+    ctx.clearRect(0, 0, texWidth, texHeight);
 
     // Background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(4, 4, texWidth - 8, TEX_HEIGHT - 8, 14);
+      ctx.roundRect(4, 4, texWidth - 8, texHeight - 8, 14);
     } else {
-      ctx.rect(4, 4, texWidth - 8, TEX_HEIGHT - 8);
+      ctx.rect(4, 4, texWidth - 8, texHeight - 8);
     }
     ctx.fill();
 
@@ -928,18 +998,21 @@ export class InteractionPromptSystem {
     ctx.lineWidth = 2;
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(4, 4, texWidth - 8, TEX_HEIGHT - 8, 14);
+      ctx.roundRect(4, 4, texWidth - 8, texHeight - 8, 14);
     } else {
-      ctx.rect(4, 4, texWidth - 8, TEX_HEIGHT - 8);
+      ctx.rect(4, 4, texWidth - 8, texHeight - 8);
     }
     ctx.stroke();
 
-    // Key highlight — find the bracket portion like "[G]" or "[Y]"
+    // Vertical center: if subtitle, shift main text up
+    const mainY = hasSubtitle ? texHeight / 2 - 14 : texHeight / 2;
+
+    // Key highlight — find the bracket portion like "[Enter]:" or "[Y]:"
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     if (keyMatch) {
-      const keyPart = keyMatch[0]; // e.g. "[G]:"
+      const keyPart = keyMatch[0]; // e.g. "[Enter]:"
       const actionPart = text.slice(keyPart.length); // e.g. " Talk to Maria"
 
       // Measure widths
@@ -954,16 +1027,24 @@ export class InteractionPromptSystem {
       ctx.font = 'bold 34px Arial';
       ctx.fillStyle = '#FFD740';
       ctx.textAlign = 'left';
-      ctx.fillText(keyPart, startX, TEX_HEIGHT / 2);
+      ctx.fillText(keyPart, startX, mainY);
 
       // Action part in white
       ctx.font = '32px Arial';
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillText(actionPart, startX + keyWidth, TEX_HEIGHT / 2);
+      ctx.fillText(actionPart, startX + keyWidth, mainY);
     } else {
       ctx.font = '32px Arial';
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillText(text, texWidth / 2, TEX_HEIGHT / 2);
+      ctx.fillText(text, texWidth / 2, mainY);
+    }
+
+    // Render subtitle below main text (smaller, muted color)
+    if (hasSubtitle) {
+      ctx.font = '22px Arial';
+      ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
+      ctx.textAlign = 'center';
+      ctx.fillText(subtitle, texWidth / 2, mainY + 30);
     }
 
     tex.update();
@@ -1004,13 +1085,14 @@ export class InteractionPromptSystem {
   }
 
   private getQuestHintText(type: QuestIndicatorType): { text: string; color: string } {
+    const lookup = this._translationLookup ?? undefined;
     switch (type) {
       case 'available':
-        return { text: 'Quest Available', color: '#FFD700' };
+        return { text: translateQuestHint('Quest Available', this._cefrLevel, this._immersionMode, lookup), color: '#FFD700' };
       case 'in_progress':
-        return { text: 'Quest In Progress', color: '#C0C0C0' };
+        return { text: translateQuestHint('Quest In Progress', this._cefrLevel, this._immersionMode, lookup), color: '#C0C0C0' };
       case 'turn_in':
-        return { text: 'Quest Ready to Turn In!', color: '#32CD32' };
+        return { text: translateQuestHint('Quest Ready to Turn In!', this._cefrLevel, this._immersionMode, lookup), color: '#32CD32' };
       default:
         return { text: '', color: '#FFFFFF' };
     }

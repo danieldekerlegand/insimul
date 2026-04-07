@@ -431,6 +431,17 @@ export interface IStorage {
   // Conversation Records
   getConversationRecords(playerId: string, worldId: string, playthroughId?: string): Promise<any[]>;
   createConversationRecord(data: any): Promise<any>;
+
+  // Word Translation Cache
+  findTranslation(worldId: string, word: string, targetLanguage: string): Promise<{ translation: string; partOfSpeech?: string } | null>;
+  upsertTranslation(worldId: string, word: string, targetLanguage: string, translation: string, partOfSpeech?: string): Promise<void>;
+  incrementTranslationLookup(worldId: string, word: string, targetLanguage: string): Promise<void>;
+  bulkUpsertTranslations(worldId: string, targetLanguage: string, translations: Array<{ word: string; translation: string; partOfSpeech?: string }>): Promise<number>;
+  getTranslationCacheStats(worldId: string): Promise<{ totalWords: number; topWords: Array<{ word: string; lookupCount: number }> }>;
+
+  // UI Translation Files
+  getUITranslationFile(worldId: string, languageCode: string): Promise<{ translations: Record<string, unknown>; version: number; generatedAt: Date } | null>;
+  upsertUITranslationFile(worldId: string, languageCode: string, targetLanguage: string, translations: Record<string, unknown>): Promise<void>;
 }
 
 // Export MongoStorage as the default storage implementation

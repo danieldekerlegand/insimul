@@ -18,6 +18,18 @@ export type { MasteryLevel } from '../feature-modules/knowledge-acquisition/type
 import type { MasteryLevel } from '../feature-modules/knowledge-acquisition/types';
 import { getMasteryForCorrectCount, ENCOUNTER_LEARNING_THRESHOLD } from './vocabulary-constants';
 
+/** How a word was encountered — affects mastery weighting */
+export type EncounterType = 'active_use' | 'passive_hover' | 'passive_read' | 'quiz_correct' | 'quiz_incorrect';
+
+/** Mastery weight per encounter type (passive encounters count less toward mastery) */
+export const ENCOUNTER_WEIGHTS: Record<EncounterType, number> = {
+  active_use: 1.0,
+  passive_hover: 0.5,
+  passive_read: 0.5,
+  quiz_correct: 1.0,
+  quiz_incorrect: 0.0,
+};
+
 export interface VocabularyEntry {
   word: string;
   language: string;
@@ -29,6 +41,8 @@ export interface VocabularyEntry {
   lastEncountered: number;      // timestamp
   masteryLevel: MasteryLevel;
   context?: string;             // sentence where word was last encountered
+  encounterTypes?: Partial<Record<EncounterType, number>>;  // breakdown by encounter source
+  weightedEncounters?: number;  // sum of weighted encounters for mastery calc
 }
 
 export interface GrammarPattern {
@@ -156,16 +170,26 @@ export interface FluencyGainResult {
  * Delegates to the canonical thresholds in vocabulary-constants.ts so
  * that mastery levels stay consistent across all systems (SRS, progress
  * tracking, CEFR adaptation, etc.).
+ *
+ * When `weightedEncounters` is provided, it's used instead of raw
+ * `timesUsedCorrectly` for threshold checks — passive encounters
+ * (e.g., hover-translate) count at 0.5x weight toward mastery.
  */
 export function calculateMasteryLevel(
   timesEncountered: number,
-  timesUsedCorrectly: number
+  timesUsedCorrectly: number,
+  weightedEncounters?: number,
 ): MasteryLevel {
   // Must have at least one encounter to progress past 'new'
   if (timesEncountered === 0) return 'new';
 
+  // Use weighted encounters for threshold if available, otherwise raw correct count
+  const effectiveCorrect = weightedEncounters !== undefined
+    ? Math.floor(weightedEncounters)
+    : timesUsedCorrectly;
+
   // Use canonical thresholds from vocabulary-constants.ts
-  const level = getMasteryForCorrectCount(timesUsedCorrectly);
+  const level = getMasteryForCorrectCount(effectiveCorrect);
   if (level !== 'new') return level;
 
   // Some encounters but few correct uses — still learning

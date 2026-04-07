@@ -965,6 +965,18 @@ const WordTranslationCacheSchema = new Schema({
 WordTranslationCacheSchema.index({ worldId: 1, sourceWord: 1, targetLanguage: 1 }, { unique: true });
 WordTranslationCacheSchema.index({ worldId: 1, lookupCount: -1 });
 
+// UI Translation Files — stores LLM-generated complete UI translation files per world/language
+const UITranslationFileSchema = new Schema({
+  worldId: { type: String, required: true },
+  targetLanguage: { type: String, required: true },
+  languageCode: { type: String, required: true }, // ISO code (e.g., 'fr', 'es')
+  translations: { type: Schema.Types.Mixed, required: true }, // Full translation JSON (same shape as en/common.json)
+  version: { type: Number, default: 1 }, // Increment on regeneration
+  generatedAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+UITranslationFileSchema.index({ worldId: 1, languageCode: 1 }, { unique: true });
+
 // ApiKeySchema removed — API keys are now stored on user accounts (UserSchema.apiKey)
 
 // GeographicFeatureSchema removed — geographic features are now merged into LocationSchema
@@ -1012,6 +1024,7 @@ const PlaythroughConversationModel = _removedModel as any;
 // ReputationModel removed — use TruthModel with entryType='reputation'
 // PlaythroughRelationshipModel removed — use TruthModel with entryType='relationship'
 const WordTranslationCacheModel = mongoose.model('WordTranslationCache', WordTranslationCacheSchema, 'word_translation_cache');
+const UITranslationFileModel = mongoose.model('UITranslationFile', UITranslationFileSchema, 'ui_translation_files');
 const SaveFileModel = mongoose.model('SaveFile', SaveFileSchema, 'saves');
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema, 'languages');
 const LocationModel = mongoose.model('Location', LocationSchema, 'locations');
@@ -4366,6 +4379,32 @@ export class MongoStorage implements IStorage {
       totalWords,
       topWords: topWords.map(w => ({ word: w.sourceWord, lookupCount: w.lookupCount })),
     };
+  }
+
+  // ── UI Translation Files ─────────────────────────────���────────────────
+
+  async getUITranslationFile(worldId: string, languageCode: string): Promise<{ translations: Record<string, unknown>; version: number; generatedAt: Date } | null> {
+    await this.connect();
+    const doc = await UITranslationFileModel.findOne({ worldId, languageCode }).lean();
+    if (!doc) return null;
+    return {
+      translations: doc.translations as Record<string, unknown>,
+      version: doc.version as number,
+      generatedAt: doc.generatedAt as Date,
+    };
+  }
+
+  async upsertUITranslationFile(worldId: string, languageCode: string, targetLanguage: string, translations: Record<string, unknown>): Promise<void> {
+    await this.connect();
+    await UITranslationFileModel.updateOne(
+      { worldId, languageCode },
+      {
+        $set: { translations, targetLanguage, updatedAt: new Date() },
+        $inc: { version: 1 },
+        $setOnInsert: { generatedAt: new Date() },
+      },
+      { upsert: true },
+    );
   }
 
 }

@@ -862,10 +862,10 @@ export function registerConversationRoutes(app: Express): void {
       // Check translation cache first (if worldId provided)
       if (worldId) {
         const stor = await import('../../db/storage.js').then(m => m.storage);
-        const cached = await (stor as any).findTranslation(worldId, word, targetLanguage);
+        const cached = await stor.findTranslation(worldId, word, targetLanguage);
         if (cached) {
           // Cache hit — increment lookup count and return cached result
-          (stor as any).incrementTranslationLookup(worldId, word, targetLanguage).catch(() => {});
+          stor.incrementTranslationLookup(worldId, word, targetLanguage).catch(() => {});
           return res.json({ word, translation: cached.translation, context: cached.partOfSpeech || '', cached: true });
         }
       }
@@ -896,7 +896,7 @@ export function registerConversationRoutes(app: Express): void {
         // Cache the result
         if (worldId && translationResult) {
           const storForCache = await import('../../db/storage.js').then(m => m.storage);
-          (storForCache as any).upsertTranslation(worldId, word, targetLanguage, translationResult.translation, translationResult.context).catch(() => {});
+          storForCache.upsertTranslation(worldId, word, targetLanguage, translationResult.translation, translationResult.context).catch(() => {});
         }
 
         return res.json({ word, ...translationResult });
@@ -921,7 +921,7 @@ export function registerConversationRoutes(app: Express): void {
       // Cache the result
       if (worldId && translationResult) {
         const storForCache2 = await import('../../db/storage.js').then(m => m.storage);
-        (storForCache2 as any).upsertTranslation(worldId, word, targetLanguage, translationResult.translation, translationResult.context).catch(() => {});
+        storForCache2.upsertTranslation(worldId, word, targetLanguage, translationResult.translation, translationResult.context).catch(() => {});
       }
 
       res.json({ word, ...translationResult });

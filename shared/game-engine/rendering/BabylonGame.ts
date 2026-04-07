@@ -51,7 +51,10 @@ import { BabylonRadialMenu } from "@shared/game-engine/rendering/BabylonRadialMe
 import { ContextualActionMenu } from "@shared/game-engine/rendering/actions/ContextualActionMenu";
 import { getAnimationForAction } from "@shared/game-engine/action-animation-map";
 import { QuestRewardIntegration } from "@shared/game-engine/logic/QuestRewardIntegration";
-import { resolveActions, resolveMenuOptions, type ActionResolverContext } from "@shared/game-engine/rendering/actions/ContextualActionResolver";
+import { resolveActions, resolveMenuOptions, setActionTranslationLookup, type ActionResolverContext } from "@shared/game-engine/rendering/actions/ContextualActionResolver";
+import { ACTION_LABEL_WORDS, BUILDING_TYPE_LABELS } from "@shared/language/action-labels";
+import { NOTIFICATION_LABEL_WORDS } from "@shared/language/notification-labels";
+import { IN_WORLD_TEXT_WORDS } from "@shared/language/in-world-text";
 import { QuestObjectManager } from "@shared/game-engine/rendering/QuestObjectManager";
 import { QuestHotspotManager } from "@shared/game-engine/rendering/QuestHotspotManager";
 import { CONVERSATIONAL_GESTURES } from "@shared/game-engine/action-animation-map";
@@ -1034,6 +1037,13 @@ export class BabylonGame {
       await this.setupKeyboardHandlers();
       this.setupPointerHandlers();
       this.setupUpdateLoop();
+
+      // Load action & building label translations for language-learning worlds
+      if (isLanguageLearningWorld(this.worldData)) {
+        this.loadActionTranslations().catch((err) =>
+          console.warn('[BabylonGame] Failed to load action translations:', err),
+        );
+      }
 
       // Start ambient conversation system
       if (this.ambientConversationManager) {
@@ -2722,6 +2732,11 @@ export class BabylonGame {
       onSetAIProvider: (provider: string) => this.chatPanel?.setAIProvider(provider),
       getUIImmersionMode: () => this._uiImmersionMode,
       onSetUIImmersionMode: (mode: string) => this.setUIImmersionMode(mode as any),
+      getImmersionProgress: () => {
+        const { getImmersionProgressData } = require('../../language/ui-localization') as typeof import('../../language/ui-localization');
+        const cefrLevel = (this.playerCefrLevel || 'A1') as import('../../assessment/cefr-mapping').CEFRLevel;
+        return getImmersionProgressData(cefrLevel, this._uiImmersionMode);
+      },
       getSaveSlots: () => this.getSaveSlots(),
       onSaveGame: (slotIndex: number) => this.handleSaveGame(slotIndex),
       onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
@@ -4244,6 +4259,8 @@ export class BabylonGame {
         // Propagate CEFR level to UI immersion consumers
         this.contextualActionMenu?.setCEFRLevel(event.cefrLevel as any);
         this.buildingInfoDisplay?.setCEFRLevel(event.cefrLevel as any);
+        this.questNotificationManager?.setCEFRLevel(event.cefrLevel as any);
+        this.interactionPrompt?.setCEFRLevel(event.cefrLevel as any);
         // Persist cefrLevel to playerProgress for server-side queries
         const worldId = this.config.worldId;
         const playerId = this.config.userId || 'player';
@@ -4961,6 +4978,8 @@ export class BabylonGame {
           // Propagate CEFR level to UI immersion consumers
           this.contextualActionMenu?.setCEFRLevel(newLevel as any);
           this.buildingInfoDisplay?.setCEFRLevel(newLevel as any);
+          this.questNotificationManager?.setCEFRLevel(newLevel as any);
+          this.interactionPrompt?.setCEFRLevel(newLevel as any);
 
           // Emit event for other systems (quest gating, periodic assessment, etc.)
           this.eventBus.emit({
@@ -8129,6 +8148,39 @@ export class BabylonGame {
   }
 
   /** Initialize the playthrough-scoped NPC relationship manager. */
+  /** Cache of UI translations (action labels, building types) keyed by English word. */
+  private _uiTranslationCache: Record<string, string> = {};
+
+  /**
+   * Load pre-generated translations for action labels, building types, and notification strings.
+   * Sets up translation lookups for ContextualActionResolver, BuildingInfoDisplay, and QuestNotificationManager.
+   */
+  private async loadActionTranslations(): Promise<void> {
+    const targetLanguage = getTargetLanguage(this.worldData);
+    if (!targetLanguage || !this.dataSource) return;
+
+    const worldId = this.config.worldId;
+    const allWords = [...ACTION_LABEL_WORDS, ...BUILDING_TYPE_LABELS, ...NOTIFICATION_LABEL_WORDS, ...IN_WORLD_TEXT_WORDS];
+    const translations = await this.dataSource.fetchTranslationBatch(worldId, targetLanguage, allWords);
+
+    this._uiTranslationCache = translations;
+
+    // Wire action label lookup into the resolver
+    const lookupFn = (english: string) => translations[english];
+    setActionTranslationLookup(lookupFn);
+
+    // Wire building type label lookup into the info display
+    this.buildingInfoDisplay?.setTranslationLookup(lookupFn);
+
+    // Wire notification label lookup into the notification manager
+    this.questNotificationManager?.setTranslationLookup(lookupFn);
+
+    // Wire in-world text translation into the interaction prompt system
+    this.interactionPrompt?.setTranslationLookup(lookupFn);
+
+    console.log(`[BabylonGame] Loaded ${Object.keys(translations).length} UI translations for ${targetLanguage}`);
+  }
+
   private async initializeRelationshipManager(): Promise<void> {
     if (!this.playthroughId || !this.eventBus) return;
     try {
@@ -13636,6 +13688,35 @@ export class BabylonGame {
     const lastName = (character as any).lastName || '';
     const fullName = `${firstName} ${lastName}`.trim();
 
+    // Check if there's a pre-generated quest with translations for this NPC
+    const suggestedQuest = (this.quests || []).find(
+      (q: any) => q.assignedByCharacterId === npcId && q.status === 'available',
+    );
+
+    const cefrLevel = this.playerCefrLevel as import('../../assessment/cefr-mapping').CEFRLevel | null;
+
+    if (suggestedQuest && (suggestedQuest as any).titleTranslation) {
+      return {
+        npcId,
+        npcName: fullName,
+        questTitle: suggestedQuest.title || `A Task from ${fullName}`,
+        questDescription: (suggestedQuest as any).description || `${fullName} has a task for you.`,
+        questType: (suggestedQuest as any).questType || 'conversation',
+        difficulty: (suggestedQuest as any).difficulty || 'normal',
+        objectives: ((suggestedQuest as any).objectives || [])
+          .map((o: any) => o.description || o.type)
+          .join('; ') || 'Talk to the NPC to learn quest details',
+        category: occupation,
+        questTitleTranslation: (suggestedQuest as any).titleTranslation,
+        questDescriptionTranslation: (suggestedQuest as any).descriptionTranslation,
+        objectivesTranslation: ((suggestedQuest as any).objectives || [])
+          .map((o: any) => o.descriptionTranslation)
+          .filter(Boolean)
+          .join('; ') || undefined,
+        cefrLevel: cefrLevel || undefined,
+      };
+    }
+
     return {
       npcId,
       npcName: fullName,
@@ -13645,6 +13726,7 @@ export class BabylonGame {
       difficulty: 'normal',
       objectives: 'Talk to the NPC to learn quest details',
       category: occupation,
+      cefrLevel: cefrLevel || undefined,
     };
   }
 
@@ -15228,6 +15310,8 @@ export class BabylonGame {
     this._uiImmersionMode = mode;
     this.contextualActionMenu?.setImmersionMode(mode);
     this.buildingInfoDisplay?.setImmersionMode(mode);
+    this.questNotificationManager?.setImmersionMode(mode);
+    this.interactionPrompt?.setImmersionMode(mode);
   }
 
   private handleToggleFullscreen(): void {
@@ -16447,19 +16531,23 @@ export class BabylonGame {
   private syncActiveQuestToHud(): void {
     const activeQuest = (this.quests || []).find((q: any) => q.status === 'active');
     if (activeQuest) {
+      const cefrLevel = this.playerCefrLevel as import('../../assessment/cefr-mapping').CEFRLevel | null;
       this.questNotificationManager?.setActiveQuest({
         id: activeQuest.id,
         title: activeQuest.title || activeQuest.name || activeQuest.id,
+        titleTranslation: (activeQuest as any).titleTranslation,
         questType: activeQuest.questType || '',
         objectives: (activeQuest.objectives || []).map((obj: any) => ({
           type: obj.type || '',
           description: obj.description || obj.type?.replace(/_/g, ' ') || '',
+          descriptionTranslation: obj.descriptionTranslation,
           completed: !!obj.completed,
           current: obj.current,
           required: obj.required,
           hint: obj.hint,
         })),
         progress: activeQuest.progress,
+        cefrLevel: cefrLevel || undefined,
       });
     } else {
       this.questNotificationManager?.setActiveQuest(null);

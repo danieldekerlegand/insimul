@@ -5,6 +5,7 @@ import {
   getGameString,
   getBilingualDisplay,
   ImmersionTransitionController,
+  getImmersionProgressData,
 } from '../language/ui-localization';
 import type { CEFRLevel } from '../assessment/cefr-mapping';
 
@@ -336,5 +337,130 @@ describe('immersion level progression', () => {
     expect(shouldTranslateUIKey('photo.caption', 'C2')).toBe(true);
     expect(shouldTranslateUIKey('misc.tooltip', 'C2')).toBe(true);
     expect(shouldTranslateUIKey('system.error', 'C2')).toBe(false);
+  });
+});
+
+describe('getImmersionProgressData', () => {
+  it('returns correct data for A1 auto mode', () => {
+    const data = getImmersionProgressData('A1');
+    expect(data.cefrLevel).toBe('A1');
+    expect(data.cefrDescription).toBe('Beginner');
+    expect(data.immersionPercent).toBe(0);
+    expect(data.activeCount).toBe(0);
+    expect(data.totalCount).toBe(10); // All namespaces except 'system'
+    expect(data.isTransitioning).toBe(false);
+    // All namespaces should be inactive at A1
+    for (const ns of data.namespaces) {
+      expect(ns.active).toBe(false);
+    }
+  });
+
+  it('returns correct data for B1 auto mode', () => {
+    const data = getImmersionProgressData('B1');
+    expect(data.cefrLevel).toBe('B1');
+    expect(data.cefrDescription).toBe('Intermediate');
+    expect(data.immersionPercent).toBe(10);
+    expect(data.activeCount).toBe(2); // actions + locations
+    const activeNs = data.namespaces.filter(n => n.active).map(n => n.namespace);
+    expect(activeNs).toContain('actions');
+    expect(activeNs).toContain('locations');
+  });
+
+  it('returns correct data for B2 auto mode', () => {
+    const data = getImmersionProgressData('B2');
+    expect(data.immersionPercent).toBe(30);
+    expect(data.activeCount).toBe(5); // actions, locations, map, inventory, ui
+    const activeNs = data.namespaces.filter(n => n.active).map(n => n.namespace);
+    expect(activeNs).toContain('map');
+    expect(activeNs).toContain('inventory');
+    expect(activeNs).toContain('ui');
+  });
+
+  it('returns correct data for C1 auto mode', () => {
+    const data = getImmersionProgressData('C1');
+    expect(data.immersionPercent).toBe(60);
+    expect(data.activeCount).toBe(8); // +quests, notifications, emptyStates
+    const activeNs = data.namespaces.filter(n => n.active).map(n => n.namespace);
+    expect(activeNs).toContain('quests');
+    expect(activeNs).toContain('notifications');
+    expect(activeNs).toContain('emptyStates');
+  });
+
+  it('returns correct data for C2 auto mode', () => {
+    const data = getImmersionProgressData('C2');
+    expect(data.immersionPercent).toBe(90);
+    expect(data.activeCount).toBe(10); // everything except system
+    for (const ns of data.namespaces) {
+      expect(ns.active).toBe(true);
+    }
+  });
+
+  it('returns 0 active for english_only mode', () => {
+    const data = getImmersionProgressData('C2', 'english_only');
+    expect(data.immersionPercent).toBe(0);
+    expect(data.activeCount).toBe(0);
+    for (const ns of data.namespaces) {
+      expect(ns.active).toBe(false);
+    }
+  });
+
+  it('returns all active for maximum mode at any level', () => {
+    const data = getImmersionProgressData('A1', 'maximum');
+    expect(data.immersionPercent).toBe(90);
+    expect(data.activeCount).toBe(10);
+    for (const ns of data.namespaces) {
+      expect(ns.active).toBe(true);
+    }
+  });
+
+  it('namespaces are sorted by priority (lowest first)', () => {
+    const data = getImmersionProgressData('C2');
+    for (let i = 1; i < data.namespaces.length; i++) {
+      expect(data.namespaces[i].priority).toBeGreaterThanOrEqual(data.namespaces[i - 1].priority);
+    }
+  });
+
+  it('excludes system namespace from list', () => {
+    const data = getImmersionProgressData('C2');
+    const nsNames = data.namespaces.map(n => n.namespace);
+    expect(nsNames).not.toContain('system');
+  });
+
+  it('all namespaces have human-readable labels', () => {
+    const data = getImmersionProgressData('A1');
+    for (const ns of data.namespaces) {
+      expect(ns.label).toBeTruthy();
+      expect(ns.label).not.toBe(ns.namespace); // Label should differ from raw key
+    }
+  });
+
+  it('passes transitioning flag through', () => {
+    const data = getImmersionProgressData('B1', 'auto', true);
+    expect(data.isTransitioning).toBe(true);
+  });
+
+  it('active count increases monotonically with CEFR level', () => {
+    const levels: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    let prevCount = 0;
+    for (const level of levels) {
+      const data = getImmersionProgressData(level);
+      expect(data.activeCount).toBeGreaterThanOrEqual(prevCount);
+      prevCount = data.activeCount;
+    }
+  });
+
+  it('CEFR descriptions are correct for all levels', () => {
+    const expected: Record<string, string> = {
+      A1: 'Beginner',
+      A2: 'Elementary',
+      B1: 'Intermediate',
+      B2: 'Upper-Intermediate',
+      C1: 'Advanced',
+      C2: 'Mastery',
+    };
+    for (const [level, desc] of Object.entries(expected)) {
+      const data = getImmersionProgressData(level as CEFRLevel);
+      expect(data.cefrDescription).toBe(desc);
+    }
   });
 });

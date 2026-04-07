@@ -8,8 +8,9 @@
 import { Scene, Mesh, ActionManager, ExecuteCodeAction, Vector3 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
 import type { CEFRLevel } from '../../assessment/cefr-mapping';
-import { type UIImmersionMode } from '../../language/ui-localization';
+import { getBilingualDisplay, getGameString, type UIImmersionMode, shouldTranslateUIKey } from '../../language/ui-localization';
 import { buildBilingualBuildingPrompt } from '../../language/in-world-text';
+import type { TranslationLookupFn } from '../../language/action-labels';
 
 export class BuildingInfoDisplay {
   private scene: Scene;
@@ -19,6 +20,7 @@ export class BuildingInfoDisplay {
   private _cefrLevel: CEFRLevel = 'A1';
   private _immersionMode: UIImmersionMode = 'auto';
   private _tooltipLabel: GUI.Rectangle | null = null;
+  private _translationLookup: TranslationLookupFn | undefined;
 
   constructor(scene: Scene, advancedTexture: GUI.AdvancedDynamicTexture) {
     this.scene = scene;
@@ -33,6 +35,11 @@ export class BuildingInfoDisplay {
   /** Update the UI immersion mode preference. */
   setImmersionMode(mode: UIImmersionMode): void {
     this._immersionMode = mode;
+  }
+
+  /** Set a translation lookup function for building type labels. */
+  setTranslationLookup(fn: TranslationLookupFn): void {
+    this._translationLookup = fn;
   }
 
   /**
@@ -149,15 +156,16 @@ export class BuildingInfoDisplay {
       });
     }
 
-    // Building type subtitle
+    // Building type subtitle — CEFR-aware translated label
+    const englishType = metadata.buildingType === 'business'
+      ? (metadata.businessType || 'Business')
+      : 'Residence';
+    const translatedType = this._translationLookup?.(englishType);
+    const typeDisplay = getGameString(englishType, translatedType, 'locations.type', this._cefrLevel, this._immersionMode);
+
     const typeText = new GUI.TextBlock('buildingType');
-    if (metadata.buildingType === 'business') {
-      typeText.text = metadata.businessType || 'Business';
-      typeText.color = '#FFA500'; // Orange for businesses
-    } else {
-      typeText.text = 'Residence';
-      typeText.color = '#87CEEB'; // Sky blue for residences
-    }
+    typeText.text = typeDisplay;
+    typeText.color = metadata.buildingType === 'business' ? '#FFA500' : '#87CEEB';
     typeText.height = '20px';
     typeText.fontSize = 14;
     stack.addControl(typeText);
