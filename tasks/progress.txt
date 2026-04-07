@@ -1,3 +1,25 @@
+## Codebase Patterns
+- Gemini SDK: `getGenAI()` from `server/config/gemini.ts` returns singleton `GoogleGenAI`; models in `GEMINI_MODELS` const
+- Live API: `ai.live.connect({ model, callbacks, config })` returns `Session` with `sendClientContent()`, `sendRealtimeInput()`, `close()`
+- Voice names match TTS profiles in `tts-provider.ts`: Aoede, Kore, Leda, Zephyr (female); Puck, Charon, Fenrir, Orus (male)
+- Map iteration: use `.forEach()` not `for..of` — tsconfig targets below ES2015
+- Tests use vitest with `vi.mock()` for module mocking; test files in `server/__tests__/`
+
+## 2026-04-07 - US-001 (gemini-live-conversation)
+- Created `server/services/conversation/live/live-session-manager.ts` with:
+  - `LiveConversationSession` wrapper: sendAudio(), sendText(), handleMessage() dispatching to callbacks (onAudioChunk, onTextChunk, onTurnComplete, onInterrupted, onTranscription)
+  - `LiveSessionManager`: createSession() via ai.live.connect(), getSession(), endSession(), auto-expiry, concurrent limit, destroy()
+  - Singleton `getLiveSessionManager()` export
+- Created `server/__tests__/live-session-manager.test.ts` with 12 tests covering:
+  - Session creation, retrieval, cleanup, concurrent limits, auto-expiry, destroy
+  - sendText/sendAudio routing, text accumulation, audio dispatch, interrupted events, no-op after close
+- Files changed: server/services/conversation/live/live-session-manager.ts, server/__tests__/live-session-manager.test.ts
+- **Learnings for future iterations:**
+  - `LiveConnectConfig.speechConfig` has nested `voiceConfig.prebuiltVoiceConfig.voiceName` and top-level `languageCode`
+  - `LiveServerMessage.serverContent` has `modelTurn.parts[]` with interleaved text (`part.text`) and audio (`part.inlineData.data` base64)
+  - `serverContent.interrupted` fires on user interruption; `serverContent.turnComplete` when model finishes
+  - `sendClientContent({ turnComplete: false })` for context prefill without triggering generation
+---
 
 ## 2026-04-06 - US-001 (chat-pipeline-fixes)
 - Wired ConversationContextCache into both http-bridge.ts and ws-bridge.ts
