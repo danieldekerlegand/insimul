@@ -208,3 +208,19 @@ export function buildTranslatedEavesdropPrompt(
     : 'and';
   return `[${keyBinding}]: ${verb} ${npcName1} ${connector} ${npcName2}`;
 }
+
+/**
+ * Translate a menu title based on CEFR level.
+ * At A1-A2: returns English
+ * At B1+:   returns target language translation if available
+ */
+export function translateMenuTitle(
+  english: string,
+  translated: string | undefined,
+  cefrLevel: CEFRLevel,
+  mode?: UIImmersionMode,
+): string {
+  if (!translated) return english;
+  if (!shouldTranslateUIKey('actions.verb', cefrLevel, mode || 'auto')) return english;
+  return translated;
+}
