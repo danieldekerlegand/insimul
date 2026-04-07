@@ -1938,3 +1938,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `isProcessing` flag distinguishes typed text flow (sendMessage active) from async voice response flow in shared callbacks
   - ScriptProcessorNode is deprecated but still widely supported; AudioWorklet would require a separate file
 ---
+
+## 2026-04-07 - US-006: Implement parallel side-channel for language analysis
+- Created `server/services/conversation/live/live-side-channel.ts` — fire-and-forget parallel analysis module with three concurrent tasks:
+  1. **Metadata extraction** (Gemini Flash): vocab hints, grammar feedback, eval scores via `buildMetadataExtractionPrompt()`
+  2. **Quest goal evaluation** (Gemini Flash): LLM-based objective evaluation via `buildConversationGoalPrompt()`
+  3. **Language progress tracking** (local, no LLM): quest trigger analysis via `analyzeConversation()`
+- Wired `runSideChannel()` into ws-bridge `onTurnComplete` callback — fires after `done` event, never blocks audio delivery
+- Added `lastPlayerMessage` field to `LiveConversationSession` — set by both `sendText()` (typed input) and `onTranscription` (voice input) for side-channel to read
+- Extended `startLiveSession` WS message to accept `targetLanguage`, `playerProficiency`, `activeQuests`, `activeObjectives`
+- Side-channel results sent as WS events: `vocab_hints`, `grammar_feedback`, `eval`, `quest_progress`, `goal_evaluation`
+- All failures logged but never propagate — conversation continues uninterrupted
+- Files changed:
+  - `server/services/conversation/live/live-side-channel.ts` — new module (runSideChannel, metadata extraction, goal evaluation, local progress tracking)
+  - `server/services/conversation/live/live-session-manager.ts` — added `lastPlayerMessage` field, set in `sendText()`
+  - `server/services/conversation/ws-bridge.ts` — import side-channel, extended handleStartLiveSession params, wired onTurnComplete to runSideChannel with callbacks
+  - `server/__tests__/live-side-channel.test.ts` — 13 new tests
+- **Learnings for future iterations:**
+  - `buildConversationGoalPrompt()` is defined locally in http-bridge.ts (not exported) — had to duplicate in live-side-channel.ts; consider extracting to shared module
+  - The Live session `onTurnComplete` callback fires AFTER `done` WS event is sent — side-channel results arrive as separate WS events after the conversation turn completes
+  - `liveSessionRef` pattern: callbacks are defined before `createSession()` returns — use a mutable ref variable assigned after session creation so callbacks can access the session
+  - `lastPlayerMessage` needs two sources: `sendText()` for typed input and `onTranscription` for voice input — both must be tracked for accurate side-channel analysis
+---

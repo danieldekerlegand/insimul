@@ -111,7 +111,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Current pipeline runs metadata extraction AFTER full response, blocking the SSE stream. Side-channel decouples them. Uses GEMINI_MODELS.FLASH for analysis, separate from Live session model."
     },
     {
