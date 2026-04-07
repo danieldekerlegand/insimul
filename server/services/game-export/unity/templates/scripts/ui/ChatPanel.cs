@@ -51,6 +51,8 @@ namespace Insimul.UI
         [SerializeField] private Button _voiceButton;
 
         private string _currentCharacterId;
+        private string _currentCharacterGender;
+        private string _currentWorldId;
         private TMP_Text _streamingMessageText;
         private bool _isStreaming;
         private bool _isRecording;
@@ -115,9 +117,11 @@ namespace Insimul.UI
             _inputField.onSubmit.AddListener(_ => OnSendClicked());
         }
 
-        public void Open(string characterId)
+        public void Open(string characterId, string worldId = null, string gender = null)
         {
             _currentCharacterId = characterId;
+            _currentWorldId = worldId;
+            _currentCharacterGender = gender;
             var ctx = InsimulAIService.Instance?.GetContext(characterId);
             string name = ctx?.characterName ?? characterId;
             _headerText.text = name;
@@ -182,6 +186,21 @@ namespace Insimul.UI
 
         /// <summary>Set the target language for language-learning dialogue.</summary>
         public void SetTargetLanguage(string lang) { _targetLanguage = lang; }
+
+        /// <summary>
+        /// Called after world data finishes loading. Re-sets character on the AI service
+        /// so the system prompt is rebuilt with language context that may not have been
+        /// available at initial Open() time.
+        /// </summary>
+        public void OnWorldDataLoaded()
+        {
+            if (string.IsNullOrEmpty(_currentCharacterId)) return;
+            InsimulAIService.Instance?.SetCharacter(
+                _currentCharacterId,
+                _currentWorldId,
+                _currentCharacterGender
+            );
+        }
 
         /// <summary>Set player inventory context for NPC dialogue awareness.</summary>
         public void SetPlayerInventoryContext(object[] items, int gold)
