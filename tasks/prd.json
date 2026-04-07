@@ -147,7 +147,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Mock the Gemini Live API for tests to avoid real API calls. Test the session manager, wrapper, WS bridge integration, and fallback behavior."
     }
   ]

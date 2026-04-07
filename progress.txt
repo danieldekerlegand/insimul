@@ -1978,3 +1978,22 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - SSE Live session is per-request (not persistent like WS) since SSE doesn't support continuous bidirectional communication — still faster than text+TTS because it eliminates sentence splitting
   - `res.writableEnded` check is essential in all callbacks since the response may be closed by timeout while callbacks fire asynchronously
 ---
+
+## 2026-04-07 - US-008: Automated tests for Live conversation pipeline
+- Created `server/__tests__/live-pipeline-integration.test.ts` — 15 integration tests covering all 6 acceptance criteria:
+  - AC-1: Text input round-trip (create session → send text → receive interleaved audio+text → end session)
+  - AC-2: Audio input round-trip with transcription (send audio → receive transcription → receive audio+text response; multiple audio chunks before transcription)
+  - AC-3: Fallback when Live session unavailable (unknown ID, closed session ignores sends, max sessions reached)
+  - AC-4: Side-channel parallel analysis (onTurnComplete provides accumulated text for side-channel consumers)
+  - AC-5: Inactivity auto-expiration (cleanup after timeout, active sessions survive, sendText resets timer)
+  - AC-6: Concurrent session limit (allows up to limit, rejects above, allows new after ending one, destroy resets)
+- All 78 Live pipeline tests pass across 5 test files (63 pre-existing + 15 new)
+- Files changed:
+  - `server/__tests__/live-pipeline-integration.test.ts` — new integration test file
+- **Learnings for future iterations:**
+  - Existing component tests in `live-session-manager.test.ts`, `ws-bridge-live-session.test.ts`, `http-bridge-live-session.test.ts`, `live-side-channel.test.ts` already covered most scenarios individually
+  - The integration test file adds value by testing full round-trip flows (especially audio input with transcription) and cross-cutting concerns
+  - `LiveSessionManager` constructor accepts `inactivityTimeoutMs` and `maxConcurrentSessions` — useful for test isolation
+  - `(session as any).lastActivity = Date.now() - N` is the pattern for testing inactivity expiration
+  - `(manager as any).cleanupExpired()` triggers the cleanup manually in tests
+---
