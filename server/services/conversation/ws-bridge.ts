@@ -45,6 +45,8 @@ import { prologLLMRouter } from '../prolog-llm-router.js';
 import { classifyMessageComplexity } from './http-bridge.js';
 import { compressConversationHistory, type GeminiMessage } from './conversation-compression.js';
 import { GEMINI_MODELS } from '../../config/gemini.js';
+import { getLiveSessionManager } from './live/live-session-manager.js';
+import type { LiveSessionCallbacks } from './live/live-session-manager.js';
 
 // ── Greeting/farewell classification ────────────────────────────────────
 
@@ -77,6 +79,9 @@ export interface WSBridgeOptions {
 
 /** Maps WebSocket connections to their session IDs for reconnection. */
 const connectionSessions = new Map<WebSocket, string>();
+
+/** Maps WebSocket connections to their active Live session IDs. */
+const connectionLiveSessions = new Map<WebSocket, string>();
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -124,6 +129,23 @@ async function handleTextInput(
 ): Promise<void> {
   const { text, sessionId, characterId, worldId, languageCode: rawLangCode, prologFacts, systemPrompt: clientSystemPrompt, cefrLevel, playerVocabulary, playerGrammarPatterns } = msg;
   const languageCode = resolveLanguageCode(rawLangCode || 'en');
+
+  // ── Live session routing ─────────────────────────────────────────────
+  // If this WS connection has an active Live session, route text through it
+  const liveSessionId = connectionLiveSessions.get(ws);
+  if (liveSessionId) {
+    const manager = getLiveSessionManager();
+    const liveSession = manager.getSession(liveSessionId);
+    if (liveSession && !liveSession.isClosed) {
+      console.log(`[WS-Bridge] Routing text to Live session ${liveSessionId}`);
+      sendJSON(ws, { type: 'meta', sessionId, state: 'ACTIVE' });
+      liveSession.sendText(text);
+      return;
+    }
+    // Live session gone — fall through to text+TTS pipeline
+    connectionLiveSessions.delete(ws);
+    console.log(`[WS-Bridge] Live session ${liveSessionId} expired, falling back to text+TTS`);
+  }
 
   // Get or create session
   let session = getSession(sessionId);
@@ -599,6 +621,148 @@ async function handleTextInput(
   console.debug('[LLM:PlayerNPC:WS] ── END ──');
 
   sendJSON(ws, { type: 'done' });
+}
+
+// ── Live session handling ────────────────────────────────────────────
+
+/**
+ * Start a Gemini Live session for bidirectional audio streaming.
+ * Creates callbacks that map Live session events to WS messages.
+ */
+async function handleStartLiveSession(
+  ws: WebSocket,
+  msg: {
+    characterId: string;
+    worldId: string;
+    sessionId: string;
+    systemPrompt?: string;
+    voiceName?: string;
+    languageCode?: string;
+  },
+): Promise<void> {
+  const { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode } = msg;
+  const resolvedLangCode = resolveLanguageCode(languageCode || 'en');
+
+  // Build system prompt if not provided
+  let prompt = systemPrompt || '';
+  if (!prompt) {
+    try {
+      const playerId = sessionId; // WS bridge uses sessionId as playerId
+      const fullCtx = await buildContext(characterId, playerId, worldId, sessionId);
+      prompt = fullCtx.conversationContext.systemPrompt;
+    } catch {
+      prompt = 'You are an NPC in a game world. Respond in character.';
+    }
+  }
+
+  // Get or create the conversation session for history tracking
+  let session = getSession(sessionId);
+  if (!session) {
+    session = createSession(sessionId, characterId, worldId, sessionId, resolvedLangCode);
+  }
+  connectionSessions.set(ws, sessionId);
+
+  // Wire Live session callbacks to WS events
+  const callbacks: LiveSessionCallbacks = {
+    onAudioChunk: (data: string, mimeType: string) => {
+      // Send base64-decoded audio as binary frame
+      sendBinary(ws, Buffer.from(data, 'base64'));
+      // Parse sample rate from mimeType (e.g. 'audio/pcm;rate=24000')
+      const rateMatch = mimeType.match(/rate=(\d+)/);
+      const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+      sendJSON(ws, {
+        type: 'audio_meta',
+        encoding: 'pcm',
+        sampleRate,
+        durationMs: 0,
+      });
+    },
+    onTextChunk: (text: string) => {
+      sendJSON(ws, { type: 'text', text, isFinal: false, languageCode: resolvedLangCode, sessionId });
+    },
+    onTurnComplete: (fullText: string) => {
+      // Final text marker
+      sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode: resolvedLangCode, sessionId });
+      // Store in conversation history
+      if (fullText) {
+        addToHistory(session, 'assistant', fullText);
+      }
+      sendJSON(ws, { type: 'done' });
+    },
+    onInterrupted: () => {
+      sendJSON(ws, { type: 'interrupted', sessionId });
+    },
+    onTranscription: (text: string) => {
+      sendJSON(ws, { type: 'transcript', text, sessionId });
+      // Store player's transcribed speech in history
+      if (text.trim()) {
+        addToHistory(session, 'user', text.trim());
+      }
+    },
+    onGenerationComplete: () => {
+      // No additional action needed — turnComplete already sends 'done'
+    },
+  };
+
+  try {
+    const manager = getLiveSessionManager();
+    const liveSession = await manager.createSession(
+      {
+        systemPrompt: prompt,
+        voiceName,
+        languageCode: resolvedLangCode,
+        characterId,
+        worldId,
+        playerId: sessionId,
+      },
+      callbacks,
+    );
+
+    // Track the live session for this WS connection
+    connectionLiveSessions.set(ws, liveSession.id);
+
+    console.log(`[WS-Bridge] Live session ${liveSession.id} started for character ${characterId}`);
+    sendJSON(ws, { type: 'live_session_started', sessionId, liveSessionId: liveSession.id });
+  } catch (err: any) {
+    console.error('[WS-Bridge] Failed to start Live session:', err.message);
+    sendJSON(ws, { type: 'error', message: `Live session failed: ${err.message}` });
+  }
+}
+
+/**
+ * Handle audio input routed directly to a Live session.
+ */
+function handleLiveAudioInput(
+  ws: WebSocket,
+  data: string,
+): void {
+  const liveSessionId = connectionLiveSessions.get(ws);
+  if (!liveSessionId) {
+    sendJSON(ws, { type: 'error', message: 'No active Live session' });
+    return;
+  }
+  const manager = getLiveSessionManager();
+  const liveSession = manager.getSession(liveSessionId);
+  if (!liveSession) {
+    connectionLiveSessions.delete(ws);
+    sendJSON(ws, { type: 'error', message: 'Live session expired' });
+    return;
+  }
+  liveSession.sendAudio(data);
+}
+
+/**
+ * End the Live session for a WebSocket connection.
+ */
+function handleEndLiveSession(ws: WebSocket): void {
+  const liveSessionId = connectionLiveSessions.get(ws);
+  if (liveSessionId) {
+    const manager = getLiveSessionManager();
+    manager.endSession(liveSessionId);
+    connectionLiveSessions.delete(ws);
+    console.log(`[WS-Bridge] Live session ${liveSessionId} ended`);
+    sendJSON(ws, { type: 'live_session_ended', liveSessionId });
+  }
 }
 
 // ── Audio input handling ──────────────────────────────────────────────
@@ -1134,6 +1298,21 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
         if (isBinary) {
           // Binary frame = audio data
           const data = raw instanceof Buffer ? new Uint8Array(raw) : new Uint8Array(raw as ArrayBuffer);
+
+          // If there's an active Live session, route audio directly to it
+          const activeLiveId = connectionLiveSessions.get(ws);
+          if (activeLiveId) {
+            const liveManager = getLiveSessionManager();
+            const liveSess = liveManager.getSession(activeLiveId);
+            if (liveSess && !liveSess.isClosed) {
+              const base64 = Buffer.from(data).toString('base64');
+              liveSess.sendAudio(base64);
+              return;
+            }
+            // Live session gone — fall through to buffered audio path
+            connectionLiveSessions.delete(ws);
+          }
+
           if (currentSessionId) {
             handleAudioChunk(ws, data, currentSessionId);
           }
@@ -1185,6 +1364,20 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
           // Serve cached greeting instantly for new conversation
           const { characterId, worldId, cefrLevel, context } = message.requestGreeting;
           handleGreetingRequest(ws, { characterId, worldId, cefrLevel, context });
+        } else if (message.startLiveSession) {
+          // Start a Gemini Live session for bidirectional audio streaming
+          const { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode } = message.startLiveSession;
+          currentSessionId = sessionId;
+          await handleStartLiveSession(ws, { characterId, worldId, sessionId, systemPrompt, voiceName, languageCode });
+        } else if (message.audioInput) {
+          // Relay mic audio to the active Live session
+          const { data } = message.audioInput;
+          if (data) {
+            handleLiveAudioInput(ws, data);
+          }
+        } else if (message.endLiveSession) {
+          // Tear down the Live session
+          handleEndLiveSession(ws);
         } else if (message.resumeSession) {
           // Reconnection or initial connect: client provides sessionId
           const { sessionId } = message.resumeSession;
@@ -1212,13 +1405,16 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
     });
 
     ws.on('close', () => {
-      // Don't delete the session — allow reconnection
+      // Don't delete the conversation session — allow reconnection
       connectionSessions.delete(ws);
+      // End Live session on disconnect
+      handleEndLiveSession(ws);
     });
 
     ws.on('error', (err: Error) => {
       console.error('[WS-Bridge] Connection error:', err.message);
       connectionSessions.delete(ws);
+      handleEndLiveSession(ws);
     });
   });
 
@@ -1252,4 +1448,4 @@ export function stopWSBridge(): Promise<void> {
   });
 }
 
-export { connectionSessions, audioBuffers };
+export { connectionSessions, connectionLiveSessions, audioBuffers };
