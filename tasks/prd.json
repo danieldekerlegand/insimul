@@ -304,7 +304,7 @@
         "Typecheck passes"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Check if NPCBusinessInteractionSystem has a food ordering flow. The event type food_ordered is defined in QuestCompletionEngine but may not be emitted by any game system. Also check if food items exist in merchant inventories."
     },
     {

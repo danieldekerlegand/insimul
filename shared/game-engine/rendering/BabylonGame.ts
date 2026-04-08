@@ -14752,6 +14752,24 @@ export class BabylonGame {
       npcId: placedNPC.npcId,
       cost: service.cost,
     } as any);
+
+    // Food-related services also count as food ordering for quest completion
+    const foodServiceIds = new Set(['eat_meal', 'buy_drink']);
+    if (foodServiceIds.has(service.id)) {
+      const merchantId = placedNPC.npcId;
+      const merchantName = npcName;
+      const businessType = this.currentBuildingBusinessType || 'Restaurant';
+      this.eventBus.emit({
+        type: 'food_ordered',
+        itemId: service.id,
+        itemName: service.name,
+        quantity: 1,
+        merchantId,
+        merchantName,
+        businessType,
+      } as any);
+      this.questObjectManager?.trackFoodOrdered(service.name, merchantId, businessType);
+    }
   }
 
   private handleDropItem(item: InventoryItem): void {

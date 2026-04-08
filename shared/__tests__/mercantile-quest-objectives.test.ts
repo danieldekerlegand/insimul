@@ -3,8 +3,8 @@ import {
   QuestCompletionEngine,
   CompletionQuest,
   CompletionObjective,
-} from '../../client/src/components/3DGame/QuestCompletionEngine';
-import { GameEventBus } from '../../client/src/components/3DGame/GameEventBus';
+} from '../game-engine/logic/QuestCompletionEngine';
+import { GameEventBus } from '../game-engine/logic/GameEventBus';
 
 function makeObjective(overrides: Partial<CompletionObjective> & { id: string; type: string }): CompletionObjective {
   return {
@@ -271,6 +271,77 @@ describe('mercantile quest objectives', () => {
       // Now order_food should work
       engine.trackFoodOrdered('Bread', 'merchant1', 'Restaurant');
       expect(quest.objectives![1].completed).toBe(true);
+    });
+  });
+
+  describe('service-based food ordering (eat_meal/buy_drink)', () => {
+    it('food_ordered event from eat_meal service completes order_food objective', () => {
+      const engine = new QuestCompletionEngine();
+      const onComplete = vi.fn();
+      engine.setOnObjectiveCompleted(onComplete);
+
+      const quest = makeQuest([
+        makeObjective({ id: 'obj1', type: 'order_food', requiredCount: 1 }),
+      ]);
+      engine.addQuest(quest);
+
+      // Simulate the event that BabylonGame now emits when eat_meal service is used
+      engine.trackEvent({
+        type: 'food_ordered',
+        itemName: 'Order a Meal',
+        merchantId: 'chef-npc-1',
+        businessType: 'Restaurant',
+      });
+
+      expect(onComplete).toHaveBeenCalledWith('q1', 'obj1');
+      expect(quest.objectives![0].completed).toBe(true);
+    });
+
+    it('food_ordered event from buy_drink service completes order_food objective', () => {
+      const engine = new QuestCompletionEngine();
+      const onComplete = vi.fn();
+      engine.setOnObjectiveCompleted(onComplete);
+
+      const quest = makeQuest([
+        makeObjective({ id: 'obj1', type: 'order_food', requiredCount: 1 }),
+      ]);
+      engine.addQuest(quest);
+
+      // Simulate the event that BabylonGame now emits when buy_drink service is used
+      engine.trackEvent({
+        type: 'food_ordered',
+        itemName: 'Order a Drink',
+        merchantId: 'bartender-npc-1',
+        businessType: 'Bar',
+      });
+
+      expect(onComplete).toHaveBeenCalledWith('q1', 'obj1');
+    });
+
+    it('service-based food orders count toward multi-item objectives', () => {
+      const engine = new QuestCompletionEngine();
+      const quest = makeQuest([
+        makeObjective({ id: 'obj1', type: 'order_food', requiredCount: 3 }),
+      ]);
+      engine.addQuest(quest);
+
+      // Mix of shop purchases and service-based orders
+      engine.trackFoodOrdered('Bread', 'merchant1', 'Bakery');
+      engine.trackEvent({
+        type: 'food_ordered',
+        itemName: 'Order a Meal',
+        merchantId: 'chef-npc-1',
+        businessType: 'Restaurant',
+      });
+      engine.trackEvent({
+        type: 'food_ordered',
+        itemName: 'Order a Drink',
+        merchantId: 'bartender-npc-1',
+        businessType: 'Bar',
+      });
+
+      expect(quest.objectives![0].currentCount).toBe(3);
+      expect(quest.objectives![0].completed).toBe(true);
     });
   });
 
