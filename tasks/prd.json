@@ -56,7 +56,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "This replaces NPCGreetingSystem, callouts, walking interrupts, and NPC approach. Register NPCs via registerNPC/unregisterNPC similar to existing systems."
     },
     {

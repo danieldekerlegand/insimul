@@ -2035,3 +2035,26 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - StreamingAudioPlayer mock in tests must be a function (not `vi.fn()`) to work as a constructor — use `function () { return mockObj; }` pattern
   - Voice profiles: female (Aoede/Kore/Leda), male (Zephyr/Puck/Orus) mapped by age range
 ---
+
+## 2026-04-07 - US-003: Unified NPC greeting trigger system
+- Created `NPCProximitySpeechSystem` class in `shared/game-engine/rendering/NPCProximitySpeechSystem.ts`
+- Evaluates once per second (configurable `evalIntervalMs`), finds idle NPCs within 8m radius
+- Personality-driven greeting probability: `base * (0.5 + extroversion * 0.5) * (1 - neuroticism * 0.3)`
+- Quest-bearing NPCs get +25% probability bonus via `isNpcQuestBearer` callback
+- Per-NPC cooldown (3 min default), global cooldown (15s default)
+- Acquires `NpcAudioLock` before greeting, releases on completion or abort
+- Skips evaluation if player is in active conversation (callback-based)
+- Calls `generateAndSpeakGreeting()` from US-002 for LLM+TTS pipeline
+- Tracks last greeting text/timestamp per NPC for US-013 conversation continuation
+- `cancelActiveGreeting()` for external abort (e.g., player opens chat)
+- Registration pattern: `registerNPC(ProximityNPC)`, `unregisterNPC(id)`, `setPlayerMesh()`, setter callbacks
+- Files changed:
+  - `shared/game-engine/rendering/NPCProximitySpeechSystem.ts` — new system class
+  - `shared/__tests__/npc-proximity-speech-system.test.ts` — 18 unit tests
+  - `tasks/prd.json` — US-003 passes: true
+- **Learnings for future iterations:**
+  - `generateAndSpeakGreeting` mock resolves instantly in tests — use `new Promise(() => {})` (never-resolve) to test lock-held state
+  - NPCInitiatedConversationController pattern: `registerNPC()` in character load, `updateNPC()` position in render observer, `update(dt)` in NPC behavior observer
+  - Pre-existing typecheck errors in `DataSource.ts`, `ClientTelemetryCollector.ts`, `assessment-prompt-utils.ts` are unrelated to this branch
+  - `isNpcQuestBearer` in BabylonGame checks `questObjectManager.getActiveQuests()` for `assignedByCharacterId`
+---
