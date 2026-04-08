@@ -255,7 +255,7 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "The LanguageProgressTracker already has a conversationRecords array. It needs a restoreConversationRecords() method and the save state source needs to serialize it. Currently conversations are synced to the server separately — this adds them to the local save snapshot too."
     },
     {

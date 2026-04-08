@@ -2585,3 +2585,23 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Contact tracking should happen at conversation start (not end) to ensure met status is recorded even if player quits mid-conversation
   - Engine drift hook fires on types.ts changes — always run `npm run drift:update` after modifying shared types
 ---
+
+## 2026-04-08 - US-015: Persist conversation history in game save
+- Added `SavedConversationRecord` type to shared/game-engine/types.ts with npcId, npcName, timestamp, turnCount, wordsUsed, targetLanguagePercent, fluencyGained
+- Added `conversations` field to `GameSaveState`
+- Added `getConversationRecords()` and `restoreConversationRecords()` methods to `LanguageProgressTracker`
+- Added `getConversationHistory()` to `createGameStateSource()` in BabylonGame — reads from LanguageProgressTracker, limits to 50 most recent, converts to SavedConversationRecord format
+- Added `restoreConversationHistory()` to `createGameStateTarget()` in BabylonGame — converts back to ConversationRecord format and calls tracker.restoreConversationRecords()
+- Updated `WorldStateManager.ts` — added getConversationHistory/restoreConversationHistory to interfaces, SUBSYSTEM_KEYS, save builder, diff fields, and restore logic
+- Files changed:
+  - `shared/game-engine/types.ts` — SavedConversationRecord type, conversations field on GameSaveState
+  - `shared/game-engine/logic/LanguageProgressTracker.ts` — getConversationRecords(), restoreConversationRecords()
+  - `shared/game-engine/rendering/BabylonGame.ts` — getConversationHistory in source, restoreConversationHistory in target
+  - `client/src/components/3DGame/WorldStateManager.ts` — interfaces, SUBSYSTEM_KEYS, save/load/diff wiring
+  - `shared/game-engine/drift-manifest.json` — updated hashes
+- **Learnings for future iterations:**
+  - LanguageProgressTracker.getProgress() returns a shallow copy — conversations array is the authoritative source of conversation records
+  - ConversationRecord uses numeric `timestamp` (epoch ms) while SavedConversationRecord uses ISO string — conversion needed both ways
+  - restoreConversationRecords deduplicates by conversation id to prevent double-counting on repeated loads
+  - Engine drift hook fires on types.ts changes — always run `npm run drift:update` after modifying shared types
+---
