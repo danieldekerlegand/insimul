@@ -332,13 +332,6 @@ describe('XP Awards Wiring', () => {
       tracker.setOnXPGain((e) => xpEvents.push(e));
     });
 
-    it('should award XP for eavesdrop conversation', () => {
-      tracker.onEavesdropCompleted();
-
-      expect(xpEvents.length).toBe(1);
-      expect(xpEvents[0].amount).toBe(XP_REWARDS.eavesdropConversation);
-      expect(xpEvents[0].reason).toBe('Eavesdrop conversation');
-    });
   });
 
   describe('LanguageGamificationTracker - Server XP Sync', () => {

@@ -1597,7 +1597,6 @@ export interface NPCPersonality {
 /** Types of interactable objects in the game world. */
 export type InteractableType =
   | 'npc'
-  | 'npc_eavesdrop'
   | 'building'
   | 'sign'
   | 'object'

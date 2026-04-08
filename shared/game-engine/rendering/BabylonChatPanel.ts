@@ -3534,34 +3534,6 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   }
 
   /**
-   * Toggle eavesdrop mode — hides the input area so the player can only observe.
-   */
-  public setEavesdropMode(enabled: boolean): void {
-    if (this.inputArea) {
-      this.inputArea.isVisible = !enabled;
-    }
-  }
-
-  /**
-   * Add a system message (e.g., eavesdrop notice) to the chat display.
-   */
-  public addSystemMessage(text: string): void {
-    this.messages.push({ role: 'system', content: text, timestamp: new Date() });
-    this.displayMessages();
-  }
-
-  /**
-   * Add an NPC message to the chat display (used during eavesdrop mode).
-   */
-  public addNPCMessage(text: string): void {
-    this.messages.push({ role: 'assistant', content: text, timestamp: new Date() });
-    this.displayMessages();
-
-    // Also detect target-language phrases for listen & repeat during eavesdrop
-    this.offerListenAndRepeat(text);
-  }
-
-  /**
    * Set quest offering context so the NPC proactively offers a quest at conversation start.
    * Call before show() when the NPC has an 'available' quest indicator.
    */

@@ -156,7 +156,7 @@ import { VRAccessibilityManager } from "@shared/game-engine/rendering/VRAccessib
 import { NPCTalkingIndicator } from "@shared/game-engine/rendering/NPCTalkingIndicator";
 import { NPCAmbientConversationManager } from "@shared/game-engine/rendering/NPCAmbientConversationManager";
 import { NpcAudioLock } from "@shared/game-engine/rendering/NpcAudioLock";
-import { BabylonEavesdropPanel } from "@shared/game-engine/rendering/BabylonEavesdropPanel";
+
 import { VehicleSystem } from "@shared/game-engine/rendering/VehicleSystem";
 import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo } from "@shared/game-engine/logic/AmbientLifeBehaviorSystem";
 import { NPCActivityLabelSystem } from "@shared/game-engine/rendering/NPCActivityLabelSystem";
@@ -248,7 +248,6 @@ import {
   KEY_FULLSCREEN_MAP,
   KEY_PUSH_TO_TALK,
   KEY_EXAMINE_OBJECT,
-  KEY_EAVESDROP,
   KEY_QUICK_SAVE,
   KEY_QUICK_LOAD,
   KEY_CAMERA_MODE,
@@ -827,11 +826,6 @@ export class BabylonGame {
     }
   });
   private _volitionTimestep = 0;
-
-  // Eavesdrop state
-  private isEavesdropping: boolean = false;
-  private eavesdropNPC2Id: string | undefined;
-  private eavesdropPanel: BabylonEavesdropPanel | null = null;
 
   // Observers (for cleanup)
   private keyboardHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -1481,14 +1475,7 @@ export class BabylonGame {
       }
     });
 
-    // Auto-discover clues from eavesdropped NPC-to-NPC conversations
-    this.eventBus.on('npc_conversation_turn' as any, (event: any) => {
-      if (event.topicTag && event.npcId) {
-        const npcName = this.getNpcNameById(event.npcId) ?? event.npcId;
-        // Use a generic partner name since eavesdrop events don't include the second NPC
-        this.clueStore?.addEavesdropClue(npcName, 'another NPC', event.topicTag);
-      }
-    });
+
 
     // Pre-warm LLM context when player approaches an NPC
     this.eventBus.on('player_near_npc', (event) => {
@@ -2940,13 +2927,6 @@ export class BabylonGame {
     this.chatPanel.setQuestBridge(questBridge);
     if ((this as any).eventBus) {
       this.chatPanel.setGameEventBus((this as any).eventBus);
-    }
-
-    // Initialize eavesdrop panel (side panel for overhearing NPC-NPC conversations)
-    this.eavesdropPanel = new BabylonEavesdropPanel(scene, this.guiManager.advancedTexture);
-    this.eavesdropPanel.setDataSource(this.dataSource);
-    if ((this as any).eventBus) {
-      this.eavesdropPanel.setGameEventBus((this as any).eventBus);
     }
 
     // Keep NPC indicator positioned below minimap + notifications
@@ -4526,35 +4506,6 @@ export class BabylonGame {
       }
     });
 
-    // Wire up eavesdrop prompt — show/hide "Press Y to eavesdrop" hint + ear indicator
-    this.ambientConversationManager.setEavesdropPromptCallback(
-      (available, npc1Id, npc2Id, npc1Name, npc2Name) => {
-        if (available && npc1Name && npc2Name && npc1Id && npc2Id) {
-          this.guiManager?.showToast({
-            title: `${npc1Name} and ${npc2Name} are talking`,
-            description: 'Press Y to eavesdrop',
-            duration: 5000,
-          });
-          // Show ear icon indicator above both NPCs
-          if (this.npcTalkingIndicator) {
-            const npc1Inst = this.npcMeshes.get(npc1Id);
-            const npc2Inst = this.npcMeshes.get(npc2Id);
-            if (npc1Inst?.mesh) this.npcTalkingIndicator.updateText(npc1Id, '\uD83D\uDC42 ...');
-            if (npc2Inst?.mesh) this.npcTalkingIndicator.updateText(npc2Id, '\uD83D\uDC42 ...');
-          }
-        } else {
-          // Eavesdrop no longer available — indicators revert on their own via ambient manager
-        }
-      }
-    );
-
-    // Wire up eavesdrop activation — open chat panel in eavesdrop (read-only) mode
-    this.ambientConversationManager.setEavesdropActivateCallback(
-      (npc1Id: string, npc2Id: string) => {
-        this.startEavesdropConversation(npc1Id, npc2Id);
-      }
-    );
-
     // Initialize NPC socialization controller (personality-driven NPC-NPC interactions)
     this.socializationController = new NPCSocializationController({
       onMoveTo: (npcId, targetPos, _speed) => {
@@ -5085,10 +5036,6 @@ export class BabylonGame {
         // Share with chat panel so conversations accumulate into the persistent tracker
         if (this.chatPanel) {
           this.chatPanel.setPersistentLanguageTracker(this.languageProgressTracker);
-        }
-        // Share with eavesdrop panel for passive vocabulary learning
-        if (this.eavesdropPanel) {
-          this.eavesdropPanel.setLanguageProgressTracker(this.languageProgressTracker);
         }
         // Non-blocking load from server
         this.languageProgressTracker.loadFromServer().catch(err =>
@@ -13312,16 +13259,6 @@ export class BabylonGame {
       await this.handleToggleVR();
     }
 
-    // Y - Eavesdrop on nearby NPC conversation (toggle)
-    if (event.code === KEY_EAVESDROP && !event.repeat) {
-      event.preventDefault();
-      if (this.isEavesdropping) {
-        this.endEavesdrop();
-      } else {
-        this.ambientConversationManager?.activateEavesdrop();
-      }
-    }
-
     // R - Push-to-talk (hold to record)
     if (event.code === KEY_PUSH_TO_TALK && !event.repeat) {
       event.preventDefault();
@@ -13507,11 +13444,6 @@ export class BabylonGame {
         await this.handleOpenChat();
         break;
       }
-      case '__eavesdrop__': {
-        this.ambientConversationManager?.activateEavesdrop();
-        break;
-      }
-
       // ── Navigation ─────────────────────────────────────────────────
       case '__enter_building__': {
         await this.handleBuildingInteraction();
@@ -13764,188 +13696,6 @@ export class BabylonGame {
         duration: 3000
       });
     }
-  }
-
-  /**
-   * Start an eavesdrop conversation between two NPCs.
-   * Opens the dedicated eavesdrop side panel — the player observes the NPCs
-   * conversing using the same streaming conversation pipeline as player-NPC chat.
-   */
-  private async startEavesdropConversation(npc1Id: string, npc2Id: string): Promise<void> {
-    if (!this.worldData) return;
-
-    // Find both characters in world data
-    const chars = this.characters || this.worldData.characters || [];
-    const char1 = (chars as any[]).find((c: any) => c.id === npc1Id);
-    const char2 = (chars as any[]).find((c: any) => c.id === npc2Id);
-    if (!char1 || !char2) return;
-
-    const npc1Name = `${char1.firstName || ''} ${char1.lastName || ''}`.trim();
-    const npc2Name = `${char2.firstName || ''} ${char2.lastName || ''}`.trim();
-
-    // Pause ambient conversations
-    this.ambientConversationManager?.pause();
-
-    // Set target language on eavesdrop panel
-    const targetLanguage = getTargetLanguage(this.worldData) || (this.worldData as any)?.targetLanguage || null;
-    if (this.eavesdropPanel) {
-      this.eavesdropPanel.setTargetLanguage(targetLanguage);
-      this.eavesdropPanel.show(npc1Id, npc2Id, npc1Name, npc2Name);
-    }
-
-    // Mark as eavesdrop conversation
-    this.conversationNPCId = npc1Id;
-    this.isEavesdropping = true;
-    this.eavesdropNPC2Id = npc2Id;
-
-    // Start the NPC-NPC conversation loop
-    this.runEavesdropLoop(npc1Id, npc2Id, npc1Name, npc2Name);
-  }
-
-  /**
-   * Run the eavesdrop conversation loop — fetches a rich AI-generated conversation
-   * between two NPCs in the target language, then displays utterances in the
-   * dedicated eavesdrop side panel with typewriter effect and distance-scaled TTS.
-   */
-  private async runEavesdropLoop(
-    npc1Id: string, npc2Id: string,
-    _npc1Name: string, _npc2Name: string
-  ): Promise<void> {
-    try {
-      // Try local AI first, then fall back to server
-      let utterances: Array<{ speaker: string; text: string; gender?: string; speakerId?: string }> | null = null;
-
-      if (isElectronAI()) {
-        const npc1Data = this.npcMeshes.get(npc1Id)?.characterData;
-        const npc2Data = this.npcMeshes.get(npc2Id)?.characterData;
-        if (npc1Data && npc2Data) {
-          const result = await generateLocalNpcConversation(npc1Data, npc2Data);
-          if (result) {
-            utterances = result.exchanges.map(ex => ({
-              speaker: ex.speakerName,
-              speakerId: ex.speakerId,
-              text: ex.text,
-              gender: (ex.speakerId === npc1Id ? npc1Data.gender : npc2Data.gender) ?? 'neutral',
-            }));
-          }
-        }
-      }
-
-      if (!utterances) {
-        const data = await this.dataSource.simulateRichConversation(this.config.worldId, npc1Id, npc2Id, 6);
-        utterances = data?.utterances ?? null;
-      }
-
-      if (!utterances || !this.isEavesdropping) {
-        this.eavesdropPanel?.addSystemLine('You could not make out what they were saying.');
-        this.endEavesdrop();
-        return;
-      }
-
-      if (!utterances || !Array.isArray(utterances) || utterances.length === 0) {
-        this.eavesdropPanel?.addSystemLine('The conversation seems to have ended before you could listen in.');
-        this.endEavesdrop();
-        return;
-      }
-
-      // Update player distance for TTS volume scaling
-      this.updateEavesdropDistance(npc1Id, npc2Id);
-
-      // Display each utterance in the eavesdrop panel (TTS handled by the panel)
-      for (let i = 0; i < utterances.length; i++) {
-        if (!this.isEavesdropping) break;
-
-        const utterance = utterances[i];
-        const speakerName = utterance.speaker || 'Someone';
-        const text = utterance.text || '...';
-
-        // Determine speakerId — guess from speaker name if not provided
-        let speakerId = utterance.speakerId || '';
-        if (!speakerId) {
-          // Match speaker name against known NPC names
-          const npc1Instance = this.npcMeshes.get(npc1Id);
-          const npc2Instance = this.npcMeshes.get(npc2Id);
-          if (npc1Instance && speakerName.includes(npc1Instance.characterData?.firstName || '___')) {
-            speakerId = npc1Id;
-          } else if (npc2Instance && speakerName.includes(npc2Instance.characterData?.firstName || '___')) {
-            speakerId = npc2Id;
-          } else {
-            speakerId = i % 2 === 0 ? npc1Id : npc2Id;
-          }
-        }
-
-        // Update distance before each line
-        this.updateEavesdropDistance(npc1Id, npc2Id);
-
-        // Display in eavesdrop panel (handles typewriter + TTS internally)
-        this.eavesdropPanel?.addLine({
-          speaker: speakerName,
-          speakerId,
-          text,
-          lineIndex: i,
-        });
-
-        // Wait for readability
-        const readDelay = Math.max(1500, text.length * 50);
-        await new Promise(resolve => setTimeout(resolve, readDelay));
-
-        // Brief pause between utterances
-        if (this.isEavesdropping) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-
-      if (this.isEavesdropping) {
-        this.eavesdropPanel?.addSystemLine('The conversation has ended.');
-        this.endEavesdrop();
-      }
-    } catch (error) {
-      console.error('[Eavesdrop] Error in conversation loop:', error);
-      this.eavesdropPanel?.addSystemLine('You lost track of the conversation.');
-      this.endEavesdrop();
-    }
-  }
-
-  /**
-   * Update the eavesdrop panel's player distance for TTS volume scaling.
-   */
-  private updateEavesdropDistance(npc1Id: string, npc2Id: string): void {
-    if (!this.eavesdropPanel || !this.playerMesh) return;
-    const npc1 = this.npcMeshes.get(npc1Id);
-    const npc2 = this.npcMeshes.get(npc2Id);
-    if (!npc1?.mesh || !npc2?.mesh) return;
-    const midpoint = Vector3.Center(npc1.mesh.position, npc2.mesh.position);
-    const dist = Vector3.Distance(this.playerMesh.position, midpoint);
-    this.eavesdropPanel.setPlayerDistance(dist);
-  }
-
-  /**
-   * End the eavesdrop session and clean up state.
-   */
-  private endEavesdrop(): void {
-    // Emit eavesdrop event for quest objective tracking before clearing state
-    const npc1Id = this.conversationNPCId;
-    const npc2Id = this.eavesdropNPC2Id;
-    if (npc1Id && npc2Id) {
-      const targetLanguage = getTargetLanguage(this.worldData) || 'french';
-      const engine = this.questObjectManager?.getCompletionEngine();
-      engine?.trackEvent({
-        type: 'eavesdrop',
-        npcId1: npc1Id,
-        npcId2: npc2Id,
-        topic: 'general',
-        languageUsed: targetLanguage,
-      });
-    }
-
-    this.isEavesdropping = false;
-    this.eavesdropNPC2Id = undefined;
-    // Close eavesdrop panel (emits its own events via GameEventBus)
-    this.eavesdropPanel?.hide();
-    this.ambientConversationManager?.endEavesdrop();
-    this.ambientConversationManager?.resume();
-    // Award XP for eavesdropping on NPC conversation
-    this.gamificationTracker?.onEavesdropCompleted();
   }
 
   /**

@@ -4,11 +4,6 @@
  * Pairs nearby NPCs into conversations when the player is within range.
  * Calls the NPC-NPC conversation engine for real dialogue, then plays each
  * line via TTS with spatial audio positioned at the speaking NPC's mesh.
- *
- * When the player is close enough to a conversing pair, an "eavesdrop" prompt
- * appears. If the player eavesdrops, the game opens the chat panel in
- * eavesdrop mode and runs a real conversation through the same streaming
- * pipeline used for player-NPC dialogue.
  */
 
 import { Vector3, Scene, Mesh } from '@babylonjs/core';
@@ -67,18 +62,6 @@ export interface AmbientConversation {
 /** Callback to trigger NPC animations (talk/idle/listen) */
 type AnimationChangeCallback = (npcId: string, animation: string) => void;
 
-/** Callback invoked when eavesdrop is available/unavailable near the player */
-type EavesdropPromptCallback = (
-  available: boolean,
-  npc1Id?: string,
-  npc2Id?: string,
-  npc1Name?: string,
-  npc2Name?: string
-) => void;
-
-/** Callback invoked when the player activates eavesdrop */
-type EavesdropActivateCallback = (npc1Id: string, npc2Id: string) => void;
-
 export class NPCAmbientConversationManager {
   private scene: Scene;
 
@@ -99,8 +82,6 @@ export class NPCAmbientConversationManager {
   private conversationDurationMs = 20000;
   /** Max distance between two NPCs to start a conversation */
   private pairingRadius = 8;
-  /** Distance within which the player sees the eavesdrop prompt */
-  private eavesdropRadius = 12;
   /** Distance beyond which an active conversation is cancelled (player walked away) */
   private cancelRadius = 12;
   /** Minimum distance NPCs maintain during conversation */
@@ -120,13 +101,6 @@ export class NPCAmbientConversationManager {
 
   // Callbacks
   private onAnimationChange: AnimationChangeCallback | null = null;
-  private onEavesdropPrompt: EavesdropPromptCallback | null = null;
-  private onEavesdropActivate: EavesdropActivateCallback | null = null;
-
-  // Eavesdrop state
-  private currentEavesdropConvId: string | null = null;
-  private lastPromptConvId: string | null = null;
-
   // Target language for ambient dialogue phrases
   private targetLanguage: string = 'English';
 
@@ -175,14 +149,6 @@ export class NPCAmbientConversationManager {
 
   public setAnimationCallback(cb: AnimationChangeCallback): void {
     this.onAnimationChange = cb;
-  }
-
-  public setEavesdropPromptCallback(cb: EavesdropPromptCallback): void {
-    this.onEavesdropPrompt = cb;
-  }
-
-  public setEavesdropActivateCallback(cb: EavesdropActivateCallback): void {
-    this.onEavesdropActivate = cb;
   }
 
   public setAudioLock(lock: NpcAudioLock): void {
@@ -243,26 +209,6 @@ export class NPCAmbientConversationManager {
     return null;
   }
 
-  /**
-   * Called by BabylonGame when the player presses the eavesdrop key (F).
-   */
-  public activateEavesdrop(): void {
-    if (!this.lastPromptConvId) return;
-    const conv = this.activeConversations.get(this.lastPromptConvId);
-    if (!conv) return;
-
-    this.currentEavesdropConvId = this.lastPromptConvId;
-    const [id1, id2] = conv.participants;
-    this.onEavesdropActivate?.(id1, id2);
-  }
-
-  /**
-   * Called when eavesdrop conversation ends (player closes panel or walks away).
-   */
-  public endEavesdrop(): void {
-    this.currentEavesdropConvId = null;
-  }
-
   public updateSettings(settings: {
     hearingRadius?: number;
     maxSimultaneousConversations?: number;
@@ -307,8 +253,6 @@ export class NPCAmbientConversationManager {
       this.tryStartConversation(now);
     }
 
-    // Update eavesdrop prompt based on player proximity
-    this.updateEavesdropPrompt();
   }
 
   /**
@@ -632,65 +576,6 @@ export class NPCAmbientConversationManager {
     // Release audio lock if we held it
     this.audioLock?.release('ambient');
 
-    // Clear eavesdrop prompt if it was for this conversation
-    if (this.lastPromptConvId === convId) {
-      this.lastPromptConvId = null;
-      this.onEavesdropPrompt?.(false);
-    }
-    if (this.currentEavesdropConvId === convId) {
-      this.currentEavesdropConvId = null;
-    }
-  }
-
-  // --- Eavesdrop proximity check ---
-
-  private updateEavesdropPrompt(): void {
-    if (!this.playerMesh || this._paused) {
-      if (this.lastPromptConvId) {
-        this.lastPromptConvId = null;
-        this.onEavesdropPrompt?.(false);
-      }
-      return;
-    }
-
-    const playerPos = this.playerMesh.position;
-    let closestConv: AmbientConversation | null = null;
-    let closestDist = Infinity;
-
-    for (const conv of Array.from(this.activeConversations.values())) {
-      // Skip if already eavesdropping on this conversation
-      if (this.currentEavesdropConvId === conv.id) continue;
-
-      const npc1 = this.npcMeshes.get(conv.participants[0]);
-      const npc2 = this.npcMeshes.get(conv.participants[1]);
-      if (!npc1 || !npc2) continue;
-
-      const midpoint = Vector3.Center(npc1.mesh.position, npc2.mesh.position);
-      const dist = Vector3.Distance(playerPos, midpoint);
-
-      if (dist <= this.eavesdropRadius && dist < closestDist) {
-        closestDist = dist;
-        closestConv = conv;
-      }
-    }
-
-    if (closestConv) {
-      if (this.lastPromptConvId !== closestConv.id) {
-        this.lastPromptConvId = closestConv.id;
-        const npc1 = this.npcMeshes.get(closestConv.participants[0]);
-        const npc2 = this.npcMeshes.get(closestConv.participants[1]);
-        this.onEavesdropPrompt?.(
-          true,
-          closestConv.participants[0],
-          closestConv.participants[1],
-          npc1?.name,
-          npc2?.name
-        );
-      }
-    } else if (this.lastPromptConvId) {
-      this.lastPromptConvId = null;
-      this.onEavesdropPrompt?.(false);
-    }
   }
 
   // --- Helpers ---

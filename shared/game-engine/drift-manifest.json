@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T02:13:44.188Z",
+  "lastUpdated": "2026-04-08T02:32:25.221Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "39df08a7e4d2c43ef273ebf55019b03527500978a56416f37c7f93c8145c40ce",
+      "hash": "1daa8c0618073544ac7358193c9ca492917a5845437dc1481bfd7e7f4d81e5d2",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "59367a669ba564582c510b180c2c1c90e1437c0b12061c843fd2837af9ac8cdf",
+      "hash": "b77710e3f11a782dcabd65a0a4211bd51ec96219fbd7b4fa8da293f10ab039f6",
       "engineMappings": [
         {
           "engine": "unity",

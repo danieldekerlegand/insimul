@@ -96,8 +96,6 @@ export function resolveActions(
   switch (target.type) {
     case 'npc':
       return resolveNPCActions(target, context);
-    case 'npc_eavesdrop':
-      return resolveEavesdropActions(target);
     case 'building':
       return resolveBuildingActions(target);
     case 'sign':
@@ -135,7 +133,6 @@ export function resolveMenuOptions(
 
   switch (target.type) {
     case 'npc':
-    case 'npc_eavesdrop':
       return { title: target.name, titleIcon: '👤' };
     case 'building':
       return { title: target.name, titleIcon: '🏠' };
@@ -197,16 +194,6 @@ function resolveNPCActions(
   });
 
   return actions;
-}
-
-function resolveEavesdropActions(_target: InteractableTarget): ContextualAction[] {
-  return [{
-    id: '__eavesdrop__',
-    icon: '👂',
-    ...actionLabels('eavesdrop'),
-    canPerform: true,
-    category: 'social',
-  }];
 }
 
 function resolveBuildingActions(target: InteractableTarget): ContextualAction[] {

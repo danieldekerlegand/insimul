@@ -408,13 +408,6 @@ export class LanguageGamificationTracker {
     this.addXP(xp, passed ? 'Listening comprehension passed' : 'Listening comprehension attempted');
   }
 
-  /**
-   * Called when the player eavesdrops on an NPC-to-NPC conversation.
-   */
-  public onEavesdropCompleted(): void {
-    this.addXP(XP_REWARDS.eavesdropConversation, 'Eavesdrop conversation');
-  }
-
   // --- Achievement System ---
 
   private checkAchievements(): void {

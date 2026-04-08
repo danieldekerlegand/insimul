@@ -15,7 +15,6 @@
 export const ACTION_LABELS: Record<string, { english: string; icon?: string }> = {
   // Social
   talk:        { english: 'Talk' },
-  eavesdrop:   { english: 'Eavesdrop' },
   give_gift:   { english: 'Give Gift' },
 
   // Navigation

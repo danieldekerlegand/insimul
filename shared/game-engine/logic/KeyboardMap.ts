@@ -63,9 +63,6 @@ export const KEY_PUSH_TO_TALK = 'KeyR';
 /** Examine nearest object (shows target-language label) */
 export const KEY_EXAMINE_OBJECT = 'KeyX';
 
-/** Eavesdrop on nearby NPC conversation */
-export const KEY_EAVESDROP = 'KeyY';
-
 /** Open/close game menu */
 export const KEY_GAME_MENU = 'KeyM';
 

@@ -84,7 +84,6 @@ export const XP_REWARDS = {
   // NPC exam & listening rewards
   npcExamComplete: 35,
   listeningComprehensionComplete: 20,
-  eavesdropConversation: 8,
 };
 
 // --- Achievements ---

@@ -30,7 +30,6 @@ import type { UIImmersionMode } from '../../language/ui-localization';
 import type { TranslationLookupFn } from '../../language/action-labels';
 import {
   buildTranslatedNPCPrompt,
-  buildTranslatedEavesdropPrompt,
   buildBilingualBuildingPrompt,
   buildTranslatedPrompt,
   translateQuestHint,
@@ -42,7 +41,6 @@ export type FurnitureInteractionType = 'seat' | 'bed' | 'bookshelf' | 'workstati
 
 export type InteractableType =
   | 'npc'
-  | 'npc_eavesdrop'
   | 'building'
   | 'sign'
   | 'object'
@@ -63,8 +61,6 @@ export interface InteractableTarget {
   objectRole?: string;
   /** For furniture interactions */
   furnitureType?: FurnitureInteractionType;
-  /** For eavesdrop targets */
-  conversationPartnerName?: string;
   /** For action hotspots */
   actionHotspotType?: string;
   /** For containers */
@@ -577,24 +573,8 @@ export class InteractionPromptSystem {
   // ── Target builders ───────────────────────────────────────────────────
 
   private buildNPCTarget(npc: RegisteredNPC): InteractableTarget {
-    const partner = this.getConversationPartner?.(npc.id);
     const questIndicator = this.getQuestIndicator?.(npc.id) ?? null;
     const lookup = this._translationLookup ?? undefined;
-
-    if (partner) {
-      return {
-        type: 'npc_eavesdrop',
-        id: npc.id,
-        name: npc.name,
-        mesh: npc.mesh,
-        promptText: buildTranslatedEavesdropPrompt(
-          'Y', npc.name, partner.partnerName,
-          this._cefrLevel, this._immersionMode, lookup,
-        ),
-        questIndicator: questIndicator ?? undefined,
-        conversationPartnerName: partner.partnerName,
-      };
-    }
 
     return {
       type: 'npc',
@@ -911,7 +891,6 @@ export class InteractionPromptSystem {
   private getHeightOffset(type: InteractableType): number {
     switch (type) {
       case 'npc':
-      case 'npc_eavesdrop':
         return 3.0;
       case 'building':
         return 5.0;
