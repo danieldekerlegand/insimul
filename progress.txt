@@ -2108,3 +2108,15 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `MapIterator` direct iteration (`for...of map.values()`) causes TS errors in this codebase — always use `Array.from(map.values())`
   - The `StreamingAudioPlayer` mock factory in tests should store `completeCb` from `setCallbacks` and trigger it from `finish()` to simulate sequential playback
 ---
+
+## 2026-04-07 - US-006: End ambient conversation when player leaves range
+- Added `cancelRadius = 12` setting to NPCAmbientConversationManager
+- Added `checkPlayerProximityToActiveConversations()` method — runs on every tick, checks if player is beyond 12m from both participants
+- On cancellation: updates per-NPC cooldowns to current time (enforcing 2-min cooldown from cancellation), then calls `endConversation()` which aborts AbortController, stops active StreamingAudioPlayer, resets animations to idle, and releases NpcAudioLock
+- Files changed:
+  - `shared/game-engine/rendering/NPCAmbientConversationManager.ts` — cancelRadius, proximity check in tick
+  - `shared/__tests__/npc-ambient-cancel-on-leave.test.ts` — 8 new tests
+- **Learnings for future iterations:**
+  - `endConversation()` already handles all cleanup (abort, stop audio, idle animations, release lock) — the proximity check just needed to update cooldowns and call it
+  - The cancel radius (12m) is intentionally larger than the start radius (8m) to create hysteresis and prevent flickering
+---

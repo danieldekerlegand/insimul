@@ -110,7 +110,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "The abort signal from US-005's streaming should be wired to an AbortController that this cancellation logic can trigger."
     },
     {
