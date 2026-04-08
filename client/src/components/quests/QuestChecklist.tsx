@@ -25,10 +25,19 @@ function getObjectiveIcon(type: string): string {
       return '\u{1F4CD}';
     case 'talk_to_npc':
     case 'complete_conversation':
+    case 'conversation':
       return '\u{1F4AC}';
     case 'use_vocabulary':
     case 'collect_vocabulary':
+    case 'vocabulary':
       return '\u{1F4DA}';
+    case 'grammar':
+      return '\u{1F4DD}';
+    case 'collect_text':
+    case 'find_text':
+    case 'read_text':
+    case 'read_sign':
+      return '\u{1F4D6}';
     case 'identify_object':
       return '\u{1F50D}';
     case 'collect_item':
@@ -51,9 +60,28 @@ function getObjectiveIcon(type: string): string {
       return '\u{1F3A4}';
     case 'gain_reputation':
       return '\u2B50';
+    case 'write_response':
+      return '\u270D\uFE0F';
     default:
       return '\u{1F3AF}';
   }
+}
+
+/** Tooltip hint explaining what counts toward a meta-objective */
+function getObjectiveHint(type: string): string | undefined {
+  const hints: Record<string, string> = {
+    vocabulary: 'Any word learned or used in conversation',
+    use_vocabulary: 'Use target-language words in conversation',
+    collect_vocabulary: 'Find and learn new words',
+    conversation: 'Any NPC conversation counts',
+    complete_conversation: 'Complete conversations with NPCs',
+    grammar: 'Positive grammar feedback counts',
+    collect_text: 'Find books, letters, or journals',
+    find_text: 'Discover texts around town',
+    read_text: 'Read collected texts',
+    read_sign: 'Read signs and notices',
+  };
+  return hints[type];
 }
 
 export function QuestChecklist({ objectives, compact = false, className }: QuestChecklistProps) {
@@ -103,10 +131,11 @@ function ObjectiveItem({ objective, compact }: { objective: QuestObjective; comp
 
   const label = objective.description || objective.type.replace(/_/g, ' ');
   const progressSuffix = hasProgress ? ` (${current}/${required})` : '';
+  const hint = getObjectiveHint(objective.type);
 
   return (
     <div className="group">
-      <div className="flex items-start gap-1.5">
+      <div className="flex items-start gap-1.5" title={hint}>
         {/* Completion indicator */}
         {objective.completed ? (
           <CheckCircle2 className={cn('flex-shrink-0 text-green-500', compact ? 'w-3 h-3 mt-0.5' : 'w-3.5 h-3.5 mt-0.5')} />
@@ -128,6 +157,10 @@ function ObjectiveItem({ objective, compact }: { objective: QuestObjective; comp
               <span className="text-muted-foreground font-medium">{progressSuffix}</span>
             )}
           </span>
+          {/* Hint text for incomplete meta-objectives */}
+          {hint && !objective.completed && !compact && (
+            <div className="text-[9px] text-muted-foreground/70 italic mt-0.5">{hint}</div>
+          )}
         </div>
       </div>
 

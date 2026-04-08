@@ -196,6 +196,7 @@ export class QuestObjectManager {
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
   private onObjectiveCompleted?: (questId: string, objectiveId: string) => void;
+  private onObjectiveProgress?: (questId: string, objectiveId: string, current: number, required: number, objectiveType: string) => void;
   private onQuestItemCollected?: (questId: string, objectiveId: string, itemName: string) => void;
   private onStoryTTS?: (text: string, npcId?: string) => void;
   private onIdentificationPrompt?: (prompt: IdentificationPrompt) => void;
@@ -220,6 +221,9 @@ export class QuestObjectManager {
     // Wire engine callbacks back to this manager
     this.completionEngine.setOnObjectiveCompleted((questId, objectiveId) => {
       this.onObjectiveCompleted?.(questId, objectiveId);
+    });
+    this.completionEngine.setOnObjectiveProgress((questId, objectiveId, current, required, objectiveType) => {
+      this.onObjectiveProgress?.(questId, objectiveId, current, required, objectiveType);
     });
     this.completionEngine.setOnQuestCompleted((questId) => {
       this.completeQuest(questId);
@@ -1879,6 +1883,10 @@ export class QuestObjectManager {
 
   public setOnObjectiveCompleted(callback: (questId: string, objectiveId: string) => void) {
     this.onObjectiveCompleted = callback;
+  }
+
+  public setOnObjectiveProgress(callback: (questId: string, objectiveId: string, current: number, required: number, objectiveType: string) => void) {
+    this.onObjectiveProgress = callback;
   }
 
   /**

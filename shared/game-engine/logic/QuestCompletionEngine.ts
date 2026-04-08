@@ -171,6 +171,7 @@ export interface CompletionQuest {
 }
 
 export type ObjectiveCompletedCallback = (questId: string, objectiveId: string) => void;
+export type ObjectiveProgressCallback = (questId: string, objectiveId: string, current: number, required: number, objectiveType: string) => void;
 export type QuestCompletedCallback = (questId: string) => void;
 
 export interface CollectedItemMatch {
@@ -245,6 +246,7 @@ export type CompletionEvent =
 export class QuestCompletionEngine {
   private quests: CompletionQuest[] = [];
   private onObjectiveCompleted: ObjectiveCompletedCallback | null = null;
+  private onObjectiveProgress: ObjectiveProgressCallback | null = null;
   private onQuestCompleted: QuestCompletedCallback | null = null;
 
   // ── Quest management ────────────────────────────────────────────────────
@@ -278,6 +280,10 @@ export class QuestCompletionEngine {
 
   setOnObjectiveCompleted(cb: ObjectiveCompletedCallback): void {
     this.onObjectiveCompleted = cb;
+  }
+
+  setOnObjectiveProgress(cb: ObjectiveProgressCallback): void {
+    this.onObjectiveProgress = cb;
   }
 
   setOnQuestCompleted(cb: QuestCompletedCallback): void {
@@ -617,9 +623,12 @@ export class QuestCompletionEngine {
 
       obj.wordsUsed.push(lowerWord);
       obj.currentCount = (obj.currentCount || 0) + 1;
+      const required = obj.requiredCount || 10;
 
-      if (obj.currentCount >= (obj.requiredCount || 10)) {
+      if (obj.currentCount >= required) {
         this.completeObjective(quest.id, obj.id);
+      } else {
+        this.onObjectiveProgress?.(quest.id, obj.id, obj.currentCount, required, obj.type);
       }
     });
   }
@@ -628,9 +637,12 @@ export class QuestCompletionEngine {
     // Track against both 'complete_conversation' and 'conversation' objective types
     this.forEachObjective(questId, ['complete_conversation', 'conversation'], (quest, obj) => {
       obj.currentCount = (obj.currentCount || 0) + 1;
+      const required = obj.requiredCount || 5;
 
-      if (obj.currentCount >= (obj.requiredCount || 5)) {
+      if (obj.currentCount >= required) {
         this.completeObjective(quest.id, obj.id);
+      } else {
+        this.onObjectiveProgress?.(quest.id, obj.id, obj.currentCount, required, obj.type);
       }
     });
   }
@@ -640,8 +652,11 @@ export class QuestCompletionEngine {
   trackGrammarDemonstrated(patternCount: number, questId?: string): void {
     this.forEachObjective(questId, 'grammar', (quest, obj) => {
       obj.currentCount = (obj.currentCount || 0) + patternCount;
-      if (obj.currentCount >= (obj.requiredCount || 2)) {
+      const required = obj.requiredCount || 2;
+      if (obj.currentCount >= required) {
         this.completeObjective(quest.id, obj.id);
+      } else {
+        this.onObjectiveProgress?.(quest.id, obj.id, obj.currentCount, required, obj.type);
       }
     });
   }
@@ -1569,6 +1584,8 @@ export class QuestCompletionEngine {
           const required = objAny[requiredField] || defaultRequired;
           if (objAny[currentField] >= required) {
             this.completeObjective(quest.id, obj.id);
+          } else {
+            this.onObjectiveProgress?.(quest.id, obj.id, objAny[currentField], required, obj.type);
           }
         } else {
           this.completeObjective(quest.id, obj.id);

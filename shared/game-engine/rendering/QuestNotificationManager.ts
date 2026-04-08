@@ -76,6 +76,33 @@ export interface ActiveQuestData {
   cefrLevel?: CEFRLevel;
 }
 
+// ── Meta-objective hints ────────────────────────────────────────────────────
+// Maps objective types to human-readable hints explaining what actions count.
+
+const META_OBJECTIVE_HINTS: Record<string, string> = {
+  vocabulary: 'Any word learned or used in conversation counts',
+  use_vocabulary: 'Use target-language words in conversation',
+  collect_vocabulary: 'Find and learn new words from the world',
+  conversation: 'Any NPC conversation opened counts',
+  complete_conversation: 'Complete conversations with NPCs',
+  grammar: 'Positive grammar feedback in conversation counts',
+  collect_text: 'Find books, letters, or journals in the world',
+  find_text: 'Discover texts, signs, or notices around town',
+  read_text: 'Read and comprehend collected texts',
+  read_sign: 'Read signs and notices around town',
+  visit_location: 'Travel to the marked locations',
+  collect_item: 'Find and collect the required items',
+  translation_challenge: 'Complete translation exercises',
+  write_response: 'Write responses in the target language',
+};
+
+/**
+ * Get a hint for a meta-objective type, or undefined if no hint is available.
+ */
+export function getMetaObjectiveHint(objectiveType: string): string | undefined {
+  return META_OBJECTIVE_HINTS[objectiveType];
+}
+
 // ── Sizing constants ────────────────────────────────────────────────────────
 
 const PANEL_WIDTH = 240;

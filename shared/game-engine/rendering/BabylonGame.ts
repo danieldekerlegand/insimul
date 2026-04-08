@@ -215,7 +215,7 @@ import { QuaterniusNPCLoader, normalizeToQuaterniusGender, selectQuaterniusConfi
 import { selectNPCModel, type NPCGender } from "@shared/game-engine/logic/NPCModelVariety";
 import { QuestOfferPanel } from "@shared/game-engine/rendering/QuestOfferPanel";
 import type { QuestOfferData } from "@shared/game-engine/rendering/QuestOfferPanel";
-import { QuestNotificationManager } from "@shared/game-engine/rendering/QuestNotificationManager";
+import { QuestNotificationManager, getMetaObjectiveHint } from "@shared/game-engine/rendering/QuestNotificationManager";
 import { ReputationManager } from "@shared/game-engine/rendering/ReputationManager";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
 import { checkForNewWeaknesses } from "@shared/language/grammar-weakness-analyzer";
@@ -3604,6 +3604,9 @@ export class BabylonGame {
     });
     this.questObjectManager.setOnObjectiveCompleted((questId, objectiveId) => {
       this.handleQuestObjectiveCompleted(questId, objectiveId, 'objective');
+    });
+    this.questObjectManager.setOnObjectiveProgress((questId, _objectiveId, current, required, objectiveType) => {
+      this.handleObjectiveProgress(questId, current, required, objectiveType);
     });
     this.questObjectManager.setShowToast((title, description) => {
       this.guiManager?.showToast({ title, description, duration: 3000 });
@@ -16686,6 +16689,43 @@ export class BabylonGame {
     this.questNotificationManager?.updateLanguageProgress(this.questLanguageFeedbackTracker.getState());
   }
 
+  /**
+   * Handle meta-objective progress increments — show toast and refresh HUD.
+   */
+  private handleObjectiveProgress(questId: string, current: number, required: number, objectiveType: string): void {
+    // Friendly label for the objective type
+    const typeLabels: Record<string, string> = {
+      vocabulary: 'Vocabulary',
+      use_vocabulary: 'Vocabulary',
+      collect_vocabulary: 'Vocabulary',
+      conversation: 'Conversation',
+      complete_conversation: 'Conversation',
+      grammar: 'Grammar',
+      collect_text: 'Texts collected',
+      find_text: 'Texts found',
+      read_text: 'Texts read',
+      read_sign: 'Signs read',
+      visit_location: 'Locations visited',
+      collect_item: 'Items collected',
+    };
+    const label = typeLabels[objectiveType] || objectiveType.replace(/_/g, ' ');
+    const pct = Math.round((current / required) * 100);
+
+    // Show toast for progress
+    this.eventBus?.emit({
+      type: 'utterance_quest_progress',
+      questId,
+      current,
+      required,
+      percentage: pct,
+    } as any);
+
+    // Refresh the HUD task tracker to show updated counts
+    // Sync engine states to overlay so counts are current
+    this.syncObjectiveStatesToOverlay();
+    this.syncActiveQuestToHud();
+  }
+
   private async handleQuestObjectiveCompleted(questId: string, objectiveId: string, type: string): Promise<void> {
     try {
       // Sync engine objective states to overlay FIRST so dataSource.loadQuests merges them
@@ -16983,20 +17023,30 @@ export class BabylonGame {
     const activeQuest = (this.quests || []).find((q: any) => q.status === 'active');
     if (activeQuest) {
       const cefrLevel = this.playerCefrLevel as import('../../assessment/cefr-mapping').CEFRLevel | null;
+
+      // Get completion engine state for live objective counts
+      const engine = this.questObjectManager?.getCompletionEngine();
+      const engineQuest = engine?.getQuests().find((q: any) => q.id === activeQuest.id);
+      const engineObjectives = engineQuest?.objectives || [];
+
       this.questNotificationManager?.setActiveQuest({
         id: activeQuest.id,
         title: activeQuest.title || activeQuest.name || activeQuest.id,
         titleTranslation: (activeQuest as any).titleTranslation,
         questType: activeQuest.questType || '',
-        objectives: (activeQuest.objectives || []).map((obj: any) => ({
-          type: obj.type || '',
-          description: obj.description || obj.type?.replace(/_/g, ' ') || '',
-          descriptionTranslation: obj.descriptionTranslation,
-          completed: !!obj.completed,
-          current: obj.current,
-          required: obj.required,
-          hint: obj.hint,
-        })),
+        objectives: (activeQuest.objectives || []).map((obj: any) => {
+          // Merge live engine state for this objective (has most up-to-date counts)
+          const engineObj = engineObjectives.find((eo: any) => eo.id === obj.id);
+          return {
+            type: obj.type || '',
+            description: obj.description || obj.type?.replace(/_/g, ' ') || '',
+            descriptionTranslation: obj.descriptionTranslation,
+            completed: engineObj?.completed ?? !!obj.completed,
+            current: engineObj?.currentCount ?? obj.current,
+            required: engineObj?.requiredCount ?? obj.required,
+            hint: obj.hint || getMetaObjectiveHint(obj.type || ''),
+          };
+        }),
         progress: activeQuest.progress,
         cefrLevel: cefrLevel || undefined,
       });
