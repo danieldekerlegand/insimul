@@ -36,7 +36,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Use the existing assessment-scoring.ts LLM content generation functions. Batch the calls for reading, writing, and listening phases. The encounter file is the fallback, not the primary source."
     },
     {

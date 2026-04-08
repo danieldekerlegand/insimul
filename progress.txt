@@ -2300,3 +2300,33 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `assessment-types.ts` already has `AssessmentDefinition` which is structurally similar to `AssessmentQuestData` — the quest variant uses `maxScore` (not `maxPoints`) on phases for consistency with the overlay storage pattern
   - 847 pre-existing TS errors in the codebase; none introduced by this change
 ---
+
+## 2026-04-08 - US-002: Generate arrival assessment content at world creation
+- Created `shared/assessment/assessment-content-builder.ts` — shared utility that converts an `AssessmentDefinition` to `AssessmentQuestData`, merging in optional pre-generated LLM content (passages, questions, prompts) per phase
+- Created `server/services/assessment-content-generator.ts` — server-side LLM content generator that:
+  - Resolves template variables ({{targetLanguage}}, {{cityName}}) before generation
+  - Generates reading/listening passages + comprehension questions via Gemini FLASH
+  - Generates writing prompts via Gemini FLASH
+  - Skips conversation/initiate_conversation phases (no LLM content needed)
+  - Falls back gracefully if Gemini not configured or generation fails (logs warning, returns null for that phase)
+  - Prompt/parse logic extracted from `server/routes/assessment-scoring.ts` for reuse
+- Added `customData` field to quests table in `shared/schema.ts` (jsonb column, default `{}`)
+- Added `customData: true` to `insertQuestSchema` pick list
+- Updated `buildArrivalAssessmentQuest()` in `assessment-quest-bridge-shared.ts` to accept optional `AssessmentQuestData` and store it in `customData.assessment`
+- Wired content generation into world creation flow in `server/routes.ts`:
+  - After `seedMainQuestChain()` creates the quest chain, finds the arrival assessment quest by tags
+  - Calls `generateAssessmentQuestContent()` with ARRIVAL_ENCOUNTER + world data
+  - Updates the quest's customData with the generated assessment data
+  - All wrapped in try/catch — non-fatal if generation fails
+- Files changed:
+  - `shared/assessment/assessment-content-builder.ts` — new file
+  - `server/services/assessment-content-generator.ts` — new file
+  - `shared/schema.ts` — added customData to quests table + insertQuestSchema
+  - `shared/services/assessment-quest-bridge-shared.ts` — assessmentData param in buildArrivalAssessmentQuest
+  - `server/routes.ts` — content generation after quest chain seeding
+- **Learnings for future iterations:**
+  - The arrival assessment quest is created by `QuestChainManager.createFromTemplate('missing-writer-mystery')`, not by `buildArrivalAssessmentQuest` — the quest chain template system creates it. Content must be added as a post-creation update
+  - MongoDB quest model already had `customData: { type: Schema.Types.Mixed }` — the Drizzle schema was the only place it was missing
+  - `resolveAssessment()` from arrival-encounter.ts resolves template vars across all phases/tasks — use it before content generation
+  - 847 pre-existing TS errors; none introduced by this change
+---
