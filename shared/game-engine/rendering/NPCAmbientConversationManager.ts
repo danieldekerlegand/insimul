@@ -101,6 +101,8 @@ export class NPCAmbientConversationManager {
   private pairingRadius = 8;
   /** Distance within which the player sees the eavesdrop prompt */
   private eavesdropRadius = 12;
+  /** Distance beyond which an active conversation is cancelled (player walked away) */
+  private cancelRadius = 12;
   /** Minimum distance NPCs maintain during conversation */
   private minSeparation = 2.0;
 
@@ -290,6 +292,9 @@ export class NPCAmbientConversationManager {
     if (this._paused) return;
     const now = Date.now();
 
+    // Cancel active conversations if the player has left range
+    this.checkPlayerProximityToActiveConversations(now);
+
     // Expire old conversations (only fallback timer-based ones; streamed ones end naturally)
     for (const [convId, conv] of Array.from(this.activeConversations.entries())) {
       if (!conv.streamed && now - conv.startTime > this.conversationDurationMs) {
@@ -304,6 +309,31 @@ export class NPCAmbientConversationManager {
 
     // Update eavesdrop prompt based on player proximity
     this.updateEavesdropPrompt();
+  }
+
+  /**
+   * Cancel any active ambient conversation if the player is beyond cancelRadius
+   * from both participating NPCs. Sets per-NPC cooldown on cancellation.
+   */
+  private checkPlayerProximityToActiveConversations(now: number): void {
+    if (!this.playerMesh) return;
+    const playerPos = this.playerMesh.position;
+
+    for (const [convId, conv] of Array.from(this.activeConversations.entries())) {
+      const npc1 = this.npcMeshes.get(conv.participants[0]);
+      const npc2 = this.npcMeshes.get(conv.participants[1]);
+      if (!npc1 || !npc2) continue;
+
+      const dist1 = Vector3.Distance(playerPos, npc1.mesh.position);
+      const dist2 = Vector3.Distance(playerPos, npc2.mesh.position);
+
+      if (dist1 > this.cancelRadius && dist2 > this.cancelRadius) {
+        // Update cooldowns from now so the 2-minute cooldown starts from cancellation
+        this.conversationCooldowns.set(conv.participants[0], now);
+        this.conversationCooldowns.set(conv.participants[1], now);
+        this.endConversation(convId);
+      }
+    }
   }
 
   // --- Pairing logic ---
