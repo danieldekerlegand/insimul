@@ -162,6 +162,7 @@ import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo 
 import { NPCActivityLabelSystem } from "@shared/game-engine/rendering/NPCActivityLabelSystem";
 import { ActivityObservationRewards } from "@shared/game-engine/logic/ActivityObservationRewards";
 import { NPCInitiatedConversationController } from "@shared/game-engine/rendering/NPCInitiatedConversationController";
+import { NPCProximitySpeechSystem } from "@shared/game-engine/rendering/NPCProximitySpeechSystem";
 import { NPCSocializationController } from "@shared/game-engine/rendering/NPCSocializationController";
 import type { SocializableNPC, ConversationResult } from "@shared/game-engine/rendering/NPCSocializationController";
 import { generateLocalNpcConversation } from "@shared/game-engine/logic/LocalNpcConversation";
@@ -583,6 +584,7 @@ export class BabylonGame {
   private socializationController: NPCSocializationController | null = null;
   private vehicleSystem: VehicleSystem | null = null;
   private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
+  private npcProximitySpeechSystem: NPCProximitySpeechSystem | null = null;
   // Walking interrupt: player velocity tracking
   private _lastPlayerPosition: { x: number; z: number } | null = null;
   private _playerVelocity = 0;
@@ -4586,6 +4588,14 @@ export class BabylonGame {
       getGameHour: () => this.gameTimeManager?.hour ?? 12,
       getPlayerPosition: () => this.playerMesh?.position ?? null,
     });
+
+    // Initialize NPCProximitySpeechSystem (replaces NPCGreetingSystem)
+    this.npcProximitySpeechSystem = new NPCProximitySpeechSystem(this.npcAudioLock, {
+      targetLanguage: getTargetLanguage(this.worldData),
+      serverUrl: this.config.apiUrl || '',
+    });
+    this.npcProximitySpeechSystem.setTimeOfDayProvider(() => this.gameTimeManager?.hour ?? 12);
+    this.npcProximitySpeechSystem.setPlayerConversationCheck(() => !!this.conversationNPCId);
 
     // Initialize NPC-initiated conversation controller
     this.npcInitiatedConversationController = new NPCInitiatedConversationController({
@@ -8825,6 +8835,11 @@ export class BabylonGame {
         this.ambientConversationManager.setPlayerMesh(playerMesh);
       }
 
+      // Set player mesh for proximity speech system
+      if (this.npcProximitySpeechSystem) {
+        this.npcProximitySpeechSystem.setPlayerMesh(playerMesh);
+      }
+
       this.updatePlayerStatusUI("Ready");
     } catch (error) {
       console.error("Failed to load player", error);
@@ -9496,6 +9511,23 @@ export class BabylonGame {
           mood: character.mood || 'neutral',
           isInConversation: false,
           occupation: character.occupation,
+        });
+      }
+
+      // Register NPC for proximity-based TTS greetings
+      if (this.npcProximitySpeechSystem) {
+        const personality = character.personality || {
+          openness: 0.5, conscientiousness: 0.5, extroversion: 0.5,
+          agreeableness: 0.5, neuroticism: 0.5,
+        };
+        this.npcProximitySpeechSystem.registerNPC({
+          id: character.id,
+          name: npcName,
+          mesh: root,
+          gender: (character as any).gender,
+          age: (character as any).age,
+          occupation: character.occupation,
+          personality,
         });
       }
     } catch (error) {
@@ -11501,6 +11533,9 @@ export class BabylonGame {
         }
         this.npcInitiatedConversationController.update(dt, 60000);
       }
+
+      // Update proximity speech system (TTS-based NPC greetings)
+      this.npcProximitySpeechSystem?.update(dt);
 
       // Update minimap markers at most every 250ms
       this._minimapUpdateTimer += dt;
@@ -17460,6 +17495,8 @@ export class BabylonGame {
     this.activityObservationRewards = null;
     this.ambientConversationManager?.dispose();
     this.npcInitiatedConversationController?.dispose();
+    this.npcProximitySpeechSystem?.dispose();
+    this.npcProximitySpeechSystem = null;
     this.socializationController?.dispose();
     this.ambientLifeSystem.dispose();
     this.ambientConversationManager = null;
