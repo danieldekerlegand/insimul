@@ -227,6 +227,7 @@ export class BabylonChatPanel {
   private activeQuestFromNPC: { questTitle: string; questDescription: string; questId: string } | null = null;
   private questGuidancePrompt: string | null = null;
   private _targetLanguage: string | null = null;
+  private _timeOfDay: string | null = null;
 
   // Hover-to-translate system for target-language words
   private hoverTranslation: HoverTranslationSystem = new HoverTranslationSystem();
@@ -910,16 +911,13 @@ export class BabylonChatPanel {
       },
     });
 
-    // If the NPC has a quest to offer or an active quest, they initiate conversation.
-    // Otherwise the player speaks first.
-    if (this.questOfferingContext) {
-      // Small delay so the UI is fully visible before the NPC starts talking
-      setTimeout(() => {
-        this.triggerNPCGreeting(
-          '[The player approaches. Give a brief greeting (1-2 sentences max) and mention what you need help with.]'
-        );
-      }, 500);
-    }
+    // NPC always speaks first with a contextual opening line.
+    // Quest NPCs mention what they need; others give a natural greeting with an engagement hook.
+    const cue = this.buildOpeningCue();
+    // Small delay so the UI is fully visible before the NPC starts talking
+    setTimeout(() => {
+      this.triggerNPCGreeting(cue);
+    }, 500);
 
     // Wire hover-translate word lookups to vocabulary progress tracker
     if (this.languageTracker) {
@@ -1763,6 +1761,89 @@ export class BabylonChatPanel {
   }
 
   /**
+   * Build a contextual opening cue for the NPC based on character data, location,
+   * time of day, relationship, and quest context. The system prompt already contains
+   * personality/language directives — this cue provides the situational trigger.
+   */
+  private buildOpeningCue(): string {
+    if (!this.character) return '[The player approaches. Give a brief greeting.]';
+
+    const name = this.character.firstName || 'NPC';
+    const occupation = this.character.occupation || null;
+    const location = this.character.currentLocation || null;
+    const targetLang = this._targetLanguage
+      || this.worldLanguageContext?.targetLanguage
+      || this.world?.targetLanguage
+      || null;
+
+    // Describe time of day from numeric hour or string
+    let timeDesc = 'daytime';
+    if (this._timeOfDay) {
+      const hour = parseInt(this._timeOfDay, 10);
+      if (!isNaN(hour)) {
+        if (hour < 6) timeDesc = 'late night';
+        else if (hour < 12) timeDesc = 'morning';
+        else if (hour < 17) timeDesc = 'afternoon';
+        else if (hour < 21) timeDesc = 'evening';
+        else timeDesc = 'night';
+      } else {
+        timeDesc = this._timeOfDay;
+      }
+    }
+
+    // Relationship context
+    let relHint = '';
+    if (this._relationshipManager && this.character.id) {
+      const relCtx = this._relationshipManager.getConversationContext(this.character.id);
+      if (relCtx) {
+        relHint = ` You have an existing relationship with this player.`;
+      }
+    }
+
+    // Quest-specific cue takes priority
+    if (this.questOfferingContext) {
+      return `[The player approaches you (${name}${occupation ? ', ' + occupation : ''}) during the ${timeDesc}${location ? ' at ' + location : ''}.${relHint} Give a brief greeting (1-2 sentences max) and mention what you need help with. Respond in ${targetLang || 'the target language'}.]`;
+    }
+
+    // Build contextual cue for regular conversation
+    let cue = `[The player approaches you (${name}`;
+    if (occupation) cue += `, ${occupation}`;
+    cue += `) during the ${timeDesc}`;
+    if (location) cue += ` at ${location}`;
+    cue += `.${relHint}`;
+    cue += ` React naturally to being approached. Give a brief, in-character greeting (1-2 sentences) and end with a question or engagement hook that invites the player to respond.`;
+    if (targetLang) cue += ` Respond in ${targetLang}.`;
+    cue += `]`;
+    return cue;
+  }
+
+  /**
+   * Return a simple fallback greeting in the target language when the LLM
+   * times out or fails. Keeps the conversation flowing without a blank chat.
+   */
+  private getFallbackGreeting(): string {
+    const lang = (this._targetLanguage
+      || this.worldLanguageContext?.targetLanguage
+      || this.world?.targetLanguage
+      || '').toLowerCase();
+
+    // Common greetings by language — extend as needed
+    const greetings: Record<string, string> = {
+      french: 'Bonjour ! Comment allez-vous ?',
+      spanish: '¡Hola! ¿Cómo estás?',
+      german: 'Hallo! Wie geht es Ihnen?',
+      italian: 'Ciao! Come stai?',
+      portuguese: 'Olá! Como vai?',
+      japanese: 'こんにちは！お元気で���か？',
+      korean: '안녕하세요! 어떻게 지���세요?',
+      chinese: '你好！你好吗？',
+      mandarin: '你好！你好吗？',
+    };
+
+    return greetings[lang] || 'Bonjour !';
+  }
+
+  /**
    * Trigger an NPC-initiated greeting at conversation start.
    * Sends a hidden cue through the pipeline so the NPC speaks first.
    * The cue is NOT displayed in the chat UI — only the NPC's response appears.
@@ -1796,8 +1877,27 @@ export class BabylonChatPanel {
       const debugStartTime = performance.now();
       this._debugTimeToFirstChunk = 0;
 
-      // Route through InsimulClient (handles WebSocket → SSE fallback internally)
-      responseText = await this.sendMessageViaGrpc(cue, placeholderMsg);
+      // Race LLM call against a 3s timeout — fall back to a simple greeting on timeout
+      const GREETING_TIMEOUT_MS = 3000;
+      const timeoutPromise = new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('greeting_timeout')), GREETING_TIMEOUT_MS)
+      );
+
+      try {
+        responseText = await Promise.race([
+          this.sendMessageViaGrpc(cue, placeholderMsg),
+          timeoutPromise,
+        ]);
+      } catch (timeoutErr: any) {
+        if (timeoutErr?.message === 'greeting_timeout') {
+          console.warn('[ChatPanel] NPC greeting LLM timed out after 3s, using fallback');
+          responseText = this.getFallbackGreeting();
+          placeholderMsg.content = responseText;
+          this.updateMessagesDisplay();
+        } else {
+          throw timeoutErr;
+        }
+      }
 
       const debugTotalTime = performance.now() - debugStartTime;
 
@@ -1836,11 +1936,16 @@ export class BabylonChatPanel {
     } catch (error) {
       console.error('[ChatPanel] NPC greeting error:', error);
       if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
-      // Remove the empty placeholder on error
-      if (this.messages.length > 0 && this.messages[this.messages.length - 1].content === '') {
-        this.messages.pop();
+      // On error, show a fallback greeting instead of an empty chat
+      const fallback = this.getFallbackGreeting();
+      const lastMsg = this.messages[this.messages.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content === '') {
+        lastMsg.content = fallback;
+      } else {
+        this.messages.push({ role: 'assistant', content: fallback, timestamp: new Date() });
       }
       this.updateMessagesDisplay();
+      this.textToSpeech(fallback);
     } finally {
       this.isProcessing = false;
       if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
@@ -3531,6 +3636,14 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    */
   public setTargetLanguage(lang: string | null) {
     this._targetLanguage = lang;
+  }
+
+  /**
+   * Set the current time of day so NPC opening greetings can reference it.
+   * Call before show().
+   */
+  public setTimeOfDay(timeOfDay: string | null) {
+    this._timeOfDay = timeOfDay;
   }
 
   /**

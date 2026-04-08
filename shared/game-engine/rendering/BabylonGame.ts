@@ -13524,6 +13524,9 @@ export class BabylonGame {
       // Set target language so NPC speaks in the correct language
       this.chatPanel.setTargetLanguage(getTargetLanguage(this.worldData) || (this.worldData as any)?.targetLanguage || null);
 
+      // Set time of day so NPC opening greeting can reference it
+      this.chatPanel.setTimeOfDay(this.gameTimeManager.timeOfDay);
+
       // Inject reputation context into NPC conversation prompt
       if (this.reputationManager && this.currentZone) {
         const repContext = this.reputationManager.getConversationContext(this.currentZone.id);
