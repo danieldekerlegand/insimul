@@ -182,12 +182,19 @@ export async function launchOnboarding(
     console.warn('[OnboardingLauncher] Failed to create assessment modal UI:', err);
   }
 
+  // Find the existing assessment quest (created in the world editor) so it appears in the quest log (J key)
+  // Also extracts pre-generated assessment data from quest customData.assessment
+  const assessmentQuest = await findAssessmentQuest(worldId, authToken, deps.dataSource);
+  const assessmentQuestId = assessmentQuest?.id ?? null;
+
   // Create assessment engine with event bus and Prolog engine for fact assertion
+  // Pass pre-generated assessment data from quest customData if available
   const assessmentEngine: AssessmentEngine = new AssessmentEngineClass({
     authToken,
     targetLanguage,
     eventBus,
     prologEngine: deps.prologEngine ?? null,
+    assessmentQuestData: assessmentQuest?.assessmentData,
   });
 
   // Track current phase so we can advance the progress UI correctly
@@ -243,9 +250,6 @@ export async function launchOnboarding(
     pendingModalConfig = null;
     modalUI?.hide();
   });
-
-  // Find the existing assessment quest (created in the world editor) so it appears in the quest log (J key)
-  const assessmentQuestId = await findAssessmentQuest(worldId, authToken, deps.dataSource);
 
   // Return a promise that resolves when the full onboarding completes
   return new Promise<OnboardingLaunchResult | null>((resolve) => {
@@ -346,13 +350,13 @@ export async function launchOnboarding(
 
 /**
  * Find the existing Arrival Assessment quest for this world, or return null.
- * The quest should be pre-created in the world editor, not spawned per-playthrough.
+ * Returns both the quest ID and any pre-generated assessment data from customData.
  */
 async function findAssessmentQuest(
   worldId: string,
   authToken: string,
   dataSource?: any,
-): Promise<string | null> {
+): Promise<{ id: string; assessmentData?: any } | null> {
   try {
     if (!dataSource) throw new Error('No dataSource — save file not loaded');
     const quests = await dataSource.loadQuests(worldId);
@@ -362,7 +366,10 @@ async function findAssessmentQuest(
 
     const existing = quests.find((q: any) => isArrivalAssessmentQuest(q));
     if (existing) {
-      return existing.id;
+      return {
+        id: existing.id,
+        assessmentData: existing.customData?.assessment,
+      };
     }
 
     return null;

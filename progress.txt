@@ -2346,3 +2346,22 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `PERIODIC_ENCOUNTER` has only conversation phase, so `buildAssessmentQuestData()` alone suffices — no `generateAssessmentQuestContent()` needed
   - `PERIODIC_ASSESSMENT_LEVELS` is `[5, 10, 15, 20] as const` — a readonly tuple, iterable with `for...of`
 ---
+
+## 2026-04-08 - US-004: Read assessment data from quest customData in game client
+- Added `customData` field to `QuestIR` interface so quest customData (including embedded assessment content) reaches the game client
+- Modified `AssessmentEngine` to accept optional `AssessmentQuestData` via constructor config
+- Added `_getPhases()` helper that returns phases from `assessmentQuestData` when available, falls back to hardcoded `ASSESSMENT_PHASES`
+- Added `_getQuestContent()` helper that extracts pre-generated passage/questions/writingPrompts from quest data phases
+- `_runModalPhase()` now tries quest content first, falls back to offline content bank for legacy quests
+- Updated `OnboardingLauncher` to find the assessment quest early (before engine creation), extract `customData.assessment`, and pass it to `AssessmentEngine`
+- Refactored `findAssessmentQuest()` to return both quest ID and assessment data
+- All phase method signatures updated from `typeof ASSESSMENT_PHASES[number]` to generic `{ id, name, type, maxScore }` type
+- Files changed:
+  - `shared/game-engine/ir-types.ts` — added optional `customData` to `QuestIR`
+  - `shared/game-engine/logic/AssessmentEngine.ts` — `_assessmentQuestData` field, `_getPhases()`, `_getQuestContent()`, updated `start()`, `_runModalPhase()`, `_showModalAndWait()`, `_runInitiateConversationPhase()`, `_runConversationPhase()`
+  - `shared/game-engine/rendering/OnboardingLauncher.ts` — moved quest lookup before engine creation, pass `assessmentQuestData` to engine
+- **Learnings for future iterations:**
+  - `AssessmentQuestion` has `questionText` not `prompt` — don't confuse with `AssessmentQuestTask.prompt`
+  - `findAssessmentQuest()` must run before `AssessmentEngine` construction so quest data is available at engine creation time
+  - `loadQuests()` returns `any[]` so customData flows through without type narrowing — the `QuestIR.customData` addition is for documentation/downstream consumers
+---

@@ -976,6 +976,7 @@ export interface QuestIR {
   tags: string[];
   status: string;
   content: string | null;
+  customData?: Record<string, any>;
 }
 
 export interface TruthIR {

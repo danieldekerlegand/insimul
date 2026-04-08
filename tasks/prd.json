@@ -71,7 +71,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "The UI components themselves don't change — only where they get their data from changes. The fallback to encounter files ensures backward compatibility with quests created before this change."
     },
     {

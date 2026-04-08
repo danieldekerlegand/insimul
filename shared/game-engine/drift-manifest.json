@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T08:16:19.073Z",
+  "lastUpdated": "2026-04-08T09:01:17.270Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "6e41976ee4588953c25cd90173c89bf74da3ec661d6828188ca18ebc1a001c35",
+      "hash": "3997252bd80e0d92008019bbd0b2a70cb1a2dfa7225ec45c8a4dd7e6658fc13f",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -652,7 +652,7 @@
     {
       "path": "shared/game-engine/logic/AssessmentEngine.ts",
       "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
-      "hash": "ccd0c2a5d2024eb4b437e0ee1a74aabc3e9dcee927994eb292bf0cb43e8a4e22",
+      "hash": "8e726385f0056e9a23baef2ab7aa67de2fb4696d0cb163c9a3f0686d404e39e9",
       "engineMappings": [
         {
           "engine": "babylon",

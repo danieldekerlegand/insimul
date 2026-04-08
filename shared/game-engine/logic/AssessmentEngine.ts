@@ -17,7 +17,7 @@
 
 import type { GameEventBus } from './GameEventBus';
 import type { GamePrologEngine } from './GamePrologEngine';
-import type { AssessmentModalConfig, ContentTemplate, PhaseType } from '@shared/assessment/assessment-types';
+import type { AssessmentModalConfig, ContentTemplate, PhaseType, AssessmentQuestData } from '@shared/assessment/assessment-types';
 
 /** Lightweight assessment result (subset of shared/assessment AssessmentResult). */
 export interface AssessmentResult {
@@ -115,6 +115,7 @@ export class AssessmentEngine {
   private eventBus: GameEventBus | null;
   private prologEngine: GamePrologEngine | null;
   private _questId: string | null = null;
+  private _assessmentQuestData: AssessmentQuestData | null = null;
   private _onPhaseStarted?: (phaseId: string, phaseIndex: number, timeRemainingSeconds: number) => void;
   private _onPhaseCompleted?: (phaseId: string, score: number, maxScore: number) => void;
   private _onCompleted?: (result: AssessmentResult) => void;
@@ -141,12 +142,15 @@ export class AssessmentEngine {
     eventBus?: GameEventBus;
     prologEngine?: GamePrologEngine;
     questId?: string;
+    /** Pre-generated assessment data from quest customData.assessment */
+    assessmentQuestData?: AssessmentQuestData;
   }) {
     this.authToken = config.authToken;
     this.targetLanguage = config.targetLanguage;
     this.eventBus = config.eventBus ?? null;
     this.prologEngine = config.prologEngine ?? null;
     this._questId = config.questId ?? null;
+    this._assessmentQuestData = config.assessmentQuestData ?? null;
   }
 
   async start(config: {
@@ -157,13 +161,17 @@ export class AssessmentEngine {
   }): Promise<void> {
     this.targetLanguage = config.targetLanguage;
 
+    // Use phases from quest customData.assessment if available, otherwise fall back to hardcoded phases
+    const phases = this._getPhases();
+    const totalMaxScore = phases.reduce((sum, p) => sum + p.maxScore, 0);
+
     let totalScore = 0;
     const dimensionScores: Record<string, number> = {};
 
-    for (let i = 0; i < ASSESSMENT_PHASES.length; i++) {
+    for (let i = 0; i < phases.length; i++) {
       if (this._aborted) return;
 
-      const phase = ASSESSMENT_PHASES[i];
+      const phase = phases[i];
 
       this._onPhaseStarted?.(phase.id, i, 0);
 
@@ -193,7 +201,7 @@ export class AssessmentEngine {
     if (this._aborted) return;
 
     // Compute CEFR level from total score percentage
-    const totalPct = (totalScore / TOTAL_MAX_SCORE) * 100;
+    const totalPct = (totalScore / totalMaxScore) * 100;
     const cefrLevel = totalPct >= 80 ? 'B2' : totalPct >= 60 ? 'B1' : totalPct >= 40 ? 'A2' : 'A1';
 
     // Build dimension scores from phase results
@@ -208,12 +216,12 @@ export class AssessmentEngine {
     }
 
     // Assert final assessment result as Prolog facts
-    await this._assertAssessmentResult(totalScore, TOTAL_MAX_SCORE, cefrLevel, dimensionScores);
+    await this._assertAssessmentResult(totalScore, totalMaxScore, cefrLevel, dimensionScores);
 
     const result: AssessmentResult = {
       sessionId: `assess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       totalScore: Math.round(totalScore * 10) / 10,
-      totalMaxScore: TOTAL_MAX_SCORE,
+      totalMaxScore: totalMaxScore,
       cefrLevel,
       dimensionScores,
     };
@@ -305,21 +313,76 @@ export class AssessmentEngine {
     }
   }
 
+  // ── Private: phase resolution ──────────────────────────────────────────────
+
+  /**
+   * Get the list of phases to run. If assessmentQuestData is provided (from
+   * quest customData.assessment), derive phases from it. Otherwise fall back
+   * to the hardcoded ASSESSMENT_PHASES constant.
+   */
+  private _getPhases(): Array<{ id: string; name: string; type: PhaseType; maxScore: number }> {
+    if (this._assessmentQuestData) {
+      return this._assessmentQuestData.phases.map(p => ({
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        maxScore: p.maxScore,
+      }));
+    }
+    return ASSESSMENT_PHASES;
+  }
+
+  /**
+   * Get pre-generated content from quest customData.assessment for a given phase.
+   * Returns null if no quest data or no matching content found.
+   */
+  private _getQuestContent(phaseId: string): GeneratedContent | null {
+    if (!this._assessmentQuestData) return null;
+
+    const phase = this._assessmentQuestData.phases.find(p => p.id === phaseId);
+    if (!phase || !phase.tasks || phase.tasks.length === 0) return null;
+
+    // Merge content from all tasks in this phase
+    const content: GeneratedContent = {};
+    for (const task of phase.tasks) {
+      if (task.passage) content.passage = task.passage;
+      if (task.questions && task.questions.length > 0) {
+        content.questions = task.questions.map(q => ({
+          id: q.id,
+          questionText: q.questionText,
+          maxPoints: q.maxPoints,
+        }));
+      }
+      if (task.writingPrompts && task.writingPrompts.length > 0) {
+        content.writingPrompts = task.writingPrompts;
+      }
+    }
+
+    // Only return if we actually found some content
+    if (content.passage || content.questions || content.writingPrompts) {
+      return content;
+    }
+    return null;
+  }
+
   // ── Private: modal-based phases (reading, writing, listening) ─────────────
 
   private async _runModalPhase(
-    phase: typeof ASSESSMENT_PHASES[number],
+    phase: { id: string; name: string; type: PhaseType; maxScore: number },
     phaseIndex: number,
   ): Promise<number> {
-    // Step 1: Generate content from server
-    const template = CONTENT_TEMPLATES[phase.id];
-    let content: GeneratedContent = {};
+    // Step 1: Try pre-generated content from quest customData.assessment first
+    let content: GeneratedContent = this._getQuestContent(phase.id) ?? {};
 
-    if (template) {
-      try {
-        content = await this._generateContent(phase.type, template);
-      } catch (err) {
-        console.warn('[AssessmentEngine] Content generation failed, using fallback:', err);
+    // Fall back to offline content bank if no quest content available
+    if (!content.passage && !content.questions && !content.writingPrompts) {
+      const template = CONTENT_TEMPLATES[phase.id];
+      if (template) {
+        try {
+          content = await this._generateContent(phase.type, template);
+        } catch (err) {
+          console.warn('[AssessmentEngine] Content generation failed, using fallback:', err);
+        }
       }
     }
 
@@ -334,7 +397,8 @@ export class AssessmentEngine {
     }
 
     // Step 2: Show modal and wait for player submission
-    const answers = await this._showModalAndWait(phase, phaseIndex, content, audioUrl);
+    const phases = this._getPhases();
+    const answers = await this._showModalAndWait(phase, phaseIndex, phases.length, content, audioUrl);
 
     if (this._aborted || !answers) return 0;
 
@@ -421,8 +485,9 @@ export class AssessmentEngine {
   }
 
   private _showModalAndWait(
-    phase: typeof ASSESSMENT_PHASES[number],
+    phase: { id: string; name: string; type: PhaseType; maxScore: number },
     phaseIndex: number,
+    totalPhases: number,
     content: GeneratedContent,
     audioUrl?: string,
   ): Promise<Record<string, string> | null> {
@@ -433,7 +498,7 @@ export class AssessmentEngine {
         phaseType: phase.type as 'reading' | 'writing' | 'listening',
         phaseName: phase.name,
         phaseIndex,
-        totalPhases: ASSESSMENT_PHASES.length,
+        totalPhases,
         passage: content.passage,
         questions: content.questions,
         writingPrompts: content.writingPrompts,
@@ -454,7 +519,7 @@ export class AssessmentEngine {
           phaseId: phase.id,
           phaseName: phase.name,
           phaseIndex,
-          totalPhases: ASSESSMENT_PHASES.length,
+          totalPhases,
           description: `Complete the ${phase.name} section.`,
           isConversational: false,
           onContinue: () => resolve(null),
@@ -509,9 +574,10 @@ export class AssessmentEngine {
   // ── Private: initiate conversation phase (walk to NPC) ─────────────────────
 
   private _runInitiateConversationPhase(
-    phase: typeof ASSESSMENT_PHASES[number],
+    phase: { id: string; name: string; type: PhaseType; maxScore: number },
     phaseIndex: number,
   ): Promise<number> {
+    const totalPhases = this._getPhases().length;
     return new Promise<number>((resolve) => {
       this._phaseResolver = () => resolve(0);
 
@@ -520,7 +586,7 @@ export class AssessmentEngine {
         phaseId: phase.id,
         phaseName: phase.name,
         phaseIndex,
-        totalPhases: ASSESSMENT_PHASES.length,
+        totalPhases,
         description: 'Talk to the marked NPC to begin a guided conversation assessment.',
         isConversational: true,
         onContinue: () => { /* resolved via event bus */ },
@@ -557,9 +623,10 @@ export class AssessmentEngine {
   // ── Private: conversation phase (guided assessment conversation) ──────────
 
   private _runConversationPhase(
-    phase: typeof ASSESSMENT_PHASES[number],
+    phase: { id: string; name: string; type: PhaseType; maxScore: number },
     phaseIndex: number,
   ): Promise<number> {
+    const totalPhases = this._getPhases().length;
     return new Promise<number>((resolve) => {
       this._phaseResolver = () => resolve(0);
 
@@ -568,7 +635,7 @@ export class AssessmentEngine {
         phaseId: phase.id,
         phaseName: phase.name,
         phaseIndex,
-        totalPhases: ASSESSMENT_PHASES.length,
+        totalPhases,
         description: "Answer the NPC's questions. Speak naturally — this measures your conversational ability.",
         isConversational: true,
         onContinue: () => { /* resolved via event bus */ },
