@@ -1551,6 +1551,219 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
+  /**
+   * Deep-copy a world and all its associated entities.
+   * Returns the new world's ID plus an idMap for remapping references.
+   */
+  async duplicateWorld(
+    sourceWorldId: string,
+    overrides: Partial<{ name: string; description: string }> = {},
+  ): Promise<{ newWorldId: string; idMap: Record<string, string> }> {
+    await this.connect();
+
+    const srcWorld = await WorldModel.findById(sourceWorldId);
+    if (!srcWorld) throw new Error(`Source world ${sourceWorldId} not found`);
+
+    // idMap: old ID -> new ID
+    const idMap: Record<string, string> = {};
+    const newId = () => new mongoose.Types.ObjectId();
+
+    // --- 1. Clone world ---
+    const worldObj = srcWorld.toObject();
+    delete (worldObj as any).__v;
+    const newWorldId = newId();
+    idMap[srcWorld._id.toString()] = newWorldId.toString();
+    await WorldModel.create({
+      ...worldObj,
+      _id: newWorldId,
+      name: overrides.name || `${worldObj.name} (Copy)`,
+      description: overrides.description ?? worldObj.description,
+      currentGeneration: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const nw = newWorldId.toString();
+
+    // --- 2. Clone countries ---
+    const countries = await CountryModel.find({ worldId: sourceWorldId });
+    for (const doc of countries) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const cid = newId();
+      idMap[doc._id.toString()] = cid.toString();
+      await CountryModel.create({ ...obj, _id: cid, worldId: nw });
+    }
+
+    // --- 3. Clone states ---
+    const states = await StateModel.find({ worldId: sourceWorldId });
+    for (const doc of states) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const sid = newId();
+      idMap[doc._id.toString()] = sid.toString();
+      await StateModel.create({
+        ...obj, _id: sid, worldId: nw,
+        countryId: idMap[doc.countryId?.toString()] || doc.countryId,
+      });
+    }
+
+    // --- 4. Clone settlements ---
+    const settlements = await SettlementModel.find({ worldId: sourceWorldId });
+    for (const doc of settlements) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const sid = newId();
+      idMap[doc._id.toString()] = sid.toString();
+      await SettlementModel.create({
+        ...obj, _id: sid, worldId: nw,
+        countryId: idMap[doc.countryId?.toString()] || doc.countryId,
+        stateId: doc.stateId ? (idMap[doc.stateId.toString()] || doc.stateId) : doc.stateId,
+      });
+    }
+
+    // --- 5. Clone locations (lots) ---
+    const locations = await LocationModel.find({ worldId: sourceWorldId });
+    for (const doc of locations) {
+      const obj = (doc as any).toObject();
+      delete (obj as any).__v;
+      const lid = newId();
+      idMap[doc._id.toString()] = lid.toString();
+      await LocationModel.create({
+        ...obj, _id: lid, worldId: nw,
+        settlementId: obj.settlementId ? (idMap[obj.settlementId.toString()] || obj.settlementId) : obj.settlementId,
+      });
+    }
+
+    // --- 6. Clone characters ---
+    const characters = await CharacterModel.find({ worldId: sourceWorldId });
+    for (const doc of characters) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const cid = newId();
+      idMap[doc._id.toString()] = cid.toString();
+      await CharacterModel.create({
+        ...obj, _id: cid, worldId: nw,
+        currentLocation: obj.currentLocation ? (idMap[obj.currentLocation.toString()] || obj.currentLocation) : obj.currentLocation,
+      });
+    }
+
+    // --- 7. Clone rules ---
+    const rules = await RuleModel.find({ worldId: sourceWorldId });
+    for (const doc of rules) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const rid = newId();
+      idMap[doc._id.toString()] = rid.toString();
+      await RuleModel.create({ ...obj, _id: rid, worldId: nw });
+    }
+
+    // --- 8. Clone actions ---
+    const actions = await ActionModel.find({ worldId: sourceWorldId });
+    for (const doc of actions) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const aid = newId();
+      idMap[doc._id.toString()] = aid.toString();
+      await ActionModel.create({ ...obj, _id: aid, worldId: nw });
+    }
+
+    // --- 9. Clone quests ---
+    const quests = await QuestModel.find({ worldId: sourceWorldId });
+    for (const doc of quests) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const qid = newId();
+      idMap[doc._id.toString()] = qid.toString();
+      await QuestModel.create({ ...obj, _id: qid, worldId: nw });
+    }
+
+    // --- 10. Clone items ---
+    const items = await ItemModel.find({ worldId: sourceWorldId });
+    for (const doc of items) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const iid = newId();
+      idMap[doc._id.toString()] = iid.toString();
+      await ItemModel.create({ ...obj, _id: iid, worldId: nw });
+    }
+
+    // --- 11. Clone truths (backstories, traits, etc.) ---
+    const truths = await TruthModel.find({ worldId: sourceWorldId });
+    for (const doc of truths) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const tid = newId();
+      idMap[doc._id.toString()] = tid.toString();
+      await TruthModel.create({
+        ...obj, _id: tid, worldId: nw,
+        characterId: obj.characterId ? (idMap[obj.characterId.toString()] || obj.characterId) : obj.characterId,
+      });
+    }
+
+    // --- 12. Clone grammars ---
+    const grammars = await GrammarModel.find({ worldId: sourceWorldId });
+    for (const doc of grammars) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const gid = newId();
+      idMap[doc._id.toString()] = gid.toString();
+      await GrammarModel.create({ ...obj, _id: gid, worldId: nw });
+    }
+
+    // --- 13. Clone game texts ---
+    const texts = await GameTextModel.find({ worldId: sourceWorldId });
+    for (const doc of texts) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const tid = newId();
+      idMap[doc._id.toString()] = tid.toString();
+      await GameTextModel.create({ ...obj, _id: tid, worldId: nw });
+    }
+
+    // --- 14. Clone world languages ---
+    const worldLangs = await WorldLanguageModel.find({ worldId: sourceWorldId });
+    for (const doc of worldLangs) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const lid = newId();
+      idMap[doc._id.toString()] = lid.toString();
+      await WorldLanguageModel.create({ ...obj, _id: lid, worldId: nw });
+    }
+
+    // --- 15. Clone asset collections and visual assets ---
+    const assetCollections = await AssetCollectionModel.find({ worldId: sourceWorldId });
+    for (const doc of assetCollections) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const acid = newId();
+      idMap[doc._id.toString()] = acid.toString();
+      await AssetCollectionModel.create({ ...obj, _id: acid, worldId: nw });
+    }
+    const visualAssets = await VisualAssetModel.find({ worldId: sourceWorldId });
+    for (const doc of visualAssets) {
+      const obj = doc.toObject();
+      delete (obj as any).__v;
+      const vaid = newId();
+      idMap[doc._id.toString()] = vaid.toString();
+      await VisualAssetModel.create({
+        ...obj, _id: vaid, worldId: nw,
+        collectionId: obj.collectionId ? (idMap[obj.collectionId.toString()] || obj.collectionId) : obj.collectionId,
+      });
+    }
+
+    // Remap selectedAssetCollectionId on the new world
+    if (srcWorld.selectedAssetCollectionId && idMap[srcWorld.selectedAssetCollectionId.toString()]) {
+      await WorldModel.findByIdAndUpdate(newWorldId, {
+        selectedAssetCollectionId: idMap[srcWorld.selectedAssetCollectionId.toString()],
+      });
+    }
+
+    // Do NOT copy playthroughs, player progress, simulations, or generation jobs
+
+    console.log(`✅ Duplicated world ${sourceWorldId} -> ${nw} (${Object.keys(idMap).length} entities)`);
+    return { newWorldId: nw, idMap };
+  }
+
   // Country operations
   async getCountry(id: string): Promise<Country | undefined> {
     await this.connect();

@@ -1914,6 +1914,258 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  // ── Duplicate World ──────────────────────────────────────────────────
+  app.post("/api/worlds/:id/duplicate", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { newName, targetLanguage, additionalInstructions } = req.body;
+
+      const sourceWorld = await storage.getWorld(id);
+      if (!sourceWorld) {
+        return res.status(404).json({ error: "Source world not found" });
+      }
+
+      const taskId = `dup-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const { progressTracker } = await import("./utils/progress-tracker.js");
+      progressTracker.startTask(taskId);
+
+      // Return immediately — duplication runs in background
+      res.json({ taskId, message: "World duplication started" });
+
+      // Background duplication
+      (async () => {
+        try {
+          // Step 1: Deep copy all entities
+          progressTracker.updateProgress(taskId, 'copy', 'Copying world data...', 10);
+          const { newWorldId, idMap } = await storage.duplicateWorld(id, { name: newName });
+
+          // If no language change and no extra instructions, we're done
+          if ((!targetLanguage || targetLanguage === 'none') && !additionalInstructions) {
+            progressTracker.completeTask(taskId);
+            // Patch in newWorldId for the client
+            const updates = (progressTracker as any).tasks?.get(taskId);
+            if (updates && updates.length > 0) {
+              updates[updates.length - 1].details = { newWorldId };
+            }
+            return;
+          }
+
+          // Step 2: Gather all text content to transform
+          progressTracker.updateProgress(taskId, 'gather', 'Gathering world content for AI transformation...', 20);
+
+          const [countries, states, settlements, characters, rules, actions, quests, items, truths, gameTexts] = await Promise.all([
+            storage.getCountriesByWorld(newWorldId),
+            storage.getStatesByWorld(newWorldId),
+            storage.getSettlementsByWorld(newWorldId),
+            storage.getCharactersByWorld(newWorldId),
+            storage.getRulesByWorld(newWorldId),
+            storage.getActionsByWorld(newWorldId),
+            storage.getQuestsByWorld(newWorldId),
+            storage.getItemsByWorld(newWorldId),
+            storage.getTruthsByWorld(newWorldId),
+            storage.getGameTextsByWorld(newWorldId),
+          ]);
+
+          // Build a compact representation of all translatable content
+          const worldData = {
+            world: { name: newName, description: sourceWorld.description },
+            countries: countries.map(c => ({ id: c.id, name: c.name, description: (c as any).description })),
+            states: states.map(s => ({ id: s.id, name: s.name })),
+            settlements: settlements.map(s => ({ id: s.id, name: s.name, description: (s as any).description })),
+            characters: characters.map(c => ({
+              id: c.id, firstName: c.firstName, lastName: c.lastName, name: c.name,
+              backstory: (c as any).backstory, biography: (c as any).biography,
+              occupation: (c as any).occupation,
+            })),
+            rules: rules.map(r => ({ id: r.id, name: r.name, description: (r as any).description })),
+            actions: actions.map(a => ({ id: a.id, name: a.name, description: (a as any).description })),
+            quests: quests.map(q => ({
+              id: q.id, name: q.name, title: (q as any).title,
+              description: (q as any).description, narrative: (q as any).narrative,
+            })),
+            items: items.map(i => ({
+              id: i.id, name: i.name, description: (i as any).description,
+              lore: (i as any).lore,
+            })),
+            truths: truths.slice(0, 200).map(t => ({
+              id: t.id, title: (t as any).title, content: (t as any).content,
+            })),
+            gameTexts: gameTexts.slice(0, 100).map(t => ({
+              id: t.id, title: (t as any).title, content: (t as any).content,
+            })),
+          };
+
+          // Step 3: Send to LLM in batches for transformation
+          progressTracker.updateProgress(taskId, 'transform', 'AI is transforming world content...', 30);
+
+          const langInstruction = targetLanguage && targetLanguage !== 'none'
+            ? `Translate ALL names, descriptions, backstories, and text content into ${targetLanguage}. Use culturally appropriate names for that language/culture (e.g. French names become Spanish names, French place names become Spanish place names). Keep the same world type and setting flavor but adapted to the target language's culture.`
+            : '';
+          const extraInstruction = additionalInstructions || '';
+
+          const systemPrompt = `You are a world content transformer. You will receive JSON data representing a game world's content and must return modified JSON with the EXACT same structure and IDs. Only modify text fields (names, descriptions, backstories, etc.), never IDs or structural data.
+
+Instructions:
+${langInstruction}
+${extraInstruction}
+
+CRITICAL RULES:
+- Return valid JSON only, no markdown fences
+- Keep ALL id fields exactly as provided
+- Keep the same array lengths and object structures
+- Only transform text/string content fields`;
+
+          // Process in chunks to stay within token limits
+          const chunks = [
+            { key: 'geography', data: { countries: worldData.countries, states: worldData.states, settlements: worldData.settlements } },
+            { key: 'characters', data: { characters: worldData.characters } },
+            { key: 'mechanics', data: { rules: worldData.rules, actions: worldData.actions, quests: worldData.quests } },
+            { key: 'items', data: { items: worldData.items } },
+            { key: 'texts', data: { truths: worldData.truths, gameTexts: worldData.gameTexts } },
+          ];
+
+          const transformedData: Record<string, any> = {};
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const pct = 30 + Math.round((i / chunks.length) * 50);
+            progressTracker.updateProgress(taskId, 'transform', `Transforming ${chunk.key}...`, pct);
+
+            try {
+              const result = await getContentProvider().generate({
+                systemPrompt,
+                prompt: `Transform this ${chunk.key} data:\n${JSON.stringify(chunk.data)}`,
+                temperature: 0.7,
+                responseMimeType: 'application/json',
+                model: 'pro',
+              });
+
+              // Parse response — strip markdown fences if present
+              let text = result.text.trim();
+              if (text.startsWith('```')) {
+                text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+              }
+              const parsed = JSON.parse(text);
+              Object.assign(transformedData, parsed);
+            } catch (chunkErr) {
+              console.error(`Failed to transform chunk ${chunk.key}:`, chunkErr);
+              // Continue with other chunks even if one fails
+            }
+          }
+
+          // Also transform the world name/description
+          if (targetLanguage && targetLanguage !== 'none') {
+            try {
+              const worldResult = await getContentProvider().generate({
+                systemPrompt,
+                prompt: `Transform this world metadata:\n${JSON.stringify(worldData.world)}`,
+                temperature: 0.7,
+                responseMimeType: 'application/json',
+                model: 'pro',
+              });
+              let wText = worldResult.text.trim();
+              if (wText.startsWith('```')) {
+                wText = wText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+              }
+              const worldMeta = JSON.parse(wText);
+              if (worldMeta.name || worldMeta.description) {
+                await storage.updateWorld(newWorldId, {
+                  name: worldMeta.name || newName,
+                  description: worldMeta.description || sourceWorld.description,
+                });
+              }
+            } catch {
+              // Keep original name/description
+            }
+          }
+
+          // Step 4: Apply transformations back to the database
+          progressTracker.updateProgress(taskId, 'apply', 'Applying transformations...', 85);
+
+          // Helper to apply updates for a collection
+          const applyUpdates = async (
+            items: Array<{ id: string; [key: string]: any }>,
+            updateFn: (id: string, data: any) => Promise<any>,
+            fields: string[],
+          ) => {
+            for (const item of items) {
+              const update: Record<string, any> = {};
+              for (const f of fields) {
+                if (item[f] !== undefined) update[f] = item[f];
+              }
+              if (Object.keys(update).length > 0) {
+                try { await updateFn(item.id, update); } catch { /* skip */ }
+              }
+            }
+          };
+
+          if (transformedData.countries) {
+            await applyUpdates(transformedData.countries, (id, d) => storage.updateCountry(id, d), ['name', 'description']);
+          }
+          if (transformedData.states) {
+            await applyUpdates(transformedData.states, (id, d) => storage.updateState(id, d), ['name']);
+          }
+          if (transformedData.settlements) {
+            await applyUpdates(transformedData.settlements, (id, d) => storage.updateSettlement(id, d), ['name', 'description']);
+          }
+          if (transformedData.characters) {
+            await applyUpdates(transformedData.characters, (id, d) => storage.updateCharacter(id, d), ['firstName', 'lastName', 'name', 'backstory', 'biography', 'occupation']);
+          }
+          if (transformedData.rules) {
+            await applyUpdates(transformedData.rules, (id, d) => storage.updateRule(id, d), ['name', 'description']);
+          }
+          if (transformedData.actions) {
+            await applyUpdates(transformedData.actions, (id, d) => storage.updateAction(id, d), ['name', 'description']);
+          }
+          if (transformedData.quests) {
+            await applyUpdates(transformedData.quests, (id, d) => storage.updateQuest(id, d), ['name', 'title', 'description', 'narrative']);
+          }
+          if (transformedData.items) {
+            await applyUpdates(transformedData.items, (id, d) => storage.updateItem(id, d), ['name', 'description', 'lore']);
+          }
+          if (transformedData.truths) {
+            await applyUpdates(transformedData.truths, (id, d) => storage.updateTruth(id, d), ['title', 'content']);
+          }
+          if (transformedData.gameTexts) {
+            for (const gt of transformedData.gameTexts) {
+              const update: Record<string, any> = {};
+              if (gt.title !== undefined) update.title = gt.title;
+              if (gt.content !== undefined) update.content = gt.content;
+              if (Object.keys(update).length > 0) {
+                try { await storage.updateGameText(gt.id, update); } catch { /* skip */ }
+              }
+            }
+          }
+
+          // Step 5: Update world languages if target language specified
+          if (targetLanguage && targetLanguage !== 'none') {
+            progressTracker.updateProgress(taskId, 'languages', 'Updating language settings...', 95);
+            const worldLangs = await storage.getWorldLanguagesByWorld(newWorldId);
+            // Update the learning target language
+            for (const wl of worldLangs) {
+              if ((wl as any).isLearningTarget) {
+                await storage.updateWorldLanguage(wl.id, { languageName: targetLanguage } as any);
+              }
+            }
+          }
+
+          progressTracker.updateProgress(taskId, 'done', 'Duplication complete!', 100);
+          progressTracker.completeTask(taskId);
+          // Patch in newWorldId for the client
+          const updates = (progressTracker as any).tasks?.get(taskId);
+          if (updates && updates.length > 0) {
+            updates[updates.length - 1].details = { newWorldId };
+          }
+        } catch (bgError) {
+          console.error("World duplication background error:", bgError);
+          progressTracker.failTask(taskId, (bgError as Error).message);
+        }
+      })();
+    } catch (error) {
+      console.error("POST /api/worlds/:id/duplicate error:", error);
+      res.status(500).json({ error: "Failed to start world duplication" });
+    }
+  });
+
   // Language routes
   app.get("/api/worlds/:worldId/languages", async (req, res) => {
     try {

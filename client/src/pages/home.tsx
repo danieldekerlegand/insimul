@@ -28,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { NarrativeTab } from '@/components/NarrativeTab';
 import { CharacterTemplatesHub } from '@/components/templates/CharacterTemplatesHub';
 import { InsimulRuleCompiler } from '@/lib/unified-syntax';
+import { WorldDuplicateDialog } from '@/components/WorldDuplicateDialog';
 
 interface Character {
   id: string;
@@ -57,6 +58,7 @@ export default function Home() {
   const [worldSettingsOpen, setWorldSettingsOpen] = useState(false);
   const [worldDeleteDialogOpen, setWorldDeleteDialogOpen] = useState(false);
   const [worldEditDialogOpen, setWorldEditDialogOpen] = useState(false);
+  const [worldDuplicateDialogOpen, setWorldDuplicateDialogOpen] = useState(false);
   const [assessmentPlayerId, setAssessmentPlayerId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const ruleCompiler = new InsimulRuleCompiler();
@@ -129,6 +131,7 @@ export default function Home() {
         onEditWorld={() => setWorldEditDialogOpen(true)}
         onOpenSettings={() => setWorldSettingsOpen(true)}
         onDeleteWorld={() => setWorldDeleteDialogOpen(true)}
+        onDuplicateWorld={() => setWorldDuplicateDialogOpen(true)}
         onTabChange={(tab) => {
           // Handle special tabs
           if (tab === 'import') {
@@ -356,6 +359,20 @@ export default function Home() {
             queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld, 'rules'] });
             queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld, 'characters'] });
             queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld, 'actions'] });
+          }}
+        />
+      )}
+
+      {/* Duplicate World Dialog */}
+      {selectedWorld && (
+        <WorldDuplicateDialog
+          open={worldDuplicateDialogOpen}
+          onOpenChange={setWorldDuplicateDialogOpen}
+          worldId={selectedWorld}
+          worldName={currentWorld?.name || 'World'}
+          onDuplicateComplete={(newWorldId) => {
+            queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
+            handleSetSelectedWorld(newWorldId);
           }}
         />
       )}

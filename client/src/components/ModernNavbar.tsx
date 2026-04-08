@@ -37,6 +37,7 @@ import {
   ArrowLeft,
   Package,
   Download,
+  Copy,
   Edit3,
   Settings,
   Trash2,
@@ -55,6 +56,7 @@ interface ModernNavbarProps {
   onEditWorld?: () => void;
   onOpenSettings?: () => void;
   onDeleteWorld?: () => void;
+  onDuplicateWorld?: () => void;
 }
 
 // Map tab IDs to labels and icons for breadcrumb display
@@ -145,6 +147,7 @@ export function ModernNavbar({
   onEditWorld,
   onOpenSettings,
   onDeleteWorld,
+  onDuplicateWorld,
 }: ModernNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
@@ -225,6 +228,19 @@ export function ModernNavbar({
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>World settings</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg hover:bg-white/50 dark:hover:bg-white/10"
+                          onClick={onDuplicateWorld}
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Duplicate world</TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
