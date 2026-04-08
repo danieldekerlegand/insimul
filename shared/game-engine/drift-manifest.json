@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T10:04:13.744Z",
+  "lastUpdated": "2026-04-08T10:21:30.138Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "8ce735caf6de35d1626b2ce40839ae65fffeb7e0f933fe249f0c845037d04a20",
+      "hash": "6fc0ce04dfd3ddbd558f12b6062752f2e0dc683804e92c0edde5e6fd7a033ea8",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "31daadc4df4eb88a98e2874baa6ab9def5bbe3a3d720292a4b276c23414bdc44",
+      "hash": "cef6a6824abfa8e9b99bc9df114301ff657accc052201589e2184c781ce31cd7",
       "engineMappings": [
         {
           "engine": "unity",

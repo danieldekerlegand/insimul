@@ -500,6 +500,26 @@ export class GameMenuSystem {
     this.targetLanguage = language;
   }
 
+  /** Get the set of article IDs the player has opened/read this session. */
+  public getReadArticleIds(): Set<string> {
+    return this.libraryReadArticleIds;
+  }
+
+  /** Restore read article IDs from saved state (e.g., after load). */
+  public restoreReadArticleIds(ids: string[]): void {
+    this.libraryReadArticleIds = new Set(ids);
+  }
+
+  /** Get the set of article IDs with answered comprehension questions. */
+  public getAnsweredQuestionIds(): Set<string> {
+    return this.answeredNoticeQuestions;
+  }
+
+  /** Restore answered question IDs from saved state (e.g., after load). */
+  public restoreAnsweredQuestionIds(ids: string[]): void {
+    this.answeredNoticeQuestions = new Set(ids);
+  }
+
   public get isOpen(): boolean {
     return this._isOpen;
   }

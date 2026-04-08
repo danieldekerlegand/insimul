@@ -1509,8 +1509,29 @@ export interface GameSaveState {
   prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
   /** Serialized ClueStore state (investigation clues) */
   clueState?: any;
+  /** Reading progress: which articles were read, quiz answers, comprehension scores */
+  readingProgress?: SavedReadingProgress;
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
+}
+
+/** Persisted reading progress for save/load. */
+export interface SavedReadingProgressEntry {
+  /** Whether the article has been opened/read */
+  read: boolean;
+  /** IDs of comprehension questions answered for this article */
+  answeredQuestionIds: string[];
+  /** Comprehension score (0-1 scale, ratio of correct answers) */
+  comprehensionScore: number;
+  /** ISO timestamp of when the article was first read */
+  readAt: string;
+}
+
+export interface SavedReadingProgress {
+  /** Per-article reading state keyed by article/text ID */
+  articles: Record<string, SavedReadingProgressEntry>;
+  /** Raw quiz answer log for detailed restoration */
+  quizAnswers: Array<{ articleId: string; selectedIndex: number; correctIndex: number; correct: boolean; answeredAt: number }>;
 }
 
 // ─── Photography ────────────────────────────────────────────────────────────

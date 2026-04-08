@@ -21,6 +21,7 @@ import type {
   SavedRelationshipDelta,
   SavedMainQuestState,
   SavedPhotoBookState,
+  SavedReadingProgress,
   InventoryItem,
   Vec3,
 } from '@shared/game-engine/types';
@@ -70,6 +71,7 @@ export interface GameStateSource {
   getPhotoBookState?(): SavedPhotoBookState;
   getPrologFacts?(): Array<{ predicate: string; args: Array<string | number> }>;
   getClueState?(): any;
+  getReadingProgress?(): SavedReadingProgress | undefined;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -105,6 +107,7 @@ export interface GameStateTarget {
   restorePhotoBookState?(data: SavedPhotoBookState): void;
   restorePrologFacts?(data: Array<{ predicate: string; args: Array<string | number> }>): void;
   restoreClueState?(data: any): void;
+  restoreReadingProgress?(data: SavedReadingProgress): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -150,6 +153,7 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'photoBook',
   'prologFacts',
   'clueState',
+  'readingProgress',
 ];
 
 export interface SaveStateAuditResult {
@@ -358,6 +362,7 @@ export class WorldStateManager {
       photoBook: src.getPhotoBookState?.() ?? undefined,
       prologFacts: src.getPrologFacts?.() ?? undefined,
       clueState: src.getClueState?.() ?? undefined,
+      readingProgress: src.getReadingProgress?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -384,7 +389,7 @@ export class WorldStateManager {
       'interiorState', 'timeState', 'questActiveState',
       'languageProgressDetailed', 'reputationState',
       'relationshipDeltas', 'mainQuestState', 'photoBook',
-      'prologFacts', 'clueState',
+      'prologFacts', 'clueState', 'readingProgress',
     ];
 
     for (const field of fieldsToCompare) {
@@ -599,6 +604,9 @@ export class WorldStateManager {
     }
     if (state.clueState != null) {
       target.restoreClueState?.(state.clueState);
+    }
+    if (state.readingProgress != null) {
+      target.restoreReadingProgress?.(state.readingProgress);
     }
   }
 

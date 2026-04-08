@@ -1416,6 +1416,42 @@ export class BabylonGame {
           return undefined;
         }
       },
+      getReadingProgress: () => {
+        const readIds = this.gameMenuSystem?.getReadArticleIds();
+        const answeredIds = this.readingProgressAnsweredIds;
+        const quizAnswers = this.readingProgressQuizAnswers;
+        if ((!readIds || readIds.size === 0) && answeredIds.size === 0) return undefined;
+
+        const articles: Record<string, import('@shared/game-engine/types').SavedReadingProgressEntry> = {};
+        // Add read articles
+        if (readIds) {
+          Array.from(readIds).forEach((id) => {
+            articles[id] = {
+              read: true,
+              answeredQuestionIds: [],
+              comprehensionScore: 0,
+              readAt: new Date().toISOString(),
+            };
+          });
+        }
+        // Overlay quiz answer data
+        for (const answer of quizAnswers) {
+          if (!articles[answer.articleId]) {
+            articles[answer.articleId] = {
+              read: true,
+              answeredQuestionIds: [],
+              comprehensionScore: 0,
+              readAt: new Date(answer.answeredAt).toISOString(),
+            };
+          }
+          const entry = articles[answer.articleId];
+          if (!entry.answeredQuestionIds.includes(answer.articleId)) {
+            entry.answeredQuestionIds.push(answer.articleId);
+          }
+          entry.comprehensionScore = answer.correct ? 1 : 0;
+        }
+        return { articles, quizAnswers };
+      },
     };
   }
 
@@ -1557,6 +1593,23 @@ export class BabylonGame {
           } catch {
             // Prolog fact import failed — non-fatal
           }
+        }
+      },
+      restoreReadingProgress: (data: any) => {
+        if (!data) return;
+        // Restore quiz answers and answered IDs
+        if (data.quizAnswers && Array.isArray(data.quizAnswers)) {
+          this.readingProgressQuizAnswers = data.quizAnswers;
+          this.readingProgressAnsweredIds = new Set(data.quizAnswers.map((a: any) => a.articleId));
+        }
+        // Restore read article IDs into GameMenuSystem
+        if (data.articles && this.gameMenuSystem) {
+          const readIds = Object.keys(data.articles).filter((id) => data.articles[id].read);
+          this.gameMenuSystem.restoreReadArticleIds(readIds);
+        }
+        // Restore answered question IDs into GameMenuSystem
+        if (this.gameMenuSystem && this.readingProgressAnsweredIds.size > 0) {
+          this.gameMenuSystem.restoreAnsweredQuestionIds(Array.from(this.readingProgressAnsweredIds));
         }
       },
     };
