@@ -869,19 +869,16 @@ export class ApiDataSource implements DataSource {
     return `${this.baseUrl}/api/assets/${assetId}`;
   }
 
-  // TODO: Assessment lifecycle should be folded into the quest/Prolog system.
-  // Language assessments are special quests (quest_language predicates).
-  // Results stored as Prolog facts instead of separate assessment API calls.
+  // Assessment write methods are no-ops — all assessment data flows through quest overlay to save file.
+  // These methods remain for interface compliance but never write to the AssessmentSession collection.
 
   async createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any> {
-    // TODO: Replace with Prolog quest initiation: quest_language(assessment_type, language).
-    console.warn('[DataSource] createAssessmentSession stubbed — TODO: integrate via quest_language Prolog predicates');
-    return { id: `stub-${Date.now()}`, ...data };
+    // No-op: assessment sessions are embedded in quest customData, not the AssessmentSession collection
+    return { id: `noop-${Date.now()}`, ...data, status: 'deprecated' };
   }
 
   async submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any> {
-    // TODO: Replace with Prolog fact assertion: phase_score(PlayerID, PhaseID, Score, MaxScore).
-    console.warn('[DataSource] submitAssessmentPhase stubbed — TODO: integrate via Prolog');
+    // No-op: phase results are stored in quest overlay via questOverlay.updateQuest()
     return { sessionId, phaseId, ...data };
   }
 
@@ -894,10 +891,8 @@ export class ApiDataSource implements DataSource {
   }
 
   async completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any> {
-    // TODO: Replace with Prolog fact assertion: assessment_complete(PlayerID, SessionID, Score, CEFR).
-    console.warn('[DataSource] completeAssessment stubbed — TODO: integrate via Prolog');
-    const res = { ok: true } as any;
-    return res.json();
+    // No-op: assessment completion is stored in quest overlay assessmentResult
+    return { sessionId, ...data, status: 'deprecated' };
   }
 
   async getPlayerAssessments(playerId: string, worldId: string): Promise<any[]> {
@@ -2478,26 +2473,13 @@ export class FileDataSource implements DataSource {
   }
 
   async createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any> {
-    const id = `local-assessment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const session = { id, ...data, status: 'in_progress', phases: [], createdAt: new Date().toISOString() };
-    try {
-      const key = `insimul_assessments_${data.worldId}`;
-      const existing = JSON.parse(this._storage.getItem(key) || '[]');
-      existing.push(session);
-      this._storage.setItem(key, JSON.stringify(existing));
-    } catch { /* storage full or unavailable */ }
-    return session;
+    // No-op: assessment sessions are embedded in quest customData
+    return { id: `noop-${Date.now()}`, ...data, status: 'deprecated' };
   }
 
   async submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any> {
-    const result = { sessionId, phaseId, ...data, submittedAt: new Date().toISOString() };
-    try {
-      const key = `insimul_assessment_phases_${sessionId}`;
-      const existing = JSON.parse(this._storage.getItem(key) || '[]');
-      existing.push(result);
-      this._storage.setItem(key, JSON.stringify(existing));
-    } catch { /* storage full or unavailable */ }
-    return result;
+    // No-op: phase results are stored in quest overlay via questOverlay.updateQuest()
+    return { sessionId, phaseId, ...data };
   }
 
   async updatePlayerProgressCefrLevel(userId: string, worldId: string, cefrLevel: string, playthroughId?: string): Promise<void> {
@@ -2508,20 +2490,12 @@ export class FileDataSource implements DataSource {
   }
 
   async completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any> {
-    const result = { sessionId, ...data, status: 'complete', completedAt: new Date().toISOString() };
-    try {
-      this._storage.setItem(`insimul_assessment_complete_${sessionId}`, JSON.stringify(result));
-    } catch { /* storage full or unavailable */ }
-    return result;
+    // No-op: assessment completion is stored in quest overlay assessmentResult
+    return { sessionId, ...data, status: 'deprecated' };
   }
 
-  async getPlayerAssessments(_playerId: string, worldId: string): Promise<any[]> {
-    try {
-      const key = `insimul_assessments_${worldId}`;
-      return JSON.parse(this._storage.getItem(key) || '[]');
-    } catch {
-      return [];
-    }
+  async getPlayerAssessments(_playerId: string, _worldId: string): Promise<any[]> {
+    return []; // No assessment sessions in exported mode — data is in quest overlays
   }
 
   async checkConversationHealth(): Promise<boolean> {

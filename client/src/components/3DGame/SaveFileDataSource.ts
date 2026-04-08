@@ -507,16 +507,14 @@ export class SaveFileDataSource implements DataSource {
   async loadReadingProgress() { return null; }
   async syncReadingProgress(_data: any) {}
 
-  // ── Assessment (TODO: fold into quest/Prolog system) ─────────────────
+  // ── Assessment (deprecated — data flows through quest overlay, not AssessmentSession collection) ──
 
   async createAssessmentSession(data: any) {
-    // TODO: Replace with Prolog quest initiation: quest_language(assessment_type, language).
-    console.warn('[SaveFileDS] createAssessmentSession stubbed — TODO: integrate via Prolog');
-    return { id: `stub-${Date.now()}`, ...data };
+    // No-op: assessment sessions are embedded in quest customData
+    return { id: `noop-${Date.now()}`, ...data, status: 'deprecated' };
   }
   async submitAssessmentPhase(sessionId: string, phaseId: string, data: any) {
-    // TODO: Replace with Prolog fact: phase_score(PlayerID, PhaseID, Score, MaxScore).
-    console.warn('[SaveFileDS] submitAssessmentPhase stubbed — TODO: integrate via Prolog');
+    // No-op: phase results are stored in quest overlay via questOverlay.updateQuest()
     return { sessionId, phaseId, ...data };
   }
   async updatePlayerProgressCefrLevel(_userId: string, _worldId: string, cefrLevel: string, _playthroughId?: string): Promise<void> {
@@ -527,9 +525,8 @@ export class SaveFileDataSource implements DataSource {
   }
 
   async completeAssessment(sessionId: string, data: any) {
-    // TODO: Replace with Prolog fact: assessment_complete(PlayerID, SessionID, Score, CEFR).
-    console.warn('[SaveFileDS] completeAssessment stubbed — TODO: integrate via Prolog');
-    return { sessionId, ...data };
+    // No-op: assessment completion is stored in quest overlay assessmentResult
+    return { sessionId, ...data, status: 'deprecated' };
   }
   async getPlayerAssessments(_playerId: string, _worldId: string) { return []; }
 

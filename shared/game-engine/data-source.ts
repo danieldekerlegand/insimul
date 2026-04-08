@@ -151,9 +151,12 @@ export interface IDataSource {
   // ── Player progress CEFR ──
   updatePlayerProgressCefrLevel(userId: string, worldId: string, cefrLevel: string, playthroughId?: string): Promise<void>;
 
-  // ── Assessment ──
+  // ── Assessment (deprecated — data flows through quest overlay, not AssessmentSession collection) ──
+  /** @deprecated No-op. Assessment sessions are now embedded in quest customData. */
   createAssessmentSession(data: { playerId: string; worldId: string; assessmentType: string; assessmentDefinitionId?: string; targetLanguage?: string; totalMaxPoints?: number }): Promise<any>;
+  /** @deprecated No-op. Phase results are stored in quest overlay via questOverlay.updateQuest(). */
   submitAssessmentPhase(sessionId: string, phaseId: string, data: any): Promise<any>;
+  /** @deprecated No-op. Assessment completion is stored in quest overlay assessmentResult. */
   completeAssessment(sessionId: string, data: { totalScore: number; maxScore?: number; cefrLevel?: string }): Promise<any>;
   getPlayerAssessments(playerId: string, worldId: string): Promise<any[]>;
 
