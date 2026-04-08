@@ -2253,3 +2253,19 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `Promise.race` with a timeout doesn't cancel the underlying LLM call — it just stops waiting. The streaming response may still arrive and update the placeholder after the fallback
   - BabylonChatPanel has no direct access to game time — must be set externally via setter before show()
 ---
+
+## 2026-04-07 - US-012: Auto-speak NPC opening line via TTS
+- Made NPC opening line TTS explicit and non-blocking in `triggerNPCGreeting()`
+- Set `_receivedStreamingAudio = true` before `processAssistantResponse()` to prevent blocking TTS path
+- Replaced fragile safety net with explicit fire-and-forget `textToSpeech()` call with `.catch()` for graceful degradation
+- Added `.catch()` to error fallback TTS path for consistent error handling
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — non-blocking TTS for opening line, explicit error handling
+  - `shared/game-engine/drift-manifest.json` — updated hash
+  - `shared/__tests__/npc-opening-line-tts.test.ts` — 8 new tests covering TTS trigger, skip conditions, non-blocking behavior, and graceful failure
+- **Learnings for future iterations:**
+  - `_receivedStreamingAudio` is set to `true` optimistically in `sendMessageViaGrpc()` at the start, which means `processAssistantResponse` always skips its blocking TTS fallback for gRPC calls — set it explicitly before `processAssistantResponse` to make intent clear
+  - The `textToSpeech()` method uses `this._lockedVoice` and `this._lockedGender` set during `show()` — voice selection is handled internally, no need to pass voice params at the TTS call site
+  - `playAudio()` creates a new Audio element each time — concurrent TTS calls won't conflict but won't queue either; the last one wins
+---
