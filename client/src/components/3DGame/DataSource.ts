@@ -8,6 +8,8 @@
 
 import { SaveQueue, SaveConflictError, type QueuedOperation, type ConflictHandler } from './SaveQueue';
 import { PlaythroughQuestOverlay } from '@shared/game-engine/logic/PlaythroughQuestOverlay';
+import { hydrateQuestsFromProlog } from '@shared/prolog/quest-hydrator';
+import { hydrateActionsFromProlog } from '@shared/prolog/action-hydrator';
 import {
   detectConflict,
   resolveConflict,
@@ -240,17 +242,21 @@ export class ApiDataSource implements DataSource {
 
   async loadActions(worldId: string): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/actions`, { headers: this.getHeaders() });
-    return res.ok ? await res.json() : [];
+    const raw = res.ok ? await res.json() : [];
+    return hydrateActionsFromProlog(raw);
   }
 
   async loadBaseActions(): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/actions/base`, { headers: this.getHeaders() });
-    return res.ok ? await res.json() : [];
+    const raw = res.ok ? await res.json() : [];
+    return hydrateActionsFromProlog(raw);
   }
 
   async loadQuests(worldId: string): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests`, { headers: this.getHeaders() });
-    const baseQuests = res.ok ? await res.json() : [];
+    const rawQuests = res.ok ? await res.json() : [];
+    // Hydrate quest fields from Prolog content (single source of truth)
+    const baseQuests = hydrateQuestsFromProlog(rawQuests);
     this._cachedQuests = baseQuests;
     return this.questOverlay ? this.questOverlay.mergeQuests(baseQuests) : baseQuests;
   }
@@ -1638,17 +1644,19 @@ export class FileDataSource implements DataSource {
 
   async loadActions(worldId: string): Promise<any[]> {
     await this.waitForData();
-    return this.worldData?.actions || [];
+    return hydrateActionsFromProlog(this.worldData?.actions || []);
   }
 
   async loadBaseActions(): Promise<any[]> {
     await this.waitForData();
-    return this.worldIR?.systems?.actions || [];
+    return hydrateActionsFromProlog(this.worldIR?.systems?.actions || []);
   }
 
   async loadQuests(worldId: string): Promise<any[]> {
     await this.waitForData();
-    const baseQuests = this.worldData?.quests || [];
+    const rawQuests = this.worldData?.quests || [];
+    // Hydrate quest fields from Prolog content (single source of truth)
+    const baseQuests = hydrateQuestsFromProlog(rawQuests);
     if (this.questOverlay) return this.questOverlay.mergeQuests(baseQuests);
     const updates = this.localState.getQuestUpdates();
     return baseQuests.map((q: any) => {

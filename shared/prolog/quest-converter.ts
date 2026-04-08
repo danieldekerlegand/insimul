@@ -60,6 +60,8 @@ interface QuestData {
   locationName?: string | null;
   locationId?: string | null;
   location?: string | null;
+  cefrLevel?: string | null;
+  customData?: Record<string, any> | null;
 }
 
 interface ConversionResult {
@@ -135,31 +137,65 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
   }
   predicates.push('quest_location/2');
 
+  // CEFR level gate
+  if (quest.cefrLevel) {
+    lines.push(`quest_cefr_level(${questId}, ${sanitizeAtom(quest.cefrLevel)}).`);
+    predicates.push('quest_cefr_level/2');
+  }
+
   lines.push('');
 
   // ── Objectives → Prolog goals ──────────────────────────────────────────
 
-  const objectives = quest.objectives || [];
-  for (let i = 0; i < objectives.length; i++) {
-    const obj = objectives[i];
-    const goal = convertObjective(obj, i, errors);
-    if (goal) {
-      lines.push(`quest_objective(${questId}, ${i}, ${goal}).`);
-    }
-  }
-  if (objectives.length > 0) {
-    predicates.push('quest_objective/3');
-  }
+  // For assessment quests, expand phases from customData.assessment into objectives
+  // instead of relying on a single 'complete_assessment' objective
+  const assessmentPhases = customData?.assessment?.phases;
+  const isAssessmentWithPhases = quest.questType === 'assessment' && Array.isArray(assessmentPhases) && assessmentPhases.length > 0;
 
-  // ── Objective locations (where each objective can be completed) ────────
-  for (let i = 0; i < objectives.length; i++) {
-    const obj = objectives[i];
-    const type = obj.type || obj.objectiveType || '';
-    const objLocation = deriveObjectiveLocation(obj, type);
-    lines.push(`quest_objective_location(${questId}, ${i}, ${objLocation}).`);
-  }
-  if (objectives.length > 0) {
+  if (isAssessmentWithPhases) {
+    // Use the actual assessment phases as objectives
+    for (let i = 0; i < assessmentPhases.length; i++) {
+      const phase = assessmentPhases[i];
+      const phaseId = phase.id || `phase_${i}`;
+      const phaseType = phase.type || 'unknown';
+      lines.push(`quest_objective(${questId}, ${i}, assessment_phase('${escapeString(phaseId)}', '${escapeString(phaseType)}')).`);
+    }
+    predicates.push('quest_objective/3');
+
+    // Objective locations: each phase takes place at the quest's own location
+    const questLocation = locationName
+      ? `location('${escapeString(locationName)}')`
+      : locationId
+        ? sanitizeAtom(locationId)
+        : 'anywhere';
+    for (let i = 0; i < assessmentPhases.length; i++) {
+      lines.push(`quest_objective_location(${questId}, ${i}, ${questLocation}).`);
+    }
     predicates.push('quest_objective_location/3');
+  } else {
+    // Standard objective conversion
+    const objectives = quest.objectives || [];
+    for (let i = 0; i < objectives.length; i++) {
+      const obj = objectives[i];
+      const goal = convertObjective(obj, i, errors);
+      if (goal) {
+        lines.push(`quest_objective(${questId}, ${i}, ${goal}).`);
+      }
+    }
+    if (objectives.length > 0) {
+      predicates.push('quest_objective/3');
+    }
+
+    // Objective locations (where each objective can be completed)
+    for (let i = 0; i < objectives.length; i++) {
+      const obj = objectives[i];
+      const type = obj.type || obj.objectiveType || '';
+      const objLocation = deriveObjectiveLocation(obj, type);
+      lines.push(`quest_objective_location(${questId}, ${i}, ${objLocation}).`);
+    }
+    if (objectives.length > 0) {
+      predicates.push('quest_objective_location/3');
+    }
   }
 
   lines.push('');
@@ -258,20 +294,31 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
   lines.push('');
 
   // ── quest_available rule ───────────────────────────────────────────────
+  // Availability is determined by Prolog at runtime. The rule checks:
+  //   1. The quest exists (quest/5 fact)
+  //   2. All prerequisites are met (quest_prerequisite/2 + quest_status/3)
+  //   3. CEFR level gate if applicable (cefrLevel field)
+  // The quest's status field in quest/5 is the *initial* status hint, but
+  // quest_available/2 is the runtime truth.
 
   lines.push(`% Can Player take this quest?`);
   const availConditions: string[] = [
-    `quest(${questId}, _, _, _, active)`,
+    `quest(${questId}, _, _, _, _)`,
   ];
 
   if (prereqIds.length > 0) {
-    // All prerequisite quests must be completed
     for (const prereqId of prereqIds) {
       const prereqAtom = sanitizeAtom(prereqId);
       if (prereqAtom) {
         availConditions.push(`quest_status(Player, ${prereqAtom}, completed)`);
       }
     }
+  }
+
+  // CEFR level gating
+  const cefrLevel = quest.cefrLevel;
+  if (cefrLevel) {
+    availConditions.push(`player_meets_cefr(Player, ${sanitizeAtom(cefrLevel)})`);
   }
 
   lines.push(`quest_available(Player, ${questId}) :-`);
@@ -851,6 +898,57 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
   if (type === 'observe_activity') {
     const count = obj.requiredCount || obj.count || 1;
     return `observe_activity(${count})`;
+  }
+
+  // ── Description-based recovery ─────────────────────────────────────────
+  // When the type is 'objective' or unrecognized, try to parse the description
+  // string to recover a structured goal. Handles patterns like:
+  //   "Complete vocabulary activities (2)", "Learn vocabulary words (3)",
+  //   "Complete conversation turns (5)", "Complete grammar activities (2)",
+  //   "visit location('Place Name')", "discover location('Place Name')"
+  const recoveryDesc = desc || type;
+  if (recoveryDesc) {
+    // "Learn vocabulary words (N)" / "Learn N vocabulary words"
+    const learnWordsMatch = recoveryDesc.match(/learn\s+(?:(\d+)\s+)?vocabulary\s+words(?:\s+\((\d+)\))?/i);
+    if (learnWordsMatch) {
+      const count = parseInt(learnWordsMatch[1] || learnWordsMatch[2] || '1');
+      return `learn_words_count(${count})`;
+    }
+    // "Complete vocabulary activities (N)"
+    const vocabActMatch = recoveryDesc.match(/complete\s+vocabulary\s+activities?\s*\((\d+)\)/i);
+    if (vocabActMatch) return `vocabulary_activities(${parseInt(vocabActMatch[1])})`;
+    // "Complete conversation turns (N)"
+    const convTurnsMatch = recoveryDesc.match(/complete\s+conversation\s+turns?\s*\((\d+)\)/i);
+    if (convTurnsMatch) return `conversation_turns(${parseInt(convTurnsMatch[1])})`;
+    // "Complete grammar activities (N)"
+    const grammarMatch = recoveryDesc.match(/complete\s+grammar\s+activities?\s*\((\d+)\)/i);
+    if (grammarMatch) return `grammar_activities(${parseInt(grammarMatch[1])})`;
+    // Nested: "visit location('Place Name')" or "objective('visit location(...)')"
+    const nestedVisitMatch = recoveryDesc.match(/visit\s+location\s*\(\s*'([^']*)'\s*\)/i);
+    if (nestedVisitMatch) return `visit_location('${escapeString(nestedVisitMatch[1])}')`;
+    // Nested: "discover location('Place Name')"
+    const nestedDiscoverMatch = recoveryDesc.match(/discover\s+location\s*\(\s*'([^']*)'\s*\)/i);
+    if (nestedDiscoverMatch) return `discover_location('${escapeString(nestedDiscoverMatch[1])}')`;
+    // "Have a N-turn conversation" / "N-turn conversation"
+    const turnConvMatch = recoveryDesc.match(/(\d+)[\s-]+turn\s+conversation/i);
+    if (turnConvMatch) return `conversation_turns(${parseInt(turnConvMatch[1])})`;
+  }
+
+  // Also try to use `required` / `requiredCount` with the type to produce a count-based goal
+  const count = obj.required || obj.requiredCount || obj.count || 0;
+  if (count > 0 && type) {
+    // Map common questType names to Prolog functors
+    const typeToFunctor: Record<string, string> = {
+      'visit_location': 'visit_location',
+      'complete_conversation': 'conversation_turns',
+      'use_vocabulary': 'learn_words_count',
+      'find_text': 'find_text',
+      'read_sign': 'read_sign',
+      'examine_object': 'examine_object',
+      'read_text': 'read_text',
+    };
+    const functor = typeToFunctor[type];
+    if (functor) return `${functor}(${count})`;
   }
 
   // Generic: store as a quoted description

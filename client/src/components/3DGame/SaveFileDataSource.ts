@@ -244,7 +244,40 @@ export class SaveFileDataSource implements DataSource {
       return [];
     }
   }
-  async startPlaythrough(_worldId: string, _authToken: string, _name: string) { return { id: this.saveId }; }
+  async startPlaythrough(worldId: string, _authToken: string, name: string) {
+    // Create a new save file via the server API
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/saves/new-game`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.authToken}`,
+        },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        const { id } = await res.json();
+        // Load the new save and reinitialize this data source
+        const loadRes = await fetch(`${this.baseUrl}/api/saves/${id}`, {
+          headers: { 'Authorization': `Bearer ${this.authToken}` },
+        });
+        if (loadRes.ok) {
+          const newSave = await loadRes.json();
+          this.saveId = newSave.id;
+          this.snapshot = newSave.worldSnapshot;
+          this.state = newSave.currentState || {} as CurrentGameState;
+          this.conversations = newSave.conversations || [];
+          // Reinitialize overlay for fresh game
+          this.questOverlay = new PlaythroughQuestOverlay();
+          return { id: newSave.id, name: newSave.name };
+        }
+      }
+    } catch (err) {
+      console.error('[SaveFileDataSource] Failed to create new save:', err);
+    }
+    // Fallback: return current save
+    return { id: this.saveId };
+  }
   async getPlaythrough(_playthroughId: string) { return { id: this.saveId, status: 'active' }; }
   async updatePlaythrough(_playthroughId: string, _data: any) { return { id: this.saveId }; }
   async deletePlaythrough(_playthroughId: string) {}

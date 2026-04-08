@@ -173,7 +173,10 @@ export function lintQuestContent(content: string | null | undefined, context: Li
     // Check quest_location for location references
     if (pred.predicate === 'quest_location' && pred.args.length >= 2) {
       const loc = pred.args[1];
-      if (!locationNameSet.has(loc.toLowerCase()) && !locationIdSet.has(loc) && !businessNameSet.has(loc.toLowerCase())) {
+      // 'anywhere' is a reserved placeholder meaning "no specific location required"
+      // Main quest / narrative quests may reference procedural locations that get placed dynamically
+      const isProceduralQuest = /quest_tag\(\s*\w+\s*,\s*(main_quest|narrative)\s*\)/.test(content);
+      if (loc !== 'anywhere' && !isProceduralQuest && !locationNameSet.has(loc.toLowerCase()) && !locationIdSet.has(loc) && !businessNameSet.has(loc.toLowerCase())) {
         warnings.push({
           type: 'location',
           severity: 'warning',
@@ -203,7 +206,8 @@ export function lintQuestContent(content: string | null | undefined, context: Li
     // Check prerequisite quest references
     if (pred.predicate === 'quest_prerequisite' && pred.args.length >= 2) {
       const reqQuestId = pred.args[1];
-      if (!questIdSet.has(reqQuestId)) {
+      // 'none' is a reserved placeholder meaning "no prerequisites"
+      if (reqQuestId !== 'none' && !questIdSet.has(reqQuestId)) {
         warnings.push({
           type: 'quest',
           severity: 'warning',

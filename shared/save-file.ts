@@ -65,7 +65,7 @@ export interface LotSnapshot {
   } | null;
 }
 
-/** Minimal quest snapshot */
+/** Quest snapshot — Prolog content is the canonical source of quest data */
 export interface QuestSnapshot {
   id: string;
   name: string;
@@ -75,6 +75,23 @@ export interface QuestSnapshot {
   stages: any[];
   rewards: any;
   storyText: string | null;
+  /** Prolog source — single source of truth for objectives, rewards, criteria, etc. */
+  content: string | null;
+  /** Fields included for display/filtering; hydrated from content on load */
+  questType?: string | null;
+  difficulty?: string | null;
+  tags?: string[] | null;
+  targetLanguage?: string | null;
+  assignedTo?: string | null;
+  assignedBy?: string | null;
+  assignedByCharacterId?: string | null;
+  experienceReward?: number;
+  completionCriteria?: any;
+  objectives?: any[];
+  locationName?: string | null;
+  locationPosition?: any;
+  customData?: any;
+  title?: string | null;
 }
 
 /** Minimal settlement snapshot */

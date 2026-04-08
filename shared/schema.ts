@@ -598,52 +598,30 @@ export const simulations = pgTable("simulations", {
 // Action logic is stored as Prolog content; denormalized columns kept for queries
 export const actions = pgTable("actions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  worldId: varchar("world_id"), // Nullable for base actions
+  worldId: varchar("world_id"),
   name: text("name").notNull(),
   description: text("description"),
 
-  // Prolog content — single source of truth for action logic
+  // ── Prolog content — SINGLE SOURCE OF TRUTH ─────────────────────────────
+  // All action metadata (actionType, category, energyCost, difficulty, duration,
+  // targetType, requiresTarget, range, cooldown, emitsEvent, gameActivityVerb,
+  // completesObjectiveType, parentAction, verbPast, verbPresent) is derived
+  // from content via hydration.
   content: text("content"),
 
-  // Base action indicator
-  isBase: boolean("is_base").default(false), // true for global actions, false for world-specific
-
-  // Authoring format (for display/editing only, not execution)
+  // ── Flags not in Prolog ─────────────────────────────────────────────────
+  isBase: boolean("is_base").default(false),
   sourceFormat: text("source_format").notNull().default("prolog"),
-
-  // Action hierarchy
-  parentAction: text("parent_action"), // parent action name for hierarchy (e.g., sword_attack → attack_enemy)
-
-  // Denormalized columns (derived from Prolog content, kept for DB queries)
-  actionType: text("action_type").notNull(), // social, physical, mental, economic, etc.
-  category: text("category"), // unified: movement, combat, social, commerce, resource, items, exploration, language, survival
-  duration: integer("duration").default(1), // time steps to complete
-  difficulty: real("difficulty").default(0.5), // 0.0 to 1.0
-  energyCost: integer("energy_cost").default(1),
-  targetType: text("target_type"), // self, other, location, object, none
-  requiresTarget: boolean("requires_target").default(false),
-  range: integer("range").default(0), // 0 for same location
   isAvailable: boolean("is_available").default(true),
-  cooldown: integer("cooldown").default(0), // time steps before can use again
-
-  // Event mapping — links this action to the game event that triggers it
-  emitsEvent: text("emits_event"), // GameEventBus event name (e.g., 'npc_talked', 'item_collected', 'physical_action_completed')
-  gameActivityVerb: text("game_activity_verb"), // Canonical activity verb for taxonomy (defaults to action name if unset)
-  completesObjectiveType: text("completes_objective_type"), // Quest objective type this action satisfies (e.g., 'talk_to_npc', 'collect_item')
-
-  // Narrative and presentation
-  verbPast: text("verb_past"), // e.g., "talked", "fought"
-  verbPresent: text("verb_present"), // e.g., "talks", "fights"
-  narrativeTemplates: jsonb("narrative_templates").$type<string[]>().default([]),
-
-  // Custom data for extensibility
-  customData: jsonb("custom_data").$type<Record<string, any>>().default({}),
-
-  // Tags and metadata
-  tags: jsonb("tags").$type<string[]>().default([]),
-  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
   isActive: boolean("is_active").default(true),
 
+  // ── UI/rendering data not in Prolog ─────────────────────────────────────
+  narrativeTemplates: jsonb("narrative_templates").$type<string[]>().default([]),
+  customData: jsonb("custom_data").$type<Record<string, any>>().default({}),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
+
+  // ── Timestamps ──────────────────────────────────────────────────────────
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -696,74 +674,40 @@ export const truths = pgTable("truths", {
 export const quests = pgTable("quests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   worldId: varchar("world_id").notNull(),
-  
-  // Quest participants (Ensemble-style predicates)
-  assignedTo: text("assigned_to").notNull(), // Player character name (first)
-  assignedBy: text("assigned_by"), // NPC character name (second)
-  assignedToCharacterId: varchar("assigned_to_character_id"), // Player character ID
-  assignedByCharacterId: varchar("assigned_by_character_id"), // NPC character ID
-  
-  // Quest details
-  title: text("title").notNull(),
-  description: text("description").notNull(),
 
-  // Translation fields — English equivalents for bilingual quest display
-  titleTranslation: text("title_translation"), // English translation of title (when title is in target language)
-  descriptionTranslation: text("description_translation"), // English translation of description
-  objectivesTranslation: jsonb("objectives_translation").$type<string[]>(), // English translations of objective strings
+  // ── Prolog content — SINGLE SOURCE OF TRUTH ─────────────────────────────
+  // All quest logic (title, description, questType, difficulty, objectives,
+  // completionCriteria, rewards, prerequisites, tags, assignedTo/By,
+  // targetLanguage, questChainId/Order, parentQuestId, locationName,
+  // failureConditions, stages) is derived from content via hydration.
+  content: text("quest_content"),
 
-  questType: text("quest_type").notNull(), // conversation, translation, vocabulary, grammar, cultural
-  difficulty: text("difficulty").notNull(), // beginner, intermediate, advanced
-  cefrLevel: text("cefr_level"), // A1, A2, B1, B2 — CEFR alignment
-  difficultyStars: integer("difficulty_stars"), // 1–5 star rating
-  estimatedMinutes: integer("estimated_minutes"), // Estimated completion time
-  targetLanguage: text("target_language").notNull(), // French, English
-
-  // Game type and quest chains (for abstraction)
-  gameType: varchar("game_type", { length: 100 }).default("language-learning"), // language-learning, rpg, strategy, adventure, survival
-  questChainId: varchar("quest_chain_id", { length: 255 }),
-  questChainOrder: integer("quest_chain_order"),
-  prerequisiteQuestIds: text("prerequisite_quest_ids").array(),
-
-  // Guild system — organizes quests into language-learning skill trees
-  guildId: varchar("guild_id", { length: 100 }), // marchands, artisans, conteurs, explorateurs, diplomates
-  guildTier: integer("guild_tier"), // 0=join, 1=starter, 2=intermediate, 3=advanced
-  
-  // Quest objectives and progress
-  objectives: jsonb("objectives").$type<any[]>().default([]),
+  // ── Runtime-mutable state (not in Prolog content) ───────────────────────
+  status: text("status").default("unavailable"),
   progress: jsonb("progress").$type<Record<string, any>>().default({}),
-  
-  // Quest status
-  status: text("status").default("unavailable"), // unavailable, available, active, completed, failed, abandoned
-  completionCriteria: jsonb("completion_criteria").$type<Record<string, any>>().default({}),
-  
-  // Rewards and XP
-  experienceReward: integer("experience_reward").default(0),
-  moneyReward: integer("money_reward").default(0),
-  rewards: jsonb("rewards").$type<Record<string, any>>().default({}),
+  customData: jsonb("custom_data").$type<Record<string, any>>().default({}),
 
-  // Enhanced rewards (for non-language-learning games)
-  itemRewards: jsonb("item_rewards").$type<Array<{ itemId: string; quantity: number; name: string }>>(),
-  skillRewards: jsonb("skill_rewards").$type<Array<{ skillId: string; name: string; level: number }>>(),
-  unlocks: jsonb("unlocks").$type<Array<{ type: 'area' | 'npc' | 'feature' | 'vocabulary_category'; id: string; name: string }>>(),
+  // ── Character binding (not in Prolog content) ───────────────────────────
+  assignedToCharacterId: varchar("assigned_to_character_id"),
+  assignedByCharacterId: varchar("assigned_by_character_id"),
 
-  // Multi-stage quests
-  stages: jsonb("stages").$type<Array<{
-    stageId: string;
-    title: string;
-    description: string;
-    objectives: any[];
-    preconditions?: string[];
-    postconditions?: string[];
-    nextStageIds?: string[];
-  }>>(),
-  currentStageId: varchar("current_stage_id", { length: 255 }),
-  parentQuestId: varchar("parent_quest_id", { length: 255 }),
+  // ── Spatial data (not fully in Prolog content) ──────────────────────────
+  locationId: varchar("location_id"),
+  locationPosition: jsonb("location_position").$type<{ x: number; y: number; z: number }>(),
 
-  // Failure conditions
-  failureConditions: jsonb("failure_conditions").$type<Record<string, any>>(),
+  // ── UI translations (not in Prolog) ─────────────────────────────────────
+  titleTranslation: text("title_translation"),
+  descriptionTranslation: text("description_translation"),
+  objectivesTranslation: jsonb("objectives_translation").$type<string[]>(),
 
-  // Abandonment, failure, and retry tracking
+  // ── UI metadata (not in Prolog) ─────────────────────────────────────────
+  cefrLevel: text("cefr_level"),
+  difficultyStars: integer("difficulty_stars"),
+  estimatedMinutes: integer("estimated_minutes"),
+  gameType: varchar("game_type", { length: 100 }).default("language-learning"),
+  conversationContext: text("conversation_context"),
+
+  // ── Lifecycle state (not in Prolog) ─────────────────────────────────────
   attemptCount: integer("attempt_count").default(1),
   maxAttempts: integer("max_attempts").default(3),
   abandonedAt: timestamp("abandoned_at"),
@@ -771,42 +715,22 @@ export const quests = pgTable("quests", {
   failureReason: text("failure_reason"),
   abandonReason: text("abandon_reason"),
 
-  // Location binding — ties the quest to a specific place in the world
-  locationId: varchar("location_id"), // Settlement or lot ID
-  locationName: text("location_name"), // Human-readable place name
-  locationPosition: jsonb("location_position").$type<{ x: number; y: number; z: number }>(), // World-space coordinates
+  // ── Recurrence (not in Prolog) ──────────────────────────────────────────
+  recurrencePattern: text("recurrence_pattern"),
+  recurrenceResetAt: timestamp("recurrence_reset_at"),
+  completionCount: integer("completion_count").default(0),
+  lastCompletedAt: timestamp("last_completed_at"),
+  sourceQuestId: varchar("source_quest_id"),
+  streakCount: integer("streak_count").default(0),
 
-  // Recurrence — daily/weekly/monthly repeating quests
-  recurrencePattern: text("recurrence_pattern"), // daily, weekly, monthly (null = one-time)
-  recurrenceResetAt: timestamp("recurrence_reset_at"), // next reset time (UTC)
-  completionCount: integer("completion_count").default(0), // total times completed
-  lastCompletedAt: timestamp("last_completed_at"), // when last completed (for reset logic)
-  sourceQuestId: varchar("source_quest_id"), // for recurring instances, points to template quest
-  streakCount: integer("streak_count").default(0), // consecutive completion streak
+  // ── Narrative / references (not in Prolog) ──────────────────────────────
+  narrativeChapterId: text("narrative_chapter_id"),
+  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
 
-  // Timing
+  // ── Timestamps ──────────────────────────────────────────────────────────
   assignedAt: timestamp("assigned_at").defaultNow(),
   completedAt: timestamp("completed_at"),
   expiresAt: timestamp("expires_at"),
-  
-  // Conversation-only mode — quest completable entirely through NPC dialogue
-  conversationOnly: boolean("conversation_only").default(false),
-
-  // Custom data for extensibility (e.g., assessment content embedded at world creation)
-  customData: jsonb("custom_data").$type<Record<string, any>>().default({}),
-
-  // Metadata
-  conversationContext: text("conversation_context"), // Context from the conversation that triggered the quest
-  tags: jsonb("tags").$type<string[]>().default([]),
-
-  // Main quest chapter this quest belongs to (e.g. 'ch1_assignment_abroad')
-  narrativeChapterId: text("narrative_chapter_id"),
-
-  // Prolog content — single source of truth for quest logic
-  content: text("quest_content"),
-
-  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
-
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1181,24 +1105,12 @@ export const insertActionSchema = createInsertSchema(actions).pick({
   content: true,
   isBase: true,
   sourceFormat: true,
-  parentAction: true,
-  actionType: true,
-  category: true,
-  duration: true,
-  difficulty: true,
-  energyCost: true,
-  targetType: true,
-  requiresTarget: true,
-  range: true,
   isAvailable: true,
-  cooldown: true,
-  verbPast: true,
-  verbPresent: true,
+  isActive: true,
   narrativeTemplates: true,
   customData: true,
   tags: true,
   relatedTruthIds: true,
-  isActive: true,
 });
 
 export const insertTruthSchema = createInsertSchema(truths).pick({
@@ -1228,46 +1140,29 @@ export const insertTruthSchema = createInsertSchema(truths).pick({
 
 export const insertQuestSchema = createInsertSchema(quests).pick({
   worldId: true,
-  assignedTo: true,
-  assignedBy: true,
+  content: true,
+  status: true,
+  progress: true,
+  customData: true,
   assignedToCharacterId: true,
   assignedByCharacterId: true,
-  title: true,
-  description: true,
+  locationId: true,
+  locationPosition: true,
   titleTranslation: true,
   descriptionTranslation: true,
   objectivesTranslation: true,
-  questType: true,
-  difficulty: true,
   cefrLevel: true,
   difficultyStars: true,
   estimatedMinutes: true,
-  targetLanguage: true,
-  objectives: true,
-  progress: true,
-  status: true,
-  completionCriteria: true,
-  experienceReward: true,
-  rewards: true,
-  expiresAt: true,
+  gameType: true,
   conversationContext: true,
-  tags: true,
-  content: true,
-  customData: true,
+  narrativeChapterId: true,
   relatedTruthIds: true,
-  recurrencePattern: true,
-  recurrenceResetAt: true,
-  completionCount: true,
-  lastCompletedAt: true,
-  sourceQuestId: true,
-  streakCount: true,
   attemptCount: true,
   maxAttempts: true,
-  abandonedAt: true,
-  failedAt: true,
-  failureReason: true,
-  abandonReason: true,
-  completedAt: true,
+  expiresAt: true,
+  recurrencePattern: true,
+  sourceQuestId: true,
 });
 
 export const insertItemSchema = createInsertSchema(items).pick({
@@ -1783,13 +1678,61 @@ export type InsertTerrainFeature = z.infer<typeof insertTerrainFeatureSchema>;
 export type Simulation = typeof simulations.$inferSelect;
 export type InsertSimulation = z.infer<typeof insertSimulationSchema>;
 
-export type Action = typeof actions.$inferSelect;
+/** Base DB columns for actions */
+type ActionBase = typeof actions.$inferSelect;
+/** Hydrated action — includes fields derived from Prolog content at runtime */
+export type Action = ActionBase & {
+  actionType?: string;
+  category?: string | null;
+  energyCost?: number;
+  difficulty?: number;
+  duration?: number;
+  targetType?: string | null;
+  requiresTarget?: boolean;
+  range?: number;
+  cooldown?: number;
+  emitsEvent?: string | null;
+  gameActivityVerb?: string | null;
+  completesObjectiveType?: string | null;
+  parentAction?: string | null;
+  verbPast?: string | null;
+  verbPresent?: string | null;
+};
 export type InsertAction = z.infer<typeof insertActionSchema>;
 
 export type Truth = typeof truths.$inferSelect;
 export type InsertTruth = z.infer<typeof insertTruthSchema>;
 
-export type Quest = typeof quests.$inferSelect;
+/** Base DB columns for quests */
+type QuestBase = typeof quests.$inferSelect;
+/** Hydrated quest — includes fields derived from Prolog content at runtime */
+export type Quest = QuestBase & {
+  name?: string;
+  title?: string;
+  description?: string | null;
+  questType?: string;
+  difficulty?: string;
+  targetLanguage?: string;
+  assignedTo?: string;
+  assignedBy?: string | null;
+  objectives?: any[];
+  completionCriteria?: Record<string, any>;
+  experienceReward?: number;
+  moneyReward?: number;
+  rewards?: Record<string, any>;
+  itemRewards?: any[];
+  skillRewards?: any[];
+  unlocks?: any[];
+  prerequisiteQuestIds?: string[];
+  tags?: string[] | null;
+  questChainId?: string | null;
+  questChainOrder?: number | null;
+  parentQuestId?: string | null;
+  locationName?: string | null;
+  failureConditions?: Record<string, any> | null;
+  stages?: any[];
+  currentStageId?: string | null;
+};
 export type InsertQuest = z.infer<typeof insertQuestSchema>;
 
 // Talk of the Town types

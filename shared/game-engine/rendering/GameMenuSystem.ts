@@ -2334,52 +2334,91 @@ export class GameMenuSystem {
 
   // ─── QUESTS TAB ─────────────────────────────────────────────────────────
 
+  private _questTabFilter: 'current' | 'available' | 'completed' = 'current';
+
   private renderQuestsTab(): void {
     const { stack } = this.makeScrollableContent("quests");
     const allQuests = this.callbacks.getQuests();
 
-    // active = currently pursued (only one), available = selectable, unavailable = locked
-    const active = allQuests.filter(q => q.status === "active");
+    const current = allQuests.filter(q => q.status === "active");
     const available = allQuests.filter(q => q.status === "available");
+    const completed = allQuests.filter(q => q.status === "completed");
 
     this.addSectionHeader(stack, "Quests");
 
-    const counts: string[] = [];
-    if (active.length > 0) counts.push(`1 active`);
-    if (available.length > 0) counts.push(`${available.length} available`);
-    this.addSubHeader(stack, counts.length > 0 ? counts.join("  ·  ") : "No quests yet");
+    // ── Tab bar ─────────────────────────────────────────────────────────────
+    const tabRow = new StackPanel();
+    tabRow.isVertical = false;
+    tabRow.width = 1;
+    tabRow.height = "32px";
+    tabRow.paddingBottom = "6px";
+    stack.addControl(tabRow);
 
-    if (allQuests.length === 0) {
+    const tabs: Array<{ id: 'current' | 'available' | 'completed'; label: string; count: number; color: string }> = [
+      { id: 'current', label: 'Current', count: current.length, color: COLORS.accentGreen },
+      { id: 'available', label: 'Available', count: available.length, color: COLORS.accent },
+      { id: 'completed', label: 'Completed', count: completed.length, color: COLORS.textMuted },
+    ];
+
+    for (const tab of tabs) {
+      const isActive = this._questTabFilter === tab.id;
+      const tabBtn = new Rectangle();
+      tabBtn.width = `${Math.floor(100 / tabs.length)}%`;
+      tabBtn.height = "28px";
+      tabBtn.background = isActive ? "rgba(255,255,255,0.12)" : "transparent";
+      tabBtn.thickness = 0;
+      tabBtn.cornerRadius = 4;
+      tabBtn.isPointerBlocker = true;
+      tabBtn.hoverCursor = "pointer";
+
+      const tabLabel = new TextBlock();
+      tabLabel.text = `${tab.label} (${tab.count})`;
+      tabLabel.color = isActive ? tab.color : COLORS.textMuted;
+      tabLabel.fontSize = 12;
+      tabLabel.fontWeight = isActive ? "bold" : "normal";
+      tabBtn.addControl(tabLabel);
+
+      if (!isActive) {
+        tabBtn.onPointerEnterObservable.add(() => { tabBtn.background = "rgba(255,255,255,0.06)"; });
+        tabBtn.onPointerOutObservable.add(() => { tabBtn.background = "transparent"; });
+      }
+      tabBtn.onPointerClickObservable.add(() => {
+        this._questTabFilter = tab.id;
+        this.renderQuestsTab();
+      });
+
+      tabRow.addControl(tabBtn);
+    }
+
+    // ── Separator ───────────────────────────────────────────────────────────
+    const sep = new Rectangle();
+    sep.width = 1;
+    sep.height = "1px";
+    sep.background = "rgba(255,255,255,0.1)";
+    sep.thickness = 0;
+    stack.addControl(sep);
+
+    // ── Filtered quest list ─────────────────────────────────────────────────
+    const filtered = this._questTabFilter === 'current' ? current
+      : this._questTabFilter === 'available' ? available
+      : completed;
+
+    if (filtered.length === 0) {
       const empty = new TextBlock();
-      empty.text = "Talk to NPCs to discover quests!";
+      empty.text = this._questTabFilter === 'current' ? "No active quests. Check Available for new quests!"
+        : this._questTabFilter === 'available' ? "No available quests right now."
+        : "No completed quests yet.";
       empty.color = COLORS.textMuted;
       empty.fontSize = 12;
-      empty.height = "33px";
+      empty.height = "40px";
+      empty.paddingTop = "12px";
       stack.addControl(empty);
       return;
     }
 
-    // Render active quests first, then available
-    const renderGroup = (label: string, quests: MenuQuestData[], color: string) => {
-      if (quests.length === 0) return;
-
-      const groupLabel = new TextBlock();
-      groupLabel.text = `${label} (${quests.length})`;
-      groupLabel.color = color;
-      groupLabel.fontSize = 13;
-      groupLabel.fontWeight = "bold";
-      groupLabel.height = "28px";
-      groupLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      groupLabel.paddingTop = "6px";
-      stack.addControl(groupLabel);
-
-      quests.forEach((quest) => {
-        this.renderQuestCard(stack, quest);
-      });
-    };
-
-    renderGroup("Active", active, COLORS.accentGreen);
-    renderGroup("Available", available, COLORS.accent);
+    for (const quest of filtered) {
+      this.renderQuestCard(stack, quest);
+    }
   }
 
   private renderQuestCard(parent: StackPanel, quest: MenuQuestData): void {

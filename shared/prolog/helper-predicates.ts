@@ -579,6 +579,7 @@ quest_status(Player, QuestId, abandoned) :-
 % has been completed by the player.
 all_prereqs_met(Player, QuestId) :-
     \\+ (quest_prerequisite(QuestId, PrereqId),
+         PrereqId \\= none,
          \\+ quest_status(Player, PrereqId, completed)).
 
 % ── Quest chain ordering ─────────────────────────────────────────────────

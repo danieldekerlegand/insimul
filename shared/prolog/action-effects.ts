@@ -599,37 +599,144 @@ const SURVIVAL_EFFECTS: Record<string, EffectDefinition> = {
       'modify_health(Actor, 10)',
     ],
   },
-  sit: {
-    actionId: 'sit',
-    effects: [
-      'modify_energy(Actor, 5)',
-    ],
+};
+
+// ── Movement Effects ────────────────────────────────────────────────────
+// Every movement action has energy cost — useful for "walk to X" quests.
+
+const MOVEMENT_EFFECTS: Record<string, EffectDefinition> = {
+  walk:        { actionId: 'walk',        effects: ['modify_energy(Actor, -2)'] },
+  walk_formal: { actionId: 'walk_formal', effects: ['modify_energy(Actor, -2)'] },
+  walk_carry:  { actionId: 'walk_carry',  effects: ['modify_energy(Actor, -5)'] },
+  run:         { actionId: 'run',         effects: ['modify_energy(Actor, -5)'] },
+  jog:         { actionId: 'jog',         effects: ['modify_energy(Actor, -4)'] },
+  sprint:      { actionId: 'sprint',      effects: ['modify_energy(Actor, -8)'] },
+  jump:        { actionId: 'jump',        effects: ['modify_energy(Actor, -3)'] },
+  roll:        { actionId: 'roll',        effects: ['modify_energy(Actor, -5)'] },
+  crouch_walk: { actionId: 'crouch_walk', effects: ['modify_energy(Actor, -3)'] },
+  crouch_idle: { actionId: 'crouch_idle', effects: ['modify_energy(Actor, -1)'] },
+  swim:        { actionId: 'swim',        effects: ['modify_energy(Actor, -8)'] },
+  swim_idle:   { actionId: 'swim_idle',   effects: ['modify_energy(Actor, -2)'] },
+  slide:       { actionId: 'slide',       effects: ['modify_energy(Actor, -3)'] },
+  climb:       { actionId: 'climb',       effects: ['modify_energy(Actor, -10)'] },
+  ninja_jump:  { actionId: 'ninja_jump',  effects: ['modify_energy(Actor, -8)'] },
+  move:        { actionId: 'move',        effects: ['modify_energy(Actor, -2)'] },
+  drive:       { actionId: 'drive',       effects: ['modify_energy(Actor, -1)'] },
+  mount_vehicle: { actionId: 'mount_vehicle', effects: [] },
+};
+
+// ── Idle / Expression / Posture Effects ─────────────────────────────────
+// Minimal energy effects — sitting restores, expressions are free.
+
+const EXPRESSION_EFFECTS: Record<string, EffectDefinition> = {
+  idle:      { actionId: 'idle',      effects: ['modify_energy(Actor, 1)'] },
+  sit:       { actionId: 'sit',       effects: ['modify_energy(Actor, 5)'] },
+  sit_down:  { actionId: 'sit_down',  effects: ['modify_energy(Actor, 2)'] },
+  sit_idle:  { actionId: 'sit_idle',  effects: ['modify_energy(Actor, 3)'] },
+  sit_talk:  { actionId: 'sit_talk',  effects: ['assert(met(Actor, Target))', 'modify_energy(Actor, 2)'] },
+  stand_up:  { actionId: 'stand_up',  effects: [] },
+  get_up:    { actionId: 'get_up',    effects: [] },
+  fold_arms: { actionId: 'fold_arms', effects: [] },
+  nod_yes:   { actionId: 'nod_yes',   effects: ['modify_disposition(Target, Actor, 2)'] },
+  shake_head_no: { actionId: 'shake_head_no', effects: ['modify_disposition(Target, Actor, -2)'] },
+  dance:     { actionId: 'dance',     effects: ['modify_energy(Actor, -5)', 'modify_disposition(Target, Actor, 5)'] },
+  wave:      { actionId: 'wave',      effects: ['modify_disposition(Target, Actor, 3)'] },
+  clap:      { actionId: 'clap',      effects: ['modify_disposition(Target, Actor, 3)'] },
+  point:     { actionId: 'point',     effects: [] },
+  lean_railing: { actionId: 'lean_railing', effects: ['modify_energy(Actor, 3)'] },
+  phone_call:   { actionId: 'phone_call',   effects: [] },
+  call_out:     { actionId: 'call_out',     effects: [] },
+  hold_torch:   { actionId: 'hold_torch',   effects: [] },
+  hold_lantern: { actionId: 'hold_lantern', effects: [] },
+  express:      { actionId: 'express',      effects: [] },
+  pray:         { actionId: 'pray',         effects: ['modify_energy(Actor, 5)'] },
+};
+
+// ── Combat Animation Effects (reactions — no actor agency) ──────────────
+
+const COMBAT_REACTION_EFFECTS: Record<string, EffectDefinition> = {
+  react:         { actionId: 'react',         effects: [] },
+  die:           { actionId: 'die',           effects: ['modify_health(Actor, -9999)'] },
+  hit_head:      { actionId: 'hit_head',      effects: ['modify_health(Actor, -5)'] },
+  hit_reaction:  { actionId: 'hit_reaction',  effects: [] },
+  knockback:     { actionId: 'knockback',     effects: ['modify_energy(Actor, -5)'] },
+  sword_idle:    { actionId: 'sword_idle',    effects: [] },
+  pistol_aim:    { actionId: 'pistol_aim',    effects: ['modify_energy(Actor, -2)'] },
+  pistol_reload: { actionId: 'pistol_reload', effects: ['modify_energy(Actor, -3)'] },
+  zombie_attack: { actionId: 'zombie_attack', effects: ['modify_health(Target, -15)'] },
+  zombie_idle:   { actionId: 'zombie_idle',   effects: [] },
+  zombie_walk:   { actionId: 'zombie_walk',   effects: [] },
+};
+
+// ── Missing Mental / Misc Actions ───────────────────────────────────────
+
+const MENTAL_EFFECTS: Record<string, EffectDefinition> = {
+  learn_word: {
+    actionId: 'learn_word',
+    effects: ['modify_xp(Actor, language, 5)'],
+  },
+  solve_puzzle: {
+    actionId: 'solve_puzzle',
+    effects: ['modify_xp(Actor, logic, 15)', 'modify_energy(Actor, -10)'],
+  },
+  take_photo: {
+    actionId: 'take_photo',
+    effects: ['modify_xp(Actor, observation, 5)'],
+  },
+  investigate: {
+    actionId: 'investigate',
+    effects: ['modify_xp(Actor, observation, 5)', 'modify_energy(Actor, -5)'],
+  },
+  interact: {
+    actionId: 'interact',
+    effects: ['modify_xp(Actor, observation, 3)'],
+  },
+  observe_activity: {
+    actionId: 'observe_activity',
+    effects: ['modify_xp(Actor, observation, 5)'],
+  },
+  discover_clue: {
+    actionId: 'discover_clue',
+    effects: ['modify_xp(Actor, observation, 10)'],
+  },
+  translate: {
+    actionId: 'translate',
+    effects: ['modify_xp(Actor, language, 10)'],
+  },
+  pronounce: {
+    actionId: 'pronounce',
+    effects: ['modify_xp(Actor, language, 8)'],
+  },
+  complete_assessment: {
+    actionId: 'complete_assessment',
+    effects: ['modify_xp(Actor, language, 50)'],
+  },
+  take_assessment: {
+    actionId: 'take_assessment',
+    effects: [],
+  },
+  build_friendship: {
+    actionId: 'build_friendship',
+    effects: ['modify_disposition(Target, Actor, 15)'],
+  },
+  accept_quest: {
+    actionId: 'accept_quest',
+    effects: ['assert(quest_active(Actor, QuestId))'],
   },
 };
 
-// ── Movement / Idle / Expression (no effects — animation-only) ──────────
+// ── Aliases (actions that map to the same effect as another action) ──────
 
-const ANIMATION_ONLY_EFFECTS: Record<string, EffectDefinition> = {
-  idle: { actionId: 'idle', effects: [] },
-  walk: { actionId: 'walk', effects: [] },
-  run: { actionId: 'run', effects: [] },
-  jump: { actionId: 'jump', effects: [] },
-  dance: { actionId: 'dance', effects: [] },
-  wave: { actionId: 'wave', effects: [] },
-  clap: { actionId: 'clap', effects: [] },
-  point: { actionId: 'point', effects: [] },
-  // Combat animation-only
-  react: { actionId: 'react', effects: [] },
-  die: { actionId: 'die', effects: [] },
-  hit_head: { actionId: 'hit_head', effects: [] },
-  hit_reaction: { actionId: 'hit_reaction', effects: [] },
-  knockback: { actionId: 'knockback', effects: [] },
-  sword_idle: { actionId: 'sword_idle', effects: [] },
-  pistol_aim: { actionId: 'pistol_aim', effects: [] },
-  pistol_reload: { actionId: 'pistol_reload', effects: [] },
-  zombie_attack: { actionId: 'zombie_attack', effects: [] },
-  zombie_idle: { actionId: 'zombie_idle', effects: [] },
-  zombie_walk: { actionId: 'zombie_walk', effects: [] },
+const ALIAS_EFFECTS: Record<string, EffectDefinition> = {
+  talk:       { actionId: 'talk',       effects: ['assert(met(Actor, Target))'] },
+  escort_npc: { actionId: 'escort_npc', effects: ['modify_xp(Actor, social, 10)', 'modify_energy(Actor, -15)'] },
+  mine:       { actionId: 'mine',       effects: ['assert(has_item(Actor, ore, 1))', 'modify_energy(Actor, -20)', 'modify_skill_xp(Actor, mining, 1)'] },
+  harvest:    { actionId: 'harvest',    effects: ['assert(has_item(Actor, crop, 1))', 'modify_energy(Actor, -10)', 'modify_skill_xp(Actor, farming, 1)'] },
+  craft:      { actionId: 'craft',      effects: ['assert(has_item(Actor, crafted_item, 1))', 'modify_energy(Actor, -15)', 'modify_skill_xp(Actor, crafting, 1)'] },
+  chop_wood:  { actionId: 'chop_wood',  effects: ['assert(has_item(Actor, wood, 1))', 'modify_energy(Actor, -15)', 'modify_skill_xp(Actor, woodcutting, 1)'] },
+  farm:       { actionId: 'farm',       effects: ['modify_energy(Actor, -10)', 'modify_skill_xp(Actor, farming, 1)'] },
+  pick_up:    { actionId: 'pick_up',    effects: ['assert(has_item(Actor, Item, 1))'] },
+  open_container: { actionId: 'open_container', effects: ['assert(has_item(Actor, Item, 1))'] },
 };
 
 // ── Combined Export ──────────────────────────────────────────────────────────
@@ -643,5 +750,9 @@ export const ACTION_EFFECTS: Record<string, EffectDefinition> = {
   ...EXPLORATION_EFFECTS,
   ...ITEM_EFFECTS,
   ...SURVIVAL_EFFECTS,
-  ...ANIMATION_ONLY_EFFECTS,
+  ...MOVEMENT_EFFECTS,
+  ...EXPRESSION_EFFECTS,
+  ...COMBAT_REACTION_EFFECTS,
+  ...MENTAL_EFFECTS,
+  ...ALIAS_EFFECTS,
 };

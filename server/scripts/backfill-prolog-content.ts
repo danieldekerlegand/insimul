@@ -12,6 +12,8 @@ import mongoose from 'mongoose';
 import * as dotenv from 'dotenv';
 import { convertActionToProlog } from '../../shared/prolog/action-converter.js';
 import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
+import { hydrateActionFromProlog } from '../../shared/prolog/action-hydrator.js';
+import { hydrateQuestFromProlog } from '../../shared/prolog/quest-hydrator.js';
 
 dotenv.config();
 
@@ -43,6 +45,8 @@ async function backfillPrologContent() {
         continue;
       }
       try {
+        // Hydrate fields from existing content before re-converting
+        hydrateActionFromProlog(action);
         const result = convertActionToProlog(action as any);
         if (result.prologContent) {
           await actionsCollection.updateOne(
@@ -87,7 +91,8 @@ async function backfillPrologContent() {
         continue;
       }
       try {
-        // Clean and enrich quest data before conversion
+        // Hydrate fields from existing content before re-converting
+        hydrateQuestFromProlog(quest);
         const cleanQuest = { ...quest };
         // Remove chain references from assessment quests (US-009: assessments are self-contained)
         if (cleanQuest.tags?.includes('assessment') || cleanQuest.questType === 'assessment') {

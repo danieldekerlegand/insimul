@@ -8994,10 +8994,7 @@ export class BabylonGame {
     this.noticeBoardPanel?.setOnAssessmentClicked(async (assessmentType) => {
       if (assessmentType !== 'arrival') return;
 
-      // Remove the notice
-      this.noticeBoardPanel?.removeArticle('assessment_arrival');
-
-      // Launch the actual assessment
+      // Launch the actual assessment (keep notice on board until complete)
       this.onboardingActive = true;
       this.assessmentActive = true;
 
@@ -9018,6 +9015,9 @@ export class BabylonGame {
       this._assessmentTargetNpcId = null;
 
       if (result) {
+        // Assessment completed — now remove the notice
+        this.noticeBoardPanel?.removeArticle('assessment_arrival');
+
         this.onboardingResult = result;
 
         // Apply CEFR-based content gating if available

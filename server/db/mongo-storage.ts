@@ -62,6 +62,8 @@ import {
   type CharacterTemplate,
   type InsertCharacterTemplate
 } from "@shared/schema";
+import { hydrateQuestFromProlog } from "@shared/prolog/quest-hydrator";
+import { hydrateActionFromProlog } from "@shared/prolog/action-hydrator";
 import type {
   WorldLanguage,
   InsertWorldLanguage,
@@ -445,36 +447,17 @@ const SimulationSchema = new Schema({
 });
 
 const ActionSchema = new Schema({
-  worldId: { type: String, required: false, default: null }, // Optional - null for base actions
-  isBase: { type: Boolean, default: false }, // true for global actions, false for world-specific
+  // ── Core ───────────────────────────────────────────────────────────────────
+  worldId: { type: String },            // null for base actions
+  isBase: { type: Boolean },
   name: { type: String, required: true },
-  description: { type: String, default: null },
-  content: { type: String, default: null }, // Prolog content — single source of truth
-  parentAction: { type: String, default: null }, // parent action name for hierarchy
-  actionType: { type: String, default: 'social' },
-  category: { type: String, default: null },
-  sourceFormat: { type: String, default: 'prolog' },
-  energyCost: { type: Number, default: null },
-  cooldown: { type: Number, default: null },
-  targetType: { type: String, default: null },
-  duration: { type: Number, default: 1 },
-  difficulty: { type: Number, default: 0.5 },
-  requiresTarget: { type: Boolean, default: false },
-  range: { type: Number, default: 0 },
-  isAvailable: { type: Boolean, default: true },
-  emitsEvent: { type: String, default: null }, // GameEventBus event that triggers this action
-  gameActivityVerb: { type: String, default: null }, // Canonical activity verb (defaults to action name)
-  completesObjectiveType: { type: String, default: null }, // Quest objective type this action satisfies
-  verbPast: { type: String, default: null },
-  verbPresent: { type: String, default: null },
-  narrativeTemplates: { type: Schema.Types.Mixed, default: [] },
-  tags: { type: [String], default: [] },
-  relatedTruthIds: { type: [String], default: [] },
-  customData: { type: Schema.Types.Mixed, default: null },
-  isActive: { type: Boolean, default: true },
+  description: { type: String },
+  content: { type: String },            // Prolog source — SINGLE SOURCE OF TRUTH
+  isActive: { type: Boolean },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+  updatedAt: { type: Date, default: Date.now },
+  // All other fields are optional — only stored when non-null.
+}, { strict: false, minimize: true });
 
 // Add indexes for better query performance
 ActionSchema.index({ worldId: 1 });
@@ -508,66 +491,16 @@ const TruthSchema = new Schema({
 });
 
 const QuestSchema = new Schema({
+  // ── Core ───────────────────────────────────────────────────────────────────
   worldId: { type: String, required: true },
-  assignedTo: { type: String, required: true },
-  assignedBy: { type: String, default: null },
-  assignedToCharacterId: { type: String, default: null },
-  assignedByCharacterId: { type: String, default: null },
-  title: { type: String, required: true },
-  description: { type: String, required: true },
-  titleTranslation: { type: String, default: null },
-  descriptionTranslation: { type: String, default: null },
-  objectivesTranslation: { type: [String], default: null },
-  questType: { type: String, required: true },
-  difficulty: { type: String, required: true },
-  cefrLevel: { type: String, default: null }, // A1, A2, B1, B2
-  difficultyStars: { type: Number, default: null }, // 1–5
-  estimatedMinutes: { type: Number, default: null },
-  targetLanguage: { type: String, required: true },
-  gameType: { type: String, default: 'language-learning' },
-  questChainId: { type: String, default: null },
-  questChainOrder: { type: Number, default: null },
-  prerequisiteQuestIds: { type: [String], default: null },
-  objectives: { type: Schema.Types.Mixed, default: [] },
-  progress: { type: Schema.Types.Mixed, default: {} },
-  status: { type: String, default: 'unavailable' }, // unavailable, available, active, completed, failed, abandoned
-  completionCriteria: { type: Schema.Types.Mixed, default: {} },
-  experienceReward: { type: Number, default: 0 },
-  moneyReward: { type: Number, default: 0 },
-  rewards: { type: Schema.Types.Mixed, default: {} },
-  itemRewards: { type: Schema.Types.Mixed, default: null },
-  skillRewards: { type: Schema.Types.Mixed, default: null },
-  unlocks: { type: Schema.Types.Mixed, default: null },
-  stages: { type: Schema.Types.Mixed, default: null },
-  currentStageId: { type: String, default: null },
-  parentQuestId: { type: String, default: null },
-  failureConditions: { type: Schema.Types.Mixed, default: null },
-  attemptCount: { type: Number, default: 1 },
-  maxAttempts: { type: Number, default: 3 },
-  abandonedAt: { type: Date, default: null },
-  failedAt: { type: Date, default: null },
-  failureReason: { type: String, default: null },
-  abandonReason: { type: String, default: null },
-  locationId: { type: String, default: null },
-  locationName: { type: String, default: null },
-  locationPosition: { type: Schema.Types.Mixed, default: null },
-  recurrencePattern: { type: String, default: null }, // daily, weekly, monthly
-  recurrenceResetAt: { type: Date, default: null },
-  completionCount: { type: Number, default: 0 },
-  lastCompletedAt: { type: Date, default: null },
-  sourceQuestId: { type: String, default: null },
-  streakCount: { type: Number, default: 0 },
-  assignedAt: { type: Date, default: Date.now },
-  completedAt: { type: Date, default: null },
-  expiresAt: { type: Date, default: null },
-  conversationContext: { type: String, default: null },
-  tags: { type: Schema.Types.Mixed, default: [] },
-  narrativeChapterId: { type: String, default: null }, // Main quest chapter link
-  content: { type: String, default: null }, // Prolog content — single source of truth
-  relatedTruthIds: { type: [String], default: [] },
+  content: { type: String },           // Prolog source — SINGLE SOURCE OF TRUTH
+  status: { type: String },            // Runtime-mutable: unavailable, available, active, completed, failed
+  customData: { type: Schema.Types.Mixed }, // Assessment payloads, etc.
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+  updatedAt: { type: Date, default: Date.now },
+  // All other fields are optional — only stored when non-null.
+  // They will appear on the document via strict:false when explicitly set.
+}, { strict: false, minimize: true }); // minimize:true omits empty objects/arrays
 
 const ItemSchema = new Schema({
   worldId: { type: String, default: null },
@@ -1171,7 +1104,8 @@ function docToSimulation(doc: SimulationDoc): Simulation {
 }
 
 function docToAction(doc: ActionDoc): Action {
-  return { ...doc.toObject(), id: doc._id.toString() };
+  const action = { ...doc.toObject(), id: doc._id.toString() };
+  return hydrateActionFromProlog(action);
 }
 
 function docToTruth(doc: TruthDoc): Truth {
@@ -1179,7 +1113,8 @@ function docToTruth(doc: TruthDoc): Truth {
 }
 
 function docToQuest(doc: QuestDoc): Quest {
-  return { ...doc.toObject(), id: doc._id.toString() };
+  const quest = { ...doc.toObject(), id: doc._id.toString() };
+  return hydrateQuestFromProlog(quest);
 }
 
 function docToItem(doc: ItemDoc): Item {

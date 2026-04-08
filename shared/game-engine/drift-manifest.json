@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T20:36:07.392Z",
+  "lastUpdated": "2026-04-08T23:22:44.516Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "767cde4804aa6370d5137abcbf98d78f59a94dbb1e67a69d682a4e1bbe0defce",
+      "hash": "003be68599679fd8329a7e70143a8211caa3a731705907aea2be5fe557c4d3b8",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "a53e613d0b6b6cdeb7fc61efa66231e26da95516664645ba435ffccc550534c2",
+      "hash": "c5a7746b272885f727a489ba8d06e8029562e52fc6bf4faa7772e13b35daff95",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "381b7482feb963713912c30842d3ff4b48f45167b2e0ed98f97783e6ccdc780e",
+      "hash": "7f97f22678fc6e8a73a9820d8804d0fe5ba2a4880e144acfea8951eedddebba9",
       "engineMappings": [
         {
           "engine": "unity",
