@@ -1919,16 +1919,21 @@ export class BabylonChatPanel {
         totalTimeMs: debugTotalTime,
       });
 
-      // Process the response (grammar, vocab, quests, TTS fallback)
+      // Prevent processAssistantResponse from doing blocking TTS — we handle
+      // the opening-line TTS explicitly below (US-012: non-blocking auto-speak).
+      this._receivedStreamingAudio = true;
+
+      // Process the response (grammar, vocab, quests — TTS skipped via flag above)
       await this.processAssistantResponse(cue, responseText, placeholderMsg);
 
-      // Safety net: if no audio played through any path, trigger TTS directly.
-      // The gRPC path sets _receivedStreamingAudio=true optimistically, which
-      // skips the fallback in processAssistantResponse. If no audio actually
-      // arrived, speak the greeting now.
-      const cleanedForTTS = placeholderMsg.content || responseText;
-      if (cleanedForTTS && !this.streamingAudioPlayer?.getIsPlaying() && this.audioQueue.length === 0) {
-        this.textToSpeech(cleanedForTTS);
+      // US-012: Auto-speak the NPC opening line via TTS.
+      // Fire-and-forget so the player can start typing while audio plays.
+      // If streaming audio is already playing (server-streamed TTS), skip to avoid duplicates.
+      const greetingText = placeholderMsg.content || responseText;
+      if (greetingText && !this.streamingAudioPlayer?.getIsPlaying() && this.audioQueue.length === 0) {
+        this.textToSpeech(greetingText).catch(err =>
+          console.warn('[ChatPanel] Opening line TTS failed (text still visible):', err)
+        );
       }
 
       // Start hint timer
@@ -1945,7 +1950,10 @@ export class BabylonChatPanel {
         this.messages.push({ role: 'assistant', content: fallback, timestamp: new Date() });
       }
       this.updateMessagesDisplay();
-      this.textToSpeech(fallback);
+      // Auto-speak fallback greeting (non-blocking; text is already visible if TTS fails)
+      this.textToSpeech(fallback).catch(err =>
+        console.warn('[ChatPanel] Fallback greeting TTS failed:', err)
+      );
     } finally {
       this.isProcessing = false;
       if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
