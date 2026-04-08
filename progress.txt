@@ -2473,3 +2473,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `hasMainQuestChain()` check looks for `main-quest` tag + `questChainId` — removing assessment quests from the chain doesn't affect this check
   - `createDepartureAssessmentQuest()` in `assessment-quest-bridge.ts` already uses `{ type: 'all_objectives' }` and no chain references — only the seed generator version needed updating
 ---
+
+## 2026-04-08 - US-010: Score analysis and CEFR calibration from assessment results
+- Added `cefrLevel` optional field to `GameSaveState.player` in `shared/game-engine/types.ts`
+- Added `getPlayerCefrLevel()` to `GameStateSource` interface and `captureState()` in `WorldStateManager.ts`
+- Added `restorePlayerCefrLevel()` to `GameStateTarget` interface — propagates to chatPanel, contextualActionMenu, buildingInfoDisplay, questNotificationManager, interactionPrompt, and contentGatingManager on load
+- Implemented `restorePlayerCefrLevel` in `BabylonGame.createGameStateTarget()` — mirrors the `assessment_completed` event handler's system propagation
+- Added `assessmentResult` field to BabylonQuestTracker's `Quest` interface
+- Added assessment result display in quest tracker card view (CEFR level badge + score percentage + dimension breakdown)
+- Added detailed assessment results section in quest detail panel (ASSESSMENT RESULTS header, CEFR level, overall score, dimension percentages)
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/types.ts` — added cefrLevel to GameSaveState.player
+  - `client/src/components/3DGame/WorldStateManager.ts` — getPlayerCefrLevel, restorePlayerCefrLevel, cefrLevel in captureState
+  - `shared/game-engine/rendering/BabylonGame.ts` — getPlayerCefrLevel in source, restorePlayerCefrLevel in target
+  - `shared/game-engine/rendering/BabylonQuestTracker.ts` — assessmentResult on Quest, card + detail display
+  - `shared/game-engine/drift-manifest.json` — updated hash
+  - `shared/__tests__/cefr-calibration-flow.test.ts` — 19 new tests
+  - `tasks/prd.json` — marked US-010 passes: true
+- **Learnings for future iterations:**
+  - `cefrLevel` was already persisted in `languageProgressDetailed` (via `getLanguageProgressDetailed()`) but NOT in `player` save state — both paths now coexist for redundancy
+  - On load, `restoreLanguageProgressDetailed` only sets `this.playerCefrLevel` — it does NOT propagate to UI systems. The new `restorePlayerCefrLevel` handles full propagation
+  - The `assessment_completed` event handler in BabylonGame (line ~4439) is the reference for which systems need cefrLevel propagation — mirror it in any new restore path
+  - NPC language mode uses a probabilistic distribution (not a hard mapping): A1=60%bilingual/40%simplified, B2+=100%natural — the acceptance criteria simplified this
+  - `CEFRResult.score` is the field name for normalized score (not `normalizedScore`)
+---

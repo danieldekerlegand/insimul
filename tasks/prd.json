@@ -171,7 +171,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "This is the critical feedback loop — assessment results must actually affect gameplay. The CEFR level drives NPC language mode in context-manager.ts via the cefrLevel field in the conversation context."
     },
     {
