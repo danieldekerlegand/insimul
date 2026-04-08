@@ -167,6 +167,10 @@ export class AssessmentEngine {
     playerId: string;
     worldId: string;
     targetLanguage: string;
+    /** Phase IDs already completed (from a previous session). These will be skipped. */
+    completedPhaseIds?: Set<string>;
+    /** Scores from previously completed phases (to include in the total). */
+    previousPhaseScores?: Record<string, { score: number; maxScore: number }>;
   }): Promise<void> {
     this.targetLanguage = config.targetLanguage;
 
@@ -174,13 +178,25 @@ export class AssessmentEngine {
     const phases = this._getPhases();
     const totalMaxScore = phases.reduce((sum, p) => sum + p.maxScore, 0);
 
+    // Start with scores from previously completed phases
     let totalScore = 0;
+    if (config.previousPhaseScores) {
+      for (const prev of Object.values(config.previousPhaseScores)) {
+        totalScore += prev.score;
+      }
+    }
     const dimensionScores: Record<string, number> = {};
 
     for (let i = 0; i < phases.length; i++) {
       if (this._aborted) return;
 
       const phase = phases[i];
+
+      // Skip phases that were already completed in a previous session
+      if (config.completedPhaseIds?.has(phase.id)) {
+        console.log(`[AssessmentEngine] Skipping completed phase: ${phase.id}`);
+        continue;
+      }
 
       this._onPhaseStarted?.(phase.id, i, 0);
 

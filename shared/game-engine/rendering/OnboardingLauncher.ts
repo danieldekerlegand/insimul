@@ -19,6 +19,8 @@ type AssessmentEngine = {
     playerId: string;
     worldId: string;
     targetLanguage: string;
+    completedPhaseIds?: Set<string>;
+    previousPhaseScores?: Record<string, { score: number; maxScore: number }>;
   }): Promise<void>;
   onPhaseStarted(cb: (phaseId: string, phaseIndex: number, timeRemainingSeconds?: number) => void): void;
   onPhaseCompleted(cb: (phaseId: string, score: number, maxScore: number) => void): void;
@@ -69,7 +71,10 @@ export interface OnboardingLauncherDeps {
   dataSource?: any;
   prologEngine?: any;
   /** Quest overlay for storing phase results in the save file instead of the DB. */
-  questOverlay?: { updateQuest(questId: string, data: Record<string, any>): void };
+  questOverlay?: {
+    updateQuest(questId: string, data: Record<string, any>): void;
+    getOverride(questId: string): Record<string, any> | null;
+  };
   guiManager: {
     advancedTexture: any;
     showToast(opts: { title: string; description?: string; variant?: string; duration?: number }): void;
@@ -191,6 +196,38 @@ export async function launchOnboarding(
   // Also extracts pre-generated assessment data from quest customData.assessment
   const assessmentQuest = await findAssessmentQuest(worldId, authToken, deps.dataSource);
   const assessmentQuestId = assessmentQuest?.id ?? null;
+
+  // Determine which phases are already completed (from a previous session / save)
+  const completedPhaseIds = new Set<string>();
+  const previousPhaseScores: Record<string, { score: number; maxScore: number }> = {};
+  if (assessmentQuestId && deps.dataSource) {
+    try {
+      const quests = await deps.dataSource.loadQuests(worldId);
+      const quest = quests.find((q: any) => q.id === assessmentQuestId);
+      if (quest?.objectives) {
+        for (const obj of quest.objectives) {
+          if (obj.completed && obj.assessmentPhaseId) {
+            completedPhaseIds.add(obj.assessmentPhaseId);
+          }
+        }
+      }
+      // Also check phaseResults from overlay
+      if (deps.questOverlay) {
+        const override = deps.questOverlay.getOverride(assessmentQuestId);
+        if (override?.phaseResults) {
+          for (const pr of override.phaseResults as any[]) {
+            if (pr.phaseId) {
+              completedPhaseIds.add(pr.phaseId);
+              previousPhaseScores[pr.phaseId] = { score: pr.score || 0, maxScore: pr.maxScore || 0 };
+            }
+          }
+        }
+      }
+    } catch { /* ignore — will start from beginning */ }
+  }
+  if (completedPhaseIds.size > 0) {
+    console.log(`[OnboardingLauncher] Resuming assessment — skipping ${completedPhaseIds.size} completed phases:`, Array.from(completedPhaseIds));
+  }
 
   // Create assessment engine with event bus and Prolog engine for fact assertion
   // Pass pre-generated assessment data from quest customData if available
@@ -355,12 +392,14 @@ export async function launchOnboarding(
       },
     });
 
-    // Start assessment engine
+    // Start assessment engine (skipping already-completed phases)
     assessmentEngine.start({
       assessmentType: 'arrival',
       playerId,
       worldId,
       targetLanguage,
+      completedPhaseIds: completedPhaseIds.size > 0 ? completedPhaseIds : undefined,
+      previousPhaseScores: Object.keys(previousPhaseScores).length > 0 ? previousPhaseScores : undefined,
     }).catch((err: unknown) => {
       console.error('[OnboardingLauncher] Assessment engine failed to start:', err);
       assessmentEngine.dispose();

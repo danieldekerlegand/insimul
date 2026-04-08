@@ -599,7 +599,28 @@ export class SaveFileDataSource implements DataSource {
     // No-op: assessment completion is stored in quest overlay assessmentResult
     return { sessionId, ...data, status: 'deprecated' };
   }
-  async getPlayerAssessments(_playerId: string, _worldId: string) { return []; }
+  async getPlayerAssessments(_playerId: string, _worldId: string) {
+    // Check quest overlay for a completed arrival assessment
+    if (this.questOverlay) {
+      const quests = await this.loadQuests(_worldId);
+      const arrivalQuest = quests.find((q: any) => {
+        const tags = q.tags || [];
+        return Array.isArray(tags) && tags.includes('assessment') && tags.includes('arrival');
+      });
+      if (arrivalQuest) {
+        const override = this.questOverlay.getOverride(arrivalQuest.id);
+        if (override?.status === 'completed' || arrivalQuest.status === 'completed') {
+          return [{ id: arrivalQuest.id, status: 'complete', assessmentType: 'arrival' }];
+        }
+        // Also check if all objectives are completed
+        const objectives = arrivalQuest.objectives || [];
+        if (objectives.length > 0 && objectives.every((o: any) => o.completed)) {
+          return [{ id: arrivalQuest.id, status: 'complete', assessmentType: 'arrival' }];
+        }
+      }
+    }
+    return [];
+  }
 
   // ── Media (stateless — still goes to server) ─────────────────────────
 
