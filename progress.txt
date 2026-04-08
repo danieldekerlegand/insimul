@@ -2630,3 +2630,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - BabylonChatPanel uses callback pattern (setOn*) for communicating extracted data back to BabylonGame
   - Known details display capped at 4 visible in contacts UI (GameMenuSystem:3041), with "+N more..." for overflow
 ---
+
+## 2026-04-08 - US-017: Resolve quest objective placeholders to actual entity IDs
+- Added `ResolvedEntities` and `FillResult` types to quest-assignment-engine.ts to track picked NPC Character objects and location names alongside string params
+- Modified `fillParameters()` to return entity data (NPC IDs, location names) via `npcByParam` and `locationByParam` Maps
+- Modified `buildObjectives()` to enrich objectives with `npcId`, `npcName`, `locationName`, `target` fields based on objective type (NPC_OBJECTIVE_TYPES, LOCATION_OBJECTIVE_TYPES)
+- Added skip logic in `assignQuests()`: quests requiring NPCs/locations that don't exist in the world are skipped rather than created with broken placeholders
+- Added `EntityRef` type and optional `entities` map to `InstantiateParams` in quest-seed-library.ts
+- Modified `instantiateSeed()` to enrich objectives with NPC/location entity data when `entities` map is provided
+- Updated callers: business-roleplay-quest-generator.ts, multi-npc-quest-generator.ts, emergency-quest-generator.ts, teaching-back-quests.ts — all now pass entity data alongside string values
+- Files changed:
+  - `shared/quests/quest-assignment-engine.ts` — ResolvedEntities, FillResult, entity-aware buildObjectives, skip logic
+  - `shared/language/quest-seed-library.ts` — EntityRef type, entities param, objective enrichment
+  - `shared/quests/business-roleplay-quest-generator.ts` — pass entities to instantiateSeed
+  - `shared/quests/multi-npc-quest-generator.ts` — pass entities to instantiateSeed
+  - `shared/quests/emergency-quest-generator.ts` — pass entities to instantiateSeed
+  - `shared/quest/teaching-back-quests.ts` — optional studentNpcId, pass entities
+- **Learnings for future iterations:**
+  - Two quest generation paths exist: `seedQuests()` (quest-seed-generator.ts, already resolved correctly) and `assignQuests()`/`instantiateSeed()` (needed enrichment)
+  - `for...of` on Map iterators causes TS errors — use `Array.from(map.entries())` with index loop instead
+  - Objective entity fields (`npcId`, `npcName`, `locationName`, `target`) are critical for quest completion matching in QuestCompletionEngine and waypoint navigation in DynamicQuestWaypointDirector
+  - NPC_OBJECTIVE_TYPES and LOCATION_OBJECTIVE_TYPES sets are defined in quest-world-validator.ts and quest-objective-fallbacks.ts — duplicated in quest-assignment-engine.ts for now
+---

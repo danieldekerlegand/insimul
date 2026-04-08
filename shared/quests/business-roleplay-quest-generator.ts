@@ -48,8 +48,12 @@ function charName(c: Character): string {
   return `${c.firstName} ${c.lastName}`.trim();
 }
 
+function getOwner(business: BusinessInfo, characters: Character[]): Character | null {
+  return characters.find(c => c.id === business.ownerId) ?? null;
+}
+
 function getOwnerName(business: BusinessInfo, characters: Character[]): string {
-  const owner = characters.find(c => c.id === business.ownerId);
+  const owner = getOwner(business, characters);
   return owner ? charName(owner) : 'the owner';
 }
 
@@ -97,7 +101,8 @@ export function generateBusinessRoleplayQuests(
       if (!seed) continue;
       if (difficulty && seed.difficulty !== difficulty) continue;
 
-      const ownerName = getOwnerName(business, characters);
+      const owner = getOwner(business, characters);
+      const ownerName = owner ? charName(owner) : 'the owner';
 
       const quest = instantiateSeed(seed, {
         worldId: world.id,
@@ -108,6 +113,10 @@ export function generateBusinessRoleplayQuests(
           businessName: business.name,
           npcName: ownerName,
           location: business.name,
+        },
+        entities: {
+          ...(owner ? { npcName: { id: owner.id, name: charName(owner), type: 'npc' as const } } : {}),
+          location: { id: business.id, name: business.name, type: 'location' as const },
         },
       });
 
@@ -142,6 +151,7 @@ export function generateBusinessRoleplayQuests(
             businessCount: Math.min(activeBusinesses.length, 3),
             itemCount: Math.min(activeBusinesses.length + 1, 4),
           },
+          entities: guide ? { npcName: { id: guide.id, name: charName(guide), type: 'npc' as const } } : undefined,
         });
         quest.tags = [...quest.tags, 'multi_business'];
         quests.push(quest);
@@ -149,8 +159,10 @@ export function generateBusinessRoleplayQuests(
 
       if ((seed.id === 'supply_chain_delivery' || seed.id === 'business_dispute') && activeBusinesses.length >= 2) {
         const [bizA, bizB] = shuffled(activeBusinesses).slice(0, 2);
-        const ownerA = getOwnerName(bizA, characters);
-        const ownerB = getOwnerName(bizB, characters);
+        const charA = getOwner(bizA, characters);
+        const charB = getOwner(bizB, characters);
+        const ownerA = charA ? charName(charA) : 'the owner';
+        const ownerB = charB ? charName(charB) : 'the owner';
 
         const quest = instantiateSeed(seed, {
           worldId: world.id,
@@ -165,6 +177,10 @@ export function generateBusinessRoleplayQuests(
             npcB: ownerB,
             businessA: bizA.name,
             businessB: bizB.name,
+          },
+          entities: {
+            ...(charA ? { senderNpc: { id: charA.id, name: ownerA, type: 'npc' as const }, npcA: { id: charA.id, name: ownerA, type: 'npc' as const } } : {}),
+            ...(charB ? { receiverNpc: { id: charB.id, name: ownerB, type: 'npc' as const }, npcB: { id: charB.id, name: ownerB, type: 'npc' as const } } : {}),
           },
         });
         quest.tags = [

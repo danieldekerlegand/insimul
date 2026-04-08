@@ -27,6 +27,8 @@ export interface TeachingQuestConfig {
   playerName: string;
   /** NPC who will be the "student" */
   studentNpcName: string;
+  /** NPC student's character ID (for objective matching) */
+  studentNpcId?: string;
   /** Player's current CEFR level — determines which seeds are available */
   playerCefrLevel?: string;
   /** Vocabulary the player has already learned (used to select teachable words) */
@@ -109,6 +111,9 @@ export function generateTeachingQuest(config: TeachingQuestConfig): Instantiated
     assignedTo: config.playerName,
     assignedBy: config.assignedBy,
     values,
+    entities: config.studentNpcId
+      ? { npcName: { id: config.studentNpcId, name: config.studentNpcName, type: 'npc' as const } }
+      : undefined,
   };
 
   return instantiateSeed(seed, params);

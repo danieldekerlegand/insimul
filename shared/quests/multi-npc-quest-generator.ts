@@ -216,12 +216,22 @@ export function generateMultiNpcQuests(
     const resolved = resolveNpcRoles(scenario, businessesWithOwners, characters);
     if (!resolved) continue;
 
+    // Build entity map from resolved participants
+    const entities: Record<string, { id: string; name: string; type: 'npc' | 'location' }> = {};
+    for (const roleSlot of scenario.npcRoles) {
+      const participant = resolved.participants.find(p => p.role === roleSlot.role);
+      if (participant) {
+        entities[roleSlot.paramName] = { id: participant.npcId, name: participant.npcName, type: 'npc' as const };
+      }
+    }
+
     const quest = instantiateSeed(scenario.seed, {
       worldId: world.id,
       targetLanguage,
       assignedTo,
       assignedBy: resolved.participants[0]?.npcName,
       values: resolved.values,
+      entities,
     });
 
     const multiNpcQuest: MultiNpcInstantiatedQuest = {

@@ -289,7 +289,7 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "The quest seed generator creates quests with placeholder strings. These need to be resolved during seedQuests() or distributeRadiantQuests() using the world's character and settlement data. Check quest-seed-generator.ts and quest-assignment-engine.ts for where placeholders are inserted."
     },
     {

@@ -51,6 +51,13 @@ export interface SeedCompletionCriteria {
   [key: string]: string | number | string[] | undefined;
 }
 
+/** Entity reference for enriching quest objectives with structured IDs */
+export interface EntityRef {
+  id: string;
+  name: string;
+  type: 'npc' | 'location';
+}
+
 export interface InstantiateParams {
   worldId: string;
   targetLanguage: string;
@@ -58,6 +65,8 @@ export interface InstantiateParams {
   assignedBy?: string;
   /** Values for the seed's param placeholders */
   values?: Record<string, string | number | string[]>;
+  /** Optional entity map: param name → entity data for enriching objectives with npcId/locationName */
+  entities?: Record<string, EntityRef>;
 }
 
 export interface InstantiatedQuest {
@@ -1477,6 +1486,20 @@ export function instantiateSeed(seed: QuestSeed, params: InstantiateParams): Ins
   const title = resolveTemplate(seed.titleTemplate, values);
   const description = resolveTemplate(seed.descriptionTemplate, values);
 
+  // Objective types that need NPC entity data
+  const NPC_OBJ_TYPES = new Set([
+    'talk_to_npc', 'complete_conversation', 'conversation_initiation',
+    'build_friendship', 'give_gift', 'escort_npc', 'introduce_self',
+    'ask_for_directions', 'order_food', 'haggle_price',
+    'teach_vocabulary', 'teach_phrase', 'listen_and_repeat',
+    'listening_comprehension', 'deliver_item',
+  ]);
+  const LOCATION_OBJ_TYPES = new Set([
+    'visit_location', 'discover_location', 'navigate_language', 'follow_directions',
+  ]);
+
+  const entityMap = params.entities ?? {};
+
   const objectives = seed.objectiveTemplates.map((ot) => {
     const count = typeof ot.countTemplate === 'string'
       ? Number(resolveTemplate(ot.countTemplate, values)) || 1
@@ -1487,12 +1510,53 @@ export function instantiateSeed(seed: QuestSeed, params: InstantiateParams): Ins
         resolvedExtra[k] = typeof v === 'string' ? resolveTemplate(v, values) : v;
       }
     }
-    return {
+
+    const obj: Record<string, any> = {
       type: ot.type,
       description: resolveTemplate(ot.descriptionTemplate, values),
       requiredCount: count,
       ...resolvedExtra,
     };
+
+    // Enrich objectives with entity data when available
+    if (NPC_OBJ_TYPES.has(ot.type)) {
+      // Find NPC entity referenced in this objective's description template
+      let npcEntity: EntityRef | null = null;
+      for (const [paramName, entity] of Object.entries(entityMap)) {
+        if (entity.type === 'npc' && ot.descriptionTemplate.includes(`{{${paramName}}}`)) {
+          npcEntity = entity;
+          break;
+        }
+      }
+      // Fall back to first NPC entity in the map
+      if (!npcEntity) {
+        npcEntity = Object.values(entityMap).find(e => e.type === 'npc') ?? null;
+      }
+      if (npcEntity) {
+        obj.npcId = npcEntity.id;
+        obj.npcName = npcEntity.name;
+        obj.target = npcEntity.name;
+      }
+    }
+
+    if (LOCATION_OBJ_TYPES.has(ot.type)) {
+      let locEntity: EntityRef | null = null;
+      for (const [paramName, entity] of Object.entries(entityMap)) {
+        if (entity.type === 'location' && ot.descriptionTemplate.includes(`{{${paramName}}}`)) {
+          locEntity = entity;
+          break;
+        }
+      }
+      if (!locEntity) {
+        locEntity = Object.values(entityMap).find(e => e.type === 'location') ?? null;
+      }
+      if (locEntity) {
+        obj.locationName = locEntity.name;
+        obj.target = locEntity.name;
+      }
+    }
+
+    return obj;
   });
 
   const completionCriteria: Record<string, any> = {};

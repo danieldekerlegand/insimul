@@ -165,28 +165,55 @@ const GRAMMAR_PATTERNS: Record<string, string[]> = {
   advanced: ['subjunctive', 'conditional', 'relative clauses', 'passive voice'],
 };
 
+/** Entity data resolved alongside template parameters. */
+interface ResolvedEntities {
+  /** Map from param name → picked NPC (for 'npc' type params) */
+  npcByParam: Map<string, Character>;
+  /** Map from param name → picked location name (for 'location' type params) */
+  locationByParam: Map<string, string>;
+}
+
+interface FillResult {
+  params: Record<string, string | number>;
+  entities: ResolvedEntities;
+  /** True if a required NPC or location was unavailable */
+  missingEntity: boolean;
+}
+
 /**
  * Fill template parameters with real world data.
+ * Also tracks entity IDs so objectives can be enriched with structured fields.
  */
 function fillParameters(
   template: QuestTemplate,
   ctx: WorldContext,
   playerName: string,
   difficulty: string,
-): Record<string, string | number> {
+): FillResult {
   const npcs = getNPCs(ctx.characters, playerName);
   const locations = getLocationNames(ctx.settlements);
   const params: Record<string, string | number> = {};
+  const npcByParam = new Map<string, Character>();
+  const locationByParam = new Map<string, string>();
+  let missingEntity = false;
 
   for (const param of template.parameters) {
     switch (param.type) {
       case 'npc': {
         const npc = npcs.length > 0 ? pick(npcs) : null;
-        params[param.name] = npc ? charName(npc) : 'a friendly local';
+        if (!npc) {
+          missingEntity = true;
+          params[param.name] = 'a friendly local';
+        } else {
+          params[param.name] = charName(npc);
+          npcByParam.set(param.name, npc);
+        }
         break;
       }
       case 'location': {
-        params[param.name] = pick(locations);
+        const loc = pick(locations);
+        params[param.name] = loc;
+        locationByParam.set(param.name, loc);
         break;
       }
       case 'number': {
@@ -229,7 +256,7 @@ function fillParameters(
     }
   }
 
-  return params;
+  return { params, entities: { npcByParam, locationByParam }, missingEntity };
 }
 
 // --- Template selection ---
@@ -321,26 +348,92 @@ function interpolate(
   return result;
 }
 
+// --- Objective type → target requirement ---
+
+const NPC_OBJECTIVE_TYPES = new Set([
+  'talk_to_npc', 'complete_conversation', 'conversation_initiation',
+  'build_friendship', 'give_gift', 'escort_npc', 'introduce_self',
+  'ask_for_directions', 'order_food', 'haggle_price',
+  'teach_vocabulary', 'teach_phrase', 'listen_and_repeat',
+  'listening_comprehension', 'deliver_item',
+]);
+
+const LOCATION_OBJECTIVE_TYPES = new Set([
+  'visit_location', 'discover_location', 'navigate_language',
+  'follow_directions',
+]);
+
 // --- Objective building ---
 
 function buildObjectives(
   template: QuestTemplate,
   params: Record<string, string | number>,
+  entities: ResolvedEntities,
 ): any[] {
+  // Find the first NPC and location from resolved entities for enrichment
+  const firstNpc = entities.npcByParam.size > 0
+    ? entities.npcByParam.values().next().value as Character
+    : null;
+  const firstLocation = entities.locationByParam.size > 0
+    ? entities.locationByParam.values().next().value as string
+    : null;
+
   return template.objectiveTemplates.map((ot, idx) => {
     const count =
       typeof params[Object.keys(params).find((k) => k.includes('Count') || k === 'count') ?? ''] === 'number'
         ? params[Object.keys(params).find((k) => k.includes('Count') || k === 'count') ?? '']
         : ot.requiredCount;
 
-    return {
+    const description = interpolate(ot.descriptionTemplate, params);
+    const obj: Record<string, any> = {
       id: `obj_${idx}`,
       type: ot.type,
-      description: interpolate(ot.descriptionTemplate, params),
+      description,
       requiredCount: typeof count === 'number' ? count : ot.requiredCount,
       currentCount: 0,
       completed: false,
     };
+
+    // Enrich NPC-based objectives with entity fields
+    if (NPC_OBJECTIVE_TYPES.has(ot.type)) {
+      // Try to find the NPC param referenced in this objective's description template
+      let npc: Character | null = null;
+      const npcEntries = Array.from(entities.npcByParam.entries());
+      for (let ei = 0; ei < npcEntries.length; ei++) {
+        const [paramName, paramNpc] = npcEntries[ei];
+        if (ot.descriptionTemplate.includes(`{{${paramName}}}`)) {
+          npc = paramNpc;
+          break;
+        }
+      }
+      // Fall back to the first available NPC
+      if (!npc) npc = firstNpc;
+      if (npc) {
+        obj.npcId = npc.id;
+        obj.npcName = charName(npc);
+        obj.target = charName(npc);
+      }
+    }
+
+    // Enrich location-based objectives with entity fields
+    if (LOCATION_OBJECTIVE_TYPES.has(ot.type)) {
+      let loc: string | null = null;
+      const locEntries = Array.from(entities.locationByParam.entries());
+      for (let ei = 0; ei < locEntries.length; ei++) {
+        const [paramName, paramLoc] = locEntries[ei];
+        if (ot.descriptionTemplate.includes(`{{${paramName}}}`)) {
+          loc = paramLoc;
+          break;
+        }
+      }
+      if (!loc) loc = firstLocation;
+      if (loc) {
+        obj.locationName = loc;
+        obj.target = loc;
+      }
+    }
+
+    return obj;
   });
 }
 
@@ -499,9 +592,16 @@ export function assignQuests(
 
   for (const template of templates) {
     const difficulty = adjustment ? adjustment.recommendedDifficulty : template.difficulty;
-    const params = fillParameters(template, ctx, options.playerName, difficulty);
+    const { params, entities, missingEntity } = fillParameters(template, ctx, options.playerName, difficulty);
+
+    // Skip quests that require NPC/location entities that don't exist
+    const needsNpc = template.parameters.some(p => p.type === 'npc');
+    const needsLocation = template.parameters.some(p => p.type === 'location');
+    if (missingEntity && needsNpc && entities.npcByParam.size === 0) continue;
+    if (needsLocation && entities.locationByParam.size === 0) continue;
+
     const rewards = scaleRewards(template, difficulty);
-    const rawObjectives = buildObjectives(template, params);
+    const rawObjectives = buildObjectives(template, params, entities);
 
     // Apply objective count adjustment if performance warrants it
     let adjustedObjectives = rawObjectives;

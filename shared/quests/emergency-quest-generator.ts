@@ -193,6 +193,9 @@ function tryLostAndFound(
 
   const itemName = ctx.items.length > 0 ? pick(ctx.items).name : pick(LOST_ITEMS);
 
+  const shopkeeperAChar = (ctx.activeChars as Character[]).find(c => c.id === bizA.ownerId);
+  const shopkeeperBChar = (ctx.activeChars as Character[]).find(c => c.id === bizB.ownerId);
+
   const quest = instantiateSeed(seed, {
     worldId: ctx.worldId,
     targetLanguage: ctx.targetLanguage,
@@ -202,9 +205,16 @@ function tryLostAndFound(
       itemName,
       ownerNpc: charName(ownerNpc),
       businessA: bizA.name,
-      shopkeeperA: getOwnerName(bizA, ctx.activeChars as Character[]),
+      shopkeeperA: shopkeeperAChar ? charName(shopkeeperAChar) : 'the shopkeeper',
       businessB: bizB.name,
-      shopkeeperB: getOwnerName(bizB, ctx.activeChars as Character[]),
+      shopkeeperB: shopkeeperBChar ? charName(shopkeeperBChar) : 'the shopkeeper',
+    },
+    entities: {
+      ownerNpc: { id: ownerNpc.id, name: charName(ownerNpc), type: 'npc' as const },
+      ...(shopkeeperAChar ? { shopkeeperA: { id: shopkeeperAChar.id, name: charName(shopkeeperAChar), type: 'npc' as const } } : {}),
+      ...(shopkeeperBChar ? { shopkeeperB: { id: shopkeeperBChar.id, name: charName(shopkeeperBChar), type: 'npc' as const } } : {}),
+      businessA: { id: bizA.id, name: bizA.name, type: 'location' as const },
+      businessB: { id: bizB.id, name: bizB.name, type: 'location' as const },
     },
   });
 
@@ -239,6 +249,11 @@ function tryMedicalEmergency(
       healerBusiness: healerBiz.name,
       symptom: pick(SYMPTOMS),
     },
+    entities: {
+      patientNpc: { id: patient.id, name: charName(patient), type: 'npc' as const },
+      healerNpc: { id: healerNpc.id, name: charName(healerNpc), type: 'npc' as const },
+      healerBusiness: { id: healerBiz.id, name: healerBiz.name, type: 'location' as const },
+    },
   });
 
   return applyEmergencyMetadata(quest, seed.id);
@@ -251,15 +266,22 @@ function tryWrongOrder(
   const orderBiz = ctx.activeBusinesses.find(b => ORDER_BUSINESS_TYPES.has(b.businessType))
     || pick(ctx.activeBusinesses);
 
+  const ownerChar = (ctx.activeChars as Character[]).find(c => c.id === orderBiz.ownerId);
+  const ownerN = ownerChar ? charName(ownerChar) : 'the owner';
+
   const quest = instantiateSeed(seed, {
     worldId: ctx.worldId,
     targetLanguage: ctx.targetLanguage,
     assignedTo: ctx.assignedTo,
     values: {
       businessName: orderBiz.name,
-      npcName: getOwnerName(orderBiz, ctx.activeChars as Character[]),
+      npcName: ownerN,
       wrongItem: 'the wrong item',
       correctItem: 'what you ordered',
+    },
+    entities: {
+      ...(ownerChar ? { npcName: { id: ownerChar.id, name: ownerN, type: 'npc' as const } } : {}),
+      businessName: { id: orderBiz.id, name: orderBiz.name, type: 'location' as const },
     },
   });
 
@@ -273,18 +295,28 @@ function tryRushDelivery(
   if (ctx.activeBusinesses.length < 2) return null;
 
   const [bizA, bizB] = shuffled(ctx.activeBusinesses).slice(0, 2);
+  const senderChar = (ctx.activeChars as Character[]).find(c => c.id === bizA.ownerId);
+  const receiverChar = (ctx.activeChars as Character[]).find(c => c.id === bizB.ownerId);
+  const senderName = senderChar ? charName(senderChar) : 'the sender';
+  const receiverName = receiverChar ? charName(receiverChar) : 'the receiver';
 
   const quest = instantiateSeed(seed, {
     worldId: ctx.worldId,
     targetLanguage: ctx.targetLanguage,
     assignedTo: ctx.assignedTo,
-    assignedBy: getOwnerName(bizA, ctx.activeChars as Character[]),
+    assignedBy: senderName,
     values: {
-      senderNpc: getOwnerName(bizA, ctx.activeChars as Character[]),
+      senderNpc: senderName,
       senderBusiness: bizA.name,
-      receiverNpc: getOwnerName(bizB, ctx.activeChars as Character[]),
+      receiverNpc: receiverName,
       receiverBusiness: bizB.name,
       orderItem: 'supplies',
+    },
+    entities: {
+      ...(senderChar ? { senderNpc: { id: senderChar.id, name: senderName, type: 'npc' as const } } : {}),
+      ...(receiverChar ? { receiverNpc: { id: receiverChar.id, name: receiverName, type: 'npc' as const } } : {}),
+      senderBusiness: { id: bizA.id, name: bizA.name, type: 'location' as const },
+      receiverBusiness: { id: bizB.id, name: bizB.name, type: 'location' as const },
     },
   });
 
