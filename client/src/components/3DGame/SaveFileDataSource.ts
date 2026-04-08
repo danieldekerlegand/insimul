@@ -39,19 +39,7 @@ export class SaveFileDataSource implements DataSource {
     this.authToken = authToken;
     this.baseUrl = baseUrl;
 
-    // Ensure all nested state objects exist (save files created before defaults may be missing them)
-    if (!this.state.player) this.state.player = { position: {x:0,y:0,z:0}, rotation: {x:0,y:0,z:0}, gold: 100, health: 100, energy: 100, inventory: [], cefrLevel: null, effectiveFluency: null };
-    if (!this.state.quests) this.state.quests = { progress: {}, dynamicQuests: [] };
-    if (!this.state.quests.progress) this.state.quests.progress = {};
-    if (!this.state.quests.dynamicQuests) this.state.quests.dynamicQuests = [];
-    if (!this.state.npcs) this.state.npcs = { relationships: {}, romance: {}, merchantStates: {} };
-    if (!this.state.npcs.relationships) this.state.npcs.relationships = {};
-    if (!this.state.reputation) this.state.reputation = { settlements: {} };
-    if (!this.state.reputation.settlements) this.state.reputation.settlements = {};
-    if (!this.state.containers) this.state.containers = { containers: {} };
-    if (!this.state.languageProgress) this.state.languageProgress = { vocabulary: [], grammarPatterns: [], totalXP: 0, level: 1 };
-    if (!this.state.prologFacts) this.state.prologFacts = [];
-    if (!this.state.extensions) this.state.extensions = {};
+    this.ensureStateDefaults();
 
     // Initialize quest overlay and storage provider
     this.questOverlay = new PlaythroughQuestOverlay();
@@ -104,6 +92,22 @@ export class SaveFileDataSource implements DataSource {
   /** Get mutable reference to currentState for the pre-save callback to populate. */
   getCurrentState(): CurrentGameState {
     return this.state;
+  }
+
+  /** Ensure all nested state objects have defaults (new saves may have empty state). */
+  private ensureStateDefaults(): void {
+    if (!this.state.player) this.state.player = { position: {x:0,y:0,z:0}, rotation: {x:0,y:0,z:0}, gold: 100, health: 100, energy: 100, inventory: [], cefrLevel: null, effectiveFluency: null };
+    if (!this.state.quests) this.state.quests = { progress: {}, dynamicQuests: [] };
+    if (!this.state.quests.progress) this.state.quests.progress = {};
+    if (!this.state.quests.dynamicQuests) this.state.quests.dynamicQuests = [];
+    if (!this.state.npcs) this.state.npcs = { relationships: {}, romance: {}, merchantStates: {} };
+    if (!this.state.npcs.relationships) this.state.npcs.relationships = {};
+    if (!this.state.reputation) this.state.reputation = { settlements: {} };
+    if (!this.state.reputation.settlements) this.state.reputation.settlements = {};
+    if (!this.state.containers) this.state.containers = { containers: {} };
+    if (!this.state.languageProgress) this.state.languageProgress = { vocabulary: [], grammarPatterns: [], totalXP: 0, level: 1 };
+    if (!this.state.prologFacts) this.state.prologFacts = [];
+    if (!this.state.extensions) this.state.extensions = {};
   }
 
   async persistToServer(): Promise<void> {
@@ -267,6 +271,7 @@ export class SaveFileDataSource implements DataSource {
           this.snapshot = newSave.worldSnapshot;
           this.state = newSave.currentState || {} as CurrentGameState;
           this.conversations = newSave.conversations || [];
+          this.ensureStateDefaults();
           // Reinitialize overlay for fresh game
           this.questOverlay = new PlaythroughQuestOverlay();
           return { id: newSave.id, name: newSave.name };

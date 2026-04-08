@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T23:22:44.516Z",
+  "lastUpdated": "2026-04-08T23:36:29.973Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "7f97f22678fc6e8a73a9820d8804d0fe5ba2a4880e144acfea8951eedddebba9",
+      "hash": "b1650dd15f6028f4e2c43d71519826c9046eca54cb3a368e309b453b2dbc07af",
       "engineMappings": [
         {
           "engine": "unity",
