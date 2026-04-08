@@ -1463,6 +1463,23 @@ export class BabylonGame {
         });
         return result;
       },
+      getConversationHistory: () => {
+        const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
+        if (!tracker) return undefined;
+        const records = tracker.getConversationRecords();
+        if (records.length === 0) return undefined;
+        // Limit to most recent 50 and convert to SavedConversationRecord
+        const recent = records.slice(-50);
+        return recent.map((r) => ({
+          npcId: r.characterId,
+          npcName: r.characterName,
+          timestamp: new Date(r.timestamp).toISOString(),
+          turnCount: r.turns,
+          wordsUsed: r.wordsUsed,
+          targetLanguagePercent: r.targetLanguagePercentage,
+          fluencyGained: r.fluencyGained,
+        }));
+      },
     };
   }
 
@@ -1636,6 +1653,25 @@ export class BabylonGame {
             disposition: c.disposition ?? 0,
           });
         }
+      },
+      restoreConversationHistory: (data: any) => {
+        if (!Array.isArray(data) || data.length === 0) return;
+        const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
+        if (!tracker) return;
+        // Convert SavedConversationRecord[] back to ConversationRecord[]
+        const records = data.map((r: any) => ({
+          id: `conv_saved_${new Date(r.timestamp).getTime()}`,
+          characterId: r.npcId ?? '',
+          characterName: r.npcName ?? '',
+          timestamp: new Date(r.timestamp).getTime(),
+          turns: r.turnCount ?? 0,
+          wordsUsed: r.wordsUsed ?? [],
+          targetLanguagePercentage: r.targetLanguagePercent ?? 0,
+          fluencyGained: r.fluencyGained ?? 0,
+          grammarErrorCount: 0,
+          grammarCorrectCount: 0,
+        }));
+        tracker.restoreConversationRecords(records);
       },
     };
   }

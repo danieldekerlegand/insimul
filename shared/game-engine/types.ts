@@ -1513,6 +1513,8 @@ export interface GameSaveState {
   readingProgress?: SavedReadingProgress;
   /** NPC contact list: met status, conversation counts, disposition */
   contacts?: Record<string, SavedNPCContact>;
+  /** Conversation history: recent NPC conversation summaries */
+  conversations?: SavedConversationRecord[];
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
 }
@@ -1548,6 +1550,24 @@ export interface SavedNPCContact {
   lastSpokenAt: string;
   /** Disposition/relationship score (-100 to 100) */
   disposition: number;
+}
+
+/** Persisted conversation record for save/load. */
+export interface SavedConversationRecord {
+  /** NPC character ID */
+  npcId: string;
+  /** NPC display name */
+  npcName: string;
+  /** ISO timestamp of when the conversation occurred */
+  timestamp: string;
+  /** Number of player turns */
+  turnCount: number;
+  /** Target-language words used during the conversation */
+  wordsUsed: string[];
+  /** Percentage of target language usage (0-100) */
+  targetLanguagePercent: number;
+  /** Fluency points gained from this conversation */
+  fluencyGained: number;
 }
 
 // ─── Photography ────────────────────────────────────────────────────────────

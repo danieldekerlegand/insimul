@@ -613,6 +613,28 @@ export class LanguageProgressTracker {
   public getProgress(): LanguageProgress { return { ...this.progress }; }
   public getFluency(): number { return this.progress.overallFluency; }
 
+  /**
+   * Get conversation records (for serialization into save state).
+   */
+  public getConversationRecords(): ConversationRecord[] {
+    return [...this.progress.conversations];
+  }
+
+  /**
+   * Restore conversation records from saved data (e.g. after loading a save file).
+   * Merges with any existing records, deduplicating by conversation id.
+   */
+  public restoreConversationRecords(records: ConversationRecord[]): void {
+    const existingIds = new Set(this.progress.conversations.map(c => c.id));
+    for (const record of records) {
+      if (!existingIds.has(record.id)) {
+        this.progress.conversations.push(record);
+        existingIds.add(record.id);
+      }
+    }
+    this.progress.totalConversations = this.progress.conversations.length;
+  }
+
   public getPlayerProficiency(): PlayerProficiency {
     const weakPatterns = this.getWeakGrammarPatterns();
     const strongPatterns = this.progress.grammarPatterns.filter(p => p.mastered);

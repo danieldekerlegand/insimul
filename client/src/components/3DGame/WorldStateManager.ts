@@ -74,6 +74,7 @@ export interface GameStateSource {
   getClueState?(): any;
   getReadingProgress?(): SavedReadingProgress | undefined;
   getContacts?(): Record<string, SavedNPCContact> | undefined;
+  getConversationHistory?(): import('@shared/game-engine/types').SavedConversationRecord[] | undefined;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -111,6 +112,7 @@ export interface GameStateTarget {
   restoreClueState?(data: any): void;
   restoreReadingProgress?(data: SavedReadingProgress): void;
   restoreContacts?(data: Record<string, SavedNPCContact>): void;
+  restoreConversationHistory?(data: import('@shared/game-engine/types').SavedConversationRecord[]): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -158,6 +160,7 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'clueState',
   'readingProgress',
   'contacts',
+  'conversations',
 ];
 
 export interface SaveStateAuditResult {
@@ -368,6 +371,7 @@ export class WorldStateManager {
       clueState: src.getClueState?.() ?? undefined,
       readingProgress: src.getReadingProgress?.() ?? undefined,
       contacts: src.getContacts?.() ?? undefined,
+      conversations: src.getConversationHistory?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -394,7 +398,7 @@ export class WorldStateManager {
       'interiorState', 'timeState', 'questActiveState',
       'languageProgressDetailed', 'reputationState',
       'relationshipDeltas', 'mainQuestState', 'photoBook',
-      'prologFacts', 'clueState', 'readingProgress', 'contacts',
+      'prologFacts', 'clueState', 'readingProgress', 'contacts', 'conversations',
     ];
 
     for (const field of fieldsToCompare) {
@@ -615,6 +619,9 @@ export class WorldStateManager {
     }
     if (state.contacts != null) {
       target.restoreContacts?.(state.contacts);
+    }
+    if (state.conversations != null) {
+      target.restoreConversationHistory?.(state.conversations);
     }
   }
 
