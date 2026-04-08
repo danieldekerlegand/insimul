@@ -317,6 +317,97 @@ export interface AssessmentSession {
 // Assessment Modal UI Config
 // ───────────────────────────────────────────────────────────────────────────
 
+// ───────────────────────────────────────────────────────────────────────────
+// Quest-Embedded Assessment Types (stored in quest customData.assessment)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * A single task result storing the player's answer and score.
+ * Stored in quest overlay phaseResults.
+ */
+export interface AssessmentTaskResult {
+  taskId: string;
+  playerAnswer: string;
+  score: number;
+  maxPoints: number;
+}
+
+/**
+ * Result for a single assessment phase, stored in quest overlay.
+ * Contains player answers and scores for each task in the phase.
+ */
+export interface AssessmentPhaseResult {
+  phaseId: string;
+  score: number;
+  maxScore: number;
+  taskResults: AssessmentTaskResult[];
+  dimensionScores: Record<string, number>;
+  completedAt: string;
+}
+
+/**
+ * Final assessment completion result stored in quest overlay.
+ * Computed client-side when all phase objectives are complete.
+ */
+export interface AssessmentCompletionResult {
+  totalScore: number;
+  maxScore: number;
+  cefrLevel: CEFRLevel;
+  dimensionScores: Record<string, number>;
+  completedAt: string;
+}
+
+/**
+ * Assessment data embedded in quest customData.assessment.
+ * Matches the shape of AssessmentDefinition so the UI can consume it
+ * without changes, but lives entirely within the quest document.
+ */
+export interface AssessmentQuestData {
+  assessmentType: AssessmentType;
+  totalMaxPoints: number;
+  estimatedMinutes: number;
+  phases: AssessmentQuestPhase[];
+}
+
+/**
+ * A phase within an AssessmentQuestData, containing pre-generated content.
+ */
+export interface AssessmentQuestPhase {
+  id: string;
+  type: PhaseType;
+  name: string;
+  tasks: AssessmentQuestTask[];
+  maxScore: number;
+  scoringDimensions: ScoringDimension[];
+}
+
+/**
+ * A task within an assessment quest phase.
+ * Includes both the template definition and any pre-generated content
+ * (passage, questions, writingPrompts) baked in at world creation time.
+ */
+export interface AssessmentQuestTask {
+  id: string;
+  type: TaskType;
+  prompt: string;
+  maxPoints: number;
+  scoringMethod: ScoringMethod;
+  scoringDimensions: ScoringDimension[];
+  contentTemplate?: ContentTemplate;
+  /** Pre-generated reading/listening passage (populated at world creation) */
+  passage?: string;
+  /** Pre-generated comprehension questions (populated at world creation) */
+  questions?: AssessmentQuestion[];
+  /** Pre-generated writing prompts (populated at world creation) */
+  writingPrompts?: string[];
+  /** Config for conversation quest phase */
+  questConfig?: ConversationQuestConfig;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Assessment Modal UI Config
+// ───────────────────────────────────────────────────────────────────────────
+
 /** Configuration for the assessment modal (reading/writing/listening phases). */
 export interface AssessmentModalConfig {
   phaseType: 'reading' | 'writing' | 'listening';
