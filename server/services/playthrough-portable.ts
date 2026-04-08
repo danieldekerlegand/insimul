@@ -3,11 +3,9 @@ import { getPlaythroughReputations } from './reputation-service';
 import type {
   Playthrough,
   PlaythroughDelta,
-  PlayTrace,
   Reputation,
   InsertPlaythrough,
   InsertPlaythroughDelta,
-  InsertPlayTrace,
   InsertReputation,
 } from '@shared/schema';
 import { db } from '../db';
@@ -24,7 +22,6 @@ export interface PortableSave {
   checksum: string;
   playthrough: Omit<Playthrough, 'id' | 'userId'>;
   deltas: Omit<PlaythroughDelta, 'id' | 'playthroughId'>[];
-  traces: Omit<PlayTrace, 'id' | 'playthroughId' | 'userId'>[];
   reputations: Omit<Reputation, 'id' | 'playthroughId' | 'userId'>[];
 }
 
@@ -35,7 +32,6 @@ function computeChecksum(data: Omit<PortableSave, 'checksum'>): string {
     sourceWorldId: data.sourceWorldId,
     playthrough: data.playthrough,
     deltas: data.deltas,
-    traces: data.traces,
     reputations: data.reputations,
   });
   return crypto.createHash('sha256').update(json).digest('hex').slice(0, 16);
@@ -47,18 +43,14 @@ function computeChecksum(data: Omit<PortableSave, 'checksum'>): string {
  */
 export async function exportPlaythrough(
   playthroughId: string,
-  options: { includeTraces?: boolean } = {}
 ): Promise<PortableSave> {
   const playthrough = await storage.getPlaythrough(playthroughId);
   if (!playthrough) {
     throw new Error('Playthrough not found');
   }
 
-  const [deltas, traces, reps] = await Promise.all([
+  const [deltas, reps] = await Promise.all([
     storage.getDeltasByPlaythrough(playthroughId),
-    options.includeTraces !== false
-      ? storage.getTracesByPlaythrough(playthroughId)
-      : Promise.resolve([]),
     getPlaythroughReputations(playthroughId),
   ]);
 
@@ -66,7 +58,6 @@ export async function exportPlaythrough(
   const { id: _pid, userId: _uid, ...playthroughData } = playthrough;
 
   const portableDeltas = deltas.map(({ id, playthroughId: _ptId, ...rest }) => rest);
-  const portableTraces = traces.map(({ id, playthroughId: _ptId, userId: _uId, ...rest }) => rest);
   const portableReps = reps.map(({ id, playthroughId: _ptId, userId: _uId, ...rest }) => rest);
 
   const partial: Omit<PortableSave, 'checksum'> = {
@@ -76,7 +67,6 @@ export async function exportPlaythrough(
     sourceWorldSnapshotVersion: playthrough.worldSnapshotVersion,
     playthrough: playthroughData,
     deltas: portableDeltas,
-    traces: portableTraces,
     reputations: portableReps,
   };
 
@@ -115,10 +105,6 @@ export function validatePortableSave(data: unknown): string | null {
 
   if (!Array.isArray(save.deltas)) {
     return 'Missing or invalid deltas array';
-  }
-
-  if (!Array.isArray(save.traces)) {
-    return 'Missing or invalid traces array';
   }
 
   if (!Array.isArray(save.reputations)) {
@@ -185,27 +171,6 @@ export async function importPlaythrough(
       timestep: delta.timestep,
       description: delta.description,
       tags: delta.tags,
-    });
-  }
-
-  // Import traces
-  for (const trace of saveData.traces) {
-    await storage.createPlayTrace({
-      playthroughId: newPlaythrough.id,
-      userId,
-      actionType: trace.actionType,
-      actionName: trace.actionName,
-      actionData: trace.actionData,
-      timestep: trace.timestep,
-      characterId: trace.characterId,
-      targetId: trace.targetId,
-      targetType: trace.targetType,
-      locationId: trace.locationId,
-      outcome: trace.outcome,
-      outcomeData: trace.outcomeData,
-      stateChanges: trace.stateChanges,
-      narrativeText: trace.narrativeText,
-      durationMs: trace.durationMs,
     });
   }
 

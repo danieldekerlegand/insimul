@@ -4,7 +4,7 @@
  * CRUD endpoints for the unified save file system.
  * Each save file is a self-contained game state document that includes
  * an embedded world snapshot, current game state, compressed conversations,
- * and an append-only playtrace log.
+ * and compressed conversation history.
  */
 
 import type { Express } from 'express';
@@ -52,14 +52,6 @@ export function registerSaveFileRoutes(app: Express) {
         conversations: [],
       });
 
-      // Store the initial playtrace in the separate collection
-      await storage.appendPlaytraces(save.id, [{
-        timestamp: new Date().toISOString(),
-        action: 'game_started',
-        description: 'New game started',
-        details: { worldName: worldSnapshot.world.name },
-      }]);
-
       // Return save ID + summary (not the full snapshot, which could be huge)
       res.status(201).json({
         id: save.id,
@@ -96,7 +88,6 @@ export function registerSaveFileRoutes(app: Express) {
         createdAt: s.createdAt,
         lastSavedAt: s.lastSavedAt,
         worldName: s.worldSnapshot?.world?.name,
-        playtraceCount: s.playtraces?.length || 0,
         conversationCount: s.conversations?.length || 0,
       }));
       res.json(summaries);
@@ -154,7 +145,6 @@ export function registerSaveFileRoutes(app: Express) {
         worldSnapshot,
         currentState: currentState || {},
         conversations: [],
-        playtraces: [],
       });
 
       res.status(201).json({ id: save.id, slotIndex: save.slotIndex });
@@ -182,22 +172,6 @@ export function registerSaveFileRoutes(app: Express) {
     } catch (error) {
       console.error('Failed to save game:', error);
       res.status(500).json({ error: 'Failed to save game' });
-    }
-  });
-
-  // Append playtraces (separate endpoint so traces can be batched without overwriting state)
-  app.post('/api/saves/:saveId/playtraces', async (req, res) => {
-    try {
-      const { traces } = req.body;
-      if (!Array.isArray(traces) || traces.length === 0) {
-        return res.status(400).json({ error: 'traces array is required' });
-      }
-      const ok = await storage.appendPlaytraces(req.params.saveId, traces);
-      if (!ok) return res.status(404).json({ error: 'Save file not found' });
-      res.json({ appended: traces.length });
-    } catch (error) {
-      console.error('Failed to append playtraces:', error);
-      res.status(500).json({ error: 'Failed to append playtraces' });
     }
   });
 

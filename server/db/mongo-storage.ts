@@ -43,8 +43,6 @@ import {
   type InsertPlaythrough,
   type PlaythroughDelta,
   type InsertPlaythroughDelta,
-  type PlayTrace,
-  type InsertPlayTrace,
   type Item,
   type InsertItem,
   type Container as ContainerSchema,
@@ -169,8 +167,6 @@ interface PlaythroughDoc extends Omit<Playthrough, 'id'>, Document {
 interface PlaythroughDeltaDoc extends Omit<PlaythroughDelta, 'id'>, Document {
   _id: string;
 }
-
-// PlayTraceDoc removed — play traces now stored as truths
 
 interface PlaythroughConversationDoc extends Omit<PlaythroughConversation, 'id'>, Document {
   _id: string;
@@ -771,7 +767,7 @@ const GenerationJobSchema = new Schema({
 
 // PlaythroughSchema removed — replaced by SaveFileSchema
 
-// PlaythroughDeltaSchema removed — replaced by save file playtraces
+// PlaythroughDeltaSchema removed — replaced by save file currentState
 // PlaythroughConversationSchema removed — replaced by save file conversations
 
 // ReputationSchema removed — reputations are now truths with entryType='reputation'
@@ -794,7 +790,6 @@ const SaveFileSchema = new Schema({
   currentState: { type: Schema.Types.Mixed, default: {} },
   // Compressed conversation history
   conversations: { type: [Schema.Types.Mixed], default: [] },
-  // Playtraces stored in separate 'playtraces' collection, not embedded here
   createdAt: { type: Date, default: Date.now },
   lastSavedAt: { type: Date, default: Date.now },
 });
@@ -1020,7 +1015,6 @@ const UserModel = mongoose.model<UserDoc>('User', UserSchema);
 const _removedModel = { find: () => ({ sort: () => Promise.resolve([]) }), findById: () => Promise.resolve(null), findOne: () => ({ sort: () => Promise.resolve(null) }), create: () => Promise.reject(new Error('Playthroughs removed — use save files')), deleteMany: () => Promise.resolve({ deletedCount: 0 }), findByIdAndUpdate: () => Promise.resolve(null), findByIdAndDelete: () => Promise.resolve(null), updateOne: () => Promise.resolve({ modifiedCount: 0 }), insertMany: () => Promise.resolve([]) };
 const PlaythroughModel = _removedModel as any;
 const PlaythroughDeltaModel = _removedModel as any;
-// PlayTraceModel removed — use TruthModel with entryType='play_trace'
 const PlaythroughConversationModel = _removedModel as any;
 // ReputationModel removed — use TruthModel with entryType='reputation'
 // PlaythroughRelationshipModel removed — use TruthModel with entryType='relationship'
@@ -1229,11 +1223,6 @@ function docToPlaythrough(doc: PlaythroughDoc): Playthrough {
 
 function docToPlaythroughDelta(doc: PlaythroughDeltaDoc): PlaythroughDelta {
   return { ...doc.toObject(), id: doc._id.toString() };
-}
-
-function truthToPlayTrace(doc: any): PlayTrace {
-  const obj = doc.toObject ? doc.toObject() : doc;
-  return { id: (doc._id || obj._id).toString(), playthroughId: obj.playthroughId, ...obj.sourceData } as any;
 }
 
 function docToPlaythroughConversation(doc: PlaythroughConversationDoc): PlaythroughConversation {
@@ -2351,12 +2340,6 @@ export class MongoStorage implements IStorage {
     return doc && (doc as any).entryType === 'occupation' ? this.truthToOccupation(doc) : undefined;
   }
 
-  async getOccupationsByCharacter(characterId: string): Promise<any[]> {
-    await this.connect();
-    const docs = await TruthModel.find({ entryType: 'occupation', 'sourceData.characterId': characterId });
-    return docs.map(d => this.truthToOccupation(d));
-  }
-
   async getOccupationsByBusiness(businessId: string): Promise<any[]> {
     await this.connect();
     const docs = await TruthModel.find({ entryType: 'occupation', 'sourceData.businessId': businessId });
@@ -3315,19 +3298,6 @@ export class MongoStorage implements IStorage {
     return session ? { ...session, id } as PlayerSession : undefined;
   }
 
-  async getPlayerSessionsByUser(userId: string): Promise<PlayerSession[]> {
-    await this.connect();
-    const docs = await TruthModel.find({ entryType: 'player_progress', 'sourceData.userId': userId });
-    const sessions: PlayerSession[] = [];
-    for (const doc of docs) {
-      for (const s of ((doc as any).sourceData?.sessions as any[]) || []) {
-        sessions.push({ ...s, id: s._id?.toString() || s.id } as PlayerSession);
-      }
-    }
-    sessions.sort((a: any, b: any) => (b.startedAt?.getTime?.() || 0) - (a.startedAt?.getTime?.() || 0));
-    return sessions;
-  }
-
   async createPlayerSession(session: InsertPlayerSession): Promise<PlayerSession> {
     await this.connect();
     const sessionData = { ...session, _id: new mongoose.Types.ObjectId(), startedAt: new Date(), createdAt: new Date() };
@@ -3578,48 +3548,6 @@ export class MongoStorage implements IStorage {
     }
 
     return { before, after: compacted.length };
-  }
-
-  // ===== Play Traces (stored as truths with entryType='play_trace') =====
-  async getPlayTrace(id: string): Promise<PlayTrace | undefined> {
-    await this.connect();
-    const doc = await TruthModel.findById(id);
-    return doc && (doc as any).entryType === 'play_trace' ? truthToPlayTrace(doc) : undefined;
-  }
-
-  async getTracesByPlaythrough(playthroughId: string): Promise<PlayTrace[]> {
-    await this.connect();
-    const docs = await TruthModel.find({ entryType: 'play_trace', playthroughId }).sort({ createdAt: 1 });
-    return docs.map(truthToPlayTrace);
-  }
-
-  async getTracesByUser(userId: string): Promise<PlayTrace[]> {
-    await this.connect();
-    const docs = await TruthModel.find({ entryType: 'play_trace', 'sourceData.userId': userId }).sort({ createdAt: -1 });
-    return docs.map(truthToPlayTrace);
-  }
-
-  async createPlayTrace(trace: InsertPlayTrace): Promise<PlayTrace> {
-    await this.connect();
-    const t = trace as any;
-    const doc = await TruthModel.create({
-      worldId: t.worldId || 'unknown',
-      playthroughId: t.playthroughId,
-      characterId: t.characterId || null,
-      title: `Trace: ${t.actionType}${t.actionName ? ' - ' + t.actionName : ''}`,
-      content: `play_trace('${t.playthroughId}', '${t.actionType}', ${t.timestep}).`,
-      entryType: 'play_trace',
-      timestep: t.timestep || 0,
-      source: 'play_trace',
-      sourceData: trace,
-    });
-    return truthToPlayTrace(doc);
-  }
-
-  async deletePlayTrace(id: string): Promise<boolean> {
-    await this.connect();
-    const result = await TruthModel.findByIdAndDelete(id);
-    return !!result;
   }
 
   // ===== Playthrough Conversations =====
@@ -3968,12 +3896,6 @@ export class MongoStorage implements IStorage {
     return docToAssessmentSession(doc);
   }
 
-  async getAssessmentSession(id: string): Promise<AssessmentSession | undefined> {
-    await this.connect();
-    const doc = await AssessmentModel.findById(id);
-    return doc ? docToAssessmentSession(doc) : undefined;
-  }
-
   async updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined> {
     await this.connect();
     const existing = await AssessmentModel.findById(sessionId);
@@ -4112,41 +4034,7 @@ export class MongoStorage implements IStorage {
     };
   }
 
-  // ============= TERRAIN FEATURES =============
-
   // ============= GEOGRAPHIC FEATURES (unified terrain + water) =============
-
-  async getTerrainFeature(id: string): Promise<any | undefined> {
-    await this.connect();
-    const doc = await LocationModel.findById(id);
-    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
-  }
-
-  async getTerrainFeaturesByWorld(worldId: string): Promise<any[]> {
-    await this.connect();
-    const docs = await LocationModel.find({ worldId, featureCategory: 'terrain' });
-    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
-  }
-
-  async createTerrainFeature(feature: any): Promise<any> {
-    await this.connect();
-    const doc = await LocationModel.create({ ...feature, featureCategory: 'terrain' });
-    return { id: doc._id.toString(), ...doc.toObject() };
-  }
-
-  async updateTerrainFeature(id: string, feature: any): Promise<any | undefined> {
-    await this.connect();
-    const doc = await LocationModel.findByIdAndUpdate(
-      id, { $set: { ...feature, updatedAt: new Date() } }, { new: true }
-    );
-    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
-  }
-
-  async deleteTerrainFeature(id: string): Promise<boolean> {
-    await this.connect();
-    const result = await LocationModel.findByIdAndDelete(id);
-    return !!result;
-  }
 
   async getWaterFeature(id: string): Promise<any | undefined> {
     await this.connect();
@@ -4507,16 +4395,6 @@ export class MongoStorage implements IStorage {
       { new: true }
     );
     return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
-  }
-
-  async appendPlaytraces(saveId: string, traces: any[]): Promise<boolean> {
-    await this.connect();
-    // Store traces in a separate collection to avoid bloating the save document
-    const db = mongoose.connection.db!;
-    const traceColl = db.collection('playtraces');
-    const docs = traces.map(t => ({ saveId, ...t, createdAt: new Date() }));
-    await traceColl.insertMany(docs, { ordered: false });
-    return true;
   }
 
   async deleteSaveFile(id: string): Promise<boolean> {

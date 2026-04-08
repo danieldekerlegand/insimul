@@ -8,7 +8,7 @@
  * - Editor UI: playthrough analytics, conversation history viewer
  * - Backward compatibility: existing playthroughs created before the save file system
  *
- * Game-runtime endpoints (reputation, relationships, quest progress, traces)
+ * Game-runtime endpoints (reputation, relationships, quest progress)
  * are DEPRECATED — the game writes to the save file's currentState instead.
  */
 import type { Express } from "express";
@@ -16,7 +16,7 @@ import { storage } from '../db/storage';
 import { AuthService } from "../services/auth-service";
 import { canAccessWorld, canEditWorld } from "../middleware/permissions";
 import * as ReputationService from "../services/reputation-service";
-import { accumulateMetrics, isDecisionAction, getMetricsSnapshot } from "../services/playthrough-metrics";
+import { accumulateMetrics, getMetricsSnapshot } from "../services/playthrough-metrics";
 import { exportPlaythrough, importPlaythrough, validatePortableSave } from "../services/playthrough-portable";
 import { checkSnapshotCompatibility } from "@shared/world-snapshot-version";
 import { computeCrossPlaythroughAnalytics } from "../services/playthrough-analytics";
@@ -427,150 +427,6 @@ export function registerPlaythroughRoutes(app: Express) {
     } catch (error) {
       console.error("Compact deltas error:", error);
       res.status(500).json({ message: "Failed to compact deltas" });
-    }
-  });
-
-  // ===== PLAY TRACE ROUTES =====
-
-  // Get play traces for a playthrough
-  app.get("/api/playthroughs/:id/traces", async (req, res) => {
-    try {
-      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
-      if (!token) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-
-      const payload = AuthService.verifyToken(token);
-      if (!payload) {
-        return res.status(401).json({ message: "Invalid token" });
-      }
-
-      const playthrough = await storage.getPlaythrough(req.params.id);
-      if (!playthrough) {
-        return res.status(404).json({ message: "Playthrough not found" });
-      }
-
-      // Check ownership or world ownership
-      if (playthrough.userId !== payload.userId) {
-        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
-        if (!canEdit) {
-          return res.status(403).json({ message: "Access denied" });
-        }
-      }
-
-      const traces = await storage.getTracesByPlaythrough(req.params.id);
-      res.json(traces);
-    } catch (error) {
-      console.error("Get traces error:", error);
-      res.status(500).json({ message: "Failed to get traces" });
-    }
-  });
-
-  // Create a play trace (record a player action)
-  app.post("/api/playthroughs/:id/traces", async (req, res) => {
-    try {
-      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
-      if (!token) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-
-      const payload = AuthService.verifyToken(token);
-      if (!payload) {
-        return res.status(401).json({ message: "Invalid token" });
-      }
-
-      const playthrough = await storage.getPlaythrough(req.params.id);
-      if (!playthrough) {
-        return res.status(404).json({ message: "Playthrough not found" });
-      }
-
-      // Check ownership
-      if (playthrough.userId !== payload.userId) {
-        return res.status(403).json({ message: "Access denied" });
-      }
-
-      const trace = await storage.createPlayTrace({
-        playthroughId: req.params.id,
-        userId: payload.userId,
-        ...req.body,
-      });
-
-      // Update playthrough action count and decisions count
-      const deltas: { actions: number; decisions: number } = {
-        actions: 1,
-        decisions: isDecisionAction(req.body.actionType) ? 1 : 0,
-      };
-      await accumulateMetrics(req.params.id, deltas);
-
-      res.status(201).json(trace);
-    } catch (error) {
-      console.error("Create trace error:", error);
-      res.status(500).json({ message: "Failed to create trace" });
-    }
-  });
-
-  // Batch create play traces (for efficient client-side batching)
-  app.post("/api/playthroughs/:id/traces/batch", async (req, res) => {
-    try {
-      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
-      if (!token) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-
-      const payload = AuthService.verifyToken(token);
-      if (!payload) {
-        return res.status(401).json({ message: "Invalid token" });
-      }
-
-      const playthrough = await storage.getPlaythrough(req.params.id);
-      if (!playthrough) {
-        return res.status(404).json({ message: "Playthrough not found" });
-      }
-
-      if (playthrough.userId !== payload.userId) {
-        return res.status(403).json({ message: "Access denied" });
-      }
-
-      const { traces } = req.body;
-      if (!Array.isArray(traces) || traces.length === 0) {
-        return res.status(400).json({ message: "traces array is required" });
-      }
-
-      if (traces.length > 500) {
-        return res.status(400).json({ message: "Maximum 500 traces per batch" });
-      }
-
-      const created = await Promise.all(
-        traces.map((trace: any) =>
-          storage.createPlayTrace({
-            playthroughId: req.params.id,
-            userId: payload.userId,
-            actionType: trace.actionType,
-            actionName: trace.actionName,
-            actionData: trace.actionData,
-            timestep: trace.timestep ?? 0,
-            characterId: trace.characterId,
-            targetId: trace.targetId,
-            targetType: trace.targetType,
-            locationId: trace.locationId,
-            outcome: trace.outcome,
-            outcomeData: trace.outcomeData,
-            durationMs: trace.durationMs,
-            timestamp: trace.timestamp ? new Date(trace.timestamp) : new Date(),
-          })
-        )
-      );
-
-      // Update playthrough action count
-      await storage.updatePlaythrough(req.params.id, {
-        actionsCount: (playthrough.actionsCount || 0) + created.length,
-        lastPlayedAt: new Date(),
-      });
-
-      res.status(201).json({ inserted: created.length });
-    } catch (error) {
-      console.error("Batch create traces error:", error);
-      res.status(500).json({ message: "Failed to create traces" });
     }
   });
 
@@ -1092,59 +948,12 @@ export function registerPlaythroughRoutes(app: Express) {
         return res.status(404).json({ message: "Playthrough not found" });
       }
 
-      const [traces, deltas, reputations, relationships, conversations] = await Promise.all([
-        storage.getTracesByPlaythrough(playthroughId),
+      const [deltas, reputations, relationships, conversations] = await Promise.all([
         storage.getDeltasByPlaythrough(playthroughId),
         storage.getReputationsByPlaythrough(playthroughId),
         storage.getPlaythroughRelationshipsByPlaythrough(playthroughId),
         storage.getConversationsByPlaythrough(playthroughId),
       ]);
-
-      // Action type breakdown
-      const actionBreakdown: Record<string, number> = {};
-      const outcomeBreakdown: Record<string, number> = {};
-      const locationVisits: Record<string, number> = {};
-      const timelineEvents: Array<{
-        id: string;
-        timestep: number;
-        actionType: string;
-        actionName: string | null;
-        outcome: string | null;
-        locationId: string | null;
-        targetType: string | null;
-        narrativeText: string | null;
-        durationMs: number | null;
-        timestamp: string | Date | null;
-      }> = [];
-
-      for (const trace of traces) {
-        // Action breakdown
-        const aType = trace.actionType || 'unknown';
-        actionBreakdown[aType] = (actionBreakdown[aType] || 0) + 1;
-
-        // Outcome breakdown
-        const outcome = trace.outcome || 'unknown';
-        outcomeBreakdown[outcome] = (outcomeBreakdown[outcome] || 0) + 1;
-
-        // Location visits
-        if (trace.locationId) {
-          locationVisits[trace.locationId] = (locationVisits[trace.locationId] || 0) + 1;
-        }
-
-        // Timeline events
-        timelineEvents.push({
-          id: trace.id,
-          timestep: trace.timestep,
-          actionType: trace.actionType,
-          actionName: trace.actionName,
-          outcome: trace.outcome,
-          locationId: trace.locationId,
-          targetType: trace.targetType,
-          narrativeText: trace.narrativeText,
-          durationMs: trace.durationMs,
-          timestamp: trace.timestamp,
-        });
-      }
 
       // Delta summary by entity type
       const deltaBreakdown: Record<string, { creates: number; updates: number; deletes: number }> = {};
@@ -1158,39 +967,18 @@ export function registerPlaythroughRoutes(app: Express) {
         else if (op === 'delete') deltaBreakdown[delta.entityType].deletes++;
       }
 
-      // Average action duration
-      const durations = traces.filter(t => t.durationMs != null).map(t => t.durationMs!);
-      const avgDurationMs = durations.length > 0
-        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
-        : null;
-
-      // Actions per timestep for engagement chart
-      const actionsPerTimestep: Record<number, number> = {};
-      for (const trace of traces) {
-        actionsPerTimestep[trace.timestep] = (actionsPerTimestep[trace.timestep] || 0) + 1;
-      }
-
       res.json({
         playthrough,
         summary: {
-          totalTraces: traces.length,
           totalDeltas: deltas.length,
           totalReputations: reputations.length,
           totalRelationships: relationships.length,
           totalConversations: conversations.length,
-          avgDurationMs,
-          uniqueLocations: Object.keys(locationVisits).length,
-          uniqueActionTypes: Object.keys(actionBreakdown).length,
         },
-        actionBreakdown,
-        outcomeBreakdown,
-        locationVisits,
         deltaBreakdown,
-        actionsPerTimestep,
         reputations,
         relationships,
         conversations,
-        timeline: timelineEvents,
       });
     } catch (error) {
       console.error("Get journey analytics error:", error);
@@ -1198,7 +986,7 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
-  // Compare multiple playthroughs (owner only) — returns traces and stats for selected playthroughs
+  // Compare multiple playthroughs (owner only)
   app.get("/api/worlds/:worldId/analytics/compare", async (req, res) => {
     try {
       const token = AuthService.extractTokenFromHeader(req.headers.authorization);
@@ -1227,19 +1015,6 @@ export function registerPlaythroughRoutes(app: Express) {
         ids.map(async (id) => {
           const playthrough = await storage.getPlaythrough(id);
           if (!playthrough || playthrough.worldId !== worldId) return null;
-          const traces = await storage.getTracesByPlaythrough(id);
-
-          // Aggregate trace data by action type
-          const actionTypeCounts: Record<string, number> = {};
-          const outcomeCounts: Record<string, number> = {};
-          let totalDurationMs = 0;
-          let traceCount = 0;
-          for (const t of traces) {
-            actionTypeCounts[t.actionType] = (actionTypeCounts[t.actionType] || 0) + 1;
-            if (t.outcome) outcomeCounts[t.outcome] = (outcomeCounts[t.outcome] || 0) + 1;
-            if (t.durationMs) totalDurationMs += t.durationMs;
-            traceCount++;
-          }
 
           return {
             playthrough: {
@@ -1254,12 +1029,6 @@ export function registerPlaythroughRoutes(app: Express) {
               createdAt: playthrough.createdAt,
               lastPlayedAt: playthrough.lastPlayedAt,
               completedAt: playthrough.completedAt,
-            },
-            traceStats: {
-              totalTraces: traceCount,
-              actionTypeCounts,
-              outcomeCounts,
-              avgDurationMs: traceCount > 0 ? Math.round(totalDurationMs / traceCount) : 0,
             },
           };
         })
@@ -1983,8 +1752,7 @@ export function registerPlaythroughRoutes(app: Express) {
         return res.status(403).json({ message: "You can only export your own playthroughs" });
       }
 
-      const includeTraces = req.query.includeTraces !== 'false';
-      const portable = await exportPlaythrough(req.params.id, { includeTraces });
+      const portable = await exportPlaythrough(req.params.id);
 
       const filename = `playthrough-${(playthrough.name || 'save').replace(/[^a-zA-Z0-9-_]/g, '_')}.json`;
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

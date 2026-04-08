@@ -11,7 +11,7 @@
 
 import type { IDataSource, IQuestOverlay, GenerationJobSummary, NpcConversationResult } from '@shared/game-engine/data-source';
 import type { VisualAsset } from '@shared/schema';
-import type { SaveFile, CurrentGameState, WorldSnapshot, PlaytraceEntry, ConversationSummary } from '@shared/save-file';
+import type { SaveFile, CurrentGameState, WorldSnapshot, ConversationSummary } from '@shared/save-file';
 import type { DataSource } from './DataSource';
 import type { QuestStorageProvider } from '@shared/quests/quest-storage-provider';
 import { PlaythroughQuestOverlay } from '@shared/game-engine/logic/PlaythroughQuestOverlay';
@@ -25,18 +25,17 @@ export class SaveFileDataSource implements DataSource {
   private snapshot: WorldSnapshot;
   private state: CurrentGameState;
   private conversations: ConversationSummary[];
-  private playtraces: PlaytraceEntry[];
   private authToken: string;
   private baseUrl: string;
   private dirty = false;
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
+  private preSaveCallback: (() => void) | null = null;
 
   constructor(saveFile: SaveFile, authToken: string, baseUrl: string = '') {
     this.saveId = saveFile.id;
     this.snapshot = saveFile.worldSnapshot;
     this.state = saveFile.currentState || {} as CurrentGameState;
     this.conversations = saveFile.conversations || [];
-    this.playtraces = saveFile.playtraces || [];
     this.authToken = authToken;
     this.baseUrl = baseUrl;
 
@@ -79,26 +78,43 @@ export class SaveFileDataSource implements DataSource {
     };
     this.questStorage = createSaveGameQuestStorage(exportedData, this.questOverlay);
 
-    // Auto-save every 60 seconds if dirty
+    // Auto-save every 60 seconds. Always persist because subsystem state
+    // (vocabulary, Prolog facts, contacts, etc.) changes continuously without
+    // going through SaveFileDataSource methods that set the dirty flag.
     this.autoSaveTimer = setInterval(() => {
-      if (this.dirty) this.persistToServer().catch(console.error);
+      this.persistToServer().catch(console.error);
     }, 60_000);
   }
 
   dispose() {
     if (this.autoSaveTimer) clearInterval(this.autoSaveTimer);
-    // Final save
-    if (this.dirty) this.persistToServer().catch(console.error);
+    // Final save — always persist to capture latest subsystem state
+    this.persistToServer().catch(console.error);
   }
 
-  /** Record a playtrace entry. Disabled for now — was bloating the DB. */
-  trace(_action: string, _description: string, _details: Record<string, any> = {}) {
-    // Playtraces disabled — re-enable when we have a proper analytics pipeline
+  /** Persist current state + conversations to the server */
+  /**
+   * Register a callback that runs before each save to collect subsystem state
+   * (language progress, Prolog facts, contacts, etc.) into this.state.
+   */
+  setPreSaveCallback(cb: () => void): void {
+    this.preSaveCallback = cb;
   }
 
-  /** Persist current state + conversations + playtraces to the server */
+  /** Get mutable reference to currentState for the pre-save callback to populate. */
+  getCurrentState(): CurrentGameState {
+    return this.state;
+  }
+
   async persistToServer(): Promise<void> {
     try {
+      // Run pre-save callback to collect subsystem state into this.state
+      if (this.preSaveCallback) {
+        try { this.preSaveCallback(); } catch (e) {
+          console.warn('[SaveFileDS] Pre-save callback error:', e);
+        }
+      }
+
       // Sync quest overlay state back into currentState before saving
       if (this.questOverlay) {
         const overlayState = this.questOverlay.serialize();
@@ -115,8 +131,6 @@ export class SaveFileDataSource implements DataSource {
           conversations: this.conversations,
         }),
       });
-
-      // Playtraces disabled — skip flush
 
       this.dirty = false;
     } catch (e) {
@@ -210,7 +224,26 @@ export class SaveFileDataSource implements DataSource {
 
   // ── Playthrough lifecycle (managed via save file, not DB) ────────────
 
-  async listPlaythroughs(_worldId: string, _authToken: string) { return []; }
+  async listPlaythroughs(worldId: string, authToken: string) {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/saves`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) return [];
+      const saves = await res.json();
+      return saves.map((s: any) => ({
+        id: s.id,
+        name: s.name || 'Save',
+        status: s.status || 'active',
+        lastPlayedAt: s.lastSavedAt || s.createdAt,
+        createdAt: s.createdAt,
+        playtime: s.totalPlaytime || 0,
+        actionsCount: s.saveCount || 0,
+      }));
+    } catch {
+      return [];
+    }
+  }
   async startPlaythrough(_worldId: string, _authToken: string, _name: string) { return { id: this.saveId }; }
   async getPlaythrough(_playthroughId: string) { return { id: this.saveId, status: 'active' }; }
   async updatePlaythrough(_playthroughId: string, _data: any) { return { id: this.saveId }; }
@@ -229,7 +262,7 @@ export class SaveFileDataSource implements DataSource {
       const quest = await this.questStorage.createQuest(questData as any);
       this.state.quests.dynamicQuests.push(quest as any);
       this.dirty = true;
-      this.trace('quest_created', `Created dynamic quest: ${questData.name || questData.title}`, { questId: quest.id });
+
       return quest;
     }
     // Fallback
@@ -237,7 +270,7 @@ export class SaveFileDataSource implements DataSource {
     const quest = { ...questData, id, status: 'active' };
     this.state.quests.dynamicQuests.push(quest);
     this.dirty = true;
-    this.trace('quest_created', `Created dynamic quest: ${questData.name || questData.title}`, { questId: id });
+
     return quest;
   }
 
@@ -247,7 +280,7 @@ export class SaveFileDataSource implements DataSource {
     }
     this.state.quests.progress[questId].stageData[`branch_${choiceId}`] = targetStageId || choiceId;
     this.dirty = true;
-    this.trace('quest_branched', `Quest ${questId} branched`, { questId, choiceId, targetStageId });
+
     return { success: true };
   }
 
@@ -256,7 +289,7 @@ export class SaveFileDataSource implements DataSource {
       this.questOverlay.updateQuest(questId, data);
     }
     this.dirty = true;
-    this.trace('quest_updated', `Quest ${questId} updated`, { questId, ...data });
+
   }
 
   async completeQuest(_worldId: string, questId: string) {
@@ -264,7 +297,7 @@ export class SaveFileDataSource implements DataSource {
       this.questOverlay.updateQuest(questId, { status: 'completed', completedAt: new Date().toISOString() });
     }
     this.dirty = true;
-    this.trace('quest_completed', `Completed quest ${questId}`, { questId });
+
     return { success: true };
   }
 
@@ -296,7 +329,7 @@ export class SaveFileDataSource implements DataSource {
       this.state.player.gold -= transfer.totalPrice;
     }
     this.dirty = true;
-    this.trace('item_transferred', `Transferred ${transfer.itemName}`, transfer);
+
     return { success: true };
   }
   async getMerchantInventory(_worldId: string, merchantId: string, _businessType?: string) {
@@ -318,7 +351,7 @@ export class SaveFileDataSource implements DataSource {
   }
   async transferContainerItem(containerId: string, transfer: any) {
     this.dirty = true;
-    this.trace('container_transfer', `Container ${containerId} transfer`, transfer);
+
     return { success: true };
   }
 
@@ -393,7 +426,7 @@ export class SaveFileDataSource implements DataSource {
       });
     }
     this.dirty = true;
-    this.trace('conversation', `Talked to ${conversation.npcCharacterName}`, { npcId: conversation.npcCharacterId });
+
     return { id: conversation.npcCharacterId };
   }
 
@@ -470,7 +503,7 @@ export class SaveFileDataSource implements DataSource {
       ...data,
     };
     this.dirty = true;
-    this.trace('relationship_changed', `Relationship with ${toCharacterId} changed`, data);
+
     return data;
   }
 
@@ -482,7 +515,7 @@ export class SaveFileDataSource implements DataSource {
       this.state.reputation.settlements[entityId].standing += amount;
     }
     this.dirty = true;
-    this.trace('reputation_adjusted', `Reputation ${amount > 0 ? '+' : ''}${amount} for ${entityType} ${entityId}: ${reason}`, { entityType, entityId, amount, reason });
+
     return { success: true };
   }
 

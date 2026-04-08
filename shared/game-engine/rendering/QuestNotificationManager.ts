@@ -449,6 +449,7 @@ export class QuestNotificationManager {
     }
 
     const objectives = this.activeQuest.objectives;
+    console.debug('[QuestHUD] rebuildTaskList:', this.activeQuest.id, 'objectives:', objectives.length, objectives.map(o => `${o.type}:${o.completed}`).join(', '));
     if (objectives.length === 0) {
       if (this.taskPanel) this.taskPanel.isVisible = false;
       return;

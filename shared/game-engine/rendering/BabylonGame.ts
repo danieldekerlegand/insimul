@@ -123,6 +123,7 @@ import { CulturalEventManager } from "@shared/game-engine/logic/CulturalEventMan
 import { BabylonNoticeBoardPanel, type NoticeArticle } from "@shared/game-engine/rendering/BabylonNoticeBoardPanel";
 import { assessmentModalOpen } from "@shared/game-engine/rendering/AssessmentModalUI";
 import { compositionModalOpen } from "@shared/game-engine/rendering/CompositionWritingUI";
+import { getImmersionProgressData } from "@shared/language/ui-localization";
 import { SettlementNoticeBoard } from "@shared/game-engine/rendering/SettlementNoticeBoard";
 import { createTownSquare } from "@shared/game-engine/rendering/TownSquareGenerator";
 import { getCenterBlockBounds, getBlockCellSize } from "@shared/game-engine/rendering/StreetAlignedPlacement";
@@ -1139,51 +1140,30 @@ export class BabylonGame {
         {
           getPlaythroughs: async (): Promise<PlaythroughInfo[]> => {
             const results: PlaythroughInfo[] = [];
+            const seenIds = new Set<string>();
 
-            // Always get local playthroughs
+            // Fetch saves from the primary data source
             try {
-              const localList = await this.dataSource.listPlaythroughs(
+              const list = await this.dataSource.listPlaythroughs(
                 this.config.worldId,
                 this.config.authToken || '',
               );
-              for (const p of localList) {
+              for (const p of list) {
+                if (seenIds.has(p.id)) continue;
+                seenIds.add(p.id);
                 results.push({
                   id: p.id,
-                  name: p.name || 'Playthrough',
+                  name: p.name || 'Save',
                   status: p.status || 'active',
                   lastPlayedAt: p.lastPlayedAt,
                   createdAt: p.createdAt,
                   playtime: p.playtime || 0,
                   actionsCount: p.actionsCount || 0,
-                  source: 'local',
+                  source: typeof window !== 'undefined' && window.location?.protocol === 'file:' ? 'local' : 'cloud',
                 });
               }
             } catch (err) {
-              console.error('[BabylonGame] Failed to list local playthroughs:', err);
-            }
-
-            // If signed in, also fetch cloud playthroughs
-            if (this.cloudDataSource && this.config.authToken) {
-              try {
-                const cloudList = await this.cloudDataSource.listPlaythroughs(
-                  this.config.worldId,
-                  this.config.authToken,
-                );
-                for (const p of cloudList) {
-                  results.push({
-                    id: p.id,
-                    name: p.name || 'Playthrough',
-                    status: p.status || 'active',
-                    lastPlayedAt: p.lastPlayedAt,
-                    createdAt: p.createdAt,
-                    playtime: p.playtime || 0,
-                    actionsCount: p.actionsCount || 0,
-                    source: 'cloud',
-                  });
-                }
-              } catch (err) {
-                console.error('[BabylonGame] Failed to list cloud playthroughs:', err);
-              }
+              console.error('[BabylonGame] Failed to list saves:', err);
             }
 
             return results;
@@ -1221,6 +1201,19 @@ export class BabylonGame {
               this.config.onBack?.();
             }
             resolve(null);
+          },
+
+          onDeleteSave: async (saveId: string): Promise<boolean> => {
+            try {
+              const apiUrl = this.config.apiUrl || '';
+              const res = await fetch(`${apiUrl}/api/saves/${saveId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${this.config.authToken || ''}` },
+              });
+              return res.ok;
+            } catch {
+              return false;
+            }
           },
 
           // ── Cloud save sign-in callbacks (only active when apiUrl is set) ──
@@ -1827,6 +1820,131 @@ export class BabylonGame {
         duration: 4000,
       });
     });
+  }
+
+  /**
+   * Push all subsystem state into the SaveFileDataSource's currentState
+   * before it persists. This ensures vocabulary, grammar, Prolog facts,
+   * quest progress, contacts, conversation history, etc. are saved.
+   */
+  private syncSubsystemStateToDataSource(): void {
+    const ds = this.dataSource as any;
+    if (typeof ds.getCurrentState !== 'function') return;
+    const state = ds.getCurrentState();
+
+    // Sync quest overlay objectives
+    this.syncObjectiveStatesToOverlay();
+
+    // Language progress from LanguageProgressTracker
+    const tracker = this.chatPanel?.getLanguageTracker();
+    if (tracker && state.languageProgress) {
+      const prog = tracker.getProgress();
+      state.languageProgress.vocabulary = prog.vocabulary || [];
+      state.languageProgress.grammarPatterns = prog.grammarPatterns || [];
+      state.languageProgress.totalXP = prog.totalXP ?? state.languageProgress.totalXP ?? 0;
+      state.languageProgress.level = prog.level ?? state.languageProgress.level ?? 1;
+      if (this.playerCefrLevel) state.languageProgress.cefrLevel = this.playerCefrLevel;
+    }
+
+    // Prolog player facts
+    if (this.prologEngine) {
+      try {
+        const facts = this.prologEngine.getPlayerFacts();
+        state.prologFacts = facts.length > 0 ? facts : [];
+      } catch { /* non-fatal */ }
+    }
+
+    // Player stats
+    if (state.player) {
+      state.player.gold = this.playerGold;
+      state.player.health = this.playerHealth;
+      state.player.energy = this.playerEnergy;
+      if (this.playerMesh) {
+        const p = this.playerMesh.position;
+        const r = this.playerMesh.rotation;
+        state.player.position = { x: p.x, y: p.y, z: p.z };
+        state.player.rotation = { x: r.x, y: r.y, z: r.z };
+      }
+      state.player.inventory = this.inventory?.getAllItems() ?? [];
+      if (this.playerCefrLevel) state.player.cefrLevel = this.playerCefrLevel;
+    }
+
+    // NPC contacts
+    if (this.npcContacts?.size > 0) {
+      const contacts: Record<string, any> = {};
+      this.npcContacts.forEach((contact: any, npcId: string) => {
+        contacts[npcId] = contact;
+      });
+      (state as any).contacts = contacts;
+    }
+
+    // NPC known details
+    if (this.npcKnownDetails?.size > 0) {
+      const details: Record<string, any> = {};
+      this.npcKnownDetails.forEach((d: any, npcId: string) => {
+        details[npcId] = d;
+      });
+      (state as any).npcKnownDetails = details;
+    }
+
+    // Conversation history
+    if (tracker) {
+      const records = (tracker as any).getConversationRecords?.() ?? [];
+      if (records.length > 0) {
+        (state as any).conversations = records.slice(-50);
+      }
+    }
+
+    // Time state
+    if (this.gameTimeManager) {
+      const s = this.gameTimeManager.getState();
+      (state as any).timeState = {
+        gameHour: s.hour ?? 8,
+        gameMinute: s.minute ?? 0,
+        dayNumber: s.day ?? 1,
+        timeScale: this.gameTimeManager.timeScale,
+        isPaused: this.gameTimeManager.paused,
+      };
+    }
+
+    // Clue state
+    if (this.clueStore) {
+      (state as any).clueState = this.clueStore.serialize();
+    }
+
+    // Photo book
+    if (this.photographySystem) {
+      const photos = this.photographySystem.getPhotos();
+      if (photos?.length > 0) {
+        (state as any).photoBook = { photos };
+      }
+    }
+
+    // Reading progress
+    if (this.gameMenuSystem) {
+      const readIds = (this.gameMenuSystem as any).getReadArticleIds?.();
+      const answeredIds = (this.gameMenuSystem as any).getAnsweredQuestionIds?.();
+      if (readIds?.size > 0 || answeredIds?.size > 0) {
+        const articles: Record<string, any> = {};
+        readIds?.forEach?.((id: string) => {
+          articles[id] = { read: true, readAt: new Date().toISOString() };
+        });
+        (state as any).readingProgress = { articles };
+      }
+    }
+
+    // Gamification
+    if (this.gamificationTracker) {
+      (state as any).gamification = this.gamificationTracker.getState();
+    }
+
+    // Main quest state
+    if (this.mainQuestJournalData) {
+      (state as any).mainQuestState = {
+        currentChapterId: this.mainQuestJournalData.currentChapterId,
+        chapters: this.mainQuestJournalData.chapters,
+      };
+    }
   }
 
   private initCutscenePanel(): void {
@@ -3123,7 +3241,6 @@ export class BabylonGame {
       getUIImmersionMode: () => this._uiImmersionMode,
       onSetUIImmersionMode: (mode: string) => this.setUIImmersionMode(mode as any),
       getImmersionProgress: () => {
-        const { getImmersionProgressData } = require('../../language/ui-localization') as typeof import('../../language/ui-localization');
         const cefrLevel = (this.playerCefrLevel || 'A1') as import('../../assessment/cefr-mapping').CEFRLevel;
         return getImmersionProgressData(cefrLevel, this._uiImmersionMode);
       },
@@ -3219,6 +3336,13 @@ export class BabylonGame {
     this.worldStateManager.attachTriggers(this.eventBus);
     this.worldStateManager.setPreSaveHook(() => this.syncObjectiveStatesToOverlay());
     this.worldStateManager.startAutoSave(0);
+
+    // Register pre-save callback on SaveFileDataSource to collect subsystem state
+    if (typeof (this.dataSource as any).setPreSaveCallback === 'function') {
+      (this.dataSource as any).setPreSaveCallback(() => {
+        this.syncSubsystemStateToDataSource();
+      });
+    }
 
     // Wire up save indicator HUD
     this.saveIndicator = new SaveIndicator(this.guiManager.advancedTexture);
@@ -5166,6 +5290,7 @@ export class BabylonGame {
             // Reload quests to pick up the status/assignment changes
             this.dataSource.loadQuests(this.config.worldId).then(updated => {
               this.quests = updated;
+              this.syncActiveQuestToHud();
               this.updateQuestIndicators();
             }).catch(() => {});
           }
@@ -17120,6 +17245,7 @@ export class BabylonGame {
   /** Push the current active quest (with full objectives) to the HUD task tracker. */
   private syncActiveQuestToHud(): void {
     const activeQuest = (this.quests || []).find((q: any) => q.status === 'active');
+    console.debug('[QuestHUD] syncActiveQuestToHud:', activeQuest?.id, 'objectives:', activeQuest?.objectives?.length, 'status:', activeQuest?.status);
     if (activeQuest) {
       const cefrLevel = this.playerCefrLevel as import('../../assessment/cefr-mapping').CEFRLevel | null;
 

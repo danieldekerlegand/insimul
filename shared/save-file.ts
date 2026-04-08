@@ -10,7 +10,6 @@
  * - `worldSnapshot`: read-only template embedded at game start
  * - `currentState`: mutable game state, overwritten on each save
  * - `conversations`: compressed NPC conversation history
- * - `playtraces`: append-only research log (never deleted, never replayed)
  */
 
 // ─── World Snapshot (embedded read-only template) ──────────────────────────
@@ -230,29 +229,6 @@ export interface ConversationSummary {
   topics: string[];
 }
 
-// ─── Playtraces (append-only research log) ─────────────────────────────────
-
-export interface PlaytraceEntry {
-  /** ISO timestamp */
-  timestamp: string;
-  /** Action category */
-  action: string;
-  /** Human-readable description */
-  description: string;
-  /** Structured data about the action */
-  details: Record<string, any>;
-  /** For branching choices: which choice was made */
-  choiceId?: string;
-  /** For branching choices: which branch was taken */
-  branchTarget?: string;
-  /** For quest events: which quest */
-  questId?: string;
-  /** For NPC interactions: which NPC */
-  npcId?: string;
-  /** In-game timestep when this occurred */
-  timestep?: number;
-}
-
 // ─── The Save File ─────────────────────────────────────────────────────────
 
 export interface SaveFile {
@@ -287,9 +263,6 @@ export interface SaveFile {
 
   // ── Compressed conversation history ──
   conversations: ConversationSummary[];
-
-  // ── Append-only research log ──
-  playtraces: PlaytraceEntry[];
 }
 
 /** Current save file format version */

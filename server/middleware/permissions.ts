@@ -47,15 +47,3 @@ export async function canEditWorld(userId: string | undefined, worldId: string):
   // Worlds with an owner are editable only by that owner.
   return world.ownerId === userId;
 }
-
-/**
- * Helper function to check if a user owns a world
- */
-export async function isWorldOwner(userId: string | undefined, worldId: string): Promise<boolean> {
-  if (!userId) return false;
-
-  const world = await storage.getWorld(worldId);
-  if (!world) return false;
-
-  return world.ownerId === userId;
-}

@@ -32,7 +32,6 @@ interface SaveSummary {
   createdAt: string;
   lastSavedAt: string;
   worldName?: string;
-  playtraceCount: number;
   conversationCount: number;
 }
 

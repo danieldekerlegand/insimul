@@ -174,7 +174,6 @@ import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerPlaythroughRoutes } from "./routes/playthrough-routes.js";
 import { registerExportRoutes } from "./routes/export-routes.js";
 import { registerQuestAnalyticsRoutes } from "./routes/quest-analytics-routes.js";
-import { registerResearchExportRoutes } from "./routes/research-export-routes.js";
 import { registerAssessmentAnalyticsRoutes } from "./routes/assessment-analytics-routes.js";
 import { AuthService } from "./services/auth-service.js";
 import { autoLinkTruth } from "./services/truth-auto-linker.js";
@@ -284,9 +283,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register quest analytics routes
   registerQuestAnalyticsRoutes(app);
-
-  // Register research data export routes
-  registerResearchExportRoutes(app);
 
   // Register assessment analytics routes
   registerAssessmentAnalyticsRoutes(app, storage);

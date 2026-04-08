@@ -41,6 +41,8 @@ export interface MainMenuCallbacks {
   onContinue: (playthroughId: string) => void;
   /** Go back to the editor / world list */
   onBack: () => void;
+  /** Delete a playthrough/save */
+  onDeleteSave?: (playthroughId: string) => Promise<boolean>;
   /** Sign in to cloud saves (optional — only in standalone/electron mode) */
   onSignIn?: (
     username: string,
@@ -770,9 +772,48 @@ export class MainMenuScreen {
     detailText.left = "16px";
     inner.addControl(detailText);
 
-    // Hover effects
+    // Delete button (right side)
+    let isHoveringDelete = false;
+    if (this.callbacks.onDeleteSave) {
+      const deleteBtn = Button.CreateSimpleButton(`ptDel_${pt.id}`, "\u{1F5D1}");
+      deleteBtn.width = "32px";
+      deleteBtn.height = "32px";
+      deleteBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      deleteBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+      deleteBtn.top = "4px";
+      deleteBtn.left = "-12px";
+      deleteBtn.color = COLORS.textMuted;
+      deleteBtn.background = "transparent";
+      deleteBtn.thickness = 0;
+      deleteBtn.fontSize = 16;
+      deleteBtn.isPointerBlocker = true;
+      deleteBtn.onPointerEnterObservable.add(() => {
+        isHoveringDelete = true;
+        deleteBtn.color = "#FF6B6B";
+        card.background = COLORS.cardBg; // Reset card hover when entering delete btn
+      });
+      deleteBtn.onPointerOutObservable.add(() => {
+        isHoveringDelete = false;
+        deleteBtn.color = COLORS.textMuted;
+      });
+      deleteBtn.onPointerClickObservable.add(async () => {
+        // Confirm deletion
+        const confirmed = await this.showDeleteConfirmation(pt.name || 'this save');
+        if (!confirmed) return;
+        const deleted = await this.callbacks.onDeleteSave!(pt.id);
+        if (deleted) {
+          // Remove from list and re-render
+          this.playthroughs = this.playthroughs.filter(p => p.id !== pt.id);
+          this.clearOverlay();
+          this.renderLoadView();
+        }
+      });
+      card.addControl(deleteBtn);
+    }
+
+    // Hover effects (skip when hovering the delete button)
     card.onPointerEnterObservable.add(() => {
-      card.background = COLORS.cardHover;
+      if (!isHoveringDelete) card.background = COLORS.cardHover;
     });
     card.onPointerOutObservable.add(() => {
       card.background = COLORS.cardBg;
@@ -847,6 +888,93 @@ export class MainMenuScreen {
 
       card.onPointerClickObservable.add(() => onClick());
     }
+  }
+
+  /** Clear all overlay content except the star background, then re-render. */
+  private clearOverlay(): void {
+    if (!this.overlay) return;
+    const controls = this.overlay.children.slice();
+    for (const c of controls) {
+      if (c !== this.starImage) {
+        this.overlay.removeControl(c);
+      }
+    }
+  }
+
+  /** Show a confirmation dialog for deleting a save. Returns true if confirmed. */
+  private showDeleteConfirmation(saveName: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (!this.overlay) { resolve(false); return; }
+
+      const backdrop = new Rectangle("deleteConfirmBackdrop");
+      backdrop.width = 1;
+      backdrop.height = 1;
+      backdrop.background = "rgba(0, 0, 0, 0.6)";
+      backdrop.zIndex = 100;
+      this.overlay.addControl(backdrop);
+
+      const dialog = new Rectangle("deleteConfirmDialog");
+      dialog.width = "360px";
+      dialog.height = "160px";
+      dialog.background = COLORS.panelBg;
+      dialog.color = COLORS.cardBorder;
+      dialog.thickness = 1;
+      dialog.cornerRadius = 10;
+      dialog.zIndex = 101;
+      this.overlay.addControl(dialog);
+
+      const content = new StackPanel("deleteConfirmContent");
+      content.width = "90%";
+      content.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+      dialog.addControl(content);
+
+      const msg = new TextBlock("deleteMsg", `Delete "${saveName}"?\nThis cannot be undone.`);
+      msg.color = COLORS.textPrimary;
+      msg.fontSize = 15;
+      msg.height = "50px";
+      msg.textWrapping = TextWrapping.WordWrap;
+      content.addControl(msg);
+
+      const btnRow = new StackPanel("deleteConfirmBtns");
+      btnRow.isVertical = false;
+      btnRow.width = 1;
+      btnRow.height = "44px";
+      btnRow.paddingTop = "12px";
+      content.addControl(btnRow);
+
+      const cancelBtn = Button.CreateSimpleButton("delCancel", "Cancel");
+      cancelBtn.width = "120px";
+      cancelBtn.height = "36px";
+      cancelBtn.color = COLORS.textSecondary;
+      cancelBtn.background = COLORS.cardBg;
+      cancelBtn.cornerRadius = 6;
+      cancelBtn.thickness = 1;
+      cancelBtn.fontSize = 13;
+      cancelBtn.paddingRight = "8px";
+      cancelBtn.onPointerClickObservable.add(() => {
+        this.overlay?.removeControl(backdrop);
+        this.overlay?.removeControl(dialog);
+        resolve(false);
+      });
+      btnRow.addControl(cancelBtn);
+
+      const deleteBtn = Button.CreateSimpleButton("delConfirm", "Delete");
+      deleteBtn.width = "120px";
+      deleteBtn.height = "36px";
+      deleteBtn.color = "#FFFFFF";
+      deleteBtn.background = "#D32F2F";
+      deleteBtn.cornerRadius = 6;
+      deleteBtn.thickness = 0;
+      deleteBtn.fontSize = 13;
+      deleteBtn.onPointerEnterObservable.add(() => { deleteBtn.background = "#B71C1C"; });
+      deleteBtn.onPointerOutObservable.add(() => { deleteBtn.background = "#D32F2F"; });
+      deleteBtn.onPointerClickObservable.add(() => {
+        this.overlay?.removeControl(backdrop);
+        this.overlay?.removeControl(dialog);
+        resolve(true);
+      });
+      btnRow.addControl(deleteBtn);
+    });
   }
 
   private showLoadingState(message: string): void {

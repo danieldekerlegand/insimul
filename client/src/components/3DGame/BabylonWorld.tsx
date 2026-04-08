@@ -46,23 +46,26 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
         let saveFile: any;
 
         if (saveId) {
-          // Load existing save by ID
+          // Load existing save by ID (direct link to a specific save)
           const res = await fetch(`/api/saves/${saveId}`, { headers });
           if (!res.ok) throw new Error('Failed to load save file');
           saveFile = await res.json();
         } else {
-          // Check for an existing save first (reuse the most recent one)
+          // No specific save requested — let BabylonGame show the
+          // playthrough selection menu (Load Game / New Game).
+          // We still need a data source to bootstrap, so load the most
+          // recent save if one exists, or create a temporary one.
           const listRes = await fetch(`/api/worlds/${worldId}/saves`, { headers });
           const existingSaves = listRes.ok ? await listRes.json() : [];
 
           if (existingSaves.length > 0) {
-            // Resume most recent save
-            const mostRecent = existingSaves[0];
-            const res = await fetch(`/api/saves/${mostRecent.id}`, { headers });
-            if (!res.ok) throw new Error('Failed to load existing save');
+            // Load most recent save as data source, show menu for Continue/Load/New
+            const res = await fetch(`/api/saves/${existingSaves[0].id}`, { headers });
+            if (!res.ok) throw new Error('Failed to load save for data source');
             saveFile = await res.json();
+            saveFile._showSelectionMenu = true;
           } else {
-            // Start new game — create save file with embedded snapshot
+            // No saves at all — create the first one
             const res = await fetch(`/api/worlds/${worldId}/saves/new-game`, {
               method: 'POST',
               headers,
@@ -73,8 +76,6 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
               throw new Error(err.error || 'Failed to start new game');
             }
             const { id } = await res.json();
-
-            // Load the full save file
             const loadRes = await fetch(`/api/saves/${id}`, { headers });
             if (!loadRes.ok) throw new Error('Failed to load new save file');
             saveFile = await loadRes.json();
@@ -89,12 +90,13 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
         dataSourceRef.current = ds;
 
         // Create and initialize the game with the save file data source
+        // When multiple saves exist, omit playthroughId so BabylonGame shows the selection menu
         const game = new BabylonGame(canvas!, {
           worldId,
           worldName,
           worldType,
           authToken: token!,
-          playthroughId: saveFile.id,
+          playthroughId: saveFile._showSelectionMenu ? undefined : saveFile.id,
           dataSource: ds,
           onBack: () => {
             ds.persistToServer().catch(console.error);

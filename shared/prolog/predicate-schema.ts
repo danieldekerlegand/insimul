@@ -52,7 +52,6 @@ export const COLLECTION_PROLOG_MODE: Record<string, PrologSyncMode> = {
   playersessions: 'none',
   playthroughdeltas: 'none',
   playthroughs: 'none',
-  playtraces: 'none',
   simulations: 'none',
   users: 'none',
   visualassets: 'none',

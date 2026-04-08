@@ -41,8 +41,6 @@ import {
   type InsertItem,
   type Container,
   type InsertContainer,
-  type TerrainFeature,
-  type InsertTerrainFeature,
   type GameText,
   type InsertGameText,
   type CharacterTemplate,
@@ -138,7 +136,6 @@ export interface IStorage {
 
   // Occupations (TotT)
   getOccupation(id: string): Promise<Occupation | undefined>;
-  getOccupationsByCharacter(characterId: string): Promise<Occupation[]>;
   getOccupationsByBusiness(businessId: string): Promise<Occupation[]>;
   getCurrentOccupation(characterId: string): Promise<Occupation | undefined>;
   createOccupation(occupation: InsertOccupation): Promise<Occupation>;
@@ -305,7 +302,6 @@ export interface IStorage {
 
   // Player Sessions
   getPlayerSession(id: string): Promise<import("@shared/schema").PlayerSession | undefined>;
-  getPlayerSessionsByUser(userId: string): Promise<import("@shared/schema").PlayerSession[]>;
   createPlayerSession(session: import("@shared/schema").InsertPlayerSession): Promise<import("@shared/schema").PlayerSession>;
   updatePlayerSession(id: string, session: Partial<import("@shared/schema").InsertPlayerSession>): Promise<import("@shared/schema").PlayerSession | undefined>;
   endPlayerSession(id: string, duration: number): Promise<import("@shared/schema").PlayerSession | undefined>;
@@ -336,13 +332,6 @@ export interface IStorage {
   deleteDeltasByPlaythrough(playthroughId: string): Promise<number>;
   compactDeltasByPlaythrough(playthroughId: string): Promise<{ before: number; after: number }>;
 
-  // Play Traces
-  getPlayTrace(id: string): Promise<import("@shared/schema").PlayTrace | undefined>;
-  getTracesByPlaythrough(playthroughId: string): Promise<import("@shared/schema").PlayTrace[]>;
-  getTracesByUser(userId: string): Promise<import("@shared/schema").PlayTrace[]>;
-  createPlayTrace(trace: import("@shared/schema").InsertPlayTrace): Promise<import("@shared/schema").PlayTrace>;
-  deletePlayTrace(id: string): Promise<boolean>;
-
   // Playthrough Conversations (research data)
   getPlaythroughConversation(id: string): Promise<import("@shared/schema").PlaythroughConversation | undefined>;
   getConversationsByPlaythrough(playthroughId: string): Promise<import("@shared/schema").PlaythroughConversation[]>;
@@ -355,7 +344,6 @@ export interface IStorage {
 
   // Assessment Sessions
   createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
-  getAssessmentSession(id: string): Promise<AssessmentSession | undefined>;
   updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined>;
   addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined>;
   completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined>;
@@ -379,13 +367,6 @@ export interface IStorage {
   createGameText(text: import("@shared/schema").InsertGameText): Promise<import("@shared/schema").GameText>;
   updateGameText(id: string, text: Partial<import("@shared/schema").InsertGameText>): Promise<import("@shared/schema").GameText | undefined>;
   deleteGameText(id: string): Promise<boolean>;
-
-  // Terrain Features
-  getTerrainFeature(id: string): Promise<TerrainFeature | undefined>;
-  getTerrainFeaturesByWorld(worldId: string): Promise<TerrainFeature[]>;
-  createTerrainFeature(feature: InsertTerrainFeature): Promise<TerrainFeature>;
-  updateTerrainFeature(id: string, feature: Partial<InsertTerrainFeature>): Promise<TerrainFeature | undefined>;
-  deleteTerrainFeature(id: string): Promise<boolean>;
 
   // Reputations (playthrough-scoped)
   getReputation(id: string): Promise<import("@shared/schema").Reputation | undefined>;

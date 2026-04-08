@@ -289,12 +289,21 @@ export class AssessmentModalUI {
   // ─── Shared UI Helpers ───────────────────────────────────────────────────
 
   private addPassageBlock(stack: GUI.StackPanel, passage: string): void {
-    // Use a StackPanel as the passage container — it naturally auto-sizes to children,
-    // unlike Rectangle + adaptHeightToChildren which clips TextBlock content.
+    // Babylon.js GUI TextBlock with textWrapping + resizeToFit underestimates height,
+    // so we compute an explicit height from character count and available width.
+    const fontSize = 10;
+    const lineSpacingPx = 4;
+    const lineHeight = fontSize + lineSpacingPx + 2; // font size + spacing + descender
+    const containerWidthPx = 280; // ~90% of 340px inner stack minus padding
+    const charsPerLine = Math.floor(containerWidthPx / (fontSize * 0.55)); // avg char width
+    const lineCount = Math.max(1, Math.ceil(passage.length / charsPerLine));
+    const textHeight = lineCount * lineHeight;
+    const totalHeight = textHeight + 26; // 10px top inset + 16px bottom inset
+
     const passageStack = new GUI.StackPanel('passageStack');
     passageStack.isVertical = true;
     passageStack.width = '96%';
-    passageStack.adaptHeightToChildren = true;
+    passageStack.height = `${totalHeight}px`;
     passageStack.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     passageStack.background = 'rgba(255, 215, 0, 0.08)';
     stack.addControl(passageStack);
@@ -304,13 +313,12 @@ export class AssessmentModalUI {
 
     const passageText = new GUI.TextBlock('passageText');
     passageText.text = passage;
-    passageText.fontSize = 10;
+    passageText.fontSize = fontSize;
     passageText.color = '#f3f4f6';
     passageText.fontStyle = 'italic';
     passageText.textWrapping = true;
-    passageText.lineSpacing = '4px';
-    passageText.resizeToFit = true;
-    passageText.paddingBottom = '4px';
+    passageText.lineSpacing = `${lineSpacingPx}px`;
+    passageText.height = `${textHeight}px`;
     passageText.width = '90%';
     passageText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     passageText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;

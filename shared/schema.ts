@@ -1549,40 +1549,6 @@ export const playthroughDeltas = pgTable("playthrough_deltas", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Play Traces - detailed log of player actions and decisions
-// This is the audit trail of everything a player does in their playthrough
-export const playTraces = pgTable("play_traces", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  playthroughId: varchar("playthrough_id").notNull(),
-  userId: varchar("user_id").notNull(),
-
-  // Action details
-  actionType: text("action_type").notNull(), // move, interact, dialogue, combat, quest_accept, etc.
-  actionName: text("action_name"), // Human-readable name
-  actionData: jsonb("action_data").$type<Record<string, any>>().default({}),
-
-  // Context
-  timestep: integer("timestep").notNull(),
-  characterId: varchar("character_id"), // Player's character
-  targetId: varchar("target_id"), // Target of the action (NPC, item, location, etc.)
-  targetType: text("target_type"), // character, item, location, etc.
-  locationId: varchar("location_id"), // Where the action took place
-
-  // Results and outcomes
-  outcome: text("outcome"), // success, failure, partial, etc.
-  outcomeData: jsonb("outcome_data").$type<Record<string, any>>().default({}),
-  stateChanges: jsonb("state_changes").$type<any[]>().default([]), // What changed as a result
-
-  // Narrative
-  narrativeText: text("narrative_text"), // Generated narrative description
-
-  // Timing
-  durationMs: integer("duration_ms"), // How long the action took (for analytics)
-  timestamp: timestamp("timestamp").defaultNow(),
-
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
 // Playthrough Conversations - stores full conversation transcripts for research
 // Each record captures a complete player-NPC conversation with dialogue turns,
 // language metrics, and contextual metadata for linguistic research analysis
@@ -2162,11 +2128,6 @@ export const insertPlaythroughDeltaSchema = createInsertSchema(playthroughDeltas
   createdAt: true,
 });
 
-export const insertPlayTraceSchema = createInsertSchema(playTraces).omit({
-  id: true,
-  createdAt: true,
-});
-
 export const insertPlaythroughConversationSchema = createInsertSchema(playthroughConversations).omit({
   id: true,
   createdAt: true,
@@ -2200,9 +2161,6 @@ export type InsertPlaythrough = z.infer<typeof insertPlaythroughSchema>;
 
 export type PlaythroughDelta = typeof playthroughDeltas.$inferSelect;
 export type InsertPlaythroughDelta = z.infer<typeof insertPlaythroughDeltaSchema>;
-
-export type PlayTrace = typeof playTraces.$inferSelect;
-export type InsertPlayTrace = z.infer<typeof insertPlayTraceSchema>;
 
 export type PlaythroughConversation = typeof playthroughConversations.$inferSelect;
 export type InsertPlaythroughConversation = z.infer<typeof insertPlaythroughConversationSchema>;
