@@ -6844,6 +6844,41 @@ Return ONLY valid JSON array.`;
   });
 
   // ============================================================
+  // NPC Greeting Generation (lightweight FLASH-tier LLM call)
+  // ============================================================
+
+  app.post("/api/npc-greeting/generate", async (req, res) => {
+    try {
+      const { npcName, personality, occupation, timeOfDay, targetLanguage } = req.body;
+      if (!npcName || !targetLanguage) {
+        return res.status(400).json({ error: "npcName and targetLanguage are required" });
+      }
+
+      if (!isGeminiConfigured()) {
+        return res.json({ greeting: null, fallback: true });
+      }
+
+      const traits = personality || {};
+      const prompt = `You are ${npcName}, a ${occupation || 'resident'} in a small town. ` +
+        `Your personality: openness ${(traits.openness ?? 0.5).toFixed(1)}, extroversion ${(traits.extroversion ?? 0.5).toFixed(1)}, agreeableness ${(traits.agreeableness ?? 0.5).toFixed(1)}, neuroticism ${(traits.neuroticism ?? 0.5).toFixed(1)}. ` +
+        `It is ${timeOfDay || 'daytime'}. ` +
+        `Say a short, natural greeting to a passerby in ${targetLanguage}. One sentence only. No English. No quotation marks.`;
+
+      const result = await getContentProvider().generate({
+        prompt,
+        model: 'fast',
+        maxTokens: 50,
+      });
+
+      const greeting = (result.text || '').trim();
+      res.json({ greeting: greeting || null, fallback: !greeting });
+    } catch (error) {
+      console.error("[NPC Greeting] Generation error:", error);
+      res.json({ greeting: null, fallback: true });
+    }
+  });
+
+  // ============================================================
   // TTS/STT Endpoints (migrated from Python server.py)
   // ============================================================
 

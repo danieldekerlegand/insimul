@@ -1997,3 +1997,41 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `(session as any).lastActivity = Date.now() - N` is the pattern for testing inactivity expiration
   - `(manager as any).cleanupExpired()` triggers the cleanup manually in tests
 ---
+
+## 2026-04-07 - US-001: NpcAudioLock — shared one-at-a-time audio gating
+- Created `NpcAudioLock` class in `shared/game-engine/rendering/NpcAudioLock.ts`
+- Methods: `acquire(owner)`, `release(owner)`, `isLocked()`, `forceRelease()`, `currentOwner` getter
+- acquire() returns true only if unlocked; release() only releases if caller matches owner
+- forceRelease() unconditionally releases (for player-initiated chat priority)
+- 10 unit tests in `shared/__tests__/npc-audio-lock.test.ts`
+- Files changed:
+  - `shared/game-engine/rendering/NpcAudioLock.ts` — new file
+  - `shared/__tests__/npc-audio-lock.test.ts` — new test file
+- **Learnings for future iterations:**
+  - Test files must be under `shared/__tests__/`, `server/__tests__/`, or `client/__tests__/` to match vitest include patterns (confirmed again)
+  - Pre-existing typecheck errors exist across many files — check only that new files are error-free
+  - NpcAudioLock is intentionally synchronous with no async/timers — keep it simple for downstream consumers
+---
+
+## 2026-04-07 - US-002: NPC greeting TTS helper — generate and speak a greeting
+- Created `shared/game-engine/rendering/NpcGreetingTTS.ts` with `generateAndSpeakGreeting(npc, worldData, options)` async function
+- Pipeline: LLM (FLASH tier, maxTokens 50, 3s timeout) → TTS → StreamingAudioPlayer
+- Added server endpoint `POST /api/npc-greeting/generate` in routes.ts — lightweight FLASH-tier LLM call with NPC personality/occupation/timeOfDay/targetLanguage
+- Client-side voice selection mirrors server `assignVoiceProfile` logic (gender + age → voice name mapping)
+- Falls back to hardcoded `GREETINGS[targetLanguage]` on LLM failure/timeout
+- Silently skips audio playback on TTS failure (no fallback to speech bubble)
+- Returns `Promise<GreetingResult>` that resolves when audio completes or rejects on AbortSignal
+- AbortSignal wired through LLM fetch, TTS fetch, and StreamingAudioPlayer stop
+- 18 unit tests covering: LLM success/failure/fallback, TTS success/failure, voice selection (female/male/young/senior), abort signal, time-of-day mapping, unknown language fallback
+- Files changed:
+  - `shared/game-engine/rendering/NpcGreetingTTS.ts` — new file, main greeting pipeline
+  - `server/routes.ts` — added `/api/npc-greeting/generate` endpoint
+  - `shared/__tests__/npc-greeting-tts.test.ts` — 18 new tests
+  - `tasks/prd.json` — US-002 passes: true
+- **Learnings for future iterations:**
+  - `getContentProvider().generate()` accepts `maxTokens` (not `maxOutputTokens`) — see `ContentGenerationRequest` in `server/services/providers/types.ts`
+  - `GREETINGS` constant in `shared/language/utils.ts` has multi-language fallback greetings — reuse for any fallback greeting needs
+  - `getLanguageBCP47()` in `shared/language/language-utils.ts` maps language names to BCP47 codes for TTS
+  - StreamingAudioPlayer mock in tests must be a function (not `vi.fn()`) to work as a constructor — use `function () { return mockObj; }` pattern
+  - Voice profiles: female (Aoede/Kore/Leda), male (Zephyr/Puck/Orus) mapped by age range
+---

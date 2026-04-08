@@ -16,7 +16,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "This is the foundational gating mechanism used by all subsequent stories. Keep it simple — no async, no timers."
     },
     {
@@ -36,7 +36,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "This is the core greeting pipeline. It needs to work end-to-end: LLM -> TTS -> audio playback. Reuse existing server endpoints and StreamingAudioPlayer."
     },
     {
