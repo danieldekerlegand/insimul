@@ -626,6 +626,10 @@ export const actions = pgTable("actions", {
   isAvailable: boolean("is_available").default(true),
   cooldown: integer("cooldown").default(0), // time steps before can use again
 
+  // Event mapping — links this action to the game event that triggers it
+  emitsEvent: text("emits_event"), // GameEventBus event name (e.g., 'npc_talked', 'item_collected', 'physical_action_completed')
+  gameActivityVerb: text("game_activity_verb"), // Canonical activity verb for taxonomy (defaults to action name if unset)
+
   // Narrative and presentation
   verbPast: text("verb_past"), // e.g., "talked", "fought"
   verbPresent: text("verb_present"), // e.g., "talks", "fights"

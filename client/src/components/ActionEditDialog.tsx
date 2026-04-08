@@ -7,8 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2 } from 'lucide-react';
+import { Trash2, AlertTriangle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ActionEditDialogProps {
   open: boolean;
@@ -43,6 +44,8 @@ export function ActionEditDialog({
     cooldown: 0,
     verbPast: '',
     verbPresent: '',
+    emitsEvent: '',
+    gameActivityVerb: '',
     tags: '',
   });
 
@@ -62,10 +65,19 @@ export function ActionEditDialog({
         cooldown: action.cooldown || 0,
         verbPast: action.verbPast || '',
         verbPresent: action.verbPresent || '',
+        emitsEvent: action.emitsEvent || '',
+        gameActivityVerb: action.gameActivityVerb || '',
         tags: Array.isArray(action.tags) ? action.tags.join(', ') : '',
       });
     }
   }, [action]);
+
+  // Animation-only categories that don't need event mappings
+  const ANIMATION_CATEGORIES = ['movement', 'animation'];
+  const isAnimationOnly = ANIMATION_CATEGORIES.includes(formData.category) ||
+    ['idle', 'walk', 'run', 'jump', 'dance', 'sit', 'wave', 'clap', 'die'].includes(formData.name);
+  const missingEvent = !formData.emitsEvent && !isAnimationOnly;
+  const hasContent = action?.content && action.content.includes('action_effect');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +89,8 @@ export function ActionEditDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          emitsEvent: formData.emitsEvent.trim() || null,
+          gameActivityVerb: formData.gameActivityVerb.trim() || null,
           tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
         }),
       });
@@ -313,6 +327,58 @@ export function ActionEditDialog({
               />
               <Label htmlFor="requiresTarget">Requires Target</Label>
             </div>
+
+            {/* Event mapping fields */}
+            <div className="border-t pt-4 mt-4">
+              <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Event Mapping</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="emitsEvent">Emits Event</Label>
+                  <Input
+                    id="emitsEvent"
+                    value={formData.emitsEvent}
+                    onChange={(e) => setFormData({ ...formData, emitsEvent: e.target.value })}
+                    placeholder="e.g., npc_talked, item_collected"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The GameEventBus event that triggers this action's effects.
+                    Leave empty for animation-only actions.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gameActivityVerb">Activity Verb</Label>
+                  <Input
+                    id="gameActivityVerb"
+                    value={formData.gameActivityVerb}
+                    onChange={(e) => setFormData({ ...formData, gameActivityVerb: e.target.value })}
+                    placeholder={formData.name || 'defaults to action name'}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Canonical verb for tracking. Defaults to the action name.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Validation warnings */}
+            {missingEvent && (
+              <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertDescription className="text-amber-600 text-sm">
+                  No event mapping set. This action's effects won't fire during gameplay.
+                  Set <strong>Emits Event</strong> to connect it to the game event pipeline.
+                </AlertDescription>
+              </Alert>
+            )}
+            {formData.emitsEvent && !hasContent && (
+              <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertDescription className="text-amber-600 text-sm">
+                  This action has an event mapping but no <code>action_effect/2</code> predicates
+                  in its Prolog content. The event will fire but no effects will execute.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <DialogFooter className="gap-2">
               <Button

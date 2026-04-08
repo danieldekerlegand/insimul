@@ -462,6 +462,8 @@ const ActionSchema = new Schema({
   requiresTarget: { type: Boolean, default: false },
   range: { type: Number, default: 0 },
   isAvailable: { type: Boolean, default: true },
+  emitsEvent: { type: String, default: null }, // GameEventBus event that triggers this action
+  gameActivityVerb: { type: String, default: null }, // Canonical activity verb (defaults to action name)
   verbPast: { type: String, default: null },
   verbPresent: { type: String, default: null },
   narrativeTemplates: { type: Schema.Types.Mixed, default: [] },

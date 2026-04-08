@@ -24,6 +24,7 @@ import type {
   SavedConversationRecord,
 } from '@shared/game-engine/types';
 import { isDebugLabelsEnabled } from '../rendering/DebugLabelUtils';
+import { getActivityByEvent, resolveVerbToAction } from '../activity-types';
 import { getDebugEventBus } from '../debug-event-bus';
 
 export interface GameState {
@@ -67,6 +68,17 @@ export class GamePrologEngine {
    * World data facts (characters, settlements, rules) are reloaded by initialize().
    */
   private playerFacts = new Set<string>();
+  /**
+   * Runtime event→action mapping built from loaded action data.
+   * Key: GameEventBus event name, Value: array of action names triggered by that event.
+   * Built during initialize() from action.emitsEvent fields.
+   */
+  private eventToActionMap = new Map<string, string[]>();
+  /**
+   * Runtime action name→activity verb mapping.
+   * Key: action name, Value: canonical activity verb (usually same as action name).
+   */
+  private actionToActivityMap = new Map<string, string>();
 
   constructor() {
     this.engine = new TauPrologEngine();
@@ -546,48 +558,54 @@ export class GamePrologEngine {
 
   /**
    * Map a game event to the action ID whose effects should fire.
-   * Returns null if the event doesn't correspond to a defined action.
+   *
+   * Priority:
+   * 1. Events that carry the action name directly (conversational_action_completed, physical_action_completed)
+   * 2. Runtime event→action map built from action.emitsEvent fields during initialize()
+   * 3. Fallback to static activity taxonomy and legacy aliases
    */
   private deriveActionId(event: GameEvent): string | null {
-    switch (event.type) {
-      case 'conversational_action_completed':
-        return (event as any).action || null;
-      case 'npc_talked':
-        return 'talk_to_npc';
-      case 'item_collected':
-        return 'collect_item';
-      case 'item_delivered':
-        return 'deliver_item';
-      case 'physical_action_completed': {
-        const actionType = (event as any).actionType || '';
-        // Physical actions map directly: fishing, mining, cooking, etc.
-        return actionType || null;
-      }
-      case 'object_examined':
-        return 'examine_object';
-      case 'object_identified':
-        return 'identify_object';
-      case 'gift_given':
-        return 'give_gift';
-      case 'item_purchased':
-        return 'buy_item';
-      case 'item_sold':
-        return 'sell_item';
-      case 'item_used':
-        return 'use_item';
-      case 'text_found':
-        return 'read_sign';
-      case 'text_read':
-        return 'read_text';
-      case 'food_ordered':
-        return 'order_food';
-      case 'price_haggled':
-        return 'haggle_price';
-      case 'enemy_defeated':
-        return 'defeat_enemy';
-      default:
-        return null;
+    const eventType = event.type as string;
+
+    // Events that carry the action name directly
+    if (eventType === 'conversational_action_completed') {
+      return (event as any).action || null;
     }
+    if (eventType === 'physical_action_completed') {
+      return (event as any).actionType || null;
+    }
+
+    // Runtime event→action map (built from action.emitsEvent during initialize)
+    const mappedActions = this.eventToActionMap.get(eventType);
+    if (mappedActions && mappedActions.length > 0) {
+      // If multiple actions map to this event, pick the best match
+      // For now, return the first one (most specific actions are registered first)
+      return mappedActions[0];
+    }
+
+    // Fallback: static activity taxonomy → resolve to canonical action name
+    const activity = getActivityByEvent(eventType);
+    if (activity) {
+      return activity.actionName || resolveVerbToAction(activity.verb);
+    }
+
+    return null;
+  }
+
+  /**
+   * Get the canonical activity verb for an action name.
+   * Uses the runtime map built from action.gameActivityVerb during initialize().
+   */
+  getActivityVerbForAction(actionName: string): string {
+    return this.actionToActivityMap.get(actionName) || actionName;
+  }
+
+  /**
+   * Get all action names that are triggered by a specific game event.
+   * Uses the runtime map built from action.emitsEvent during initialize().
+   */
+  getActionsForEvent(eventType: string): string[] {
+    return this.eventToActionMap.get(eventType) || [];
   }
 
   /**
@@ -868,10 +886,28 @@ export class GamePrologEngine {
         try { await this.engine.consult(rule.content); } catch { /* skip invalid */ }
       }
     }
+    // Build event→action map from loaded action data
+    this.eventToActionMap.clear();
+    this.actionToActivityMap.clear();
     for (const action of data.actions) {
       if (action.content) {
         try { await this.engine.consult(action.content); } catch { /* skip invalid */ }
       }
+      // Register event→action mapping
+      const actionName = action.name;
+      const emitsEvent = action.emitsEvent;
+      const activityVerb = action.gameActivityVerb || actionName;
+      if (emitsEvent) {
+        const existing = this.eventToActionMap.get(emitsEvent) || [];
+        if (!existing.includes(actionName)) {
+          existing.push(actionName);
+        }
+        this.eventToActionMap.set(emitsEvent, existing);
+      }
+      this.actionToActivityMap.set(actionName, activityVerb);
+    }
+    if (this.eventToActionMap.size > 0) {
+      console.log(`[GamePrologEngine] Built event→action map: ${this.eventToActionMap.size} events → ${data.actions.filter((a: any) => a.emitsEvent).length} actions`);
     }
     for (const quest of data.quests) {
       if (quest.content) {

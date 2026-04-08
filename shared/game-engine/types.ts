@@ -233,6 +233,8 @@ export interface Action {
   customData: Record<string, any>;
   tags: string[];
   isBase?: boolean;
+  emitsEvent?: string | null;
+  gameActivityVerb?: string | null;
 }
 
 export interface ActionState {

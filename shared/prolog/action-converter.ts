@@ -39,6 +39,8 @@ interface ActionData {
   cooldown?: number | null;
   verbPast?: string | null;
   verbPresent?: string | null;
+  emitsEvent?: string | null;
+  gameActivityVerb?: string | null;
   prerequisites?: any[];
   effects?: any[];
   sideEffects?: any[];
@@ -111,6 +113,16 @@ export function convertActionToProlog(action: ActionData, options?: ConvertOptio
   if (action.cooldown != null && action.cooldown > 0) {
     lines.push(`action_cooldown(${actionId}, ${action.cooldown}).`);
     predicates.push('action_cooldown/2');
+  }
+
+  // Event mapping — links this action to the game event that triggers it
+  if (action.emitsEvent) {
+    lines.push(`action_emits_event(${actionId}, '${escapeString(action.emitsEvent)}').`);
+    predicates.push('action_emits_event/2');
+  }
+  if (action.gameActivityVerb) {
+    lines.push(`action_activity(${actionId}, ${sanitizeAtom(action.gameActivityVerb)}).`);
+    predicates.push('action_activity/2');
   }
 
   // ── New-style prerequisites & effects (from action-prerequisites.ts / action-effects.ts) ──

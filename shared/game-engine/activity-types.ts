@@ -106,6 +106,10 @@ export interface ActivityDefinition {
   prologPredicate: string;
   /** Fields included in telemetry for this activity */
   telemetryFields: readonly string[];
+  /** Canonical action name in the database (if different from verb) */
+  actionName?: string;
+  /** Alternative names that resolve to this activity */
+  aliases?: readonly string[];
 }
 
 // ─── Taxonomy ───────────────────────────────────────────────────────────────
@@ -159,6 +163,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   attack: {
     category: 'combat',
     verb: 'attack',
+    actionName: 'attack_enemy',
+    aliases: ['attack_enemy'],
     requiresTarget: true,
     emitsEvent: 'combat_action',
     prologPredicate: 'attacked(player, TargetId)',
@@ -210,6 +216,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   collect: {
     category: 'items',
     verb: 'collect',
+    actionName: 'collect_item',
+    aliases: ['collect_item'],
     requiresTarget: true,
     emitsEvent: 'item_collected',
     prologPredicate: 'collected(player, ItemId)',
@@ -218,6 +226,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   craft: {
     category: 'items',
     verb: 'craft',
+    actionName: 'craft_item',
+    aliases: ['craft_item'],
     requiresTarget: false,
     emitsEvent: 'item_crafted',
     prologPredicate: 'crafted(player, ItemId)',
@@ -226,6 +236,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   equip: {
     category: 'items',
     verb: 'equip',
+    actionName: 'equip_item',
+    aliases: ['equip_item'],
     requiresTarget: true,
     emitsEvent: 'item_equipped',
     prologPredicate: 'equipped(player, ItemId)',
@@ -234,6 +246,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   use: {
     category: 'items',
     verb: 'use',
+    actionName: 'use_item',
+    aliases: ['use_item'],
     requiresTarget: true,
     emitsEvent: 'item_used',
     prologPredicate: 'used(player, ItemId)',
@@ -242,6 +256,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   drop: {
     category: 'items',
     verb: 'drop',
+    actionName: 'drop_item',
+    aliases: ['drop_item'],
     requiresTarget: true,
     emitsEvent: 'item_dropped',
     prologPredicate: 'dropped(player, ItemId)',
@@ -250,6 +266,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   give: {
     category: 'items',
     verb: 'give',
+    actionName: 'give_gift',
+    aliases: ['give_gift', 'gift'],
     requiresTarget: true,
     emitsEvent: 'item_delivered',
     prologPredicate: 'gave(player, ItemId, NpcId)',
@@ -258,6 +276,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   buy: {
     category: 'items',
     verb: 'buy',
+    actionName: 'buy_item',
+    aliases: ['buy_item'],
     requiresTarget: true,
     emitsEvent: 'item_collected',
     prologPredicate: 'bought(player, ItemId)',
@@ -266,6 +286,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   sell: {
     category: 'items',
     verb: 'sell',
+    actionName: 'sell_item',
+    aliases: ['sell_item'],
     requiresTarget: true,
     emitsEvent: 'item_removed',
     prologPredicate: 'sold(player, ItemId)',
@@ -320,6 +342,8 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   compliment: {
     category: 'social',
     verb: 'compliment',
+    actionName: 'compliment_npc',
+    aliases: ['compliment_npc'],
     requiresTarget: true,
     emitsEvent: 'reputation_changed',
     prologPredicate: 'complimented(player, NpcId)',
@@ -645,6 +669,26 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
   },
 } as const satisfies Record<ActivityVerb, ActivityDefinition>;
 
+// ─── Alias Index ──────────────────────────────────────────────────────────
+// Built once: maps action names and aliases → activity definitions.
+// Allows lookups by either the short verb ("buy") or the action name ("buy_item").
+
+const _aliasIndex = new Map<string, ActivityDefinition>();
+for (const def of Object.values(ACTIVITY_TAXONOMY)) {
+  // Index by verb
+  _aliasIndex.set(def.verb, def);
+  // Index by canonical action name
+  if (def.actionName) {
+    _aliasIndex.set(def.actionName, def);
+  }
+  // Index by aliases
+  if (def.aliases) {
+    for (const alias of def.aliases) {
+      _aliasIndex.set(alias, def);
+    }
+  }
+}
+
 // ─── Helper Functions ───────────────────────────────────────────────────────
 
 /** Get all activity definitions belonging to a category. */
@@ -652,73 +696,47 @@ export function getActivitiesByCategory(category: ActivityCategory): ActivityDef
   return Object.values(ACTIVITY_TAXONOMY).filter(a => a.category === category);
 }
 
-/** Get the definition for a specific activity verb, or undefined if not found. */
-export function getActivityDefinition(verb: string): ActivityDefinition | undefined {
-  return (ACTIVITY_TAXONOMY as Record<string, ActivityDefinition>)[verb];
+/**
+ * Get the definition for a specific activity verb or action name.
+ * Resolves aliases: "buy", "buy_item", and "purchase" all find the same definition.
+ */
+export function getActivityDefinition(verbOrActionName: string): ActivityDefinition | undefined {
+  return _aliasIndex.get(verbOrActionName) ||
+    (ACTIVITY_TAXONOMY as Record<string, ActivityDefinition>)[verbOrActionName];
 }
 
-/** Check whether a string is a valid activity verb. */
+/** Check whether a string is a valid activity verb or action name. */
 export function isValidActivity(verb: string): verb is ActivityVerb {
-  return verb in ACTIVITY_TAXONOMY;
+  return verb in ACTIVITY_TAXONOMY || _aliasIndex.has(verb);
 }
 
-/** Resolve an event name to its activity definition (for backward compat with GameEventBus). */
+/** Resolve an event name to its activity definition. */
 export function getActivityByEvent(eventName: string): ActivityDefinition | undefined {
   return Object.values(ACTIVITY_TAXONOMY).find(a => a.emitsEvent === eventName);
 }
 
-// ─── Backward Compatibility Aliases ─────────────────────────────────────────
-// Maps old GameEventBus event names to canonical activity verbs.
+/**
+ * Resolve an action name to its canonical activity verb.
+ * Returns the verb if found, or the input if not recognized.
+ */
+export function resolveActionToVerb(actionName: string): string {
+  const def = _aliasIndex.get(actionName);
+  return def ? def.verb : actionName;
+}
 
-export const LEGACY_EVENT_ALIASES: Readonly<Record<string, ActivityVerb>> = {
-  'npc_talked': 'talk_to_npc',
-  'item_collected': 'collect',
-  'item_crafted': 'craft',
-  'item_equipped': 'equip',
-  'item_used': 'use',
-  'item_dropped': 'drop',
-  'item_delivered': 'give',
-  'item_removed': 'sell',
-  'enemy_defeated': 'defeat_enemy',
-  'combat_action': 'attack',
-  'location_visited': 'visit_location',
-  'location_discovered': 'discover_location',
-  'settlement_entered': 'enter_settlement',
-  'reputation_changed': 'compliment',
-  'puzzle_attempted': 'puzzle_attempt',
-  'puzzle_solved': 'puzzle_solve',
-  'puzzle_failed': 'puzzle_fail',
-  'quest_accepted': 'quest_accept',
-  'quest_completed': 'quest_complete',
-  'quest_failed': 'quest_fail',
-  'quest_abandoned': 'quest_abandon',
-  'vocabulary_used': 'vocabulary_use',
-  'grammar_attempted': 'grammar_attempt',
-  'translation_attempted': 'translation',
-  'pronunciation_attempted': 'pronunciation',
-  'object_examined': 'examine_object',
-  'sign_read': 'read_sign',
-  'response_written': 'write_response',
-  'phrase_repeated': 'listen_and_repeat',
-  'object_named': 'point_and_name',
-  'directions_asked': 'ask_for_directions',
-  'food_ordered': 'order_food',
-  'price_haggled': 'haggle_price',
-  'self_introduced': 'introduce_self',
-  'scene_described': 'describe_scene',
-  'conversation_overheard': 'eavesdrop',
-  'utterance_attempted': 'utterance_attempt',
-  'romance_action': 'romance_action',
-  'romance_stage_changed': 'propose',
-  'assessment_started': 'assessment_start',
-  'assessment_phase_started': 'assessment_phase_start',
-  'assessment_phase_completed': 'assessment_phase_complete',
-  'assessment_tier_change': 'assessment_tier_change',
-  'assessment_completed': 'assessment_complete',
-  'onboarding_step_started': 'onboarding_step_start',
-  'onboarding_step_completed': 'onboarding_step_complete',
-  'onboarding_completed': 'onboarding_complete',
-};
+/**
+ * Resolve an activity verb to its canonical action name.
+ * Returns the actionName if defined, or the verb itself if no separate action name.
+ */
+export function resolveVerbToAction(verb: string): string {
+  const def = _aliasIndex.get(verb);
+  return def?.actionName || def?.verb || verb;
+}
+
+// LEGACY_EVENT_ALIASES removed — all event→action mappings are now handled by:
+// 1. Runtime eventToActionMap (built from action.emitsEvent during GamePrologEngine.initialize())
+// 2. ACTIVITY_TAXONOMY entries with emitsEvent fields
+// 3. The _aliasIndex which resolves both verb names and action names
 
 // ─── Deprecated Aliases (backward compat) ───────────────────────────────────
 // These re-export the old names so existing imports keep working.

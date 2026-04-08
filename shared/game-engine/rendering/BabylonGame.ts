@@ -1827,6 +1827,70 @@ export class BabylonGame {
    * before it persists. This ensures vocabulary, grammar, Prolog facts,
    * quest progress, contacts, conversation history, etc. are saved.
    */
+  /**
+   * Detect quest objectives that can't be completed (missing NPC, location, etc.)
+   * and replace them with fallback alternatives that preserve learning intent.
+   */
+  private async applyQuestObjectiveFallbacks(): Promise<void> {
+    if (!this.quests?.length) return;
+
+    try {
+      const { applyObjectiveFallbacks } = await import('@shared/quest-objective-fallbacks');
+
+      // Build world state from current game data
+      const availableNpcs: string[] = [];
+      this.npcMeshes.forEach((instance, npcId) => {
+        if (instance.mesh?.isEnabled()) {
+          availableNpcs.push(npcId);
+          const charData = instance.characterData;
+          if (charData?.firstName) {
+            availableNpcs.push(`${charData.firstName} ${charData.lastName || ''}`.trim());
+          }
+        }
+      });
+
+      const availableLocations: string[] = [];
+      this.buildingData.forEach((data, buildingId) => {
+        availableLocations.push(buildingId);
+        if (data.metadata?.businessName) availableLocations.push(data.metadata.businessName);
+      });
+      if (this.currentZone?.name) availableLocations.push(this.currentZone.name);
+
+      const availableItems: string[] = this.inventory?.getAllItems()?.map((i: any) => i.name || i.id) || [];
+
+      const worldState = { availableNpcs, availableLocations, availableItems };
+
+      // Apply fallbacks to each active quest
+      let totalFallbacks = 0;
+      for (const quest of this.quests) {
+        if (quest.status !== 'active' && quest.status !== 'available') continue;
+        if (!quest.objectives?.length) continue;
+
+        const { objectives: updated, applied } = applyObjectiveFallbacks(
+          quest.objectives.map((o: any) => ({ ...o, questId: quest.id })),
+          worldState,
+        );
+
+        if (applied.length > 0) {
+          quest.objectives = updated;
+          totalFallbacks += applied.length;
+          for (const fb of applied) {
+            console.log(`[QuestFallback] ${quest.title}: ${fb.originalType} → ${fb.fallbackType} (${fb.reason}: ${fb.missingTarget || 'unknown'})`);
+          }
+        }
+      }
+
+      if (totalFallbacks > 0) {
+        console.log(`[QuestFallback] Applied ${totalFallbacks} objective fallback(s) across active quests`);
+        // Re-register with completion engine since objectives changed
+        this.registerQuestsWithCompletionEngine(this.quests);
+      }
+    } catch (err) {
+      // Fallback module not available — non-fatal
+      console.debug('[QuestFallback] Fallback system unavailable:', err);
+    }
+  }
+
   private syncSubsystemStateToDataSource(): void {
     const ds = this.dataSource as any;
     if (typeof ds.getCurrentState !== 'function') return;
@@ -5282,6 +5346,9 @@ export class BabylonGame {
       this.quests = quests;
       // Register all quests with QuestCompletionEngine so objective tracking works
       this.registerQuestsWithCompletionEngine(quests);
+
+      // Apply objective fallbacks for quests with missing targets (NPC deleted, location gone, etc.)
+      this.applyQuestObjectiveFallbacks();
 
       // Distribute radiant quests to NPCs (staggered, max 5 at a time)
       if (this.gameQuestManager) {
