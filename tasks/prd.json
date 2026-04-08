@@ -17,7 +17,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "These types are consumed by all subsequent stories. Keep them in the existing assessment-types.ts file alongside the current types."
     },
     {

@@ -2288,3 +2288,15 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - vi.mock hoisting in vitest causes cross-file contamination when two test files mock the same module with different return values — avoid by not sharing mocks across files or by keeping pure logic tests separate from integration tests
   - NPCProximitySpeechSystem already had `lastGreetingResults` map and `getRecentGreeting()` implemented in a prior story — US-013 only needed to wire the consumer side (BabylonChatPanel + BabylonGame)
 ---
+
+## 2026-04-08 - US-001: Define AssessmentQuestData type for quest customData
+- Added `AssessmentQuestData`, `AssessmentQuestPhase`, `AssessmentQuestTask` types for embedding assessment definitions in quest customData
+- Added `AssessmentPhaseResult` and `AssessmentTaskResult` types for storing player answers in quest overlays
+- Added `AssessmentCompletionResult` type for final CEFR scoring stored in save file
+- Files changed:
+  - `shared/assessment/assessment-types.ts` — 6 new exported types added
+- **Learnings for future iterations:**
+  - Existing `PhaseResult` and `AssessmentResult` types have many optional fields for runtime use; the new quest-embedded types are leaner and mandatory-field-heavy for serialization clarity
+  - `assessment-types.ts` already has `AssessmentDefinition` which is structurally similar to `AssessmentQuestData` — the quest variant uses `maxScore` (not `maxPoints`) on phases for consistency with the overlay storage pattern
+  - 847 pre-existing TS errors in the codebase; none introduced by this change
+---
