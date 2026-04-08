@@ -238,7 +238,7 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Currently contacts are derived from conversation history and relationships at runtime. The fix needs to explicitly track met status. The NPCGreetingSystem already has hasMet/markAsMet — wire that into the save state."
     },
     {

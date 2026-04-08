@@ -2564,3 +2564,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Engine drift hook blocks commits when types.ts or GameMenuSystem.ts change — run `npm run drift:update` after changes
   - The `getAnsweredArticleIds` callback in GameMenuCallbacks delegates to BabylonGame's `readingProgressAnsweredIds` — restoring both BabylonGame and GameMenuSystem sets keeps them in sync
 ---
+
+## 2026-04-08 - US-014: Persist NPC contact list and met status in game save
+- Added `SavedNPCContact` type to `shared/game-engine/types.ts` with fields: met, firstMetAt, conversationCount, lastSpokenAt, disposition
+- Added `contacts` field (Record<npcId, SavedNPCContact>) to `GameSaveState`
+- Added `getContacts()` to `GameStateSource` and `restoreContacts()` to `GameStateTarget` in WorldStateManager.ts
+- Added `'contacts'` to `SUBSYSTEM_KEYS` array for save completeness auditing
+- Added `npcContacts` Map in BabylonGame for in-memory contact tracking
+- Added `trackNPCContact()` method called at conversation start — creates new contact or increments conversationCount
+- Wired `getContacts` callback in menuCallbacks to populate Contacts tab from npcContacts Map
+- Wired save (getContacts in createGameStateSource) and load (restoreContacts in createGameStateTarget)
+- Files changed:
+  - `shared/game-engine/types.ts` — SavedNPCContact type, contacts field on GameSaveState
+  - `client/src/components/3DGame/WorldStateManager.ts` — getContacts/restoreContacts in interfaces, SUBSYSTEM_KEYS, save/load wiring
+  - `shared/game-engine/rendering/BabylonGame.ts` — npcContacts Map, trackNPCContact(), getContacts callback, save/load methods
+  - `shared/game-engine/drift-manifest.json` — updated hashes
+- **Learnings for future iterations:**
+  - `getContacts` was already defined in `GameMenuCallbacks` interface but never wired in BabylonGame — just needed implementation
+  - `NPCDisplayInfo` (local to BabylonGame) has no `role` field — role comes from `NPCInstance.role` via `npcMeshes` Map
+  - Contact tracking should happen at conversation start (not end) to ensure met status is recorded even if player quits mid-conversation
+  - Engine drift hook fires on types.ts changes — always run `npm run drift:update` after modifying shared types
+---
