@@ -87,7 +87,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "The quest overlay already supports arbitrary fields in overrides. phaseResults is just another field stored alongside status. The existing questOverlay.serialize()/deserialize() handles this automatically."
     },
     {

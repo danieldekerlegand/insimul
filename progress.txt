@@ -2365,3 +2365,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `findAssessmentQuest()` must run before `AssessmentEngine` construction so quest data is available at engine creation time
   - `loadQuests()` returns `any[]` so customData flows through without type narrowing — the `QuestIR.customData` addition is for documentation/downstream consumers
 ---
+
+## 2026-04-08 - US-005: Store player answers and phase scores in quest overlay
+- Added `PhaseRunResult` internal type to AssessmentEngine carrying task-level results (score, taskResults, dimensionScores)
+- Replaced `_runModalPhase` with `_runModalPhaseWithResults` that returns full task-level scoring data
+- Added `_buildTaskResults()` helper that maps question-level scores (reading/listening) or per-answer scores (writing) into `AssessmentTaskResult[]`
+- Added `onPhaseResult()` callback to AssessmentEngine that emits full `AssessmentPhaseResult` after each phase (phaseId, score, maxScore, taskResults, dimensionScores, completedAt)
+- In OnboardingLauncher: accumulates phase results and stores them in quest overlay via `questOverlay.updateQuest(questId, { phaseResults: [...] })` after each phase completes
+- Added `questOverlay` to `OnboardingLauncherDeps` interface
+- BabylonGame now passes `this.questOverlay` to `launchOnboarding()`
+- Also passes `questId` to AssessmentEngine constructor (was previously missing)
+- No assessment API write calls exist in the gameplay path — scoring is fully client-side via offline heuristics
+- Files changed:
+  - `shared/game-engine/logic/AssessmentEngine.ts` — PhaseRunResult, _runModalPhaseWithResults, _buildTaskResults, onPhaseResult callback
+  - `shared/game-engine/rendering/OnboardingLauncher.ts` — questOverlay dep, onPhaseResult wiring, questId passthrough
+  - `shared/game-engine/rendering/BabylonGame.ts` — pass questOverlay to launchOnboarding
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - AssessmentEngine scores entirely offline (no API calls) — `_scoreOffline()` handles reading/listening via `scoreReadingListeningOffline()` and writing via `scoreWritingOffline()`
+  - `PlaythroughQuestOverlay.updateQuest()` does shallow merge — spreading the phaseResults array ensures the full history is preserved
+  - The `ScoringResult.questionScores` array maps 1:1 to question IDs for reading/listening phases, while writing phases have no per-question breakdown
+  - `_lastOfflineEntry` tracks the most recently used offline content for scoring rubric lookup — it's overwritten per phase
+---
