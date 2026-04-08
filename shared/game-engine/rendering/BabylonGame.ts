@@ -4463,6 +4463,44 @@ export class BabylonGame {
     // Wire shared audio lock for one-at-a-time NPC audio gating
     this.ambientConversationManager.setAudioLock(this.npcAudioLock);
 
+    // Wire server URL for TTS calls
+    if (this.config.apiUrl) {
+      this.ambientConversationManager.setServerUrl(this.config.apiUrl);
+    }
+
+    // Wire conversation provider: fetches real NPC-NPC conversation from server
+    this.ambientConversationManager.setConversationProvider(
+      async (npc1Id, npc2Id, maxExchanges, signal) => {
+        const data = await this.dataSource.simulateRichConversation(
+          this.config.worldId, npc1Id, npc2Id, maxExchanges,
+        );
+        if (signal.aborted || !data?.utterances) return [];
+
+        // Map utterances to AmbientConversationLine with speaker IDs
+        const npc1Instance = this.npcMeshes.get(npc1Id);
+        const npc2Instance = this.npcMeshes.get(npc2Id);
+        const npc1First = npc1Instance?.characterData?.firstName || '';
+        const npc2First = npc2Instance?.characterData?.firstName || '';
+
+        return data.utterances.map((u, i) => {
+          let speakerId = '';
+          if (npc1First && u.speaker.includes(npc1First)) {
+            speakerId = npc1Id;
+          } else if (npc2First && u.speaker.includes(npc2First)) {
+            speakerId = npc2Id;
+          } else {
+            speakerId = i % 2 === 0 ? npc1Id : npc2Id;
+          }
+          return {
+            speakerId,
+            speakerName: u.speaker,
+            text: u.text,
+            gender: u.gender || (speakerId === npc1Id ? npc1Instance?.characterData?.gender : npc2Instance?.characterData?.gender),
+          };
+        });
+      }
+    );
+
     // Wire up animation callback for NPC conversations
     this.ambientConversationManager.setAnimationCallback((npcId: string, animation: string) => {
       const instance = this.npcMeshes.get(npcId);
@@ -9472,7 +9510,9 @@ export class BabylonGame {
           character.id,
           npcInfo.name,
           root,
-          npcInstance.state
+          npcInstance.state,
+          (character as any).gender,
+          (character as any).age,
         );
       }
 

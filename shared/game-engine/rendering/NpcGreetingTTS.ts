@@ -94,7 +94,7 @@ const VOICE_MAP: Record<string, string> = {
   'm-senior': 'Orus',
 };
 
-function selectVoice(npc: GreetingNPC, voiceOverride?: string): VoiceSelection {
+export function selectVoice(npc: GreetingNPC, voiceOverride?: string): VoiceSelection {
   const gender = (npc.gender || 'male').toLowerCase();
   const genderKey = gender === 'female' ? 'f' : 'm';
 

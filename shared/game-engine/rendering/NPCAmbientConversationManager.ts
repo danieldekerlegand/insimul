@@ -1,8 +1,9 @@
 /**
  * NPC Ambient Conversation Manager
  *
- * Lightweight system that pairs nearby NPCs into visual conversations.
- * No API calls, no TTS — just talk/listen animations exchanged on a timer.
+ * Pairs nearby NPCs into conversations when the player is within range.
+ * Calls the NPC-NPC conversation engine for real dialogue, then plays each
+ * line via TTS with spatial audio positioned at the speaking NPC's mesh.
  *
  * When the player is close enough to a conversing pair, an "eavesdrop" prompt
  * appears. If the player eavesdrops, the game opens the chat panel in
@@ -12,30 +13,40 @@
 
 import { Vector3, Scene, Mesh } from '@babylonjs/core';
 import { NPCTalkingIndicator } from './NPCTalkingIndicator';
-import { GREETINGS } from '@shared/language/utils';
 import { NpcAudioLock } from './NpcAudioLock';
+import { StreamingAudioPlayer } from './StreamingAudioPlayer';
+import type { StreamingAudioChunk } from './StreamingAudioPlayer';
+import { selectVoice } from './NpcGreetingTTS';
+import { getLanguageBCP47 } from '@shared/language/language-utils';
 import type { GamePrologEngine } from '../logic/GamePrologEngine';
-
-/** Short ambient dialogue phrases in target languages for NPC-NPC speech bubbles. */
-const AMBIENT_DIALOGUE_PHRASES: Record<string, string[]> = {
-  French: ['Oui, bien sûr!', 'Ah bon?', 'C\'est vrai?', 'Exactement!', 'Pas mal!', 'Incroyable!', 'Tu as raison.', 'Quelle histoire!'],
-  Spanish: ['¡Sí, claro!', '¿De verdad?', '¡Exacto!', '¡No me digas!', '¡Qué bien!', 'Tienes razón.', '¡Increíble!', '¡Qué historia!'],
-  German: ['Ja, natürlich!', 'Wirklich?', 'Genau!', 'Nicht schlecht!', 'Unglaublich!', 'Du hast Recht.', 'Was für eine Geschichte!'],
-  Italian: ['Sì, certo!', 'Davvero?', 'Esatto!', 'Incredibile!', 'Hai ragione.', 'Che storia!', 'Non male!'],
-  Portuguese: ['Sim, claro!', 'Sério?', 'Exatamente!', 'Incrível!', 'Você tem razão.', 'Que história!'],
-  Japanese: ['そうですね！', 'ほんとう？', 'なるほど！', 'すごい！', 'そうだね。', 'えー！'],
-  Chinese: ['是的！', '真的吗？', '没错！', '太厉害了！', '你说得对。', '不错！'],
-  'Mandarin Chinese': ['是的！', '真的吗？', '没错！', '太厉害了！', '你说得对。', '不错！'],
-  Korean: ['맞아요!', '정말요?', '대단해요!', '그래요!', '맞아, 맞아!'],
-  Russian: ['Да, конечно!', 'Правда?', 'Точно!', 'Невероятно!', 'Ты прав.'],
-};
 
 interface NPCInstance {
   mesh: Mesh;
   state: string;
   id: string;
   name: string;
+  gender?: string;
+  age?: number;
 }
+
+/** A single line from an NPC-NPC conversation */
+export interface AmbientConversationLine {
+  speakerId: string;
+  speakerName: string;
+  text: string;
+  gender?: string;
+}
+
+/**
+ * Provider callback that fetches a real NPC-NPC conversation from the server.
+ * Returns an array of conversation lines (utterances).
+ */
+export type ConversationProvider = (
+  npc1Id: string,
+  npc2Id: string,
+  maxExchanges: number,
+  signal: AbortSignal,
+) => Promise<AmbientConversationLine[]>;
 
 export interface AmbientConversation {
   id: string;
@@ -45,6 +56,12 @@ export interface AmbientConversation {
   activeSpeakerIdx: number;
   /** Timer handle for alternating talk animations */
   alternateTimer: number | null;
+  /** AbortController for cancelling streamed conversation + TTS */
+  abortController?: AbortController;
+  /** Currently playing StreamingAudioPlayer */
+  activePlayer?: StreamingAudioPlayer;
+  /** Whether this conversation is using streamed TTS (vs fallback animation) */
+  streamed?: boolean;
 }
 
 /** Callback to trigger NPC animations (talk/idle/listen) */
@@ -117,6 +134,10 @@ export class NPCAmbientConversationManager {
   /** Player proximity radius — conversations only start when player is within this distance of both NPCs */
   private playerProximityRadius = 8;
 
+  // Streamed conversation support
+  private conversationProvider: ConversationProvider | null = null;
+  private serverUrl: string = '';
+
   constructor(scene: Scene, _worldId: string, talkingIndicator: NPCTalkingIndicator) {
     this.scene = scene;
     this.talkingIndicator = talkingIndicator;
@@ -128,8 +149,8 @@ export class NPCAmbientConversationManager {
     this.playerMesh = mesh;
   }
 
-  public registerNPC(npcId: string, npcName: string, mesh: Mesh, state: string): void {
-    this.npcMeshes.set(npcId, { mesh, state, id: npcId, name: npcName });
+  public registerNPC(npcId: string, npcName: string, mesh: Mesh, state: string, gender?: string, age?: number): void {
+    this.npcMeshes.set(npcId, { mesh, state, id: npcId, name: npcName, gender, age });
   }
 
   public unregisterNPC(npcId: string): void {
@@ -166,6 +187,14 @@ export class NPCAmbientConversationManager {
     this.audioLock = lock;
   }
 
+  public setConversationProvider(provider: ConversationProvider): void {
+    this.conversationProvider = provider;
+  }
+
+  public setServerUrl(url: string): void {
+    this.serverUrl = url;
+  }
+
   public pause(): void { this._paused = true; }
   public resume(): void { this._paused = false; }
 
@@ -198,7 +227,7 @@ export class NPCAmbientConversationManager {
    * If the NPC is in an ambient conversation, return the partner's id and name.
    */
   public getConversationPartner(npcId: string): { partnerId: string; partnerName: string } | null {
-    for (const conv of this.activeConversations.values()) {
+    for (const conv of Array.from(this.activeConversations.values())) {
       const idx = conv.participants.indexOf(npcId);
       if (idx !== -1) {
         const partnerId = conv.participants[idx === 0 ? 1 : 0];
@@ -261,9 +290,9 @@ export class NPCAmbientConversationManager {
     if (this._paused) return;
     const now = Date.now();
 
-    // Expire old conversations
+    // Expire old conversations (only fallback timer-based ones; streamed ones end naturally)
     for (const [convId, conv] of Array.from(this.activeConversations.entries())) {
-      if (now - conv.startTime > this.conversationDurationMs) {
+      if (!conv.streamed && now - conv.startTime > this.conversationDurationMs) {
         this.endConversation(convId);
       }
     }
@@ -334,25 +363,198 @@ export class NPCAmbientConversationManager {
     // Face each other and enforce separation
     this.faceEachOther(npc1.mesh, npc2.mesh);
 
+    const abortController = new AbortController();
+
     const conv: AmbientConversation = {
       id: convId,
       participants: [npc1.id, npc2.id],
       startTime: now,
       activeSpeakerIdx: 0,
       alternateTimer: null,
+      abortController,
+      streamed: false,
     };
 
     this.activeConversations.set(convId, conv);
     this.conversationCooldowns.set(npc1.id, now);
     this.conversationCooldowns.set(npc2.id, now);
 
-    // Start alternating talk animations
-    this.setTalkAnimations(conv);
-    conv.alternateTimer = window.setInterval(() => {
-      if (!this.activeConversations.has(convId)) return;
-      conv.activeSpeakerIdx = conv.activeSpeakerIdx === 0 ? 1 : 0;
+    // If a conversation provider is available, use streamed TTS playback
+    if (this.conversationProvider) {
+      conv.streamed = true;
+      // Set initial animations (npc1 talks first)
+      this.onAnimationChange?.(npc1.id, 'talk');
+      this.onAnimationChange?.(npc2.id, 'idle');
+
+      this.runStreamedConversation(conv, npc1, npc2);
+    } else {
+      // Fallback: timer-based animation only (no TTS)
       this.setTalkAnimations(conv);
-    }, this.talkTurnDurationMs);
+      conv.alternateTimer = window.setInterval(() => {
+        if (!this.activeConversations.has(convId)) return;
+        conv.activeSpeakerIdx = conv.activeSpeakerIdx === 0 ? 1 : 0;
+        this.setTalkAnimations(conv);
+      }, this.talkTurnDurationMs);
+    }
+  }
+
+  /**
+   * Run a streamed NPC-NPC conversation with sequential TTS playback.
+   * Each line is TTS'd and played at the speaking NPC's position.
+   * No speech bubbles — audio only.
+   */
+  private async runStreamedConversation(
+    conv: AmbientConversation,
+    npc1: NPCInstance,
+    npc2: NPCInstance,
+  ): Promise<void> {
+    const convId = conv.id;
+    const signal = conv.abortController!.signal;
+
+    try {
+      // Random 3-5 exchanges
+      const maxExchanges = 3 + Math.floor(Math.random() * 3);
+
+      const lines = await this.conversationProvider!(
+        npc1.id, npc2.id, maxExchanges, signal,
+      );
+
+      if (signal.aborted || !this.activeConversations.has(convId)) return;
+      if (!lines || lines.length === 0) {
+        this.endConversation(convId);
+        return;
+      }
+
+      // Play each line sequentially with TTS
+      for (let i = 0; i < lines.length; i++) {
+        if (signal.aborted || !this.activeConversations.has(convId)) return;
+
+        const line = lines[i];
+
+        // Set animations: speaker talks, other idles
+        const isSpeakerNpc1 = line.speakerId === npc1.id;
+        const speakerNpc = isSpeakerNpc1 ? npc1 : npc2;
+        const listenerNpc = isSpeakerNpc1 ? npc2 : npc1;
+        this.onAnimationChange?.(speakerNpc.id, 'talk');
+        this.onAnimationChange?.(listenerNpc.id, 'idle');
+
+        // TTS + spatial audio playback
+        await this.speakLine(line, speakerNpc, conv, signal);
+
+        if (signal.aborted || !this.activeConversations.has(convId)) return;
+
+        // 500ms pause between exchanges
+        if (i < lines.length - 1) {
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(resolve, 500);
+            const onAbort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };
+            signal.addEventListener('abort', onAbort, { once: true });
+          }).catch(() => { /* aborted */ });
+        }
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('[AmbientConv] Streamed conversation error:', err);
+      }
+    } finally {
+      // Conversation finished or was aborted — clean up
+      if (this.activeConversations.has(convId)) {
+        this.endConversation(convId);
+      }
+    }
+  }
+
+  /**
+   * Synthesize and play a single conversation line via TTS.
+   * Returns a promise that resolves when audio playback finishes.
+   */
+  private async speakLine(
+    line: AmbientConversationLine,
+    speakerNpc: NPCInstance,
+    conv: AmbientConversation,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (signal.aborted) return;
+
+    const langCode = getLanguageBCP47(this.targetLanguage);
+    const voice = selectVoice({
+      id: speakerNpc.id,
+      name: speakerNpc.name,
+      gender: line.gender || speakerNpc.gender,
+      age: speakerNpc.age,
+      meshPosition: speakerNpc.mesh.position,
+    });
+
+    // Call TTS endpoint
+    let audioBuffer: ArrayBuffer | null = null;
+    try {
+      const ttsRes = await fetch(`${this.serverUrl}/api/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: line.text,
+          voice: voice.voiceName,
+          gender: voice.gender,
+          encoding: 'MP3',
+          targetLanguage: langCode,
+        }),
+        signal,
+      });
+
+      if (ttsRes.ok) {
+        audioBuffer = await ttsRes.arrayBuffer();
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      // TTS failure — skip this line silently
+    }
+
+    if (!audioBuffer || audioBuffer.byteLength === 0 || signal.aborted) return;
+
+    // Play via StreamingAudioPlayer at the speaking NPC's position
+    const player = new StreamingAudioPlayer({
+      preBufferCount: 1,
+      npcPosition: speakerNpc.mesh.position,
+      maxDistance: 50,
+    });
+
+    conv.activePlayer = player;
+
+    return new Promise<void>((resolve) => {
+      const cleanup = () => {
+        conv.activePlayer = undefined;
+        player.stop();
+        player.dispose();
+        resolve();
+      };
+
+      if (signal.aborted) {
+        cleanup();
+        return;
+      }
+
+      const onAbort = () => cleanup();
+      signal.addEventListener('abort', onAbort, { once: true });
+
+      player.setCallbacks({
+        onComplete: () => {
+          signal.removeEventListener('abort', onAbort);
+          conv.activePlayer = undefined;
+          player.dispose();
+          resolve();
+        },
+      });
+
+      const chunk: StreamingAudioChunk = {
+        data: new Uint8Array(audioBuffer!),
+        encoding: 3, // MP3
+        sampleRate: 24000,
+        durationMs: 0,
+      };
+
+      player.pushChunk(chunk);
+      player.finish();
+    });
   }
 
   private setTalkAnimations(conv: AmbientConversation): void {
@@ -361,36 +563,29 @@ export class NPCAmbientConversationManager {
     this.onAnimationChange?.(speakerId, 'talk');
     this.onAnimationChange?.(listenerId, 'idle');
 
-    // Show a target-language snippet in the speech bubble (or "..." fallback)
+    // Show a target-language snippet in the speech bubble (fallback mode only)
     const speakerNPC = this.npcMeshes.get(speakerId);
     if (this.talkingIndicator && speakerNPC) {
       this.talkingIndicator.hide(listenerId);
-      const snippet = this.pickAmbientSnippet();
-      if (snippet) {
-        this.talkingIndicator.show(speakerId, speakerNPC.mesh, snippet);
-      } else {
-        this.talkingIndicator.show(speakerId, speakerNPC.mesh);
-      }
+      this.talkingIndicator.show(speakerId, speakerNPC.mesh);
     }
-  }
-
-  /** Pick a random target-language snippet for ambient NPC-NPC speech bubbles. */
-  private pickAmbientSnippet(): string | undefined {
-    const lang = this.targetLanguage;
-    if (!lang || lang === 'English') return undefined;
-
-    const greetings = GREETINGS[lang];
-    if (!greetings || greetings.length === 0) return undefined;
-
-    // Mix greeting snippets with simple ambient phrases
-    const ambientPhrases = AMBIENT_DIALOGUE_PHRASES[lang];
-    const pool = ambientPhrases ? [...greetings, ...ambientPhrases] : greetings;
-    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   private endConversation(convId: string): void {
     const conv = this.activeConversations.get(convId);
     if (!conv) return;
+
+    // Abort any in-progress streamed conversation + TTS
+    if (conv.abortController && !conv.abortController.signal.aborted) {
+      conv.abortController.abort();
+    }
+
+    // Stop any active audio player
+    if (conv.activePlayer) {
+      conv.activePlayer.stop();
+      conv.activePlayer.dispose();
+      conv.activePlayer = undefined;
+    }
 
     if (conv.alternateTimer !== null) {
       window.clearInterval(conv.alternateTimer);
