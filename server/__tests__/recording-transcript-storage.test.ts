@@ -245,310 +245,110 @@ describe('Transcript Serializer', () => {
   });
 });
 
-// ─── Tests: Assessment API Routes ────────────────────────────────────────────
+// ─── Tests: Assessment API Routes (migrated to quest overlays) ──────────────
 
-describe('Assessment API Routes', () => {
+vi.mock('../services/playthrough-overlay', () => ({
+  getEntitiesWithOverlay: vi.fn(async (base: any[]) => base),
+}));
+
+describe('Assessment API Routes (migrated)', () => {
   let app: Express;
   let mockStorage: ReturnType<typeof createMockStorage>;
 
   beforeEach(() => {
     mockStorage = createMockStorage();
+    // Add quest overlay methods needed by new routes
+    (mockStorage as any).getQuest = vi.fn();
+    (mockStorage as any).getQuestsByWorld = vi.fn().mockResolvedValue([]);
+    (mockStorage as any).getPlaythroughsByUser = vi.fn().mockResolvedValue([]);
+    (mockStorage as any).getPlaythroughsByWorld = vi.fn().mockResolvedValue([]);
+    (mockStorage as any).getPlaythrough = vi.fn();
+    (mockStorage as any).getUserPlaythroughForWorld = vi.fn();
+    (mockStorage as any).getDeltasByEntityType = vi.fn().mockResolvedValue([]);
     app = express();
     app.use(express.json());
     app.use('/api', createAssessmentRoutes(mockStorage as any));
   });
 
-  it('POST /api/assessments creates a session', async () => {
+  it('POST /api/assessments returns 410 Gone', async () => {
     const res = await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
+      playerId: 'player1', worldId: 'world1', assessmentType: 'arrival',
+    });
+    expect(res.status).toBe(410);
+    expect(res.body.message).toMatch(/retired/i);
+  });
+
+  it('PUT /api/assessments/:id/phases/:phaseId returns 410 Gone', async () => {
+    const res = await request(app).put('/api/assessments/test_1/phases/conv_phase', { score: 18 });
+    expect(res.status).toBe(410);
+  });
+
+  it('PUT /api/assessments/:id/recordings returns 410 Gone', async () => {
+    const res = await request(app).put('/api/assessments/test_1/recordings', { phaseId: 'conv' });
+    expect(res.status).toBe(410);
+  });
+
+  it('PUT /api/assessments/:id/complete returns 410 Gone', async () => {
+    const res = await request(app).put('/api/assessments/test_1/complete', { totalScore: 38 });
+    expect(res.status).toBe(410);
+  });
+
+  it('GET /api/assessments/:id returns quest overlay assessment data', async () => {
+    (mockStorage as any).getQuest.mockResolvedValue({
+      id: 'q1', worldId: 'w1', assignedTo: 'player1',
+      questType: 'assessment', status: 'completed', tags: ['assessment', 'arrival'],
       targetLanguage: 'es',
-      totalMaxPoints: 53,
+      phaseResults: [{ phaseId: 'conv', score: 18, maxScore: 25, taskResults: [{ taskId: 't1', playerAnswer: 'Hola', score: 18, maxPoints: 25 }], dimensionScores: {}, completedAt: '2026-04-01' }],
+      assessmentResult: { totalScore: 38, maxScore: 53, cefrLevel: 'B1', dimensionScores: {}, completedAt: '2026-04-01' },
     });
 
-    expect(res.status).toBe(201);
-    expect(res.body.id).toBe('test_1');
-    expect(res.body.playerId).toBe('player1');
-    expect(mockStorage.createAssessmentSession).toHaveBeenCalledTimes(1);
-  });
-
-  it('POST /api/assessments returns 400 for missing fields', async () => {
-    const res = await request(app).post('/api/assessments', { playerId: 'p1' });
-    expect(res.status).toBe(400);
-  });
-
-  it('GET /api/assessments/:id returns session', async () => {
-    // Create first
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
-    });
-
-    const res = await request(app).get('/api/assessments/test_1');
+    const res = await request(app).get('/api/assessments/q1');
     expect(res.status).toBe(200);
-    expect(res.body.id).toBe('test_1');
+    expect(res.body.id).toBe('q1');
+    expect(res.body.totalScore).toBe(38);
+    expect(res.body.cefrLevel).toBe('B1');
   });
 
-  it('GET /api/assessments/:id returns 404 for missing session', async () => {
+  it('GET /api/assessments/:id returns 404 for missing quest', async () => {
+    (mockStorage as any).getQuest.mockResolvedValue(null);
     const res = await request(app).get('/api/assessments/nonexistent');
     expect(res.status).toBe(404);
   });
 
-  it('PUT /api/assessments/:id/phases/:phaseId persists phase result with transcript', async () => {
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
-    });
-
-    const phaseResult = serializeConversationPhase(
-      'conv_phase',
-      [
-        { role: 'npc', text: 'Hola!', timestamp: 1000 },
-        { role: 'player', text: 'Hola, buenos días.', timestamp: 2000 },
-      ],
-      18, 25,
-    );
-
-    const res = await request(app).put('/api/assessments/test_1/phases/conv_phase', phaseResult);
-    expect(res.status).toBe(200);
-    expect(mockStorage.updateAssessmentPhaseResult).toHaveBeenCalledTimes(1);
-
-    // Verify transcript was persisted
-    const call = mockStorage.updateAssessmentPhaseResult.mock.calls[0];
-    expect(call[1].transcript).toHaveLength(2);
-    expect(call[1].transcript[0].role).toBe('npc');
-    expect(call[1].recordings).toHaveLength(1);
-  });
-
-  it('PUT /api/assessments/:id/recordings adds recording', async () => {
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
-    });
-
-    const res = await request(app).put('/api/assessments/test_1/recordings', {
-      storageKey: 'transcript:conv:conversation',
-      mimeType: 'text/plain',
-      phaseId: 'conv_phase',
-      recordedAt: new Date().toISOString(),
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockStorage.addAssessmentRecording).toHaveBeenCalledTimes(1);
-  });
-
-  it('PUT /api/assessments/:id/recordings returns 400 without phaseId', async () => {
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
-    });
-
-    const res = await request(app).put('/api/assessments/test_1/recordings', {
-      storageKey: 'test',
-      mimeType: 'text/plain',
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it('PUT /api/assessments/:id/complete finalizes session', async () => {
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
-    });
-
-    const res = await request(app).put('/api/assessments/test_1/complete', {
-      totalScore: 38,
-      maxScore: 53,
-      cefrLevel: 'B1',
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockStorage.completeAssessmentSession).toHaveBeenCalledWith('test_1', 38, 53, 'B1');
-  });
-
-  it('GET /api/assessments/player/:playerId returns player sessions', async () => {
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
-    });
+  it('GET /api/assessments/player/:playerId returns assessments from playthroughs', async () => {
+    (mockStorage as any).getPlaythroughsByUser.mockResolvedValue([{ id: 'pt1', worldId: 'w1', userId: 'player1' }]);
+    (mockStorage as any).getQuestsByWorld.mockResolvedValue([{
+      id: 'q1', worldId: 'w1', assignedTo: 'player1',
+      questType: 'assessment', status: 'completed', tags: ['assessment', 'arrival'],
+      targetLanguage: 'es',
+      phaseResults: [{ phaseId: 'conv', score: 18, maxScore: 25, taskResults: [], dimensionScores: {}, completedAt: '2026-04-01' }],
+      assessmentResult: { totalScore: 38, maxScore: 53, cefrLevel: 'B1', dimensionScores: {}, completedAt: '2026-04-01' },
+    }]);
 
     const res = await request(app).get('/api/assessments/player/player1');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
+    expect(res.body[0].assessmentType).toBe('arrival');
   });
 
-  it('GET /api/assessments/:id/transcripts returns phase transcripts', async () => {
-    // Create session and add a phase with transcript
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
+  it('GET /api/assessments/:id/transcripts returns phase result data', async () => {
+    (mockStorage as any).getQuest.mockResolvedValue({
+      id: 'q1', worldId: 'w1', assignedTo: 'player1',
+      questType: 'assessment', status: 'completed', tags: ['assessment', 'arrival'],
+      phaseResults: [{ phaseId: 'conv', score: 18, maxScore: 25, taskResults: [{ taskId: 't1', playerAnswer: 'Hola', score: 18, maxPoints: 25 }], dimensionScores: {}, completedAt: '2026-04-01' }],
+      assessmentResult: { totalScore: 38, maxScore: 53, cefrLevel: 'B1', dimensionScores: {}, completedAt: '2026-04-01' },
     });
 
-    const phaseResult = serializeConversationPhase(
-      'conv',
-      [
-        { role: 'npc', text: 'Hola!', timestamp: 1000 },
-        { role: 'player', text: 'Buenos días!', timestamp: 2000 },
-      ],
-      18, 25,
-    );
-    await request(app).put('/api/assessments/test_1/phases/conv', phaseResult);
-
-    const res = await request(app).get('/api/assessments/test_1/transcripts');
+    const res = await request(app).get('/api/assessments/q1/transcripts');
     expect(res.status).toBe(200);
-    expect(res.body.sessionId).toBe('test_1');
+    expect(res.body.sessionId).toBe('q1');
     expect(res.body.transcripts).toHaveLength(1);
     expect(res.body.transcripts[0].phaseId).toBe('conv');
-    expect(res.body.transcripts[0].entries).toHaveLength(2);
   });
 
-  it('GET /api/assessments/:id/recordings-list returns all recordings', async () => {
-    await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      totalMaxPoints: 53,
-    });
-
-    await request(app).put('/api/assessments/test_1/recordings', {
-      storageKey: 'rec1',
-      mimeType: 'text/plain',
-      phaseId: 'conv',
-      recordedAt: new Date().toISOString(),
-    });
-
-    const res = await request(app).get('/api/assessments/test_1/recordings-list');
+  it('GET /api/assessments/:id/recordings-list returns empty (retired)', async () => {
+    const res = await request(app).get('/api/assessments/q1/recordings-list');
     expect(res.status).toBe(200);
-    expect(res.body.recordings).toHaveLength(1);
-  });
-});
-
-// ─── Tests: Full Integration Flow ────────────────────────────────────────────
-
-describe('Full Integration Flow', () => {
-  let app: Express;
-  let mockStorage: ReturnType<typeof createMockStorage>;
-
-  beforeEach(() => {
-    mockStorage = createMockStorage();
-    app = express();
-    app.use(express.json());
-    app.use('/api', createAssessmentRoutes(mockStorage as any));
-  });
-
-  it('end-to-end: create session, persist all phases with transcripts, complete', async () => {
-    // 1. Create session
-    const createRes = await request(app).post('/api/assessments', {
-      playerId: 'player1',
-      worldId: 'world1',
-      assessmentType: 'arrival',
-      assessmentDefinitionId: 'arrival_encounter_v1',
-      targetLanguage: 'es',
-      totalMaxPoints: 53,
-    });
-    expect(createRes.status).toBe(201);
-    const sessionId = createRes.body.id;
-
-    // 2. Phase 1: Conversation
-    const convResult = serializeConversationPhase(
-      'phase1_conv',
-      [
-        { role: 'npc', text: 'Bienvenido a Madrid!', timestamp: 1000 },
-        { role: 'player', text: 'Gracias, estoy muy contento de estar aquí.', timestamp: 5000 },
-        { role: 'npc', text: 'Qué bien! De dónde viene?', timestamp: 7000 },
-        { role: 'player', text: 'Vengo de los Estados Unidos.', timestamp: 10000 },
-      ],
-      18, 25,
-      { vocab: 3.5, grammar: 3.0, fluency: 3.5, pronunciation: 4.0, comprehension: 4.0 },
-      { wpm: 25, ttr: 0.75, mlu: 5.5 },
-    );
-    await request(app).put(`/api/assessments/${sessionId}/phases/phase1_conv`, convResult);
-    for (const rec of convResult.recordings || []) {
-      await request(app).put(`/api/assessments/${sessionId}/recordings`, rec);
-    }
-
-    // 3. Phase 2: Listening
-    const listenResult = serializeListeningPhase('phase2_listen', {
-      directionsScore: 3,
-      directionsMaxScore: 4,
-      checkpointResults: [
-        { checkpointId: 'cp1', reached: true },
-        { checkpointId: 'cp2', reached: true },
-        { checkpointId: 'cp3', reached: true },
-        { checkpointId: 'cp4', reached: false },
-      ],
-      extractionScore: 2,
-      extractionMaxScore: 3,
-      questionResults: [
-        { questionId: 'q1', playerAnswer: 'el mercado', correct: true },
-        { questionId: 'q2', playerAnswer: 'dos', correct: true },
-        { questionId: 'q3', playerAnswer: 'mañana', correct: false },
-      ],
-      announcementText: 'Vamos a hacer un tour por el centro...',
-      durationMs: 180000,
-    });
-    await request(app).put(`/api/assessments/${sessionId}/phases/phase2_listen`, listenResult);
-
-    // 4. Phase 3: Writing
-    const writeResult = serializeWritingPhase('phase3_write', {
-      formFields: { name: 'Juan García', origin: 'Estados Unidos', reason: 'turismo', duration: 'dos semanas', additional: 'nada' },
-      formScore: 4,
-      formMaxPoints: 5,
-      messageText: 'Estimado gerente, quisiera reservar una habitación doble para dos semanas.',
-      messageScore: 5,
-      messageMaxPoints: 6,
-      startedAt: 200000,
-      completedAt: 350000,
-    });
-    await request(app).put(`/api/assessments/${sessionId}/phases/phase3_write`, writeResult);
-
-    // 5. Complete session
-    const totalScore = convResult.score + listenResult.score + writeResult.score;
-    const completeRes = await request(app).put(`/api/assessments/${sessionId}/complete`, {
-      totalScore,
-      maxScore: 53,
-      cefrLevel: 'B1',
-    });
-    expect(completeRes.status).toBe(200);
-
-    // 6. Verify transcripts endpoint
-    const transcriptsRes = await request(app).get(`/api/assessments/${sessionId}/transcripts`);
-    expect(transcriptsRes.status).toBe(200);
-    expect(transcriptsRes.body.transcripts).toHaveLength(3);
-
-    // Verify conversation transcript
-    const convTranscript = transcriptsRes.body.transcripts.find((t: any) => t.phaseId === 'phase1_conv');
-    expect(convTranscript).toBeDefined();
-    expect(convTranscript.entries).toHaveLength(4);
-
-    // Verify listening transcript
-    const listenTranscript = transcriptsRes.body.transcripts.find((t: any) => t.phaseId === 'phase2_listen');
-    expect(listenTranscript).toBeDefined();
-    expect(listenTranscript.entries.length).toBeGreaterThan(0);
-
-    // Verify writing transcript
-    const writeTranscript = transcriptsRes.body.transcripts.find((t: any) => t.phaseId === 'phase3_write');
-    expect(writeTranscript).toBeDefined();
-    expect(writeTranscript.entries.length).toBeGreaterThan(0);
-
-    // 7. Verify recordings endpoint
-    const recRes = await request(app).get(`/api/assessments/${sessionId}/recordings-list`);
-    expect(recRes.status).toBe(200);
-    expect(recRes.body.recordings.length).toBeGreaterThan(0);
+    expect(res.body.recordings).toEqual([]);
   });
 });

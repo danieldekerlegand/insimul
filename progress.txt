@@ -2521,3 +2521,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Test files in `shared/game-engine/rendering/__tests__/` don't match vitest include patterns — must be in `shared/__tests__/`, `server/__tests__/`, `client/__tests__/`, or `client/src/**/__tests__/`
   - OnboardingLauncher already uses quest overlay for all assessment data persistence (phaseResults + assessmentResult)
 ---
+
+## 2026-04-08 - US-012: Update admin assessment endpoints to read from playthrough data
+- Rewrote `server/routes/assessment-routes.ts` to source all data from playthrough quest overlays instead of the legacy AssessmentSession collection
+- **Write endpoints retired (410 Gone)**: POST /api/assessments, PUT phases, PUT recordings, PUT complete — all return 410 with migration message
+- **Read endpoints migrated**: GET player/:playerId, GET world/:worldId/summary, GET :sessionId/transcripts, GET :sessionId — all read from quest overlays via `getEntitiesWithOverlay()` + `extractOverlayAssessmentData()`
+- Helper `getAssessmentQuestsFromPlaythroughs()` queries playthroughs, fetches quests with overlays, filters assessment quests, and converts to legacy-compatible format via `overlayToSessionFormat()`
+- GET recordings-list returns empty arrays (recordings no longer stored separately)
+- Updated `server/__tests__/assessment-routes.test.ts` — 14 new tests covering all 410 responses and overlay-based reads
+- Updated `server/__tests__/recording-transcript-storage.test.ts` — replaced legacy write-then-read tests with overlay-based tests, added vi.mock for playthrough-overlay
+- Files changed:
+  - `server/routes/assessment-routes.ts` — complete rewrite
+  - `server/__tests__/assessment-routes.test.ts` — complete rewrite
+  - `server/__tests__/recording-transcript-storage.test.ts` — Assessment API Routes and Full Integration Flow sections replaced
+  - `tasks/prd.json` — US-012 passes: true
+- **Learnings for future iterations:**
+  - `getEntitiesWithOverlay()` from `server/services/playthrough-overlay.ts` is the generic overlay merge function — works for any entity type including quests
+  - `extractOverlayAssessmentData()` from `shared/quests/assessment-quest-bridge.ts` safely extracts phaseResults + assessmentResult from quest objects
+  - Assessment quests are identified by `questType === 'assessment'` and tags include 'arrival'/'departure'/'periodic'
+  - The assessment-analytics-routes.ts still uses legacy storage methods — may need updating in a future story
+  - When mocking `getEntitiesWithOverlay` in tests, use `vi.mock('../services/playthrough-overlay', ...)` — the mock must return the base entities passed in
+---
