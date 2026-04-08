@@ -39,6 +39,7 @@ export interface GameStateSource {
   getPlayerGold(): number;
   getPlayerHealth(): number;
   getPlayerEnergy(): number;
+  getPlayerCefrLevel?(): string | null;
   getInventoryItems(): InventoryItem[];
   getNPCStates(): SavedNPCState[];
   getRelationships(): Record<string, Record<string, { type: string; strength: number; trust?: number }>>;
@@ -75,6 +76,7 @@ export interface GameStateSource {
 export interface GameStateTarget {
   restorePlayerPosition(position: Vec3, rotation: Vec3): void;
   restorePlayerStats(gold: number, health: number, energy: number): void;
+  restorePlayerCefrLevel?(cefrLevel: string): void;
   restoreInventory(items: InventoryItem[]): void;
   restoreNPCStates(npcs: SavedNPCState[]): void;
   restoreRelationships(relationships: Record<string, Record<string, { type: string; strength: number; trust?: number }>>): void;
@@ -329,6 +331,7 @@ export class WorldStateManager {
         health: src.getPlayerHealth(),
         energy: src.getPlayerEnergy(),
         inventory: src.getInventoryItems(),
+        cefrLevel: src.getPlayerCefrLevel?.() ?? undefined,
       },
       npcs: src.getNPCStates(),
       relationships: src.getRelationships(),
@@ -513,6 +516,9 @@ export class WorldStateManager {
       target.restorePlayerPosition(state.player.position, state.player.rotation);
       target.restorePlayerStats(state.player.gold, state.player.health, state.player.energy);
       target.restoreInventory(state.player.inventory);
+      if (state.player.cefrLevel) {
+        target.restorePlayerCefrLevel?.(state.player.cefrLevel);
+      }
     }
     if (state.npcs) {
       target.restoreNPCStates(state.npcs);

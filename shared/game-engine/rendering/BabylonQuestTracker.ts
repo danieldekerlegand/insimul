@@ -52,6 +52,14 @@ export interface Quest {
   vocabularyUsed?: string[];
   grammarAccuracy?: number;
   tags?: string[];
+  /** Assessment result stored by quest overlay (for assessment-type quests) */
+  assessmentResult?: {
+    totalScore: number;
+    maxScore: number;
+    cefrLevel: string;
+    dimensionScores?: Record<string, number>;
+    completedAt?: string;
+  };
 }
 
 /** Filter criteria for quest log */
@@ -835,6 +843,59 @@ export class BabylonQuestTracker {
       completedRow.addControl(earnedText);
     }
 
+    // Assessment result summary (for completed assessment quests)
+    if (quest.status === 'completed' && quest.assessmentResult) {
+      const ar = quest.assessmentResult;
+      const cefrColors: Record<string, string> = {
+        A1: '#e74c3c', A2: '#e67e22', B1: '#f1c40f', B2: '#2ecc71', C1: '#3498db', C2: '#9b59b6',
+      };
+
+      const cefrRow = new StackPanel();
+      cefrRow.isVertical = false;
+      cefrRow.width = "100%";
+      cefrRow.height = "11px";
+      cefrRow.paddingTop = "3px";
+      cardStack.addControl(cefrRow);
+
+      const cefrLabel = new TextBlock();
+      cefrLabel.text = `Language Level: ${ar.cefrLevel}`;
+      cefrLabel.color = cefrColors[ar.cefrLevel] || '#FFF';
+      cefrLabel.fontSize = 9;
+      cefrLabel.fontWeight = 'bold';
+      cefrLabel.width = "88px";
+      cefrLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      cefrRow.addControl(cefrLabel);
+
+      const scorePct = ar.maxScore > 0 ? Math.round((ar.totalScore / ar.maxScore) * 100) : 0;
+      const scoreText = new TextBlock();
+      scoreText.text = `Score: ${scorePct}%`;
+      scoreText.color = "#CCC";
+      scoreText.fontSize = 8;
+      scoreText.width = "66px";
+      scoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      cefrRow.addControl(scoreText);
+
+      // Dimension scores breakdown
+      if (ar.dimensionScores && Object.keys(ar.dimensionScores).length > 0) {
+        const dimRow = new StackPanel();
+        dimRow.isVertical = false;
+        dimRow.width = "100%";
+        dimRow.height = "9px";
+        dimRow.paddingTop = "2px";
+        cardStack.addControl(dimRow);
+
+        const dimEntries = Object.entries(ar.dimensionScores).slice(0, 4);
+        const dimStr = dimEntries.map(([k, v]) => `${k.slice(0, 4)}: ${Math.round((v as number) * 100)}%`).join('  ');
+        const dimText = new TextBlock();
+        dimText.text = dimStr;
+        dimText.color = "#AAA";
+        dimText.fontSize = 7;
+        dimText.width = "100%";
+        dimText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        dimRow.addControl(dimText);
+      }
+    }
+
     // Per-objective progress (for active quests with objectives)
     if (quest.status === 'active' && quest.objectives && quest.objectives.length > 0) {
       quest.objectives.forEach((obj, idx) => {
@@ -1208,6 +1269,60 @@ export class BabylonQuestTracker {
         grammarText.paddingLeft = "6px";
         grammarText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.detailStack.addControl(grammarText);
+      }
+
+      // Assessment results section (for assessment-type quests)
+      if (quest.assessmentResult) {
+        const ar = quest.assessmentResult;
+        const cefrColors: Record<string, string> = {
+          A1: '#e74c3c', A2: '#e67e22', B1: '#f1c40f', B2: '#2ecc71', C1: '#3498db', C2: '#9b59b6',
+        };
+
+        const arHeader = new TextBlock();
+        arHeader.text = "ASSESSMENT RESULTS";
+        arHeader.color = "#FFD700";
+        arHeader.fontSize = 8;
+        arHeader.fontWeight = "bold";
+        arHeader.height = "14px";
+        arHeader.paddingTop = "8px";
+        arHeader.paddingLeft = "6px";
+        arHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(arHeader);
+
+        const cefrText = new TextBlock();
+        cefrText.text = `Language Level: ${ar.cefrLevel}`;
+        cefrText.color = cefrColors[ar.cefrLevel] || '#FFF';
+        cefrText.fontSize = 10;
+        cefrText.fontWeight = 'bold';
+        cefrText.height = "14px";
+        cefrText.paddingLeft = "6px";
+        cefrText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(cefrText);
+
+        const scorePct = ar.maxScore > 0 ? Math.round((ar.totalScore / ar.maxScore) * 100) : 0;
+        const totalScoreText = new TextBlock();
+        totalScoreText.text = `Overall Score: ${scorePct}% (${Math.round(ar.totalScore)}/${ar.maxScore})`;
+        totalScoreText.color = "#CCC";
+        totalScoreText.fontSize = 8;
+        totalScoreText.height = "11px";
+        totalScoreText.paddingLeft = "6px";
+        totalScoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(totalScoreText);
+
+        if (ar.dimensionScores && Object.keys(ar.dimensionScores).length > 0) {
+          for (const [dim, score] of Object.entries(ar.dimensionScores)) {
+            const dimLabel = dim.charAt(0).toUpperCase() + dim.slice(1);
+            const dimPct = Math.round((score as number) * 100);
+            const dimText = new TextBlock();
+            dimText.text = `  ${dimLabel}: ${dimPct}%`;
+            dimText.color = "#AAA";
+            dimText.fontSize = 8;
+            dimText.height = "10px";
+            dimText.paddingLeft = "6px";
+            dimText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+            this.detailStack.addControl(dimText);
+          }
+        }
       }
     }
 

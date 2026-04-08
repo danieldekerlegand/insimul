@@ -1477,6 +1477,8 @@ export interface GameSaveState {
     health: number;
     energy: number;
     inventory: InventoryItem[];
+    /** Player's assessed CEFR language level (A1–C2), drives NPC language mode */
+    cefrLevel?: string;
   };
   npcs: SavedNPCState[];
   relationships: Record<string, Record<string, { type: string; strength: number; trust?: number }>>;

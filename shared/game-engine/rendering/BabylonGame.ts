@@ -1271,6 +1271,7 @@ export class BabylonGame {
       getPlayerGold: () => this.playerGold,
       getPlayerHealth: () => this.playerHealth,
       getPlayerEnergy: () => this.playerEnergy,
+      getPlayerCefrLevel: () => this.playerCefrLevel || null,
       getInventoryItems: () => this.inventory?.getAllItems() ?? [],
       getNPCStates: () => {
         const states: any[] = [];
@@ -1433,6 +1434,20 @@ export class BabylonGame {
         this.playerEnergy = energy;
         this.inventory?.setGold(gold);
         this.playerHealthBar?.updateHealth(health / 100);
+      },
+      restorePlayerCefrLevel: (cefrLevel: string) => {
+        this.playerCefrLevel = cefrLevel;
+        // Propagate to all language-aware UI systems
+        this.chatPanel?.updateCefrLevel(cefrLevel as any);
+        this.contextualActionMenu?.setCEFRLevel(cefrLevel as any);
+        this.buildingInfoDisplay?.setCEFRLevel(cefrLevel as any);
+        this.questNotificationManager?.setCEFRLevel(cefrLevel as any);
+        this.interactionPrompt?.setCEFRLevel(cefrLevel as any);
+        try {
+          (this.contentGatingManager as any)?.setCefrLevel?.(cefrLevel);
+        } catch {
+          // Content gating may not support setCefrLevel yet
+        }
       },
       restoreInventory: (items) => {
         if (this.inventory) {
