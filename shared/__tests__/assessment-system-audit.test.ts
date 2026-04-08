@@ -25,6 +25,7 @@ import {
   isLanguageLearningWorld,
   getTargetLanguage,
 } from '../game-engine/rendering/OnboardingLauncher';
+import { mapScoreToCEFR } from '../assessment/cefr-mapping';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -281,7 +282,7 @@ describe('Assessment System Audit: AssessmentEngine E2E', () => {
     expect(finalResult.sessionId).toBeTruthy();
     expect(finalResult.totalScore).toBeGreaterThan(0);
     expect(finalResult.totalMaxScore).toBe(53);
-    expect(['A1', 'A2', 'B1', 'B2']).toContain(finalResult.cefrLevel.toUpperCase());
+    expect(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).toContain(finalResult.cefrLevel.toUpperCase());
     expect(finalResult.dimensionScores).toBeTruthy();
   });
 
@@ -429,56 +430,57 @@ describe('Assessment System Audit: AssessmentEngine E2E', () => {
 // ── CEFR Level Mapping Tests ─────────────────────────────────────────────────
 
 describe('Assessment System Audit: CEFR Mapping', () => {
-  // The mapping in AssessmentEngine.start():
-  //   >= 80% → B2, >= 60% → B1, >= 40% → A2, < 40% → A1
-  // Total max score = 53
+  // AssessmentEngine now uses mapScoreToCEFR() from shared/assessment/cefr-mapping.ts
+  // Thresholds: A1: 0%, A2: 25%, B1: 50%, B2: 75%, C1: 85%, C2: 95%
 
   it('maps 0% → A1', () => {
-    const pct = 0;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('A1');
+    const result = mapScoreToCEFR(0, 100);
+    expect(result.level).toBe('A1');
   });
 
-  it('maps 39% → A1', () => {
-    const pct = 39;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('A1');
+  it('maps 24% → A1', () => {
+    const result = mapScoreToCEFR(24, 100);
+    expect(result.level).toBe('A1');
   });
 
-  it('maps 40% → A2', () => {
-    const pct = 40;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('A2');
+  it('maps 25% → A2', () => {
+    const result = mapScoreToCEFR(25, 100);
+    expect(result.level).toBe('A2');
   });
 
-  it('maps 59% → A2', () => {
-    const pct = 59;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('A2');
+  it('maps 49% → A2', () => {
+    const result = mapScoreToCEFR(49, 100);
+    expect(result.level).toBe('A2');
   });
 
-  it('maps 60% → B1', () => {
-    const pct = 60;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('B1');
+  it('maps 50% → B1', () => {
+    const result = mapScoreToCEFR(50, 100);
+    expect(result.level).toBe('B1');
   });
 
-  it('maps 79% → B1', () => {
-    const pct = 79;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('B1');
+  it('maps 74% → B1', () => {
+    const result = mapScoreToCEFR(74, 100);
+    expect(result.level).toBe('B1');
   });
 
-  it('maps 80% → B2', () => {
-    const pct = 80;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('B2');
+  it('maps 75% → B2', () => {
+    const result = mapScoreToCEFR(75, 100);
+    expect(result.level).toBe('B2');
   });
 
-  it('maps 100% → B2', () => {
-    const pct = 100;
-    const level = pct >= 80 ? 'B2' : pct >= 60 ? 'B1' : pct >= 40 ? 'A2' : 'A1';
-    expect(level).toBe('B2');
+  it('maps 85% → C1', () => {
+    const result = mapScoreToCEFR(85, 100);
+    expect(result.level).toBe('C1');
+  });
+
+  it('maps 95% → C2', () => {
+    const result = mapScoreToCEFR(95, 100);
+    expect(result.level).toBe('C2');
+  });
+
+  it('maps 100% → C2', () => {
+    const result = mapScoreToCEFR(100, 100);
+    expect(result.level).toBe('C2');
   });
 });
 

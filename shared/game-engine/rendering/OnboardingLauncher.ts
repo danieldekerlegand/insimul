@@ -7,7 +7,8 @@
  */
 
 import type { GameEventBus } from '@shared/game-engine/logic/GameEventBus';
-import type { AssessmentPhaseResult } from '@shared/assessment/assessment-types';
+import type { AssessmentPhaseResult, AssessmentCompletionResult } from '@shared/assessment/assessment-types';
+import { mapScoreToCEFR } from '@shared/assessment/cefr-mapping';
 
 import type { AssessmentModalConfig } from '@shared/game-engine/rendering/AssessmentModalUI';
 
@@ -271,8 +272,27 @@ export async function launchOnboarding(
     assessmentEngine.onCompleted(async (result) => {
       assessmentResult = result;
 
+      // Compute CEFR level using the shared mapping function
+      const cefrResult = mapScoreToCEFR(result.totalScore, result.totalMaxScore);
+
+      // Build AssessmentCompletionResult and store in quest overlay
+      const completionResult: AssessmentCompletionResult = {
+        totalScore: result.totalScore,
+        maxScore: result.totalMaxScore,
+        cefrLevel: cefrResult.level,
+        dimensionScores: result.dimensionScores || {},
+        completedAt: new Date().toISOString(),
+      };
+
+      if (assessmentQuestId && deps.questOverlay) {
+        deps.questOverlay.updateQuest(assessmentQuestId, {
+          status: 'completed',
+          assessmentResult: completionResult,
+        });
+      }
+
       // Store CEFR level before completing onboarding so it persists before game continues
-      await storeCefrLevel(worldId, playerId, authToken, result.cefrLevel, result.totalScore, result.totalMaxScore, deps.dataSource);
+      await storeCefrLevel(worldId, playerId, authToken, cefrResult.level, result.totalScore, result.totalMaxScore, deps.dataSource);
 
       eventBus.emit({
         type: 'assessment_completed',
@@ -280,7 +300,7 @@ export async function launchOnboarding(
         instrumentId: 'arrival_encounter',
         totalScore: result.totalScore,
         totalMaxScore: result.totalMaxScore,
-        cefrLevel: result.cefrLevel,
+        cefrLevel: cefrResult.level,
       });
 
       // Complete onboarding so the game continues.

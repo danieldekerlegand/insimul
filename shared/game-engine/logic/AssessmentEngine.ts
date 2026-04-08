@@ -18,6 +18,7 @@
 import type { GameEventBus } from './GameEventBus';
 import type { GamePrologEngine } from './GamePrologEngine';
 import type { AssessmentModalConfig, ContentTemplate, PhaseType, AssessmentQuestData, AssessmentPhaseResult, AssessmentTaskResult } from '@shared/assessment/assessment-types';
+import { mapScoreToCEFR } from '@shared/assessment/cefr-mapping';
 
 /** Lightweight assessment result (subset of shared/assessment AssessmentResult). */
 export interface AssessmentResult {
@@ -221,9 +222,10 @@ export class AssessmentEngine {
 
     if (this._aborted) return;
 
-    // Compute CEFR level from total score percentage
-    const totalPct = (totalScore / totalMaxScore) * 100;
-    const cefrLevel = totalPct >= 80 ? 'B2' : totalPct >= 60 ? 'B1' : totalPct >= 40 ? 'A2' : 'A1';
+    // Compute CEFR level using the shared mapping function
+    const cefrResult = mapScoreToCEFR(totalScore, totalMaxScore);
+    const cefrLevel = cefrResult.level;
+    const totalPct = cefrResult.score;
 
     // Build dimension scores from phase results
     if (Object.keys(dimensionScores).length === 0) {
