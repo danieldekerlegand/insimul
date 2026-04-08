@@ -138,7 +138,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "This replaces the single vague objective with concrete per-phase objectives. The quest seed in quest-chain-templates.ts must generate these objectives. The assessment UI must fire the right completion trigger when each phase is submitted."
     },
     {

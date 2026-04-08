@@ -28,6 +28,8 @@ Started: Sun Mar 29 13:53:35 CDT 2026
 - `selectVoice()` is exported from `NpcGreetingTTS.ts` — use it for gender/age-matched TTS voice selection (6 voice profiles: Aoede, Kore, Leda, Zephyr, Puck, Orus)
 - `NPCAmbientConversationManager.setConversationProvider()` wires real NPC-NPC conversations; without it, fallback timer-based animation plays
 - In vitest with `useFakeTimers()`: `queueMicrotask` callbacks do NOT fire during `advanceTimersByTimeAsync` — use `Promise.resolve().then()` in test mocks instead
+- Test imports in `shared/__tests__/` for assessment bridge: use `../services/assessment-quest-bridge-shared` (NOT `../services/quests/...`)
+- `trackByTrigger()` in QuestCompletionEngine does generic objective completion via `completionTrigger` field — only use explicit `forEachObjective` when extra validation is needed (e.g., turn count checks)
 ---
 
 ## 2026-04-05 - US-006: Per-line streaming for NPC-NPC conversations
@@ -2427,4 +2429,29 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Find arrival quests with `isArrivalAssessmentQuest()` (checks tags: ['assessment', 'arrival']), departure quests by checking tags includes 'assessment' + 'departure'
   - `AssessmentCompletionResult.dimensionScores` is `Record<string, number>` but `buildDimensionDeltas()` accepts `Record<string, number> | undefined` — cast needed
   - The simple `LearningReportCard` in playthrough-completion.ts (start/end CEFR + improvement count) is different from the detailed one in assessment-quest-bridge.ts (phase deltas, dimension deltas, periodic snapshots) — the detailed one feeds into the simple one
+---
+
+## 2026-04-08 - US-008: Per-phase quest objectives with concrete completion triggers
+- Updated quest-chain-templates.ts Arrival Assessment from single `complete_assessment` objective to 5 per-phase objectives with `completionTrigger`, `assessmentPhaseId`, and `id` fields
+- Updated departure assessment objectives in assessment-quest-bridge.ts with `completionTrigger`, `assessmentPhaseId`, `id`, and `currentCount` fields (mirrors arrival config pattern)
+- Updated periodic assessment objectives in server/routes.ts with `completionTrigger`, `assessmentPhaseId`, `id`, and `currentCount` fields
+- Updated QuestCompletionEngine event handlers to match departure/periodic objective types alongside arrival types (`reading_completed`, `listening_completed`, `writing_submitted`, `conversation_assessment_completed`)
+- Changed departure quest `completionCriteria` from `{ type: 'all_objectives', assessmentDefinitionId: ... }` to `{ type: 'all_objectives' }` (self-contained)
+- Changed arrival quest `completionCriteria` from `{ type: 'assessment_complete' }` to `{ type: 'all_objectives' }`
+- Fixed broken test import paths (3 test files referenced `../services/quests/assessment-quest-bridge-shared` instead of `../services/assessment-quest-bridge-shared`)
+- Updated test assertions to account for 5 objectives (including `initiate_conversation`) and `requiredCount: 3` on conversation objective
+- Files changed:
+  - `shared/quests/quest-chain-templates.ts` — per-phase objectives for Arrival Assessment
+  - `shared/quests/assessment-quest-bridge.ts` — departure objectives with triggers, removed assessmentDefinitionId
+  - `shared/game-engine/logic/QuestCompletionEngine.ts` — generic departure/periodic handling in event handlers
+  - `server/routes.ts` — periodic quest objectives with triggers
+  - `shared/__tests__/assessment-quest-bridge.test.ts` — fixed import, updated assertions
+  - `shared/__tests__/assessment-objective-completion.test.ts` — fixed import
+  - `shared/__tests__/assessment-prolog-generator.test.ts` — fixed import
+  - `tasks/prd.json` — marked US-008 passes: true
+- **Learnings for future iterations:**
+  - `trackByTrigger()` in QuestCompletionEngine already does generic trigger matching via `completionTrigger` field — most objectives don't need explicit `forEachObjective` handlers
+  - `forEachObjective` accepts arrays of types: `['arrival_reading', 'departure_reading']` — use this pattern when adding new assessment types
+  - Test import paths in `shared/__tests__/` must use `../services/assessment-quest-bridge-shared` (not `../services/quests/...`) since the file is at `shared/services/assessment-quest-bridge-shared.ts`
+  - The conversation assessment objective requires special turn-count validation (can't use `trackByTrigger` alone) — the `conversation_assessment_completed` event handler must validate `turnCount >= requiredCount`
 ---

@@ -402,13 +402,14 @@ export class QuestCompletionEngine {
         break;
       case 'reading_completed':
         this.trackByTrigger('reading_completed', event.questId);
-        this.forEachObjective(event.questId, 'arrival_reading', (quest, obj) => {
+        // Also match by type for legacy objectives without completionTrigger
+        this.forEachObjective(event.questId, ['arrival_reading', 'departure_reading'], (quest, obj) => {
           this.completeObjective(quest.id, obj.id);
         });
         break;
       case 'listening_completed':
         this.trackByTrigger('listening_completed', event.questId);
-        this.forEachObjective(event.questId, 'arrival_listening', (quest, obj) => {
+        this.forEachObjective(event.questId, ['arrival_listening', 'departure_listening'], (quest, obj) => {
           this.completeObjective(quest.id, obj.id);
         });
         break;
@@ -421,8 +422,8 @@ export class QuestCompletionEngine {
         this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'conversation_assessment_completed':
-        // Don't use trackByTrigger here — need validation of turnCount
-        this.forEachObjective(event.questId, 'arrival_conversation', (quest, obj) => {
+        // Validate turnCount for conversation assessment objectives (arrival, departure, periodic)
+        this.forEachObjective(event.questId, ['arrival_conversation', 'departure_conversation', 'periodic_conversational'], (quest, obj) => {
           if (obj.npcId && obj.npcId !== event.npcId) return;
           obj.currentCount = event.turnCount;
           if (event.turnCount >= (obj.requiredCount || 3)) {
@@ -951,8 +952,8 @@ export class QuestCompletionEngine {
   }
 
   trackWritingSubmission(text: string, wordCount: number, questId?: string): void {
-    // Complete arrival_writing objectives (assessment writing) with word count validation
-    this.forEachObjective(questId, 'arrival_writing', (quest, obj) => {
+    // Complete assessment writing objectives (arrival/departure) with word count validation
+    this.forEachObjective(questId, ['arrival_writing', 'departure_writing'], (quest, obj) => {
       const minWords = obj.minWordCount || 20;
       if (wordCount >= minWords) {
         this.completeObjective(quest.id, obj.id);
@@ -1483,11 +1484,11 @@ export class QuestCompletionEngine {
 
   /**
    * Track accumulated conversation turns per NPC.
-   * Completes arrival_conversation objectives when meaningful turn count
-   * meets the required threshold.
+   * Completes assessment conversation objectives when meaningful turn count
+   * meets the required threshold (arrival, departure, periodic).
    */
   trackConversationTurnCounted(npcId: string, totalTurns: number, meaningfulTurns: number, questId?: string): void {
-    this.forEachObjective(questId, 'arrival_conversation', (quest, obj) => {
+    this.forEachObjective(questId, ['arrival_conversation', 'departure_conversation', 'periodic_conversational'], (quest, obj) => {
       if (obj.npcId && obj.npcId !== npcId) return;
       obj.currentCount = meaningfulTurns;
       if (meaningfulTurns >= (obj.requiredCount || 3)) {

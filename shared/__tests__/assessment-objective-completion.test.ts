@@ -10,7 +10,7 @@ import {
   QuestCompletionEngine,
   type CompletionQuest,
   type CompletionObjective,
-} from '../../client/src/components/3DGame/QuestCompletionEngine';
+} from '../game-engine/logic/QuestCompletionEngine';
 import {
   buildArrivalAssessmentQuest,
   markPhaseObjectiveComplete,
@@ -18,7 +18,7 @@ import {
   isArrivalAssessmentQuest,
   getArrivalPhaseIds,
   PHASE_OBJECTIVE_CONFIG,
-} from '../services/quests/assessment-quest-bridge-shared';
+} from '../services/assessment-quest-bridge-shared';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -164,7 +164,7 @@ describe('generateAssessmentPrologContent', () => {
 
 describe('integration: buildArrivalAssessmentQuest includes Prolog content', () => {
   it('populates content field with Prolog', async () => {
-    const { buildArrivalAssessmentQuest } = await import('../services/quests/assessment-quest-bridge-shared');
+    const { buildArrivalAssessmentQuest } = await import('../services/assessment-quest-bridge-shared');
     const quest = buildArrivalAssessmentQuest({
       worldId: 'w1',
       playerId: 'p1',

@@ -98,17 +98,34 @@ export const DEPARTURE_QUEST_THRESHOLD = 10;
 
 // ── Phase-to-objective mapping ───────────────────────────────────────────────
 
-const PHASE_OBJECTIVES = DEPARTURE_ENCOUNTER.phases.map((phase) => ({
-  type: phase.type === 'conversation' ? 'complete_conversation' : 'listening_comprehension',
-  objectiveId: phase.id,
-  description: `Complete ${phase.name} assessment phase`,
-  target: phase.id,
-  required: 1,
-  completed: false,
-  progress: 0,
-  phaseType: phase.type,
-  maxScore: phase.maxScore ?? 0,
-}));
+/** Maps departure phase types to their completion triggers (mirrors arrival config). */
+const DEPARTURE_PHASE_TRIGGER: Record<string, { completionTrigger: string; minWordCount?: number; requiredCount?: number }> = {
+  departure_reading:      { completionTrigger: 'reading_completed' },
+  departure_writing:      { completionTrigger: 'writing_submitted', minWordCount: 20 },
+  departure_listening:    { completionTrigger: 'listening_completed' },
+  departure_conversation: { completionTrigger: 'conversation_assessment_completed', requiredCount: 3 },
+};
+
+const PHASE_OBJECTIVES = DEPARTURE_ENCOUNTER.phases.map((phase) => {
+  const trigger = DEPARTURE_PHASE_TRIGGER[phase.id];
+  return {
+    id: `obj_${phase.id}`,
+    type: phase.id,
+    objectiveId: phase.id,
+    description: `Complete ${phase.name} assessment phase`,
+    assessmentPhaseId: phase.id,
+    completionTrigger: trigger?.completionTrigger,
+    minWordCount: trigger?.minWordCount,
+    requiredCount: trigger?.requiredCount ?? 1,
+    target: phase.id,
+    required: 1,
+    currentCount: 0,
+    completed: false,
+    progress: 0,
+    phaseType: phase.type,
+    maxScore: phase.maxScore ?? 0,
+  };
+});
 
 // ── Departure quest creation ─────────────────────────────────────────────────
 
@@ -139,7 +156,6 @@ export function createDepartureAssessmentQuest(params: {
     status: 'active',
     completionCriteria: {
       type: 'all_objectives',
-      assessmentDefinitionId: DEPARTURE_ENCOUNTER.id,
     },
     experienceReward: 500,
     rewards: {

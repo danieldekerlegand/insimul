@@ -6,7 +6,7 @@ import {
   isArrivalAssessmentQuest,
   getArrivalPhaseIds,
   type AssessmentQuestObjective,
-} from '../services/quests/assessment-quest-bridge-shared';
+} from '../services/assessment-quest-bridge-shared';
 
 describe('buildArrivalAssessmentQuest', () => {
   const config = {
@@ -28,16 +28,17 @@ describe('buildArrivalAssessmentQuest', () => {
     expect(quest.status).toBe('active');
   });
 
-  it('creates exactly 4 objectives matching the 4 assessment phases', () => {
+  it('creates exactly 5 objectives matching the 5 assessment phases', () => {
     const quest = buildArrivalAssessmentQuest(config);
     const objectives = quest.objectives as AssessmentQuestObjective[];
-    expect(objectives).toHaveLength(4);
+    expect(objectives).toHaveLength(5);
 
     const phaseIds = objectives.map(o => o.assessmentPhaseId);
     expect(phaseIds).toEqual([
       'arrival_reading',
       'arrival_writing',
       'arrival_listening',
+      'arrival_initiate_conversation',
       'arrival_conversation',
     ]);
   });
@@ -48,7 +49,12 @@ describe('buildArrivalAssessmentQuest', () => {
     for (const obj of objectives) {
       expect(obj.completed).toBe(false);
       expect(obj.currentCount).toBe(0);
-      expect(obj.requiredCount).toBe(1);
+      // arrival_conversation has requiredCount: 3
+      if (obj.assessmentPhaseId === 'arrival_conversation') {
+        expect(obj.requiredCount).toBe(3);
+      } else {
+        expect(obj.requiredCount).toBe(1);
+      }
     }
   });
 
@@ -213,12 +219,13 @@ describe('isArrivalAssessmentQuest', () => {
 });
 
 describe('getArrivalPhaseIds', () => {
-  it('returns the 4 arrival encounter phase IDs in order', () => {
+  it('returns the 5 arrival encounter phase IDs in order', () => {
     const ids = getArrivalPhaseIds();
     expect(ids).toEqual([
       'arrival_reading',
       'arrival_writing',
       'arrival_listening',
+      'arrival_initiate_conversation',
       'arrival_conversation',
     ]);
   });

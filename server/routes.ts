@@ -1883,11 +1883,15 @@ app.get("/api/rules", async (req, res) => {
                 targetLanguage: world.targetLanguage,
                 objectives: [
                   {
-                    type: 'complete_conversation',
+                    id: 'obj_periodic_conversational',
+                    type: 'periodic_conversational',
                     description: 'Complete the conversational assessment',
+                    assessmentPhaseId: 'periodic_conversational',
+                    completionTrigger: 'conversation_assessment_completed',
+                    requiredCount: 3,
                     target: 'periodic_conversational',
                     required: 1,
-                    current: 0,
+                    currentCount: 0,
                     completed: false,
                   },
                 ],
