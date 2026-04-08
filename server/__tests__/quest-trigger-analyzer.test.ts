@@ -543,6 +543,81 @@ describe('analyzeConversation', () => {
     expect(result.triggers[0].completed).toBe(false);
   });
 
+  it('does not trigger haggle_price for non-price messages', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Market Bargaining',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'haggle_price',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'Bonjour, comment allez-vous?',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(0);
+  });
+
+  it('detects haggle_price with English price keywords', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Bargain Hunter',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'haggle_price',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'Can I get a discount on this?',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].trigger).toBe('haggling keywords detected');
+    expect(result.triggers[0].completed).toBe(true);
+  });
+
+  it('detects haggle_price with numeric currency amounts', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Haggling',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'haggle_price',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'I will pay 5 euros for that',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].completed).toBe(true);
+  });
+
   it('detects introduce_self trigger with introduction pattern', () => {
     const quest: ActiveQuest = {
       id: 'q1',

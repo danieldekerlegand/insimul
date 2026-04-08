@@ -37,6 +37,7 @@ import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
 import { LipSyncController } from "./LipSyncController";
 import { logLLMChatExchange, logLLMError } from "./LLMDebugLogger";
+import { detectHagglingIntent } from "@shared/language/haggling-detection";
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
 import { processRecordedAudio } from "@/lib/audio-utils";
 import { HandsFreeController } from "@/lib/hands-free-controller";
@@ -2503,6 +2504,21 @@ export class BabylonChatPanel {
         // Process NPC details — facts learned about this NPC
         if (metadata.npcDetails?.length > 0 && this.character?.id && this._onNpcDetailsLearned) {
           this._onNpcDetailsLearned(this.character.id, metadata.npcDetails as string[]);
+        }
+
+        // Detect haggling intent — emit price_haggled when player uses price/negotiation keywords
+        if (this._gameEventBus && this.character?.id && detectHagglingIntent(playerMessage, targetLanguage || undefined)) {
+          const merchantId = this.character.id;
+          const merchantName = `${this.character.firstName} ${this.character.lastName}`.trim();
+          (this._gameEventBus as any).emit({
+            type: 'price_haggled',
+            itemId: '',
+            itemName: '',
+            merchantId,
+            merchantName,
+            typedWord: playerMessage,
+            targetWord: '',
+          });
         }
       })
       .catch((err: any) => {

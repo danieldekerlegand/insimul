@@ -12,6 +12,8 @@
  *   - Topic relevance: keyword overlap with quest description/tags
  */
 
+import { detectHagglingIntent } from '../../../shared/language/haggling-detection';
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface QuestObjective {
@@ -60,6 +62,7 @@ export interface AnalysisContext {
   npcName?: string;
   conversationTurnCount: number;
   activeQuests: ActiveQuest[];
+  targetLanguage?: string;
 }
 
 // ── Levenshtein distance ───────────────────────────────────────────────────
@@ -193,7 +196,7 @@ export function detectTopicRelevance(
  * Analyze a player message against active quests and return trigger matches.
  */
 export function analyzeConversation(ctx: AnalysisContext): AnalysisResult {
-  const { playerMessage, npcCharacterId, conversationTurnCount, activeQuests } = ctx;
+  const { playerMessage, npcCharacterId, conversationTurnCount, activeQuests, targetLanguage } = ctx;
   const triggers: TriggerMatch[] = [];
 
   for (const quest of activeQuests) {
@@ -309,7 +312,6 @@ export function analyzeConversation(ctx: AnalysisContext): AnalysisResult {
         // Conversation-only objective types — progress on each conversation turn
         case 'ask_for_directions':
         case 'order_food':
-        case 'haggle_price':
         case 'listen_and_repeat':
         case 'describe_scene':
         case 'write_response':
@@ -323,6 +325,26 @@ export function analyzeConversation(ctx: AnalysisContext): AnalysisResult {
                 objectiveId: obj.id,
                 objectiveType: obj.type,
                 trigger: `conversation turn for ${obj.type}`,
+                incrementBy: 1,
+                newCount,
+                requiredCount,
+                completed: newCount >= requiredCount,
+              });
+            }
+          }
+          break;
+        }
+
+        case 'haggle_price': {
+          // Detect price negotiation keywords in player message
+          if (detectHagglingIntent(playerMessage, targetLanguage)) {
+            const newCount = Math.min(currentCount + 1, requiredCount);
+            if (newCount > currentCount) {
+              triggers.push({
+                questId: quest.id,
+                objectiveId: obj.id,
+                objectiveType: obj.type,
+                trigger: `haggling keywords detected`,
                 incrementBy: 1,
                 newCount,
                 requiredCount,
