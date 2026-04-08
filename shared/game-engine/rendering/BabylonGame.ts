@@ -4908,6 +4908,11 @@ export class BabylonGame {
         }
         this._assessmentTargetNpcId = targetId;
         this.guiManager?.setHighlightedNpc(targetId);
+        // Also set 3D quest indicator on the NPC mesh
+        const npcInstance = this.npcMeshes.get(targetId);
+        if (npcInstance?.mesh && this.questIndicatorManager) {
+          this.questIndicatorManager.setIndicator(targetId, npcInstance.mesh, 'available');
+        }
       } else {
         console.warn('[BabylonGame] assessment_conversation_quest_start: no NPCs available to highlight');
       }
@@ -4919,6 +4924,9 @@ export class BabylonGame {
       this.chatPanel?.setQuestGuidancePrompt(guidancePrompt);
     });
     this.eventBus.on('assessment_conversation_completed', () => {
+      if (this._assessmentTargetNpcId && this.questIndicatorManager) {
+        this.questIndicatorManager.setIndicator(this._assessmentTargetNpcId, null, null);
+      }
       this._assessmentTargetNpcId = null;
       this.guiManager?.clearHighlightedNpc();
       this.chatPanel?.setQuestGuidancePrompt(null);

@@ -64,6 +64,10 @@ export class QuestIndicatorManager {
     npcs: Map<string, { mesh: Mesh; character: Character }>,
     quests: Quest[]
   ): void {
+    // Reset radiant marker selection each cycle — if the previous NPC no longer qualifies,
+    // a new one will be picked. If they still qualify, they'll be re-selected.
+    this._activeRadiantNpcId = null;
+
     let created = 0;
     let sample: { id: string; occupation: string | undefined; type: QuestIndicatorType } | null = null;
     npcs.forEach((npcData, npcId) => {
@@ -78,8 +82,11 @@ export class QuestIndicatorManager {
   /**
    * Determine what indicator type an NPC should have
    */
+  /** NPC ID currently selected as the single radiant quest marker (staggered display). */
+  private _activeRadiantNpcId: string | null = null;
+
   private getIndicatorType(npc: Character, quests: Quest[]): QuestIndicatorType {
-    // Check for quests ready to turn in (highest priority)
+    // Priority 1 (highest): Quest ready to turn in — green ✓
     const turnInQuest = quests.find(q =>
       q.assignedByCharacterId === npc.id &&
       q.status === 'active' &&
@@ -87,7 +94,7 @@ export class QuestIndicatorManager {
     );
     if (turnInQuest) return 'turn_in';
 
-    // Check if this NPC is the target of an active quest objective
+    // Priority 2: NPC is the target of an active quest objective — orange !
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;
@@ -98,7 +105,7 @@ export class QuestIndicatorManager {
     });
     if (isObjectiveTarget) return 'available';
 
-    // Check for active quests from this NPC
+    // Priority 3: NPC has an active quest they assigned (player accepted) — yellow ?
     const activeQuest = quests.find(q =>
       q.assignedByCharacterId === npc.id &&
       q.status === 'active' &&
@@ -106,25 +113,30 @@ export class QuestIndicatorManager {
     );
     if (activeQuest) return 'in_progress';
 
-    // Check if NPC has visible available quests assigned to them
-    // (guild-gated: only show "!" if a quest they give is in the visible set)
-    // Status 'available' is used for guild-gated quests that are unlocked but not yet accepted
+    // Priority 4: NPC has an available (unaccepted) quest — orange !
+    // Only show on ONE NPC at a time to avoid overwhelming the player.
     const hasVisibleQuest = quests.some(q =>
       q.assignedByCharacterId === npc.id
       && (q.status as string) === 'available'
     );
-    if (hasVisibleQuest) return 'available';
-
-    // Fallback: check if NPC can give quests (occupation-based, for NPCs without pre-assigned quests)
-    if (this.canNPCGiveQuests(npc)) {
-      const hasUnassignedQuests = quests.some(q =>
-        !q.assignedByCharacterId
-        && (q.status as string) === 'available'
-      );
-      if (hasUnassignedQuests) return 'available';
+    if (hasVisibleQuest) {
+      // Stagger: only show if this NPC is the active radiant marker
+      if (this._activeRadiantNpcId === null || this._activeRadiantNpcId === npc.id) {
+        this._activeRadiantNpcId = npc.id;
+        return 'available';
+      }
+      return null; // Another NPC is already showing the radiant marker
     }
 
     return null;
+  }
+
+  /**
+   * Reset the active radiant NPC (called when the current radiant quest is accepted/completed).
+   * The next updateIndicators() call will pick a new NPC.
+   */
+  public resetRadiantMarker(): void {
+    this._activeRadiantNpcId = null;
   }
 
   /**
