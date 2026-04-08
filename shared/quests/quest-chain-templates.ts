@@ -278,24 +278,6 @@ const missingWriterMystery: QuestChainTemplate = {
   achievement: 'Mystery Solved',
   quests: [
     {
-      title: 'Arrival Assessment',
-      description: 'Complete your language assessment upon arriving in the settlement. This establishes your baseline proficiency and introduces you to the town.',
-      questType: 'assessment',
-      difficulty: 'beginner',
-      targetLanguage: '',
-      status: 'active',
-      experienceReward: 50,
-      objectives: [
-        { id: 'obj_arrival_reading', type: 'arrival_reading', description: 'Complete reading comprehension', assessmentPhaseId: 'arrival_reading', completionTrigger: 'reading_completed', required: 1, current: 0, completed: false },
-        { id: 'obj_arrival_writing', type: 'arrival_writing', description: 'Complete writing assessment', assessmentPhaseId: 'arrival_writing', completionTrigger: 'writing_submitted', minWordCount: 20, required: 1, current: 0, completed: false },
-        { id: 'obj_arrival_listening', type: 'arrival_listening', description: 'Complete listening comprehension', assessmentPhaseId: 'arrival_listening', completionTrigger: 'listening_completed', required: 1, current: 0, completed: false },
-        { id: 'obj_arrival_initiate_conversation', type: 'arrival_initiate_conversation', description: 'Initiate the conversation assessment', assessmentPhaseId: 'arrival_initiate_conversation', completionTrigger: 'npc_talked', required: 1, current: 0, completed: false },
-        { id: 'obj_arrival_conversation', type: 'arrival_conversation', description: 'Complete conversation assessment', assessmentPhaseId: 'arrival_conversation', completionTrigger: 'conversation_assessment_completed', requiredCount: 3, required: 1, current: 0, completed: false },
-      ],
-      completionCriteria: { type: 'all_objectives', description: 'Complete all arrival assessment phases' },
-      tags: ['assessment', 'arrival', 'main-quest', 'narrative'],
-    },
-    {
       title: 'The Notice Board',
       description: 'A weathered notice on the town board catches your eye — someone is missing. Read the notice, then visit the town clerk to learn more about the missing writer.',
       questType: 'exploration',
@@ -399,20 +381,6 @@ const missingWriterMystery: QuestChainTemplate = {
       ],
       completionCriteria: { type: 'conversation_turns', requiredTurns: 8, description: 'Complete the town gathering conversation challenge' },
       tags: ['conversation', 'vocabulary', 'main-quest', 'narrative', 'climax'],
-    },
-    {
-      title: 'Departure Assessment',
-      description: "Your time in the settlement draws to a close. Complete your final language assessment to measure how far you've come since your arrival.",
-      questType: 'assessment',
-      difficulty: 'intermediate',
-      targetLanguage: '',
-      status: 'pending',
-      experienceReward: 500,
-      objectives: [
-        { type: 'complete_assessment', description: 'Complete the departure language assessment', target: 'departure_assessment', required: 1, current: 0, completed: false },
-      ],
-      completionCriteria: { type: 'assessment_complete', description: 'Complete all departure assessment phases' },
-      tags: ['assessment', 'departure', 'main-quest', 'narrative'],
     },
   ],
 };

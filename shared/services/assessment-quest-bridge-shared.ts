@@ -94,6 +94,7 @@ export function buildArrivalAssessmentQuest(
     status: 'active',
     experienceReward: 50,
     rewards: { xp: 50, fluency: 5, cefrAssessment: true },
+    completionCriteria: { type: 'all_objectives', description: 'Complete all arrival assessment phases' },
     tags: ['assessment', 'arrival', 'onboarding', 'non-skippable', 'non-abandonable'],
     content: generateAssessmentPrologContent({
       encounter: ARRIVAL_ENCOUNTER,

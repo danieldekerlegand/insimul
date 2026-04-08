@@ -1062,8 +1062,18 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
     const assessmentPosition = (locationPositions.size > 0 ? Array.from(locationPositions.values())[0] : null)
       ?? (settlementIdPositions.size > 0 ? Array.from(settlementIdPositions.values())[0] : null);
 
-    // Arrival Assessment — SKIP here; created by seedMainQuestChain() in quest-chain-templates.ts.
-    // Generating it here as well creates a duplicate.
+    // Arrival Assessment — self-contained, no quest chain dependency
+    const arrivalQuest = buildArrivalAssessmentQuest({
+      worldId: world.id,
+      playerId: 'unassigned',
+      targetLanguage,
+      cityName,
+    });
+    if (assessmentPosition) {
+      arrivalQuest.locationPosition = assessmentPosition;
+      arrivalQuest.locationName = cityName;
+    }
+    quests.push(arrivalQuest as InsertQuest);
 
     // Departure Assessment
     const departureVars = { targetLanguage, cityName };
@@ -1090,6 +1100,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       objectives: departureObjectives,
       experienceReward: 50,
       rewards: { xp: 50, fluency: 5, cefrAssessment: true },
+      completionCriteria: { type: 'all_objectives', description: 'Complete all departure assessment phases' },
       status: 'unavailable',
       tags: ['assessment', 'departure', 'non-skippable', 'non-abandonable'],
       ...(assessmentPosition ? { locationPosition: assessmentPosition, locationName: cityName } : {}),
