@@ -2058,3 +2058,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Pre-existing typecheck errors in `DataSource.ts`, `ClientTelemetryCollector.ts`, `assessment-prompt-utils.ts` are unrelated to this branch
   - `isNpcQuestBearer` in BabylonGame checks `questObjectManager.getActiveQuests()` for `assignedByCharacterId`
 ---
+
+## 2026-04-07 - US-004: Proximity-based ambient NPC conversation trigger
+- Modified NPCAmbientConversationManager to add player proximity gate: conversations only start when player is within 8m of both candidate NPCs
+- Changed maxSimultaneous from 3 to 1 (max 1 ambient conversation at a time)
+- Added NpcAudioLock integration: checks lock before starting, acquires with owner 'ambient', releases on conversation end
+- Added `setAudioLock(lock)` public method for dependency injection
+- Added `playerProximityRadius` property (8m)
+- Updated `tryStartConversation()`: requires player mesh, filters NPCs by player proximity, checks/acquires audio lock
+- Updated `endConversation()`: releases audio lock on cleanup
+- Wired shared NpcAudioLock instance in BabylonGame, passed to ambient conversation manager via `setAudioLock()`
+- Files changed:
+  - `shared/game-engine/rendering/NPCAmbientConversationManager.ts` — proximity gate, audio lock integration, max 1 conversation
+  - `shared/game-engine/rendering/BabylonGame.ts` — import NpcAudioLock, create shared instance, wire to ambient manager
+  - `shared/__tests__/npc-ambient-proximity-gate.test.ts` — 11 new tests
+  - `tasks/prd.json` — US-004 passes: true
+- **Learnings for future iterations:**
+  - NPCAmbientConversationManager uses `window.setInterval`/`window.clearInterval` — tests need `globalThis.window = globalThis` shim for Node
+  - Conversation expiry check happens on next tick after duration passes — test timing must account for tick interval (5s) beyond the 20s duration
+  - The manager already has `faceEachOther` and talk/listen animation logic that must be preserved (used by new proximity system)
+  - Pre-existing type errors in `shared/quests/`, `shared/schema.ts`, `BabylonGame-patch.ts` are unrelated to this branch
+---

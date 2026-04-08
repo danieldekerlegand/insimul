@@ -74,7 +74,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "This modifies the existing NPCAmbientConversationManager rather than replacing it. The key change is adding the player proximity gate and audio lock integration."
     },
     {

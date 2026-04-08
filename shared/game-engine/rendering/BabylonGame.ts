@@ -155,6 +155,7 @@ import { GameQuestManager } from "@shared/game-engine/logic/GameQuestManager";
 import { VRAccessibilityManager } from "@shared/game-engine/rendering/VRAccessibilityManager";
 import { NPCTalkingIndicator } from "@shared/game-engine/rendering/NPCTalkingIndicator";
 import { NPCAmbientConversationManager } from "@shared/game-engine/rendering/NPCAmbientConversationManager";
+import { NpcAudioLock } from "@shared/game-engine/rendering/NpcAudioLock";
 import { BabylonEavesdropPanel } from "@shared/game-engine/rendering/BabylonEavesdropPanel";
 import { VehicleSystem } from "@shared/game-engine/rendering/VehicleSystem";
 import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo } from "@shared/game-engine/logic/AmbientLifeBehaviorSystem";
@@ -578,6 +579,8 @@ export class BabylonGame {
   private combatUI: CombatUI | null = null;
   private npcTalkingIndicator: NPCTalkingIndicator | null = null;
   private ambientConversationManager: NPCAmbientConversationManager | null = null;
+  /** Shared audio lock — one NPC audio source at a time (greetings, ambient conversations) */
+  private npcAudioLock: NpcAudioLock = new NpcAudioLock();
   private socializationController: NPCSocializationController | null = null;
   private vehicleSystem: VehicleSystem | null = null;
   private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
@@ -4456,6 +4459,9 @@ export class BabylonGame {
       this.config.worldId,
       this.npcTalkingIndicator
     );
+
+    // Wire shared audio lock for one-at-a-time NPC audio gating
+    this.ambientConversationManager.setAudioLock(this.npcAudioLock);
 
     // Wire up animation callback for NPC conversations
     this.ambientConversationManager.setAnimationCallback((npcId: string, animation: string) => {

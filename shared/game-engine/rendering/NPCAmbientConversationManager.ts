@@ -13,6 +13,7 @@
 import { Vector3, Scene, Mesh } from '@babylonjs/core';
 import { NPCTalkingIndicator } from './NPCTalkingIndicator';
 import { GREETINGS } from '@shared/language/utils';
+import { NpcAudioLock } from './NpcAudioLock';
 import type { GamePrologEngine } from '../logic/GamePrologEngine';
 
 /** Short ambient dialogue phrases in target languages for NPC-NPC speech bubbles. */
@@ -74,7 +75,7 @@ export class NPCAmbientConversationManager {
   // Settings
   private checkIntervalMs = 5000;
   private minCooldownMs = 120000; // 2 minutes — prevents rapid re-pairing and NPC clustering
-  private maxSimultaneous = 3;
+  private maxSimultaneous = 1;
   /** How long each NPC "talks" before the other responds (ms) */
   private talkTurnDurationMs = 3000;
   /** Total conversation duration before NPCs part ways (ms) */
@@ -109,6 +110,12 @@ export class NPCAmbientConversationManager {
 
   // Target language for ambient dialogue phrases
   private targetLanguage: string = 'English';
+
+  // Shared audio lock — only one NPC audio source at a time
+  private audioLock: NpcAudioLock | null = null;
+
+  /** Player proximity radius — conversations only start when player is within this distance of both NPCs */
+  private playerProximityRadius = 8;
 
   constructor(scene: Scene, _worldId: string, talkingIndicator: NPCTalkingIndicator) {
     this.scene = scene;
@@ -153,6 +160,10 @@ export class NPCAmbientConversationManager {
 
   public setEavesdropActivateCallback(cb: EavesdropActivateCallback): void {
     this.onEavesdropActivate = cb;
+  }
+
+  public setAudioLock(lock: NpcAudioLock): void {
+    this.audioLock = lock;
   }
 
   public pause(): void { this._paused = true; }
@@ -269,6 +280,13 @@ export class NPCAmbientConversationManager {
   // --- Pairing logic ---
 
   private tryStartConversation(now: number): void {
+    // Don't start if audio lock is held (e.g., greeting playing)
+    if (this.audioLock?.isLocked()) return;
+
+    // Player proximity gate: need a player mesh to check distance
+    if (!this.playerMesh) return;
+    const playerPos = this.playerMesh.position;
+
     const available: NPCInstance[] = [];
 
     for (const npc of Array.from(this.npcMeshes.values())) {
@@ -278,6 +296,9 @@ export class NPCAmbientConversationManager {
 
       const lastChat = this.conversationCooldowns.get(npc.id) || 0;
       if (now - lastChat < this.minCooldownMs) continue;
+
+      // Player must be within proximity radius of this NPC
+      if (Vector3.Distance(playerPos, npc.mesh.position) > this.playerProximityRadius) continue;
 
       available.push(npc);
     }
@@ -300,6 +321,9 @@ export class NPCAmbientConversationManager {
 
     if (!bestPair) return;
     if (Math.random() > 0.5) return; // 50% chance per tick
+
+    // Acquire audio lock before starting
+    if (this.audioLock && !this.audioLock.acquire('ambient')) return;
 
     this.startConversation(bestPair[0], bestPair[1], now);
   }
@@ -379,6 +403,9 @@ export class NPCAmbientConversationManager {
     }
 
     this.activeConversations.delete(convId);
+
+    // Release audio lock if we held it
+    this.audioLock?.release('ambient');
 
     // Clear eavesdrop prompt if it was for this conversation
     if (this.lastPromptConvId === convId) {
