@@ -1816,7 +1816,33 @@ app.get("/api/rules", async (req, res) => {
       try {
         const { seedMainQuestChain } = await import('../shared/quests/main-quest-chain-seeder.js');
         const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
-        await seedMainQuestChain(mongoQuestStorage, world.id, world.targetLanguage || '');
+        const chain = await seedMainQuestChain(mongoQuestStorage, world.id, world.targetLanguage || '');
+
+        // Generate assessment content and embed in the arrival assessment quest's customData
+        if (chain) {
+          const arrivalQuest = chain.quests.find(q =>
+            q.tags?.includes('assessment') && q.tags?.includes('arrival')
+          );
+          if (arrivalQuest && world.targetLanguage) {
+            try {
+              const { generateAssessmentQuestContent } = await import('./services/assessment-content-generator.js');
+              const { ARRIVAL_ENCOUNTER } = await import('../shared/assessment/arrival-encounter.js');
+              const cityName = world.name || 'the city';
+              const assessmentData = await generateAssessmentQuestContent(
+                ARRIVAL_ENCOUNTER,
+                world.targetLanguage,
+                cityName,
+              );
+              await mongoQuestStorage.updateQuest(arrivalQuest.id, {
+                customData: { assessment: assessmentData },
+              });
+              console.log(`[World Create] Embedded arrival assessment content in quest ${arrivalQuest.id}`);
+            } catch (genError) {
+              console.warn('[World Create] Failed to generate assessment content (non-fatal):', genError);
+              // Non-fatal: assessment will fall back to encounter definition files at runtime
+            }
+          }
+        }
       } catch (seedError) {
         console.warn('[World Create] Failed to seed main quest chain:', seedError);
         // Non-fatal: world is still usable without the quest chain

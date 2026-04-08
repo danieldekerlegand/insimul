@@ -6,7 +6,7 @@
  */
 
 import { ARRIVAL_ENCOUNTER, resolveTemplate } from '../assessment/arrival-encounter.js';
-import type { AssessmentPhase } from '../assessment/assessment-types.js';
+import type { AssessmentPhase, AssessmentQuestData } from '../assessment/assessment-types.js';
 import { generateAssessmentPrologContent } from '../prolog/assessment-prolog-generator.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -68,13 +68,16 @@ function phaseToObjective(phase: AssessmentPhase, vars: { targetLanguage: string
  * Build a quest data object that wraps the Arrival Assessment.
  * Returns a plain object suitable for POST /api/worlds/:worldId/quests.
  */
-export function buildArrivalAssessmentQuest(config: AssessmentQuestConfig): Record<string, any> {
+export function buildArrivalAssessmentQuest(
+  config: AssessmentQuestConfig,
+  assessmentData?: AssessmentQuestData,
+): Record<string, any> {
   const vars = { targetLanguage: config.targetLanguage, cityName: config.cityName };
 
   const objectives = ARRIVAL_ENCOUNTER.phases.map(phase => phaseToObjective(phase, vars));
   const description = resolveTemplate(ARRIVAL_ENCOUNTER.description, vars);
 
-  return {
+  const quest: Record<string, any> = {
     worldId: config.worldId,
     assignedTo: config.playerId,
     assignedToCharacterId: config.playerCharacterId ?? null,
@@ -100,6 +103,13 @@ export function buildArrivalAssessmentQuest(config: AssessmentQuestConfig): Reco
       experienceReward: 50,
     }),
   };
+
+  // Embed pre-generated assessment content in customData if available
+  if (assessmentData) {
+    quest.customData = { assessment: assessmentData };
+  }
+
+  return quest;
 }
 
 // ── Phase completion → objective update ──────────────────────────────────────

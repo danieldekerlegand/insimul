@@ -787,6 +787,9 @@ export const quests = pgTable("quests", {
   // Conversation-only mode — quest completable entirely through NPC dialogue
   conversationOnly: boolean("conversation_only").default(false),
 
+  // Custom data for extensibility (e.g., assessment content embedded at world creation)
+  customData: jsonb("custom_data").$type<Record<string, any>>().default({}),
+
   // Metadata
   conversationContext: text("conversation_context"), // Context from the conversation that triggered the quest
   tags: jsonb("tags").$type<string[]>().default([]),
@@ -1245,6 +1248,7 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   conversationContext: true,
   tags: true,
   content: true,
+  customData: true,
   relatedTruthIds: true,
   recurrencePattern: true,
   recurrenceResetAt: true,
