@@ -140,6 +140,9 @@ export interface QuestObjective {
   writingPrompt?: string;            // The composition prompt to display
   writtenResponses?: string[];       // Submitted responses
   minWordCount?: number;             // Minimum word count required per response
+
+  // Declarative completion trigger (from QuestCompletionEngine)
+  completionTrigger?: string;
 }
 
 export interface Quest {
@@ -575,6 +578,47 @@ export class QuestObjectManager {
     // Parse objectives array if it exists
     if (quest.objectives && Array.isArray(quest.objectives)) {
       quest.objectives.forEach((obj: any, index: number) => {
+        // Type-based parsing for seed-generated objectives with explicit type fields
+        if (obj.type === 'follow_directions' && obj.directionSteps) {
+          objectives.push({
+            id: obj.id || `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'follow_directions',
+            description: obj.description || 'Follow the directions',
+            completed: obj.isCompleted || obj.completed || false,
+            stepsCompleted: obj.stepsCompleted || 0,
+            stepsRequired: obj.stepsRequired || obj.directionSteps.length,
+            directionSteps: obj.directionSteps.map((step: any) => ({
+              instruction: step.instruction,
+              englishHint: step.englishHint,
+              locationName: step.locationName,
+              targetPosition: this.toVector3(step.targetPosition || step.locationPosition),
+            })),
+            completionTrigger: obj.completionTrigger,
+          });
+          return;
+        }
+        if (obj.type === 'navigate_language' && obj.navigationWaypoints) {
+          objectives.push({
+            id: obj.id || `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'navigate_language',
+            description: obj.description || 'Follow directions in the target language',
+            completed: obj.isCompleted || obj.completed || false,
+            navigationInstructions: obj.navigationInstructions,
+            navigationWaypoints: obj.navigationWaypoints.map((wp: any) => ({
+              instruction: wp.instruction,
+              locationName: wp.locationName,
+              targetPosition: this.toVector3(wp.targetPosition || wp.locationPosition),
+            })),
+            waypointsReached: obj.waypointsReached || 0,
+            stepsCompleted: obj.stepsCompleted || 0,
+            stepsRequired: obj.stepsRequired || obj.navigationWaypoints.length,
+            completionTrigger: obj.completionTrigger,
+          });
+          return;
+        }
+
         // Try to infer objective type from description
         const desc = obj.description?.toLowerCase() || '';
 
@@ -1157,16 +1201,17 @@ export class QuestObjectManager {
     }
 
     // Spawn the first step's waypoint (subsequent ones spawn as the player completes each step)
-    if (steps.length > 0 && steps[0].targetPosition) {
-      const step = steps[0];
+    const firstStepPos = steps.length > 0 ? (steps[0].targetPosition || (steps[0] as any).locationPosition) : null;
+    if (steps.length > 0 && firstStepPos) {
       const markerId = `${objective.id}_step_0`;
+      const pos = firstStepPos instanceof Vector3 ? firstStepPos : new Vector3(firstStepPos.x ?? 0, firstStepPos.y ?? 0, firstStepPos.z ?? 0);
 
       const beacon = MeshBuilder.CreateCylinder(
         `direction_beacon_${markerId}`,
         { height: 8, diameter: 1.5, tessellation: 24 },
         this.scene
       );
-      beacon.position = step.targetPosition!.clone();
+      beacon.position = pos.clone();
       beacon.position.y += 4;
 
       // Green material for direction waypoints
@@ -1204,15 +1249,17 @@ export class QuestObjectManager {
 
     // Spawn the first waypoint (subsequent ones spawn as player reaches each one)
     const wp = waypoints[0];
-    if (!wp.targetPosition) return;
+    const wpPos = wp.targetPosition || (wp as any).locationPosition;
+    if (!wpPos) return;
 
     const markerId = `${objective.id}_nav_0`;
+    const pos = wpPos instanceof Vector3 ? wpPos : new Vector3(wpPos.x ?? 0, wpPos.y ?? 0, wpPos.z ?? 0);
     const beacon = MeshBuilder.CreateCylinder(
       `nav_beacon_${markerId}`,
       { height: 8, diameter: 1.5, tessellation: 24 },
       this.scene
     );
-    beacon.position = wp.targetPosition.clone();
+    beacon.position = pos.clone();
     beacon.position.y += 4;
 
     // Blue material for navigation waypoints
@@ -1397,6 +1444,16 @@ export class QuestObjectManager {
   /**
    * Generate a location position
    */
+  /**
+   * Convert a plain {x, y, z} object or Vector3 to a Vector3 instance.
+   * Returns a generated random position if input is null/undefined.
+   */
+  private toVector3(pos: any): Vector3 {
+    if (!pos) return this.generateLocationPosition();
+    if (pos instanceof Vector3) return pos;
+    return new Vector3(pos.x ?? 0, pos.y ?? 0, pos.z ?? 0);
+  }
+
   private generateLocationPosition(): Vector3 {
     for (let attempt = 0; attempt < 8; attempt++) {
       const angle = Math.random() * Math.PI * 2;
@@ -1569,9 +1626,10 @@ export class QuestObjectManager {
           if (stepIndex >= objective.directionSteps.length) return;
 
           const step = objective.directionSteps[stepIndex];
-          if (!step.targetPosition) return;
+          const stepPos = step.targetPosition || (step as any).locationPosition;
+          if (!stepPos) return;
 
-          const target = step.targetPosition;
+          const target = stepPos;
           const distance = Vector3.Distance(
             playerPosition,
             new Vector3(target.x, target.y ?? playerPosition.y, target.z),
@@ -1581,6 +1639,9 @@ export class QuestObjectManager {
           if (distance <= radius) {
             objective.stepsCompleted = stepIndex + 1;
             const stepsRequired = objective.stepsRequired || objective.directionSteps.length;
+
+            // Remove previous step marker, spawn next one
+            this.transitionDirectionMarker(objective, stepIndex);
 
             // Emit direction_step_completed event
             this.eventBus?.emit({
@@ -1604,9 +1665,10 @@ export class QuestObjectManager {
           if (wpIndex >= objective.navigationWaypoints.length) return;
 
           const waypoint = objective.navigationWaypoints[wpIndex];
-          if (!waypoint.targetPosition) return;
+          const wpPos = waypoint.targetPosition || (waypoint as any).locationPosition;
+          if (!wpPos) return;
 
-          const target = waypoint.targetPosition;
+          const target = wpPos;
           const distance = Vector3.Distance(
             playerPosition,
             new Vector3(target.x, target.y ?? playerPosition.y, target.z),
@@ -1633,6 +1695,58 @@ export class QuestObjectManager {
         }
       });
     });
+  }
+
+  /**
+   * Remove the completed direction step marker and spawn the next one.
+   */
+  private transitionDirectionMarker(objective: QuestObjective, completedIndex: number) {
+    // Remove completed step marker
+    const prevMarkerId = `${objective.id}_step_${completedIndex}`;
+    const prevMarker = this.locationMarkers.get(prevMarkerId);
+    if (prevMarker) {
+      prevMarker.dispose();
+      this.locationMarkers.delete(prevMarkerId);
+    }
+
+    // Spawn next step marker if available
+    const steps = objective.directionSteps || [];
+    const nextIdx = completedIndex + 1;
+    if (nextIdx >= steps.length) return;
+
+    const nextStep = steps[nextIdx];
+    const nextPos = nextStep.targetPosition || (nextStep as any).locationPosition;
+    if (!nextPos) return;
+
+    const markerId = `${objective.id}_step_${nextIdx}`;
+    const pos = nextPos instanceof Vector3 ? nextPos : new Vector3(nextPos.x ?? 0, nextPos.y ?? 0, nextPos.z ?? 0);
+    const beacon = MeshBuilder.CreateCylinder(
+      `direction_beacon_${markerId}`,
+      { height: 8, diameter: 1.5, tessellation: 24 },
+      this.scene
+    );
+    beacon.position = pos.clone();
+    beacon.position.y += 4;
+
+    const material = new StandardMaterial(`direction_mat_${markerId}`, this.scene);
+    material.diffuseColor = new Color3(0.2, 0.9, 0.4);
+    material.emissiveColor = new Color3(0.1, 0.45, 0.2);
+    material.alpha = 0.35;
+    beacon.material = material;
+
+    const pulseAnim = new Animation(
+      `direction_pulse_${markerId}`, 'material.alpha', 30,
+      Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+    );
+    pulseAnim.setKeys([
+      { frame: 0, value: 0.2 },
+      { frame: 30, value: 0.5 },
+      { frame: 60, value: 0.2 }
+    ]);
+    beacon.animations.push(pulseAnim);
+    this.scene.beginAnimation(beacon, 0, 60, true);
+
+    this.locationMarkers.set(markerId, beacon);
   }
 
   /**
@@ -2004,15 +2118,16 @@ export class QuestObjectManager {
 
     // Spawn next waypoint beacon
     const waypoints = objective.navigationWaypoints || [];
-    if (nextIdx < waypoints.length && waypoints[nextIdx].targetPosition) {
-      const wp = waypoints[nextIdx];
+    const nextWpPos = nextIdx < waypoints.length ? (waypoints[nextIdx].targetPosition || (waypoints[nextIdx] as any).locationPosition) : null;
+    if (nextIdx < waypoints.length && nextWpPos) {
       const markerId = `${objective.id}_nav_${nextIdx}`;
+      const nextPos = nextWpPos instanceof Vector3 ? nextWpPos : new Vector3(nextWpPos.x ?? 0, nextWpPos.y ?? 0, nextWpPos.z ?? 0);
       const beacon = MeshBuilder.CreateCylinder(
         `nav_beacon_${markerId}`,
         { height: 8, diameter: 1.5, tessellation: 24 },
         this.scene
       );
-      beacon.position = wp.targetPosition!.clone();
+      beacon.position = nextPos.clone();
       beacon.position.y += 4;
 
       const material = new StandardMaterial(`nav_mat_${markerId}`, this.scene);

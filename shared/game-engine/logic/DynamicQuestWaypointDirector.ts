@@ -28,6 +28,11 @@ export interface DirectorObjective {
   itemName?: string;
   escortNpcId?: string;
   destinationPosition?: WaypointPosition;
+  // Navigation step tracking
+  directionSteps?: { instruction: string; targetPosition?: WaypointPosition; locationPosition?: WaypointPosition; locationName?: string }[];
+  navigationWaypoints?: { instruction: string; targetPosition?: WaypointPosition; locationPosition?: WaypointPosition; locationName?: string }[];
+  stepsCompleted?: number;
+  waypointsReached?: number;
 }
 
 /** Quest as seen by the director */
@@ -205,6 +210,10 @@ export class DynamicQuestWaypointDirector {
             npcId: obj.npcId,
             npcName: obj.npcName,
             itemName: obj.itemName,
+            directionSteps: obj.directionSteps,
+            navigationWaypoints: obj.navigationWaypoints,
+            stepsCompleted: obj.stepsCompleted,
+            waypointsReached: obj.waypointsReached,
           });
         }
       }
@@ -222,6 +231,38 @@ export class DynamicQuestWaypointDirector {
     playerPosition: WaypointPosition
   ): ResolvedWaypoint | null {
     const objId = `${quest.id}_${objective.id}`;
+
+    // 0. For navigation objectives, point to the current step/waypoint position
+    if (objective.type === 'follow_directions' && objective.directionSteps) {
+      const stepIdx = objective.stepsCompleted || 0;
+      if (stepIdx < objective.directionSteps.length) {
+        const step = objective.directionSteps[stepIdx];
+        const pos = step.targetPosition || step.locationPosition;
+        if (pos) {
+          return {
+            objectiveId: objId,
+            objectiveType: objective.type,
+            position: pos,
+            label: step.locationName || step.instruction,
+          };
+        }
+      }
+    }
+    if (objective.type === 'navigate_language' && objective.navigationWaypoints) {
+      const wpIdx = objective.waypointsReached || 0;
+      if (wpIdx < objective.navigationWaypoints.length) {
+        const wp = objective.navigationWaypoints[wpIdx];
+        const pos = wp.targetPosition || wp.locationPosition;
+        if (pos) {
+          return {
+            objectiveId: objId,
+            objectiveType: objective.type,
+            position: pos,
+            label: wp.locationName || wp.instruction,
+          };
+        }
+      }
+    }
 
     // 1. Explicit position on the objective
     const explicitPos = objective.position || objective.locationPosition;
