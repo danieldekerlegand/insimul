@@ -8539,6 +8539,7 @@ export class BabylonGame {
         guiManager: this.guiManager!,
         dataSource: this.dataSource,
         prologEngine: this.prologEngine,
+        questOverlay: this.questOverlay,
       });
 
       this.onboardingActive = false;

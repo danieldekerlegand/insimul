@@ -7,6 +7,7 @@
  */
 
 import type { GameEventBus } from '@shared/game-engine/logic/GameEventBus';
+import type { AssessmentPhaseResult } from '@shared/assessment/assessment-types';
 
 import type { AssessmentModalConfig } from '@shared/game-engine/rendering/AssessmentModalUI';
 
@@ -20,6 +21,7 @@ type AssessmentEngine = {
   }): Promise<void>;
   onPhaseStarted(cb: (phaseId: string, phaseIndex: number, timeRemainingSeconds?: number) => void): void;
   onPhaseCompleted(cb: (phaseId: string, score: number, maxScore: number) => void): void;
+  onPhaseResult(cb: (phaseResult: AssessmentPhaseResult) => void): void;
   onCompleted(cb: (result: AssessmentResult) => void): void;
   onShowInstruction(cb: (config: {
     phaseId: string;
@@ -65,6 +67,8 @@ export interface OnboardingLauncherDeps {
   targetLanguage: string;
   dataSource?: any;
   prologEngine?: any;
+  /** Quest overlay for storing phase results in the save file instead of the DB. */
+  questOverlay?: { updateQuest(questId: string, data: Record<string, any>): void };
   guiManager: {
     advancedTexture: any;
     showToast(opts: { title: string; description?: string; variant?: string; duration?: number }): void;
@@ -194,6 +198,7 @@ export async function launchOnboarding(
     targetLanguage,
     eventBus,
     prologEngine: deps.prologEngine ?? null,
+    questId: assessmentQuestId,
     assessmentQuestData: assessmentQuest?.assessmentData,
   });
 
@@ -222,9 +227,17 @@ export async function launchOnboarding(
       score,
       maxScore,
     });
+  });
 
-    // TODO: Update quest objective progress via playthrough delta layer, not world data.
-    // For now, phase completion is tracked via assessment events only.
+  // Store full phase results (player answers + scores) in quest overlay for save file persistence
+  const collectedPhaseResults: AssessmentPhaseResult[] = [];
+  assessmentEngine.onPhaseResult((phaseResult) => {
+    collectedPhaseResults.push(phaseResult);
+    if (assessmentQuestId && deps.questOverlay) {
+      deps.questOverlay.updateQuest(assessmentQuestId, {
+        phaseResults: [...collectedPhaseResults],
+      });
+    }
   });
 
   // Wire instruction callbacks

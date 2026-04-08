@@ -17,7 +17,7 @@
 
 import type { GameEventBus } from './GameEventBus';
 import type { GamePrologEngine } from './GamePrologEngine';
-import type { AssessmentModalConfig, ContentTemplate, PhaseType, AssessmentQuestData } from '@shared/assessment/assessment-types';
+import type { AssessmentModalConfig, ContentTemplate, PhaseType, AssessmentQuestData, AssessmentPhaseResult, AssessmentTaskResult } from '@shared/assessment/assessment-types';
 
 /** Lightweight assessment result (subset of shared/assessment AssessmentResult). */
 export interface AssessmentResult {
@@ -109,6 +109,13 @@ interface ScoringResult {
   overallRationale: string;
 }
 
+/** Internal result from running a phase, carrying task-level details for quest overlay storage. */
+interface PhaseRunResult {
+  score: number;
+  taskResults: AssessmentTaskResult[];
+  dimensionScores: Record<string, number>;
+}
+
 export class AssessmentEngine {
   private authToken: string;
   private targetLanguage: string;
@@ -118,6 +125,7 @@ export class AssessmentEngine {
   private _assessmentQuestData: AssessmentQuestData | null = null;
   private _onPhaseStarted?: (phaseId: string, phaseIndex: number, timeRemainingSeconds: number) => void;
   private _onPhaseCompleted?: (phaseId: string, score: number, maxScore: number) => void;
+  private _onPhaseResult?: (phaseResult: AssessmentPhaseResult) => void;
   private _onCompleted?: (result: AssessmentResult) => void;
   private _onShowInstruction?: (config: {
     phaseId: string;
@@ -175,24 +183,37 @@ export class AssessmentEngine {
 
       this._onPhaseStarted?.(phase.id, i, 0);
 
-      let score = 0;
+      let phaseRunResult: PhaseRunResult;
 
       if (phase.type === 'initiate_conversation') {
-        score = await this._runInitiateConversationPhase(phase, i);
+        const score = await this._runInitiateConversationPhase(phase, i);
+        phaseRunResult = { score, taskResults: [], dimensionScores: {} };
       } else if (phase.type === 'conversation') {
-        score = await this._runConversationPhase(phase, i);
+        const score = await this._runConversationPhase(phase, i);
+        phaseRunResult = { score, taskResults: [], dimensionScores: {} };
       } else {
-        score = await this._runModalPhase(phase, i);
+        phaseRunResult = await this._runModalPhaseWithResults(phase, i);
       }
 
       if (this._aborted) return;
 
-      totalScore += score;
+      totalScore += phaseRunResult.score;
       this._onHideInstruction?.();
-      this._onPhaseCompleted?.(phase.id, score, phase.maxScore);
+      this._onPhaseCompleted?.(phase.id, phaseRunResult.score, phase.maxScore);
+
+      // Build and emit full phase result for quest overlay storage
+      const phaseResult: AssessmentPhaseResult = {
+        phaseId: phase.id,
+        score: Math.round(phaseRunResult.score * 10) / 10,
+        maxScore: phase.maxScore,
+        taskResults: phaseRunResult.taskResults,
+        dimensionScores: phaseRunResult.dimensionScores,
+        completedAt: new Date().toISOString(),
+      };
+      this._onPhaseResult?.(phaseResult);
 
       // Assert phase score as Prolog fact for quest evaluation
-      await this._assertPhaseScore(phase.id, score, phase.maxScore);
+      await this._assertPhaseScore(phase.id, phaseRunResult.score, phase.maxScore);
 
       // Emit specific objective completion triggers for each phase type
       this._emitPhaseCompletionTrigger(phase);
@@ -239,6 +260,10 @@ export class AssessmentEngine {
     this._onPhaseCompleted = cb;
   }
 
+  onPhaseResult(cb: (phaseResult: AssessmentPhaseResult) => void): void {
+    this._onPhaseResult = cb;
+  }
+
   onCompleted(cb: (result: AssessmentResult) => void): void {
     this._onCompleted = cb;
   }
@@ -278,6 +303,7 @@ export class AssessmentEngine {
     }
     this._onPhaseStarted = undefined;
     this._onPhaseCompleted = undefined;
+    this._onPhaseResult = undefined;
     this._onCompleted = undefined;
     this._onShowInstruction = undefined;
     this._onHideInstruction = undefined;
@@ -367,10 +393,10 @@ export class AssessmentEngine {
 
   // ── Private: modal-based phases (reading, writing, listening) ─────────────
 
-  private async _runModalPhase(
+  private async _runModalPhaseWithResults(
     phase: { id: string; name: string; type: PhaseType; maxScore: number },
     phaseIndex: number,
-  ): Promise<number> {
+  ): Promise<PhaseRunResult> {
     // Step 1: Try pre-generated content from quest customData.assessment first
     let content: GeneratedContent = this._getQuestContent(phase.id) ?? {};
 
@@ -400,19 +426,79 @@ export class AssessmentEngine {
     const phases = this._getPhases();
     const answers = await this._showModalAndWait(phase, phaseIndex, phases.length, content, audioUrl);
 
-    if (this._aborted || !answers) return 0;
+    if (this._aborted || !answers) {
+      return { score: 0, taskResults: [], dimensionScores: {} };
+    }
 
-    // Step 3: Score answers via server
+    // Step 3: Score answers
     try {
       const scoring = await this._scorePhase(phase.type, content, answers);
-      return Math.min(phase.maxScore, scoring.totalScore);
+      const score = Math.min(phase.maxScore, scoring.totalScore);
+
+      // Build task results from answers and scoring
+      const taskResults = this._buildTaskResults(phase, content, answers, scoring);
+      const dimensionScores: Record<string, number> = {};
+      if (scoring.dimensionScores) {
+        for (const [dim, ds] of Object.entries(scoring.dimensionScores)) {
+          dimensionScores[dim] = ds.score;
+        }
+      }
+
+      return { score, taskResults, dimensionScores };
     } catch (err) {
       console.warn('[AssessmentEngine] Scoring failed, using estimate:', err);
-      // Fallback: count non-empty answers as partial credit
       const nonEmpty = Object.values(answers).filter(a => a.length > 0).length;
       const totalFields = Object.keys(answers).length || 1;
-      return Math.round((nonEmpty / totalFields) * phase.maxScore * 0.5);
+      const score = Math.round((nonEmpty / totalFields) * phase.maxScore * 0.5);
+
+      // Build basic task results even on scoring failure
+      const taskResults: AssessmentTaskResult[] = Object.entries(answers).map(([key, answer]) => ({
+        taskId: key,
+        playerAnswer: answer,
+        score: answer.length > 0 ? Math.round((score / totalFields) * 10) / 10 : 0,
+        maxPoints: Math.round((phase.maxScore / totalFields) * 10) / 10,
+      }));
+
+      return { score, taskResults, dimensionScores: {} };
     }
+  }
+
+  /**
+   * Build AssessmentTaskResult[] from answers and scoring data.
+   */
+  private _buildTaskResults(
+    phase: { id: string; type: PhaseType; maxScore: number },
+    content: GeneratedContent,
+    answers: Record<string, string>,
+    scoring: ScoringResult,
+  ): AssessmentTaskResult[] {
+    const results: AssessmentTaskResult[] = [];
+
+    if (content.questions && scoring.questionScores) {
+      // Reading/listening: map question-level scores
+      for (const qs of scoring.questionScores) {
+        results.push({
+          taskId: qs.questionId,
+          playerAnswer: answers[qs.questionId] ?? '',
+          score: qs.score,
+          maxPoints: qs.maxScore,
+        });
+      }
+    } else {
+      // Writing or fallback: one task result per answer field
+      const answerEntries = Object.entries(answers);
+      const perTask = answerEntries.length > 0 ? phase.maxScore / answerEntries.length : phase.maxScore;
+      for (const [key, answer] of answerEntries) {
+        results.push({
+          taskId: key,
+          playerAnswer: answer,
+          score: answerEntries.length > 0 ? Math.round((scoring.totalScore / answerEntries.length) * 10) / 10 : 0,
+          maxPoints: Math.round(perTask * 10) / 10,
+        });
+      }
+    }
+
+    return results;
   }
 
   private async _generateContent(phaseType: PhaseType, template: ContentTemplate): Promise<GeneratedContent> {
