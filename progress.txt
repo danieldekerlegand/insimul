@@ -2498,3 +2498,26 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - NPC language mode uses a probabilistic distribution (not a hard mapping): A1=60%bilingual/40%simplified, B2+=100%natural — the acceptance criteria simplified this
   - `CEFRResult.score` is the field name for normalized score (not `normalizedScore`)
 ---
+
+## 2026-04-08 - US-011: Remove gameplay writes to AssessmentSession collection
+- Audited all `/api/assessments` calls in game client code (shared/game-engine/, client/src/components/3DGame/)
+- **ApiDataSource**: `createAssessmentSession`, `submitAssessmentPhase`, `completeAssessment` were already stubbed (no actual API calls) but had misleading TODO comments and a broken `res.json()` call. Replaced with explicit no-op implementations returning `{ status: 'deprecated' }`
+- **FileDataSource**: Removed localStorage-based assessment storage in write methods. Now returns no-op results (no storage writes)
+- **SaveFileDataSource**: Same treatment — replaced stubs with explicit no-ops
+- **data-source.ts interface**: Added `@deprecated` JSDoc comments to all three write methods explaining data flows through quest overlay
+- **NpcExamEngine**: Already clean — `_persistResult()` only emits events, no API calls
+- **Test file**: Moved from `shared/game-engine/rendering/__tests__/` (wrong vitest include path) to `client/__tests__/`. Rewrote all tests to verify no-op behavior: write methods return data without calling fetch or writing to storage
+- Only remaining `/api/assessments` call: `getPlayerAssessments` GET request in ApiDataSource (read-only, acceptable)
+- Updated drift manifest
+- Files changed:
+  - `client/src/components/3DGame/DataSource.ts` — ApiDataSource + FileDataSource write methods → no-ops
+  - `client/src/components/3DGame/SaveFileDataSource.ts` — write methods → no-ops
+  - `shared/game-engine/data-source.ts` — @deprecated JSDoc on interface methods
+  - `client/__tests__/DataSourceNpcConversationAssessment.test.ts` — moved + rewritten (13 tests pass)
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - The assessment write methods were already stubbed (no actual API calls) since a previous iteration, but had misleading TODO comments suggesting future Prolog integration
+  - `completeAssessment` on ApiDataSource had a broken `res.json()` call on a plain object — would crash if ever called
+  - Test files in `shared/game-engine/rendering/__tests__/` don't match vitest include patterns — must be in `shared/__tests__/`, `server/__tests__/`, `client/__tests__/`, or `client/src/**/__tests__/`
+  - OnboardingLauncher already uses quest overlay for all assessment data persistence (phaseResults + assessmentResult)
+---
