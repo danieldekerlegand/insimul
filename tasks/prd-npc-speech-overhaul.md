@@ -165,8 +165,20 @@ The game currently has four separate systems for NPC-to-player greetings (passiv
 - Greeting generation + TTS playback starts within 3 seconds of trigger (or falls back to template)
 - No regression in frame rate from the proximity checks (< 1ms per tick)
 
+## NPC Dialogue Initiation (US-011 — US-013)
+
+Currently, when the player opens conversation with an NPC, the chat panel is silent until the player speaks first. This feels unnatural. Instead, the NPC should always speak first with a contextual opening line.
+
+### US-011: NPC opens conversation with contextual greeting
+When the chat panel opens, an LLM call generates an opening line. The prompt includes location context (shop, park, street), personality, occupation, time of day, and relationship. The NPC ends with a question or engagement hook. Falls back to a template greeting on failure.
+
+### US-012: Auto-speak NPC opening line via TTS
+The opening line from US-011 plays via TTS automatically as it appears in the chat panel. Uses the same TTS pipeline as regular responses. Non-blocking — the player can start typing while audio plays.
+
+### US-013: Continue from proximity greeting if recent
+If the NPC greeted the player via the proximity system (US-003) within the last 30 seconds, the opening prompt includes that greeting as context so the NPC naturally continues from it rather than re-greeting. The greeting text is prepended to conversation history.
+
 ## Open Questions
 
-- Should the greeting LLM call use the same conversation history/context as the chat panel, or a fresh context each time?
 - Should ambient conversation exchanges have a brief pause between speakers (e.g., 500ms silence) for natural pacing?
 - Should NPCs who greet the player be more likely to initiate a full conversation later (relationship boost)?

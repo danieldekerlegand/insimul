@@ -1,0 +1,234 @@
+{
+  "project": "Insimul",
+  "branchName": "ralph/npc-speech-overhaul",
+  "description": "NPC Speech & Ambient Conversation Overhaul — Unify greeting systems with LLM+TTS, replace eavesdrop with proximity-based ambient conversations",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "NpcAudioLock — shared one-at-a-time audio gating",
+      "description": "As a developer, I need a shared audio lock so that only one NPC audio source (greeting or ambient conversation) plays at a time.",
+      "acceptanceCriteria": [
+        "Create NpcAudioLock class in shared/game-engine/rendering/ with acquire(owner: string): boolean, release(owner: string): void, isLocked(): boolean, forceRelease(): void",
+        "acquire() returns true only if not currently locked; stores owner string for debugging",
+        "release() only releases if the caller matches the current owner",
+        "forceRelease() unconditionally releases (for player-initiated chat taking priority)",
+        "Add unit test verifying acquire/release/forceRelease behavior",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "This is the foundational gating mechanism used by all subsequent stories. Keep it simple — no async, no timers."
+    },
+    {
+      "id": "US-002",
+      "title": "NPC greeting TTS helper — generate and speak a greeting",
+      "description": "As a developer, I need a helper function that generates a short NPC greeting via LLM and plays it via TTS so the unified greeting system can call it.",
+      "acceptanceCriteria": [
+        "Create generateAndSpeakGreeting(npc, worldData, options) async function in a new file shared/game-engine/rendering/NpcGreetingTTS.ts",
+        "Sends a short LLM request (FLASH tier, maxTokens 50, 3s timeout) via the server conversation endpoint to generate a 1-2 sentence greeting in the target language",
+        "Prompt includes NPC name, personality traits (Big Five), occupation, time of day, and the target language",
+        "On LLM success, sends the text to TTS via the server TTS endpoint with gender-matched voice (using assignVoiceProfile) and target language code",
+        "Audio plays via StreamingAudioPlayer positioned at the NPC mesh location",
+        "On LLM failure/timeout, falls back to a hardcoded target-language template greeting (e.g., 'Bonjour!' for French)",
+        "If TTS fails, the greeting is silently skipped (no fallback to speech bubble)",
+        "Returns a Promise that resolves when audio finishes or rejects on abort",
+        "Accepts an AbortSignal to cancel the LLM call and stop audio playback",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "This is the core greeting pipeline. It needs to work end-to-end: LLM -> TTS -> audio playback. Reuse existing server endpoints and StreamingAudioPlayer."
+    },
+    {
+      "id": "US-003",
+      "title": "Unified NPC greeting trigger system",
+      "description": "As a player, I want nearby NPCs to occasionally greet me with a single spoken line so the world feels alive without being overwhelming.",
+      "acceptanceCriteria": [
+        "Create NPCProximitySpeechSystem class in shared/game-engine/rendering/NPCProximitySpeechSystem.ts",
+        "Evaluates once per second: finds idle NPCs within 8m of the player",
+        "Greeting probability is personality-driven: base * (0.5 + extroversion * 0.5) * (1 - neuroticism * 0.3)",
+        "Quest-bearing NPCs get +25% probability bonus",
+        "Per-NPC cooldown of 3 minutes; global cooldown of 15 seconds between any greeting",
+        "Acquires NpcAudioLock before playing; skips if lock is held",
+        "Does not trigger while player is in an active conversation (checked via callback)",
+        "Calls generateAndSpeakGreeting from US-002 to produce and play the greeting",
+        "Releases audio lock when greeting audio finishes or is cancelled",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "This replaces NPCGreetingSystem, callouts, walking interrupts, and NPC approach. Register NPCs via registerNPC/unregisterNPC similar to existing systems."
+    },
+    {
+      "id": "US-004",
+      "title": "Proximity-based ambient NPC conversation trigger",
+      "description": "As a player walking through town, I want to overhear nearby NPCs having conversations when I'm close enough.",
+      "acceptanceCriteria": [
+        "Modify NPCAmbientConversationManager to add a player proximity gate: conversations only start when player is within 8m of both candidate NPCs",
+        "No LLM calls are made for NPC pairs where the player is out of range",
+        "Maximum 1 ambient conversation active at a time",
+        "Conversation does not start while NpcAudioLock is held (greeting playing)",
+        "Acquires NpcAudioLock with owner 'ambient' before starting conversation",
+        "NPCs face each other and play talk/listen animations (preserve existing animation logic)",
+        "Check interval remains at 5 seconds for NPC pairing evaluation",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "This modifies the existing NPCAmbientConversationManager rather than replacing it. The key change is adding the player proximity gate and audio lock integration."
+    },
+    {
+      "id": "US-005",
+      "title": "Streamed ambient conversation with TTS playback",
+      "description": "As a player near conversing NPCs, I want to hear their dialogue played aloud with distinct voices.",
+      "acceptanceCriteria": [
+        "When an ambient conversation starts, call the existing initiateConversation NPC-NPC engine with streaming enabled (onLineReady callback)",
+        "Each exchange line is sent to TTS with the speaking NPC's gender and the target language",
+        "Audio plays via StreamingAudioPlayer positioned at the speaking NPC's mesh location",
+        "Exchanges play sequentially: NPC1 speaks, brief pause (500ms), NPC2 responds, alternating",
+        "No speech bubbles are shown for ambient conversations — audio only",
+        "Conversation length is 3-5 exchanges (pass maxExchanges to initiateConversation)",
+        "Audio lock is released when the last exchange finishes playing",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Wire the onLineReady streaming callback to a sequential TTS playback queue. Each line waits for the previous to finish before starting."
+    },
+    {
+      "id": "US-006",
+      "title": "End ambient conversation when player leaves range",
+      "description": "As a player, when I walk away from conversing NPCs, the conversation should stop immediately to save resources.",
+      "acceptanceCriteria": [
+        "Each update tick checks player distance to active ambient conversation participants",
+        "If player moves beyond 12m from both NPCs, the conversation is cancelled immediately",
+        "Any in-progress LLM stream is aborted via AbortController",
+        "Any queued or playing TTS audio is stopped",
+        "NPCs return to idle animation",
+        "NpcAudioLock is released",
+        "A per-pair cooldown of 2 minutes is set to prevent immediate re-trigger when player returns",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "The abort signal from US-005's streaming should be wired to an AbortController that this cancellation logic can trigger."
+    },
+    {
+      "id": "US-007",
+      "title": "Remove eavesdrop mechanic",
+      "description": "As a developer, I want to remove the eavesdrop system since ambient conversations now play automatically via TTS.",
+      "acceptanceCriteria": [
+        "Remove activateEavesdrop() and endEavesdrop() methods from NPCAmbientConversationManager",
+        "Remove the 'Press Y to eavesdrop' toast and the ear-emoji bubble indicators ('👂 ...')",
+        "Remove the F-key and Y-key eavesdrop bindings from BabylonGame keyboard handler",
+        "Remove eavesdrop-related event types from GameEventBus (eavesdrop_activated, eavesdrop_ended, etc.)",
+        "Remove the onEavesdropPrompt and onEavesdropActivate callbacks",
+        "Preserve the NPC pairing, facing, and talk/listen animation logic (used by the new proximity system)",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Be careful not to remove the animation and NPC-facing logic — only the eavesdrop-specific UI and key bindings."
+    },
+    {
+      "id": "US-008",
+      "title": "Remove old passive greeting system",
+      "description": "As a developer, I want to remove NPCGreetingSystem since NPCProximitySpeechSystem replaces it.",
+      "acceptanceCriteria": [
+        "Remove or gut NPCGreetingSystem — remove its proximity-based greeting trigger, speech bubble display, and G-key response handling",
+        "Remove NPCGreetingSystem instantiation and update() calls from BabylonGame",
+        "Remove the 'Press G to respond' toast prompts related to passive greetings",
+        "Remove English-only greeting text templates (time-of-day greetings, first-meeting introductions)",
+        "Wire NPCProximitySpeechSystem into BabylonGame in place of NPCGreetingSystem (register NPCs, call update in game loop)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "NPCGreetingSystem.ts can be kept as a file but gutted, or deleted entirely if no other code imports it."
+    },
+    {
+      "id": "US-009",
+      "title": "Remove old NPC-initiated conversation systems",
+      "description": "As a developer, I want to remove the callout, walking interrupt, and approach systems from NPCInitiatedConversationController.",
+      "acceptanceCriteria": [
+        "Remove the callout system (speech bubble + toast with '[G] Respond' prompt)",
+        "Remove the walking interrupt system (brief one-liners when player walks past)",
+        "Remove the NPC approach system (NPC walks toward player with toast greeting)",
+        "Remove NPCInitiatedConversationController instantiation and update() calls from BabylonGame",
+        "Remove the G-key accept handlers for callouts, interrupts, and approaches",
+        "Remove the approach-related English phrase templates ('Hey there! Got a moment?', etc.)",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "NPCInitiatedConversationController.ts can be deleted or gutted. Make sure no other systems depend on its NPC registration."
+    },
+    {
+      "id": "US-010",
+      "title": "Player chat takes priority over ambient NPC audio",
+      "description": "As a player, when I open the chat panel to talk to an NPC, any active greeting or ambient conversation audio should stop immediately.",
+      "acceptanceCriteria": [
+        "When the chat panel opens (player initiates conversation), call NpcAudioLock.forceRelease() to cancel any active greeting or ambient audio",
+        "Any in-progress greeting LLM/TTS is aborted",
+        "Any in-progress ambient conversation LLM stream and TTS queue is aborted",
+        "The chat panel's own audio (player-NPC conversation TTS) is unaffected by NpcAudioLock",
+        "After chat panel closes, greeting and ambient systems resume normal evaluation",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Hook into the existing chat panel open/close lifecycle in BabylonGame or BabylonChatPanel."
+    },
+    {
+      "id": "US-011",
+      "title": "NPC opens conversation with contextual greeting",
+      "description": "As a player, when I initiate conversation with an NPC, I want the NPC to speak first with a contextual opening line so the interaction feels natural.",
+      "acceptanceCriteria": [
+        "When the chat panel opens for a player-initiated conversation, an LLM call generates an NPC opening line before the player types anything",
+        "The prompt instructs the NPC to react to being approached and end with a question or engagement hook that the player can respond to",
+        "Prompt includes: NPC name, personality, occupation, current location context (e.g., inside their shop, outside in a park, on the street), time of day, relationship to player, and the target language",
+        "The opening line is in the target language",
+        "The opening line appears as the first message in the chat panel (as an assistant message)",
+        "The opening line is stored in conversation history so subsequent LLM calls have context",
+        "If the LLM call fails or times out (3s), fall back to a simple target-language greeting template",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "This replaces the current behavior where the chat panel opens silently and the player must speak first. The NPC should feel like they're reacting to the player walking up to them."
+    },
+    {
+      "id": "US-012",
+      "title": "Auto-speak NPC opening line via TTS",
+      "description": "As a player, I want to hear the NPC's opening line spoken aloud automatically when the chat panel opens.",
+      "acceptanceCriteria": [
+        "The NPC opening line from US-011 is automatically sent to TTS with the NPC's gender-matched voice and target language",
+        "TTS audio plays immediately as the text appears in the chat panel — no player action required",
+        "Uses the same TTS pipeline as regular NPC responses (InsimulClient / StreamingAudioPlayer)",
+        "If TTS fails, the text still appears in the chat panel (graceful degradation)",
+        "Player can start typing while TTS is still playing (non-blocking)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Wire into the existing BabylonChatPanel TTS flow. The opening line should be treated just like any other NPC response for audio purposes."
+    },
+    {
+      "id": "US-013",
+      "title": "Continue from proximity greeting if recent",
+      "description": "As a player, if an NPC just greeted me and I open conversation with them, the NPC should continue from that greeting rather than starting fresh.",
+      "acceptanceCriteria": [
+        "NPCProximitySpeechSystem tracks the last greeting text and timestamp per NPC",
+        "When the chat panel opens, check if the target NPC greeted the player within the last 30 seconds",
+        "If a recent greeting exists, include it in the opening LLM prompt as context: 'You just said: {greeting}. The player has approached you to continue the conversation.'",
+        "The LLM generates a follow-up that naturally continues from the greeting (not a duplicate greeting)",
+        "If no recent greeting exists, fall back to the standard contextual opener from US-011",
+        "The recent greeting text is added to conversation history as the first assistant message, followed by the new continuation line",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "This creates a seamless flow from proximity greeting -> full conversation. The 30-second window ensures stale greetings don't carry over."
+    }
+  ]
+}
