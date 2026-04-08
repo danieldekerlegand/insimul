@@ -2,13 +2,6 @@
  * Language-Learning Module Configurations
  *
  * Registers language-learning-specific configurations for each generic module.
- * Import this file when setting up a language-learning world to get the
- * correct module behaviors (CEFR tiers, 5 proficiency dimensions,
- * vocabulary-specific knowledge schema, etc.).
- *
- * This file does NOT modify any existing language-learning code — it only
- * defines the configurations that the generic modules use when the
- * language-learning genre bundle is active.
  */
 
 import type { KnowledgeAcquisitionConfig } from './knowledge-acquisition/types';
@@ -17,11 +10,6 @@ import type { ProficiencyConfig, ProficiencyTier, ProficiencyDimension } from '.
 import type { PatternRecognitionConfig } from './pattern-recognition/types';
 import type { GamificationConfig } from './gamification/types';
 import type { AdaptiveDifficultyConfig, DifficultyTier } from './adaptive-difficulty/types';
-import type { AssessmentConfig } from './assessment/types';
-import type { NPCExamConfig } from './npc-exams/types';
-import type { OnboardingConfig } from './onboarding/types';
-import type { WorldLoreConfig } from './world-lore/types';
-import type { VoiceConfig } from './voice/types';
 
 // ---------------------------------------------------------------------------
 // Knowledge Acquisition — vocabulary tracking
@@ -96,53 +84,6 @@ export const LANGUAGE_ADAPTIVE_DIFFICULTY_CONFIG: AdaptiveDifficultyConfig = {
 };
 
 // ---------------------------------------------------------------------------
-// Assessment — ACTFL OPI + standard instruments
-// ---------------------------------------------------------------------------
-
-export const LANGUAGE_ASSESSMENT_CONFIG: AssessmentConfig = {
-  enabledInstruments: ['actfl-opi', 'sus', 'ssq', 'ipq'],
-  phases: ['pre', 'post', 'delayed'],
-};
-
-// ---------------------------------------------------------------------------
-// NPC Exams
-// ---------------------------------------------------------------------------
-
-export const LANGUAGE_NPC_EXAM_CONFIG: NPCExamConfig = {
-  examTypes: ['identification', 'comprehension', 'recall'],
-  passThreshold: 70,
-  adaptToTier: true,
-};
-
-// ---------------------------------------------------------------------------
-// Onboarding
-// ---------------------------------------------------------------------------
-
-export const LANGUAGE_ONBOARDING_CONFIG: OnboardingConfig = {
-  mandatory: true,
-  allowRevisit: true,
-};
-
-// ---------------------------------------------------------------------------
-// World Lore — languages as lore entries
-// ---------------------------------------------------------------------------
-
-export const LANGUAGE_WORLD_LORE_CONFIG: WorldLoreConfig = {
-  loreTypes: ['language'],
-  entryLabel: 'Language',
-  entryLabelPlural: 'Languages',
-};
-
-// ---------------------------------------------------------------------------
-// Voice
-// ---------------------------------------------------------------------------
-
-export const LANGUAGE_VOICE_CONFIG: VoiceConfig = {
-  sttDefault: true,
-  ttsDefault: true,
-};
-
-// ---------------------------------------------------------------------------
 // Aggregate: all configs keyed by module ID
 // ---------------------------------------------------------------------------
 
@@ -152,9 +93,4 @@ export const LANGUAGE_LEARNING_MODULE_CONFIGS: Record<string, unknown> = {
   'pattern-recognition': LANGUAGE_PATTERN_CONFIG,
   'gamification': LANGUAGE_GAMIFICATION_CONFIG,
   'adaptive-difficulty': LANGUAGE_ADAPTIVE_DIFFICULTY_CONFIG,
-  'assessment': LANGUAGE_ASSESSMENT_CONFIG,
-  'npc-exams': LANGUAGE_NPC_EXAM_CONFIG,
-  'onboarding': LANGUAGE_ONBOARDING_CONFIG,
-  'world-lore': LANGUAGE_WORLD_LORE_CONFIG,
-  'voice': LANGUAGE_VOICE_CONFIG,
 };
