@@ -120,7 +120,7 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The report card is generated when the departure assessment completes. It needs access to both quest overlays — find the arrival quest by questType='assessment' + tags including 'arrival', and the departure quest by tags including 'departure'."
     },
     {

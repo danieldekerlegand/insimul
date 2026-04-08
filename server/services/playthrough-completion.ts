@@ -16,6 +16,12 @@ import * as PlaythroughOverlay from './playthrough-overlay.js';
 const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
 import type { Playthrough, PlayTrace } from '@shared/schema.js';
 import type { MainQuestState } from '@shared/quest/main-quest-chapters.js';
+import { PlaythroughQuestOverlay } from '../../shared/game-engine/logic/PlaythroughQuestOverlay.js';
+import { isArrivalAssessmentQuest } from '../../shared/services/assessment-quest-bridge-shared.js';
+import {
+  extractOverlayAssessmentData,
+  generateReportCardFromOverlays,
+} from '../../shared/quests/assessment-quest-bridge.js';
 
 export interface JourneySummary {
   playthroughId: string;
@@ -162,12 +168,18 @@ export async function generateJourneySummary(
 
 /**
  * Generate a learning report card comparing pre/post assessment CEFR levels.
+ * Reads assessment results from quest overlays (save file) first, falling back
+ * to play traces if no quest overlay data is available.
  */
 export async function generateLearningReportCard(
   playthrough: Playthrough,
   traces: PlayTrace[],
 ): Promise<LearningReportCard> {
-  // Look for assessment traces to find start/end CEFR levels
+  // Try to read from quest overlays first (new flow)
+  const overlayResult = await generateReportCardFromQuestOverlays(playthrough);
+  if (overlayResult) return overlayResult;
+
+  // Fallback: read from play traces (legacy flow)
   const assessmentTraces = traces.filter(t =>
     t.actionType === 'assessment_completed' ||
     t.actionType === 'assessment_result'
@@ -196,6 +208,68 @@ export async function generateLearningReportCard(
     startCefrLevel,
     endCefrLevel,
     improvementLevels: Math.max(0, improvement),
+  };
+}
+
+/**
+ * Read assessment results from quest overlays and generate a report card.
+ * Returns null if quest overlay data is not available.
+ */
+async function generateReportCardFromQuestOverlays(
+  playthrough: Playthrough,
+): Promise<LearningReportCard | null> {
+  const saveData = playthrough.saveData as Record<string, any> | null;
+  const questProgressData = saveData?.questProgress;
+  if (!questProgressData) return null;
+
+  // Get base world quests
+  const baseQuests = await storage.getQuestsByWorld(playthrough.worldId);
+
+  // Deserialize quest overlay and merge with base quests
+  const overlay = new PlaythroughQuestOverlay();
+  overlay.deserialize(questProgressData);
+  const mergedQuests = overlay.mergeQuests(baseQuests);
+
+  // Find arrival and departure assessment quests
+  const arrivalQuest = mergedQuests.find((q: any) => isArrivalAssessmentQuest(q));
+  const departureQuest = mergedQuests.find((q: any) => {
+    const tags = q.tags;
+    return Array.isArray(tags) && tags.includes('assessment') && tags.includes('departure');
+  });
+
+  if (!arrivalQuest || !departureQuest) return null;
+
+  // Extract overlay assessment data
+  const arrivalData = extractOverlayAssessmentData(arrivalQuest);
+  const departureData = extractOverlayAssessmentData(departureQuest);
+
+  if (!arrivalData || !departureData) return null;
+
+  // Find periodic assessment quests
+  const periodicQuests = mergedQuests.filter((q: any) => {
+    const tags = q.tags;
+    return Array.isArray(tags) && tags.includes('assessment') && tags.includes('periodic');
+  });
+  const periodicData = periodicQuests
+    .map((q: any) => extractOverlayAssessmentData(q))
+    .filter((d): d is NonNullable<typeof d> => d !== null);
+
+  // Generate the detailed report card
+  const detailedReport = generateReportCardFromOverlays({
+    playerId: playthrough.userId,
+    worldId: playthrough.worldId,
+    arrivalData,
+    departureData,
+    periodicData,
+  });
+
+  // Map to the simple LearningReportCard format used by playthrough completion
+  return {
+    startCefrLevel: detailedReport.arrivalCefrLevel,
+    endCefrLevel: detailedReport.departureCefrLevel,
+    improvementLevels: detailedReport.cefrImproved
+      ? cefrIndex(detailedReport.departureCefrLevel) - cefrIndex(detailedReport.arrivalCefrLevel)
+      : 0,
   };
 }
 

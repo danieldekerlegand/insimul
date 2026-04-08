@@ -23,6 +23,8 @@ import type { InsertQuest, Quest } from '../schema.js';
 import type {
   AssessmentSession,
   AssessmentDimensionScores,
+  AssessmentPhaseResult,
+  AssessmentCompletionResult,
   CEFRLevel,
   PhaseType,
 } from '../assessment/assessment-types.js';
@@ -266,6 +268,130 @@ export function generateReportCard(params: {
     periodicSnapshots,
     generatedAt: Date.now(),
   };
+}
+
+// ── Report card from quest overlays ─────────────────────────────────────
+
+/**
+ * Data extracted from a quest overlay for report card generation.
+ * The quest overlay stores phaseResults and assessmentResult when
+ * an assessment is completed during gameplay.
+ */
+export interface QuestOverlayAssessmentData {
+  questId: string;
+  phaseResults: AssessmentPhaseResult[];
+  assessmentResult: AssessmentCompletionResult;
+}
+
+/**
+ * Generate a LearningReportCard from quest overlay data instead of
+ * AssessmentSession objects. Used when assessment results are stored
+ * in the quest overlay (save file) rather than the AssessmentSession collection.
+ *
+ * Find arrival/departure quests by tags: ['assessment', 'arrival'] / ['assessment', 'departure']
+ */
+export function generateReportCardFromOverlays(params: {
+  playerId: string;
+  worldId: string;
+  arrivalData: QuestOverlayAssessmentData;
+  departureData: QuestOverlayAssessmentData;
+  periodicData?: QuestOverlayAssessmentData[];
+}): LearningReportCard {
+  const { playerId, worldId, arrivalData, departureData, periodicData } = params;
+
+  const arrivalTotal = arrivalData.assessmentResult.totalScore;
+  const departureTotal = departureData.assessmentResult.totalScore;
+  const maxScore = departureData.assessmentResult.maxScore;
+
+  const arrivalCefr = arrivalData.assessmentResult.cefrLevel;
+  const departureCefr = departureData.assessmentResult.cefrLevel;
+
+  // Per-phase deltas from overlay phase results
+  const phaseDeltas = buildPhaseeDeltasFromOverlays(
+    arrivalData.phaseResults,
+    departureData.phaseResults,
+  );
+
+  // Per-dimension deltas from overlay dimension scores
+  const dimensionDeltas = buildDimensionDeltas(
+    arrivalData.assessmentResult.dimensionScores as Record<string, number> | undefined,
+    departureData.assessmentResult.dimensionScores as Record<string, number> | undefined,
+  );
+
+  // Periodic snapshots from overlay data
+  const periodicSnapshots: PeriodicSnapshot[] = (periodicData ?? [])
+    .filter((d) => d.assessmentResult.completedAt)
+    .sort((a, b) =>
+      toTimestamp(a.assessmentResult.completedAt) - toTimestamp(b.assessmentResult.completedAt),
+    )
+    .map((d) => ({
+      sessionId: d.questId,
+      totalScore: d.assessmentResult.totalScore,
+      maxScore: d.assessmentResult.maxScore,
+      cefrLevel: d.assessmentResult.cefrLevel,
+      completedAt: toTimestamp(d.assessmentResult.completedAt),
+    }));
+
+  return {
+    playerId,
+    worldId,
+    arrivalSessionId: arrivalData.questId,
+    departureSessionId: departureData.questId,
+    arrivalCefrLevel: arrivalCefr,
+    departureCefrLevel: departureCefr,
+    cefrImproved: cefrRank(departureCefr) > cefrRank(arrivalCefr),
+    arrivalTotalScore: arrivalTotal,
+    departureTotalScore: departureTotal,
+    maxScore,
+    totalDelta: departureTotal - arrivalTotal,
+    phaseDeltas,
+    dimensionDeltas,
+    periodicSnapshots,
+    generatedAt: Date.now(),
+  };
+}
+
+/**
+ * Extract assessment data from a quest's overlay for report card generation.
+ * Returns null if the quest doesn't have assessment overlay data.
+ */
+export function extractOverlayAssessmentData(
+  quest: { id: string; [key: string]: any },
+): QuestOverlayAssessmentData | null {
+  const phaseResults = quest.phaseResults as AssessmentPhaseResult[] | undefined;
+  const assessmentResult = quest.assessmentResult as AssessmentCompletionResult | undefined;
+
+  if (!phaseResults || !assessmentResult) return null;
+
+  return {
+    questId: quest.id,
+    phaseResults,
+    assessmentResult,
+  };
+}
+
+function buildPhaseeDeltasFromOverlays(
+  arrivalPhases: AssessmentPhaseResult[],
+  departurePhases: AssessmentPhaseResult[],
+): PhaseDelta[] {
+  return PHASE_TYPE_ORDER.map((phaseType) => {
+    const phaseDef = DEPARTURE_ENCOUNTER.phases.find((p) => p.type === phaseType);
+    const arrivalPhase = arrivalPhases.find((pr) => pr.phaseId.includes(phaseType));
+    const departurePhase = departurePhases.find((pr) => pr.phaseId.includes(phaseType));
+
+    const beforeScore = arrivalPhase?.score ?? 0;
+    const afterScore = departurePhase?.score ?? 0;
+    const maxPhaseScore = phaseDef?.maxScore ?? phaseDef?.maxPoints ?? 0;
+
+    return {
+      phaseType,
+      phaseName: phaseDef?.name ?? phaseType,
+      beforeScore,
+      afterScore,
+      maxScore: maxPhaseScore,
+      delta: afterScore - beforeScore,
+    };
+  });
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
