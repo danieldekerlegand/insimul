@@ -319,7 +319,7 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": false,
+      "passes": true,
       "notes": "The price_haggled event is expected by the quest system but may not be emitted during normal merchant interactions. Check if the conversation metadata extraction or topic tagging detects haggling intent."
     },
     {
