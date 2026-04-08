@@ -2269,3 +2269,22 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `textToSpeech()` method uses `this._lockedVoice` and `this._lockedGender` set during `show()` — voice selection is handled internally, no need to pass voice params at the TTS call site
   - `playAudio()` creates a new Audio element each time — concurrent TTS calls won't conflict but won't queue either; the last one wins
 ---
+
+## 2026-04-07 - US-013: Continue from proximity greeting if recent
+- Added `_recentGreeting` property and `setRecentGreeting()` setter to BabylonChatPanel
+- Modified `buildOpeningCue()` to build a continuation cue when a recent greeting exists: includes the greeting text with instructions to NOT repeat it and continue naturally
+- Modified `show()` to insert the recent greeting as the first assistant message in conversation history before generating the continuation line
+- Recent greeting is cleared after building the cue so it doesn't leak into future conversations
+- Quest offering cues still take priority over recent greeting continuations
+- Wired BabylonGame: when opening chat, checks `npcProximitySpeechSystem.getRecentGreeting(npcId)` (30s window) and passes text to `chatPanel.setRecentGreeting()` before `show()`
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — _recentGreeting property, setRecentGreeting(), buildOpeningCue() continuation branch, show() message pre-population
+  - `shared/game-engine/rendering/BabylonGame.ts` — getRecentGreeting check before chatPanel.show()
+  - `shared/game-engine/drift-manifest.json` — updated hash
+  - `shared/__tests__/greeting-continuation.test.ts` — 9 new tests covering cue building, message pre-population, quest priority, cleanup
+- **Learnings for future iterations:**
+  - `buildOpeningCue()` is called inside `show()` — setters like `setRecentGreeting()` must be called BEFORE `show()` for the cue to pick them up
+  - vi.mock hoisting in vitest causes cross-file contamination when two test files mock the same module with different return values — avoid by not sharing mocks across files or by keeping pure logic tests separate from integration tests
+  - NPCProximitySpeechSystem already had `lastGreetingResults` map and `getRecentGreeting()` implemented in a prior story — US-013 only needed to wire the consumer side (BabylonChatPanel + BabylonGame)
+---

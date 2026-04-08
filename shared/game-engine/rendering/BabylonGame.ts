@@ -13543,6 +13543,13 @@ export class BabylonGame {
         this.chatPanel.setPlayerPosition(this.playerMesh.position);
       }
 
+      // US-013: Check if this NPC recently greeted the player via proximity speech.
+      // If so, pass the greeting text so the chat panel continues from it.
+      if (this.npcProximitySpeechSystem) {
+        const recentGreeting = this.npcProximitySpeechSystem.getRecentGreeting(npcId);
+        this.chatPanel.setRecentGreeting(recentGreeting?.text || null);
+      }
+
       // Open the chat panel — this is the core action
       // Pass current CEFR level so NPC language mode reflects player's latest progress
       this.chatPanel.show(character, truths, npcMesh, (this.playerCefrLevel as any) || null);

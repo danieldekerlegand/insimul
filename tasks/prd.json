@@ -227,7 +227,7 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "This creates a seamless flow from proximity greeting -> full conversation. The 30-second window ensures stale greetings don't carry over."
     }
   ]

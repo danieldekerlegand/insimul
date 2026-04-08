@@ -228,6 +228,8 @@ export class BabylonChatPanel {
   private questGuidancePrompt: string | null = null;
   private _targetLanguage: string | null = null;
   private _timeOfDay: string | null = null;
+  /** Recent proximity greeting text for conversation continuation (US-013). */
+  private _recentGreeting: string | null = null;
 
   // Hover-to-translate system for target-language words
   private hoverTranslation: HoverTranslationSystem = new HoverTranslationSystem();
@@ -911,9 +913,23 @@ export class BabylonChatPanel {
       },
     });
 
+    // US-013: If the NPC recently greeted via proximity speech, insert that greeting
+    // as the first assistant message so the continuation flows naturally.
+    if (this._recentGreeting) {
+      this.messages.push({
+        role: 'assistant',
+        content: this._recentGreeting,
+        timestamp: new Date(),
+      });
+      this.updateMessagesDisplay();
+    }
+
     // NPC always speaks first with a contextual opening line.
     // Quest NPCs mention what they need; others give a natural greeting with an engagement hook.
+    // If a recent greeting exists, the cue instructs the NPC to continue from it.
     const cue = this.buildOpeningCue();
+    // Clear the recent greeting after building the cue so it doesn't leak into future conversations.
+    this._recentGreeting = null;
     // Small delay so the UI is fully visible before the NPC starts talking
     setTimeout(() => {
       this.triggerNPCGreeting(cue);
@@ -1803,6 +1819,20 @@ export class BabylonChatPanel {
     // Quest-specific cue takes priority
     if (this.questOfferingContext) {
       return `[The player approaches you (${name}${occupation ? ', ' + occupation : ''}) during the ${timeDesc}${location ? ' at ' + location : ''}.${relHint} Give a brief greeting (1-2 sentences max) and mention what you need help with. Respond in ${targetLang || 'the target language'}.]`;
+    }
+
+    // US-013: If a recent proximity greeting exists, build a continuation cue
+    if (this._recentGreeting) {
+      let cue = `[You just said: "${this._recentGreeting}" The player has approached you to continue the conversation.`;
+      cue += ` You are ${name}`;
+      if (occupation) cue += `, ${occupation}`;
+      cue += ` during the ${timeDesc}`;
+      if (location) cue += ` at ${location}`;
+      cue += `.${relHint}`;
+      cue += ` Continue naturally from your greeting — do NOT repeat it. Say something that builds on what you just said and invites the player to respond (1-2 sentences).`;
+      if (targetLang) cue += ` Respond in ${targetLang}.`;
+      cue += `]`;
+      return cue;
     }
 
     // Build contextual cue for regular conversation
@@ -3652,6 +3682,15 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    */
   public setTimeOfDay(timeOfDay: string | null) {
     this._timeOfDay = timeOfDay;
+  }
+
+  /**
+   * Set a recent proximity greeting for conversation continuation (US-013).
+   * When set, the NPC's opening line will continue from this greeting rather than starting fresh.
+   * Call before show(). Cleared automatically after each conversation.
+   */
+  public setRecentGreeting(text: string | null) {
+    this._recentGreeting = text;
   }
 
   /**
