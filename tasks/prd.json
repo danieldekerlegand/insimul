@@ -127,7 +127,7 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Be careful not to remove the animation and NPC-facing logic — only the eavesdrop-specific UI and key bindings."
     },
     {

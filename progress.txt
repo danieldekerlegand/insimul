@@ -2120,3 +2120,42 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `endConversation()` already handles all cleanup (abort, stop audio, idle animations, release lock) — the proximity check just needed to update cooldowns and call it
   - The cancel radius (12m) is intentionally larger than the start radius (8m) to create hysteresis and prevent flickering
 ---
+
+## 2026-04-07 - US-007: Remove eavesdrop mechanic
+- Removed `activateEavesdrop()` and `endEavesdrop()` from NPCAmbientConversationManager
+- Removed `EavesdropPromptCallback`, `EavesdropActivateCallback` types and all eavesdrop state/callbacks
+- Removed `updateEavesdropPrompt()` private method and its call from `tick()`
+- Removed eavesdrop prompt cleanup from `endConversation()`
+- Deleted `BabylonEavesdropPanel.ts` entirely (500+ lines) and its test file `eavesdrop-panel.test.ts`
+- Removed from BabylonGame.ts: eavesdrop panel initialization, Y-key handler, eavesdrop prompt/activate callback wiring, `startEavesdropConversation()`, `runEavesdropLoop()`, `updateEavesdropDistance()`, `endEavesdrop()`, `__eavesdrop__` action case, eavesdrop clue auto-discovery
+- Removed `setEavesdropMode()`, `addSystemMessage()`, `addNPCMessage()` from BabylonChatPanel
+- Removed `KEY_EAVESDROP` from KeyboardMap
+- Removed `npc_eavesdrop` from InteractableType (types.ts and InteractionPromptSystem)
+- Removed eavesdrop prompt builder, ear-emoji indicators, and "Press Y to eavesdrop" toast
+- Removed `resolveEavesdropActions()` and `__eavesdrop__` action from ContextualActionResolver
+- Removed `eavesdrop` action label from action-labels.ts
+- Removed `eavesdropConversation` XP reward and `onEavesdropCompleted()` from gamification
+- Preserved: NPC pairing, facing, talk/listen animation logic in NPCAmbientConversationManager
+- Preserved: quest objective types and activity types (data-layer definitions, not mechanic)
+- Preserved: ClueStore `addEavesdropClue()` method (usable for ambient conversation clues later)
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/rendering/NPCAmbientConversationManager.ts` — removed eavesdrop types, state, callbacks, methods
+  - `shared/game-engine/rendering/BabylonGame.ts` — removed eavesdrop panel, Y-key, methods, wiring
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — removed eavesdrop mode methods
+  - `shared/game-engine/rendering/BabylonEavesdropPanel.ts` — DELETED
+  - `shared/__tests__/eavesdrop-panel.test.ts` — DELETED
+  - `shared/game-engine/logic/KeyboardMap.ts` — removed KEY_EAVESDROP
+  - `shared/game-engine/rendering/InteractionPromptSystem.ts` — removed npc_eavesdrop type and prompt
+  - `shared/game-engine/rendering/actions/ContextualActionResolver.ts` — removed eavesdrop actions
+  - `shared/game-engine/types.ts` — removed npc_eavesdrop from InteractableType
+  - `shared/language/action-labels.ts` — removed eavesdrop label
+  - `shared/language/gamification.ts` — removed eavesdropConversation XP
+  - `shared/game-engine/rendering/LanguageGamificationTracker.ts` — removed onEavesdropCompleted()
+  - `shared/game-engine/rendering/__tests__/XPAwardsWiring.test.ts` — removed eavesdrop XP test
+  - `shared/game-engine/drift-manifest.json` — updated hashes
+- **Learnings for future iterations:**
+  - NPCs in ambient conversations now show as regular 'npc' interactable type (not eavesdrop) — player can talk to them normally
+  - Quest objective types like 'eavesdrop' in `quest-objective-types.ts` and `activity-types.ts` are data-layer definitions; removing them could break existing quest data in the database
+  - `buildTranslatedEavesdropPrompt` in `in-world-text.ts` is now unused but was left in place since it's a pure utility function with no side effects
+---
