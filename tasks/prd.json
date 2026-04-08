@@ -176,7 +176,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Hook into the existing chat panel open/close lifecycle in BabylonGame or BabylonChatPanel."
     },
     {

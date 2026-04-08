@@ -2216,3 +2216,18 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `conversation-initiation-objective.test.ts` and `quest-action-mapping.test.ts` have pre-existing import failures unrelated to this change
   - When removing event types from GameEventBus, also check: RelationshipManager, PlayerActionTracker, Godot/Unreal export templates, and any event handler registrations in BabylonGame
 ---
+
+## 2026-04-07 - US-010: Player chat takes priority over ambient NPC audio
+- Added `cancelAllActive()` public method to `NPCAmbientConversationManager` — ends all active conversations (aborts LLM streams, stops TTS, releases audio lock)
+- Wired cancellation sequence into `BabylonGame.handleOpenChat()`: `cancelActiveGreeting()` → `cancelAllActive()` → `forceRelease()` → `pause()`
+- Chat panel's own audio (InsimulClient/StreamingAudioPlayer) is unaffected — it doesn't use NpcAudioLock
+- After chat closes, `handleConversationEnd()` already calls `resume()` which re-enables ambient conversations
+- Files changed:
+  - `shared/game-engine/rendering/NPCAmbientConversationManager.ts` — added cancelAllActive()
+  - `shared/game-engine/rendering/BabylonGame.ts` — cancel greetings + ambient + forceRelease before chat opens
+  - `shared/__tests__/npc-chat-priority.test.ts` — 7 new tests
+- **Learnings for future iterations:**
+  - `pause()` on ambient manager only prevents NEW conversations — doesn't stop active ones. Use `cancelAllActive()` to actually abort in-progress conversations
+  - The cancellation order matters: cancel specific systems first (they release their locks), then `forceRelease()` as safety net
+  - Chat panel audio pipeline (InsimulClient → StreamingAudioPlayer) is completely separate from NpcAudioLock — no coordination needed
+---
