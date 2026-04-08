@@ -93,20 +93,38 @@ default trait trait_name(>Self, <Other):
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function formatCitationBlock(
+  citations?: Array<{ title: string; content?: string; url?: string }>,
+): string {
+  if (!citations || citations.length === 0) return '';
+  const entries = citations.map((c, i) => {
+    let entry = `[${i + 1}] ${c.title}`;
+    if (c.url) entry += `\n    URL: ${c.url}`;
+    if (c.content) entry += `\n    ${c.content}`;
+    return entry;
+  }).join('\n\n');
+  return `\nThe following reference materials MUST inform the generated rules. Ground the rule logic, terminology, and behavior in these sources:\n\n${entries}\n`;
+}
+
 // ── Public API ─────────────────────────────────────────────────────────
 
 export async function generateRule(
   prompt: string,
   sourceFormat: string,
   provider?: ILLMProvider,
+  citations?: Array<{ title: string; content?: string; url?: string }>,
 ): Promise<string> {
   const llm = provider ?? getLLMProvider();
   const formatExample = getFormatExample(sourceFormat);
 
+  const citationBlock = formatCitationBlock(citations);
+
   const systemPrompt = `You are an expert in narrative AI systems and rule generation. Generate a single rule based on the user's prompt for the ${sourceFormat} system format.
 
 ${formatExample}
-
+${citationBlock}
 Generate a complete, syntactically correct rule that implements the user's request. Be creative but realistic. Return ONLY the rule code in the proper format for ${sourceFormat}, no explanations or markdown.`;
 
   const response = await llm.generate({
@@ -121,6 +139,7 @@ export async function generateBulkRules(
   prompt: string,
   sourceFormat: string,
   provider?: ILLMProvider,
+  citations?: Array<{ title: string; content?: string; url?: string }>,
 ): Promise<string> {
   const llm = provider ?? getLLMProvider();
 
@@ -192,10 +211,12 @@ default trait trait_name_2(>Self):
       break;
   }
 
+  const citationBlock = formatCitationBlock(citations);
+
   const systemPrompt = `You are an expert in narrative AI systems and rule generation. Generate MULTIPLE related rules based on the user's prompt for the ${sourceFormat} system format.
 
 ${formatExample}
-
+${citationBlock}
 Generate multiple complete, syntactically correct rules that work together to implement the user's request. Create at least 3-5 related rules that complement each other. Be creative but realistic. Return ONLY the rule code in the proper format for ${sourceFormat}, no explanations or markdown.`;
 
   const response = await llm.generate({

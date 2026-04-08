@@ -503,6 +503,12 @@ export class BabylonChatPanel {
     } else {
       // Client already initialized — apply settings immediately
       applyCharacterSettings();
+
+      // End the previous Live session and start a new one for the new NPC
+      if (this.insimulClient.isLiveSession) {
+        this.insimulClient.endLiveSession().catch(() => {});
+      }
+      this.tryStartLiveSession();
     }
 
     this.insimulClient.setCharacter(character.id, character.worldId, character.gender || undefined);
@@ -924,16 +930,9 @@ export class BabylonChatPanel {
       this.updateMessagesDisplay();
     }
 
-    // NPC always speaks first with a contextual opening line.
-    // Quest NPCs mention what they need; others give a natural greeting with an engagement hook.
-    // If a recent greeting exists, the cue instructs the NPC to continue from it.
-    const cue = this.buildOpeningCue();
-    // Clear the recent greeting after building the cue so it doesn't leak into future conversations.
+    // NPC greeting disabled — wait for the player to initiate conversation.
+    // The recent greeting context is cleared so it doesn't leak into future conversations.
     this._recentGreeting = null;
-    // Small delay so the UI is fully visible before the NPC starts talking
-    setTimeout(() => {
-      this.triggerNPCGreeting(cue);
-    }, 500);
 
     // Wire hover-translate word lookups to vocabulary progress tracker
     if (this.languageTracker) {
@@ -1881,6 +1880,12 @@ export class BabylonChatPanel {
   private async triggerNPCGreeting(cue: string): Promise<void> {
     if (!this.character || this.isProcessing) return;
 
+    // End any Live session so the greeting cue goes through the text+TTS path.
+    // Live sessions can close before responding, causing the greeting to be lost.
+    if (this.insimulClient?.isLiveSession) {
+      try { await this.insimulClient.endLiveSession(); } catch { /* ignore */ }
+    }
+
     this.isProcessing = true;
 
     // Show loading indicator
@@ -1949,21 +1954,25 @@ export class BabylonChatPanel {
         totalTimeMs: debugTotalTime,
       });
 
-      // Prevent processAssistantResponse from doing blocking TTS — we handle
-      // the opening-line TTS explicitly below (US-012: non-blocking auto-speak).
+      // Check if the WS bridge already sent streaming audio during the LLM call.
+      // If so, the server handled TTS — don't duplicate it client-side.
+      const serverHandledTTS = this._receivedStreamingAudio;
+
+      // Prevent processAssistantResponse from doing its own TTS call.
       this._receivedStreamingAudio = true;
 
       // Process the response (grammar, vocab, quests — TTS skipped via flag above)
       await this.processAssistantResponse(cue, responseText, placeholderMsg);
 
       // US-012: Auto-speak the NPC opening line via TTS.
-      // Fire-and-forget so the player can start typing while audio plays.
-      // If streaming audio is already playing (server-streamed TTS), skip to avoid duplicates.
-      const greetingText = placeholderMsg.content || responseText;
-      if (greetingText && !this.streamingAudioPlayer?.getIsPlaying() && this.audioQueue.length === 0) {
-        this.textToSpeech(greetingText).catch(err =>
-          console.warn('[ChatPanel] Opening line TTS failed (text still visible):', err)
-        );
+      // Only if the server did NOT already stream audio for this response.
+      if (!serverHandledTTS) {
+        const greetingText = placeholderMsg.content || responseText;
+        if (greetingText) {
+          this.textToSpeech(greetingText).catch(err =>
+            console.warn('[ChatPanel] Opening line TTS failed (text still visible):', err)
+          );
+        }
       }
 
       // Start hint timer
@@ -2175,14 +2184,18 @@ export class BabylonChatPanel {
       ? getLanguageBCP47(targetLangName)
       : 'en';
 
-    // Send game state context (CEFR level, vocabulary, grammar) to the server
+    // Send game state context (CEFR level, vocabulary, grammar, time) to the server
+    const hourStr = this._timeOfDay;
+    const gameHour = hourStr != null ? parseInt(hourStr, 10) : undefined;
+    const gameContext: Record<string, unknown> = {
+      gameHour: gameHour != null && !isNaN(gameHour) ? gameHour : undefined,
+    };
     if (this.languageTracker) {
-      this.insimulClient!.setGameContext({
-        cefrLevel: this.languageTracker.getCEFRLevel(),
-        playerVocabulary: this.languageTracker.getVocabulary(),
-        playerGrammarPatterns: this.languageTracker.getGrammarPatterns(),
-      });
+      gameContext.cefrLevel = this.languageTracker.getCEFRLevel();
+      gameContext.playerVocabulary = this.languageTracker.getVocabulary();
+      gameContext.playerGrammarPatterns = this.languageTracker.getGrammarPatterns();
     }
+    this.insimulClient!.setGameContext(gameContext);
 
     try {
       // Collect Prolog facts from the game engine (if available)
@@ -2704,9 +2717,17 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
           voice: this._lockedVoice,
           gender: this._lockedGender,
         });
-        if (audioBuffer) {
-          const audioBlob = new Blob([audioBuffer], { type: 'audio/mp3' });
-          await this.playAudio(audioBlob);
+        if (audioBuffer && audioBuffer.byteLength > 0) {
+          // Play through StreamingAudioPlayer as PCM (server returns raw PCM from Gemini TTS)
+          if (this.streamingAudioPlayer) {
+            this.streamingAudioPlayer.pushChunk({
+              data: new Uint8Array(audioBuffer),
+              encoding: 1, // PCM
+              sampleRate: 24000,
+              durationMs: 0,
+            });
+            this.streamingAudioPlayer.finish();
+          }
           return;
         }
       }
@@ -3731,20 +3752,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    * greeting is already planned.
    */
   public triggerQuestGuidanceGreeting(): void {
-    // Skip if quest offering context already triggered a greeting
-    if (this.questOfferingContext) return;
-    // Skip if conversation already has messages (player already spoke)
-    if (this.messages.length > 0) return;
-    // Skip if not visible or no character
-    if (!this.isVisible || !this.character) return;
-
-    setTimeout(() => {
-      // Double-check no messages were added during the delay
-      if (this.messages.length > 0) return;
-      this.triggerNPCGreeting(
-        '[The player approaches. Give a brief greeting (1-2 sentences) and ask about their quest progress.]'
-      );
-    }, 300);
+    // NPC greeting disabled — wait for the player to initiate conversation.
   }
 
   private _onExternalNewWord: ((entry: any) => void) | null = null;

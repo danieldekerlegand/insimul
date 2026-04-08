@@ -18,7 +18,7 @@ export interface TTSRequest {
 
 export interface TTSResponse {
   audioBuffer: Buffer;
-  encoding: 'MP3' | 'WAV';
+  encoding: 'MP3' | 'WAV' | 'PCM';
 }
 
 export interface IBatchTTSProvider {

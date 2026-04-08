@@ -37,6 +37,16 @@ export interface DataSource extends IDataSource {
  */
 export class ApiDataSource implements DataSource {
   public questOverlay: PlaythroughQuestOverlay | null = null;
+  /** Cached base quests from the world (for overlay merge without re-fetching). */
+  private _cachedQuests: any[] = [];
+  /** Player inventory overlay — tracks items added/removed during this playthrough. */
+  private _playerInventory: any[] | null = null;
+  /** Player gold overlay. */
+  private _playerGold: number | null = null;
+  /** Merchant inventory overrides (keyed by merchant/business ID). */
+  private _merchantStates: Map<string, { goldReserve: number; items: any[] }> = new Map();
+  /** Container contents overlay (keyed by container ID). */
+  private _containerOverrides: Map<string, { items: any[] }> = new Map();
   private saveQueue: SaveQueue;
   /** Last-known server state per slot, used as the "base" for three-way merge. */
   private lastKnownServerState: Map<string, GameSaveState> = new Map();
@@ -151,17 +161,16 @@ export class ApiDataSource implements DataSource {
         break;
       }
       case 'updateQuest': {
-        const { questId, data } = op.payload;
-        url = `${this.baseUrl}/api/quests/${questId}`;
-        method = 'PUT';
-        body = JSON.stringify(data);
-        break;
+        // Quest mutations belong in the player's save file, not the world DB.
+        // Skip the API call — quest state is persisted via the quest overlay.
+        console.warn('[DataSource] Skipping world DB quest write — use quest overlay instead');
+        return;
       }
       case 'transferItem': {
-        const { worldId, transfer } = op.payload;
-        url = `${this.baseUrl}/api/worlds/${worldId}/inventory/transfer`;
-        body = JSON.stringify(transfer);
-        break;
+        // Item transfers are handled in memory — never write to world DB.
+        // Inventory state is persisted via the save system (GameSaveState.player.inventory).
+        console.warn('[DataSource] Skipping world DB inventory write — use save state instead');
+        return;
       }
       case 'payFines': {
         const { playthroughId, settlementId } = op.payload;
@@ -242,6 +251,7 @@ export class ApiDataSource implements DataSource {
   async loadQuests(worldId: string): Promise<any[]> {
     const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests`, { headers: this.getHeaders() });
     const baseQuests = res.ok ? await res.json() : [];
+    this._cachedQuests = baseQuests;
     return this.questOverlay ? this.questOverlay.mergeQuests(baseQuests) : baseQuests;
   }
 
@@ -322,35 +332,44 @@ export class ApiDataSource implements DataSource {
       this.questOverlay.updateQuest(questId, data);
       return;
     }
-    // Fallback: queue direct world write (no playthrough active)
-    await this.saveQueue.enqueue('updateQuest', `quest:${questId}`, { questId, data });
+    // No playthrough overlay — quest state cannot be saved.
+    // Never write to the world DB; quest mutations belong in the player's save file.
+    console.warn(`[DataSource] updateQuest(${questId}) skipped — no quest overlay (playthrough not started yet)`);
   }
 
-  async createDynamicQuest(worldId: string, questData: any): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify(questData),
-    });
-    return res.ok ? await res.json() : null;
+  async createDynamicQuest(_worldId: string, questData: any): Promise<any> {
+    // Store dynamic quests in the playthrough overlay, not the world DB.
+    if (this.questOverlay) {
+      const id = questData.id || `dyn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const quest = { ...questData, id, status: questData.status || 'active' };
+      this.questOverlay.createQuest(quest);
+      return quest;
+    }
+    console.warn('[DataSource] createDynamicQuest skipped — no quest overlay');
+    return null;
   }
 
-  async branchQuest(worldId: string, questId: string, choiceId: string, targetStageId?: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests/${questId}/branch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify({ choiceId, targetStageId }),
-    });
-    return res.ok ? await res.json() : null;
+  async branchQuest(_worldId: string, questId: string, choiceId: string, _targetStageId?: string): Promise<any> {
+    // Record branch choice in the playthrough overlay, not the world DB.
+    if (this.questOverlay) {
+      this.questOverlay.updateQuest(questId, { [`branch_${choiceId}`]: true });
+      return { success: true };
+    }
+    console.warn('[DataSource] branchQuest skipped — no quest overlay');
+    return null;
   }
 
-  async completeQuest(worldId: string, questId: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/quests/${questId}/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify({}),
-    });
-    return res.ok ? await res.json() : null;
+  async completeQuest(_worldId: string, questId: string): Promise<any> {
+    // Mark quest as completed in the playthrough overlay, not the world DB.
+    if (this.questOverlay) {
+      this.questOverlay.updateQuest(questId, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+      });
+      return { success: true };
+    }
+    console.warn('[DataSource] completeQuest skipped — no quest overlay');
+    return null;
   }
 
   async getNpcQuestGuidance(worldId: string, npcId: string): Promise<{ hasGuidance: boolean; systemPromptAddition?: string } | null> {
@@ -368,21 +387,47 @@ export class ApiDataSource implements DataSource {
     return res.ok ? await res.json() : null;
   }
 
-  async tryUnlockMainQuest(worldId: string, playerId: string, cefrLevel: string): Promise<void> {
-    await fetch(`${this.baseUrl}/api/worlds/${worldId}/main-quest/${playerId}/try-unlock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify({ cefrLevel }),
+  async tryUnlockMainQuest(_worldId: string, _playerId: string, cefrLevel: string): Promise<void> {
+    // Unlock the next main quest chain step in the playthrough overlay.
+    // The server endpoint would scan world quests for the next locked chain quest
+    // matching the CEFR level — we replicate that logic locally.
+    if (!this.questOverlay) {
+      console.warn('[DataSource] tryUnlockMainQuest skipped — no quest overlay');
+      return;
+    }
+    // Find quests with main-quest/narrative tags that are still unavailable
+    // and unlock the next one based on CEFR level progression.
+    const allQuests = this.questOverlay.mergeQuests(this._cachedQuests || []);
+    const chainQuests = allQuests.filter((q: any) => {
+      const tags = q.tags || [];
+      return (tags.includes('main-quest') || tags.includes('narrative'))
+        && q.status === 'unavailable';
     });
+    if (chainQuests.length > 0) {
+      // Unlock the first unavailable chain quest
+      this.questOverlay.updateQuest(chainQuests[0].id, { status: 'available' });
+    }
   }
 
-  async recordMainQuestCompletion(worldId: string, playerId: string, questType: string, cefrLevel?: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/main-quest/${playerId}/record-completion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify({ questType, cefrLevel }),
-    });
-    return res.ok ? await res.json() : null;
+  async recordMainQuestCompletion(_worldId: string, _playerId: string, questType: string, cefrLevel?: string): Promise<any> {
+    // Record main quest completion in the playthrough overlay.
+    if (!this.questOverlay) {
+      console.warn('[DataSource] recordMainQuestCompletion skipped — no quest overlay');
+      return null;
+    }
+    // Find the active main quest of the given type and complete it
+    const allQuests = this.questOverlay.mergeQuests(this._cachedQuests || []);
+    const activeMainQuest = allQuests.find((q: any) =>
+      q.status === 'active' && q.questType === questType
+    );
+    if (activeMainQuest) {
+      this.questOverlay.updateQuest(activeMainQuest.id, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        completedCefrLevel: cefrLevel,
+      });
+    }
+    return { success: true };
   }
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {
@@ -431,26 +476,74 @@ export class ApiDataSource implements DataSource {
     return res.ok ? await res.json() : { entityId, items: [], gold: 0 };
   }
 
-  async transferItem(worldId: string, transfer: any): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/inventory/transfer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify(transfer),
-    });
-    return res.ok ? await res.json() : { success: false };
+  async transferItem(_worldId: string, transfer: any): Promise<any> {
+    // Handle inventory transfers in memory — never write to the world DB.
+    // The save system persists these via GameSaveState.
+    if (this._playerInventory === null) this._playerInventory = [];
+
+    const { fromEntityId, toEntityId, itemId, itemName, itemType, quantity = 1, transactionType, totalPrice = 0 } = transfer;
+    const isPlayerReceiving = toEntityId === 'player' || !toEntityId;
+    const isPlayerSending = fromEntityId === 'player';
+
+    // Add item to receiver
+    if (isPlayerReceiving) {
+      this._playerInventory.push({ id: itemId, name: itemName, type: itemType, quantity });
+    } else if (toEntityId) {
+      // Add to merchant inventory
+      const merchant = this._merchantStates.get(toEntityId) || { goldReserve: 0, items: [] };
+      merchant.items.push({ id: itemId, name: itemName, type: itemType, quantity });
+      this._merchantStates.set(toEntityId, merchant);
+    }
+
+    // Remove item from sender
+    if (isPlayerSending && this._playerInventory) {
+      const idx = this._playerInventory.findIndex((i: any) => i.id === itemId);
+      if (idx >= 0) this._playerInventory.splice(idx, 1);
+    } else if (fromEntityId) {
+      const merchant = this._merchantStates.get(fromEntityId);
+      if (merchant) {
+        const idx = merchant.items.findIndex((i: any) => i.id === itemId);
+        if (idx >= 0) merchant.items.splice(idx, 1);
+      }
+    }
+
+    // Gold transfer
+    if ((transactionType === 'buy' || transactionType === 'sell') && totalPrice > 0) {
+      if (this._playerGold === null) this._playerGold = 0;
+      if (transactionType === 'buy') {
+        this._playerGold -= totalPrice;
+      } else {
+        this._playerGold += totalPrice;
+      }
+    }
+
+    return { success: true, transactionType, itemId, quantity, totalPrice };
   }
 
   async getMerchantInventory(worldId: string, merchantId: string, businessType?: string): Promise<any> {
+    // Return local override if we have one (from buy/sell during this session)
+    const localMerchant = this._merchantStates.get(merchantId);
+    if (localMerchant) return localMerchant;
+    // Otherwise fetch base inventory from world (read-only)
     const params = businessType ? `?businessType=${encodeURIComponent(businessType)}` : '';
     const res = await fetch(`${this.baseUrl}/api/worlds/${worldId}/merchants/${merchantId}/inventory${params}`, { headers: this.getHeaders() });
-    return res.ok ? await res.json() : null;
+    const data = res.ok ? await res.json() : null;
+    // Cache the base merchant state so subsequent transfers modify it locally
+    if (data) this._merchantStates.set(merchantId, { goldReserve: data.goldReserve ?? data.gold ?? 0, items: data.items || [] });
+    return data;
   }
 
-  async getPlayerInventory(worldId: string, playerId: string): Promise<any> {
-    return this.getEntityInventory(worldId, playerId);
+  async getPlayerInventory(_worldId: string, _playerId: string): Promise<any> {
+    // Return local inventory if available
+    if (this._playerInventory !== null) return { items: this._playerInventory };
+    return { items: [] };
   }
 
   async getContainerContents(containerId: string): Promise<any> {
+    // Return local override if we have one
+    const local = this._containerOverrides.get(containerId);
+    if (local) return local;
+    // Otherwise fetch from server (read-only)
     const res = await fetch(`${this.baseUrl}/api/containers/${containerId}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
   }
@@ -480,21 +573,42 @@ export class ApiDataSource implements DataSource {
   }
 
   async updateContainer(containerId: string, data: any): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/containers/${containerId}`, {
-      method: 'PUT',
-      headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return res.ok ? await res.json() : null;
+    // Store container state in local overlay — never write to world DB.
+    this._containerOverrides.set(containerId, data);
+    return data;
   }
 
   async transferContainerItem(containerId: string, transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/api/containers/${containerId}/transfer`, {
-      method: 'POST',
-      headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(transfer),
-    });
-    return res.ok ? await res.json() : null;
+    // Handle container transfers in memory — never write to world DB.
+    let container = this._containerOverrides.get(containerId);
+    if (!container) {
+      // Fetch base container contents once, then work locally
+      const res = await fetch(`${this.baseUrl}/api/containers/${containerId}`, { headers: this.getHeaders() });
+      const base = res.ok ? await res.json() : { items: [] };
+      container = { items: base.items || [] };
+      this._containerOverrides.set(containerId, container);
+    }
+
+    if (transfer.direction === 'withdraw') {
+      const idx = container.items.findIndex((i: any) => i.id === transfer.itemId);
+      if (idx >= 0) {
+        const removed = container.items.splice(idx, 1)[0];
+        // Add to player inventory
+        if (this._playerInventory === null) this._playerInventory = [];
+        this._playerInventory.push({ ...removed, quantity: transfer.quantity || 1 });
+      }
+    } else {
+      // deposit: remove from player, add to container
+      if (this._playerInventory) {
+        const idx = this._playerInventory.findIndex((i: any) => i.id === transfer.itemId);
+        if (idx >= 0) {
+          const removed = this._playerInventory.splice(idx, 1)[0];
+          container.items.push({ ...removed, quantity: transfer.quantity || 1 });
+        }
+      }
+    }
+
+    return { success: true };
   }
 
   async loadPrologContent(worldId: string): Promise<string | null> {

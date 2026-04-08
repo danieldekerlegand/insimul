@@ -742,7 +742,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
     }
   };
 
-  const handleGenerateWithAI = async (prompt: string, sourceFormat: string, bulkCreate: boolean, _isBase: boolean) => {
+  const handleGenerateWithAI = async (prompt: string, sourceFormat: string, bulkCreate: boolean, _isBase: boolean, citations: Array<{ title: string; content?: string; url?: string }> = []) => {
     setIsGenerating(true);
     try {
       toast({ title: 'Generating...', description: `Creating ${bulkCreate ? 'multiple rules' : 'rule'} with AI` });
@@ -750,7 +750,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
       const generateRes = await fetch('/api/generate-rule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, sourceFormat, bulkCreate }),
+        body: JSON.stringify({ prompt, sourceFormat, bulkCreate, citations }),
       });
 
       if (!generateRes.ok) {
@@ -758,7 +758,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
         return;
       }
 
-      const { rule, isBulk } = await generateRes.json();
+      const { rule, isBulk, citations: savedCitations } = await generateRes.json();
 
       if (isBulk && typeof rule === 'string') {
         const ruleStrings = rule.split(/\n\n+/).filter((r: string) => r.trim());
@@ -773,6 +773,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
             body: JSON.stringify({
               worldId, name: nameMatch ? nameMatch[1] : `AI Rule ${i + 1}`,
               content, sourceFormat, ruleType: 'default', isActive: true,
+              citations: savedCitations,
             }),
           });
           if (res.ok) successCount++;
@@ -787,6 +788,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
           body: JSON.stringify({
             worldId, name: nameMatch ? nameMatch[1] : `AI: ${prompt.substring(0, 30)}`,
             content, sourceFormat, ruleType: 'default', isActive: true,
+            citations: savedCitations,
           }),
         });
         if (res.ok) toast({ title: 'Rule Created' });

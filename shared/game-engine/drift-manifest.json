@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T03:16:45.819Z",
+  "lastUpdated": "2026-04-08T08:16:19.073Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "142129b736bb07e87a4aa1e1f7374b5611fd4f3e80927b7e1dc79a7fb8cdd5e8",
+      "hash": "07eeb58430ad2f3eefaf9842c7d8fd7d7906efcfcf953e75e796cd65647ec45a",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -531,7 +531,7 @@
     {
       "path": "shared/game-engine/rendering/ProceduralNatureGenerator.ts",
       "description": "Biome-driven nature placement: 4 tree types, rocks, geological features, grass.",
-      "hash": "a16f203f8f9469fced7e4c33b0be70b0b1207f40501995861a0a7d22b91bf410",
+      "hash": "53980a10424adb0d28bd92885e63b23fba2f9ef1f046734103aaf35143d52dde",
       "engineMappings": [
         {
           "engine": "unity",
@@ -551,7 +551,7 @@
     {
       "path": "shared/game-engine/rendering/RoadGenerator.ts",
       "description": "Road network: ribbon meshes, sidewalks, center lines, crosswalks, street lights.",
-      "hash": "3f9871942be47c6552ea2fc1911b5d0293114b399e36f6636253b26f09e32e53",
+      "hash": "311f906e7e0b644e7c9cbfe44c46f7a238a3b1f12ac79968a1276a14207670d9",
       "engineMappings": [
         {
           "engine": "unity",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "b0949341d9028a4c7cbeb813f302e2373dce9c37159d4ef4d8cfca3f647f92b7",
+      "hash": "17c1a8ceb3bfa6ae31aea400eb23217740244e3f657c8623739c2eb21a9bde08",
       "engineMappings": [
         {
           "engine": "unity",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "35e28b99fd5d932f4aef94aa1ee1928beabb5e3d52821709b46d6cd040f71860",
+      "hash": "31daadc4df4eb88a98e2874baa6ab9def5bbe3a3d720292a4b276c23414bdc44",
       "engineMappings": [
         {
           "engine": "unity",

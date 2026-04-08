@@ -110,7 +110,7 @@ export function createTownSquare(scene: Scene, options: TownSquareOptions): Town
     halfW = 16;
     halfD = 16;
   }
-  const groundRadius = Math.min(halfW, halfD) * 0.9; // Slightly inset from block edges
+  const groundRadius = Math.min(halfW, halfD) * 0.7; // Inset from block edges to avoid streets
 
   const root = new TransformNode(`town_square_${id}`, scene);
   root.position = new Vector3(squareCenterX, 0, squareCenterZ);
@@ -160,7 +160,7 @@ export function createTownSquare(scene: Scene, options: TownSquareOptions): Town
   }
 
   // --- Compute civic object positions ---
-  const edgeDist = halfD * 0.7;
+  const edgeDist = halfD * 0.55;
   const signPosition = new Vector3(
     squareCenterX,
     groundY,
@@ -176,10 +176,10 @@ export function createTownSquare(scene: Scene, options: TownSquareOptions): Town
   // Prop positions around the perimeter
   const propPositions: Vector3[] = [];
   const propOffsets = [
-    { x: halfW * 0.5, z: halfD * 0.5 },
-    { x: -halfW * 0.5, z: halfD * 0.5 },
-    { x: halfW * 0.5, z: -halfD * 0.5 },
-    { x: -halfW * 0.5, z: -halfD * 0.5 },
+    { x: halfW * 0.4, z: halfD * 0.4 },
+    { x: -halfW * 0.4, z: halfD * 0.4 },
+    { x: halfW * 0.4, z: -halfD * 0.4 },
+    { x: -halfW * 0.4, z: -halfD * 0.4 },
   ];
   for (const off of propOffsets) {
     propPositions.push(new Vector3(

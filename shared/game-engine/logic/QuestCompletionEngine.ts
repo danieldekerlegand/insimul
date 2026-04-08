@@ -237,7 +237,8 @@ export type CompletionEvent =
   | { type: 'item_purchased'; itemName: string; merchantId: string; questId?: string }
   | { type: 'item_sold'; itemName: string; questId?: string }
   | { type: 'listen_and_repeat_passed'; passed: boolean; phrase: string; questId?: string }
-  | { type: 'friendship_changed'; npcId: string; relationshipStrength: number; questId?: string };
+  | { type: 'friendship_changed'; npcId: string; relationshipStrength: number; questId?: string }
+  | { type: 'clue_discovered'; clueCategory?: string; clueSource?: string; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -292,6 +293,7 @@ export class QuestCompletionEngine {
         break;
       case 'vocabulary_usage':
         this.trackVocabularyUsage(event.word, event.questId);
+        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'conversation_turn':
         this.trackConversationTurn(event.keywords, event.questId);
@@ -379,12 +381,18 @@ export class QuestCompletionEngine {
         break;
       case 'text_found':
         this.trackTextFound(event.textId, event.textName, event.questId);
+        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'text_read':
         this.trackTextRead(event.textId, event.questId);
+        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'comprehension_answer':
         this.trackComprehensionAnswer(event.isCorrect, event.questId);
+        this.handleGameEvent(event as unknown as Record<string, unknown>);
+        break;
+      case 'clue_discovered':
+        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'photo_taken':
         this.trackPhotoTaken(event.subjectName, event.subjectCategory, event.subjectActivity, event.questId);
@@ -410,6 +418,7 @@ export class QuestCompletionEngine {
           if (obj.npcId && obj.npcId !== event.npcId) return;
           this.completeObjective(quest.id, obj.id);
         });
+        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'conversation_assessment_completed':
         // Don't use trackByTrigger here — need validation of turnCount
@@ -449,6 +458,7 @@ export class QuestCompletionEngine {
         break;
       case 'grammar_demonstrated':
         this.trackGrammarDemonstrated(event.patternCount, event.questId);
+        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'item_purchased':
         this.trackItemPurchased(event.itemName, event.merchantId, event.questId);

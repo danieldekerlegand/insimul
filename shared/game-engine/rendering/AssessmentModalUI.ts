@@ -61,10 +61,11 @@ export class AssessmentModalUI {
     fullscreenUI.addControl(backdrop);
     this.overlay = backdrop;
 
-    // Modal card
+    // Modal card — use a fixed height so the ScrollViewer can fill it and scroll
     const modal = new GUI.Rectangle('assessmentModal');
     modal.width = '380px';
-    modal.adaptHeightToChildren = true;
+    modal.height = '85%';
+    modal.maxHeight = 800;
     modal.paddingBottom = '12px';
     modal.background = 'rgba(15, 15, 25, 0.95)';
     modal.color = '#FFD700';
@@ -76,10 +77,10 @@ export class AssessmentModalUI {
     modal.isPointerBlocker = true;
     backdrop.addControl(modal);
 
-    // Scroll viewer for tall content
+    // Scroll viewer for tall content — fills the modal and scrolls overflow
     const scroll = new GUI.ScrollViewer('assessmentScroll');
     scroll.width = '100%';
-    scroll.height = '560px';
+    scroll.height = '100%';
     scroll.thickness = 0;
     scroll.barSize = 6;
     scroll.barColor = '#FFD700';
@@ -308,6 +309,7 @@ export class AssessmentModalUI {
     passageText.textWrapping = true;
     passageText.lineSpacing = '4px';
     passageText.resizeToFit = true;
+    passageText.paddingBottom = '12px';
     passageText.width = '90%';
     passageText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     passageText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;

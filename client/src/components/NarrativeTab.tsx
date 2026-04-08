@@ -98,7 +98,10 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
   const getQuestForChapter = (chapterId: string) =>
     mainQuests.find((q: any) => q.tags?.includes(`chapterId:${chapterId}`));
   const getTextsForChapter = (chapterId: string) =>
-    gametexts.filter((t: any) => t.tags?.includes(`chapterId:${chapterId}`));
+    gametexts.filter((t: any) =>
+      t.narrativeChapterId === chapterId ||
+      t.tags?.includes(`chapterId:${chapterId}`)
+    );
 
   const data = editData ?? narrative;
 

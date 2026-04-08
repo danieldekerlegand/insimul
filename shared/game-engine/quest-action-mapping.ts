@@ -208,6 +208,96 @@ export const QUEST_ACTION_MAPPINGS: QuestActionMapping[] = [
     quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
     description: 'Player purchases an item from a merchant',
   },
+  // ─── Text/document objective mappings ──────────────────────────────────────
+  {
+    objectiveType: 'read_document',
+    eventType: 'text_read',
+    matchFields: [
+      { eventField: 'textId', objectiveField: 'textId', comparison: 'exact', optional: true },
+      { eventField: 'textTitle', objectiveField: 'textTitle', comparison: 'contains_lower', optional: true },
+    ],
+    description: 'Player reads a document/text in the world',
+  },
+  {
+    objectiveType: 'read_text',
+    eventType: 'text_read',
+    matchFields: [
+      { eventField: 'textId', objectiveField: 'textId', comparison: 'exact', optional: true },
+      { eventField: 'textTitle', objectiveField: 'textTitle', comparison: 'contains_lower', optional: true },
+    ],
+    description: 'Player reads a text (alias for read_document)',
+  },
+  {
+    objectiveType: 'find_text',
+    eventType: 'text_found',
+    matchFields: [
+      { eventField: 'textId', objectiveField: 'textId', comparison: 'exact', optional: true },
+      { eventField: 'textCategory', objectiveField: 'textCategory', comparison: 'exact', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player finds/collects a text document',
+  },
+  {
+    objectiveType: 'collect_text',
+    eventType: 'text_found',
+    matchFields: [
+      { eventField: 'textId', objectiveField: 'textId', comparison: 'exact', optional: true },
+      { eventField: 'textCategory', objectiveField: 'textCategory', comparison: 'exact', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player collects a text document (alias for find_text)',
+  },
+  {
+    objectiveType: 'comprehension_quiz',
+    eventType: 'comprehension_answer',
+    matchFields: [
+      { eventField: 'textId', objectiveField: 'textId', comparison: 'exact', optional: true },
+    ],
+    quantity: { currentField: 'correctAnswers', requiredField: 'requiredCorrect', defaultRequired: 1 },
+    description: 'Player answers comprehension questions correctly',
+  },
+  {
+    objectiveType: 'collect_clue',
+    eventType: 'clue_discovered',
+    matchFields: [
+      { eventField: 'clueCategory', objectiveField: 'clueCategory', comparison: 'exact', optional: true },
+      { eventField: 'clueSource', objectiveField: 'clueSource', comparison: 'contains_lower', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player discovers an investigation clue',
+  },
+  // ─── Meta-objective aliases (chapter quests use generic category names) ─────
+  {
+    objectiveType: 'vocabulary',
+    eventType: 'vocabulary_usage',
+    matchFields: [],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player completes a vocabulary activity (meta-objective for chapter quests)',
+  },
+  {
+    objectiveType: 'conversation',
+    eventType: 'npc_talked',
+    matchFields: [],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player has a conversation with an NPC (meta-objective for chapter quests)',
+  },
+  {
+    objectiveType: 'grammar',
+    eventType: 'grammar_demonstrated',
+    matchFields: [],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player demonstrates grammar knowledge (meta-objective for chapter quests)',
+  },
+  // ─── Photography alias (photograph → photograph_subject) ──────────────────
+  {
+    objectiveType: 'photograph',
+    eventType: 'photo_taken',
+    matchFields: [
+      { eventField: 'subjectName', objectiveField: 'targetSubject', comparison: 'contains_lower', optional: true },
+    ],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player photographs a subject (alias for photograph_subject)',
+  },
   // ─── Generic action_executed mapping (catches any action for flexible quests) ─
   {
     objectiveType: 'perform_action',

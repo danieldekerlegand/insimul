@@ -635,7 +635,8 @@ function buildSystemPrompt(p: PromptParts): string {
   const weatherDesc = describeWeather(p.weather);
   if (isFollowUp) {
     // Condensed: just time and weather on one line, skip settlement description
-    sectionLines.environment.push(`Location: ${p.character.currentLocation}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
+    const followUpLocation = p.settlement?.name || p.character.currentLocation;
+    sectionLines.environment.push(`Location: ${followUpLocation}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
   } else {
     if (p.settlement) {
       sectionLines.environment.push(`You live in the ${p.settlement.settlementType} of ${p.settlement.name}.`);
@@ -646,7 +647,8 @@ function buildSystemPrompt(p: PromptParts): string {
         sectionLines.environment.push(`About ${p.settlement.name}: ${desc}`);
       }
     }
-    sectionLines.environment.push(`Current location: ${p.character.currentLocation}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
+    const locationName = p.settlement?.name || p.character.currentLocation;
+    sectionLines.environment.push(`Current location: ${locationName}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
     if (p.season) {
       sectionLines.environment.push(`Season: ${p.season}.`);
     }

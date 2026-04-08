@@ -261,12 +261,12 @@ export async function generateAndSpeakGreeting(
       },
     });
 
-    // Push the entire audio buffer as a single MP3 chunk
+    // Push the entire audio buffer as a single PCM chunk
     const chunk: StreamingAudioChunk = {
       data: new Uint8Array(audioBuffer!),
-      encoding: 3, // MP3
+      encoding: 1, // PCM (server returns raw PCM from Gemini TTS)
       sampleRate: 24000,
-      durationMs: 0, // Unknown for single-buffer MP3; player decodes to find actual duration
+      durationMs: 0,
     };
 
     player.pushChunk(chunk);

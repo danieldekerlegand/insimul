@@ -12,7 +12,7 @@
 
 import mongoose from 'mongoose';
 
-const MONGO_URI = process.env.MONGODB_URI || process.env.DATABASE_URL || 'mongodb://localhost:27017/insimul';
+const MONGO_URI = process.env.MONGO_URL || process.env.MONGODB_URI || process.env.DATABASE_URL || 'mongodb://localhost:27017/insimul';
 
 const BCP47_MAP: Record<string, string> = {
   'English': 'en-US', 'French': 'fr-FR', 'Spanish': 'es-ES', 'German': 'de-DE',
@@ -31,7 +31,7 @@ async function run() {
   const db = mongoose.connection.db!;
 
   const worldsCol = db.collection('worlds');
-  const langsCol = db.collection('worldlanguages');
+  const langsCol = db.collection('languages');
 
   // 1. Set isLearningTarget: false on all existing WorldLanguage records where the field is missing
   const defaultResult = await langsCol.updateMany(

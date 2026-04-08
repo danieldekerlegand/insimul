@@ -80,16 +80,27 @@ export class QuestIndicatorManager {
    */
   private getIndicatorType(npc: Character, quests: Quest[]): QuestIndicatorType {
     // Check for quests ready to turn in (highest priority)
-    const turnInQuest = quests.find(q => 
-      q.assignedByCharacterId === npc.id && 
-      q.status === 'active' && 
+    const turnInQuest = quests.find(q =>
+      q.assignedByCharacterId === npc.id &&
+      q.status === 'active' &&
       this.isQuestReadyToTurnIn(q)
     );
     if (turnInQuest) return 'turn_in';
 
+    // Check if this NPC is the target of an active quest objective
+    const isObjectiveTarget = quests.some(q => {
+      if (q.status !== 'active') return false;
+      const objectives = (q as any).objectives;
+      if (!Array.isArray(objectives)) return false;
+      return objectives.some((obj: any) =>
+        !obj.completed && (obj.npcId === npc.id || obj.targetNpcId === npc.id)
+      );
+    });
+    if (isObjectiveTarget) return 'available';
+
     // Check for active quests from this NPC
-    const activeQuest = quests.find(q => 
-      q.assignedByCharacterId === npc.id && 
+    const activeQuest = quests.find(q =>
+      q.assignedByCharacterId === npc.id &&
       q.status === 'active' &&
       !this.isQuestReadyToTurnIn(q)
     );
@@ -340,7 +351,7 @@ export class QuestIndicatorManager {
     switch (type) {
       case 'available':
         return {
-          symbol: '?',
+          symbol: '!',
           bgColor: 'rgba(255, 215, 0, 0.9)', // Gold
           borderColor: '#b8860b',
           textColor: '#000000'

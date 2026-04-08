@@ -37,6 +37,7 @@ import type { GameSaveState } from '@shared/game-engine/types';
 import type { MainQuestChapter, ChapterProgress, CaseNote, InvestigationBoardData } from '@shared/quest/main-quest-chapters';
 import type { PortfolioData } from '@shared/quest/portfolio-types';
 import type { Clue, ClueCategory } from '../logic/ClueStore';
+import { isDebugLabelsEnabled } from './DebugLabelUtils';
 import {
   SKILL_TIERS,
   createDefaultSkillTreeState,
@@ -799,6 +800,14 @@ export class GameMenuSystem {
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   private makeScrollableContent(name: string): { scroll: ScrollViewer; stack: StackPanel } {
+    // Clear any existing content to prevent overlapping renders
+    if (this.contentPanel) {
+      this.contentPanel.children.slice().forEach((c) => {
+        this.contentPanel!.removeControl(c);
+        c.dispose();
+      });
+    }
+
     const scroll = new ScrollViewer(`${name}_scroll`);
     scroll.width = 1;
     scroll.height = "95%";
@@ -3312,6 +3321,23 @@ export class GameMenuSystem {
         saveLoadRow.addControl(loadBtn);
       }
 
+      this.addDivider(stack);
+    }
+
+    // Debug toggle — prominent position near the top
+    if (this.callbacks.onToggleDebug) {
+      const debugBtn = this.makeSystemButton("sys_debugToggle", `\u{1F527} Debug: ${isDebugLabelsEnabled() ? 'ON' : 'OFF'}`);
+      debugBtn.width = "160px";
+      debugBtn.height = "34px";
+      debugBtn.fontSize = 13;
+      debugBtn.fontWeight = "bold";
+      debugBtn.background = isDebugLabelsEnabled() ? '#2a5a2a' : COLORS.cardBg;
+      debugBtn.paddingBottom = "4px";
+      debugBtn.onPointerClickObservable.add(() => {
+        this.callbacks.onToggleDebug?.();
+        this.renderSystemTab(); // Re-render to update button label
+      });
+      stack.addControl(debugBtn);
       this.addDivider(stack);
     }
 

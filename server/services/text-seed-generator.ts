@@ -33,6 +33,7 @@ interface TextTemplate {
   comprehensionQuestions: ComprehensionQuestion[];
   authorName?: string;
   clueText?: string;
+  narrativeChapterId?: string;
   difficulty: string;
   tags: string[];
   spawnLocationHint: string;
@@ -88,6 +89,7 @@ function buildWriterJournals(writerName: string): TextTemplate[] {
       ],
       authorName: writerName,
       clueText: `${writerName} has a secret spot near the bayou under the cypress trees — a place nobody visits.`,
+      narrativeChapterId: 'ch1_assignment_abroad',
       difficulty: 'beginner',
       tags: ['main_quest', 'missing_writer', 'clue_1'],
       spawnLocationHint: 'residence',
@@ -133,6 +135,7 @@ function buildWriterJournals(writerName: string): TextTemplate[] {
       ],
       authorName: writerName,
       clueText: `${writerName} found hidden Chitimacha documents in the old library — behind the shelves, in a wooden box.`,
+      narrativeChapterId: 'ch3_the_inner_circle',
       difficulty: 'beginner',
       tags: ['main_quest', 'missing_writer', 'clue_2'],
       spawnLocationHint: 'library',
@@ -197,6 +200,7 @@ function buildWriterJournals(writerName: string): TextTemplate[] {
       ],
       authorName: writerName,
       clueText: `${writerName} hid originals at "where the herons rest" — a cabin by the bayou built by their grandfather. The Beaumont family is behind the threats.`,
+      narrativeChapterId: 'ch4_hidden_messages',
       difficulty: 'intermediate',
       tags: ['main_quest', 'missing_writer', 'clue_3'],
       spawnLocationHint: 'hidden',
@@ -250,6 +254,7 @@ function buildWriterJournals(writerName: string): TextTemplate[] {
       ],
       authorName: writerName,
       clueText: `${writerName} left clues scattered in the library, café, and church. The path: behind the cemetery oak, follow the fishermen's trail to the bayou bend, look for giant cypress trees.`,
+      narrativeChapterId: 'ch5_the_truth_emerges',
       difficulty: 'intermediate',
       tags: ['main_quest', 'missing_writer', 'clue_4'],
       spawnLocationHint: 'church',
@@ -309,6 +314,7 @@ function buildWriterJournals(writerName: string): TextTemplate[] {
       ],
       authorName: writerName,
       clueText: `${writerName} is at the grandfather's cabin — "where the water and the roots meet." They have the manuscript and original Chitimacha documents. They are alive, waiting for someone brave enough to publish the truth.`,
+      narrativeChapterId: 'ch6_the_final_chapter',
       difficulty: 'advanced',
       tags: ['main_quest', 'missing_writer', 'clue_5'],
       spawnLocationHint: 'hidden',
@@ -799,6 +805,7 @@ function buildRecipes(): TextTemplate[] {
           correctIndex: 2,
         },
       ],
+      narrativeChapterId: 'ch2_following_the_trail',
       difficulty: 'beginner',
       tags: ['food', 'cooking', 'louisiana', 'dessert'],
       spawnLocationHint: 'restaurant',
@@ -836,6 +843,7 @@ function buildRecipes(): TextTemplate[] {
           correctIndex: 2,
         },
       ],
+      narrativeChapterId: 'ch2_following_the_trail',
       difficulty: 'beginner',
       tags: ['food', 'cooking', 'louisiana', 'traditional'],
       spawnLocationHint: 'restaurant',
@@ -894,6 +902,7 @@ function buildRecipes(): TextTemplate[] {
           correctIndex: 3,
         },
       ],
+      narrativeChapterId: 'ch2_following_the_trail',
       difficulty: 'beginner',
       tags: ['food', 'cooking', 'louisiana', 'creole', 'traditional'],
       spawnLocationHint: 'restaurant',
@@ -1134,11 +1143,339 @@ IMPORTANT:
 - Content must feel authentic and culturally grounded, not like a textbook exercise`;
 }
 
+// ── Narrative clue documents (physical evidence the player finds) ────────────
+
+function buildNarrativeClueTexts(writerName: string): TextTemplate[] {
+  return [
+    {
+      title: "Page de journal intime — \"Ils savent\"",
+      titleTranslation: "Diary Page — \"They know\"",
+      textCategory: 'journal',
+      cefrLevel: 'A2',
+      pages: [{
+        content: `Trois jours avant...\n\nIls savent pour le manuscrit. J'ai vu quelqu'un fouiller dans mon bureau hier soir. Je dois agir vite. Les copies sont en sécurité — dispersées chez des personnes de confiance. Si quelqu'un trouve ce journal, suivez les indices dans mon premier roman.`,
+        contentTranslation: `Three days before...\n\nThey know about the manuscript. I saw someone searching my office last night. I must act quickly. The copies are safe — dispersed with trusted people. If someone finds this journal, follow the clues in my first novel.`,
+      }],
+      vocabularyHighlights: [
+        { word: 'manuscrit', translation: 'manuscript', partOfSpeech: 'noun' },
+        { word: 'fouiller', translation: 'to search', partOfSpeech: 'verb' },
+        { word: 'confiance', translation: 'trust', partOfSpeech: 'noun' },
+        { word: 'indices', translation: 'clues', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: "Qu'a vu l'écrivain?", questionTranslation: 'What did the writer see?', options: ['Un animal', "Quelqu'un fouillant dans son bureau", 'Un ami', 'Un chat'], correctIndex: 1 }],
+      authorName: writerName,
+      clueText: `Written three days before the disappearance. Shows ${writerName} felt threatened.`,
+      narrativeChapterId: 'ch4_hidden_messages',
+      difficulty: 'intermediate',
+      tags: ['main_quest', 'clue', 'diary', 'chapterId:ch4_hidden_messages'],
+      spawnLocationHint: 'hidden',
+    },
+    {
+      title: "Carte marquée de croix rouges",
+      titleTranslation: "Map Marked with Red Crosses",
+      textCategory: 'letter',
+      cefrLevel: 'A2',
+      pages: [{
+        content: `Une carte dessinée à la main de la région. Trois croix rouges marquent des endroits spécifiques — une ferme isolée, une grotte près de la côte, et un jardin derrière une vieille église. Au dos: "Les réponses sont là où personne ne regarde."`,
+        contentTranslation: `A hand-drawn map of the region. Three red crosses mark specific places — an isolated farm, a cave near the coast, and a garden behind an old church. On the back: "The answers are where nobody looks."`,
+      }],
+      vocabularyHighlights: [
+        { word: 'carte', translation: 'map', partOfSpeech: 'noun' },
+        { word: 'croix', translation: 'crosses', partOfSpeech: 'noun' },
+        { word: 'endroits', translation: 'places', partOfSpeech: 'noun' },
+        { word: 'réponses', translation: 'answers', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: 'Combien de croix rouges y a-t-il?', questionTranslation: 'How many red crosses are there?', options: ['Deux', 'Trois', 'Quatre', 'Cinq'], correctIndex: 1 }],
+      clueText: `Three red crosses mark locations ${writerName} visited in secret.`,
+      narrativeChapterId: 'ch4_hidden_messages',
+      difficulty: 'intermediate',
+      tags: ['main_quest', 'clue', 'map', 'chapterId:ch4_hidden_messages'],
+      spawnLocationHint: 'hidden',
+    },
+    {
+      title: "Première édition — Note au crayon",
+      titleTranslation: "First Edition — Penciled Note",
+      textCategory: 'book',
+      cefrLevel: 'A1',
+      pages: [{
+        content: `Sur la page de garde, au crayon, d'une écriture tremblante:\n\n"14 mars — le jardin se souvient."\n\nLe reste du livre est un roman sur les premiers habitants de la région. Mais cette note... elle ne fait pas partie de l'histoire.`,
+        contentTranslation: `On the title page, in pencil, in a trembling hand:\n\n"March 14 — the garden remembers."\n\nThe rest of the book is a novel about the region's first inhabitants. But this note... it's not part of the story.`,
+      }],
+      vocabularyHighlights: [
+        { word: 'crayon', translation: 'pencil', partOfSpeech: 'noun' },
+        { word: 'jardin', translation: 'garden', partOfSpeech: 'noun' },
+        { word: 'souvient', translation: 'remembers', partOfSpeech: 'verb' },
+        { word: 'habitants', translation: 'inhabitants', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: 'Que dit la note au crayon?', questionTranslation: 'What does the penciled note say?', options: ['"Bonne lecture"', '"Le jardin se souvient"', '"À bientôt"', '"Au revoir"'], correctIndex: 1 }],
+      clueText: `Inside cover has a date and "the garden remembers" in pencil.`,
+      narrativeChapterId: 'ch2_following_the_trail',
+      difficulty: 'beginner',
+      tags: ['main_quest', 'clue', 'book', 'chapterId:ch2_following_the_trail'],
+      spawnLocationHint: 'bookshop',
+    },
+    {
+      title: "Carnet mouillé — Notes de recherche",
+      titleTranslation: "Soggy Notebook — Research Notes",
+      textCategory: 'journal',
+      cefrLevel: 'A2',
+      pages: [{
+        content: `Les pages sont tachées d'eau, mais on peut encore lire:\n\n"...les familles fondatrices ont acquis ces terres par... [illisible] ...les documents originaux ont été falsifiés en 18... [illisible] ...personne ne sait ce qui est arrivé aux vrais propriétaires..."`,
+        contentTranslation: `The pages are water-stained, but you can still read:\n\n"...the founding families acquired these lands through... [illegible] ...the original documents were forged in 18... [illegible] ...no one knows what happened to the real owners..."`,
+      }],
+      vocabularyHighlights: [
+        { word: 'tachées', translation: 'stained', partOfSpeech: 'adjective' },
+        { word: 'terres', translation: 'lands', partOfSpeech: 'noun' },
+        { word: 'falsifiés', translation: 'forged/falsified', partOfSpeech: 'adjective' },
+        { word: 'propriétaires', translation: 'owners', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: 'Que révèlent les notes?', questionTranslation: 'What do the notes reveal?', options: ['Une recette', 'Des documents falsifiés', 'Un poème', 'Un horaire'], correctIndex: 1 }],
+      authorName: writerName,
+      clueText: `Research notes about the founding families, found in a cave.`,
+      narrativeChapterId: 'ch4_hidden_messages',
+      difficulty: 'intermediate',
+      tags: ['main_quest', 'clue', 'notebook', 'chapterId:ch4_hidden_messages'],
+      spawnLocationHint: 'hidden',
+    },
+    {
+      title: "Message gravé sur un banc",
+      titleTranslation: "Message Carved into a Bench",
+      textCategory: 'letter',
+      cefrLevel: 'A1',
+      pages: [{
+        content: `Gravé dans le bois du banc, à moitié caché par la mousse:\n\n"La vérité est plantée ici, attendant de fleurir."\n\n— Initiales: ${writerName.split(' ').map(n => n[0]).join('.')}.`,
+        contentTranslation: `Carved into the wood of the bench, half-hidden by moss:\n\n"The truth is planted here, waiting to bloom."\n\n— Initials: ${writerName.split(' ').map(n => n[0]).join('.')}.`,
+      }],
+      vocabularyHighlights: [
+        { word: 'gravé', translation: 'carved', partOfSpeech: 'adjective' },
+        { word: 'banc', translation: 'bench', partOfSpeech: 'noun' },
+        { word: 'vérité', translation: 'truth', partOfSpeech: 'noun' },
+        { word: 'fleurir', translation: 'to bloom', partOfSpeech: 'verb' },
+      ],
+      comprehensionQuestions: [{ question: 'Où est gravé le message?', questionTranslation: 'Where is the message carved?', options: ['Sur un arbre', 'Sur un banc', 'Sur un mur', 'Sur une pierre'], correctIndex: 1 }],
+      clueText: `Carved message signed with ${writerName}'s initials.`,
+      narrativeChapterId: 'ch2_following_the_trail',
+      difficulty: 'beginner',
+      tags: ['main_quest', 'clue', 'carving', 'chapterId:ch2_following_the_trail'],
+      spawnLocationHint: 'park',
+    },
+  ];
+}
+
+// ── Red herring texts (misleading evidence) ─────────────────────────────────
+
+function buildRedHerringTexts(): TextTemplate[] {
+  return [
+    {
+      title: "Lettre déchirée — \"Fuite vers la côte\"",
+      titleTranslation: "Torn Letter — \"Escape to the coast\"",
+      textCategory: 'letter',
+      cefrLevel: 'A1',
+      pages: [{
+        content: "Il faut partir. La côte est notre seule chance. Prenez le train de minuit et ne regardez pas en arrière. Brûlez cette lettre.",
+        contentTranslation: "We must leave. The coast is our only chance. Take the midnight train and don't look back. Burn this letter.",
+      }],
+      vocabularyHighlights: [
+        { word: 'partir', translation: 'to leave', partOfSpeech: 'verb' },
+        { word: 'côte', translation: 'coast', partOfSpeech: 'noun' },
+        { word: 'train', translation: 'train', partOfSpeech: 'noun' },
+        { word: 'brûlez', translation: 'burn', partOfSpeech: 'verb' },
+      ],
+      comprehensionQuestions: [{ question: 'Quel transport est mentionné?', questionTranslation: 'What transport is mentioned?', options: ['Un bateau', 'Le train de minuit', 'Un avion', 'Un bus'], correctIndex: 1 }],
+      clueText: "Red herring: handwriting doesn't match the writer's.",
+      narrativeChapterId: 'ch3_the_inner_circle',
+      difficulty: 'beginner',
+      tags: ['red_herring', 'clue', 'letter', 'written_evidence'],
+      spawnLocationHint: 'residence',
+    },
+    {
+      title: "Reçu du Café du Pont",
+      titleTranslation: "Café du Pont Receipt",
+      textCategory: 'letter',
+      cefrLevel: 'A1',
+      pages: [{
+        content: "Café du Pont\nDate: le jour de la disparition\n\n2x Café noir ............. 4,00€\n1x Croissant ............. 2,50€\n\nTotal: 6,50€\nMerci de votre visite!",
+        contentTranslation: "Café du Pont\nDate: the day of disappearance\n\n2x Black coffee .......... €4.00\n1x Croissant ............. €2.50\n\nTotal: €6.50\nThank you for your visit!",
+      }],
+      vocabularyHighlights: [
+        { word: 'café', translation: 'coffee', partOfSpeech: 'noun' },
+        { word: 'noir', translation: 'black', partOfSpeech: 'adjective' },
+        { word: 'disparition', translation: 'disappearance', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: 'Combien de cafés ont été commandés?', questionTranslation: 'How many coffees were ordered?', options: ['Un', 'Deux', 'Trois', 'Quatre'], correctIndex: 1 }],
+      clueText: 'Red herring: shows two coffees, but waiter remembers only the writer alone.',
+      narrativeChapterId: 'ch3_the_inner_circle',
+      difficulty: 'beginner',
+      tags: ['red_herring', 'clue', 'receipt', 'cafe'],
+      spawnLocationHint: 'cafe',
+    },
+  ];
+}
+
+// ── Chapter-specific narrative texts (from migration 053) ───────────────────
+
+function buildChapterTexts(writerName: string): TextTemplate[] {
+  return [
+    // Ch1: Missing person notice
+    {
+      title: 'Avis de Disparition',
+      titleTranslation: 'Missing Person Notice',
+      textCategory: 'flyer',
+      cefrLevel: 'A1',
+      pages: [{
+        content: `AVIS DE DISPARITION\n\nNom : ${writerName}\nDernier lieu connu : Le Vieux Quartier\n\n${writerName}, écrivain et historien local, n'a pas été vu depuis trois semaines. Si vous avez des informations, contactez le bureau du journal.\n\nRécompense offerte.`,
+        contentTranslation: `MISSING PERSON NOTICE\n\nName: ${writerName}\nLast known location: The Old Quarter\n\n${writerName}, local writer and historian, has not been seen for three weeks. If you have any information, contact the newspaper office.\n\nReward offered.`,
+      }],
+      vocabularyHighlights: [
+        { word: 'disparition', translation: 'disappearance', partOfSpeech: 'noun' },
+        { word: 'écrivain', translation: 'writer', partOfSpeech: 'noun' },
+        { word: 'semaines', translation: 'weeks', partOfSpeech: 'noun' },
+        { word: 'récompense', translation: 'reward', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: `Depuis combien de temps ${writerName} a disparu?`, questionTranslation: `How long has ${writerName} been missing?`, options: ['Trois jours', 'Trois semaines', 'Trois mois', 'Un an'], correctIndex: 1 }],
+      clueText: `A missing person notice for ${writerName}, posted three weeks ago. Mentions last seen near the old quarter.`,
+      narrativeChapterId: 'ch1_assignment_abroad',
+      difficulty: 'beginner',
+      tags: ['main_quest', 'clue', 'notice', 'chapterId:ch1_assignment_abroad'],
+      spawnLocationHint: 'city_hall',
+    },
+    // Ch5: Land rights scholarly text
+    {
+      title: 'Les Droits Fonciers en Louisiane',
+      titleTranslation: 'Land Rights in Louisiana',
+      textCategory: 'book',
+      cefrLevel: 'B1',
+      pages: [
+        {
+          content: "Les traités fonciers de la Louisiane coloniale constituent l'un des chapitres les plus complexes de l'histoire américaine. Les peuples autochtones, notamment les Chitimacha, possédaient des droits ancestraux sur ces terres bien avant l'arrivée des colons européens.\n\nLes documents originaux de ces transactions ont été, pour la plupart, perdus ou détruits.",
+          contentTranslation: "The land treaties of colonial Louisiana constitute one of the most complex chapters of American history. Indigenous peoples, notably the Chitimacha, held ancestral rights to these lands long before the arrival of European settlers.\n\nThe original documents from these transactions have been, for the most part, lost or destroyed.",
+        },
+        {
+          content: "Parmi les familles fondatrices, certaines ont acquis d'immenses propriétés par des moyens aujourd'hui considérés comme frauduleux. Les Chitimacha affirment que leurs ancêtres n'ont jamais consenti à la vente de ces terres.\n\nLa question demeure : où sont les documents originaux ? Et qui profite de leur disparition ?",
+          contentTranslation: "Among the founding families, some acquired immense properties through means now considered fraudulent. The Chitimacha assert that their ancestors never consented to the sale of these lands.\n\nThe question remains: where are the original documents? And who profits from their disappearance?",
+        },
+      ],
+      vocabularyHighlights: [
+        { word: 'droits fonciers', translation: 'land rights', partOfSpeech: 'noun' },
+        { word: 'traités', translation: 'treaties', partOfSpeech: 'noun' },
+        { word: 'autochtones', translation: 'indigenous', partOfSpeech: 'adjective' },
+        { word: 'frauduleux', translation: 'fraudulent', partOfSpeech: 'adjective' },
+      ],
+      comprehensionQuestions: [{ question: 'Qui possédait des droits ancestraux sur ces terres?', questionTranslation: 'Who held ancestral rights to these lands?', options: ['Les colons', 'Les Chitimacha', 'Les Français', 'Les Espagnols'], correctIndex: 1 }],
+      narrativeChapterId: 'ch5_the_truth_emerges',
+      difficulty: 'advanced',
+      tags: ['scholarly', 'history', 'chitimacha', 'chapterId:ch5_the_truth_emerges'],
+      spawnLocationHint: 'library',
+    },
+    // Ch5: Investigation report
+    {
+      title: "Rapport d'Enquête : Famille Beaumont",
+      titleTranslation: 'Investigation Report: Beaumont Family',
+      textCategory: 'journal',
+      cefrLevel: 'B1',
+      pages: [
+        {
+          content: `NOTES D'ENQUÊTE — CONFIDENTIEL\n\n15 mars : Rencontré Pierre Beaumont au café. Il a nié toute connaissance des anciens documents fonciers.\n\n18 mars : Trouvé une référence dans les archives municipales — un acte de transfert daté de 1847, signé sous contrainte selon les témoignages Chitimacha.\n\n20 mars : Quelqu'un a fouillé mon bureau pendant la nuit.`,
+          contentTranslation: `INVESTIGATION NOTES — CONFIDENTIAL\n\nMarch 15: Met Pierre Beaumont at the café. He denied any knowledge of the old land documents.\n\nMarch 18: Found a reference in the municipal archives — a transfer deed dated 1847, signed under duress according to Chitimacha testimony.\n\nMarch 20: Someone searched my office during the night.`,
+        },
+        {
+          content: `22 mars : Lettre anonyme glissée sous ma porte : « Arrêtez de poser des questions. » Je ne m'arrêterai pas.\n\n25 mars : Les originaux existent. Je sais où ils sont. Je dois les mettre en sécurité avant qu'ils ne soient détruits.\n\nSi quelqu'un lit ces notes, cherchez le cyprès géant au bord du bayou.`,
+          contentTranslation: `March 22: Anonymous letter slipped under my door: 'Stop asking questions.' I will not stop.\n\nMarch 25: The originals exist. I know where they are. I must secure them before they are destroyed.\n\nIf anyone reads these notes, look for the giant cypress at the edge of the bayou.`,
+        },
+      ],
+      vocabularyHighlights: [
+        { word: 'enquête', translation: 'investigation', partOfSpeech: 'noun' },
+        { word: 'confidentiel', translation: 'confidential', partOfSpeech: 'adjective' },
+        { word: 'archives', translation: 'archives', partOfSpeech: 'noun' },
+        { word: 'contrainte', translation: 'duress', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: "Qu'est-ce qui a été trouvé dans les archives?", questionTranslation: 'What was found in the archives?', options: ['Un livre', 'Un acte de transfert', 'Une lettre', 'Un plan'], correctIndex: 1 }],
+      authorName: writerName,
+      clueText: `${writerName}'s private investigation notes on the Beaumont family's connection to historical land fraud.`,
+      narrativeChapterId: 'ch5_the_truth_emerges',
+      difficulty: 'advanced',
+      tags: ['main_quest', 'clue', 'investigation', 'chapterId:ch5_the_truth_emerges'],
+      spawnLocationHint: 'hidden',
+    },
+    // Ch6: The recovered manuscript
+    {
+      title: "Le Manuscrit Retrouvé",
+      titleTranslation: 'The Recovered Manuscript',
+      textCategory: 'book',
+      cefrLevel: 'B2',
+      pages: [
+        {
+          content: `AVANT-PROPOS\n\nCe que vous tenez entre vos mains est le fruit de trente années de recherche. C'est aussi la raison pour laquelle j'ai dû disparaître.\n\nLes familles fondatrices — les Beaumont en tête — ont bâti leur fortune sur un mensonge. Les terres qu'elles possèdent ont été acquises par la fraude.\n\nLes Chitimacha le savent depuis toujours. Il est temps que le monde l'apprenne.`,
+          contentTranslation: `FOREWORD\n\nWhat you hold in your hands is the fruit of thirty years of research. It is also the reason I had to disappear.\n\nThe founding families — the Beaumonts foremost — built their fortune on a lie. The lands they possess were acquired through fraud.\n\nThe Chitimacha have always known this. It is time the world learned.`,
+        },
+      ],
+      vocabularyHighlights: [
+        { word: 'manuscrit', translation: 'manuscript', partOfSpeech: 'noun' },
+        { word: 'disparaître', translation: 'to disappear', partOfSpeech: 'verb' },
+        { word: 'fraude', translation: 'fraud', partOfSpeech: 'noun' },
+        { word: 'mensonge', translation: 'lie', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: 'Pourquoi a-t-il dû disparaître?', questionTranslation: 'Why did he have to disappear?', options: ['Pour voyager', 'Pour protéger le manuscrit', 'Pour travailler', 'Pour se reposer'], correctIndex: 1 }],
+      authorName: writerName,
+      clueText: `The manuscript ${writerName} was writing — the complete account of the Beaumont family's land fraud against the Chitimacha people.`,
+      narrativeChapterId: 'ch6_the_final_chapter',
+      difficulty: 'advanced',
+      tags: ['main_quest', 'clue', 'manuscript', 'finale', 'chapterId:ch6_the_final_chapter'],
+      spawnLocationHint: 'hidden',
+    },
+    // Ch6: Chitimacha declaration
+    {
+      title: "Déclaration des Anciens Chitimacha",
+      titleTranslation: 'Declaration of the Chitimacha Elders',
+      textCategory: 'letter',
+      cefrLevel: 'B2',
+      pages: [{
+        content: "Nous, les anciens du peuple Chitimacha, déclarons ceci :\n\nNos ancêtres n'ont jamais cédé ces terres de leur plein gré. Les documents que les familles fondatrices présentent comme preuve de propriété sont le produit de la coercition et du mensonge.\n\nNous demandons que la vérité soit connue. Nous demandons que justice soit rendue.\n\nSigné au nom de nos ancêtres et de nos enfants.",
+        contentTranslation: "We, the elders of the Chitimacha people, declare the following:\n\nOur ancestors never ceded these lands of their own free will. The documents that the founding families present as proof of ownership are the product of coercion and lies.\n\nWe demand that the truth be known. We demand that justice be served.\n\nSigned on behalf of our ancestors and our children.",
+      }],
+      vocabularyHighlights: [
+        { word: 'déclaration', translation: 'declaration', partOfSpeech: 'noun' },
+        { word: 'anciens', translation: 'elders', partOfSpeech: 'noun' },
+        { word: 'coercition', translation: 'coercion', partOfSpeech: 'noun' },
+        { word: 'justice', translation: 'justice', partOfSpeech: 'noun' },
+      ],
+      comprehensionQuestions: [{ question: 'Que demandent les anciens?', questionTranslation: 'What do the elders demand?', options: ['De l\'argent', 'Que la vérité soit connue', 'Un nouveau chef', 'Des excuses'], correctIndex: 1 }],
+      narrativeChapterId: 'ch6_the_final_chapter',
+      difficulty: 'advanced',
+      tags: ['chitimacha', 'historical', 'finale', 'chapterId:ch6_the_final_chapter'],
+      spawnLocationHint: 'hidden',
+    },
+    // Ch6: Final newspaper article
+    {
+      title: "L'Article Final",
+      titleTranslation: 'The Final Article',
+      textCategory: 'flyer',
+      cefrLevel: 'B2',
+      pages: [{
+        content: `LE COURRIER\nÉdition Spéciale\n\nL'ÉCRIVAIN DISPARU RETROUVÉ — LA VÉRITÉ SUR LES FAMILLES FONDATRICES\n\n${writerName}, l'écrivain et historien local disparu depuis un mois, a été retrouvé vivant dans une cabane isolée au bord du bayou. Il s'était caché volontairement pour protéger un manuscrit explosif.\n\nLe manuscrit révèle que les terres des familles fondatrices ont été acquises par la fraude au détriment du peuple Chitimacha.`,
+        contentTranslation: `THE COURIER\nSpecial Edition\n\nMISSING WRITER FOUND — THE TRUTH ABOUT THE FOUNDING FAMILIES\n\n${writerName}, the local writer and historian who disappeared a month ago, has been found alive in an isolated cabin by the bayou. He had hidden voluntarily to protect an explosive manuscript.\n\nThe manuscript reveals that the founding families' lands were acquired through fraud at the expense of the Chitimacha people.`,
+      }],
+      vocabularyHighlights: [
+        { word: 'retrouvé', translation: 'found/recovered', partOfSpeech: 'adjective' },
+        { word: 'volontairement', translation: 'voluntarily', partOfSpeech: 'adverb' },
+        { word: 'explosif', translation: 'explosive', partOfSpeech: 'adjective' },
+        { word: 'au détriment de', translation: 'at the expense of', partOfSpeech: 'phrase' },
+      ],
+      comprehensionQuestions: [{ question: `Où a-t-on retrouvé ${writerName}?`, questionTranslation: `Where was ${writerName} found?`, options: ['En ville', 'Dans une cabane au bord du bayou', 'À l\'étranger', 'Dans une bibliothèque'], correctIndex: 1 }],
+      narrativeChapterId: 'ch6_the_final_chapter',
+      difficulty: 'advanced',
+      tags: ['newspaper', 'finale', 'resolution', 'chapterId:ch6_the_final_chapter'],
+      spawnLocationHint: 'newspaper',
+    },
+  ];
+}
+
 // ── Main builder ─────────────────────────────────────────────────────────────
 
 /**
  * Build all seed texts for a world. Returns InsertGameText[] ready to be saved.
- * Generates 20 texts: 5 writer journals, 3 fiction, 3 non-fiction, 3 letters, 3 recipes, 3 poems.
+ * Generates ~33 texts: 5 writer journals, 5 narrative clue documents, 2 red herrings,
+ * 6 chapter-specific texts, 3 fiction, 3 non-fiction, 3 letters, 3 recipes, 3 poems.
  * CEFR distribution: 8×A1, 6×A2, 4×B1, 2×B2.
  */
 export function buildSeedTexts(options: TextSeedOptions): InsertGameText[] {
@@ -1146,6 +1483,9 @@ export function buildSeedTexts(options: TextSeedOptions): InsertGameText[] {
 
   const allTemplates: TextTemplate[] = [
     ...buildWriterJournals(writerName),
+    ...buildNarrativeClueTexts(writerName),
+    ...buildRedHerringTexts(),
+    ...buildChapterTexts(writerName),
     ...buildFiction(),
     ...buildNonFiction(),
     ...buildLetters(),
@@ -1165,6 +1505,7 @@ export function buildSeedTexts(options: TextSeedOptions): InsertGameText[] {
     targetLanguage,
     authorName: t.authorName,
     clueText: t.clueText,
+    narrativeChapterId: t.narrativeChapterId,
     difficulty: t.difficulty,
     tags: t.tags,
     isGenerated: true,
@@ -1189,14 +1530,15 @@ export async function seedTextsForWorld(
   options: TextSeedOptions,
 ): Promise<{ created: number; skipped: boolean }> {
   const existing = await storage.getGameTextsByWorld(options.worldId);
-  if (existing.length > 0) {
-    return { created: 0, skipped: true };
-  }
+  const existingTitles = new Set(existing.map((t: any) => t.title));
 
   const texts = buildSeedTexts(options);
+  let created = 0;
   for (const text of texts) {
+    if (existingTitles.has(text.title)) continue;
     await storage.createGameText(text);
+    created++;
   }
 
-  return { created: texts.length, skipped: false };
+  return { created, skipped: created === 0 };
 }

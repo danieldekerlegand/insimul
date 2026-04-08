@@ -139,6 +139,18 @@ export function calculateDerivedTraits(personality: BigFivePersonality): Derived
 
 // ============= END TOTT TYPE DEFINITIONS =============
 
+// ============= CITATION TYPE =============
+// Citations track the references/sources that informed AI-generated content.
+// Any collection that supports AI generation can include citations.
+export interface Citation {
+  /** Short label, e.g. "Chitimacha Grammar §4.2" or "Ensemble docs - volition" */
+  title: string;
+  /** Full text of the reference material (provided to the LLM during generation) */
+  content?: string;
+  /** Optional URL */
+  url?: string;
+}
+
 // Rules - single rule entities (can be base rules or world-specific)
 // All rules are stored in Insimul format internally for execution
 export const rules = pgTable("rules", {
@@ -161,6 +173,7 @@ export const rules = pgTable("rules", {
   likelihood: real("likelihood").default(1.0),
   tags: jsonb("tags").$type<string[]>().default([]),
   relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
+  citations: jsonb("citations").$type<Citation[]>().default([]),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1082,6 +1095,7 @@ export const insertRuleSchema = createInsertSchema(rules).pick({
   likelihood: true,
   tags: true,
   relatedTruthIds: true,
+  citations: true,
   isActive: true,
 });
 

@@ -396,20 +396,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { generateRule, generateBulkRules } = await import("./services/gemini-ai.js");
-      const { prompt, sourceFormat, bulkCreate = false } = req.body;
-      
+      const { prompt, sourceFormat, bulkCreate = false, citations } = req.body;
+
       if (!prompt || !sourceFormat) {
         return res.status(400).json({ error: "Missing prompt or sourceFormat" });
       }
 
       console.log(`Generating ${bulkCreate ? 'bulk' : 'single'} rule for system: ${sourceFormat}`);
-      
-      const generatedRule = bulkCreate 
-        ? await generateBulkRules(prompt, sourceFormat)
-        : await generateRule(prompt, sourceFormat);
+
+      const generatedRule = bulkCreate
+        ? await generateBulkRules(prompt, sourceFormat, undefined, citations)
+        : await generateRule(prompt, sourceFormat, undefined, citations);
       
       console.log('Rule generated successfully');
-      res.json({ rule: generatedRule, isBulk: bulkCreate });
+      res.json({ rule: generatedRule, isBulk: bulkCreate, citations: citations || [] });
     } catch (error) {
       console.error("Error generating rule:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to generate rule";
@@ -1776,6 +1776,42 @@ app.get("/api/rules", async (req, res) => {
       // Note: 3D assets are now managed through asset collections
       // Users can populate collections via the Polyhaven browser UI
       
+      // Create WorldLanguage record for language-learning worlds
+      if (world.targetLanguage && world.gameType === 'language-learning') {
+        try {
+          const { getLanguageBCP47 } = await import("@shared/language/language-utils");
+          await storage.createWorldLanguage({
+            worldId: world.id,
+            scopeType: "world",
+            scopeId: world.id,
+            name: world.targetLanguage,
+            description: `The ${world.targetLanguage} language — the player's learning target.`,
+            kind: "real",
+            realCode: getLanguageBCP47(world.targetLanguage),
+            isPrimary: true,
+            isLearningTarget: true,
+            influenceLanguageIds: [],
+            realInfluenceCodes: [],
+            config: null,
+            features: null,
+            phonemes: null,
+            grammar: null,
+            writingSystem: null,
+            culturalContext: null,
+            phoneticInventory: null,
+            sampleWords: null,
+            sampleTexts: null,
+            etymology: null,
+            dialectVariations: null,
+            learningModules: null,
+          });
+          console.log(`[World Create] Created WorldLanguage record for ${world.targetLanguage}`);
+        } catch (langError) {
+          console.warn('[World Create] Failed to create WorldLanguage record:', langError);
+          // Non-fatal: world is still usable, language can be added later
+        }
+      }
+
       // Seed the main quest chain (missing writer mystery) for new worlds
       try {
         const { seedMainQuestChain } = await import('../shared/quests/main-quest-chain-seeder.js');
@@ -5478,8 +5514,12 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
       const { worldId, worldType, customPrompt, customLabel, gameType, worldName, worldDescription, worldLanguages: requestedWorldLanguages, learningTargetLanguage } = req.body;
 
       // Validate: language-learning worlds must specify a learning target language
+      // (allow fallback to existing world.targetLanguage for worlds created before this check)
       if (gameType === 'language-learning' && !learningTargetLanguage) {
-        return res.status(400).json({ error: "Language-learning worlds require a learning target language. Add at least one world language and mark it as the learning target." });
+        const existingWorldCheck = await storage.getWorld(worldId);
+        if (!existingWorldCheck?.targetLanguage) {
+          return res.status(400).json({ error: "Language-learning worlds require a learning target language. Add at least one world language and mark it as the learning target." });
+        }
       }
 
       const { progressTracker } = await import("./utils/progress-tracker.js");
@@ -5661,7 +5701,16 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
       // Step 1b: Create world language records
       // For language-learning worlds: create a "real" WorldLanguage for the target
       // language (isLearningTarget=true) and optionally a constructed conlang.
-      if (gameType === 'language-learning' && worldTargetLanguage) {
+      // Also handles backfill for worlds that already have targetLanguage set but no language record.
+      const needsLanguageRecord = worldTargetLanguage && (gameType === 'language-learning' || existingWorld?.gameType === 'language-learning');
+      if (needsLanguageRecord) {
+        // Check if language record already exists (may have been created by POST /api/worlds)
+        const existingLangs = await storage.getWorldLanguagesByWorld(worldId);
+        const hasLearningTarget = existingLangs.some((l: any) => l.isLearningTarget);
+
+        if (hasLearningTarget) {
+          console.log(`🗣️ WorldLanguage record already exists for target language — skipping creation.`);
+        } else {
         try {
           console.log(`🗣️ Creating world language records for target "${worldTargetLanguage}"...`);
 
@@ -5701,6 +5750,7 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
         } catch (error) {
           console.warn('⚠️ Language generation skipped:', (error as Error).message);
         }
+        } // end if (!hasLearningTarget)
       }
 
       // Step 1c: Create WorldLanguage records for explicitly requested world languages
@@ -6909,8 +6959,13 @@ Return ONLY valid JSON array.`;
       });
 
       // Set appropriate content type based on encoding
-      const contentType = encoding === "WAV" ? 'audio/wav' : 'audio/mpeg';
+      const enc = result.encoding || encoding;
+      const contentType = enc === 'PCM' ? 'audio/pcm' : enc === 'WAV' ? 'audio/wav' : 'audio/mpeg';
       res.setHeader('Content-Type', contentType);
+      if (enc === 'PCM') {
+        res.setHeader('X-Audio-Encoding', 'pcm');
+        res.setHeader('X-Audio-Sample-Rate', '24000');
+      }
       res.send(result.audioBuffer);
     } catch (error) {
       console.error("TTS error:", error);
@@ -9848,6 +9903,36 @@ Respond with this JSON structure:
       res.json(quest);
     } catch (error) {
       res.status(500).json({ error: "Failed to update quest" });
+    }
+  });
+
+  // Reset all quest statuses to their template defaults.
+  // Fixes corruption from game clients that wrote status changes to the world DB.
+  app.post("/api/worlds/:worldId/quests/reset-statuses", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const quests = await storage.getQuestsByWorld(worldId);
+      if (!quests.length) return res.json({ message: 'No quests found', reset: 0 });
+
+      let resetCount = 0;
+      for (const quest of quests) {
+        // Arrival Assessment stays 'active' (it's the starting quest)
+        const isArrivalAssessment = quest.title === 'Arrival Assessment';
+        // Main quest chain quests (non-first) should be 'unavailable'
+        const tags = (quest as any).tags || [];
+        const isChainQuest = tags.includes('main-quest') || tags.includes('narrative');
+        const targetStatus = isArrivalAssessment ? 'active' : isChainQuest ? 'unavailable' : 'available';
+
+        if (quest.status !== targetStatus) {
+          await storage.updateQuest(quest.id, { status: targetStatus } as any);
+          resetCount++;
+        }
+      }
+
+      res.json({ message: `Reset ${resetCount} quest(s) to template defaults`, total: quests.length, reset: resetCount });
+    } catch (error) {
+      console.error('[Quest Reset] Error:', error);
+      res.status(500).json({ error: 'Failed to reset quest statuses' });
     }
   });
 

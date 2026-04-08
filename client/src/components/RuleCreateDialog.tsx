@@ -6,20 +6,19 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Sparkles, Plus, Lightbulb, FileCode, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Sparkles, Plus, Lightbulb, RefreshCw, AlertTriangle, BookOpen, X } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import type { Citation } from '@shared/schema';
 
 interface RuleCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   worldId: string;
   onCreateBlank: (sourceFormat: string, isBase: boolean) => void;
-  onGenerateWithAI: (prompt: string, sourceFormat: string, bulkCreate: boolean, isBase: boolean) => void;
+  onGenerateWithAI: (prompt: string, sourceFormat: string, bulkCreate: boolean, isBase: boolean, citations: Citation[]) => void;
   isGenerating?: boolean;
   onSuccess?: () => void;
 }
@@ -37,10 +36,8 @@ export function RuleCreateDialog({
   const [aiPrompt, setAiPrompt] = useState('');
   const [bulkCreate, setBulkCreate] = useState(false);
   const [isBaseResource, setIsBaseResource] = useState(false);
-  const [numRules, setNumRules] = useState(5);
   const [ruleType, setRuleType] = useState<'trigger' | 'volition' | 'genealogy' | 'trait'>('trigger');
-  const [priority, setPriority] = useState(5);
-  const [tags, setTags] = useState('');
+  const [citations, setCitations] = useState<Citation[]>([]);
   const { toast } = useToast();
 
   // Regenerate state
@@ -99,13 +96,18 @@ export function RuleCreateDialog({
     // Enhance prompt with bulk generation parameters
     let enhancedPrompt = aiPrompt;
     if (bulkCreate) {
-      enhancedPrompt = `${aiPrompt}. Generate ${numRules} ${ruleType} rules. Priority: ${priority}. Tags: ${tags || 'none'}`;
+      // Parse numbered/bulleted list items from the prompt
+      const lines = aiPrompt.split('\n').map(l => l.trim()).filter(Boolean);
+      const listItems = lines.filter(l => /^(\d+[\.\)]\s*|-\s*|\*\s*)/.test(l));
+      const count = listItems.length > 0 ? listItems.length : lines.length;
+      enhancedPrompt = `Generate ${count} ${ruleType} rules, one for each item in the following list:\n${aiPrompt}`;
     }
 
-    onGenerateWithAI(enhancedPrompt, sourceFormat, bulkCreate, isBaseResource);
+    onGenerateWithAI(enhancedPrompt, sourceFormat, bulkCreate, isBaseResource, citations);
     // Don't close dialog yet - wait for generation to complete
     setAiPrompt('');
     setIsBaseResource(false);
+    setCitations([]);
   };
 
   return (
@@ -197,6 +199,26 @@ export function RuleCreateDialog({
               </Label>
             </div>
 
+            {/* Bulk Generation Toggle */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Bulk Generation</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {bulkCreate
+                        ? 'List multiple rules below — one will be generated for each item'
+                        : 'Generate a single rule from your description'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={bulkCreate}
+                    onCheckedChange={setBulkCreate}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             {/* AI Prompt */}
             <Card>
               <CardHeader>
@@ -205,7 +227,9 @@ export function RuleCreateDialog({
                   Rule Description
                 </CardTitle>
                 <CardDescription>
-                  Describe the rules you want to generate. Be specific about the domain and behavior.
+                  {bulkCreate
+                    ? 'List each rule you want to generate. Use a numbered list or bullet points — one rule will be created per item.'
+                    : 'Describe the rule you want to generate. Be specific about the domain and behavior.'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -214,8 +238,10 @@ export function RuleCreateDialog({
                   <Textarea
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder="e.g., Create rules for noble succession and inheritance in a medieval kingdom..."
-                    className="min-h-[120px]"
+                    placeholder={bulkCreate
+                      ? "1. Characters with high ambition seek promotion when employed\n2. Merchants lower prices when inventory is high\n3. NPCs visit the tavern in the evening if they have no other obligations\n4. Rivals spread rumors about each other when trust is low"
+                      : "e.g., Create rules for noble succession and inheritance in a medieval kingdom..."}
+                    className={bulkCreate ? "min-h-[180px]" : "min-h-[120px]"}
                   />
                 </div>
 
@@ -253,58 +279,66 @@ export function RuleCreateDialog({
               </CardContent>
             </Card>
 
-            {/* Generation Settings */}
+            {/* Citations */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <FileCode className="w-5 h-5 text-primary" />
-                  Generation Settings
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  Citations
                 </CardTitle>
                 <CardDescription>
-                  Configure how many rules to generate and their properties
+                  Add references that should inform the generated rules. The AI will ground its output in these sources.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Bulk Generation</Label>
-                  <Switch
-                    checked={bulkCreate}
-                    onCheckedChange={setBulkCreate}
-                  />
-                </div>
-
-                {bulkCreate && (
-                  <div className="space-y-2">
-                    <Label>Number of Rules: {numRules}</Label>
-                    <Slider
-                      value={[numRules]}
-                      onValueChange={([v]) => setNumRules(v)}
-                      min={1}
-                      max={20}
-                      step={1}
-                    />
+              <CardContent className="space-y-3">
+                {citations.map((citation, idx) => (
+                  <div key={idx} className="relative rounded-lg border p-3 space-y-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={() => setCitations(prev => prev.filter((_, i) => i !== idx))}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Title</Label>
+                      <Input
+                        value={citation.title}
+                        onChange={(e) => setCitations(prev => prev.map((c, i) => i === idx ? { ...c, title: e.target.value } : c))}
+                        placeholder="e.g., Chitimacha Grammar §4.2"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Reference Content</Label>
+                      <Textarea
+                        value={citation.content || ''}
+                        onChange={(e) => setCitations(prev => prev.map((c, i) => i === idx ? { ...c, content: e.target.value } : c))}
+                        placeholder="Paste the relevant text from this source..."
+                        className="min-h-[60px] text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">URL (optional)</Label>
+                      <Input
+                        value={citation.url || ''}
+                        onChange={(e) => setCitations(prev => prev.map((c, i) => i === idx ? { ...c, url: e.target.value } : c))}
+                        placeholder="https://..."
+                        className="h-8 text-sm"
+                      />
+                    </div>
                   </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label>Priority: {priority}</Label>
-                  <Slider
-                    value={[priority]}
-                    onValueChange={([v]) => setPriority(v)}
-                    min={1}
-                    max={10}
-                    step={1}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Tags (comma-separated)</Label>
-                  <Input
-                    value={tags}
-                    onChange={(e) => setTags(e.target.value)}
-                    placeholder="e.g., nobility, inheritance, succession"
-                  />
-                </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCitations(prev => [...prev, { title: '' }])}
+                  className="w-full"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add Citation
+                </Button>
               </CardContent>
             </Card>
 
@@ -338,8 +372,8 @@ export function RuleCreateDialog({
             </Card>
 
             {/* Generate Button */}
-            <Button 
-              onClick={handleGenerateAI} 
+            <Button
+              onClick={handleGenerateAI}
               className="w-full"
               size="lg"
               disabled={isGenerating || !aiPrompt.trim()}
@@ -347,12 +381,12 @@ export function RuleCreateDialog({
               {isGenerating ? (
                 <>
                   <Sparkles className="w-4 h-4 mr-2 animate-spin" />
-                  Generating {bulkCreate ? `${numRules} ${isBaseResource ? 'Base ' : ''}Rules` : `${isBaseResource ? 'Base ' : ''}Rule`}...
+                  Generating {bulkCreate ? `${isBaseResource ? 'Base ' : ''}Rules` : `${isBaseResource ? 'Base ' : ''}Rule`}...
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Generate {bulkCreate ? `${numRules} ${isBaseResource ? 'Base ' : ''}Rules` : `${isBaseResource ? 'Base ' : ''}Rule`}
+                  Generate {bulkCreate ? `${isBaseResource ? 'Base ' : ''}Rules` : `${isBaseResource ? 'Base ' : ''}Rule`}
                 </>
               )}
             </Button>

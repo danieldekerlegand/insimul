@@ -117,7 +117,7 @@ async function streamTextResponse(
   prologFacts?: Array<{ predicate: string; args: Array<string | number> }>,
   clientSystemPrompt?: string,
   clientCharacterGender?: string,
-  clientGameState?: { cefrLevel?: string; playerVocabulary?: any[]; playerGrammarPatterns?: any[] },
+  clientGameState?: { cefrLevel?: string; gameHour?: number; playerVocabulary?: any[]; playerGrammarPatterns?: any[] },
 ): Promise<void> {
   const metrics = getConversationMetrics();
   const e2eTimer = new PipelineTimer('end_to_end');
@@ -147,6 +147,10 @@ async function streamTextResponse(
         (session.conversationContext as any).characterGender = clientCharacterGender;
       }
     }
+    if (session.characterId !== characterId) {
+      // Clear conversation history when switching to a different NPC
+      session.history = [];
+    }
     session.characterId = characterId;
     // If we don't have characterName/worldContext yet, fetch them from buildContext
     if (!session.conversationContext!.characterName || session.conversationContext!.characterName === characterId) {
@@ -154,6 +158,7 @@ async function streamTextResponse(
         const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, {
           prologFacts,
           ...(clientGameState?.cefrLevel ? { cefrLevel: clientGameState.cefrLevel } : {}),
+          ...(clientGameState?.gameHour != null ? { gameHour: clientGameState.gameHour } : {}),
           ...(clientGameState?.playerVocabulary ? { playerVocabulary: clientGameState.playerVocabulary } : {}),
           ...(clientGameState?.playerGrammarPatterns ? { playerGrammarPatterns: clientGameState.playerGrammarPatterns } : {}),
         });
@@ -169,6 +174,10 @@ async function streamTextResponse(
     const hasPrologFacts = prologFacts && prologFacts.length > 0;
     const needsRebuild = !session.conversationContext || session.characterId !== characterId || hasPrologFacts;
     if (needsRebuild) {
+      if (session.characterId !== characterId) {
+        // Clear conversation history when switching to a different NPC
+        session.history = [];
+      }
       session.characterId = characterId;
       const ctxTimer = new PipelineTimer('context');
 
@@ -211,8 +220,10 @@ async function streamTextResponse(
   // Add user message to history
   addToHistory(session, 'user', text);
 
-  // Prolog-first routing: intercept greetings and farewells
-  const greetingType = classifyGreetingFarewell(text);
+  // Prolog-first routing: intercept greetings and farewells.
+  // Skip on first message — needs full LLM context for proper character response.
+  const isFirstMessage = session.history.length <= 1;
+  const greetingType = !isFirstMessage ? classifyGreetingFarewell(text) : null;
   if (greetingType) {
     try {
       const prologResult = await prologLLMRouter.tryPrologFirst(worldId, greetingType, {
@@ -529,16 +540,8 @@ async function streamTextResponse(
     conversationContextCache.append(cacheKey, { role: 'user', content: text }, session.conversationContext?.systemPrompt);
     conversationContextCache.append(cacheKey, { role: 'assistant', content: fullResponse });
 
-    // Update player-NPC relationship (fire-and-forget, non-fatal)
-    const relExchangeCount = session.history.filter(h => h.role === 'user').length;
-    const relAgreeableness = (session.conversationContext as any)?.characterPersonality?.agreeableness ?? 0.5;
-    const relQuality = 0.02 + (relAgreeableness * 0.03) * (relExchangeCount / 5);
-    import('../../extensions/tott/social-dynamics-system.js')
-      .then(({ updateRelationship }) =>
-        updateRelationship(characterId, session.playerId, relQuality, new Date().getFullYear())
-      )
-      .then(() => console.log(`[ConversationBridge] Relationship updated: ${characterId} += ${relQuality.toFixed(3)}`))
-      .catch((err: any) => console.warn('[ConversationBridge] Relationship update failed (non-fatal):', err.message));
+    // Relationship tracking belongs in the player's save file, not the world template.
+    // Removed: updateRelationship call that was writing to the world's Character model.
   }
 
   // Compress history if it exceeds threshold
@@ -654,7 +657,7 @@ async function streamLiveResponse(
   activeObjectives?: Array<{ questId: string; objectiveId: string; objectiveType: string; description: string; npcId?: string }>,
   prologFacts?: Array<{ predicate: string; args: Array<string | number> }>,
   clientCharacterGender?: string,
-  clientGameState?: { cefrLevel?: string; playerVocabulary?: any[]; playerGrammarPatterns?: any[] },
+  clientGameState?: { cefrLevel?: string; gameHour?: number; playerVocabulary?: any[]; playerGrammarPatterns?: any[] },
 ): Promise<boolean> {
   const manager = getLiveSessionManager();
 
@@ -825,7 +828,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: SSE stream of text/audio/facial/meta events
    */
   app.post('/api/conversation/stream', async (req: Request, res: Response) => {
-    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts, systemPrompt, characterGender, cefrLevel, playerVocabulary, playerGrammarPatterns, useLiveSession, voiceName, targetLanguage, playerProficiency, activeObjectives } = req.body;
+    const { sessionId, characterId, worldId, text, languageCode, activeQuests, prologFacts, systemPrompt, characterGender, cefrLevel, gameHour, playerVocabulary, playerGrammarPatterns, useLiveSession, voiceName, targetLanguage, playerProficiency, activeObjectives } = req.body;
 
     if (!sessionId || !characterId || !worldId || !text) {
       res.status(400).json({ error: 'Missing required fields: sessionId, characterId, worldId, text' });
@@ -853,7 +856,7 @@ export function registerConversationRoutes(app: Express): void {
         console.log('[ConversationBridge] Live session failed, falling back to text+TTS pipeline');
       }
 
-      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts, systemPrompt, characterGender, { cefrLevel, playerVocabulary, playerGrammarPatterns });
+      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests, prologFacts, systemPrompt, characterGender, { cefrLevel, gameHour, playerVocabulary, playerGrammarPatterns });
     } catch (err: any) {
       console.error('[ConversationBridge] Stream error:', err);
       if (!res.writableEnded) {

@@ -968,6 +968,16 @@ export class RoadGenerator {
       if (mesh) {
         meshes.push(mesh);
         this.roadMeshes.push(mesh);
+
+        // Store waypoint pairs for point-on-road collision queries
+        const halfW = width / 2;
+        for (let wi = 0; wi < waypoints.length - 1; wi++) {
+          const wa = waypoints[wi];
+          const wb = waypoints[wi + 1];
+          this.storedSegments.push({
+            ax: wa.x, az: wa.z, bx: wb.x, bz: wb.z, halfWidth: halfW,
+          });
+        }
       }
     }
 

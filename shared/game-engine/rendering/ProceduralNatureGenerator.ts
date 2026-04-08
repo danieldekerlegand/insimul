@@ -889,9 +889,18 @@ export class ProceduralNatureGenerator {
           slope: 0,
         }));
 
-    // Filter out placements on roads, sidewalks, or buildings
+    // Filter out placements on roads, sidewalks, or buildings.
+    // Check center + footprint edges to prevent large rocks from spilling into streets.
+    const rockFootprint = this.rockOverrideTemplate ? 1.5 : 3; // asset rocks are smaller than procedural
     const filteredRockPlacements = this.isPointBlocked
-      ? rockPlacements.filter(p => !this.isPointBlocked!(p.x, p.z))
+      ? rockPlacements.filter(p => {
+          const blocked = this.isPointBlocked!;
+          return !blocked(p.x, p.z)
+            && !blocked(p.x + rockFootprint, p.z)
+            && !blocked(p.x - rockFootprint, p.z)
+            && !blocked(p.x, p.z + rockFootprint)
+            && !blocked(p.x, p.z - rockFootprint);
+        })
       : rockPlacements;
 
     // Use asset-based rock if available
@@ -910,6 +919,10 @@ export class ProceduralNatureGenerator {
         const chosenTemplate = allRockTemplates[Math.floor(Math.random() * allRockTemplates.length)];
         const scaleVariation = 0.8 + Math.random() * 0.4;
 
+        // Orient rocks vertically: taller Y, narrower XZ to reduce ground footprint
+        const xzScale = scaleVariation * 0.7;
+        const yScale = scaleVariation * 1.3;
+
         // glTF root nodes have 0 vertices — use instantiateHierarchy
         if (chosenTemplate.getTotalVertices() === 0 && chosenTemplate.getChildMeshes().length > 0) {
           const rockRoot = chosenTemplate.instantiateHierarchy(
@@ -919,7 +932,7 @@ export class ProceduralNatureGenerator {
           );
           if (rockRoot) {
             rockRoot.position = new Vector3(x, baseHeight, z);
-            rockRoot.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
+            rockRoot.scaling = new Vector3(xzScale, yScale, xzScale);
             rockRoot.rotation.y = Math.random() * Math.PI * 2;
             rockRoot.setEnabled(true);
             const rockCull = this.lodProfile.rock.lodCull;
@@ -939,7 +952,7 @@ export class ProceduralNatureGenerator {
           // Phase 2: Use createInstance instead of clone for efficient rendering
           const rock = chosenTemplate.createInstance(`rock_${i}`);
           rock.position = new Vector3(x, baseHeight, z);
-          rock.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
+          rock.scaling = new Vector3(xzScale, yScale, xzScale);
           rock.rotation.y = Math.random() * Math.PI * 2;
           rock.isPickable = false;
           rock.freezeWorldMatrix();
@@ -994,12 +1007,13 @@ export class ProceduralNatureGenerator {
       // Random rock size
       const scale = 1 + Math.random() * 3;
 
+      // Orient rocks vertically: taller Y, narrower XZ to reduce ground footprint
       const rock = rockTemplate.createInstance(`rock_${i}`);
       rock.position = new Vector3(x, baseHeight + scale / 2, z);
       rock.scaling = new Vector3(
-        scale * (0.8 + Math.random() * 0.4),
-        scale * (0.6 + Math.random() * 0.3),
-        scale
+        scale * (0.5 + Math.random() * 0.3),
+        scale * (0.9 + Math.random() * 0.4),
+        scale * 0.7
       );
       rock.rotation.y = Math.random() * Math.PI * 2;
       rock.isPickable = false;
@@ -1008,7 +1022,7 @@ export class ProceduralNatureGenerator {
       // Invisible collision box at rock position
       const rockCollider = MeshBuilder.CreateBox(
         `rock_collider_${i}`,
-        { width: scale * 0.8, height: scale * 0.6, depth: scale },
+        { width: scale * 0.6, height: scale * 0.9, depth: scale * 0.7 },
         this.scene
       );
       rockCollider.position = new Vector3(x, baseHeight + scale / 2, z);
@@ -1728,6 +1742,14 @@ export class ProceduralNatureGenerator {
     return templates;
   }
 
+  /** Return all available rock template meshes for external placement (e.g., grove lots). */
+  public getRockTemplates(): Mesh[] {
+    const templates: Mesh[] = [];
+    if (this.rockOverrideTemplate) templates.push(this.rockOverrideTemplate);
+    templates.push(...this.rockVariantTemplates);
+    return templates;
+  }
+
   /** Return all tree meshes for distance culling */
   public getTreeMeshes(): AbstractMesh[] {
     return this.treeMeshes;
@@ -1763,7 +1785,17 @@ export class ProceduralNatureGenerator {
       for (const mesh of meshes) {
         if (mesh.isDisposed()) continue;
         const pos = mesh.position;
-        if (isOnRoad(pos.x, pos.z)) {
+        // Check center point and footprint edges using the mesh's XZ scaling
+        const sx = mesh.scaling ? Math.abs(mesh.scaling.x) : 1;
+        const sz = mesh.scaling ? Math.abs(mesh.scaling.z) : 1;
+        const radius = Math.max(sx, sz) * 0.5;
+        if (
+          isOnRoad(pos.x, pos.z) ||
+          isOnRoad(pos.x + radius, pos.z) ||
+          isOnRoad(pos.x - radius, pos.z) ||
+          isOnRoad(pos.x, pos.z + radius) ||
+          isOnRoad(pos.x, pos.z - radius)
+        ) {
           mesh.dispose(false, true);
           removed++;
         } else {

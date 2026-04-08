@@ -278,7 +278,34 @@ async function main() {
     recipesLinked++;
   }
 
-  console.log(`\n=== Done: ${created} texts created, ${recipesLinked} recipes linked ===\n`);
+  // Backfill narrativeChapterId on existing writer journal texts (from seed generator)
+  const WRITER_JOURNAL_CHAPTERS: Record<string, string> = {
+    'clue_1': 'ch1_assignment_abroad',
+    'clue_2': 'ch3_the_inner_circle',
+    'clue_3': 'ch4_hidden_messages',
+    'clue_4': 'ch5_the_truth_emerges',
+    'clue_5': 'ch6_the_final_chapter',
+  };
+  let journalsLinked = 0;
+  const unlinkedJournals = existing.filter(t =>
+    t.textCategory === 'journal' && !t.narrativeChapterId && Array.isArray(t.tags) && t.tags.some((tag: string) => tag.startsWith('clue_'))
+  );
+  for (const journal of unlinkedJournals) {
+    const clueTag = (journal.tags as string[]).find((tag: string) => tag.startsWith('clue_'));
+    const chapterId = clueTag ? WRITER_JOURNAL_CHAPTERS[clueTag] : null;
+    if (chapterId) {
+      if (!DRY_RUN) {
+        await textsCollection.updateOne(
+          { _id: journal._id },
+          { $set: { narrativeChapterId: chapterId, updatedAt: new Date() } },
+        );
+      }
+      console.log(`  ✓ Linked journal: "${journal.title}" → ${chapterId}`);
+      journalsLinked++;
+    }
+  }
+
+  console.log(`\n=== Done: ${created} texts created, ${recipesLinked} recipes linked, ${journalsLinked} journals linked ===\n`);
   await mongoose.disconnect();
   process.exit(0);
 }

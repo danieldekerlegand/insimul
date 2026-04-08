@@ -528,7 +528,7 @@ export class NPCAmbientConversationManager {
 
       const chunk: StreamingAudioChunk = {
         data: new Uint8Array(audioBuffer!),
-        encoding: 3, // MP3
+        encoding: 1, // PCM (server returns raw PCM from Gemini TTS)
         sampleRate: 24000,
         durationMs: 0,
       };

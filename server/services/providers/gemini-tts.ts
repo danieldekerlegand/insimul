@@ -1,27 +1,34 @@
 /**
- * Gemini/Google Cloud TTS Provider
+ * Gemini TTS Batch Provider
  *
- * Wraps the existing textToSpeech service behind the IBatchTTSProvider interface.
+ * Uses the streaming Gemini TTS provider and concatenates PCM chunks into a
+ * single audio buffer for the /api/tts endpoint.
  */
 
 import type { IBatchTTSProvider, TTSRequest, TTSResponse } from './types.js';
 import { ttsRegistry } from './registry.js';
+import { getTTSProvider as getStreamingTTSProvider } from '../conversation/tts/tts-provider.js';
+import { assignVoiceProfile } from '../conversation/tts/tts-provider.js';
 
 class GeminiBatchTTSProvider implements IBatchTTSProvider {
   readonly name = 'gemini';
 
   async synthesize(request: TTSRequest): Promise<TTSResponse> {
-    const { textToSpeech } = await import('../tts-stt.js');
-    const encoding = request.encoding ?? 'MP3';
-    const audioBuffer = await textToSpeech(
+    const streamingProvider = getStreamingTTSProvider();
+    const voice = assignVoiceProfile({ gender: request.gender ?? 'neutral' });
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of streamingProvider.synthesize(
       request.text,
-      request.voice ?? 'Kore',
-      request.gender ?? 'neutral',
-      encoding,
-      request.emotionalTone,
-      request.targetLanguage,
-    );
-    return { audioBuffer, encoding };
+      voice,
+      { languageCode: request.targetLanguage },
+    )) {
+      chunks.push(Buffer.from(chunk.data));
+    }
+
+    const audioBuffer = Buffer.concat(chunks);
+    // Streaming provider returns PCM; report encoding accordingly
+    return { audioBuffer, encoding: 'PCM' };
   }
 
   getAvailableVoices() {

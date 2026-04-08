@@ -302,7 +302,7 @@ export function showPrologDebugPanel(
   const panel = document.createElement('div');
   panel.id = 'prolog-debug-panel';
   panel.style.cssText =
-    'position:absolute;bottom:10px;right:10px;width:480px;max-height:400px;' +
+    'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:480px;max-height:400px;' +
     'background:rgba(0,0,0,0.92);color:#0f0;font:13px monospace;' +
     'border:1px solid #0f0;border-radius:8px;z-index:2000;' +
     'display:flex;flex-direction:column;overflow:hidden;';

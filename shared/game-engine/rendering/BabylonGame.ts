@@ -70,7 +70,7 @@ import { RomanceSystem } from "@shared/game-engine/logic/RomanceSystem";
 import { RoadGenerator } from "@shared/game-engine/rendering/RoadGenerator";
 import { RiverGenerator } from "@shared/game-engine/rendering/RiverGenerator";
 import { WaterRenderer } from "@shared/game-engine/rendering/WaterRenderer";
-import { buildStreetNetwork } from "@shared/game-engine/logic/StreetNetworkLayout";
+import { buildStreetNetwork, getGridParams } from "@shared/game-engine/logic/StreetNetworkLayout";
 import { NPCScheduleSystem } from "@shared/game-engine/rendering/NPCScheduleSystem";
 import { ScheduleExecutor } from "@shared/game-engine/rendering/ScheduleExecutor";
 import { VolitionSystem, type NPCState as VolitionNPCState, type VolitionGoal, TERMINAL_ACTIONS } from "@shared/game-engine/logic/VolitionSystem";
@@ -1286,9 +1286,26 @@ export class BabylonGame {
         });
         return states;
       },
-      getRelationships: () => ({}),
+      getRelationships: () => {
+        // Collect NPC relationship data from the relationship manager
+        if (this.relationshipManager && typeof (this.relationshipManager as any).getRelationships === 'function') {
+          return (this.relationshipManager as any).getRelationships();
+        }
+        return {};
+      },
       getRomanceData: () => null,
-      getMerchantStates: () => [],
+      getMerchantStates: () => {
+        // Collect merchant inventory overrides from the data source
+        const ds = this.dataSource as any;
+        if (ds._merchantStates && ds._merchantStates.size > 0) {
+          const states: any[] = [];
+          ds._merchantStates.forEach((state: any, id: string) => {
+            states.push({ merchantId: id, ...state });
+          });
+          return states;
+        }
+        return [];
+      },
       getCurrentZone: () => this.currentZone,
       getQuestProgress: () => {
         const progress: Record<string, any> = {};
@@ -1309,6 +1326,94 @@ export class BabylonGame {
       },
       getClueState: () => {
         return this.clueStore?.serialize() ?? undefined;
+      },
+
+      // ── Extended subsystem getters (previously missing → returned undefined) ──
+
+      getLanguageProgress: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (!tracker) return undefined;
+        const prog = tracker.getProgress();
+        return {
+          vocabulary: prog.vocabulary,
+          grammarPatterns: prog.grammarPatterns,
+          totalXP: prog.totalXP ?? 0,
+          level: prog.level ?? 1,
+        };
+      },
+
+      getLanguageProgressDetailed: (): any => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (!tracker) return undefined;
+        const prog = tracker.getProgress();
+        const vocabularyMastery: Record<string, any> = {};
+        for (const v of (prog.vocabulary || [])) {
+          vocabularyMastery[v.word] = {
+            word: v.word, translation: v.meaning || '',
+            masteryLevel: v.masteryLevel === 'mastered' ? 1.0 : v.masteryLevel === 'familiar' ? 0.5 : 0.2,
+            timesCorrect: v.timesUsedCorrectly ?? 0, timesIncorrect: 0,
+          };
+        }
+        const grammarAccuracy: Record<string, any> = {};
+        for (const g of (prog.grammarPatterns || [])) {
+          grammarAccuracy[g.pattern || g.id] = { patternId: g.pattern || g.id, accuracy: g.accuracy ?? 0, attempts: g.practiceCount ?? 0 };
+        }
+        return {
+          targetLanguage: prog.language || (prog as any).targetLanguage || 'French',
+          overallFluency: prog.overallFluency ?? 0, vocabularyMastery, grammarAccuracy,
+          conversationCount: prog.conversationRecords?.length ?? 0,
+          cefrLevel: this.playerCefrLevel || 'A1',
+          xp: prog.totalXP ?? 0, level: prog.level ?? 1, streakDays: 0,
+          totalWordsLearned: prog.totalWordsLearned ?? Object.keys(vocabularyMastery).length,
+        };
+      },
+
+      getGamificationState: () => {
+        return this.gamificationTracker?.getState() ?? undefined;
+      },
+
+      getTimeState: (): any => {
+        const s = this.gameTimeManager.getState();
+        return { gameHour: s.hour ?? 8, gameMinute: s.minute ?? 0, dayNumber: s.day ?? 1, timeScale: this.gameTimeManager.timeScale, isPaused: this.gameTimeManager.paused };
+      },
+
+      getReputationState: (): any => {
+        if (!this.reputationManager) return undefined;
+        const records = this.reputationManager.serialize();
+        return { entries: records.map((r: any) => ({ entityType: r.entityType || 'settlement', entityId: r.entityId || '', score: r.score ?? 0, standing: r.standingLabel || 'neutral', violationCount: r.violationCount ?? 0, isBanned: r.isBanned ?? false, outstandingFines: r.outstandingFines ?? 0 })) };
+      },
+
+      getRelationshipDeltas: (): any => [],
+
+      getMainQuestState: (): any => {
+        if (!this.mainQuestJournalData) return undefined;
+        const chapters = this.mainQuestJournalData.chapters || [];
+        return {
+          currentChapterId: this.mainQuestJournalData.currentChapterId ?? undefined,
+          currentChapterIndex: Math.max(0, chapters.findIndex((c: any) => c.status === 'active')),
+          chaptersCompleted: chapters.filter((c: any) => c.status === 'completed').map((c: any) => c.id || c.chapterId),
+          objectiveProgress: {},
+        };
+      },
+
+      getTemporaryStates: () => undefined,
+      getVolitionState: () => undefined,
+      getUtteranceQuestState: () => undefined,
+      getAmbientConversationState: () => undefined,
+      getContentGatingState: () => undefined,
+      getSkillTreeState: () => this.skillTreePanel?.getState?.() ?? undefined,
+      getInteriorState: (): any => null,
+      getQuestActiveState: (): any => {
+        const active = (this.quests || []).find((q: any) => q.status === 'active');
+        return active ? { quests: { [active.id]: { questId: active.id, status: 'active', objectives: [] } } } : undefined;
+      },
+      getPrologFacts: () => {
+        if (!this.prologEngine) return undefined;
+        try {
+          return (this.prologEngine as any).exportFacts?.() ?? undefined;
+        } catch {
+          return undefined;
+        }
       },
     };
   }
@@ -1381,6 +1486,62 @@ export class BabylonGame {
         if (data && this.clueStore) {
           this.clueStore.restore(data);
           this.syncClueStoreChapterGating();
+        }
+      },
+
+      // ── Extended subsystem restorers ──
+
+      restoreLanguageProgress: (data: any) => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (tracker && data) {
+          if (data.vocabulary) tracker.restoreVocabulary?.(data.vocabulary);
+          if (data.grammarPatterns) tracker.restoreGrammarPatterns?.(data.grammarPatterns);
+        }
+      },
+      restoreLanguageProgressDetailed: (data: any) => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (tracker && data) {
+          if (data.vocabulary) tracker.restoreVocabulary?.(data.vocabulary);
+          if (data.grammarPatterns) tracker.restoreGrammarPatterns?.(data.grammarPatterns);
+          if (data.cefrLevel) this.playerCefrLevel = data.cefrLevel;
+        }
+      },
+      restoreGamificationState: (data: any) => {
+        if (this.gamificationTracker && data) {
+          (this.gamificationTracker as any).restoreState?.(data);
+        }
+      },
+      restoreTimeState: (data: any) => {
+        if (data) {
+          this.gameTimeManager.setTime(
+            data.gameHour ?? data.currentHour ?? 8,
+            data.gameMinute ?? data.currentMinute ?? 0,
+            data.dayNumber ?? data.currentDay ?? 1,
+          );
+          if (data.timeScale) (this.gameTimeManager as any)._timeScale = data.timeScale;
+        }
+      },
+      restoreReputationState: (data: any) => {
+        if (this.reputationManager && data) {
+          this.reputationManager.restore?.(data);
+        }
+      },
+      restoreMainQuestState: (data: any) => {
+        if (data) {
+          this.mainQuestJournalData = {
+            ...this.mainQuestJournalData,
+            currentChapterId: data.currentChapterId,
+            chapters: data.chapters,
+          } as any;
+        }
+      },
+      restorePrologFacts: (data: any) => {
+        if (this.prologEngine && data) {
+          try {
+            (this.prologEngine as any).importFacts?.(data);
+          } catch {
+            // Prolog fact import failed — non-fatal
+          }
         }
       },
     };
@@ -1507,7 +1668,7 @@ export class BabylonGame {
 
     // Check if intro was already shown (stored in save file state or legacy playthrough)
     const gameState = await this.dataSource.loadGameState(this.config.worldId, this.config.playthroughId || '', 0);
-    if (gameState?.introShown) return;
+    if (gameState?.introShown || gameState?.extensions?.introShown) return;
     const playthrough = this.worldData?.playthrough || (this.worldData as any)?.activePlaythrough;
     const saveData = playthrough?.saveData as Record<string, any> | undefined;
     if (saveData?.introShown) return;
@@ -2285,6 +2446,7 @@ export class BabylonGame {
         depth: STONE_DEPTH,
       }, scene);
       headstone.position = new Vector3(groundPos.x, groundPos.y + STONE_HEIGHT / 2, groundPos.z);
+      headstone.rotation.y = Math.PI;
       headstone.material = stoneMat;
       headstone.isPickable = false;
       headstone.checkCollisions = true;
@@ -2302,7 +2464,7 @@ export class BabylonGame {
       // Text inscription using DynamicTexture
       const name = `${character.firstName || ''} ${character.lastName || ''}`.trim();
       const birthYear = character.birthYear ?? '?';
-      const deathYear = character.departureYear ?? '?';
+      const deathYear = character.departureYear ?? (character.birthYear ? character.birthYear + 70 : '?');
 
       const texW = 256;
       const texH = 256;
@@ -2336,7 +2498,7 @@ export class BabylonGame {
       textMat.backFaceCulling = false;
       textMat.specularColor = Color3.Black();
 
-      // Text plane fixed to the front face of the headstone (facing +Z)
+      // Text plane on the front face of the rotated headstone (facing -Z)
       const textPlane = MeshBuilder.CreatePlane(`${graveId}_text`, {
         width: STONE_WIDTH - 0.05,
         height: STONE_HEIGHT - 0.1,
@@ -2345,7 +2507,7 @@ export class BabylonGame {
       textPlane.position = new Vector3(
         groundPos.x,
         groundPos.y + STONE_HEIGHT / 2,
-        groundPos.z + STONE_DEPTH / 2 + 0.01  // Offset to front face of headstone
+        groundPos.z - STONE_DEPTH / 2 - 0.01  // Offset to front face of rotated headstone
       );
       textPlane.material = textMat;
       textPlane.isPickable = false;
@@ -4784,6 +4946,12 @@ export class BabylonGame {
 
       // Store the data (same as before)
       this.worldData = world;
+
+      // Update systems that were initialized before world data was available
+      const resolvedLang = getTargetLanguage(this.worldData);
+      this.npcProximitySpeechSystem?.setTargetLanguage(resolvedLang);
+      this.ambientConversationManager?.setTargetLanguage(resolvedLang);
+
       this.characters = characters;
       this.actions = [...actions, ...baseActions];
       this.quests = quests;
@@ -4846,8 +5014,8 @@ export class BabylonGame {
         // Validate item positions against roads and buildings
         this.exteriorItemManager.setPositionValidator((x, z) => {
           if (this.isPointInsideAnyBuilding(x, z)) return true;
-          // roadHalfWidth + 1.5m clearance for exterior items
-          if (this.roadGenerator?.isPointOnRoad(x, z, 1.5)) return true;
+          // roadHalfWidth + 4m margin covers road surface + sidewalk buffer
+          if (this.roadGenerator?.isPointOnRoad(x, z, 4)) return true;
           return false;
         });
         const extMeshes = this.exteriorItemManager.spawnItems(this.worldItems);
@@ -5541,6 +5709,36 @@ export class BabylonGame {
       sampleHeight,
     );
 
+    // Pre-compute settlement street grid geometry for street exclusion checks.
+    const _STREET_HALF_W = 3; // GRID_STREET_WIDTH / 2
+    const _STREET_MARGIN = 2;
+    const _streetExclusion = _STREET_HALF_W + _STREET_MARGIN;
+    const _settlementGrids: Array<{
+      cx: number; cz: number; radiusSq: number;
+      gridLines: number[]; isNS: boolean[];
+    }> = [];
+    for (const s of scaledSettlements) {
+      const { gridSize, spacing, halfGrid } = getGridParams(s.radius);
+      const cx = s.position.x, cz = s.position.z;
+      const gridLines: number[] = [];
+      const isNS: boolean[] = [];
+      for (let col = 0; col < gridSize; col++) { gridLines.push(cx - halfGrid + col * spacing); isNS.push(true); }
+      for (let row = 0; row < gridSize; row++) { gridLines.push(cz - halfGrid + row * spacing); isNS.push(false); }
+      _settlementGrids.push({ cx, cz, radiusSq: (s.radius || 30) * (s.radius || 30), gridLines, isNS });
+    }
+    /** Check if a world-space point falls on a settlement street (grid-based, exact). */
+    const isPointOnSettlementStreet = (x: number, z: number): boolean => {
+      for (const grid of _settlementGrids) {
+        const dx = x - grid.cx, dz = z - grid.cz;
+        if (dx * dx + dz * dz > grid.radiusSq) continue;
+        for (let i = 0; i < grid.gridLines.length; i++) {
+          const dist = grid.isNS[i] ? Math.abs(x - grid.gridLines[i]) : Math.abs(z - grid.gridLines[i]);
+          if (dist < _streetExclusion) return true;
+        }
+      }
+      return false;
+    };
+
     const settlementMap = new Map<string, Mesh>();
     const boundaryData: { id: string; settlement: SettlementSummary; position: Vector3 }[] = [];
     const allBuildingPositions: Vector3[] = [];
@@ -5567,6 +5765,59 @@ export class BabylonGame {
           buildableLotCount,
           5 // Minimum 5 buildings per settlement
         );
+
+        // ── Diagnostic: character ↔ building associations ──────────────
+        {
+          const settlementChars = this.characters.filter(
+            (c: any) => c.settlementId === settlement.id && !c.deceased
+          );
+          console.group(`[BuildingAssoc] Settlement: ${settlement.name} (${settlement.id})`);
+          console.log(`  Characters: ${settlementChars.length}, Businesses: ${businesses.length}, Residences: ${residences.length}`);
+
+          // Residence associations
+          console.group('Residences:');
+          for (const res of residences) {
+            const residentIds: string[] = res.residentIds || res.occupants || [];
+            const residents = residentIds
+              .map((rid: string) => this.characters.find((c: any) => c.id === rid))
+              .filter(Boolean);
+            const residentNames = residents.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`);
+            console.log(`  ${res.address || res.id} [${res.residenceType || 'unknown'}] — ${residentNames.length} residents: ${residentNames.join(', ') || '(none)'}`);
+          }
+          // Characters with no residence
+          const allResidentIds = new Set(
+            residences.flatMap((r: any) => r.residentIds || r.occupants || [])
+          );
+          const homeless = settlementChars.filter((c: any) => !allResidentIds.has(c.id));
+          if (homeless.length > 0) {
+            console.warn(`  ⚠ ${homeless.length} characters with no residence:`, homeless.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`));
+          }
+          console.groupEnd();
+
+          // Business/workplace associations
+          console.group('Businesses:');
+          for (const biz of businesses) {
+            const owner = biz.ownerId ? this.characters.find((c: any) => c.id === biz.ownerId) : null;
+            const ownerStr = owner ? `${owner.firstName} ${owner.lastName} (${owner.id})` : biz.ownerId || '(none)';
+            // Find employees: characters whose currentOccupationId or occupation references this business
+            const employees = settlementChars.filter((c: any) =>
+              c.currentOccupationId === biz.id || c.employerId === biz.id || c.workplaceId === biz.id
+            );
+            const employeeNames = employees.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`);
+            console.log(`  ${biz.name || biz.businessType} [${biz.businessType}] — Owner: ${ownerStr}, Employees: ${employeeNames.length > 0 ? employeeNames.join(', ') : '(none)'}`);
+          }
+          // Characters with no workplace
+          const employedIds = new Set(
+            businesses.flatMap((b: any) => [b.ownerId, ...(b.employeeIds || [])].filter(Boolean))
+          );
+          const unemployed = settlementChars.filter((c: any) => !employedIds.has(c.id) && !c.retired);
+          if (unemployed.length > 0) {
+            console.warn(`  ⚠ ${unemployed.length} non-retired characters with no business association:`, unemployed.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`));
+          }
+          console.groupEnd();
+
+          console.groupEnd();
+        }
 
         // Record settlement stats for UI
         this.settlementStats.set(settlement.id, {
@@ -6178,8 +6429,43 @@ export class BabylonGame {
             for (let ti = 0; ti < treeCount; ti++) {
               const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.6;
               const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.6;
+              // Skip positions that land on streets
+              if (isPointOnSettlementStreet(tx, tz)) continue;
               const treePos = this.projectToGround(tx, tz);
               this.placeAssetTreeAtPosition(scene, treePos, settlement.id, parkRng);
+            }
+            // Scatter rocks within the grove lot bounds (constrained to inner 50% to avoid street edges)
+            const rockCount = Math.max(2, Math.floor((pw * pd) / 150));
+            for (let ri = 0; ri < rockCount; ri++) {
+              const rx = parkPos.x + (parkRng() - 0.5) * pw * 0.5;
+              const rz = parkPos.z + (parkRng() - 0.5) * pd * 0.5;
+              const rockPos = this.projectToGround(rx, rz);
+              const rockScale = 0.5 + parkRng() * 0.8;
+              const rockId = `grove_rock_${settlement.id}_${ri}_${Math.random().toString(36).slice(2, 6)}`;
+              const templates = this.natureGenerator?.getRockTemplates?.() ?? [];
+              if (templates.length > 0) {
+                const chosen = templates[Math.floor(parkRng() * templates.length)];
+                const xzScale = rockScale * 0.7;
+                const yScale = rockScale * 1.3;
+                if (chosen.getTotalVertices() === 0 && chosen.getChildMeshes().length > 0) {
+                  const rockRoot = chosen.instantiateHierarchy(null, undefined, (source, clone) => { clone.name = `${source.name}_${rockId}`; });
+                  if (rockRoot) {
+                    rockRoot.position = rockPos;
+                    rockRoot.scaling = new Vector3(xzScale, yScale, xzScale);
+                    rockRoot.rotation.y = parkRng() * Math.PI * 2;
+                    rockRoot.setEnabled(true);
+                    rockRoot.getChildMeshes().forEach(m => { m.setEnabled(true); m.isPickable = false; });
+                    this.worldPropMeshes.push(rockRoot as AbstractMesh);
+                  }
+                } else if (chosen.getTotalVertices() > 0) {
+                  const rock = chosen.createInstance(rockId);
+                  rock.position = rockPos;
+                  rock.scaling = new Vector3(xzScale, yScale, xzScale);
+                  rock.rotation.y = parkRng() * Math.PI * 2;
+                  rock.isPickable = false;
+                  this.worldPropMeshes.push(rock);
+                }
+              }
             }
           } else {
             // Town square (park): scattered trees using asset models
@@ -6187,6 +6473,8 @@ export class BabylonGame {
             for (let ti = 0; ti < treeCount; ti++) {
               const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
               const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
+              // Skip positions that land on streets
+              if (isPointOnSettlementStreet(tx, tz)) continue;
               const treePos = this.projectToGround(tx, tz);
               this.placeAssetTreeAtPosition(scene, treePos, settlement.id, parkRng);
             }
@@ -6970,11 +7258,11 @@ export class BabylonGame {
 
     // Generate nature elements (trees, rocks, grass, flowers)
 
-    // Validate nature positions against roads, sidewalks, and buildings
+    // Validate nature positions against roads, sidewalks, buildings, AND settlement streets
     natureGenerator.setPositionValidator((x, z) => {
       if (this.isPointInsideAnyBuilding(x, z)) return true;
-      // roadHalfWidth + 4m margin covers road surface + sidewalk buffer
       if (this.roadGenerator?.isPointOnRoad(x, z, 4)) return true;
+      if (isPointOnSettlementStreet(x, z)) return true;
       return false;
     });
     // Extra building proximity check for geological features (5m clearance)
@@ -7004,13 +7292,34 @@ export class BabylonGame {
     // Trees - avoid building and road positions (count determined internally by biome density)
     natureGenerator.generateTrees(biome, worldBounds, avoidPositions, 20, sampleHeight);
 
-    // Rocks — more in mountains/wasteland, fewer in forests
+    // Rocks — exclude entire settlement interiors (grove lots place their own rocks above)
+    const settlementExclusionValidator = (x: number, z: number) => {
+      if (this.isPointInsideAnyBuilding(x, z)) return true;
+      if (this.roadGenerator?.isPointOnRoad(x, z, 4)) return true;
+      if (isPointOnSettlementStreet(x, z)) return true;
+      // Also exclude settlement interiors entirely for rocks
+      for (const grid of _settlementGrids) {
+        const dx = x - grid.cx, dz = z - grid.cz;
+        if (dx * dx + dz * dz < grid.radiusSq) return true;
+      }
+      return false;
+    };
+    natureGenerator.setPositionValidator(settlementExclusionValidator);
     const rockCount = Math.floor((terrainSize / 20) * (biome.treeType === 'dead' ? 2 : 1));
     natureGenerator.generateRocks(biome, worldBounds, rockCount, sampleHeight);
 
-    // Geological features — boulders, rock clusters, pillars, outcrops, crystals
+    // Geological features — also exclude settlements
     const geoBaseCount = Math.floor(terrainSize / 30);
     natureGenerator.generateGeologicalFeatures(biome, worldBounds, geoBaseCount, sampleHeight);
+
+    // Restore standard validator for remaining nature types (shrubs, grass, flowers)
+    // Still includes settlement street check to keep everything off streets
+    natureGenerator.setPositionValidator((x, z) => {
+      if (this.isPointInsideAnyBuilding(x, z)) return true;
+      if (this.roadGenerator?.isPointOnRoad(x, z, 4)) return true;
+      if (isPointOnSettlementStreet(x, z)) return true;
+      return false;
+    });
 
     // Shrubs/bushes — scale with vegetation richness
     const shrubCount = Math.floor(30 * vegetationScale);
@@ -7026,11 +7335,12 @@ export class BabylonGame {
       natureGenerator.generateFlowers(biome, worldBounds, flowerCount, sampleHeight);
     }
 
-    // Post-spawn cleanup: remove any nature elements that ended up on roads
-    if (this.roadGenerator) {
-      const rg = this.roadGenerator;
-      natureGenerator.removeRoadOverlaps((x, z) => rg.isPointOnRoad(x, z, 1.5));
-    }
+    // Post-spawn cleanup: remove any nature elements that ended up on roads or streets
+    natureGenerator.removeRoadOverlaps((x, z) => {
+      if (isPointOnSettlementStreet(x, z)) return true;
+      if (this.roadGenerator?.isPointOnRoad(x, z, 4)) return true;
+      return false;
+    });
 
     // Generate outdoor action hotspots from buildings + nature features
     if (this.interactionPrompt && natureGenerator && scene) {
@@ -11483,8 +11793,8 @@ export class BabylonGame {
       this.updateNPCBehaviorsBatched();
 
       if (this.socializationController) {
-        this.socializationController.update(dt, 60000);
-        // Sync NPC positions into the controller
+        // NPC-NPC conversations are now handled by NPCAmbientConversationManager
+        // with player proximity gating. Only sync positions here (no update/evaluation).
         this.npcMeshes.forEach((instance, npcId) => {
           if (instance.mesh) {
             this.socializationController!.updateNPC(npcId, {
@@ -12958,9 +13268,9 @@ export class BabylonGame {
   private startGameLoop(): void {
     if (!this.engine) return;
 
-    // Create FPS/mesh counter overlay
+    // Create FPS/mesh counter overlay (hidden by default — shown when debug is enabled)
     this._perfDiv = document.createElement('div');
-    this._perfDiv.style.cssText = 'position:absolute;top:4px;left:4px;color:#0f0;font:bold 13px monospace;background:rgba(0,0,0,0.5);padding:4px 8px;pointer-events:none;z-index:9999;border-radius:4px;';
+    this._perfDiv.style.cssText = 'position:absolute;top:4px;left:4px;color:#0f0;font:bold 13px monospace;background:rgba(0,0,0,0.5);padding:4px 8px;pointer-events:none;z-index:9999;border-radius:4px;display:none;';
     this.canvas.parentElement?.appendChild(this._perfDiv);
 
     this.engine.runRenderLoop(() => {
@@ -13444,6 +13754,12 @@ export class BabylonGame {
     const npcInfo = this.npcInfos.find((n) => n.id === npcId);
     if (!npcInfo) return;
 
+    // If already in conversation with a different NPC, end it first
+    if (this.conversationNPCId && this.conversationNPCId !== npcId) {
+      this.handleConversationEnd();
+      this.chatPanel.hide(false);
+    }
+
     // If this NPC has an available quest, show the quest offer panel first
     if (!this.skipQuestOfferOnce) {
       const questIndicator = this.questIndicatorManager?.getIndicatorTypeForNPC(npcId);
@@ -13524,8 +13840,8 @@ export class BabylonGame {
       // Set target language so NPC speaks in the correct language
       this.chatPanel.setTargetLanguage(getTargetLanguage(this.worldData) || (this.worldData as any)?.targetLanguage || null);
 
-      // Set time of day so NPC opening greeting can reference it
-      this.chatPanel.setTimeOfDay(this.gameTimeManager.timeOfDay);
+      // Set time of day so NPC conversation prompt has correct time context
+      this.chatPanel.setTimeOfDay(String(this.gameTimeManager.hour));
 
       // Inject reputation context into NPC conversation prompt
       if (this.reputationManager && this.currentZone) {

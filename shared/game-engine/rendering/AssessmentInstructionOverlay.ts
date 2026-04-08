@@ -117,7 +117,7 @@ export class AssessmentInstructionOverlay {
     instructionText.color = '#e5e7eb';
     instructionText.textWrapping = true;
     instructionText.lineSpacing = '4px';
-    instructionText.height = '80px';
+    instructionText.resizeToFit = true;
     instructionText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(instructionText);
 

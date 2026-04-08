@@ -340,6 +340,11 @@ export class SaveFileDataSource implements DataSource {
     if (state.relationships) {
       Object.assign(this.state.npcs.relationships, state.relationships);
     }
+    // Persist flags like introShown in extensions
+    if (state.introShown != null) {
+      if (!this.state.extensions) this.state.extensions = {};
+      this.state.extensions.introShown = state.introShown;
+    }
     this.dirty = true;
     await this.persistToServer();
   }
@@ -358,6 +363,7 @@ export class SaveFileDataSource implements DataSource {
       merchants: [],
       currentZone: null,
       questProgress: this.state.quests.progress,
+      introShown: this.state.extensions?.introShown ?? false,
     };
   }
 

@@ -669,15 +669,15 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
             console.error('Error creating blank rule:', error);
           }
         }}
-        onGenerateWithAI={async (prompt, sourceFormat, bulkCreate) => {
+        onGenerateWithAI={async (prompt, sourceFormat, bulkCreate, _isBase, citations = []) => {
           // Generate rule with AI
           setIsGenerating(true);
           try {
-            toast({ 
-              title: 'Generating...', 
-              description: `Creating ${bulkCreate ? 'multiple rules' : 'rule'} with AI` 
+            toast({
+              title: 'Generating...',
+              description: `Creating ${bulkCreate ? 'multiple rules' : 'rule'} with AI`
             });
-            
+
             // First, generate the rule content using AI
             const generateResponse = await fetch('/api/generate-rule', {
               method: 'POST',
@@ -685,7 +685,8 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
               body: JSON.stringify({
                 prompt,
                 sourceFormat,
-                bulkCreate
+                bulkCreate,
+                citations
               })
             });
             
@@ -703,25 +704,25 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
             
             const responseData = await generateResponse.json();
             console.log('AI Response:', responseData);
-            const { rule, isBulk } = responseData;
-            
+            const { rule, isBulk, citations: savedCitations } = responseData;
+
             // AI returns a string (the rule code), not an object
             // For single rule: rule is a string
             // For bulk: rule is a string with multiple rules separated by blank lines
-            
+
             if (isBulk && typeof rule === 'string') {
               // Split bulk rules by double newlines or rule boundaries
               const ruleStrings = rule.split(/\n\n+/).filter(r => r.trim());
               let successCount = 0;
-              
+
               for (let i = 0; i < ruleStrings.length; i++) {
                 const ruleContent = ruleStrings[i].trim();
                 if (!ruleContent) continue;
-                
+
                 // Try to extract rule name from the code
                 const nameMatch = ruleContent.match(/rule\s+(\w+)/);
                 const ruleName = nameMatch ? nameMatch[1] : `AI Rule ${i + 1}`;
-                
+
                 const createRes = await fetch('/api/rules', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -731,24 +732,25 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
                     content: ruleContent,
                     sourceFormat: sourceFormat,
                     ruleType: 'default',
-                    isActive: true
+                    isActive: true,
+                    citations: savedCitations,
                   })
                 });
                 if (createRes.ok) successCount++;
               }
               console.log(`${successCount}/${ruleStrings.length} AI rules created successfully`);
-              toast({ 
-                title: 'Rules Created', 
-                description: `Successfully created ${successCount} AI-generated rules` 
+              toast({
+                title: 'Rules Created',
+                description: `Successfully created ${successCount} AI-generated rules`
               });
             } else {
               // Single rule - rule is just a string
               const ruleContent = typeof rule === 'string' ? rule : String(rule);
-              
+
               // Try to extract rule name from the code
               const nameMatch = ruleContent.match(/rule\s+(\w+)/);
               const ruleName = nameMatch ? nameMatch[1] : `AI: ${prompt.substring(0, 30)}`;
-              
+
               const createResponse = await fetch('/api/rules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -758,7 +760,8 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
                   content: ruleContent,
                   sourceFormat: sourceFormat,
                   ruleType: 'default',
-                  isActive: true
+                  isActive: true,
+                  citations: savedCitations,
                 })
               });
               

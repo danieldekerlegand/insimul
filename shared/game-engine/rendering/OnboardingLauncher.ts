@@ -119,8 +119,8 @@ export function isLanguageLearningWorld(worldData: any): boolean {
  * Extract the target language from world data.
  */
 export function getTargetLanguage(worldData: any): string {
-  if (!worldData) return 'Spanish';
-  return worldData.targetLanguage || 'Spanish';
+  if (!worldData) return 'French';
+  return worldData.targetLanguage || 'French';
 }
 
 /**

@@ -123,13 +123,15 @@ async function handleTextInput(
     languageCode?: string;
     prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
     systemPrompt?: string;
+    characterGender?: string;
     cefrLevel?: string;
+    gameHour?: number;
     playerVocabulary?: any[];
     playerGrammarPatterns?: any[];
   },
   options: WSBridgeOptions,
 ): Promise<void> {
-  const { text, sessionId, characterId, worldId, languageCode: rawLangCode, prologFacts, systemPrompt: clientSystemPrompt, cefrLevel, playerVocabulary, playerGrammarPatterns } = msg;
+  const { text, sessionId, characterId, worldId, languageCode: rawLangCode, prologFacts, systemPrompt: clientSystemPrompt, characterGender: clientCharacterGender, cefrLevel, gameHour, playerVocabulary, playerGrammarPatterns } = msg;
   const languageCode = resolveLanguageCode(rawLangCode || 'en');
 
   // ── Live session routing ─────────────────────────────────────────────
@@ -144,8 +146,16 @@ async function handleTextInput(
       liveSession.sendText(text);
       return;
     }
-    // Live session gone — fall through to text+TTS pipeline
+    // Live session gone — fall through to text+TTS pipeline.
+    // Clear the session so the text+TTS path builds fresh context.
     connectionLiveSessions.delete(ws);
+    const staleSession = getSession(sessionId);
+    if (staleSession) {
+      // Reset history to avoid duplicate responses from messages that were
+      // sent to the Live session but never got a proper response.
+      staleSession.history = [];
+      staleSession.conversationContext = null;
+    }
     console.log(`[WS-Bridge] Live session ${liveSessionId} expired, falling back to text+TTS`);
   }
 
@@ -163,33 +173,20 @@ async function handleTextInput(
   const gameStateOverrides = {
     prologFacts,
     ...(cefrLevel ? { cefrLevel } : {}),
+    ...(gameHour != null ? { gameHour } : {}),
     ...(playerVocabulary ? { playerVocabulary } : {}),
     ...(playerGrammarPatterns ? { playerGrammarPatterns } : {}),
   };
 
-  // Use client-provided system prompt if present
-  if (clientSystemPrompt) {
-    session.characterId = characterId;
-    console.log(`[WS-Bridge] Using client-provided system prompt (${clientSystemPrompt.length} chars)`);
-    session.conversationContext = {
-      systemPrompt: clientSystemPrompt,
-      characterName: session.conversationContext?.characterName ?? characterId,
-      worldContext: session.conversationContext?.worldContext,
-      characterGender: session.conversationContext?.characterGender,
-    };
-    // If we don't have characterName/worldContext yet, fetch them from buildContext
-    if (!session.conversationContext.characterName || session.conversationContext.characterName === characterId) {
-      try {
-        const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId, undefined, gameStateOverrides, turnNumber);
-        session.conversationContext.characterName = fullCtx.conversationContext.characterName;
-        (session.conversationContext as any).worldContext = fullCtx.conversationContext.worldContext;
-        (session.conversationContext as any).characterGender = fullCtx.conversationContext.characterGender;
-      } catch {
-        // Keep what we have — characterId as name is acceptable fallback
-      }
-    }
-  } else if (!session.conversationContext || session.characterId !== characterId || hasPrologFacts) {
+  // Always build context server-side — it has the complete language learning
+  // directives (CEFR mode, vocabulary constraints, critical language rule) that
+  // the client-provided prompt lacks.
+  if (!session.conversationContext || session.characterId !== characterId || hasPrologFacts || clientSystemPrompt) {
     // Build context on first message or character change, using cache when possible
+    if (session.characterId !== characterId) {
+      // Clear conversation history when switching to a different NPC
+      session.history = [];
+    }
     session.characterId = characterId;
 
     // Skip cache if prologFacts provided (they change per turn)
@@ -234,6 +231,10 @@ async function handleTextInput(
         };
       }
       contextTimer.stop();
+    }
+    // Apply client-provided gender as fallback if buildContext didn't set one
+    if (clientCharacterGender && !session.conversationContext?.characterGender) {
+      (session.conversationContext as any).characterGender = clientCharacterGender;
     }
   } else if (turnNumber >= 2) {
     // Follow-up turn with existing context — rebuild system prompt with trimmed content.
@@ -325,8 +326,10 @@ async function handleTextInput(
     }
   }
 
-  // Prolog-first routing: intercept greetings and farewells
-  const greetingType = classifyGreetingFarewell(text);
+  // Prolog-first routing: intercept greetings and farewells.
+  // Skip on turn 1 — the first message to a new NPC needs full LLM context
+  // (correct character, personality, gender for TTS voice matching).
+  const greetingType = turnNumber >= 2 ? classifyGreetingFarewell(text) : null;
   if (greetingType) {
     try {
       const prologResult = await prologLLMRouter.tryPrologFirst(worldId, greetingType, {
@@ -586,16 +589,8 @@ async function handleTextInput(
       responseCache.set(responseCacheKey, fullResponse);
     }
 
-    // Update player-NPC relationship (fire-and-forget, non-fatal)
-    const relExchangeCount = session.history.filter(h => h.role === 'user').length;
-    const relAgreeableness = (session.conversationContext as any)?.characterPersonality?.agreeableness ?? 0.5;
-    const relQuality = 0.02 + (relAgreeableness * 0.03) * (relExchangeCount / 5);
-    import('../../extensions/tott/social-dynamics-system.js')
-      .then(({ updateRelationship }) =>
-        updateRelationship(characterId, session.playerId, relQuality, new Date().getFullYear())
-      )
-      .then(() => console.log(`[WS-Bridge] Relationship updated: ${characterId} += ${relQuality.toFixed(3)}`))
-      .catch((err: any) => console.warn('[WS-Bridge] Relationship update failed (non-fatal):', err.message));
+    // Relationship tracking belongs in the player's save file, not the world template.
+    // Removed: updateRelationship call that was writing to the world's Character model.
   }
 
   // Compress history if it exceeds threshold
@@ -1373,9 +1368,9 @@ export function startWSBridge(options: WSBridgeOptions = {}): WebSocketServer {
         const message = JSON.parse(raw.toString());
 
         if (message.textInput) {
-          const { text, sessionId, characterId, worldId, languageCode, prologFacts, systemPrompt, cefrLevel, playerVocabulary, playerGrammarPatterns } = message.textInput;
+          const { text, sessionId, characterId, worldId, languageCode, prologFacts, systemPrompt, characterGender, cefrLevel, gameHour: msgGameHour, playerVocabulary, playerGrammarPatterns } = message.textInput;
           currentSessionId = sessionId;
-          await handleTextInput(ws, { text, sessionId, characterId, worldId, languageCode, prologFacts, systemPrompt, cefrLevel, playerVocabulary, playerGrammarPatterns }, options);
+          await handleTextInput(ws, { text, sessionId, characterId, worldId, languageCode, prologFacts, systemPrompt, characterGender, cefrLevel, gameHour: msgGameHour, playerVocabulary, playerGrammarPatterns }, options);
         } else if (message.audioChunk) {
           const { sessionId, characterId, worldId, languageCode, data } = message.audioChunk;
           currentSessionId = sessionId;

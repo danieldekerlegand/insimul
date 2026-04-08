@@ -210,6 +210,7 @@ const RuleSchema = new Schema({
   likelihood: { type: Number, default: 1.0 }, // denormalized from Prolog
   tags: { type: [String], default: [] },
   relatedTruthIds: { type: [String], default: [] },
+  citations: { type: [{ title: String, content: String, url: String }], default: [] },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
