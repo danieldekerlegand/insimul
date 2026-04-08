@@ -1511,6 +1511,8 @@ export interface GameSaveState {
   clueState?: any;
   /** Reading progress: which articles were read, quiz answers, comprehension scores */
   readingProgress?: SavedReadingProgress;
+  /** NPC contact list: met status, conversation counts, disposition */
+  contacts?: Record<string, SavedNPCContact>;
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
 }
@@ -1532,6 +1534,20 @@ export interface SavedReadingProgress {
   articles: Record<string, SavedReadingProgressEntry>;
   /** Raw quiz answer log for detailed restoration */
   quizAnswers: Array<{ articleId: string; selectedIndex: number; correctIndex: number; correct: boolean; answeredAt: number }>;
+}
+
+/** Persisted NPC contact entry for save/load. */
+export interface SavedNPCContact {
+  /** Whether the player has met (spoken to) this NPC */
+  met: boolean;
+  /** ISO timestamp of when the player first met this NPC */
+  firstMetAt: string;
+  /** Number of conversations had with this NPC */
+  conversationCount: number;
+  /** ISO timestamp of the most recent conversation */
+  lastSpokenAt: string;
+  /** Disposition/relationship score (-100 to 100) */
+  disposition: number;
 }
 
 // ─── Photography ────────────────────────────────────────────────────────────

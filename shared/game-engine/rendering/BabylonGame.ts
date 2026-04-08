@@ -698,6 +698,9 @@ export class BabylonGame {
   private readingProgressDirty = false;
   private readingProgressSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // NPC contact persistence
+  private npcContacts: Map<string, import('@shared/game-engine/types').SavedNPCContact> = new Map();
+
   // VR
   private vrUIPanels: Map<string, VRUIPanel> = new Map();
   private vrInteraction: VRInteractionManager | null = null;
@@ -1452,6 +1455,14 @@ export class BabylonGame {
         }
         return { articles, quizAnswers };
       },
+      getContacts: () => {
+        if (this.npcContacts.size === 0) return undefined;
+        const result: Record<string, import('@shared/game-engine/types').SavedNPCContact> = {};
+        this.npcContacts.forEach((contact, npcId) => {
+          result[npcId] = { ...contact };
+        });
+        return result;
+      },
     };
   }
 
@@ -1610,6 +1621,20 @@ export class BabylonGame {
         // Restore answered question IDs into GameMenuSystem
         if (this.gameMenuSystem && this.readingProgressAnsweredIds.size > 0) {
           this.gameMenuSystem.restoreAnsweredQuestionIds(Array.from(this.readingProgressAnsweredIds));
+        }
+      },
+      restoreContacts: (data: any) => {
+        if (!data || typeof data !== 'object') return;
+        this.npcContacts.clear();
+        for (const [npcId, contact] of Object.entries(data)) {
+          const c = contact as any;
+          this.npcContacts.set(npcId, {
+            met: c.met ?? true,
+            firstMetAt: c.firstMetAt ?? new Date().toISOString(),
+            conversationCount: c.conversationCount ?? 0,
+            lastSpokenAt: c.lastSpokenAt ?? new Date().toISOString(),
+            disposition: c.disposition ?? 0,
+          });
         }
       },
     };
@@ -2985,6 +3010,26 @@ export class BabylonGame {
           }
         }
         return objectives;
+      },
+      getContacts: () => {
+        const contacts: import('@shared/game-engine/rendering/GameMenuSystem').MenuContactData[] = [];
+        this.npcContacts.forEach((contact, npcId) => {
+          const info = this.npcInfos.find((n: any) => n.id === npcId);
+          const instance = this.npcMeshes.get(npcId);
+          if (!contact.met) return;
+          contacts.push({
+            id: npcId,
+            name: info?.name || npcId,
+            occupation: info?.occupation,
+            disposition: contact.disposition >= 50 ? 'friendly' : contact.disposition <= -50 ? 'hostile' : 'neutral',
+            role: instance?.role,
+            questGiver: info?.questGiver || false,
+            conversationCount: contact.conversationCount,
+            lastSpokenTimestamp: new Date(contact.lastSpokenAt).getTime(),
+            knownDetails: [],
+          });
+        });
+        return contacts;
       },
       onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
       onQuestSetActive: (questId: string) => this.handleSetActiveQuest(questId),
@@ -13874,6 +13919,9 @@ export class BabylonGame {
         npcInstance.isInConversation = true;
       }
 
+      // Track NPC contact
+      this.trackNPCContact(npcId);
+
       // Exclude NPC mesh from camera obstruction hiding.
       // The CharacterController raycasts from camera to player and sets isVisible=false
       // on anything in between — which includes the NPC you're talking to.
@@ -14802,6 +14850,24 @@ export class BabylonGame {
       description: `ATK: ${entity?.attackPower.toFixed(1)} | DEF: ${entity?.defense}`,
       duration: 2000,
     });
+  }
+
+  /** Track NPC as met and increment conversation count. */
+  private trackNPCContact(npcId: string): void {
+    const now = new Date().toISOString();
+    const existing = this.npcContacts.get(npcId);
+    if (existing) {
+      existing.conversationCount += 1;
+      existing.lastSpokenAt = now;
+    } else {
+      this.npcContacts.set(npcId, {
+        met: true,
+        firstMetAt: now,
+        conversationCount: 1,
+        lastSpokenAt: now,
+        disposition: 0,
+      });
+    }
   }
 
   private handleConversationEnd(): void {

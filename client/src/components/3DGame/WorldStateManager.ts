@@ -22,6 +22,7 @@ import type {
   SavedMainQuestState,
   SavedPhotoBookState,
   SavedReadingProgress,
+  SavedNPCContact,
   InventoryItem,
   Vec3,
 } from '@shared/game-engine/types';
@@ -72,6 +73,7 @@ export interface GameStateSource {
   getPrologFacts?(): Array<{ predicate: string; args: Array<string | number> }>;
   getClueState?(): any;
   getReadingProgress?(): SavedReadingProgress | undefined;
+  getContacts?(): Record<string, SavedNPCContact> | undefined;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -108,6 +110,7 @@ export interface GameStateTarget {
   restorePrologFacts?(data: Array<{ predicate: string; args: Array<string | number> }>): void;
   restoreClueState?(data: any): void;
   restoreReadingProgress?(data: SavedReadingProgress): void;
+  restoreContacts?(data: Record<string, SavedNPCContact>): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -154,6 +157,7 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'prologFacts',
   'clueState',
   'readingProgress',
+  'contacts',
 ];
 
 export interface SaveStateAuditResult {
@@ -363,6 +367,7 @@ export class WorldStateManager {
       prologFacts: src.getPrologFacts?.() ?? undefined,
       clueState: src.getClueState?.() ?? undefined,
       readingProgress: src.getReadingProgress?.() ?? undefined,
+      contacts: src.getContacts?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -389,7 +394,7 @@ export class WorldStateManager {
       'interiorState', 'timeState', 'questActiveState',
       'languageProgressDetailed', 'reputationState',
       'relationshipDeltas', 'mainQuestState', 'photoBook',
-      'prologFacts', 'clueState', 'readingProgress',
+      'prologFacts', 'clueState', 'readingProgress', 'contacts',
     ];
 
     for (const field of fieldsToCompare) {
@@ -607,6 +612,9 @@ export class WorldStateManager {
     }
     if (state.readingProgress != null) {
       target.restoreReadingProgress?.(state.readingProgress);
+    }
+    if (state.contacts != null) {
+      target.restoreContacts?.(state.contacts);
     }
   }
 
