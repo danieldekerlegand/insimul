@@ -2159,3 +2159,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Quest objective types like 'eavesdrop' in `quest-objective-types.ts` and `activity-types.ts` are data-layer definitions; removing them could break existing quest data in the database
   - `buildTranslatedEavesdropPrompt` in `in-world-text.ts` is now unused but was left in place since it's a pure utility function with no side effects
 ---
+
+## 2026-04-07 - US-008: Remove old passive greeting system
+- Deleted `shared/game-engine/rendering/NPCGreetingSystem.ts` — the old proximity-based greeting system with speech bubbles, G-key response, and English greeting templates
+- Deleted `shared/__tests__/npc-greeting-system.test.ts` — tests for the removed system
+- Wired `NPCProximitySpeechSystem` into `BabylonGame.ts` as replacement:
+  - Imported and added as class property
+  - Instantiated with `npcAudioLock`, `targetLanguage`, and `serverUrl`
+  - Configured `setTimeOfDayProvider` and `setPlayerConversationCheck`
+  - NPC registration alongside existing controllers (with mesh, personality, gender, age, occupation)
+  - Player mesh set when player loads
+  - `update(dt)` called in game loop after NPC-initiated conversation controller
+  - Disposed on cleanup
+- Files changed:
+  - `shared/game-engine/rendering/NPCGreetingSystem.ts` — deleted
+  - `shared/__tests__/npc-greeting-system.test.ts` — deleted
+  - `shared/game-engine/rendering/BabylonGame.ts` — import, instantiate, wire NPCProximitySpeechSystem
+- **Learnings for future iterations:**
+  - NPCGreetingSystem was NOT actively wired into BabylonGame — it was a dead class, so removal was safe
+  - NPCProximitySpeechSystem needs both `setPlayerMesh()` and NPC `registerNPC()` calls — mesh is available at player load, NPCs at NPC spawn
+  - The game export templates (Unity/Unreal/Godot) have their own `NPCGreetingSystem` files — these are template code for other engines, not the Babylon.js game
+  - `getTargetLanguage(this.worldData)` is the standard helper for extracting target language in BabylonGame
+---
