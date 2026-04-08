@@ -2409,3 +2409,22 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - No PUT /api/assessments/:sessionId/complete calls exist in game client code — already clean
   - `PlaythroughQuestOverlay.updateQuest()` does shallow merge, so setting `status: 'completed'` and `assessmentResult` in one call works correctly
 ---
+
+## 2026-04-08 - US-007: Update report card to read from quest overlays
+- Added `generateReportCardFromOverlays()` to `shared/quests/assessment-quest-bridge.ts` — generates detailed LearningReportCard from quest overlay data (AssessmentPhaseResult[] + AssessmentCompletionResult) instead of AssessmentSession objects
+- Added `extractOverlayAssessmentData()` helper to extract assessment data from merged quests
+- Added `QuestOverlayAssessmentData` interface for typed overlay data
+- Added `buildPhaseeDeltasFromOverlays()` internal helper for phase delta computation from overlay phase results
+- Updated `generateLearningReportCard()` in `server/services/playthrough-completion.ts` — now tries quest overlays first (via `generateReportCardFromQuestOverlays()`), falls back to play traces for legacy playthroughs
+- Server-side overlay reading: deserializes `saveData.questProgress`, merges with base world quests, finds arrival/departure/periodic quests by tags
+- Files changed:
+  - `shared/quests/assessment-quest-bridge.ts` — generateReportCardFromOverlays(), extractOverlayAssessmentData(), QuestOverlayAssessmentData type
+  - `server/services/playthrough-completion.ts` — generateReportCardFromQuestOverlays(), updated generateLearningReportCard()
+  - `server/__tests__/assessment-quest-bridge.test.ts` — 14 new tests for overlay-based report card generation and data extraction
+  - `tasks/prd.json` — US-007 passes: true
+- **Learnings for future iterations:**
+  - `PlaythroughQuestOverlay.mergeQuests()` merges base quests with overlay overrides — use it server-side by deserializing `saveData.questProgress`
+  - Find arrival quests with `isArrivalAssessmentQuest()` (checks tags: ['assessment', 'arrival']), departure quests by checking tags includes 'assessment' + 'departure'
+  - `AssessmentCompletionResult.dimensionScores` is `Record<string, number>` but `buildDimensionDeltas()` accepts `Record<string, number> | undefined` — cast needed
+  - The simple `LearningReportCard` in playthrough-completion.ts (start/end CEFR + improvement count) is different from the detailed one in assessment-quest-bridge.ts (phase deltas, dimension deltas, periodic snapshots) — the detailed one feeds into the simple one
+---
