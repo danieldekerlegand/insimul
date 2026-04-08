@@ -2499,10 +2499,23 @@ export class BabylonChatPanel {
             }
           }
         }
+
+        // Process NPC details — facts learned about this NPC
+        if (metadata.npcDetails?.length > 0 && this.character?.id && this._onNpcDetailsLearned) {
+          this._onNpcDetailsLearned(this.character.id, metadata.npcDetails as string[]);
+        }
       })
       .catch((err: any) => {
         console.warn('[ChatPanel] Background metadata extraction failed:', err);
       });
+  }
+
+  /** Callback for when NPC details are extracted from conversation metadata. */
+  private _onNpcDetailsLearned: ((npcId: string, facts: string[]) => void) | null = null;
+
+  /** Set callback for NPC detail extraction results. Called by BabylonGame. */
+  public setOnNpcDetailsLearned(callback: (npcId: string, facts: string[]) => void): void {
+    this._onNpcDetailsLearned = callback;
   }
 
   private startHintTimer() {

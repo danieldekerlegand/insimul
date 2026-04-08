@@ -1515,6 +1515,8 @@ export interface GameSaveState {
   contacts?: Record<string, SavedNPCContact>;
   /** Conversation history: recent NPC conversation summaries */
   conversations?: SavedConversationRecord[];
+  /** Known NPC details: facts learned about NPCs during conversations */
+  npcKnownDetails?: Record<string, SavedNPCKnownDetails>;
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
 }
@@ -1568,6 +1570,14 @@ export interface SavedConversationRecord {
   targetLanguagePercent: number;
   /** Fluency points gained from this conversation */
   fluencyGained: number;
+}
+
+/** Persisted NPC known details for save/load. */
+export interface SavedNPCKnownDetails {
+  /** Facts learned about this NPC (e.g. "Works as a baker", "Has two children") */
+  facts: string[];
+  /** ISO timestamps for when each fact was learned (parallel array with facts) */
+  learnedAt: string[];
 }
 
 // ─── Photography ────────────────────────────────────────────────────────────

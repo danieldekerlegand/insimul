@@ -268,6 +268,8 @@ export interface ConversationMetadataResponse {
     errors?: Array<{ incorrect: string; corrected: string; explanation: string; pattern?: string }>;
     errorCount?: number;
   };
+  /** Facts about the NPC revealed during this exchange */
+  npcDetails?: string[];
   questAssignment?: Record<string, unknown>;
   [key: string]: unknown;
 }

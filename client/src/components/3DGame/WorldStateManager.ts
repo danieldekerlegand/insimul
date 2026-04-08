@@ -75,6 +75,7 @@ export interface GameStateSource {
   getReadingProgress?(): SavedReadingProgress | undefined;
   getContacts?(): Record<string, SavedNPCContact> | undefined;
   getConversationHistory?(): import('@shared/game-engine/types').SavedConversationRecord[] | undefined;
+  getNpcKnownDetails?(): Record<string, import('@shared/game-engine/types').SavedNPCKnownDetails> | undefined;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -113,6 +114,7 @@ export interface GameStateTarget {
   restoreReadingProgress?(data: SavedReadingProgress): void;
   restoreContacts?(data: Record<string, SavedNPCContact>): void;
   restoreConversationHistory?(data: import('@shared/game-engine/types').SavedConversationRecord[]): void;
+  restoreNpcKnownDetails?(data: Record<string, import('@shared/game-engine/types').SavedNPCKnownDetails>): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -161,6 +163,7 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'readingProgress',
   'contacts',
   'conversations',
+  'npcKnownDetails',
 ];
 
 export interface SaveStateAuditResult {
@@ -372,6 +375,7 @@ export class WorldStateManager {
       readingProgress: src.getReadingProgress?.() ?? undefined,
       contacts: src.getContacts?.() ?? undefined,
       conversations: src.getConversationHistory?.() ?? undefined,
+      npcKnownDetails: src.getNpcKnownDetails?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -622,6 +626,9 @@ export class WorldStateManager {
     }
     if (state.conversations != null) {
       target.restoreConversationHistory?.(state.conversations);
+    }
+    if (state.npcKnownDetails != null) {
+      target.restoreNpcKnownDetails?.(state.npcKnownDetails);
     }
   }
 

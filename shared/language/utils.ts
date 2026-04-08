@@ -659,7 +659,8 @@ Respond with ONLY valid JSON (no markdown, no code fences, no extra text). Use t
         "explanation": "brief explanation"
       }
     ]
-  }`;
+  },
+  "npcDetails": ["short fact about the NPC revealed in this exchange"]`;
 
   if (options?.includeEval) {
     prompt += `,
@@ -679,6 +680,7 @@ Rules:
 - "vocabHints": Extract 3-5 key ${targetLanguage} words from the NPC's response that a ${options?.playerProficiency || 'beginner'} learner should know. Include their English translations.
 - "grammarFeedback.status": "correct" if player used ${targetLanguage} correctly, "corrected" if there were errors, "no_target_language" if player wrote in English
 - "grammarFeedback.errors": List the 1-2 most important grammar errors (empty array if correct or no target language)
+- "npcDetails": Extract 0-3 personal facts the NPC revealed about themselves (occupation, family, hobbies, backstory). Empty array if no new personal info was shared.
 - Focus on being helpful and pedagogical`;
 
   if (options?.includeEval) {

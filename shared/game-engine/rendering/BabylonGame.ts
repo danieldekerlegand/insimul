@@ -701,6 +701,9 @@ export class BabylonGame {
   // NPC contact persistence
   private npcContacts: Map<string, import('@shared/game-engine/types').SavedNPCContact> = new Map();
 
+  // NPC known details persistence (facts learned about NPCs during conversations)
+  private npcKnownDetails: Map<string, import('@shared/game-engine/types').SavedNPCKnownDetails> = new Map();
+
   // VR
   private vrUIPanels: Map<string, VRUIPanel> = new Map();
   private vrInteraction: VRInteractionManager | null = null;
@@ -1480,6 +1483,14 @@ export class BabylonGame {
           fluencyGained: r.fluencyGained,
         }));
       },
+      getNpcKnownDetails: () => {
+        if (this.npcKnownDetails.size === 0) return undefined;
+        const result: Record<string, import('@shared/game-engine/types').SavedNPCKnownDetails> = {};
+        this.npcKnownDetails.forEach((details, npcId) => {
+          result[npcId] = { facts: [...details.facts], learnedAt: [...details.learnedAt] };
+        });
+        return result;
+      },
     };
   }
 
@@ -1672,6 +1683,18 @@ export class BabylonGame {
           grammarCorrectCount: 0,
         }));
         tracker.restoreConversationRecords(records);
+      },
+      restoreNpcKnownDetails: (data: any) => {
+        if (!data || typeof data !== 'object') return;
+        this.npcKnownDetails.clear();
+        for (const [npcId, details] of Object.entries(data)) {
+          const d = details as any;
+          const facts: string[] = Array.isArray(d.facts) ? d.facts.slice(0, 20) : [];
+          const learnedAt: string[] = Array.isArray(d.learnedAt) ? d.learnedAt.slice(0, 20) : [];
+          if (facts.length > 0) {
+            this.npcKnownDetails.set(npcId, { facts, learnedAt });
+          }
+        }
       },
     };
   }
@@ -3062,7 +3085,7 @@ export class BabylonGame {
             questGiver: info?.questGiver || false,
             conversationCount: contact.conversationCount,
             lastSpokenTimestamp: new Date(contact.lastSpokenAt).getTime(),
-            knownDetails: [],
+            knownDetails: this.npcKnownDetails.get(npcId)?.facts || [],
           });
         });
         return contacts;
@@ -3501,6 +3524,11 @@ export class BabylonGame {
       }
       // Check for newly-weak grammar patterns and emit events
       this.checkGrammarWeaknessesAfterFeedback(feedback);
+    });
+
+    // Wire NPC detail extraction to known details persistence
+    this.chatPanel.setOnNpcDetailsLearned((npcId: string, facts: string[]) => {
+      this.trackNPCDetails(npcId, facts);
     });
 
     // Wire hover-translate lookups to vocabulary progress tracking
@@ -14903,6 +14931,25 @@ export class BabylonGame {
         lastSpokenAt: now,
         disposition: 0,
       });
+    }
+  }
+
+  /** Add facts learned about an NPC, deduplicating and capping at 20 per NPC. */
+  public trackNPCDetails(npcId: string, newFacts: string[]): void {
+    if (!npcId || !newFacts || newFacts.length === 0) return;
+    const now = new Date().toISOString();
+    const existing = this.npcKnownDetails.get(npcId) || { facts: [], learnedAt: [] };
+    const existingLower = new Set(existing.facts.map(f => f.toLowerCase()));
+    for (const fact of newFacts) {
+      const trimmed = fact.trim();
+      if (!trimmed || existingLower.has(trimmed.toLowerCase())) continue;
+      existing.facts.push(trimmed);
+      existing.learnedAt.push(now);
+      existingLower.add(trimmed.toLowerCase());
+      if (existing.facts.length >= 20) break;
+    }
+    if (existing.facts.length > 0) {
+      this.npcKnownDetails.set(npcId, existing);
     }
   }
 
