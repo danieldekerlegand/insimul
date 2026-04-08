@@ -160,7 +160,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "NPCInitiatedConversationController.ts can be deleted or gutted. Make sure no other systems depend on its NPC registration."
     },
     {

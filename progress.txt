@@ -2181,3 +2181,38 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The game export templates (Unity/Unreal/Godot) have their own `NPCGreetingSystem` files — these are template code for other engines, not the Babylon.js game
   - `getTargetLanguage(this.worldData)` is the standard helper for extracting target language in BabylonGame
 ---
+
+## 2026-04-07 - US-009: Remove old NPC-initiated conversation systems
+- Deleted `NPCInitiatedConversationController.ts` entirely (callout, walking interrupt, approach systems, pre-warm, greeting templates)
+- Removed from BabylonGame.ts: import, property declaration, instantiation (96-line constructor), registerNPC block, update loop (velocity tracking + controller update), pause/resume/dispose calls
+- Removed G-key (`KEY_NPC_INTERACT`) handler for accepting walking interrupts, callouts, and approaches
+- Removed Enter-key `acceptApproach()` call (Enter now goes directly to `handleUnifiedInteraction()`)
+- Removed `KEY_NPC_INTERACT` import from KeyboardMap
+- Removed player velocity tracking (`_lastPlayerPosition`, `_playerVelocity`) — only used for walking interrupts
+- Removed `npc_initiated_conversation` and `npc_callout` event types from GameEventBus
+- Removed `npc_initiated_conversation` event handler from RelationshipManager (relationship delta on accept/reject)
+- Removed `npc_initiated_conversation` mapping from PlayerActionTracker
+- Removed event references from Godot and Unreal export templates (event_bus.gd, EventBus.cpp, EventBus.h)
+- Removed related tests for RelationshipManager (npc conversation accepted/rejected)
+- Removed `conversation_initiation` wiring entry from quest-action-wiring.test.ts
+- Deleted 7 test files: NPCInitiatedConversationController.test.ts, NPCConversationInitiationAudit.test.ts, npc-proximity-callouts.test.ts, npc-walking-interrupts.test.ts, pre-warm-proximity.test.ts, npc-awareness-greetings.test.ts
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/rendering/BabylonGame.ts` — removed all controller references
+  - `shared/game-engine/rendering/NPCInitiatedConversationController.ts` — deleted
+  - `shared/game-engine/logic/GameEventBus.ts` — removed 2 event types
+  - `shared/game-engine/logic/RelationshipManager.ts` — removed event handler
+  - `shared/game-engine/logic/PlayerActionTracker.ts` — removed event mapping
+  - `shared/game-engine/rendering/__tests__/RelationshipManager.test.ts` — removed 2 tests
+  - `shared/__tests__/quest-action-wiring.test.ts` — removed 1 wiring entry
+  - `server/services/game-export/godot/templates/scripts/systems/event_bus.gd` — removed event constant + doc
+  - `server/services/game-export/unreal/templates/source/systems/EventBus.cpp` — removed event mapping
+  - `server/services/game-export/unreal/templates/source/systems/EventBus.h` — removed enum value
+  - `shared/game-engine/drift-manifest.json` — updated hash
+  - 7 test files deleted
+- **Learnings for future iterations:**
+  - The quest objective type `conversation_initiation` still exists in `quest-objective-types.ts` and `QuestCompletionEngine` — it's a generic objective type not tied to the old controller
+  - `quest-action-wiring.test.ts` wiring matrix was already mismatched (40 entries vs 44 achievable types) before this change — pre-existing issue
+  - `conversation-initiation-objective.test.ts` and `quest-action-mapping.test.ts` have pre-existing import failures unrelated to this change
+  - When removing event types from GameEventBus, also check: RelationshipManager, PlayerActionTracker, Godot/Unreal export templates, and any event handler registrations in BabylonGame
+---
