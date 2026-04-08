@@ -2330,3 +2330,19 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `resolveAssessment()` from arrival-encounter.ts resolves template vars across all phases/tasks — use it before content generation
   - 847 pre-existing TS errors; none introduced by this change
 ---
+
+## 2026-04-08 - US-003: Generate departure and periodic assessment content at world creation
+- Extended world creation in `server/routes.ts` to generate and embed assessment content for all assessment types:
+  - **Departure**: Uses `generateAssessmentQuestContent(DEPARTURE_ENCOUNTER, ...)` to generate LLM content for reading, writing, and listening phases. Conversation phase uses existing questConfig. Content stored in `customData.assessment` on the departure quest (found in chain by `tags.includes('departure')`)
+  - **Periodic**: Creates 4 periodic assessment quests at milestones 5, 10, 15, 20. Uses `buildAssessmentQuestData(PERIODIC_ENCOUNTER)` — no LLM content needed since periodic assessments are conversation-only. Quests start with `status: 'unavailable'` and include milestone level in `customData.milestoneLevel`
+- Each periodic quest includes Prolog content from `generateAssessmentPrologContent()` and tags for identification (`assessment`, `periodic`, `milestone-N`)
+- Departure content uses intermediate difficulty matching `DEPARTURE_ENCOUNTER`
+- All generation wrapped in try/catch for non-fatal fallback
+- Files changed:
+  - `server/routes.ts` — departure content generation + periodic quest creation during world creation
+- **Learnings for future iterations:**
+  - The departure quest already exists in the `missing-writer-mystery` chain template (quest index 7) — just need to find it and embed content, same pattern as arrival
+  - Periodic assessments are NOT in the quest chain — they need to be created separately as standalone quests. They're triggered at runtime by `LanguageGamificationTracker` at milestone levels
+  - `PERIODIC_ENCOUNTER` has only conversation phase, so `buildAssessmentQuestData()` alone suffices — no `generateAssessmentQuestContent()` needed
+  - `PERIODIC_ASSESSMENT_LEVELS` is `[5, 10, 15, 20] as const` — a readonly tuple, iterable with `for...of`
+---

@@ -53,7 +53,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Departure quest starts as 'unavailable' and is unlocked after 10 quests completed. Periodic quests start as 'unavailable' and unlock at level milestones. Content is pre-generated regardless of when the player reaches them."
     },
     {
