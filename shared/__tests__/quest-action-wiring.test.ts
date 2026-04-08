@@ -31,7 +31,6 @@ const WIRING_MATRIX: WiringEntry[] = [
   { objectiveType: 'discover_location', triggeringEvent: 'location_discovered', emittingSystem: 'BabylonGame zone detection', handlerMethod: 'trackLocationVisit / handleGameEvent' },
   { objectiveType: 'talk_to_npc', triggeringEvent: 'npc_talked', emittingSystem: 'BabylonChatPanel', handlerMethod: 'trackNPCConversation / handleGameEvent' },
   { objectiveType: 'complete_conversation', triggeringEvent: 'conversation_turn', emittingSystem: 'BabylonChatPanel', handlerMethod: 'trackConversationTurn' },
-  { objectiveType: 'conversation_initiation', triggeringEvent: 'npc_initiated_conversation', emittingSystem: 'NPCProactiveConversation', handlerMethod: 'trackConversationInitiation' },
   { objectiveType: 'use_vocabulary', triggeringEvent: 'vocabulary_used', emittingSystem: 'BabylonChatPanel / VocabularyCollectionSystem', handlerMethod: 'trackVocabularyUsage' },
   { objectiveType: 'collect_vocabulary', triggeringEvent: 'vocabulary_used', emittingSystem: 'VocabularyCollectionSystem', handlerMethod: 'trackVocabularyUsage' },
   { objectiveType: 'collect_text', triggeringEvent: 'text_collected', emittingSystem: 'BabylonGame item pickup', handlerMethod: 'trackCollectedItemByName' },

@@ -161,7 +161,6 @@ import { VehicleSystem } from "@shared/game-engine/rendering/VehicleSystem";
 import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo } from "@shared/game-engine/logic/AmbientLifeBehaviorSystem";
 import { NPCActivityLabelSystem } from "@shared/game-engine/rendering/NPCActivityLabelSystem";
 import { ActivityObservationRewards } from "@shared/game-engine/logic/ActivityObservationRewards";
-import { NPCInitiatedConversationController } from "@shared/game-engine/rendering/NPCInitiatedConversationController";
 import { NPCProximitySpeechSystem } from "@shared/game-engine/rendering/NPCProximitySpeechSystem";
 import { NPCSocializationController } from "@shared/game-engine/rendering/NPCSocializationController";
 import type { SocializableNPC, ConversationResult } from "@shared/game-engine/rendering/NPCSocializationController";
@@ -255,7 +254,6 @@ import {
   KEY_PHOTO_BOOK,
   KEY_CYCLE_VEHICLE,
   KEY_PHYSICAL_ACTION,
-  KEY_NPC_INTERACT,
 } from "@shared/game-engine/logic/KeyboardMap";
 import { BabylonPhotographySystem, type SceneObject } from "@shared/game-engine/rendering/BabylonPhotographySystem";
 import { BabylonPhotoBookPanel } from "@shared/game-engine/rendering/BabylonPhotoBookPanel";
@@ -583,11 +581,7 @@ export class BabylonGame {
   private npcAudioLock: NpcAudioLock = new NpcAudioLock();
   private socializationController: NPCSocializationController | null = null;
   private vehicleSystem: VehicleSystem | null = null;
-  private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
   private npcProximitySpeechSystem: NPCProximitySpeechSystem | null = null;
-  // Walking interrupt: player velocity tracking
-  private _lastPlayerPosition: { x: number; z: number } | null = null;
-  private _playerVelocity = 0;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
   private mainMenuScreen: MainMenuScreen | null = null;
@@ -3932,10 +3926,6 @@ export class BabylonGame {
     this.eventBus.on('item_delivered', () => this.updateQuestIndicators());
     this.eventBus.on('location_visited', () => this.updateQuestIndicators());
     this.eventBus.on('npc_talked', () => this.updateQuestIndicators());
-    this.eventBus.on('npc_initiated_conversation', (event) => {
-      this.questObjectManager?.trackConversationInitiation(event.npcId, event.accepted);
-    });
-
     // Show notifications for action_executed events (unified action tracking)
     this.eventBus.on('action_executed', (event) => {
       const actorLabel = event.actorId === 'player' ? 'You' : (event.actorName || 'NPC');
@@ -4596,104 +4586,6 @@ export class BabylonGame {
     });
     this.npcProximitySpeechSystem.setTimeOfDayProvider(() => this.gameTimeManager?.hour ?? 12);
     this.npcProximitySpeechSystem.setPlayerConversationCheck(() => !!this.conversationNPCId);
-
-    // Initialize NPC-initiated conversation controller
-    this.npcInitiatedConversationController = new NPCInitiatedConversationController({
-      onMoveTo: (npcId, targetPos, _speed) => {
-        const instance = this.npcMeshes.get(npcId);
-        if (instance?.mesh && instance.controller) {
-          // Point NPC toward target and start walking
-          const dir = targetPos.subtract(instance.mesh.position);
-          dir.y = 0;
-          if (dir.lengthSquared() > 0.001) {
-            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
-            instance.controller.walk(true);
-          }
-        }
-      },
-      onFaceDirection: (npcId, targetPos) => {
-        const instance = this.npcMeshes.get(npcId);
-        if (instance?.mesh) {
-          const dir = targetPos.subtract(instance.mesh.position);
-          dir.y = 0;
-          if (dir.lengthSquared() > 0.001) {
-            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
-          }
-        }
-      },
-      onAnimationChange: (npcId, state) => {
-        const instance = this.npcMeshes.get(npcId);
-        if (instance?.controller) {
-          instance.controller.walk(false);
-          instance.controller.turnLeft(false);
-          instance.controller.turnRight(false);
-        }
-        if (instance?.animController) {
-          instance.animController.setState(state as any);
-        }
-      },
-      onShowGreeting: (npcId, npcName, greeting) => {
-        this.guiManager?.showToast({
-          title: `${npcName} approaches`,
-          description: `"${greeting}" [Enter to talk]`,
-          duration: 15000,
-        });
-      },
-      onDismissGreeting: (_npcId) => {
-        // Toast auto-dismisses; no explicit dismiss needed
-      },
-      onOpenChat: async (npcId) => {
-        this.setSelectedNPC(npcId);
-        await this.handleOpenChat();
-      },
-      getGameHour: () => this.gameTimeManager?.hour ?? 12,
-      getPlayerPosition: () => this.playerMesh?.position ?? null,
-      isPlayerInConversation: () => this.conversationNPCId !== null,
-      onEmitEvent: (event) => this.eventBus?.emit(event),
-      getEnvironment: () => ({
-        weather: this.weatherSystem?.weatherType ?? 'clear',
-        timePeriod: this.gameTimeManager?.timeOfDay ?? 'midday',
-        hasActiveQuestForPlayer: false, // TODO: wire to quest system
-        playerIsNew: false, // TODO: wire to playthrough state
-      }),
-      onShowCallout: (npcId, npcName, text, isQuestBearer) => {
-        const instance = this.npcMeshes.get(npcId);
-        if (instance?.mesh && this.npcTalkingIndicator) {
-          const displayText = isQuestBearer ? `❗ ${text}` : text;
-          this.npcTalkingIndicator.show(npcId, instance.mesh, displayText);
-        }
-        // Show respond prompt as toast
-        this.guiManager?.showToast({
-          title: npcName,
-          description: `"${text}" [G] Respond`,
-          duration: 7000, // 4s bubble + 3s respond window
-        });
-      },
-      onDismissCallout: (npcId) => {
-        this.npcTalkingIndicator?.hide(npcId);
-      },
-      isNpcQuestBearer: (npcId) => {
-        const activeQuests = this.questObjectManager?.getActiveQuests() || [];
-        return activeQuests.some((q: any) => q.assignedByCharacterId === npcId);
-      },
-      getPlayerVelocity: () => this._playerVelocity,
-      onShowWalkingInterrupt: (npcId, npcName, text, isQuestBearer) => {
-        const instance = this.npcMeshes.get(npcId);
-        if (instance?.mesh && this.npcTalkingIndicator) {
-          const displayText = isQuestBearer ? `❗ ${text}` : text;
-          this.npcTalkingIndicator.show(npcId, instance.mesh, displayText);
-        }
-        // Show faded '[G] Stop and chat' prompt as toast
-        this.guiManager?.showToast({
-          title: npcName,
-          description: `"${text}" [G] Stop and chat`,
-          duration: 5000, // 2s bubble + 3s respond window
-        });
-      },
-      onDismissWalkingInterrupt: (npcId) => {
-        this.npcTalkingIndicator?.hide(npcId);
-      },
-    });
 
     // Initialize procedural generators
     this.buildingGenerator = new ProceduralBuildingGenerator(scene);
@@ -9496,24 +9388,6 @@ export class BabylonGame {
         });
       }
 
-      // Register NPC for NPC-initiated conversations
-      if (this.npcInitiatedConversationController) {
-        const personality = character.personality || {
-          openness: 0.5, conscientiousness: 0.5, extroversion: 0.5,
-          agreeableness: 0.5, neuroticism: 0.5,
-        };
-        this.npcInitiatedConversationController.registerNPC({
-          id: character.id,
-          name: npcName,
-          position: root.position.clone(),
-          personality,
-          relationships: character.relationships || {},
-          mood: character.mood || 'neutral',
-          isInConversation: false,
-          occupation: character.occupation,
-        });
-      }
-
       // Register NPC for proximity-based TTS greetings
       if (this.npcProximitySpeechSystem) {
         const personality = character.personality || {
@@ -11507,33 +11381,6 @@ export class BabylonGame {
         }
       }
 
-      // Track player velocity for walking interrupt detection
-      if (this.playerMesh) {
-        const px = this.playerMesh.position.x;
-        const pz = this.playerMesh.position.z;
-        if (this._lastPlayerPosition && dt > 0) {
-          const dx = px - this._lastPlayerPosition.x;
-          const dz = pz - this._lastPlayerPosition.z;
-          const distMoved = Math.sqrt(dx * dx + dz * dz);
-          this._playerVelocity = distMoved / (dt / 1000); // units per second
-        }
-        this._lastPlayerPosition = { x: px, z: pz };
-      }
-
-      if (this.npcInitiatedConversationController) {
-        if (this._npcGroundSnapTimer === 0) {
-          this.npcMeshes.forEach((instance, npcId) => {
-            if (instance?.mesh) {
-              this.npcInitiatedConversationController!.updateNPC(npcId, {
-                position: instance.mesh.position.clone(),
-                isInConversation: instance.isInConversation || false,
-              });
-            }
-          });
-        }
-        this.npcInitiatedConversationController.update(dt, 60000);
-      }
-
       // Update proximity speech system (TTS-based NPC greetings)
       this.npcProximitySpeechSystem?.update(dt);
 
@@ -13233,27 +13080,8 @@ export class BabylonGame {
           duration: 1500
         });
       } else {
-        // Check if an NPC is approaching and accept their conversation
-        const accepted = await this.npcInitiatedConversationController?.acceptApproach();
-        if (!accepted) {
-          // Dispatch based on unified interaction prompt target
-          await this.handleUnifiedInteraction();
-        }
-      }
-    }
-
-    // G - Accept walking interrupt, callout, or approach from NPC
-    if (event.code === KEY_NPC_INTERACT && !event.repeat) {
-      event.preventDefault();
-      if (!this.conversationNPCId) {
-        // Try accepting a walking interrupt first, then callout, then approach
-        const walkingAccepted = await this.npcInitiatedConversationController?.acceptWalkingInterrupt();
-        if (!walkingAccepted) {
-          const calloutAccepted = await this.npcInitiatedConversationController?.acceptCallout();
-          if (!calloutAccepted) {
-            await this.npcInitiatedConversationController?.acceptApproach();
-          }
-        }
+        // Dispatch based on unified interaction prompt target
+        await this.handleUnifiedInteraction();
       }
     }
 
@@ -13671,7 +13499,6 @@ export class BabylonGame {
 
       // Pause ambient NPC conversations so their TTS doesn't overlap with the player's chat
       this.ambientConversationManager?.pause();
-      this.npcInitiatedConversationController?.pause();
 
       // Switch to first-person view for conversation immersion
       if (this.cameraManager) {
@@ -14611,7 +14438,6 @@ export class BabylonGame {
 
       // Resume ambient NPC conversations
       this.ambientConversationManager?.resume();
-      this.npcInitiatedConversationController?.resume();
     }
 
     // Restore player mesh visibility
@@ -17494,7 +17320,6 @@ export class BabylonGame {
     this.npcActivityLabelSystem = null;
     this.activityObservationRewards = null;
     this.ambientConversationManager?.dispose();
-    this.npcInitiatedConversationController?.dispose();
     this.npcProximitySpeechSystem?.dispose();
     this.npcProximitySpeechSystem = null;
     this.socializationController?.dispose();

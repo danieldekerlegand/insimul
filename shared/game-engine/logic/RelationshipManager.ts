@@ -100,13 +100,6 @@ export class RelationshipManager {
       eventBus.on('item_delivered', (e) => {
         this.modifyRelationship(e.npcId, RELATIONSHIP_DELTAS.item_delivered, 'item_delivered');
       }),
-      eventBus.on('npc_initiated_conversation', (e) => {
-        const delta = e.accepted
-          ? RELATIONSHIP_DELTAS.npc_conversation_accepted
-          : RELATIONSHIP_DELTAS.npc_conversation_rejected;
-        const cause = e.accepted ? 'npc_conversation_accepted' : 'npc_conversation_rejected';
-        this.modifyRelationship(e.npcId, delta, cause as RelationshipDeltaCause, e.npcName);
-      }),
     );
   }
 

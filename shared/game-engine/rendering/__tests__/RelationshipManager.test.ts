@@ -119,16 +119,6 @@ describe('RelationshipManager', () => {
       expect(manager.getStrength('npc1')).toBeGreaterThan(0);
     });
 
-    it('should increase relationship when NPC conversation accepted', () => {
-      eventBus.emit({ type: 'npc_initiated_conversation', npcId: 'npc1', npcName: 'Alice', accepted: true });
-      expect(manager.getStrength('npc1')).toBeGreaterThan(0);
-    });
-
-    it('should slightly decrease relationship when NPC conversation rejected', () => {
-      eventBus.emit({ type: 'npc_initiated_conversation', npcId: 'npc1', npcName: 'Alice', accepted: false });
-      expect(manager.getStrength('npc1')).toBeLessThan(0);
-    });
-
     it('should accumulate changes across multiple events', () => {
       eventBus.emit({ type: 'npc_talked', npcId: 'npc1', npcName: 'Alice', turnCount: 3 });
       eventBus.emit({ type: 'npc_talked', npcId: 'npc1', npcName: 'Alice', turnCount: 3 });

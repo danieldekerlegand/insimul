@@ -108,7 +108,6 @@ const EVENT_RESEARCH_CATEGORY: Record<GameEventType, ResearchCategory> = {
   romance_action: 'social_interaction',
   romance_stage_changed: 'social_interaction',
   npc_volition_action: 'social_interaction',
-  npc_initiated_conversation: 'social_interaction',
   state_created_truth: 'social_interaction',
   state_expired_truth: 'social_interaction',
   create_truth: 'social_interaction',
