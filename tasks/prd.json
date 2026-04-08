@@ -154,7 +154,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Clean up quest-chain-templates.ts so assessment quests don't reference chain IDs. The chain was an artifact of the old system where assessments were part of a linear quest chain."
     },
     {

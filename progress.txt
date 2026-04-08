@@ -2455,3 +2455,21 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Test import paths in `shared/__tests__/` must use `../services/assessment-quest-bridge-shared` (not `../services/quests/...`) since the file is at `shared/services/assessment-quest-bridge-shared.ts`
   - The conversation assessment objective requires special turn-count validation (can't use `trackByTrigger` alone) — the `conversation_assessment_completed` event handler must validate `turnCount >= requiredCount`
 ---
+
+## 2026-04-08 - US-009: Remove quest chain dependency from assessments
+- Removed Arrival Assessment and Departure Assessment quests from the `missingWriterMystery` chain template in `quest-chain-templates.ts` — the chain now contains only 6 narrative quests
+- Updated `quest-seed-generator.ts` to create the Arrival Assessment directly via `buildArrivalAssessmentQuest()` instead of relying on `seedMainQuestChain()`
+- Added `completionCriteria: { type: 'all_objectives' }` to both arrival (in `assessment-quest-bridge-shared.ts`) and departure (in `quest-seed-generator.ts`) assessment quests
+- Assessment quests are now fully self-contained: no `questChainId`, no `questChainOrder`, no `quest_chain/2` Prolog predicates
+- The Prolog converter in `quest-converter.ts` already conditionally generates chain predicates only when `questChainId` is set — no changes needed there
+- Files changed:
+  - `shared/quests/quest-chain-templates.ts` — removed arrival + departure assessment quests from missingWriterMystery chain
+  - `shared/quests/quest-seed-generator.ts` — added arrival assessment creation, added completionCriteria to departure assessment
+  - `shared/services/assessment-quest-bridge-shared.ts` — added completionCriteria to buildArrivalAssessmentQuest
+  - `tasks/prd.json` — marked US-009 passes: true
+- **Learnings for future iterations:**
+  - Assessment quests are identified by `assessment` tag, not `main-quest` — don't add `main-quest` tag to assessment quests
+  - `buildArrivalAssessmentQuest()` returns `Record<string, any>`, so arbitrary properties like `locationPosition` can be set directly
+  - The `hasMainQuestChain()` check looks for `main-quest` tag + `questChainId` — removing assessment quests from the chain doesn't affect this check
+  - `createDepartureAssessmentQuest()` in `assessment-quest-bridge.ts` already uses `{ type: 'all_objectives' }` and no chain references — only the seed generator version needed updating
+---
