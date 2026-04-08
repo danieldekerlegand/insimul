@@ -1818,16 +1818,22 @@ app.get("/api/rules", async (req, res) => {
         const { mongoQuestStorage } = await import('./db/mongo-quest-storage.js');
         const chain = await seedMainQuestChain(mongoQuestStorage, world.id, world.targetLanguage || '');
 
-        // Generate assessment content and embed in the arrival assessment quest's customData
-        if (chain) {
+        // Generate assessment content and embed in assessment quests' customData
+        if (chain && world.targetLanguage) {
+          const { generateAssessmentQuestContent } = await import('./services/assessment-content-generator.js');
+          const { ARRIVAL_ENCOUNTER } = await import('../shared/assessment/arrival-encounter.js');
+          const { DEPARTURE_ENCOUNTER } = await import('../shared/assessment/departure-encounter.js');
+          const { PERIODIC_ENCOUNTER, PERIODIC_ASSESSMENT_LEVELS } = await import('../shared/assessment/periodic-encounter.js');
+          const { buildAssessmentQuestData } = await import('../shared/assessment/assessment-content-builder.js');
+          const { generateAssessmentPrologContent } = await import('../shared/prolog/assessment-prolog-generator.js');
+          const cityName = world.name || 'the city';
+
+          // Arrival assessment content
           const arrivalQuest = chain.quests.find(q =>
             q.tags?.includes('assessment') && q.tags?.includes('arrival')
           );
-          if (arrivalQuest && world.targetLanguage) {
+          if (arrivalQuest) {
             try {
-              const { generateAssessmentQuestContent } = await import('./services/assessment-content-generator.js');
-              const { ARRIVAL_ENCOUNTER } = await import('../shared/assessment/arrival-encounter.js');
-              const cityName = world.name || 'the city';
               const assessmentData = await generateAssessmentQuestContent(
                 ARRIVAL_ENCOUNTER,
                 world.targetLanguage,
@@ -1838,9 +1844,73 @@ app.get("/api/rules", async (req, res) => {
               });
               console.log(`[World Create] Embedded arrival assessment content in quest ${arrivalQuest.id}`);
             } catch (genError) {
-              console.warn('[World Create] Failed to generate assessment content (non-fatal):', genError);
-              // Non-fatal: assessment will fall back to encounter definition files at runtime
+              console.warn('[World Create] Failed to generate arrival assessment content (non-fatal):', genError);
             }
+          }
+
+          // Departure assessment content
+          const departureQuest = chain.quests.find(q =>
+            q.tags?.includes('assessment') && q.tags?.includes('departure')
+          );
+          if (departureQuest) {
+            try {
+              const assessmentData = await generateAssessmentQuestContent(
+                DEPARTURE_ENCOUNTER,
+                world.targetLanguage,
+                cityName,
+              );
+              await mongoQuestStorage.updateQuest(departureQuest.id, {
+                customData: { assessment: assessmentData },
+              });
+              console.log(`[World Create] Embedded departure assessment content in quest ${departureQuest.id}`);
+            } catch (genError) {
+              console.warn('[World Create] Failed to generate departure assessment content (non-fatal):', genError);
+            }
+          }
+
+          // Periodic assessment quests (conversation-only, no LLM content needed)
+          try {
+            const periodicAssessmentData = buildAssessmentQuestData(PERIODIC_ENCOUNTER);
+            for (const milestone of PERIODIC_ASSESSMENT_LEVELS) {
+              const periodicQuest = await mongoQuestStorage.createQuest({
+                worldId: world.id,
+                assignedTo: '',
+                assignedBy: 'System',
+                title: `Progress Check — Milestone ${milestone}`,
+                description: `A brief conversational check-in at milestone ${milestone} to measure your current speaking proficiency.`,
+                questType: 'assessment',
+                difficulty: milestone <= 10 ? 'beginner' : 'intermediate',
+                targetLanguage: world.targetLanguage,
+                objectives: [
+                  {
+                    type: 'complete_conversation',
+                    description: 'Complete the conversational assessment',
+                    target: 'periodic_conversational',
+                    required: 1,
+                    current: 0,
+                    completed: false,
+                  },
+                ],
+                status: 'unavailable',
+                completionCriteria: {
+                  type: 'all_objectives',
+                  milestoneLevel: milestone,
+                },
+                experienceReward: 100,
+                tags: ['assessment', 'periodic', `milestone-${milestone}`],
+                customData: { assessment: periodicAssessmentData, milestoneLevel: milestone },
+                content: generateAssessmentPrologContent({
+                  encounter: PERIODIC_ENCOUNTER,
+                  difficulty: milestone <= 10 ? 'beginner' : 'intermediate',
+                  targetLanguage: world.targetLanguage,
+                  tags: ['assessment', 'periodic', `milestone-${milestone}`],
+                  experienceReward: 100,
+                }),
+              });
+              console.log(`[World Create] Created periodic assessment quest for milestone ${milestone} (${periodicQuest.id})`);
+            }
+          } catch (periodicError) {
+            console.warn('[World Create] Failed to create periodic assessment quests (non-fatal):', periodicError);
           }
         }
       } catch (seedError) {
