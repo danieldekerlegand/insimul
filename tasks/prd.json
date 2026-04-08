@@ -335,7 +335,7 @@
         "Typecheck passes"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "Check QuestWaypointManager and QuestHotspotManager for existing waypoint infrastructure. The direction_step_completed event may already fire from these systems."
     },
     {

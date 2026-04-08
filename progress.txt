@@ -2689,3 +2689,22 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `price_haggled` event has two emission paths: shop purchases (BabylonGame.handleShopBuy when typedInTargetLanguage) and conversation keyword detection (BabylonChatPanel.requestBackgroundMetadata)
   - `AnalysisContext` had no `targetLanguage` field before this change — callers that pass it will benefit from more accurate language-specific keyword matching
 ---
+
+## 2026-04-08 - US-020: Wire navigation waypoint system into quest completion
+- Fixed critical field name mismatch: quest seed generator sets `locationPosition` on waypoints, but `checkDirectionProximity()` read only `targetPosition` — waypoint proximity never fired
+- Added type-based objective parsing in `parseQuestObjectives()` for `follow_directions` and `navigate_language` — seed quests with explicit type fields now properly carry over `directionSteps`/`navigationWaypoints` with position conversion to Vector3
+- Added `toVector3()` helper to QuestObjectManager for converting plain `{x,y,z}` objects to Vector3 instances
+- Added `transitionDirectionMarker()` for `follow_directions` — removes completed step marker and spawns the next one (parity with `navigate_language` which already had this)
+- Added `locationPosition` fallback in all waypoint rendering methods (`spawnDirectionWaypoints`, `spawnNavigationWaypoints`, next-waypoint spawning)
+- Extended `DynamicQuestWaypointDirector.DirectorObjective` with navigation fields and added step-level position resolution in `resolveObjectivePosition()` — compass/waypoint markers now point to the current step, not the overall objective
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/rendering/QuestObjectManager.ts` — type-based parsing, toVector3, position fallbacks, marker transitions, completionTrigger on QuestObjective
+  - `shared/game-engine/logic/DynamicQuestWaypointDirector.ts` — DirectorObjective nav fields, per-step waypoint resolution
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - Quest seed generator enriches positions as `locationPosition` (plain objects), but runtime Babylon code expects `targetPosition` (Vector3) — always check both field names when working with quest positions
+  - `parseQuestObjectives()` has two paths: `completionCriteria`-based (converts to Vector3) and `quest.objectives`-based (description regex matching, loses typed fields) — always add type-based checks before description fallback
+  - `checkDirectionProximity()` in QuestObjectManager handles both `follow_directions` and `navigate_language` proximity detection — it runs every frame from the game loop
+  - The DynamicQuestWaypointDirector resolves at the objective level by default — for multi-step objectives, you must explicitly resolve the current step's position
+---
