@@ -351,7 +351,7 @@
         "Typecheck passes"
       ],
       "priority": 21,
-      "passes": false,
+      "passes": true,
       "notes": "The meta-objective mappings (vocabulary→vocabulary_usage, conversation→npc_talked, grammar→grammar_demonstrated) already work technically. This story is about making them visible and understandable to the player through the quest tracker UI."
     }
   ]

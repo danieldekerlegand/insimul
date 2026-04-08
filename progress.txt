@@ -2708,3 +2708,24 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - `checkDirectionProximity()` in QuestObjectManager handles both `follow_directions` and `navigate_language` proximity detection — it runs every frame from the game loop
   - The DynamicQuestWaypointDirector resolves at the objective level by default — for multi-step objectives, you must explicitly resolve the current step's position
 ---
+
+## 2026-04-08 - US-021: Make chapter meta-objectives trackable with clear progress indicators
+- Added `onObjectiveProgress` callback to QuestCompletionEngine — fires when vocabulary, conversation, grammar, collect_text, and other countable objectives increment their currentCount (but don't yet complete)
+- Added `META_OBJECTIVE_HINTS` map and `getMetaObjectiveHint()` export in QuestNotificationManager — maps 14 objective types to human-readable hint text explaining what actions count
+- Wired progress callback through QuestObjectManager → BabylonGame: new `handleObjectiveProgress()` method emits `utterance_quest_progress` event (toast) and refreshes HUD task tracker
+- Updated `syncActiveQuestToHud()` in BabylonGame to merge live completion engine objective state (currentCount/requiredCount) for accurate HUD counters, and to enrich hints from `getMetaObjectiveHint()`
+- Updated QuestChecklist React component: added icons for vocabulary, grammar, collect_text, find_text, read_text, read_sign, write_response types; added `getObjectiveHint()` for tooltip + inline hint text on incomplete meta-objectives
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/logic/QuestCompletionEngine.ts` — ObjectiveProgressCallback type, onObjectiveProgress callback, progress fire in trackVocabularyUsage/trackConversationTurn/trackGrammarDemonstrated/handleGameEvent
+  - `shared/game-engine/rendering/QuestObjectManager.ts` — onObjectiveProgress pass-through, setOnObjectiveProgress setter
+  - `shared/game-engine/rendering/QuestNotificationManager.ts` — META_OBJECTIVE_HINTS map, getMetaObjectiveHint export
+  - `shared/game-engine/rendering/BabylonGame.ts` — handleObjectiveProgress method, syncActiveQuestToHud engine state merge + hints
+  - `client/src/components/quests/QuestChecklist.tsx` — meta-objective icons, getObjectiveHint tooltip + inline hints
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - `syncActiveQuestToHud()` reads from `this.quests` (loaded from dataSource), but the completion engine's `currentCount` is more up-to-date — always merge engine state for live progress display
+  - The `onObjectiveProgress` callback fires for increments that don't complete the objective; `onObjectiveCompleted` fires for completions — these are separate callbacks and both must be wired
+  - Chapter objectives in main-quest-chapters.ts use types like `use_vocabulary`, `complete_conversation`, `find_text` (NOT the meta-objective aliases `vocabulary`, `conversation`, `grammar`) — both sets of types need hints
+  - `handleGameEvent()` is the generic matcher for declarative quest-action mappings — it's the only place collect_text progress is tracked
+---
