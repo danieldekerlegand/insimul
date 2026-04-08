@@ -6,7 +6,6 @@ import { createHistoryRoutes } from './routes/history-routes';
 import { createSettlementHistoryRoutes } from './routes/settlement-history-routes';
 import { createAssessmentRoutes } from './routes/assessment-routes';
 import { createAssessmentScoringRoutes } from './routes/assessment-scoring';
-import { createNpcExamRoutes } from './routes/npc-exam-routes';
 import { createNarrativeArcRoutes } from './routes/narrative-arc-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
@@ -1817,12 +1816,10 @@ app.get("/api/rules", async (req, res) => {
         // Generate assessment content and embed in assessment quests' customData
         if (chain && world.targetLanguage) {
           const { generateAssessmentQuestContent } = await import('./services/assessment-content-generator.js');
-          const { ARRIVAL_ENCOUNTER } = await import('../shared/assessment/arrival-encounter.js');
-          const { DEPARTURE_ENCOUNTER } = await import('../shared/assessment/departure-encounter.js');
-          const { PERIODIC_ENCOUNTER, PERIODIC_ASSESSMENT_LEVELS } = await import('../shared/assessment/periodic-encounter.js');
-          const { buildAssessmentQuestData } = await import('../shared/assessment/assessment-content-builder.js');
-          const { generateAssessmentPrologContent } = await import('../shared/prolog/assessment-prolog-generator.js');
+          const { buildAssessmentData, ARRIVAL_PHASES, DEPARTURE_PHASES, ARRIVAL_TOTAL_MAX_POINTS, DEPARTURE_TOTAL_MAX_POINTS } = await import('../shared/quests/assessment-quest-bridge.js');
+          const { PERIODIC_ASSESSMENT_LEVELS } = await import('../shared/assessment/periodic-encounter.js');
           const cityName = world.name || 'the city';
+          const vars = { targetLanguage: world.targetLanguage, cityName };
 
           // Arrival assessment content
           const arrivalQuest = chain.quests.find(q =>
@@ -1830,11 +1827,8 @@ app.get("/api/rules", async (req, res) => {
           );
           if (arrivalQuest) {
             try {
-              const assessmentData = await generateAssessmentQuestContent(
-                ARRIVAL_ENCOUNTER,
-                world.targetLanguage,
-                cityName,
-              );
+              const baseData = buildAssessmentData(ARRIVAL_PHASES, 'arrival', ARRIVAL_TOTAL_MAX_POINTS, vars);
+              const assessmentData = await generateAssessmentQuestContent(baseData, world.targetLanguage, cityName);
               await mongoQuestStorage.updateQuest(arrivalQuest.id, {
                 customData: { assessment: assessmentData },
               });
@@ -1850,11 +1844,8 @@ app.get("/api/rules", async (req, res) => {
           );
           if (departureQuest) {
             try {
-              const assessmentData = await generateAssessmentQuestContent(
-                DEPARTURE_ENCOUNTER,
-                world.targetLanguage,
-                cityName,
-              );
+              const baseData = buildAssessmentData(DEPARTURE_PHASES, 'departure', DEPARTURE_TOTAL_MAX_POINTS, vars);
+              const assessmentData = await generateAssessmentQuestContent(baseData, world.targetLanguage, cityName);
               await mongoQuestStorage.updateQuest(departureQuest.id, {
                 customData: { assessment: assessmentData },
               });
@@ -1866,7 +1857,6 @@ app.get("/api/rules", async (req, res) => {
 
           // Periodic assessment quests (conversation-only, no LLM content needed)
           try {
-            const periodicAssessmentData = buildAssessmentQuestData(PERIODIC_ENCOUNTER);
             for (const milestone of PERIODIC_ASSESSMENT_LEVELS) {
               const periodicQuest = await mongoQuestStorage.createQuest({
                 worldId: world.id,
@@ -1898,14 +1888,41 @@ app.get("/api/rules", async (req, res) => {
                 },
                 experienceReward: 100,
                 tags: ['assessment', 'periodic', `milestone-${milestone}`],
-                customData: { assessment: periodicAssessmentData, milestoneLevel: milestone },
-                content: generateAssessmentPrologContent({
-                  encounter: PERIODIC_ENCOUNTER,
-                  difficulty: milestone <= 10 ? 'beginner' : 'intermediate',
-                  targetLanguage: world.targetLanguage,
-                  tags: ['assessment', 'periodic', `milestone-${milestone}`],
-                  experienceReward: 100,
-                }),
+                customData: {
+                  assessment: {
+                    assessmentType: 'periodic',
+                    totalMaxPoints: 25,
+                    estimatedMinutes: 5,
+                    phases: [{
+                      id: 'periodic_conversational',
+                      type: 'conversation',
+                      name: 'Conversation',
+                      tasks: [{
+                        id: 'periodic_conv_task',
+                        type: 'conversation_quest' as const,
+                        prompt: `Have a natural conversation in ${world.targetLanguage}.`,
+                        maxPoints: 25,
+                        scoringMethod: 'llm' as const,
+                        scoringDimensions: [
+                          { id: 'accuracy', name: 'Accuracy', maxScore: 5, description: 'Grammatical correctness' },
+                          { id: 'fluency', name: 'Fluency', maxScore: 5, description: 'Natural flow and pace' },
+                          { id: 'vocabulary', name: 'Vocabulary', maxScore: 5, description: 'Word choice range' },
+                          { id: 'comprehension', name: 'Comprehension', maxScore: 5, description: 'Understanding prompts' },
+                          { id: 'pragmatics', name: 'Pragmatics', maxScore: 5, description: 'Appropriate register' },
+                        ],
+                      }],
+                      maxScore: 25,
+                      scoringDimensions: [
+                        { id: 'accuracy', name: 'Accuracy', maxScore: 5, description: 'Grammatical correctness' },
+                        { id: 'fluency', name: 'Fluency', maxScore: 5, description: 'Natural flow and pace' },
+                        { id: 'vocabulary', name: 'Vocabulary', maxScore: 5, description: 'Word choice range' },
+                        { id: 'comprehension', name: 'Comprehension', maxScore: 5, description: 'Understanding prompts' },
+                        { id: 'pragmatics', name: 'Pragmatics', maxScore: 5, description: 'Appropriate register' },
+                      ],
+                    }],
+                  },
+                  milestoneLevel: milestone,
+                },
               });
               console.log(`[World Create] Created periodic assessment quest for milestone ${milestone} (${periodicQuest.id})`);
             }
@@ -10562,7 +10579,7 @@ Respond with this JSON structure:
       // Check if quest count reached a periodic assessment milestone (5, 10, 15, 20)
       let periodicAssessmentDue = null;
       try {
-        const { isPeriodicAssessmentLevel, isPeriodicAssessmentCooldownMet, PERIODIC_ENCOUNTER, buildPeriodicAssessmentGrammarContext, buildPeriodicAssessmentDimensionContext } = await import('../shared/assessment/periodic-encounter.js');
+        const { isPeriodicAssessmentLevel, isPeriodicAssessmentCooldownMet, buildPeriodicAssessmentGrammarContext, buildPeriodicAssessmentDimensionContext } = await import('../shared/assessment/periodic-encounter.js');
         // Count completed quests including this one (already marked completed above)
         const allPlayerQuests = playerName ? await storage.getQuestsByPlayer(playerName) : [];
         const completedCount = allPlayerQuests.filter(q => q.status === 'completed').length;
@@ -10585,7 +10602,6 @@ Respond with this JSON structure:
               : null;
             periodicAssessmentDue = {
               questCount: completedCount,
-              assessmentDefinition: PERIODIC_ENCOUNTER,
               grammarContext,
               dimensionContext,
             };
@@ -15999,8 +16015,6 @@ Make the action names thematic and immersive.`;
   // Register assessment scoring & content generation routes
   app.use('/api', createAssessmentScoringRoutes());
 
-  // Register NPC exam/quiz routes
-  app.use('/api', createNpcExamRoutes(storage));
 
   // Register narrative arc (main quest) routes
   app.use('/api', createNarrativeArcRoutes());

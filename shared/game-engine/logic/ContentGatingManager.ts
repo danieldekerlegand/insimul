@@ -5,7 +5,7 @@
  * unlocked based on the player's fluency, XP level, or CEFR level.
  */
 
-import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import type { CEFRLevel } from '../../language/cefr';
 
 export interface ContentGate {
   id: string;

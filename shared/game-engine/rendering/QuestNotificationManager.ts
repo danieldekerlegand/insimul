@@ -26,7 +26,7 @@ import type { GameEventBus } from "../logic/GameEventBus";
 import type { QuestLanguageFeedbackState } from "@shared/language/quest-language-feedback";
 import { createTickerText, disposeTickers, type TickerHandle } from "./GUITickerText";
 import { NotificationStore } from "../logic/NotificationStore";
-import type { CEFRLevel } from "../../assessment/cefr-mapping";
+import type { CEFRLevel } from "../../language/cefr";
 import { getLocalizedQuestText, getLocalizedObjectives } from "../../language/quest-localization";
 import type { NotificationTranslationLookupFn } from "../../language/notification-labels";
 import { getNotificationTitle, getNotificationDescription } from "../../language/notification-labels";

@@ -464,6 +464,7 @@ const ActionSchema = new Schema({
   isAvailable: { type: Boolean, default: true },
   emitsEvent: { type: String, default: null }, // GameEventBus event that triggers this action
   gameActivityVerb: { type: String, default: null }, // Canonical activity verb (defaults to action name)
+  completesObjectiveType: { type: String, default: null }, // Quest objective type this action satisfies
   verbPast: { type: String, default: null },
   verbPresent: { type: String, default: null },
   narrativeTemplates: { type: Schema.Types.Mixed, default: [] },
@@ -3890,64 +3891,7 @@ export class MongoStorage implements IStorage {
     return result.modifiedCount > 0 ? apiKey : null;
   }
 
-  // ============= ASSESSMENT SESSIONS =============
-
-  async createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession> {
-    await this.connect();
-    const doc = await AssessmentModel.create({ ...data, docType: 'session' });
-    return docToAssessmentSession(doc);
-  }
-
-  async updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined> {
-    await this.connect();
-    const existing = await AssessmentModel.findById(sessionId);
-    if (!existing) return undefined;
-
-    const idx = existing.phaseResults.findIndex((r: any) => r.phaseId === phaseResult.phaseId);
-    let update;
-    if (idx >= 0) {
-      update = await AssessmentModel.findByIdAndUpdate(
-        sessionId,
-        { $set: { [`phaseResults.${idx}`]: phaseResult } },
-        { new: true }
-      );
-    } else {
-      update = await AssessmentModel.findByIdAndUpdate(
-        sessionId,
-        { $push: { phaseResults: phaseResult } },
-        { new: true }
-      );
-    }
-    return update ? docToAssessmentSession(update) : undefined;
-  }
-
-  async addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined> {
-    await this.connect();
-    const doc = await AssessmentModel.findByIdAndUpdate(
-      sessionId,
-      { $push: { recordings: recording } },
-      { new: true }
-    );
-    return doc ? docToAssessmentSession(doc) : undefined;
-  }
-
-  async completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined> {
-    await this.connect();
-    const doc = await AssessmentModel.findByIdAndUpdate(
-      sessionId,
-      {
-        $set: {
-          status: 'complete',
-          totalScore,
-          totalMaxPoints: maxScore,
-          cefrLevel,
-          completedAt: new Date()
-        }
-      },
-      { new: true }
-    );
-    return doc ? docToAssessmentSession(doc) : undefined;
-  }
+  // ============= ASSESSMENT SESSIONS (DEPRECATED — use quest overlays) =============
 
   async getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string, playthroughId?: string): Promise<AssessmentSession[]> {
     await this.connect();
@@ -3963,77 +3907,6 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const docs = await AssessmentModel.find({ worldId }).sort({ createdAt: -1 });
     return docs.map(d => docToAssessmentSession(d));
-  }
-
-  async getWorldAssessmentSummary(worldId: string): Promise<{
-    totalSessions: number;
-    completedSessions: number;
-    averageScore: number;
-    averagePercentage: number;
-    byType: Record<string, { count: number; avgScore: number; avgPercentage: number }>;
-    cefrDistribution: Record<string, number>;
-    scoreDistribution: { bucket: string; count: number }[];
-  }> {
-    await this.connect();
-    const docs = await AssessmentModel.find({ worldId, status: 'complete' });
-    const totalSessions = await AssessmentModel.countDocuments({ worldId });
-
-    const byType: Record<string, { count: number; scores: number[]; percentages: number[] }> = {};
-    const cefrDistribution: Record<string, number> = { A1: 0, A2: 0, B1: 0, B2: 0 };
-    const allScores: number[] = [];
-    const allPercentages: number[] = [];
-
-    for (const doc of docs) {
-      const score = doc.totalScore ?? 0;
-      const maxPoints = doc.totalMaxPoints || 1;
-      const pct = (score / maxPoints) * 100;
-      allScores.push(score);
-      allPercentages.push(pct);
-
-      const type = doc.assessmentType;
-      if (!byType[type]) byType[type] = { count: 0, scores: [], percentages: [] };
-      byType[type].count++;
-      byType[type].scores.push(score);
-      byType[type].percentages.push(pct);
-
-      if (doc.cefrLevel && doc.cefrLevel in cefrDistribution) {
-        cefrDistribution[doc.cefrLevel]++;
-      }
-    }
-
-    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-
-    const byTypeResult: Record<string, { count: number; avgScore: number; avgPercentage: number }> = {};
-    for (const [type, data] of Object.entries(byType)) {
-      byTypeResult[type] = {
-        count: data.count,
-        avgScore: Math.round(avg(data.scores) * 100) / 100,
-        avgPercentage: Math.round(avg(data.percentages) * 100) / 100,
-      };
-    }
-
-    // Score distribution buckets (percentage-based)
-    const buckets = [
-      { label: '0-20%', min: 0, max: 20 },
-      { label: '21-40%', min: 21, max: 40 },
-      { label: '41-60%', min: 41, max: 60 },
-      { label: '61-80%', min: 61, max: 80 },
-      { label: '81-100%', min: 81, max: 100 },
-    ];
-    const scoreDistribution = buckets.map(b => ({
-      bucket: b.label,
-      count: allPercentages.filter(p => p >= b.min && p <= b.max).length,
-    }));
-
-    return {
-      totalSessions,
-      completedSessions: docs.length,
-      averageScore: Math.round(avg(allScores) * 100) / 100,
-      averagePercentage: Math.round(avg(allPercentages) * 100) / 100,
-      byType: byTypeResult,
-      cefrDistribution,
-      scoreDistribution,
-    };
   }
 
   // ============= GEOGRAPHIC FEATURES (unified terrain + water) =============

@@ -41,6 +41,7 @@ interface ActionData {
   verbPresent?: string | null;
   emitsEvent?: string | null;
   gameActivityVerb?: string | null;
+  completesObjectiveType?: string | null;
   prerequisites?: any[];
   effects?: any[];
   sideEffects?: any[];
@@ -123,6 +124,10 @@ export function convertActionToProlog(action: ActionData, options?: ConvertOptio
   if (action.gameActivityVerb) {
     lines.push(`action_activity(${actionId}, ${sanitizeAtom(action.gameActivityVerb)}).`);
     predicates.push('action_activity/2');
+  }
+  if (action.completesObjectiveType) {
+    lines.push(`action_completes_objective(${actionId}, ${sanitizeAtom(action.completesObjectiveType)}).`);
+    predicates.push('action_completes_objective/2');
   }
 
   // ── New-style prerequisites & effects (from action-prerequisites.ts / action-effects.ts) ──

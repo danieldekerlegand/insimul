@@ -23,7 +23,7 @@ import {
 import { getMainQuestNPCDefinition, isMainQuestNPC } from '@shared/quest/main-quest-npcs';
 import { generateMVTContext } from '@shared/prolog/mvt-context';
 import type { SerializedFact } from '@shared/game-engine/logic/GameTruthSync';
-import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import type { CEFRLevel } from '@shared/language/cefr';
 import { assignNPCLanguageMode, buildLanguageModeDirective } from '@shared/language/cefr-adaptation';
 
 // ── Storage interface (subset needed by context manager) ──────────────

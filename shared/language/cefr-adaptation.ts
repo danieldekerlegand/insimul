@@ -7,7 +7,7 @@
  * with deterministic, structured parameters.
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
 import { buildFrequencyDirective, getFrequencyRange } from './vocabulary-frequency.js';
 
 // ── NPC Language Mode ────────────────────────────────────────────────────────

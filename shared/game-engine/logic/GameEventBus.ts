@@ -109,7 +109,9 @@ export type GameEvent =
   // Object identification events
   | { type: 'object_identified'; objectId: string; objectName: string; targetWord?: string; category?: string; questId?: string }
   // Sign reading events
+  | { type: 'text_read'; textId: string; title?: string }
   | { type: 'sign_read'; signId: string; objectId: string; targetText: string; nativeText?: string; category?: string; questId?: string }
+  | { type: 'object_pointed_and_named'; objectId: string; objectName: string; targetWord?: string; category?: string; questId?: string }
   // Achievement events
   | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string }
   // Quest notification & reminder events
@@ -158,7 +160,10 @@ export type GameEvent =
   | { type: 'item_purchased'; itemId: string; itemName: string; quantity: number; totalPrice: number; merchantId: string; merchantName: string; businessType?: string }
   | { type: 'food_ordered'; itemId: string; itemName: string; quantity: number; merchantId: string; merchantName: string; businessType: string }
   | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string }
+  // Item sold events
+  | { type: 'item_sold'; itemId: string; itemName: string; quantity: number; totalPrice: number; merchantId?: string; merchantName?: string }
   // Text collection events
+  | { type: 'text_found'; textId: string; textName?: string }
   | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number; clueText?: string; authorName?: string }
   // Reading completion events (emitted from Library reading view)
   | { type: 'reading_completed'; textId: string; title: string }
@@ -168,6 +173,9 @@ export type GameEvent =
   // XP and level-up events
   | { type: 'xp_gained'; amount: number; reason: string; newTotal: number; level: number }
   | { type: 'level_up'; oldLevel: number; newLevel: number; tier: string; rewards: Array<{ type: string; value: number | string; label: string }> }
+  // Translation & pronunciation attempt events
+  | { type: 'translation_attempt'; phrase: string; isCorrect: boolean; questId?: string }
+  | { type: 'pronunciation_attempt'; phrase: string; score: number; passed: boolean; questId?: string }
   // Vocabulary hover-lookup events
   | { type: 'vocabulary_lookup'; word: string; meaning: string; category?: string; source: 'hover_object' | 'hover_sign'; objectId: string; dwellMs: number }
   // Vehicle events
@@ -176,6 +184,7 @@ export type GameEvent =
   // Clue discovery events
   | { type: 'clue_discovered'; clueId: string; clueCategory: string; clueSource: string; clueCount: number; totalClueCount: number }
   // Conversational action events (detected patterns during NPC dialogue)
+  | { type: 'conversational_action_completed'; action: string; npcId: string; questId?: string }
   | { type: 'conversational_action'; action: string; topic?: string; npcId: string; questId?: string }
   | { type: 'conversation_turn_counted'; npcId: string; totalTurns: number; meaningfulTurns: number }
   // Physical action events (player performing activities at hotspots)

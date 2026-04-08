@@ -15,7 +15,7 @@ import * as PlaythroughOverlay from './playthrough-overlay.js';
 const mainQuestProgressionManager = new MainQuestProgressionManager(mongoQuestStorage, PlaythroughOverlay);
 import type { Playthrough } from '@shared/schema.js';
 import { PlaythroughQuestOverlay } from '../../shared/game-engine/logic/PlaythroughQuestOverlay.js';
-import { isArrivalAssessmentQuest } from '../../shared/services/assessment-quest-bridge-shared.js';
+import { isArrivalAssessmentQuest } from '../../shared/quests/assessment-quest-bridge.js';
 import {
   extractOverlayAssessmentData,
   generateReportCardFromOverlays,

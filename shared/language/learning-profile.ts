@@ -7,7 +7,7 @@
  */
 
 import type { PlayerProficiency } from './utils';
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

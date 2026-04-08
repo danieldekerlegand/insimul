@@ -14,7 +14,7 @@
 
 import type { Character, World, InsertQuest } from '../schema.js';
 import { convertQuestToProlog } from '../prolog/quest-converter.js';
-import type { CEFRLevel } from '../assessment/cefr-mapping.js';
+import type { CEFRLevel } from '../language/cefr.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

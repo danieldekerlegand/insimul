@@ -44,7 +44,7 @@ import type { PatternEntry } from '@shared/feature-modules/pattern-recognition/t
 import type { ProficiencyProgress } from '@shared/feature-modules/proficiency/types';
 import type { ConversationRecord as GenericConversationRecord } from '@shared/feature-modules/conversation-analytics/types';
 import type { IDataSource } from '@shared/game-engine/data-source';
-import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import type { CEFRLevel } from '@shared/language/cefr';
 import {
   checkCEFRAdvancement,
   type CEFRProgressSnapshot,

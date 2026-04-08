@@ -25,7 +25,7 @@ import {
   Color3,
 } from '@babylonjs/core';
 import type { QuestIndicatorType } from './QuestIndicatorManager';
-import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import type { CEFRLevel } from '../../language/cefr';
 import type { UIImmersionMode } from '../../language/ui-localization';
 import type { TranslationLookupFn } from '../../language/action-labels';
 import {

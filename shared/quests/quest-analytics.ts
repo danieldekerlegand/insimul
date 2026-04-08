@@ -18,7 +18,7 @@ import type {
 } from '@shared/analytics/quest-analytics-types';
 import type { SkillDimension, SkillProfile } from '@shared/language/learning-profile';
 import { SKILL_TO_CATEGORIES } from '@shared/language/learning-profile';
-import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import type { CEFRLevel } from '@shared/language/cefr';
 
 const CEFR_ORDER: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
 

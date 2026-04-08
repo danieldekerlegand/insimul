@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T19:17:27.153Z",
+  "lastUpdated": "2026-04-08T20:36:07.392Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -262,7 +262,7 @@
     {
       "path": "shared/game-engine/logic/GameEventBus.ts",
       "description": "Centralized typed event bus (120+ event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "6aabb1f6575b7df90c2b4dee81155c56074f27f2b82410b7c6d08d1af95d19d6",
+      "hash": "1d9e8198202ae6438912ed3c59169c3b94b7caacf9b5e84ad8b48693368180cb",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "shared/game-engine/logic/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "539c4852e1160127c1e1ab71b070130f286f71ac4fe356dbfb8842fee1ad723f",
+      "hash": "ca74d3d0cfe313406201c09352f82691c72036e3b959a52a42c574ce63d8573e",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "126266e433ea1eab69387ff643b0134aad57aa5d53301fb956ab8661432c8e24",
+      "hash": "eb86c25c9176181a7cb2634e0b3f70fbb28a6ca4c83260aadedeb25f0c1e880d",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "8016b5a71175eb84eb552dfd277c1850c8c5c7b2c4f2e0ec90f198bfaddc0cb5",
+      "hash": "a53e613d0b6b6cdeb7fc61efa66231e26da95516664645ba435ffccc550534c2",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "7b0d1c93e47a65b98ad74034a70e4b1757fd75ced7ffd4825b398eb8b9918c5d",
+      "hash": "f59696fee1254f1069af2f938fb359c1780c077b50c230082c2df358212fc40e",
       "engineMappings": [
         {
           "engine": "unity",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "cef6a6824abfa8e9b99bc9df114301ff657accc052201589e2184c781ce31cd7",
+      "hash": "381b7482feb963713912c30842d3ff4b48f45167b2e0ed98f97783e6ccdc780e",
       "engineMappings": [
         {
           "engine": "unity",
@@ -652,7 +652,7 @@
     {
       "path": "shared/game-engine/logic/AssessmentEngine.ts",
       "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
-      "hash": "5f4c4bd5db2c48f2978797693bd123e1ddec3d6e7ecb21cfbef691274072913c",
+      "hash": "77ff0ba547433c341246d00f1e887f529eac49f0f9a1b56f976479f13df30646",
       "engineMappings": [
         {
           "engine": "babylon",

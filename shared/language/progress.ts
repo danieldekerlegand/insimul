@@ -9,8 +9,8 @@
  * language-specific fields. Existing imports/consumers are unaffected.
  */
 
-import type { CEFRLevel } from './assessment/cefr-mapping';
-import type { AssessmentDimensionScores } from './assessment/assessment-types';
+import type { CEFRLevel } from './cefr';
+import type { AssessmentDimensionScores } from '../assessment/assessment-types';
 
 // Re-export MasteryLevel from the generic module so consumers don't need to change imports.
 // The generic module defines the same union type.

@@ -31,7 +31,7 @@ import type { ListenAndRepeatPhrase } from "../logic/actions/ListenAndRepeatActi
 import { ConversationDifficultyMonitor, type TurnMetrics } from "../logic/ConversationDifficultyMonitor";
 import { buildScaffoldingDirective } from "@shared/language/cefr-adaptation";
 import { buildVocabularyRangeSummary } from "@shared/language/vocabulary-frequency";
-import type { CEFRLevel } from "@shared/assessment/cefr-mapping";
+import type { CEFRLevel } from "@shared/language/cefr";
 import type { ChatProviderType, AudioChunkOutput, FacialData } from '@insimul/typescript';
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";

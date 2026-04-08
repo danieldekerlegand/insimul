@@ -17,7 +17,7 @@ import {
   TextWrapping,
 } from '@babylonjs/gui';
 import { Scene } from '@babylonjs/core';
-import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import type { CEFRLevel } from '../../language/cefr';
 import { getLocalizedQuestText } from '../../language/quest-localization';
 
 export interface QuestOfferData {

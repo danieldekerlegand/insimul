@@ -6,7 +6,7 @@
  * and estimated completion times.
  */
 
-import type { CEFRLevel } from './assessment/assessment-types';
+import type { CEFRLevel } from './language/cefr';
 import { getCEFRTextComplexity, filterQuestsByCEFR } from './language/cefr-adaptation';
 
 export type { CEFRLevel };

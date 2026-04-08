@@ -7,7 +7,7 @@
  * of target-language text. At higher levels, only the target language is shown.
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
 
 export type QuestTextField = 'title' | 'description' | 'objective';
 

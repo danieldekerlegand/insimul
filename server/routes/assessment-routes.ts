@@ -1,10 +1,8 @@
 /**
  * Assessment API Routes
  *
- * Read endpoints now source data from playthrough quest overlays instead of
- * the legacy AssessmentSession collection.
- * Write endpoints return 410 Gone — assessment data is now stored in quest
- * overlays via the save-file pipeline.
+ * Read-only endpoints that source assessment data from quest overlays
+ * in the playthrough save system.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -18,15 +16,10 @@ import {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-const GONE_MESSAGE =
-  'This endpoint has been retired. Assessment data is now stored in quest overlays (save file). Use GET endpoints to read assessment data from playthroughs.';
-
-/** Check whether a quest is an assessment quest by its questType and tags. */
 function isAssessmentQuest(quest: Quest): boolean {
   return quest.questType === 'assessment';
 }
 
-/** Derive the assessment type from quest tags (arrival, departure, periodic). */
 function getAssessmentType(quest: Quest): string {
   const tags = (quest.tags as string[]) ?? [];
   if (tags.includes('arrival')) return 'arrival';
@@ -35,10 +28,6 @@ function getAssessmentType(quest: Quest): string {
   return 'unknown';
 }
 
-/**
- * Convert quest overlay assessment data into a shape compatible with the
- * legacy AssessmentSession response format for backward compatibility.
- */
 function overlayToSessionFormat(quest: Quest, overlay: QuestOverlayAssessmentData) {
   const assessmentType = getAssessmentType(quest);
   return {
@@ -58,15 +47,10 @@ function overlayToSessionFormat(quest: Quest, overlay: QuestOverlayAssessmentDat
   };
 }
 
-/**
- * Collect all assessment quests across all playthroughs, applying overlays.
- * Optionally filters by worldId.
- */
 async function getAssessmentQuestsFromPlaythroughs(
   storage: IStorage,
   opts: { playerId?: string; worldId?: string; playthroughId?: string },
 ) {
-  // 1. Find relevant playthroughs
   let playthroughs: Array<{ id: string; worldId: string; userId: string }>;
 
   if (opts.playthroughId) {
@@ -83,7 +67,6 @@ async function getAssessmentQuestsFromPlaythroughs(
     playthroughs = [];
   }
 
-  // 2. For each playthrough, get quests with overlays and extract assessment data
   const results: Array<ReturnType<typeof overlayToSessionFormat>> = [];
 
   for (const pt of playthroughs) {
@@ -106,31 +89,7 @@ async function getAssessmentQuestsFromPlaythroughs(
 export function createAssessmentRoutes(storage: IStorage): Router {
   const router = Router();
 
-  // ── Write endpoints → 410 Gone ──────────────────────────────────────────
-
-  // POST /api/assessments — create a new assessment session (RETIRED)
-  router.post('/assessments', (_req: Request, res: Response) => {
-    res.status(410).json({ message: GONE_MESSAGE });
-  });
-
-  // PUT /api/assessments/:sessionId/phases/:phaseId — update phase result (RETIRED)
-  router.put('/assessments/:sessionId/phases/:phaseId', (_req: Request, res: Response) => {
-    res.status(410).json({ message: GONE_MESSAGE });
-  });
-
-  // PUT /api/assessments/:sessionId/recordings — add recording reference (RETIRED)
-  router.put('/assessments/:sessionId/recordings', (_req: Request, res: Response) => {
-    res.status(410).json({ message: GONE_MESSAGE });
-  });
-
-  // PUT /api/assessments/:sessionId/complete — mark session complete (RETIRED)
-  router.put('/assessments/:sessionId/complete', (_req: Request, res: Response) => {
-    res.status(410).json({ message: GONE_MESSAGE });
-  });
-
-  // ── Read endpoints → playthrough quest overlays ─────────────────────────
-
-  // GET /api/assessments/player/:playerId — get all player assessments
+  // GET /api/assessments/player/:playerId
   router.get('/assessments/player/:playerId', async (req: Request, res: Response) => {
     try {
       const { playerId } = req.params;
@@ -149,16 +108,14 @@ export function createAssessmentRoutes(storage: IStorage): Router {
     }
   });
 
-  // GET /api/assessments/world/:worldId/summary — get world summary statistics
+  // GET /api/assessments/world/:worldId/summary
   router.get('/assessments/world/:worldId/summary', async (req: Request, res: Response) => {
     try {
       const { worldId } = req.params;
 
       const sessions = await getAssessmentQuestsFromPlaythroughs(storage, { worldId });
-
       const completedSessions = sessions.filter(s => s.status === 'complete');
 
-      // Build summary matching legacy format
       const byType: Record<string, number> = {};
       const cefrDistribution: Record<string, number> = {};
       let totalScore = 0;
@@ -187,13 +144,11 @@ export function createAssessmentRoutes(storage: IStorage): Router {
     }
   });
 
-  // GET /api/assessments/:sessionId/transcripts — get all transcripts for a session
-  // Note: sessionId is now the quest ID (from quest overlay)
+  // GET /api/assessments/:sessionId/transcripts
   router.get('/assessments/:sessionId/transcripts', async (req: Request, res: Response) => {
     try {
       const { sessionId } = req.params;
 
-      // Try to find the quest directly
       const quest = await storage.getQuest(sessionId);
       if (!quest || !isAssessmentQuest(quest)) {
         return res.status(404).json({ message: 'Assessment quest not found' });
@@ -204,7 +159,6 @@ export function createAssessmentRoutes(storage: IStorage): Router {
         return res.status(404).json({ message: 'No assessment data found for this quest' });
       }
 
-      // Extract transcripts from phase results
       const transcripts = overlay.phaseResults
         .filter(pr => {
           const taskResults = pr.taskResults ?? [];
@@ -228,7 +182,7 @@ export function createAssessmentRoutes(storage: IStorage): Router {
     }
   });
 
-  // GET /api/assessments/:sessionId — fetch a session (reads from quest overlay)
+  // GET /api/assessments/:sessionId
   router.get('/assessments/:sessionId', async (req: Request, res: Response) => {
     try {
       const { sessionId } = req.params;
@@ -240,7 +194,6 @@ export function createAssessmentRoutes(storage: IStorage): Router {
 
       const overlay = extractOverlayAssessmentData(quest);
       if (!overlay) {
-        // Return basic quest info even without completed assessment data
         return res.json({
           id: quest.id,
           playerId: quest.assignedTo ?? '',
@@ -263,11 +216,6 @@ export function createAssessmentRoutes(storage: IStorage): Router {
       console.error('Get assessment session error:', error);
       res.status(500).json({ message: 'Failed to get assessment session' });
     }
-  });
-
-  // GET /api/assessments/:sessionId/recordings-list — get recordings (RETIRED — no longer stored)
-  router.get('/assessments/:sessionId/recordings-list', (_req: Request, res: Response) => {
-    res.json({ sessionId: _req.params.sessionId, recordings: [], phaseRecordings: [] });
   });
 
   return router;

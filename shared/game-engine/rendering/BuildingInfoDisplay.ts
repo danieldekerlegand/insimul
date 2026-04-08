@@ -7,7 +7,7 @@
 
 import { Scene, Mesh, ActionManager, ExecuteCodeAction, Vector3 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
-import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import type { CEFRLevel } from '../../language/cefr';
 import { getBilingualDisplay, getGameString, type UIImmersionMode, shouldTranslateUIKey } from '../../language/ui-localization';
 import { buildBilingualBuildingPrompt } from '../../language/in-world-text';
 import type { TranslationLookupFn } from '../../language/action-labels';

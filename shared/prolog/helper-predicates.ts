@@ -118,6 +118,19 @@ skill_gte(Actor, Skill, MinLevel) :-
 :- dynamic(food_ordered/2).
 :- dynamic(price_haggled/2).
 :- dynamic(npc_conversation_turns/3).
+:- dynamic(action_performed/2).
+:- dynamic(action_completes_objective/2).
+:- dynamic(physical_action_done/2).
+:- dynamic(conversational_action/4).
+:- dynamic(comprehension_done/2).
+:- dynamic(used/2).
+:- dynamic(purchased/3).
+:- dynamic(sold/3).
+:- dynamic(combat_action_done/3).
+:- dynamic(activity_observed/3).
+:- dynamic(assessment_phase_done/4).
+:- dynamic(friendship_tier/3).
+:- dynamic(assessment_completed/2).
 
 % ── Collection objectives ────────────────────────────────────────────────
 % collect(Item, Count) — player collected enough of an item
@@ -268,6 +281,261 @@ objective_complete(Player, QuestId, Idx) :-
 objective_complete(Player, QuestId, Idx) :-
     quest_objective(QuestId, Idx, read_text(TextId)),
     text_read(Player, TextId).
+
+% ── Examine object ──────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, examine_object(Count)),
+    aggregate_all(count, object_examined(Player, _), Total),
+    Total >= Count.
+
+% ── Read sign ───────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, read_sign(Count)),
+    aggregate_all(count, sign_read(Player, _), Total),
+    Total >= Count.
+
+% ── Write response / describe scene ─────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, write_response(Count)),
+    aggregate_all(count, response_written(Player, _), Total),
+    Total >= Count.
+
+% ── Listen and repeat ───────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, listen_and_repeat(Count)),
+    aggregate_all(count, pronunciation_passed(Player, _), Total),
+    Total >= Count.
+
+% ── Pronunciation check ─────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, pronunciation_check(Count)),
+    aggregate_all(count, pronunciation_passed(Player, _), Total),
+    Total >= Count.
+
+% ── Identify / point-and-name ───────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, identify_object(Count)),
+    aggregate_all(count, object_pointed_named(Player, _), Total),
+    Total >= Count.
+
+% ── Order food ──────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, order_food(Count)),
+    aggregate_all(count, food_ordered(Player, _), Total),
+    Total >= Count.
+
+% ── Haggle price ────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, haggle_price(Count)),
+    aggregate_all(count, price_haggled(Player, _), Total),
+    Total >= Count.
+
+% ── Buy item ────────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, buy_item(Count)),
+    aggregate_all(count, action_performed(Player, buy_item), Total),
+    Total >= Count.
+
+% ── Sell item ───────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, sell_item(Count)),
+    aggregate_all(count, action_performed(Player, sell_item), Total),
+    Total >= Count.
+
+% ── Give gift ───────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, give_gift(NPC)),
+    NPC \\= any,
+    gift_given(Player, NPC, _).
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, give_gift(any)),
+    gift_given(Player, _, _).
+
+% ── Photograph subject ──────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, photograph(Subject, Count)),
+    Subject \\= any,
+    aggregate_all(count, photo_taken(Player, Subject), Total),
+    Total >= Count.
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, photograph(any, Count)),
+    aggregate_all(count, photo_taken(Player, _), Total),
+    Total >= Count.
+
+% ── Physical action ─────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, physical_action(Action, Count)),
+    Action \\= '',
+    aggregate_all(count, physical_action_done(Player, Action), Total),
+    Total >= Count.
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, physical_action('', Count)),
+    aggregate_all(count, physical_action_done(Player, _), Total),
+    Total >= Count.
+
+% ── Introduce self ──────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, introduce_self),
+    conversational_action(Player, _, introduce_self, _).
+
+% ── Ask for directions ──────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, ask_for_directions(Count)),
+    aggregate_all(count, action_performed(Player, ask_for_directions), Total),
+    Total >= Count.
+
+% ── Comprehension quiz ──────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, comprehension_quiz(Count)),
+    aggregate_all(count, comprehension_done(Player, _), Total),
+    Total >= Count.
+
+% ── Translation challenge ───────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, translation_challenge(Count)),
+    aggregate_all(count, translation_completed(Player, correct), Total),
+    Total >= Count.
+
+% ── Follow directions ───────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, follow_directions(Count)),
+    aggregate_all(count, direction_step_done(Player, QuestId, _), Total),
+    Total >= Count.
+
+% ── Listening comprehension ─────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, listening_comprehension(Count)),
+    aggregate_all(count, pronunciation_passed(Player, _), Total),
+    Total >= Count.
+
+% ── Collect vocabulary ──────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, collect_vocabulary(Count)),
+    aggregate_all(count, vocab_used(Player, _, _), Total),
+    Total >= Count.
+
+% ── Eavesdrop ───────────────────────────────────────────────────────────
+:- dynamic(overheard_conversation/4).
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, eavesdrop(Topic)),
+    overheard_conversation(Player, _, _, Topic).
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, eavesdrop),
+    overheard_conversation(Player, _, _, _).
+
+% ── Build friendship ────────────────────────────────────────────────────
+:- dynamic(friendship_level/3).
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, build_friendship(Count)),
+    aggregate_all(count, (friendship_level(Player, _, Level), Level >= 3), Total),
+    Total >= Count.
+
+% ── Collect clue ────────────────────────────────────────────────────────
+:- dynamic(clue_found/2).
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, collect_clue(Count)),
+    aggregate_all(count, clue_found(Player, _), Total),
+    Total >= Count.
+
+% ── Assessment objectives ───────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, complete_assessment),
+    assessment_result(Player, _, _, _, _, _).
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, assessment_phase(PhaseType, _Trigger)),
+    quest_progress(Player, QuestId, Progress),
+    Progress >= 100.
+
+% ── Meta / aggregation objectives (chapter quests) ──────────────────────
+% vocabulary_activities(Count) — player completed enough vocab-related actions
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, vocabulary_activities(Count)),
+    aggregate_all(count, (vocab_used(Player, _, _) ; object_pointed_named(Player, _)), Total),
+    Total >= Count.
+
+% conversation_activities(Count) — player had enough conversations
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, conversation_activities(Count)),
+    aggregate_all(sum(T), talked_to(Player, _, T), Total),
+    Total >= Count.
+
+% grammar_activities(Count) — player practiced grammar enough times
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, grammar_activities(Count)),
+    quest_progress(Player, QuestId, Progress),
+    Progress >= Count.
+
+% sustained_conversation(Count) — long conversation turns
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, sustained_conversation(Count)),
+    npc_conversation_turns(Player, _, Turns),
+    Turns >= Count.
+
+% master_words(Count) — vocab words used correctly multiple times
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, master_words(Count)),
+    aggregate_all(count, vocab_used(Player, _, 1), Total),
+    Total >= Count.
+
+% learn_new_words(Count) — distinct vocab words encountered
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, learn_new_words(Count)),
+    aggregate_all(count, vocab_used(Player, _, _), Total),
+    Total >= Count.
+
+% find_vocabulary_items(Count) — objects examined/identified for vocab
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, find_vocabulary_items(Count)),
+    aggregate_all(count, (object_examined(Player, _) ; object_pointed_named(Player, _)), Total),
+    Total >= Count.
+
+% ── Equip item ──────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, equip_item(Item)),
+    Item \\= any,
+    equipped(Player, Item, _).
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, equip_item(any)),
+    equipped(Player, _, _).
+
+% ── Drop item ───────────────────────────────────────────────────────────
+:- dynamic(dropped/2).
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, drop_item(Item)),
+    Item \\= any,
+    action_performed(Player, drop_item).
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, drop_item(any)),
+    action_performed(Player, drop_item).
+
+% ── Combat action (individual moves) ───────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, combat_action(Count)),
+    aggregate_all(count, combat_action_done(Player, _, _), Total),
+    Total >= Count.
+
+% ── Accept quest ────────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, accept_quest(TargetQuestId)),
+    TargetQuestId \\= any,
+    quest_active(Player, TargetQuestId).
+
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, accept_quest(any)),
+    quest_active(Player, _).
+
+% ── Observe activity ────────────────────────────────────────────────────
+objective_complete(Player, QuestId, Idx) :-
+    quest_objective(QuestId, Idx, observe_activity(Count)),
+    aggregate_all(count, activity_observed(Player, _, _), Total),
+    Total >= Count.
 
 % ── Generic description-based objectives ─────────────────────────────────
 % Fallback: if quest_progress has been tracked for this quest, check it

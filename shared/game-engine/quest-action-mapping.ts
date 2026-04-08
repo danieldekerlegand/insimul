@@ -288,6 +288,14 @@ export const QUEST_ACTION_MAPPINGS: QuestActionMapping[] = [
     quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
     description: 'Player demonstrates grammar knowledge (meta-objective for chapter quests)',
   },
+  // ─── Pronunciation objectives ──────────────────────────────────────────────
+  {
+    objectiveType: 'pronunciation_check',
+    eventType: 'pronunciation_attempt',
+    matchFields: [],
+    quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+    description: 'Player pronounces a phrase and gets scored',
+  },
   // ─── Photography alias (photograph → photograph_subject) ──────────────────
   {
     objectiveType: 'photograph',
@@ -320,20 +328,75 @@ export const QUEST_ACTION_MAPPINGS: QuestActionMapping[] = [
   },
 ];
 
-// ── Lookup indexes ───────────────────────────────────────────────────────────
+// ── Lookup indexes (built from static mappings) ─────────────────────────────
 
-/** Index: eventType → list of mappings that can be triggered by that event. */
-const eventTypeIndex = new Map<string, QuestActionMapping[]>();
-for (const mapping of QUEST_ACTION_MAPPINGS) {
-  const list = eventTypeIndex.get(mapping.eventType) || [];
-  list.push(mapping);
-  eventTypeIndex.set(mapping.eventType, list);
+let eventTypeIndex = new Map<string, QuestActionMapping[]>();
+let objectiveTypeIndex = new Map<string, QuestActionMapping>();
+
+function rebuildIndexes(mappings: QuestActionMapping[]): void {
+  eventTypeIndex = new Map();
+  objectiveTypeIndex = new Map();
+  for (const mapping of mappings) {
+    const list = eventTypeIndex.get(mapping.eventType) || [];
+    list.push(mapping);
+    eventTypeIndex.set(mapping.eventType, list);
+    // First mapping for an objective type wins (static takes priority)
+    if (!objectiveTypeIndex.has(mapping.objectiveType)) {
+      objectiveTypeIndex.set(mapping.objectiveType, mapping);
+    }
+  }
 }
 
-/** Index: objectiveType → mapping definition. */
-const objectiveTypeIndex = new Map<string, QuestActionMapping>();
-for (const mapping of QUEST_ACTION_MAPPINGS) {
-  objectiveTypeIndex.set(mapping.objectiveType, mapping);
+// Initialize from static mappings
+rebuildIndexes(QUEST_ACTION_MAPPINGS);
+
+/**
+ * Extend the QAM with mappings derived from action data.
+ * Called during game initialization after actions are loaded from the database.
+ *
+ * For each action that has `completesObjectiveType` and `emitsEvent` set,
+ * creates a mapping if one doesn't already exist for that objective type.
+ * This means new actions automatically integrate into the quest completion
+ * pipeline without requiring code changes.
+ */
+export function extendMappingsFromActions(actions: Array<{
+  name: string;
+  emitsEvent?: string | null;
+  completesObjectiveType?: string | null;
+}>): number {
+  let added = 0;
+
+  for (const action of actions) {
+    if (!action.emitsEvent || !action.completesObjectiveType) continue;
+
+    const objType = action.completesObjectiveType;
+
+    // If this objective type already has a static mapping, skip
+    // (static mappings have richer matchFields/quantity definitions)
+    if (objectiveTypeIndex.has(objType)) continue;
+
+    // Create a basic mapping from the action data
+    const mapping: QuestActionMapping = {
+      objectiveType: objType,
+      eventType: action.emitsEvent,
+      matchFields: [],
+      quantity: { currentField: 'currentCount', requiredField: 'requiredCount', defaultRequired: 1 },
+      description: `Auto-generated from action: ${action.name}`,
+    };
+
+    QUEST_ACTION_MAPPINGS.push(mapping);
+    objectiveTypeIndex.set(objType, mapping);
+    const list = eventTypeIndex.get(action.emitsEvent) || [];
+    list.push(mapping);
+    eventTypeIndex.set(action.emitsEvent, list);
+    added++;
+  }
+
+  if (added > 0) {
+    console.log(`[QuestActionMapping] Extended with ${added} action-derived mapping(s)`);
+  }
+
+  return added;
 }
 
 /** Look up all mappings that a given event type can satisfy. */

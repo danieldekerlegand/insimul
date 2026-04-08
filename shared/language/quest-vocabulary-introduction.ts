@@ -10,7 +10,7 @@
 import type { VocabularyEntry, MasteryLevel } from './progress';
 import type { VocabularyCorpusEntry, VocabularyCategory } from './vocabulary-corpus';
 import { VOCABULARY_CORPUS } from './vocabulary-corpus';
-import type { CEFRLevel } from '../assessment/assessment-types';
+import type { CEFRLevel } from './cefr';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

@@ -13,7 +13,7 @@
  * (same cache used by ContextualActionResolver and BuildingInfoDisplay).
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
 import type { UIImmersionMode } from './ui-localization';
 import { shouldTranslateUIKey, getBilingualDisplay } from './ui-localization';
 import type { TranslationLookupFn } from './action-labels';

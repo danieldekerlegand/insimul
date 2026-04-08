@@ -12,7 +12,7 @@
 import type { InteractableTarget } from '../InteractionPromptSystem';
 import type { PlayerActionSystem, PhysicalActionType } from '../PlayerActionSystem';
 import type { ContextualAction } from './ContextualActionMenu';
-import type { CEFRLevel } from '../../../assessment/cefr-mapping';
+import type { CEFRLevel } from '../../../language/cefr';
 import { translateMenuTitle } from '../../../language/in-world-text';
 import type { UIImmersionMode } from '../../../language/ui-localization';
 import { getActionLabel, type TranslationLookupFn } from '../../../language/action-labels';

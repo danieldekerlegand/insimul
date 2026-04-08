@@ -11,7 +11,7 @@
  *  - 1-hour TTL expiration
  */
 
-import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import type { CEFRLevel } from '@shared/language/cefr';
 import { getNPCLanguageBehavior } from '@shared/language/cefr-adaptation';
 
 // ── Types ─────────────────────────────────────────────────────────────

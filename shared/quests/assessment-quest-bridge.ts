@@ -1,45 +1,442 @@
 /**
- * Assessment Quest Bridge (Server)
+ * Assessment Quest Utilities
  *
- * Re-exports shared bridge functions for the arrival assessment and adds:
- * - Server-typed buildArrivalAssessmentQuest that returns InsertQuest
- * - Departure assessment quest creation, phase completion, eligibility, and report card generation
+ * Functions for creating, tracking, and completing assessment quests.
+ * Assessments are quests with questType='assessment' and assessment data
+ * stored in customData.assessment.
+ *
+ * The quest IS the assessment definition — no separate encounter files needed.
  */
 
-// ── Arrival assessment (shared) ─────────────────────────────────────────────
-
-export {
-  type AssessmentQuestObjective,
-  type AssessmentQuestConfig,
-  markPhaseObjectiveComplete,
-  computeProgress,
-  isArrivalAssessmentQuest,
-  getArrivalPhaseIds,
-} from '../services/assessment-quest-bridge-shared.js';
-
-import { buildArrivalAssessmentQuest as buildShared } from '../services/assessment-quest-bridge-shared.js';
-import type { AssessmentQuestConfig } from '../services/assessment-quest-bridge-shared.js';
+import type { AssessmentQuestData, AssessmentQuestPhase, AssessmentSession, AssessmentDimensionScores, AssessmentPhaseResult, AssessmentCompletionResult, PhaseType, ScoringDimension, ContentTemplate } from '../assessment/assessment-types.js';
 import type { InsertQuest, Quest } from '../schema.js';
-import type {
-  AssessmentSession,
-  AssessmentDimensionScores,
-  AssessmentPhaseResult,
-  AssessmentCompletionResult,
-  CEFRLevel,
-  PhaseType,
-} from '../assessment/assessment-types.js';
-import { DEPARTURE_ENCOUNTER } from '../assessment/departure-encounter.js';
-import { mapScoreToCEFR } from '../assessment/cefr-mapping.js';
-import { generateAssessmentPrologContent } from '../prolog/assessment-prolog-generator.js';
+import type { CEFRLevel } from '../language/cefr.js';
+import { mapScoreToCEFR } from '../language/cefr.js';
 
-/**
- * Server-typed version that returns InsertQuest.
- */
-export function buildArrivalAssessmentQuest(config: AssessmentQuestConfig): InsertQuest {
-  return buildShared(config) as InsertQuest;
+// ── Types ────────────────────────────────────────────────────────────────────
+
+export interface AssessmentQuestObjective {
+  id: string;
+  type: string;
+  description: string;
+  requiredCount: number;
+  currentCount: number;
+  completed: boolean;
+  assessmentPhaseId: string;
+  completionTrigger?: string;
+  score?: number;
+  maxScore?: number;
+  minWordCount?: number;
 }
 
-// ── Departure assessment types ──────────────────────────────────────────────
+export interface AssessmentQuestConfig {
+  worldId: string;
+  playerId: string;
+  playerCharacterId?: string;
+  targetLanguage: string;
+  cityName: string;
+}
+
+// ── Template helper ──────────────────────────────────────────────────────────
+
+export function resolveTemplate(
+  text: string,
+  vars: { targetLanguage: string; cityName: string },
+): string {
+  return text
+    .replace(/\{\{targetLanguage\}\}/g, vars.targetLanguage)
+    .replace(/\{\{cityName\}\}/g, vars.cityName);
+}
+
+// ── Assessment phase definitions ─────────────────────────────────────────────
+// These define the structure of arrival/departure assessments inline.
+// The quest IS the source of truth — no separate encounter files.
+
+interface AssessmentPhaseTemplate {
+  id: string;
+  type: PhaseType;
+  name: string;
+  description: string;
+  maxScore: number;
+  completionTrigger: string;
+  minWordCount?: number;
+  requiredCount?: number;
+  scoringDimensions: ScoringDimension[];
+  contentTemplate?: ContentTemplate;
+  questConfig?: { minExchanges: number; maxExchanges: number; topics: string[]; npcRole?: string };
+}
+
+const ARRIVAL_PHASES: AssessmentPhaseTemplate[] = [
+  {
+    id: 'arrival_reading',
+    type: 'reading',
+    name: 'Reading Comprehension',
+    description: 'Read a short passage in {{targetLanguage}} and answer comprehension questions.',
+    maxScore: 15,
+    completionTrigger: 'reading_completed',
+    scoringDimensions: [
+      { id: 'comprehension', name: 'Comprehension', maxScore: 5, description: 'Understanding of main ideas and details' },
+      { id: 'vocabulary_recognition', name: 'Vocabulary Recognition', maxScore: 5, description: 'Ability to understand key vocabulary in context' },
+      { id: 'inference', name: 'Inference', maxScore: 5, description: 'Ability to draw conclusions from the text' },
+    ],
+    contentTemplate: {
+      topic: 'A visitor arriving in {{cityName}} for the first time — reading signs, navigating the train station, and finding their accommodation.',
+      difficulty: 'beginner',
+      lengthSentences: 5,
+      questionCount: 3,
+    },
+  },
+  {
+    id: 'arrival_writing',
+    type: 'writing',
+    name: 'Writing Assessment',
+    description: 'Complete writing tasks in {{targetLanguage}}.',
+    maxScore: 15,
+    completionTrigger: 'writing_submitted',
+    minWordCount: 20,
+    scoringDimensions: [
+      { id: 'task_completion', name: 'Task Completion', maxScore: 5, description: 'Response addresses the prompt requirements' },
+      { id: 'vocabulary', name: 'Vocabulary', maxScore: 5, description: 'Range and appropriateness of word choice' },
+      { id: 'grammar', name: 'Grammar', maxScore: 5, description: 'Correct sentence structure and verb forms' },
+    ],
+    contentTemplate: {
+      topic: 'Arriving in {{cityName}} — write a message to a friend about your arrival, and describe what you see around you.',
+      difficulty: 'beginner',
+      promptCount: 2,
+    },
+  },
+  {
+    id: 'arrival_listening',
+    type: 'listening',
+    name: 'Listening Comprehension',
+    description: 'Listen to a passage in {{targetLanguage}} and answer comprehension questions.',
+    maxScore: 13,
+    completionTrigger: 'listening_completed',
+    scoringDimensions: [
+      { id: 'comprehension', name: 'Comprehension', maxScore: 5, description: 'Understanding of main ideas and details from audio' },
+      { id: 'detail_extraction', name: 'Detail Extraction', maxScore: 4, description: 'Ability to identify specific information' },
+      { id: 'inference', name: 'Inference', maxScore: 4, description: 'Ability to draw conclusions from what was heard' },
+    ],
+    contentTemplate: {
+      topic: 'A local resident giving a welcome announcement at the {{cityName}} visitor center — mentioning opening hours, nearby attractions, local customs.',
+      difficulty: 'beginner',
+      lengthSentences: 5,
+      questionCount: 3,
+    },
+  },
+  {
+    id: 'arrival_initiate_conversation',
+    type: 'initiate_conversation' as PhaseType,
+    name: 'Initiate Conversation',
+    description: 'Talk to the marked NPC to begin a guided conversation assessment.',
+    maxScore: 0,
+    completionTrigger: 'npc_talked',
+    scoringDimensions: [],
+  },
+  {
+    id: 'arrival_conversation',
+    type: 'conversation',
+    name: 'Conversation',
+    description: "Answer the NPC's questions in a guided conversation in {{targetLanguage}}.",
+    maxScore: 10,
+    completionTrigger: 'conversation_assessment_completed',
+    requiredCount: 3,
+    scoringDimensions: [
+      { id: 'accuracy', name: 'Accuracy', maxScore: 2, description: 'Grammatical correctness and appropriate word forms' },
+      { id: 'fluency', name: 'Fluency', maxScore: 2, description: 'Natural flow, pace, and cohesion' },
+      { id: 'vocabulary', name: 'Vocabulary', maxScore: 2, description: 'Range and precision of word choice' },
+      { id: 'comprehension', name: 'Comprehension', maxScore: 2, description: 'Understanding of NPC prompts' },
+      { id: 'pragmatics', name: 'Pragmatics', maxScore: 2, description: 'Socially appropriate language use' },
+    ],
+    questConfig: {
+      minExchanges: 6,
+      maxExchanges: 12,
+      topics: ['greetings', 'travel', 'directions'],
+      npcRole: 'A friendly local resident of {{cityName}} who enjoys meeting visitors.',
+    },
+  },
+];
+
+const DEPARTURE_PHASES: AssessmentPhaseTemplate[] = [
+  {
+    id: 'departure_reading',
+    type: 'reading',
+    name: 'Reading Comprehension',
+    description: 'Read a short passage in {{targetLanguage}} and answer comprehension questions.',
+    maxScore: 15,
+    completionTrigger: 'reading_completed',
+    scoringDimensions: [
+      { id: 'comprehension', name: 'Comprehension', maxScore: 5, description: 'Understanding of main ideas and details' },
+      { id: 'vocabulary_recognition', name: 'Vocabulary Recognition', maxScore: 5, description: 'Ability to understand key vocabulary in context' },
+      { id: 'inference', name: 'Inference', maxScore: 5, description: 'Ability to draw conclusions from the text' },
+    ],
+    contentTemplate: {
+      topic: 'A traveler reflecting on their time in {{cityName}} — reading a local newspaper article about an upcoming festival and travel advisories.',
+      difficulty: 'intermediate',
+      lengthSentences: 6,
+      questionCount: 3,
+    },
+  },
+  {
+    id: 'departure_writing',
+    type: 'writing',
+    name: 'Writing Assessment',
+    description: 'Complete writing tasks in {{targetLanguage}}.',
+    maxScore: 15,
+    completionTrigger: 'writing_submitted',
+    minWordCount: 20,
+    scoringDimensions: [
+      { id: 'task_completion', name: 'Task Completion', maxScore: 5, description: 'Response addresses the prompt requirements' },
+      { id: 'vocabulary', name: 'Vocabulary', maxScore: 5, description: 'Range and appropriateness of word choice' },
+      { id: 'grammar', name: 'Grammar', maxScore: 5, description: 'Correct sentence structure and verb forms' },
+    ],
+    contentTemplate: {
+      topic: 'Leaving {{cityName}} — write a guest review for a place you stayed, and write a postcard to someone back home.',
+      difficulty: 'intermediate',
+      promptCount: 2,
+    },
+  },
+  {
+    id: 'departure_listening',
+    type: 'listening',
+    name: 'Listening Comprehension',
+    description: 'Listen to a passage in {{targetLanguage}} and answer comprehension questions.',
+    maxScore: 13,
+    completionTrigger: 'listening_completed',
+    scoringDimensions: [
+      { id: 'comprehension', name: 'Comprehension', maxScore: 5, description: 'Understanding of main ideas and details from audio' },
+      { id: 'detail_extraction', name: 'Detail Extraction', maxScore: 4, description: 'Ability to identify specific information' },
+      { id: 'inference', name: 'Inference', maxScore: 4, description: 'Ability to draw conclusions from what was heard' },
+    ],
+    contentTemplate: {
+      topic: 'A departure announcement at the {{cityName}} transit station — mentioning platform numbers, departure times, travel safety tips.',
+      difficulty: 'intermediate',
+      lengthSentences: 6,
+      questionCount: 3,
+    },
+  },
+  {
+    id: 'departure_conversation',
+    type: 'conversation',
+    name: 'Conversation',
+    description: 'Walk to the marked NPC and have a farewell conversation in {{targetLanguage}}.',
+    maxScore: 10,
+    completionTrigger: 'conversation_assessment_completed',
+    requiredCount: 3,
+    scoringDimensions: [
+      { id: 'accuracy', name: 'Accuracy', maxScore: 2, description: 'Grammatical correctness' },
+      { id: 'fluency', name: 'Fluency', maxScore: 2, description: 'Natural flow and cohesion' },
+      { id: 'vocabulary', name: 'Vocabulary', maxScore: 2, description: 'Range and precision of word choice' },
+      { id: 'comprehension', name: 'Comprehension', maxScore: 2, description: 'Understanding of NPC prompts' },
+      { id: 'pragmatics', name: 'Pragmatics', maxScore: 2, description: 'Socially appropriate language use' },
+    ],
+    questConfig: {
+      minExchanges: 6,
+      maxExchanges: 12,
+      topics: ['farewell', 'experiences', 'future_plans'],
+      npcRole: 'A local friend the player made during their stay in {{cityName}}.',
+    },
+  },
+];
+
+const ARRIVAL_TOTAL_MAX_POINTS = ARRIVAL_PHASES.reduce((s, p) => s + p.maxScore, 0); // 53
+const DEPARTURE_TOTAL_MAX_POINTS = DEPARTURE_PHASES.reduce((s, p) => s + p.maxScore, 0); // 53
+
+// ── Build AssessmentQuestData from phase templates ──────────────────────────
+
+function buildAssessmentData(
+  phases: AssessmentPhaseTemplate[],
+  assessmentType: 'arrival' | 'departure' | 'periodic',
+  totalMaxPoints: number,
+  vars: { targetLanguage: string; cityName: string },
+): AssessmentQuestData {
+  const questPhases: AssessmentQuestPhase[] = phases.map(p => ({
+    id: p.id,
+    type: p.type,
+    name: p.name,
+    tasks: [{
+      id: `${p.id}_task`,
+      type: p.type === 'reading' ? 'reading_comprehension' as const
+        : p.type === 'writing' ? 'writing_prompt' as const
+        : p.type === 'listening' ? 'listening_comprehension' as const
+        : 'conversation_quest' as const,
+      prompt: resolveTemplate(p.description, vars),
+      maxPoints: p.maxScore,
+      scoringMethod: 'llm' as const,
+      scoringDimensions: p.scoringDimensions,
+      contentTemplate: p.contentTemplate ? {
+        ...p.contentTemplate,
+        topic: resolveTemplate(p.contentTemplate.topic, vars),
+      } : undefined,
+      questConfig: p.questConfig ? {
+        ...p.questConfig,
+        npcRole: p.questConfig.npcRole ? resolveTemplate(p.questConfig.npcRole, vars) : undefined,
+      } : undefined,
+    }],
+    maxScore: p.maxScore,
+    scoringDimensions: p.scoringDimensions,
+  }));
+
+  return { assessmentType, totalMaxPoints, estimatedMinutes: 30, phases: questPhases };
+}
+
+// ── Arrival quest creation ──────────────────────────────────────────────────
+
+export function buildArrivalAssessmentQuest(
+  config: AssessmentQuestConfig,
+  preGeneratedData?: AssessmentQuestData,
+): InsertQuest {
+  const vars = { targetLanguage: config.targetLanguage, cityName: config.cityName };
+
+  const objectives = ARRIVAL_PHASES.map(p => ({
+    id: `obj_${p.id}`,
+    type: p.id,
+    description: resolveTemplate(p.description, vars),
+    requiredCount: p.requiredCount ?? 1,
+    currentCount: 0,
+    completed: false,
+    assessmentPhaseId: p.id,
+    completionTrigger: p.completionTrigger,
+    minWordCount: p.minWordCount,
+  }));
+
+  const assessmentData = preGeneratedData ?? buildAssessmentData(ARRIVAL_PHASES, 'arrival', ARRIVAL_TOTAL_MAX_POINTS, vars);
+
+  return {
+    worldId: config.worldId,
+    assignedTo: config.playerId,
+    assignedToCharacterId: config.playerCharacterId ?? null,
+    assignedBy: null,
+    assignedByCharacterId: null,
+    title: 'Arrival Assessment',
+    description: `Baseline ${config.targetLanguage} proficiency assessment upon arriving in ${config.cityName}.`,
+    questType: 'assessment',
+    difficulty: 'beginner',
+    targetLanguage: config.targetLanguage,
+    gameType: 'language-learning',
+    objectives,
+    progress: { percentComplete: 0 },
+    status: 'active',
+    experienceReward: 50,
+    rewards: { xp: 50, fluency: 5, cefrAssessment: true },
+    completionCriteria: { type: 'all_objectives', description: 'Complete all arrival assessment phases' },
+    tags: ['assessment', 'arrival', 'onboarding', 'non-skippable', 'non-abandonable'],
+    customData: { assessment: assessmentData },
+  } as InsertQuest;
+}
+
+// ── Departure quest creation ────────────────────────────────────────────────
+
+export const DEPARTURE_QUEST_THRESHOLD = 10;
+
+export function createDepartureAssessmentQuest(params: {
+  worldId: string;
+  playerName: string;
+  playerCharacterId?: string;
+  targetLanguage: string;
+  cityName?: string;
+}): InsertQuest {
+  const vars = { targetLanguage: params.targetLanguage, cityName: params.cityName ?? 'the city' };
+
+  const objectives = DEPARTURE_PHASES.map(p => ({
+    id: `obj_${p.id}`,
+    type: p.id,
+    objectiveId: p.id,
+    description: resolveTemplate(p.description, vars),
+    assessmentPhaseId: p.id,
+    completionTrigger: p.completionTrigger,
+    minWordCount: p.minWordCount,
+    requiredCount: p.requiredCount ?? 1,
+    target: p.id,
+    required: 1,
+    currentCount: 0,
+    completed: false,
+    progress: 0,
+    phaseType: p.type,
+    maxScore: p.maxScore,
+  }));
+
+  const assessmentData = buildAssessmentData(DEPARTURE_PHASES, 'departure', DEPARTURE_TOTAL_MAX_POINTS, vars);
+
+  return {
+    worldId: params.worldId,
+    assignedTo: params.playerName,
+    assignedBy: 'System',
+    assignedToCharacterId: params.playerCharacterId,
+    title: 'Departure Assessment',
+    description: `Complete your final ${params.targetLanguage} proficiency assessment before departing. This measures how much you have learned during your stay.`,
+    questType: 'assessment',
+    difficulty: 'intermediate',
+    targetLanguage: params.targetLanguage,
+    objectives,
+    progress: { currentPhaseIndex: 0, phasesCompleted: 0 },
+    status: 'active',
+    completionCriteria: { type: 'all_objectives' },
+    experienceReward: 500,
+    rewards: { type: 'report_card', description: 'Language Learning Report Card comparing your arrival and departure scores' },
+    tags: ['assessment', 'departure', 'non-skippable'],
+    customData: { assessment: assessmentData },
+  } as InsertQuest;
+}
+
+// ── Phase completion helpers ────────────────────────────────────────────────
+
+export function markPhaseObjectiveComplete(
+  objectives: AssessmentQuestObjective[],
+  phaseId: string,
+  score: number,
+  maxScore: number,
+): { objectives: AssessmentQuestObjective[]; allComplete: boolean } {
+  const updated = objectives.map(obj => {
+    if (obj.assessmentPhaseId === phaseId && !obj.completed) {
+      return { ...obj, currentCount: 1, completed: true, score, maxScore };
+    }
+    return obj;
+  });
+  return { objectives: updated, allComplete: updated.every(obj => obj.completed) };
+}
+
+export function computeProgress(objectives: AssessmentQuestObjective[]): number {
+  if (objectives.length === 0) return 0;
+  return Math.round((objectives.filter(o => o.completed).length / objectives.length) * 100);
+}
+
+export function isArrivalAssessmentQuest(quest: { tags?: string[] | null }): boolean {
+  const tags = quest.tags;
+  if (!Array.isArray(tags)) return false;
+  return tags.includes('assessment') && tags.includes('arrival');
+}
+
+export function getArrivalPhaseIds(): string[] {
+  return ARRIVAL_PHASES.map(p => p.id);
+}
+
+export function markPhaseCompleted(
+  quest: Quest,
+  phaseId: string,
+  phaseScore: number,
+): { objectives: any[]; progress: Record<string, any>; allComplete: boolean } | null {
+  const objectives = (quest.objectives as any[]) ?? [];
+  const idx = objectives.findIndex((obj: any) => obj.objectiveId === phaseId || obj.assessmentPhaseId === phaseId);
+  if (idx === -1) return null;
+
+  const updated = objectives.map((obj: any, i: number) =>
+    i === idx ? { ...obj, completed: true, progress: 1, score: phaseScore } : obj,
+  );
+  const phasesCompleted = updated.filter((obj: any) => obj.completed).length;
+
+  return {
+    objectives: updated,
+    progress: { currentPhaseIndex: phasesCompleted, phasesCompleted },
+    allComplete: phasesCompleted === updated.length,
+  };
+}
+
+export function isDepartureEligible(completedQuestCount: number): boolean {
+  return completedQuestCount >= DEPARTURE_QUEST_THRESHOLD;
+}
+
+// ── Report card types ───────────────────────────────────────────────────────
 
 export interface DimensionDelta {
   dimension: keyof AssessmentDimensionScores;
@@ -60,28 +457,18 @@ export interface PhaseDelta {
 export interface LearningReportCard {
   playerId: string;
   worldId: string;
-  /** Arrival (pre-test) session data */
   arrivalSessionId: string;
-  /** Departure (post-test) session data */
   departureSessionId: string;
-  /** CEFR level at arrival */
   arrivalCefrLevel: CEFRLevel;
-  /** CEFR level at departure */
   departureCefrLevel: CEFRLevel;
-  /** Whether CEFR level improved */
   cefrImproved: boolean;
-  /** Total score comparison */
   arrivalTotalScore: number;
   departureTotalScore: number;
   maxScore: number;
   totalDelta: number;
-  /** Per-phase score deltas */
   phaseDeltas: PhaseDelta[];
-  /** Per-dimension score deltas (comprehension, fluency, vocabulary, grammar, pronunciation) */
   dimensionDeltas: DimensionDelta[];
-  /** Summary of periodic (mid-game) assessment scores for progress trajectory */
   periodicSnapshots: PeriodicSnapshot[];
-  /** Generated at this timestamp */
   generatedAt: number;
 }
 
@@ -93,143 +480,31 @@ export interface PeriodicSnapshot {
   completedAt: number;
 }
 
-/** Minimum number of completed quests before departure assessment is offered */
-export const DEPARTURE_QUEST_THRESHOLD = 10;
+// ── Quest overlay data extraction ───────────────────────────────────────────
 
-// ── Phase-to-objective mapping ───────────────────────────────────────────────
-
-/** Maps departure phase types to their completion triggers (mirrors arrival config). */
-const DEPARTURE_PHASE_TRIGGER: Record<string, { completionTrigger: string; minWordCount?: number; requiredCount?: number }> = {
-  departure_reading:      { completionTrigger: 'reading_completed' },
-  departure_writing:      { completionTrigger: 'writing_submitted', minWordCount: 20 },
-  departure_listening:    { completionTrigger: 'listening_completed' },
-  departure_conversation: { completionTrigger: 'conversation_assessment_completed', requiredCount: 3 },
-};
-
-const PHASE_OBJECTIVES = DEPARTURE_ENCOUNTER.phases.map((phase) => {
-  const trigger = DEPARTURE_PHASE_TRIGGER[phase.id];
-  return {
-    id: `obj_${phase.id}`,
-    type: phase.id,
-    objectiveId: phase.id,
-    description: `Complete ${phase.name} assessment phase`,
-    assessmentPhaseId: phase.id,
-    completionTrigger: trigger?.completionTrigger,
-    minWordCount: trigger?.minWordCount,
-    requiredCount: trigger?.requiredCount ?? 1,
-    target: phase.id,
-    required: 1,
-    currentCount: 0,
-    completed: false,
-    progress: 0,
-    phaseType: phase.type,
-    maxScore: phase.maxScore ?? 0,
-  };
-});
-
-// ── Departure quest creation ─────────────────────────────────────────────────
-
-/**
- * Create a departure assessment quest record ready for insertion.
- * Each of the 4 assessment phases becomes a quest objective.
- */
-export function createDepartureAssessmentQuest(params: {
-  worldId: string;
-  playerName: string;
-  playerCharacterId?: string;
-  targetLanguage: string;
-}): InsertQuest {
-  return {
-    worldId: params.worldId,
-    assignedTo: params.playerName,
-    assignedBy: 'System',
-    assignedToCharacterId: params.playerCharacterId,
-    title: 'Departure Assessment',
-    description:
-      `Complete your final ${params.targetLanguage} proficiency assessment before departing. ` +
-      'This measures how much you have learned during your stay.',
-    questType: 'assessment',
-    difficulty: 'intermediate',
-    targetLanguage: params.targetLanguage,
-    objectives: PHASE_OBJECTIVES.map((obj) => ({ ...obj })),
-    progress: { currentPhaseIndex: 0, phasesCompleted: 0 },
-    status: 'active',
-    completionCriteria: {
-      type: 'all_objectives',
-    },
-    experienceReward: 500,
-    rewards: {
-      type: 'report_card',
-      description: 'Language Learning Report Card comparing your arrival and departure scores',
-    },
-    tags: ['assessment', 'departure', 'non-skippable'],
-    content: generateAssessmentPrologContent({
-      encounter: DEPARTURE_ENCOUNTER,
-      difficulty: 'intermediate',
-      targetLanguage: params.targetLanguage,
-      tags: ['assessment', 'departure', 'non-skippable'],
-      experienceReward: 500,
-      departureThreshold: DEPARTURE_QUEST_THRESHOLD,
-    }),
-  };
+export interface QuestOverlayAssessmentData {
+  questId: string;
+  phaseResults: AssessmentPhaseResult[];
+  assessmentResult: AssessmentCompletionResult;
 }
 
-// ── Phase completion ─────────────────────────────────────────────────────────
-
-/**
- * Update the departure assessment quest when a phase is completed.
- * Returns the updated objectives and progress, or null if the phase
- * doesn't match any objective.
- */
-export function markPhaseCompleted(
-  quest: Quest,
-  phaseId: string,
-  phaseScore: number,
-): { objectives: any[]; progress: Record<string, any>; allComplete: boolean } | null {
-  const objectives = (quest.objectives as any[]) ?? [];
-  const idx = objectives.findIndex((obj: any) => obj.objectiveId === phaseId);
-  if (idx === -1) return null;
-
-  const updated = objectives.map((obj: any, i: number) =>
-    i === idx ? { ...obj, completed: true, progress: 1, score: phaseScore } : obj,
-  );
-
-  const phasesCompleted = updated.filter((obj: any) => obj.completed).length;
-  const allComplete = phasesCompleted === updated.length;
-
-  return {
-    objectives: updated,
-    progress: { currentPhaseIndex: phasesCompleted, phasesCompleted },
-    allComplete,
-  };
+export function extractOverlayAssessmentData(
+  quest: { id: string; [key: string]: any },
+): QuestOverlayAssessmentData | null {
+  const phaseResults = quest.phaseResults as AssessmentPhaseResult[] | undefined;
+  const assessmentResult = quest.assessmentResult as AssessmentCompletionResult | undefined;
+  if (!phaseResults || !assessmentResult) return null;
+  return { questId: quest.id, phaseResults, assessmentResult };
 }
 
-// ── Eligibility check ────────────────────────────────────────────────────────
-
-/**
- * Check whether a player is eligible for the departure assessment.
- * Requires completing at least DEPARTURE_QUEST_THRESHOLD quests.
- */
-export function isDepartureEligible(completedQuestCount: number): boolean {
-  return completedQuestCount >= DEPARTURE_QUEST_THRESHOLD;
-}
-
-// ── Report card generation ───────────────────────────────────────────────────
+// ── Report card generation ──────────────────────────────────────────────────
 
 const DIMENSION_KEYS: (keyof AssessmentDimensionScores)[] = [
-  'comprehension',
-  'fluency',
-  'vocabulary',
-  'grammar',
-  'pronunciation',
+  'comprehension', 'fluency', 'vocabulary', 'grammar', 'pronunciation',
 ];
 
 const PHASE_TYPE_ORDER: PhaseType[] = ['reading', 'writing', 'listening', 'conversation'];
 
-/**
- * Compare arrival and departure assessment sessions to produce a
- * Language Learning Report Card with improvement deltas.
- */
 export function generateReportCard(params: {
   playerId: string;
   worldId: string;
@@ -238,74 +513,26 @@ export function generateReportCard(params: {
   periodicSessions: AssessmentSession[];
 }): LearningReportCard {
   const { playerId, worldId, arrivalSession, departureSession, periodicSessions } = params;
+  const maxScore = DEPARTURE_TOTAL_MAX_POINTS;
 
-  const arrivalTotal = arrivalSession.totalScore ?? 0;
-  const departureTotal = departureSession.totalScore ?? 0;
-  const maxScore = DEPARTURE_ENCOUNTER.totalMaxPoints;
-
-  const arrivalCefr = resolveCefrLevel(arrivalSession, maxScore);
-  const departureCefr = resolveCefrLevel(departureSession, maxScore);
-
-  // Per-phase deltas
-  const phaseDeltas = buildPhaseDeltas(arrivalSession, departureSession);
-
-  // Per-dimension deltas
-  const dimensionDeltas = buildDimensionDeltas(
-    arrivalSession.dimensionScores,
-    departureSession.dimensionScores,
-  );
-
-  // Periodic snapshots for progress trajectory
-  const periodicSnapshots: PeriodicSnapshot[] = periodicSessions
-    .filter((s) => s.completedAt)
-    .sort((a, b) => toTimestamp(a.completedAt!) - toTimestamp(b.completedAt!))
-    .map((s) => ({
-      sessionId: s.id,
-      totalScore: s.totalScore ?? 0,
-      maxScore: s.totalMaxPoints,
-      cefrLevel: resolveCefrLevel(s, s.totalMaxPoints),
-      completedAt: toTimestamp(s.completedAt!),
-    }));
-
-  return {
+  return buildReportCard({
     playerId,
     worldId,
-    arrivalSessionId: arrivalSession.id,
-    departureSessionId: departureSession.id,
-    arrivalCefrLevel: arrivalCefr,
-    departureCefrLevel: departureCefr,
-    cefrImproved: cefrRank(departureCefr) > cefrRank(arrivalCefr),
-    arrivalTotalScore: arrivalTotal,
-    departureTotalScore: departureTotal,
+    arrivalId: arrivalSession.id,
+    departureId: departureSession.id,
+    arrivalTotal: arrivalSession.totalScore ?? 0,
+    departureTotal: departureSession.totalScore ?? 0,
     maxScore,
-    totalDelta: departureTotal - arrivalTotal,
-    phaseDeltas,
-    dimensionDeltas,
-    periodicSnapshots,
-    generatedAt: Date.now(),
-  };
+    arrivalCefr: resolveCefrLevel(arrivalSession.cefrLevel, arrivalSession.totalScore ?? 0, maxScore),
+    departureCefr: resolveCefrLevel(departureSession.cefrLevel, departureSession.totalScore ?? 0, maxScore),
+    arrivalPhases: arrivalSession.phaseResults,
+    departurePhases: departureSession.phaseResults,
+    arrivalDims: arrivalSession.dimensionScores,
+    departureDims: departureSession.dimensionScores,
+    periodicSessions,
+  });
 }
 
-// ── Report card from quest overlays ─────────────────────────────────────
-
-/**
- * Data extracted from a quest overlay for report card generation.
- * The quest overlay stores phaseResults and assessmentResult when
- * an assessment is completed during gameplay.
- */
-export interface QuestOverlayAssessmentData {
-  questId: string;
-  phaseResults: AssessmentPhaseResult[];
-  assessmentResult: AssessmentCompletionResult;
-}
-
-/**
- * Generate a LearningReportCard from quest overlay data instead of
- * AssessmentSession objects. Used when assessment results are stored
- * in the quest overlay (save file) rather than the AssessmentSession collection.
- *
- * Find arrival/departure quests by tags: ['assessment', 'arrival'] / ['assessment', 'departure']
- */
 export function generateReportCardFromOverlays(params: {
   playerId: string;
   worldId: string;
@@ -315,38 +542,25 @@ export function generateReportCardFromOverlays(params: {
 }): LearningReportCard {
   const { playerId, worldId, arrivalData, departureData, periodicData } = params;
 
-  const arrivalTotal = arrivalData.assessmentResult.totalScore;
-  const departureTotal = departureData.assessmentResult.totalScore;
-  const maxScore = departureData.assessmentResult.maxScore;
-
-  const arrivalCefr = arrivalData.assessmentResult.cefrLevel;
-  const departureCefr = departureData.assessmentResult.cefrLevel;
-
-  // Per-phase deltas from overlay phase results
-  const phaseDeltas = buildPhaseeDeltasFromOverlays(
-    arrivalData.phaseResults,
-    departureData.phaseResults,
-  );
-
-  // Per-dimension deltas from overlay dimension scores
-  const dimensionDeltas = buildDimensionDeltas(
-    arrivalData.assessmentResult.dimensionScores as Record<string, number> | undefined,
-    departureData.assessmentResult.dimensionScores as Record<string, number> | undefined,
-  );
-
-  // Periodic snapshots from overlay data
   const periodicSnapshots: PeriodicSnapshot[] = (periodicData ?? [])
-    .filter((d) => d.assessmentResult.completedAt)
-    .sort((a, b) =>
-      toTimestamp(a.assessmentResult.completedAt) - toTimestamp(b.assessmentResult.completedAt),
-    )
-    .map((d) => ({
+    .filter(d => d.assessmentResult.completedAt)
+    .sort((a, b) => toTimestamp(a.assessmentResult.completedAt) - toTimestamp(b.assessmentResult.completedAt))
+    .map(d => ({
       sessionId: d.questId,
       totalScore: d.assessmentResult.totalScore,
       maxScore: d.assessmentResult.maxScore,
       cefrLevel: d.assessmentResult.cefrLevel,
       completedAt: toTimestamp(d.assessmentResult.completedAt),
     }));
+
+  const phaseDeltas = buildOverlayPhaseDeltas(arrivalData.phaseResults, departureData.phaseResults);
+  const dimensionDeltas = buildDimensionDeltas(
+    arrivalData.assessmentResult.dimensionScores as Record<string, number> | undefined,
+    departureData.assessmentResult.dimensionScores as Record<string, number> | undefined,
+  );
+
+  const arrivalCefr = arrivalData.assessmentResult.cefrLevel;
+  const departureCefr = departureData.assessmentResult.cefrLevel;
 
   return {
     playerId,
@@ -356,10 +570,10 @@ export function generateReportCardFromOverlays(params: {
     arrivalCefrLevel: arrivalCefr,
     departureCefrLevel: departureCefr,
     cefrImproved: cefrRank(departureCefr) > cefrRank(arrivalCefr),
-    arrivalTotalScore: arrivalTotal,
-    departureTotalScore: departureTotal,
-    maxScore,
-    totalDelta: departureTotal - arrivalTotal,
+    arrivalTotalScore: arrivalData.assessmentResult.totalScore,
+    departureTotalScore: departureData.assessmentResult.totalScore,
+    maxScore: departureData.assessmentResult.maxScore,
+    totalDelta: departureData.assessmentResult.totalScore - arrivalData.assessmentResult.totalScore,
     phaseDeltas,
     dimensionDeltas,
     periodicSnapshots,
@@ -367,56 +581,61 @@ export function generateReportCardFromOverlays(params: {
   };
 }
 
-/**
- * Extract assessment data from a quest's overlay for report card generation.
- * Returns null if the quest doesn't have assessment overlay data.
- */
-export function extractOverlayAssessmentData(
-  quest: { id: string; [key: string]: any },
-): QuestOverlayAssessmentData | null {
-  const phaseResults = quest.phaseResults as AssessmentPhaseResult[] | undefined;
-  const assessmentResult = quest.assessmentResult as AssessmentCompletionResult | undefined;
+// ── Exported constants for external consumers ───────────────────────────────
 
-  if (!phaseResults || !assessmentResult) return null;
-
-  return {
-    questId: quest.id,
-    phaseResults,
-    assessmentResult,
-  };
-}
-
-function buildPhaseeDeltasFromOverlays(
-  arrivalPhases: AssessmentPhaseResult[],
-  departurePhases: AssessmentPhaseResult[],
-): PhaseDelta[] {
-  return PHASE_TYPE_ORDER.map((phaseType) => {
-    const phaseDef = DEPARTURE_ENCOUNTER.phases.find((p) => p.type === phaseType);
-    const arrivalPhase = arrivalPhases.find((pr) => pr.phaseId.includes(phaseType));
-    const departurePhase = departurePhases.find((pr) => pr.phaseId.includes(phaseType));
-
-    const beforeScore = arrivalPhase?.score ?? 0;
-    const afterScore = departurePhase?.score ?? 0;
-    const maxPhaseScore = phaseDef?.maxScore ?? phaseDef?.maxPoints ?? 0;
-
-    return {
-      phaseType,
-      phaseName: phaseDef?.name ?? phaseType,
-      beforeScore,
-      afterScore,
-      maxScore: maxPhaseScore,
-      delta: afterScore - beforeScore,
-    };
-  });
-}
+/** Assessment phase templates — exposed for content generation and prolog */
+export { ARRIVAL_PHASES, DEPARTURE_PHASES, ARRIVAL_TOTAL_MAX_POINTS, DEPARTURE_TOTAL_MAX_POINTS };
+export { buildAssessmentData };
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-function resolveCefrLevel(session: AssessmentSession, maxScore: number): CEFRLevel {
-  if (session.cefrLevel && ['A1', 'A2', 'B1', 'B2'].includes(session.cefrLevel)) {
-    return session.cefrLevel as CEFRLevel;
+function buildReportCard(p: {
+  playerId: string; worldId: string;
+  arrivalId: string; departureId: string;
+  arrivalTotal: number; departureTotal: number; maxScore: number;
+  arrivalCefr: CEFRLevel; departureCefr: CEFRLevel;
+  arrivalPhases: any[]; departurePhases: any[];
+  arrivalDims?: Record<string, number>; departureDims?: Record<string, number>;
+  periodicSessions: AssessmentSession[];
+}): LearningReportCard {
+  const phaseDeltas = buildSessionPhaseDeltas(p.arrivalPhases, p.departurePhases);
+  const dimensionDeltas = buildDimensionDeltas(p.arrivalDims, p.departureDims);
+
+  const periodicSnapshots: PeriodicSnapshot[] = p.periodicSessions
+    .filter(s => s.completedAt)
+    .sort((a, b) => toTimestamp(a.completedAt!) - toTimestamp(b.completedAt!))
+    .map(s => ({
+      sessionId: s.id,
+      totalScore: s.totalScore ?? 0,
+      maxScore: s.totalMaxPoints,
+      cefrLevel: resolveCefrLevel(s.cefrLevel, s.totalScore ?? 0, s.totalMaxPoints),
+      completedAt: toTimestamp(s.completedAt!),
+    }));
+
+  return {
+    playerId: p.playerId,
+    worldId: p.worldId,
+    arrivalSessionId: p.arrivalId,
+    departureSessionId: p.departureId,
+    arrivalCefrLevel: p.arrivalCefr,
+    departureCefrLevel: p.departureCefr,
+    cefrImproved: cefrRank(p.departureCefr) > cefrRank(p.arrivalCefr),
+    arrivalTotalScore: p.arrivalTotal,
+    departureTotalScore: p.departureTotal,
+    maxScore: p.maxScore,
+    totalDelta: p.departureTotal - p.arrivalTotal,
+    phaseDeltas,
+    dimensionDeltas,
+    periodicSnapshots,
+    generatedAt: Date.now(),
+  };
+}
+
+function resolveCefrLevel(cefrLevel: string | undefined, totalScore: number, maxScore: number): CEFRLevel {
+  if (cefrLevel && ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(cefrLevel)) {
+    return cefrLevel as CEFRLevel;
   }
-  return mapScoreToCEFR(session.totalScore ?? 0, maxScore).level;
+  return mapScoreToCEFR(totalScore, maxScore).level;
 }
 
 function cefrRank(level: CEFRLevel): number {
@@ -428,30 +647,36 @@ function toTimestamp(value: string | number): number {
   return typeof value === 'number' ? value : new Date(value).getTime();
 }
 
-function buildPhaseDeltas(
-  arrival: AssessmentSession,
-  departure: AssessmentSession,
-): PhaseDelta[] {
-  return PHASE_TYPE_ORDER.map((phaseType) => {
-    const phaseDef = DEPARTURE_ENCOUNTER.phases.find((p) => p.type === phaseType);
-    const arrivalPhase = arrival.phaseResults.find((pr) =>
-      pr.phaseId.includes(phaseType),
-    );
-    const departurePhase = departure.phaseResults.find((pr) =>
-      pr.phaseId.includes(phaseType),
-    );
-
-    const beforeScore = arrivalPhase?.totalScore ?? arrivalPhase?.score ?? 0;
-    const afterScore = departurePhase?.totalScore ?? departurePhase?.score ?? 0;
-    const maxPhaseScore = phaseDef?.maxScore ?? phaseDef?.maxPoints ?? 0;
+function buildSessionPhaseDeltas(arrivalPhases: any[], departurePhases: any[]): PhaseDelta[] {
+  return PHASE_TYPE_ORDER.map(phaseType => {
+    const arrivalPhase = arrivalPhases.find((pr: any) => pr.phaseId?.includes(phaseType));
+    const departurePhase = departurePhases.find((pr: any) => pr.phaseId?.includes(phaseType));
+    const phaseDef = DEPARTURE_PHASES.find(p => p.type === phaseType);
 
     return {
       phaseType,
       phaseName: phaseDef?.name ?? phaseType,
-      beforeScore,
-      afterScore,
-      maxScore: maxPhaseScore,
-      delta: afterScore - beforeScore,
+      beforeScore: arrivalPhase?.totalScore ?? arrivalPhase?.score ?? 0,
+      afterScore: departurePhase?.totalScore ?? departurePhase?.score ?? 0,
+      maxScore: phaseDef?.maxScore ?? 0,
+      delta: (departurePhase?.totalScore ?? departurePhase?.score ?? 0) - (arrivalPhase?.totalScore ?? arrivalPhase?.score ?? 0),
+    };
+  });
+}
+
+function buildOverlayPhaseDeltas(arrivalPhases: AssessmentPhaseResult[], departurePhases: AssessmentPhaseResult[]): PhaseDelta[] {
+  return PHASE_TYPE_ORDER.map(phaseType => {
+    const arrivalPhase = arrivalPhases.find(pr => pr.phaseId.includes(phaseType));
+    const departurePhase = departurePhases.find(pr => pr.phaseId.includes(phaseType));
+    const phaseDef = DEPARTURE_PHASES.find(p => p.type === phaseType);
+
+    return {
+      phaseType,
+      phaseName: phaseDef?.name ?? phaseType,
+      beforeScore: arrivalPhase?.score ?? 0,
+      afterScore: departurePhase?.score ?? 0,
+      maxScore: phaseDef?.maxScore ?? 0,
+      delta: (departurePhase?.score ?? 0) - (arrivalPhase?.score ?? 0),
     };
   });
 }
@@ -460,7 +685,7 @@ function buildDimensionDeltas(
   arrivalDims: Record<string, number> | undefined,
   departureDims: Record<string, number> | undefined,
 ): DimensionDelta[] {
-  return DIMENSION_KEYS.map((dim) => {
+  return DIMENSION_KEYS.map(dim => {
     const before = arrivalDims?.[dim] ?? 0;
     const after = departureDims?.[dim] ?? 0;
     return { dimension: dim, before, after, delta: after - before };

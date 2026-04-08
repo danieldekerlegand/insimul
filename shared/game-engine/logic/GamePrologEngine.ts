@@ -25,6 +25,7 @@ import type {
 } from '@shared/game-engine/types';
 import { isDebugLabelsEnabled } from '../rendering/DebugLabelUtils';
 import { getActivityByEvent, resolveVerbToAction } from '../activity-types';
+import { extendMappingsFromActions } from '../quest-action-mapping';
 import { getDebugEventBus } from '../debug-event-bus';
 
 export interface GameState {
@@ -452,7 +453,7 @@ export class GamePrologEngine {
         break;
       }
       case 'writing_submitted': {
-        const wordCount = (event as any).wordCount || 0;
+        const wordCount = event.wordCount || 0;
         await this.assertPlayerFact(`response_written(player, ${wordCount})`);
         break;
       }
@@ -540,6 +541,81 @@ export class GamePrologEngine {
         );
         break;
       }
+      case 'item_purchased': {
+        const name = this.sanitize(event.itemName);
+        const qty = event.quantity || 1;
+        await this.assertPlayerFact(`purchased(player, ${name}, ${qty})`);
+        await this.assertPlayerFact(`collected(player, ${name}, ${qty})`);
+        await this.assertPlayerFact(`has(player, ${name})`);
+        await this.updateItemQuantityTracked(name, qty);
+        break;
+      }
+      case 'item_sold': {
+        const name = this.sanitize((event as any).itemName || '');
+        const qty = (event as any).quantity || 1;
+        await this.assertPlayerFact(`sold(player, ${name}, ${qty})`);
+        await this.updateItemQuantityTracked(name, -qty);
+        const remaining = this.itemQuantities.get(name) || 0;
+        if (remaining <= 0) {
+          await this.retractPlayerFact(`has(player, ${name})`);
+        }
+        break;
+      }
+      case 'combat_action': {
+        const actionType = this.sanitize((event as any).actionType || '');
+        const targetId = this.sanitize((event as any).targetId || '');
+        await this.assertPlayerFact(`combat_action_done(player, ${actionType}, ${targetId})`);
+        break;
+      }
+      case 'activity_observed': {
+        const npcId = this.sanitize((event as any).npcId || '');
+        const activity = this.sanitize((event as any).activity || '');
+        await this.assertPlayerFact(`activity_observed(player, ${npcId}, ${activity})`);
+        break;
+      }
+      case 'assessment_phase_completed': {
+        const phase = this.sanitize((event as any).phase || '');
+        const sessionId = this.sanitize((event as any).sessionId || '');
+        const score = (event as any).score ?? 0;
+        await this.assertPlayerFact(`assessment_phase_done(player, ${sessionId}, ${phase}, ${score})`);
+        break;
+      }
+      case 'escort_completed': {
+        const npcId = this.sanitize((event as any).npcId || '');
+        const questId = this.sanitize((event as any).questId || '');
+        await this.assertPlayerFact(`escorted(player, ${npcId}, ${questId})`);
+        break;
+      }
+      case 'clue_discovered': {
+        const clueId = this.sanitize((event as any).clueId || (event as any).textId || '');
+        await this.assertPlayerFact(`clue_found(player, ${clueId})`);
+        break;
+      }
+      case 'npc_relationship_changed': {
+        const npcId = this.sanitize(event.npcId);
+        const newTier = this.sanitize(event.newTier);
+        const newStrength = event.newStrength;
+        // Track current friendship tier for build_friendship objectives
+        await this.retractPlayerFactByPattern('friendship_level', 'player', npcId);
+        await this.assertPlayerFact(`friendship_level(player, ${npcId}, ${newStrength})`);
+        await this.assertPlayerFact(`friendship_tier(player, ${npcId}, ${newTier})`);
+        break;
+      }
+      case 'assessment_completed': {
+        const sessionId = this.sanitize(event.sessionId);
+        const instrumentId = this.sanitize(event.instrumentId);
+        const totalScore = event.totalScore ?? 0;
+        const cefrLevel = this.sanitize((event as any).cefrLevel || 'a1');
+        const timestamp = Math.floor(Date.now() / 1000);
+        await this.assertPlayerFact(
+          `assessment_result(player, ${instrumentId}, ${totalScore}, ${(event as any).totalMaxScore ?? 0}, ${cefrLevel}, ${timestamp})`
+        );
+        await this.assertPlayerFact(`assessment_completed(player, ${sessionId})`);
+        if ((event as any).cefrLevel) {
+          await this.assertPlayerFact(`player_cefr_level(player, ${cefrLevel})`);
+        }
+        break;
+      }
       default:
         return; // No re-evaluation needed for unhandled events
     }
@@ -547,6 +623,8 @@ export class GamePrologEngine {
     // Execute action effects — query action_effect/2 for the action that just fired
     const actionId = this.deriveActionId(event);
     if (actionId) {
+      // Track that this action was performed (used by generic objective_complete/3 clause)
+      await this.assertPlayerFact(`action_performed(player, ${this.sanitize(actionId)})`);
       await this.executeActionEffects(actionId, event);
     }
 
@@ -909,6 +987,9 @@ export class GamePrologEngine {
     if (this.eventToActionMap.size > 0) {
       console.log(`[GamePrologEngine] Built event→action map: ${this.eventToActionMap.size} events → ${data.actions.filter((a: any) => a.emitsEvent).length} actions`);
     }
+
+    // Extend QAM with action-derived objective→event mappings
+    extendMappingsFromActions(data.actions);
     for (const quest of data.quests) {
       if (quest.content) {
         try { await this.engine.consult(quest.content); } catch { /* skip invalid */ }

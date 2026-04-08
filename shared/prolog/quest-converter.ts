@@ -174,6 +174,11 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
       predicates.push('quest_completion/2');
     }
   }
+  // Default: completion requires all objectives
+  if (!predicates.includes('quest_completion/2')) {
+    lines.push(`quest_completion(${questId}, all_objectives_complete).`);
+    predicates.push('quest_completion/2');
+  }
 
   // ── Failure Conditions ─────────────────────────────────────────────────
 
@@ -285,6 +290,13 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
       lines.push(`    ${completeGoal}.`);
       predicates.push('quest_complete/2');
     }
+  }
+  // Default: quest is complete when ALL objectives are complete
+  if (!predicates.includes('quest_complete/2')) {
+    lines.push(`% Check if quest is complete for Player (default: all objectives)`);
+    lines.push(`quest_complete(Player, ${questId}) :-`);
+    lines.push(`    \\+ (quest_objective(${questId}, Idx, _), \\+ objective_complete(Player, ${questId}, Idx)).`);
+    predicates.push('quest_complete/2');
   }
 
   // ── Multi-stage quests ─────────────────────────────────────────────────
@@ -811,6 +823,34 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
   if (type === 'find_vocabulary_items') {
     const count = obj.requiredCount || obj.count || 1;
     return `find_vocabulary_items(${count})`;
+  }
+
+  // ── Item management objectives ──────────────────────────────────────────
+  if (type === 'equip_item') {
+    const item = obj.item || obj.itemName || obj.target || '';
+    return item ? `equip_item(${sanitizeAtom(item)})` : `equip_item(any)`;
+  }
+  if (type === 'drop_item') {
+    const item = obj.item || obj.itemName || obj.target || '';
+    return item ? `drop_item(${sanitizeAtom(item)})` : `drop_item(any)`;
+  }
+
+  // ── Combat objectives ─────────────────────────────────────────────────
+  if (type === 'combat_action') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `combat_action(${count})`;
+  }
+
+  // ── Quest lifecycle objectives ────────────────────────────────────────
+  if (type === 'accept_quest') {
+    const questId = obj.questId || obj.target || '';
+    return questId ? `accept_quest('${escapeString(questId)}')` : `accept_quest(any)`;
+  }
+
+  // ── Observation objectives ────────────────────────────────────────────
+  if (type === 'observe_activity') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `observe_activity(${count})`;
   }
 
   // Generic: store as a quoted description

@@ -221,8 +221,8 @@ import { ReputationManager } from "@shared/game-engine/rendering/ReputationManag
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
 import { checkForNewWeaknesses } from "@shared/language/grammar-weakness-analyzer";
 import { LanguageProgressTracker } from "@shared/game-engine/logic/LanguageProgressTracker";
-import { getCEFRDescription } from "@shared/assessment/cefr-mapping";
-import type { CEFRLevel } from "@shared/assessment/cefr-mapping";
+import { getCEFRDescription } from "@shared/language/cefr";
+import type { CEFRLevel } from "@shared/language/cefr";
 import { extractObjectiveMarkers } from "@shared/game-engine/logic/QuestMinimapMarkers";
 import { DynamicQuestWaypointDirector, type DirectorBuildingEntry, type DirectorNpcPosition, type ResolvedWaypoint } from "@shared/game-engine/logic/DynamicQuestWaypointDirector";
 import { QuestWaypointManager } from "@shared/game-engine/rendering/QuestWaypointManager";
@@ -237,9 +237,9 @@ import {
   isArrivalAssessmentQuest,
   markPhaseObjectiveComplete,
   computeProgress,
-} from "@shared/services/assessment-quest-bridge-shared";
+} from "@shared/quests/assessment-quest-bridge";
 import type { OnboardingLaunchResult } from "@shared/game-engine/rendering/OnboardingLauncher";
-import { PERIODIC_ASSESSMENT_LEVELS, PERIODIC_ENCOUNTER, buildPeriodicAssessmentGrammarContext } from "@shared/assessment/periodic-encounter";
+import { PERIODIC_ASSESSMENT_LEVELS, buildPeriodicAssessmentGrammarContext } from "@shared/assessment/periodic-encounter";
 import {
   KEY_BUILDING_INTERACT,
   KEY_ATTACK,
@@ -3305,7 +3305,7 @@ export class BabylonGame {
       getUIImmersionMode: () => this._uiImmersionMode,
       onSetUIImmersionMode: (mode: string) => this.setUIImmersionMode(mode as any),
       getImmersionProgress: () => {
-        const cefrLevel = (this.playerCefrLevel || 'A1') as import('../../assessment/cefr-mapping').CEFRLevel;
+        const cefrLevel = (this.playerCefrLevel || 'A1') as import('../../language/cefr').CEFRLevel;
         return getImmersionProgressData(cefrLevel, this._uiImmersionMode);
       },
       getSaveSlots: () => this.getSaveSlots(),
@@ -9116,7 +9116,6 @@ export class BabylonGame {
       type: 'periodic_assessment_triggered',
       level: event.level,
       tier: event.tier,
-      assessmentDefinition: PERIODIC_ENCOUNTER,
       grammarContext,
     });
   }
@@ -14384,7 +14383,7 @@ export class BabylonGame {
       (q: any) => q.assignedByCharacterId === npcId && q.status === 'available',
     );
 
-    const cefrLevel = this.playerCefrLevel as import('../../assessment/cefr-mapping').CEFRLevel | null;
+    const cefrLevel = this.playerCefrLevel as import('../../language/cefr').CEFRLevel | null;
 
     if (suggestedQuest && (suggestedQuest as any).titleTranslation) {
       return {
@@ -17314,7 +17313,7 @@ export class BabylonGame {
     const activeQuest = (this.quests || []).find((q: any) => q.status === 'active');
     console.debug('[QuestHUD] syncActiveQuestToHud:', activeQuest?.id, 'objectives:', activeQuest?.objectives?.length, 'status:', activeQuest?.status);
     if (activeQuest) {
-      const cefrLevel = this.playerCefrLevel as import('../../assessment/cefr-mapping').CEFRLevel | null;
+      const cefrLevel = this.playerCefrLevel as import('../../language/cefr').CEFRLevel | null;
 
       // Get completion engine state for live objective counts
       const engine = this.questObjectManager?.getCompletionEngine();

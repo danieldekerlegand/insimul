@@ -32,7 +32,7 @@ import type { MinimapData } from './BabylonGUIManager';
 import { NotificationStore } from '../logic/NotificationStore';
 import type { SkillTreeStats } from './BabylonSkillTreePanel';
 import type { NoticeArticle } from './BabylonNoticeBoardPanel';
-import type { PlayerAssessmentData } from '@shared/assessment-types';
+import type { PlayerAssessmentData } from '@shared/language/cefr';
 import type { GameSaveState } from '@shared/game-engine/types';
 import type { MainQuestChapter, ChapterProgress, CaseNote, InvestigationBoardData } from '@shared/quest/main-quest-chapters';
 import type { PortfolioData } from '@shared/quest/portfolio-types';

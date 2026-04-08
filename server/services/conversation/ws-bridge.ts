@@ -40,7 +40,7 @@ import { classifyConversation } from './conversation-classifier.js';
 import type { ModelTier } from './conversation-classifier.js';
 import { speculativeCache, canonicalizeMessage } from './speculative-cache.js';
 import { responseCache, ResponseCache, isCacheableMessage } from './response-cache.js';
-import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import type { CEFRLevel } from '@shared/language/cefr';
 import { prologLLMRouter } from '../prolog-llm-router.js';
 import { classifyMessageComplexity } from './http-bridge.js';
 import { compressConversationHistory, type GeminiMessage } from './conversation-compression.js';

@@ -6,7 +6,7 @@
  */
 
 import type { QuestStorageProvider } from './quest-storage-provider.js';
-import type { CEFRLevel } from '../assessment/cefr-mapping.js';
+import type { CEFRLevel } from '../language/cefr.js';
 import type { Truth } from '../schema.js';
 
 /** Playthrough overlay interface — handles per-playthrough truth isolation */

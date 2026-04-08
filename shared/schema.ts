@@ -629,6 +629,7 @@ export const actions = pgTable("actions", {
   // Event mapping — links this action to the game event that triggers it
   emitsEvent: text("emits_event"), // GameEventBus event name (e.g., 'npc_talked', 'item_collected', 'physical_action_completed')
   gameActivityVerb: text("game_activity_verb"), // Canonical activity verb for taxonomy (defaults to action name if unset)
+  completesObjectiveType: text("completes_objective_type"), // Quest objective type this action satisfies (e.g., 'talk_to_npc', 'collect_item')
 
   // Narrative and presentation
   verbPast: text("verb_past"), // e.g., "talked", "fought"

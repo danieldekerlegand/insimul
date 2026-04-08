@@ -10,7 +10,7 @@
  * organized by language → CEFR band → ordered word arrays.
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping.js';
+import type { CEFRLevel } from './cefr';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

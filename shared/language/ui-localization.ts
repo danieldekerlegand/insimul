@@ -14,7 +14,7 @@
  *   C2    = 90% (nearly everything except system messages)
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
 
 /** Player preference for UI immersion behavior. */
 export type UIImmersionMode = 'auto' | 'english_only' | 'maximum';

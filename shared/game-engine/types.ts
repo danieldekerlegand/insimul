@@ -235,6 +235,7 @@ export interface Action {
   isBase?: boolean;
   emitsEvent?: string | null;
   gameActivityVerb?: string | null;
+  completesObjectiveType?: string | null;
 }
 
 export interface ActionState {

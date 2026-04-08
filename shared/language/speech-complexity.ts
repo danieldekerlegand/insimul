@@ -11,8 +11,8 @@
  */
 
 import type { PlayerProficiency } from './utils';
-import type { CEFRLevel } from '../assessment/cefr-mapping';
-import { cefrToFluencyTier } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
+import { cefrToFluencyTier } from './cefr';
 import { getOccupationDifficultyModifier } from './utils';
 import { getHintBehavior, type HintBehaviorConfig } from './cefr-adaptation';
 

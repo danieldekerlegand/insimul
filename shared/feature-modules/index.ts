@@ -23,7 +23,6 @@ import { VOICE_MODULE } from './voice';
 import { WORLD_LORE_MODULE } from './world-lore';
 import { CONVERSATION_ANALYTICS_MODULE } from './conversation-analytics';
 import { ONBOARDING_MODULE } from './onboarding';
-import { NPC_EXAMS_MODULE } from './npc-exams';
 
 import { registerModule } from './registry';
 
@@ -41,7 +40,6 @@ const ALL_MODULE_DEFINITIONS = [
   WORLD_LORE_MODULE,
   CONVERSATION_ANALYTICS_MODULE,
   ONBOARDING_MODULE,
-  NPC_EXAMS_MODULE,
 ];
 
 // Auto-register on import
@@ -63,7 +61,6 @@ export {
   WORLD_LORE_MODULE,
   CONVERSATION_ANALYTICS_MODULE,
   ONBOARDING_MODULE,
-  NPC_EXAMS_MODULE,
 };
 
 // Re-export module type namespaces

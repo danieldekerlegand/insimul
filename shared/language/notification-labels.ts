@@ -10,7 +10,7 @@
  * shouldTranslateUIKey('notifications.*', cefrLevel).
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
 import { getGameString } from './ui-localization';
 import type { UIImmersionMode } from './ui-localization';
 

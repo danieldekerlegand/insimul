@@ -9,7 +9,7 @@
  * a chapter unlocks.
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from '../language/cefr';
 
 export interface MainQuestObjective {
   id: string;

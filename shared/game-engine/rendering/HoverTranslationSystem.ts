@@ -11,7 +11,7 @@
  *  3. Fetch on-demand translations for unknown words via API
  */
 
-import type { CEFRLevel } from '../../assessment/cefr-mapping';
+import type { CEFRLevel } from '../../language/cefr';
 import {
   getHintBehavior,
   shouldShowVocabHint,

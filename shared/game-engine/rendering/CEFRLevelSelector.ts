@@ -12,7 +12,7 @@
  * 4. Selected level is stored in playthrough; assessment phases are skipped
  */
 
-import type { CEFRLevel } from '../../assessment/assessment-types';
+import type { CEFRLevel } from '../../language/cefr';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

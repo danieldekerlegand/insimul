@@ -9,7 +9,7 @@
 import { useTranslation } from 'react-i18next';
 import { useCallback } from 'react';
 import { shouldTranslateUIKey } from '../../../shared/language/ui-localization';
-import type { CEFRLevel } from '../../../shared/assessment/cefr-mapping';
+import type { CEFRLevel } from '../../../shared/language/cefr';
 import type { UIImmersionMode } from '../../../shared/language/ui-localization';
 import { getTargetLanguage } from './index';
 

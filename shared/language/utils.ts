@@ -8,8 +8,8 @@
 
 import type { WorldLanguage } from './types';
 import { getQuestTypeForWorld, type QuestTypeDefinition } from '../quest-types';
-import type { CEFRLevel } from '../assessment/cefr-mapping';
-import { cefrToFluencyTier } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from './cefr';
+import { cefrToFluencyTier } from './cefr';
 import { getSpeechComplexity, buildDialogueRulesFromComplexity } from './speech-complexity';
 import { assignNPCLanguageMode, buildLanguageModeDirective } from './cefr-adaptation';
 import { buildFrequencyDirective } from './vocabulary-frequency';

@@ -13,8 +13,7 @@
 import { ACHIEVABLE_OBJECTIVE_TYPES } from '../quest-objective-types.js';
 import type { InsertQuest, Character, Settlement, World } from '../schema.js';
 import { convertQuestToProlog } from '../prolog/quest-converter.js';
-import { buildArrivalAssessmentQuest } from '../services/assessment-quest-bridge-shared.js';
-import { DEPARTURE_ENCOUNTER, resolveTemplate } from '../assessment/departure-encounter.js';
+import { buildArrivalAssessmentQuest, createDepartureAssessmentQuest } from './assessment-quest-bridge.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1076,36 +1075,18 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
     quests.push(arrivalQuest as InsertQuest);
 
     // Departure Assessment
-    const departureVars = { targetLanguage, cityName };
-    const departureObjectives = DEPARTURE_ENCOUNTER.phases.map(phase => ({
-      id: `obj_${phase.id}`,
-      type: 'complete_conversation',
-      description: resolveTemplate(phase.description, departureVars),
-      requiredCount: 1,
-      currentCount: 0,
-      completed: false,
-      assessmentPhaseId: phase.id,
-      ...(assessmentPosition ? { locationPosition: { ...assessmentPosition } } : {}),
-    }));
-
-    const departureQuest: InsertQuest = {
+    const departureQuest = createDepartureAssessmentQuest({
       worldId: world.id,
-      assignedTo: 'player',
-      assignedBy: null,
-      title: 'Departure Assessment',
-      description: resolveTemplate(DEPARTURE_ENCOUNTER.description, departureVars),
-      questType: 'assessment',
-      difficulty: 'beginner',
+      playerName: 'player',
       targetLanguage,
-      objectives: departureObjectives,
-      experienceReward: 50,
-      rewards: { xp: 50, fluency: 5, cefrAssessment: true },
-      completionCriteria: { type: 'all_objectives', description: 'Complete all departure assessment phases' },
-      status: 'unavailable',
-      tags: ['assessment', 'departure', 'non-skippable', 'non-abandonable'],
-      ...(assessmentPosition ? { locationPosition: assessmentPosition, locationName: cityName } : {}),
-    } as InsertQuest;
-    quests.push(departureQuest);
+      cityName,
+    });
+    departureQuest.status = 'unavailable';
+    if (assessmentPosition) {
+      (departureQuest as any).locationPosition = assessmentPosition;
+      (departureQuest as any).locationName = cityName;
+    }
+    quests.push(departureQuest as InsertQuest);
   }
 
   return quests;

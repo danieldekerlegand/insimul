@@ -12,7 +12,7 @@
  */
 
 import type { LanguageProgress } from '../language/progress';
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from '../language/cefr';
 import {
   analyzeGrammarWeaknesses,
   createErrorRateSnapshot,

@@ -11,7 +11,7 @@
 
 import type { QuestIR } from './game-engine/ir-types';
 import { MAIN_QUEST_CHAPTERS, type MainQuestChapter } from './quest/main-quest-chapters';
-import type { CEFRLevel } from './assessment/cefr-mapping';
+import type { CEFRLevel } from './language/cefr';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

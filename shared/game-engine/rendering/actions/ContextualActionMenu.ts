@@ -16,7 +16,7 @@
 
 import * as GUI from '@babylonjs/gui';
 import type * as BABYLON from '@babylonjs/core';
-import type { CEFRLevel } from '../../../assessment/cefr-mapping';
+import type { CEFRLevel } from '../../../language/cefr';
 import { type UIImmersionMode } from '../../../language/ui-localization';
 import { translateInteractionVerb } from '../../../language/in-world-text';
 

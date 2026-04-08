@@ -8,7 +8,7 @@
 
 import type { GameEventBus } from '@shared/game-engine/logic/GameEventBus';
 import type { AssessmentPhaseResult, AssessmentCompletionResult } from '@shared/assessment/assessment-types';
-import { mapScoreToCEFR } from '@shared/assessment/cefr-mapping';
+import { mapScoreToCEFR } from '@shared/language/cefr';
 
 import type { AssessmentModalConfig } from '@shared/game-engine/rendering/AssessmentModalUI';
 
@@ -394,7 +394,7 @@ async function findAssessmentQuest(
     if (!dataSource) throw new Error('No dataSource — save file not loaded');
     const quests = await dataSource.loadQuests(worldId);
     const { isArrivalAssessmentQuest } = await import(
-      '@shared/services/assessment-quest-bridge-shared.ts'
+      '@shared/quests/assessment-quest-bridge.ts'
     );
 
     const existing = quests.find((q: any) => isArrivalAssessmentQuest(q));

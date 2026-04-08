@@ -299,7 +299,6 @@ export class QuestCompletionEngine {
         break;
       case 'vocabulary_usage':
         this.trackVocabularyUsage(event.word, event.questId);
-        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'conversation_turn':
         this.trackConversationTurn(event.keywords, event.questId);
@@ -387,18 +386,14 @@ export class QuestCompletionEngine {
         break;
       case 'text_found':
         this.trackTextFound(event.textId, event.textName, event.questId);
-        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'text_read':
         this.trackTextRead(event.textId, event.questId);
-        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'comprehension_answer':
         this.trackComprehensionAnswer(event.isCorrect, event.questId);
-        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'clue_discovered':
-        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'photo_taken':
         this.trackPhotoTaken(event.subjectName, event.subjectCategory, event.subjectActivity, event.questId);
@@ -425,7 +420,6 @@ export class QuestCompletionEngine {
           if (obj.npcId && obj.npcId !== event.npcId) return;
           this.completeObjective(quest.id, obj.id);
         });
-        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'conversation_assessment_completed':
         // Validate turnCount for conversation assessment objectives (arrival, departure, periodic)
@@ -465,7 +459,6 @@ export class QuestCompletionEngine {
         break;
       case 'grammar_demonstrated':
         this.trackGrammarDemonstrated(event.patternCount, event.questId);
-        this.handleGameEvent(event as unknown as Record<string, unknown>);
         break;
       case 'item_purchased':
         this.trackItemPurchased(event.itemName, event.merchantId, event.questId);
@@ -480,6 +473,12 @@ export class QuestCompletionEngine {
         this.trackFriendshipBuilt(event.npcId, event.relationshipStrength, event.questId);
         break;
     }
+
+    // ── Generic QAM handler — runs for EVERY event ──────────────────────
+    // This catches any objective types registered via action.completesObjectiveType
+    // that don't have custom handlers above. The QAM's field matching and
+    // quantity tracking handle completion generically.
+    this.handleGameEvent(event as unknown as Record<string, unknown>);
   }
 
   // ── Core completion logic ───────────────────────────────────────────────

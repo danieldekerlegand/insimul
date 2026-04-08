@@ -18,7 +18,7 @@
 import type { GameEventBus } from './GameEventBus';
 import type { GamePrologEngine } from './GamePrologEngine';
 import type { AssessmentModalConfig, ContentTemplate, PhaseType, AssessmentQuestData, AssessmentPhaseResult, AssessmentTaskResult } from '@shared/assessment/assessment-types';
-import { mapScoreToCEFR } from '@shared/assessment/cefr-mapping';
+import { mapScoreToCEFR } from '@shared/language/cefr';
 
 /** Lightweight assessment result (subset of shared/assessment AssessmentResult). */
 export interface AssessmentResult {

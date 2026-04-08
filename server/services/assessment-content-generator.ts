@@ -12,44 +12,42 @@
 
 import { getGenAI, GEMINI_MODELS, isGeminiConfigured } from '../config/gemini.js';
 import type {
-  AssessmentDefinition,
   AssessmentQuestData,
   ContentTemplate,
   PhaseType,
   AssessmentQuestion,
 } from '../../shared/assessment/assessment-types.js';
-import { resolveAssessment } from '../../shared/assessment/arrival-encounter.js';
-import {
-  buildAssessmentQuestData,
-  type GeneratedPhaseContent,
-} from '../../shared/assessment/assessment-content-builder.js';
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Generate all assessment content for an encounter definition at world creation time.
+ * Enrich an AssessmentQuestData with LLM-generated content at world creation time.
+ *
+ * Takes existing AssessmentQuestData (which already has contentTemplates in its
+ * phase tasks) and fills in LLM-generated passages, questions, and writing prompts.
  *
  * For reading/listening phases: generates a passage and comprehension questions.
  * For writing phases: generates writing prompts.
  * For conversation/initiate_conversation phases: no content generation needed.
  *
- * If LLM generation fails for any phase, falls back to empty content
- * (the game client will use the encounter definition as fallback).
+ * If LLM generation fails for any phase, the contentTemplate remains for
+ * fallback generation later.
  *
- * @returns AssessmentQuestData with pre-generated content, ready for customData.assessment
+ * @param assessmentData  The AssessmentQuestData (from buildAssessmentData) with contentTemplates
+ * @param targetLanguage  Target language for content generation
+ * @param cityName        City name for template resolution
+ * @returns Enriched AssessmentQuestData with pre-generated content baked in
  */
 export async function generateAssessmentQuestContent(
-  encounter: AssessmentDefinition,
+  assessmentData: AssessmentQuestData,
   targetLanguage: string,
   cityName: string,
 ): Promise<AssessmentQuestData> {
-  // Resolve template variables ({{targetLanguage}}, {{cityName}})
-  const resolved = resolveAssessment(encounter, { targetLanguage, cityName });
-
-  const generatedContent: GeneratedPhaseContent[] = [];
+  // Deep-copy so we don't mutate the input
+  const enriched: AssessmentQuestData = JSON.parse(JSON.stringify(assessmentData));
 
   // Generate content for each phase that needs it
-  for (const phase of resolved.phases) {
+  for (const phase of enriched.phases) {
     const phaseType = phase.type as PhaseType;
 
     // Skip phases that don't need LLM content generation
@@ -70,11 +68,25 @@ export async function generateAssessmentQuestContent(
     );
 
     if (content) {
-      generatedContent.push(content);
+      // Merge generated content directly into the task
+      if ((phaseType === 'reading' || phaseType === 'listening') && content.passage) {
+        task.passage = content.passage;
+        task.questions = content.questions;
+      }
+      if (phaseType === 'writing' && content.writingPrompts) {
+        task.writingPrompts = content.writingPrompts;
+      }
     }
   }
 
-  return buildAssessmentQuestData(resolved, generatedContent);
+  return enriched;
+}
+
+interface GeneratedPhaseContent {
+  phaseId: string;
+  passage?: string;
+  questions?: AssessmentQuestion[];
+  writingPrompts?: string[];
 }
 
 // ── LLM Content Generation ─────────────────────────────────────────────────

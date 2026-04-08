@@ -5,7 +5,7 @@
  * Used by both server (computation) and client (display).
  */
 
-import type { CEFRLevel } from '../assessment/cefr-mapping';
+import type { CEFRLevel } from '../language/cefr';
 import type { SkillDimension, QuestCategory, SkillProfile } from '../language/learning-profile';
 
 // ─── Quest Analytics ─────────────────────────────────────────────────────────

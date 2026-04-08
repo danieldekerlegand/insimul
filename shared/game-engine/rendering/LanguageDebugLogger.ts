@@ -14,7 +14,7 @@ import { isDebugLabelsEnabled } from './DebugLabelUtils';
 import { getDebugEventBus } from '../debug-event-bus';
 import type { EvalDimensionScores, DimensionTrend } from '@shared/language/language-progress';
 import type { GrammarFeedback } from '@shared/language/language-progress';
-import type { CEFRLevel } from '@shared/assessment/cefr-mapping';
+import type { CEFRLevel } from '@shared/language/cefr';
 import type { CEFRAdvancementResult } from '@shared/language/cefr-adaptation';
 
 // ── Types ───────────────────────────────────────────────────────────────────

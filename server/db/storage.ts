@@ -53,6 +53,7 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+// Assessment types kept for backward compat with MongoDB storage
 import type {
   AssessmentSession,
   PhaseResult,
@@ -342,22 +343,12 @@ export interface IStorage {
   deletePlaythroughConversation(id: string): Promise<boolean>;
   deleteConversationsByPlaythrough(playthroughId: string): Promise<number>;
 
-  // Assessment Sessions
-  createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
-  updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined>;
-  addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined>;
-  completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined>;
+  // Assessment Sessions — DEPRECATED: assessment data now stored in quest overlays
+  // Kept for backward compatibility with legacy data reads
+  /** @deprecated Use quest overlays instead */
   getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]>;
+  /** @deprecated Use quest overlays instead */
   getWorldAssessmentSessions(worldId: string): Promise<AssessmentSession[]>;
-  getWorldAssessmentSummary(worldId: string): Promise<{
-    totalSessions: number;
-    completedSessions: number;
-    averageScore: number;
-    averagePercentage: number;
-    byType: Record<string, { count: number; avgScore: number; avgPercentage: number }>;
-    cefrDistribution: Record<string, number>;
-    scoreDistribution: { bucket: string; count: number }[];
-  }>;
 
   // Game Texts
   getGameText(id: string): Promise<import("@shared/schema").GameText | undefined>;
