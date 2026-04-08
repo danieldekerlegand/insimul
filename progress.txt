@@ -2231,3 +2231,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The cancellation order matters: cancel specific systems first (they release their locks), then `forceRelease()` as safety net
   - Chat panel audio pipeline (InsimulClient → StreamingAudioPlayer) is completely separate from NpcAudioLock — no coordination needed
 ---
+
+## 2026-04-07 - US-011: NPC opens conversation with contextual greeting
+- Modified `initializeChat()` to ALWAYS trigger an NPC greeting when the chat panel opens, not just for quest NPCs
+- Added `buildOpeningCue()` method that assembles a rich contextual cue including: NPC name, occupation, current location, time of day, relationship hints, and target language
+- Quest NPCs get quest-specific cue; regular NPCs get a contextual cue that instructs NPC to end with an engagement hook
+- Added 3s timeout to `triggerNPCGreeting()` via `Promise.race()` — on timeout, falls back to `getFallbackGreeting()`
+- Added `getFallbackGreeting()` with simple target-language greeting templates (French, Spanish, German, Italian, Portuguese, Japanese, Korean, Chinese)
+- Error path now shows fallback greeting instead of empty chat (previously removed placeholder on error)
+- Added `_timeOfDay` property + `setTimeOfDay()` setter on BabylonChatPanel
+- Wired BabylonGame to call `chatPanel.setTimeOfDay(this.gameTimeManager.timeOfDay)` before `show()`
+- The opening line is stored in conversation history as the first assistant message (already handled by existing `triggerNPCGreeting` flow)
+- Updated drift manifest
+- Files changed:
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — buildOpeningCue(), getFallbackGreeting(), timeout logic, _timeOfDay, setTimeOfDay(), always-greet in initializeChat()
+  - `shared/game-engine/rendering/BabylonGame.ts` — setTimeOfDay() call in handleOpenChat()
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - The system prompt already contains NPC personality, occupation, language directives via `buildLanguageAwareSystemPrompt()` — the cue only needs to provide situational context (location, time, approach trigger)
+  - `triggerQuestGuidanceGreeting()` has a `messages.length > 0` guard, so it's naturally a no-op after the always-greet change
+  - `Promise.race` with a timeout doesn't cancel the underlying LLM call — it just stops waiting. The streaming response may still arrive and update the placeholder after the fallback
+  - BabylonChatPanel has no direct access to game time — must be set externally via setter before show()
+---

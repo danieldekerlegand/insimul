@@ -194,7 +194,7 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "This replaces the current behavior where the chat panel opens silently and the player must speak first. The NPC should feel like they're reacting to the player walking up to them."
     },
     {
