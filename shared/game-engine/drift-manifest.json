@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-08T11:34:53.721Z",
+  "lastUpdated": "2026-04-08T16:55:42.225Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -289,7 +289,7 @@
     {
       "path": "shared/game-engine/logic/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "fa03793cc1020488c9597567d7789ee8af92d64409261273588075563fd7c917",
+      "hash": "b9c590cfcd4fd089c4d62fc2af5f95102f47507459a88489ef7019c2531d1b3d",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "dc5286e054d2e5501cc23c89f9e49e0136fdc863e14cafd1b6e168f2bdc01d42",
+      "hash": "7cf5ad6cd972704b1d1801357a974b23965c7b78494da9386c0b2e86cb3b24b1",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "861061bc492bfb36c7541dfbd3786f31b38177057a799910879db6a11e805b38",
+      "hash": "8016b5a71175eb84eb552dfd277c1850c8c5c7b2c4f2e0ec90f198bfaddc0cb5",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -571,7 +571,7 @@
     {
       "path": "shared/game-engine/rendering/BuildingInteriorGenerator.ts",
       "description": "Interior generation: multi-room layouts, role-specific furniture, entry/exit transitions.",
-      "hash": "72b04ca789a5ea0ca3346bd4ad66c9c0a398552495429df1667b7b64de0eebef",
+      "hash": "e7b4b0cc5d128ad02aa08d68c1104f5bb1f1dcdb0d178d6b6e32647e90b72791",
       "engineMappings": [
         {
           "engine": "unity",
@@ -652,7 +652,7 @@
     {
       "path": "shared/game-engine/logic/AssessmentEngine.ts",
       "description": "Assessment orchestrator with offline fallback. Changes affect assessment UI and scoring in export engines.",
-      "hash": "f616c524ee2f0ff0ccb452993561c20241b53021615e890b75863d9398289f93",
+      "hash": "5f4c4bd5db2c48f2978797693bd123e1ddec3d6e7ecb21cfbef691274072913c",
       "engineMappings": [
         {
           "engine": "babylon",

@@ -1417,7 +1417,9 @@ export class BabylonGame {
       getPrologFacts: () => {
         if (!this.prologEngine) return undefined;
         try {
-          return (this.prologEngine as any).exportFacts?.() ?? undefined;
+          // Export only player-asserted gameplay facts (not world data/rules)
+          const facts = this.prologEngine.getPlayerFacts();
+          return facts.length > 0 ? JSON.stringify(facts) : undefined;
         } catch {
           return undefined;
         }
@@ -1625,12 +1627,31 @@ export class BabylonGame {
           } as any;
         }
       },
-      restorePrologFacts: (data: any) => {
-        if (this.prologEngine && data) {
+      restorePrologFacts: (data: any, fullState?: any) => {
+        if (!this.prologEngine) return;
+        if (fullState) {
+          // Option 3: reconstruct Prolog facts from structured save state
+          this.prologEngine.restoreFromSaveState(fullState).then(() => {
+            console.log('[BabylonGame] Prolog player state restored from save');
+          }).catch((e) => {
+            console.warn('[BabylonGame] Prolog restore from save state failed:', e);
+          });
+        } else if (data && typeof data === 'string') {
+          // Fallback: try to parse as JSON player facts array
+          let facts: string[] = [];
           try {
-            (this.prologEngine as any).importFacts?.(data);
+            facts = JSON.parse(data);
           } catch {
-            // Prolog fact import failed — non-fatal
+            // Old format (full KB text) — skip, can't safely import
+            console.warn('[BabylonGame] Old prologFacts format detected, skipping');
+            return;
+          }
+          if (Array.isArray(facts) && facts.length > 0) {
+            this.prologEngine.restorePlayerFacts(facts).then(() => {
+              console.log('[BabylonGame] Prolog player facts restored from save');
+            }).catch(() => {
+              // Non-fatal
+            });
           }
         }
       },
@@ -7309,7 +7330,6 @@ export class BabylonGame {
             propInstance.position = propPos;
             propInstance.isVisible = true;
             propInstance.setEnabled(true);
-            propInstance.checkCollisions = true;
             propInstance.isPickable = true;
             const propScaleHint = this.objectModelScaleHints.get(role);
             let propAbsScale: number;
@@ -7331,9 +7351,10 @@ export class BabylonGame {
             propInstance.metadata = { ...(propInstance.metadata || {}), objectRole: role };
             propInstance.getChildMeshes().forEach(child => {
               child.isPickable = true;
-              child.checkCollisions = true;
               child.metadata = { ...(child.metadata || {}), objectRole: role };
             });
+            // Use a single collision box instead of per-mesh collisions
+            this.wrapWithCollisionBox(propInstance);
             this.worldPropMeshes.push(propInstance);
           }
         }
@@ -7977,9 +7998,9 @@ export class BabylonGame {
 
       prop.position = new Vector3(propX, propY, propZ);
       prop.rotation.y = Math.random() * Math.PI * 2;
-      prop.checkCollisions = true;
-      prop.getChildMeshes().forEach(child => { child.checkCollisions = true; });
       prop.isPickable = false;
+      // Use a single collision box instead of per-mesh collisions
+      this.wrapWithCollisionBox(prop);
       this.worldPropMeshes.push(prop);
       propCount++;
     }
@@ -8183,6 +8204,84 @@ export class BabylonGame {
   }
 
   /**
+   * Wrap a mesh hierarchy with a single invisible collision box.
+   * Disables checkCollisions on all original meshes to prevent characters
+   * from getting trapped between overlapping collision surfaces.
+   * Returns the collider mesh (parented to the prop).
+   */
+  private wrapWithCollisionBox(prop: Mesh, margin: number = 0.15): Mesh | null {
+    if (!this.scene) return null;
+
+    // Force bounding info computation on the hierarchy
+    prop.refreshBoundingInfo(false, false);
+    prop.computeWorldMatrix(true);
+
+    // Gather all child mesh bounding boxes in local space
+    const children = prop.getChildMeshes(false);
+    if (children.length === 0 && prop.getTotalVertices() === 0) return null;
+
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+    const allMeshes = prop.getTotalVertices() > 0 ? [prop, ...children] : children;
+    for (const m of allMeshes) {
+      (m as Mesh).refreshBoundingInfo(false, false);
+      m.computeWorldMatrix(true);
+      const bi = m.getBoundingInfo();
+      const worldMin = bi.boundingBox.minimumWorld;
+      const worldMax = bi.boundingBox.maximumWorld;
+      if (worldMin.x < minX) minX = worldMin.x;
+      if (worldMin.y < minY) minY = worldMin.y;
+      if (worldMin.z < minZ) minZ = worldMin.z;
+      if (worldMax.x > maxX) maxX = worldMax.x;
+      if (worldMax.y > maxY) maxY = worldMax.y;
+      if (worldMax.z > maxZ) maxZ = worldMax.z;
+    }
+
+    if (!isFinite(minX) || !isFinite(maxX)) return null;
+
+    const width = (maxX - minX) + margin * 2;
+    const height = (maxY - minY) + margin * 2;
+    const depth = (maxZ - minZ) + margin * 2;
+
+    // Skip tiny props that don't need collision
+    if (width < 0.1 && depth < 0.1) return null;
+
+    const collider = MeshBuilder.CreateBox(
+      `${prop.name}_collider`,
+      { width, height, depth },
+      this.scene
+    );
+
+    // Position the collider at the center of the bounding box in world space
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+
+    // Convert world center to local space relative to the prop parent
+    collider.parent = prop;
+    const propWorld = prop.getWorldMatrix();
+    const invPropWorld = propWorld.clone().invert();
+    const localCenter = Vector3.TransformCoordinates(
+      new Vector3(centerX, centerY, centerZ),
+      invPropWorld
+    );
+    collider.position = localCenter;
+
+    collider.isVisible = false;
+    collider.isPickable = false;
+    collider.checkCollisions = true;
+
+    // Disable collisions on the original meshes
+    prop.checkCollisions = false;
+    for (const child of children) {
+      (child as Mesh).checkCollisions = false;
+    }
+
+    return collider;
+  }
+
+  /**
    * Generate wilderness props (camps, ruins, landmarks) in the open areas
    * between settlements to create points of interest in the wilderness.
    */
@@ -8242,9 +8341,9 @@ export class BabylonGame {
 
       prop.position = new Vector3(x, y, z);
       prop.rotation.y = Math.random() * Math.PI * 2;
-      prop.checkCollisions = true;
-      prop.getChildMeshes().forEach(child => { child.checkCollisions = true; });
       prop.isPickable = false;
+      // Use a single collision box instead of per-mesh collisions
+      this.wrapWithCollisionBox(prop);
       createDebugLabel(scene, prop, `WILDERNESS: ${wildType}`, 5);
       this.worldPropMeshes.push(prop);
       placed++;

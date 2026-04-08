@@ -228,9 +228,25 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Insimul|PrologEngine")
     bool bDebugLoggingEnabled = false;
 
-    /** Export the current knowledge base as Prolog text */
-    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    /** Export the current knowledge base as Prolog text.
+     *  DEPRECATED: Prefer GetPlayerFacts() for save files — it returns only
+     *  gameplay-asserted facts, not the entire world KB. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine", meta=(DeprecatedFunction, DeprecationMessage="Use GetPlayerFacts() for save files instead."))
     FString ExportKnowledgeBase() const;
+
+    // ── Player Fact Persistence ─────────────────────────────────────────
+
+    /** Get all player-asserted gameplay facts (not world data). For save files. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    TArray<FString> GetPlayerFacts() const;
+
+    /** Restore player facts from a saved array. Call after LoadFromIR(). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void RestorePlayerFacts(const TArray<FString>& Facts);
+
+    /** Reconstruct Prolog state from structured save data. Call after LoadFromIR(). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void RestoreFromSaveState(const FString& SaveStateJson);
 
     // ── NPC Intelligence Queries ─────────────────────────────────────────
 
@@ -354,6 +370,9 @@ private:
     /** Active quest IDs for re-evaluation */
     TArray<FString> ActiveQuestIds;
 
+    /** Player-asserted gameplay facts (tracked separately from world data for save/load). */
+    TSet<FString> PlayerFacts;
+
     /** Track per-item quantities so has_item/3 stays accurate */
     TMap<FString, int32> ItemQuantities;
 
@@ -387,6 +406,21 @@ private:
 
     /** Update item quantity tracking */
     void UpdateItemQuantity(const FString& ItemName, int32 Delta);
+
+    /** Assert a fact and track it as a player-gameplay fact for save/load. */
+    void AssertPlayerFact(const FString& Fact);
+
+    /** Retract a fact and remove it from player-gameplay tracking. */
+    void RetractPlayerFact(const FString& Fact);
+
+    /** Retract player facts by pattern and clean up tracking. */
+    void RetractPlayerFactByPattern(const FString& Predicate, const FString& FirstArg, const FString& SecondArg = TEXT(""));
+
+    /** Update item quantity with player fact tracking (used in HandleGameEvent). */
+    void UpdateItemQuantityTracked(const FString& ItemName, int32 Delta);
+
+    /** Assert item taxonomy facts with player tracking (used in HandleGameEvent). */
+    void AssertItemTaxonomyTracked(const FString& ItemName, const FString& Category, const FString& Material, const FString& BaseType, const FString& Rarity, const FString& ItemType);
 
     /** Parse the knowledge base string into Facts and Rules arrays */
     void ParseKnowledgeBase();

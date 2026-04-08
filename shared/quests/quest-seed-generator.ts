@@ -1065,7 +1065,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
     // Arrival Assessment — self-contained, no quest chain dependency
     const arrivalQuest = buildArrivalAssessmentQuest({
       worldId: world.id,
-      playerId: 'unassigned',
+      playerId: 'player',
       targetLanguage,
       cityName,
     });
@@ -1090,7 +1090,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
 
     const departureQuest: InsertQuest = {
       worldId: world.id,
-      assignedTo: 'unassigned',
+      assignedTo: 'player',
       assignedBy: null,
       title: 'Departure Assessment',
       description: resolveTemplate(DEPARTURE_ENCOUNTER.description, departureVars),

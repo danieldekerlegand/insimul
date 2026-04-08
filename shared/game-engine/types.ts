@@ -1505,8 +1505,10 @@ export interface GameSaveState {
   mainQuestState?: SavedMainQuestState;
   /** Player's photo book */
   photoBook?: SavedPhotoBookState;
-  /** Serialized Prolog gameplay facts (canonical truth state) */
-  prologFacts?: Array<{ predicate: string; args: Array<string | number> }>;
+  /** JSON-encoded array of player-asserted Prolog fact strings (gameplay facts only).
+   *  Used alongside structured state fields for full Prolog reconstruction on load.
+   *  Legacy saves may contain full KB text (safely ignored on import). */
+  prologFacts?: string;
   /** Serialized ClueStore state (investigation clues) */
   clueState?: any;
   /** Reading progress: which articles were read, quiz answers, comprehension scores */

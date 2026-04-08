@@ -26,6 +26,7 @@ void UPrologEngine::Deinitialize()
     Rules.Empty();
     ActiveQuestIds.Empty();
     ItemQuantities.Empty();
+    PlayerFacts.Empty();
     CompletedObjectives.Empty();
     CompletedQuests.Empty();
     bInitialized = false;
@@ -897,98 +898,98 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
         case EInsimulEventType::ItemCollected:
         {
             FString Name = Sanitize(Event.ItemName);
-            AssertFact(FString::Printf(TEXT("collected(player, %s, %d)"), *Name, Event.Quantity));
-            AssertFact(FString::Printf(TEXT("has(player, %s)"), *Name));
-            UpdateItemQuantity(Name, Event.Quantity);
-            AssertItemTaxonomy(Name, Event.Taxonomy.Category, Event.Taxonomy.Material,
+            AssertPlayerFact(FString::Printf(TEXT("collected(player, %s, %d)"), *Name, Event.Quantity));
+            AssertPlayerFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+            UpdateItemQuantityTracked(Name, Event.Quantity);
+            AssertItemTaxonomyTracked(Name, Event.Taxonomy.Category, Event.Taxonomy.Material,
                 Event.Taxonomy.BaseType, Event.Taxonomy.Rarity, Event.Taxonomy.ItemType);
             break;
         }
         case EInsimulEventType::EnemyDefeated:
-            AssertFact(FString::Printf(TEXT("defeated(player, %s)"), *Sanitize(Event.EnemyType)));
+            AssertPlayerFact(FString::Printf(TEXT("defeated(player, %s)"), *Sanitize(Event.EnemyType)));
             break;
         case EInsimulEventType::LocationVisited:
-            AssertFact(FString::Printf(TEXT("visited(player, %s)"), *Sanitize(Event.LocationId)));
+            AssertPlayerFact(FString::Printf(TEXT("visited(player, %s)"), *Sanitize(Event.LocationId)));
             break;
         case EInsimulEventType::NPCTalked:
-            AssertFact(FString::Printf(TEXT("talked_to(player, %s, %d)"), *Sanitize(Event.NPCId), Event.TurnCount));
+            AssertPlayerFact(FString::Printf(TEXT("talked_to(player, %s, %d)"), *Sanitize(Event.NPCId), Event.TurnCount));
             break;
         case EInsimulEventType::ItemDelivered:
-            AssertFact(FString::Printf(TEXT("delivered(player, %s, %s)"), *Sanitize(Event.NPCId), *Sanitize(Event.ItemName)));
+            AssertPlayerFact(FString::Printf(TEXT("delivered(player, %s, %s)"), *Sanitize(Event.NPCId), *Sanitize(Event.ItemName)));
             break;
         case EInsimulEventType::VocabularyUsed:
-            AssertFact(FString::Printf(TEXT("vocab_used(player, %s, %d)"), *Sanitize(Event.Word), Event.bCorrect ? 1 : 0));
+            AssertPlayerFact(FString::Printf(TEXT("vocab_used(player, %s, %d)"), *Sanitize(Event.Word), Event.bCorrect ? 1 : 0));
             break;
         case EInsimulEventType::ItemCrafted:
         {
             FString Name = Sanitize(Event.ItemName);
-            AssertFact(FString::Printf(TEXT("crafted(player, %s, %d)"), *Name, Event.Quantity));
-            AssertFact(FString::Printf(TEXT("has(player, %s)"), *Name));
-            UpdateItemQuantity(Name, Event.Quantity);
-            AssertItemTaxonomy(Name, Event.Taxonomy.Category, Event.Taxonomy.Material,
+            AssertPlayerFact(FString::Printf(TEXT("crafted(player, %s, %d)"), *Name, Event.Quantity));
+            AssertPlayerFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+            UpdateItemQuantityTracked(Name, Event.Quantity);
+            AssertItemTaxonomyTracked(Name, Event.Taxonomy.Category, Event.Taxonomy.Material,
                 Event.Taxonomy.BaseType, Event.Taxonomy.Rarity, Event.Taxonomy.ItemType);
             break;
         }
         case EInsimulEventType::LocationDiscovered:
-            AssertFact(FString::Printf(TEXT("discovered(player, %s)"), *Sanitize(Event.LocationId)));
+            AssertPlayerFact(FString::Printf(TEXT("discovered(player, %s)"), *Sanitize(Event.LocationId)));
             break;
         case EInsimulEventType::SettlementEntered:
-            AssertFact(FString::Printf(TEXT("visited(player, %s)"), *Sanitize(Event.SettlementId)));
+            AssertPlayerFact(FString::Printf(TEXT("visited(player, %s)"), *Sanitize(Event.SettlementId)));
             break;
         case EInsimulEventType::ReputationChanged:
-            AssertFact(FString::Printf(TEXT("reputation_change(player, %s, %d)"), *Sanitize(Event.FactionId), Event.Delta));
+            AssertPlayerFact(FString::Printf(TEXT("reputation_change(player, %s, %d)"), *Sanitize(Event.FactionId), Event.Delta));
             break;
         case EInsimulEventType::QuestAccepted:
-            AssertFact(FString::Printf(TEXT("quest_active(player, %s)"), *Sanitize(Event.QuestId)));
+            AssertPlayerFact(FString::Printf(TEXT("quest_active(player, %s)"), *Sanitize(Event.QuestId)));
             if (!Event.AssignedByNpcId.IsEmpty())
             {
-                AssertFact(FString::Printf(TEXT("npc_gave_quest(%s, player, %s)"), *Sanitize(Event.AssignedByNpcId), *Sanitize(Event.QuestId)));
+                AssertPlayerFact(FString::Printf(TEXT("npc_gave_quest(%s, player, %s)"), *Sanitize(Event.AssignedByNpcId), *Sanitize(Event.QuestId)));
             }
             break;
         case EInsimulEventType::QuestCompleted:
-            AssertFact(FString::Printf(TEXT("quest_completed(player, %s)"), *Sanitize(Event.QuestId)));
+            AssertPlayerFact(FString::Printf(TEXT("quest_completed(player, %s)"), *Sanitize(Event.QuestId)));
             if (!Event.AssignedByNpcId.IsEmpty())
             {
-                AssertFact(FString::Printf(TEXT("quest_outcome(%s, player, completed)"), *Sanitize(Event.QuestId)));
+                AssertPlayerFact(FString::Printf(TEXT("quest_outcome(%s, player, completed)"), *Sanitize(Event.QuestId)));
             }
             break;
         case EInsimulEventType::PuzzleSolved:
-            AssertFact(FString::Printf(TEXT("puzzle_solved(player, %s)"), *Sanitize(Event.PuzzleId)));
+            AssertPlayerFact(FString::Printf(TEXT("puzzle_solved(player, %s)"), *Sanitize(Event.PuzzleId)));
             break;
         case EInsimulEventType::ItemRemoved:
         case EInsimulEventType::ItemDropped:
         {
             FString Name = Sanitize(Event.ItemName);
             int32 Qty = FMath::Max(1, Event.Quantity);
-            UpdateItemQuantity(Name, -Qty);
+            UpdateItemQuantityTracked(Name, -Qty);
             int32* Remaining = ItemQuantities.Find(Name);
             if (!Remaining || *Remaining <= 0)
             {
-                RetractFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+                RetractPlayerFact(FString::Printf(TEXT("has(player, %s)"), *Name));
             }
             break;
         }
         case EInsimulEventType::ItemUsed:
         {
             FString Name = Sanitize(Event.ItemName);
-            UpdateItemQuantity(Name, -1);
+            UpdateItemQuantityTracked(Name, -1);
             int32* Remaining = ItemQuantities.Find(Name);
             if (!Remaining || *Remaining <= 0)
             {
-                RetractFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+                RetractPlayerFact(FString::Printf(TEXT("has(player, %s)"), *Name));
             }
             break;
         }
         case EInsimulEventType::ItemEquipped:
-            AssertFact(FString::Printf(TEXT("equipped(player, %s, %s)"), *Sanitize(Event.ItemName), *Sanitize(Event.Slot)));
+            AssertPlayerFact(FString::Printf(TEXT("equipped(player, %s, %s)"), *Sanitize(Event.ItemName), *Sanitize(Event.Slot)));
             break;
         case EInsimulEventType::ItemUnequipped:
-            RetractFact(FString::Printf(TEXT("equipped(player, %s, %s)"), *Sanitize(Event.ItemName), *Sanitize(Event.Slot)));
+            RetractPlayerFact(FString::Printf(TEXT("equipped(player, %s, %s)"), *Sanitize(Event.ItemName), *Sanitize(Event.Slot)));
             break;
         case EInsimulEventType::RomanceAction:
         {
             FString Status = Event.bAccepted ? TEXT("accepted") : TEXT("rejected");
-            AssertFact(FString::Printf(TEXT("romance_action(player, %s, %s, %s)"),
+            AssertPlayerFact(FString::Printf(TEXT("romance_action(player, %s, %s, %s)"),
                 *Sanitize(Event.NPCId), *Sanitize(Event.ActionType), *Status));
             // Emit create_truth event for accepted actions
             if (Event.bAccepted && EventBusRef.IsValid())
@@ -1005,10 +1006,10 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
         }
         case EInsimulEventType::RomanceStageChanged:
         {
-            RetractPattern(TEXT("romance_stage"), TEXT("player"), Sanitize(Event.NPCId));
-            AssertFact(FString::Printf(TEXT("romance_stage(player, %s, %s)"),
+            RetractPlayerFactByPattern(TEXT("romance_stage"), TEXT("player"), Sanitize(Event.NPCId));
+            AssertPlayerFact(FString::Printf(TEXT("romance_stage(player, %s, %s)"),
                 *Sanitize(Event.NPCId), *Sanitize(Event.ToStage)));
-            AssertFact(FString::Printf(TEXT("romance_history(player, %s, %s, %s)"),
+            AssertPlayerFact(FString::Printf(TEXT("romance_history(player, %s, %s, %s)"),
                 *Sanitize(Event.NPCId), *Sanitize(Event.FromStage), *Sanitize(Event.ToStage)));
             // Emit create_truth event
             if (EventBusRef.IsValid())
@@ -1024,123 +1025,123 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
             break;
         }
         case EInsimulEventType::NpcVolitionAction:
-            AssertFact(FString::Printf(TEXT("volition_acted(%s, %s, %s)"),
+            AssertPlayerFact(FString::Printf(TEXT("volition_acted(%s, %s, %s)"),
                 *Sanitize(Event.NPCId), *Sanitize(Event.ActionId), *Sanitize(Event.TargetId)));
             break;
         case EInsimulEventType::ConversationOverheard:
-            AssertFact(FString::Printf(TEXT("overheard_conversation(player, %s, %s, %s)"),
+            AssertPlayerFact(FString::Printf(TEXT("overheard_conversation(player, %s, %s, %s)"),
                 *Sanitize(Event.NpcId1), *Sanitize(Event.NpcId2), *Sanitize(Event.Topic)));
             break;
         case EInsimulEventType::StateCreatedTruth:
-            AssertFact(FString::Printf(TEXT("has_state(%s, %s)"),
+            AssertPlayerFact(FString::Printf(TEXT("has_state(%s, %s)"),
                 *Sanitize(Event.CharacterId), *Sanitize(Event.StateType)));
             break;
         case EInsimulEventType::StateExpiredTruth:
-            RetractPattern(TEXT("has_state"), Sanitize(Event.CharacterId), Sanitize(Event.StateType));
+            RetractPlayerFactByPattern(TEXT("has_state"), Sanitize(Event.CharacterId), Sanitize(Event.StateType));
             break;
         case EInsimulEventType::PuzzleFailed:
-            AssertFact(FString::Printf(TEXT("puzzle_failed(player, %s, %d)"),
+            AssertPlayerFact(FString::Printf(TEXT("puzzle_failed(player, %s, %d)"),
                 *Sanitize(Event.PuzzleId), Event.Attempts));
             break;
         case EInsimulEventType::QuestFailed:
-            AssertFact(FString::Printf(TEXT("quest_failed(player, %s)"), *Sanitize(Event.QuestId)));
+            AssertPlayerFact(FString::Printf(TEXT("quest_failed(player, %s)"), *Sanitize(Event.QuestId)));
             if (!Event.AssignedByNpcId.IsEmpty())
             {
-                AssertFact(FString::Printf(TEXT("quest_outcome(%s, player, failed)"), *Sanitize(Event.QuestId)));
+                AssertPlayerFact(FString::Printf(TEXT("quest_outcome(%s, player, failed)"), *Sanitize(Event.QuestId)));
             }
             break;
         case EInsimulEventType::QuestAbandoned:
-            AssertFact(FString::Printf(TEXT("quest_abandoned(player, %s)"), *Sanitize(Event.QuestId)));
+            AssertPlayerFact(FString::Printf(TEXT("quest_abandoned(player, %s)"), *Sanitize(Event.QuestId)));
             if (!Event.AssignedByNpcId.IsEmpty())
             {
-                AssertFact(FString::Printf(TEXT("quest_outcome(%s, player, abandoned)"), *Sanitize(Event.QuestId)));
+                AssertPlayerFact(FString::Printf(TEXT("quest_outcome(%s, player, abandoned)"), *Sanitize(Event.QuestId)));
             }
-            RetractPattern(TEXT("quest_active"), TEXT("player"), Sanitize(Event.QuestId));
+            RetractPlayerFactByPattern(TEXT("quest_active"), TEXT("player"), Sanitize(Event.QuestId));
             break;
         case EInsimulEventType::DirectionStepCompleted:
-            RetractPattern(TEXT("quest_progress"), TEXT("player"), Sanitize(Event.QuestId));
-            AssertFact(FString::Printf(TEXT("quest_progress(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepsCompleted));
-            AssertFact(FString::Printf(TEXT("direction_step_done(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepIndex));
+            RetractPlayerFactByPattern(TEXT("quest_progress"), TEXT("player"), Sanitize(Event.QuestId));
+            AssertPlayerFact(FString::Printf(TEXT("quest_progress(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepsCompleted));
+            AssertPlayerFact(FString::Printf(TEXT("direction_step_done(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepIndex));
             break;
         case EInsimulEventType::ConversationalActionCompleted:
-            AssertFact(FString::Printf(TEXT("conversational_action(player, %s, %s, %s)"),
+            AssertPlayerFact(FString::Printf(TEXT("conversational_action(player, %s, %s, %s)"),
                 *Sanitize(Event.NPCId), *Sanitize(Event.ActionType), *Sanitize(Event.QuestId)));
             break;
         // Language learning events
         case EInsimulEventType::TextFound:
-            AssertFact(FString::Printf(TEXT("text_found(player, %s)"), *Sanitize(Event.TextId)));
+            AssertPlayerFact(FString::Printf(TEXT("text_found(player, %s)"), *Sanitize(Event.TextId)));
             break;
         case EInsimulEventType::TextRead:
-            AssertFact(FString::Printf(TEXT("text_read(player, %s)"), *Sanitize(Event.TextId)));
+            AssertPlayerFact(FString::Printf(TEXT("text_read(player, %s)"), *Sanitize(Event.TextId)));
             break;
         case EInsimulEventType::SignRead:
-            AssertFact(FString::Printf(TEXT("sign_read(player, %s)"), *Sanitize(Event.SignId)));
+            AssertPlayerFact(FString::Printf(TEXT("sign_read(player, %s)"), *Sanitize(Event.SignId)));
             break;
         case EInsimulEventType::ObjectExamined:
-            AssertFact(FString::Printf(TEXT("object_examined(player, %s)"), *Sanitize(Event.ObjectName)));
+            AssertPlayerFact(FString::Printf(TEXT("object_examined(player, %s)"), *Sanitize(Event.ObjectName)));
             break;
         case EInsimulEventType::ObjectIdentified:
-            AssertFact(FString::Printf(TEXT("object_identified(player, %s)"), *Sanitize(Event.ObjectName)));
+            AssertPlayerFact(FString::Printf(TEXT("object_identified(player, %s)"), *Sanitize(Event.ObjectName)));
             break;
         case EInsimulEventType::ObjectPointedAndNamed:
-            AssertFact(FString::Printf(TEXT("object_pointed_named(player, %s)"), *Sanitize(Event.ObjectName)));
+            AssertPlayerFact(FString::Printf(TEXT("object_pointed_named(player, %s)"), *Sanitize(Event.ObjectName)));
             break;
         case EInsimulEventType::WritingSubmitted:
-            AssertFact(FString::Printf(TEXT("response_written(player, %d)"), Event.WordCount));
+            AssertPlayerFact(FString::Printf(TEXT("response_written(player, %d)"), Event.WordCount));
             break;
         case EInsimulEventType::PhotoTaken:
-            AssertFact(FString::Printf(TEXT("photo_taken(player, %s)"), *Sanitize(Event.SubjectName)));
+            AssertPlayerFact(FString::Printf(TEXT("photo_taken(player, %s)"), *Sanitize(Event.SubjectName)));
             break;
         case EInsimulEventType::FoodOrdered:
-            AssertFact(FString::Printf(TEXT("food_ordered(player, %s)"), *Sanitize(Event.ItemName)));
+            AssertPlayerFact(FString::Printf(TEXT("food_ordered(player, %s)"), *Sanitize(Event.ItemName)));
             break;
         case EInsimulEventType::PriceHaggled:
-            AssertFact(FString::Printf(TEXT("price_haggled(player, %s)"), *Sanitize(Event.ItemName)));
+            AssertPlayerFact(FString::Printf(TEXT("price_haggled(player, %s)"), *Sanitize(Event.ItemName)));
             break;
         case EInsimulEventType::GiftGiven:
-            AssertFact(FString::Printf(TEXT("gift_given(player, %s, %s)"), *Sanitize(Event.NPCId), *Sanitize(Event.ItemName)));
+            AssertPlayerFact(FString::Printf(TEXT("gift_given(player, %s, %s)"), *Sanitize(Event.NPCId), *Sanitize(Event.ItemName)));
             break;
         case EInsimulEventType::TranslationAttempt:
             if (Event.bCorrect)
             {
-                AssertFact(TEXT("translation_completed(player, correct)"));
+                AssertPlayerFact(TEXT("translation_completed(player, correct)"));
             }
             break;
         case EInsimulEventType::PronunciationAttempt:
         {
             FString Phrase = Sanitize(Event.Phrase);
             int32 Timestamp = FMath::FloorToInt(FDateTime::UtcNow().ToUnixTimestamp());
-            AssertFact(FString::Printf(TEXT("pronunciation_score(player, %s, %d, %d)"), *Phrase, static_cast<int32>(Event.Score), Timestamp));
+            AssertPlayerFact(FString::Printf(TEXT("pronunciation_score(player, %s, %d, %d)"), *Phrase, static_cast<int32>(Event.Score), Timestamp));
             if (Event.bPassed)
             {
-                AssertFact(FString::Printf(TEXT("pronunciation_passed(player, %s)"), *Phrase));
+                AssertPlayerFact(FString::Printf(TEXT("pronunciation_passed(player, %s)"), *Phrase));
             }
             break;
         }
         case EInsimulEventType::ReadingCompleted:
-            AssertFact(FString::Printf(TEXT("text_read(player, %s)"), *Sanitize(Event.TextId)));
+            AssertPlayerFact(FString::Printf(TEXT("text_read(player, %s)"), *Sanitize(Event.TextId)));
             break;
         case EInsimulEventType::QuestionsAnswered:
-            AssertFact(FString::Printf(TEXT("comprehension_done(player, %s)"), *Sanitize(Event.TextId)));
+            AssertPlayerFact(FString::Printf(TEXT("comprehension_done(player, %s)"), *Sanitize(Event.TextId)));
             break;
         case EInsimulEventType::ConversationTurn:
         case EInsimulEventType::ConversationTurnCounted:
         {
             FString NId = Sanitize(Event.NPCId);
-            RetractPattern(TEXT("npc_conversation_turns"), TEXT("player"), NId);
-            AssertFact(FString::Printf(TEXT("npc_conversation_turns(player, %s, %d)"), *NId, Event.TotalTurns));
+            RetractPlayerFactByPattern(TEXT("npc_conversation_turns"), TEXT("player"), NId);
+            AssertPlayerFact(FString::Printf(TEXT("npc_conversation_turns(player, %s, %d)"), *NId, Event.TotalTurns));
             break;
         }
         case EInsimulEventType::PhysicalActionCompleted:
-            AssertFact(FString::Printf(TEXT("physical_action_done(player, %s)"), *Sanitize(Event.ActionType)));
+            AssertPlayerFact(FString::Printf(TEXT("physical_action_done(player, %s)"), *Sanitize(Event.ActionType)));
             break;
         case EInsimulEventType::NpcExamCompleted:
         {
             FString ExamId = Sanitize(Event.ExamId);
             int32 Timestamp = FMath::FloorToInt(FDateTime::UtcNow().ToUnixTimestamp());
-            AssertFact(FString::Printf(TEXT("assessment_result(player, %s, %d, %d, %s, %d)"),
+            AssertPlayerFact(FString::Printf(TEXT("assessment_result(player, %s, %d, %d, %s, %d)"),
                 *ExamId, Event.TotalScoreInt, Event.TotalMaxPointsInt, *Sanitize(Event.CefrLevel), Timestamp));
-            AssertFact(FString::Printf(TEXT("player_cefr_level(player, %s)"), *Sanitize(Event.CefrLevel)));
+            AssertPlayerFact(FString::Printf(TEXT("player_cefr_level(player, %s)"), *Sanitize(Event.CefrLevel)));
             break;
         }
         default:
@@ -1211,6 +1212,237 @@ void UPrologEngine::UpdateItemQuantity(const FString& ItemName, int32 Delta)
     {
         AssertFact(FString::Printf(TEXT("has_item(player, %s, %d)"), *ItemName, CurrentQty));
     }
+}
+
+// ── Player Fact Persistence ────────────────────────────────────────────────
+
+void UPrologEngine::AssertPlayerFact(const FString& Fact)
+{
+    AssertFact(Fact);
+
+    FString CleanFact = Fact.TrimStartAndEnd();
+    CleanFact.RemoveFromEnd(TEXT("."));
+    PlayerFacts.Add(CleanFact + TEXT("."));
+}
+
+void UPrologEngine::RetractPlayerFact(const FString& Fact)
+{
+    RetractFact(Fact);
+
+    FString CleanFact = Fact.TrimStartAndEnd();
+    CleanFact.RemoveFromEnd(TEXT("."));
+    PlayerFacts.Remove(CleanFact + TEXT("."));
+}
+
+void UPrologEngine::RetractPlayerFactByPattern(const FString& Predicate, const FString& FirstArg, const FString& SecondArg)
+{
+    // Retract from the main KB
+    RetractPattern(Predicate, FirstArg, SecondArg);
+
+    // Build the same prefix used by RetractPattern to clean up PlayerFacts
+    FString Prefix;
+    if (SecondArg.IsEmpty())
+    {
+        Prefix = FString::Printf(TEXT("%s(%s"), *Predicate, *FirstArg);
+    }
+    else
+    {
+        Prefix = FString::Printf(TEXT("%s(%s, %s"), *Predicate, *FirstArg, *SecondArg);
+    }
+
+    TArray<FString> ToRemove;
+    for (const FString& PF : PlayerFacts)
+    {
+        // PlayerFacts entries are stored with trailing dot, strip it for prefix match
+        FString WithoutDot = PF;
+        WithoutDot.RemoveFromEnd(TEXT("."));
+        if (WithoutDot.StartsWith(Prefix))
+        {
+            ToRemove.Add(PF);
+        }
+    }
+    for (const FString& Key : ToRemove)
+    {
+        PlayerFacts.Remove(Key);
+    }
+}
+
+void UPrologEngine::UpdateItemQuantityTracked(const FString& ItemName, int32 Delta)
+{
+    int32& CurrentQty = ItemQuantities.FindOrAdd(ItemName);
+    CurrentQty = FMath::Max(0, CurrentQty + Delta);
+
+    // Retract old quantity fact (with player fact tracking)
+    RetractPlayerFactByPattern(TEXT("has_item"), TEXT("player"), ItemName);
+
+    // Assert new quantity if > 0
+    if (CurrentQty > 0)
+    {
+        AssertPlayerFact(FString::Printf(TEXT("has_item(player, %s, %d)"), *ItemName, CurrentQty));
+    }
+}
+
+void UPrologEngine::AssertItemTaxonomyTracked(const FString& ItemName, const FString& Category, const FString& Material, const FString& BaseType, const FString& Rarity, const FString& ItemType)
+{
+    if (!Category.IsEmpty())
+    {
+        AssertPlayerFact(FString::Printf(TEXT("item_category(%s, %s)"), *ItemName, *Sanitize(Category)));
+        AssertPlayerFact(FString::Printf(TEXT("item_is_a(%s, %s)"), *ItemName, *Sanitize(Category)));
+    }
+    if (!Material.IsEmpty())
+    {
+        AssertPlayerFact(FString::Printf(TEXT("item_material(%s, %s)"), *ItemName, *Sanitize(Material)));
+    }
+    if (!BaseType.IsEmpty())
+    {
+        AssertPlayerFact(FString::Printf(TEXT("item_base_type(%s, %s)"), *ItemName, *Sanitize(BaseType)));
+        AssertPlayerFact(FString::Printf(TEXT("item_is_a(%s, %s)"), *ItemName, *Sanitize(BaseType)));
+    }
+    if (!Rarity.IsEmpty())
+    {
+        AssertPlayerFact(FString::Printf(TEXT("item_rarity(%s, %s)"), *ItemName, *Sanitize(Rarity)));
+    }
+    if (!ItemType.IsEmpty())
+    {
+        AssertPlayerFact(FString::Printf(TEXT("item_is_a(%s, %s)"), *ItemName, *Sanitize(ItemType)));
+    }
+}
+
+TArray<FString> UPrologEngine::GetPlayerFacts() const
+{
+    return PlayerFacts.Array();
+}
+
+void UPrologEngine::RestorePlayerFacts(const TArray<FString>& InFacts)
+{
+    if (!bInitialized) return;
+
+    for (const FString& FactWithDot : InFacts)
+    {
+        FString Fact = FactWithDot;
+        if (Fact.EndsWith(TEXT("."))) Fact = Fact.LeftChop(1);
+        Fact = Fact.TrimStartAndEnd();
+        if (Fact.IsEmpty()) continue;
+
+        AssertFact(Fact);
+        PlayerFacts.Add(Fact + TEXT("."));
+
+        // Rebuild ItemQuantities from has_item/3 facts
+        if (Fact.StartsWith(TEXT("has_item(player,")))
+        {
+            // Parse has_item(player, ItemName, Qty)
+            int32 FirstComma = INDEX_NONE;
+            int32 SecondComma = INDEX_NONE;
+            int32 CloseParen = INDEX_NONE;
+            Fact.FindChar(TEXT(','), FirstComma);
+            if (FirstComma != INDEX_NONE)
+            {
+                SecondComma = Fact.Find(TEXT(","), ESearchCase::CaseSensitive, ESearchDir::FromStart, FirstComma + 1);
+            }
+            Fact.FindLastChar(TEXT(')'), CloseParen);
+
+            if (FirstComma != INDEX_NONE && SecondComma != INDEX_NONE && CloseParen != INDEX_NONE)
+            {
+                FString ItemName = Fact.Mid(FirstComma + 1, SecondComma - FirstComma - 1).TrimStartAndEnd();
+                FString QtyStr = Fact.Mid(SecondComma + 1, CloseParen - SecondComma - 1).TrimStartAndEnd();
+                int32 Qty = FCString::Atoi(*QtyStr);
+                if (!ItemName.IsEmpty() && Qty > 0)
+                {
+                    ItemQuantities.FindOrAdd(ItemName) = Qty;
+                }
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine restored %d player facts from save"), InFacts.Num());
+}
+
+void UPrologEngine::RestoreFromSaveState(const FString& SaveStateJson)
+{
+    if (!bInitialized) return;
+
+    TSharedPtr<FJsonObject> Root;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(SaveStateJson);
+    if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] PrologEngine::RestoreFromSaveState — failed to parse JSON"));
+        return;
+    }
+
+    int32 RestoredCount = 0;
+
+    // Restore inventory from structured data
+    const TArray<TSharedPtr<FJsonValue>>* InventoryArr;
+    if (Root->TryGetArrayField(TEXT("inventory"), InventoryArr))
+    {
+        for (const TSharedPtr<FJsonValue>& ItemVal : *InventoryArr)
+        {
+            const TSharedPtr<FJsonObject>* ItemObj;
+            if (!ItemVal->TryGetObject(ItemObj)) continue;
+
+            FString Name;
+            int32 Qty = 1;
+            (*ItemObj)->TryGetStringField(TEXT("name"), Name);
+            (*ItemObj)->TryGetNumberField(TEXT("quantity"), Qty);
+
+            if (Name.IsEmpty()) continue;
+            FString SName = Sanitize(Name);
+
+            AssertPlayerFact(FString::Printf(TEXT("has(player, %s)"), *SName));
+            AssertPlayerFact(FString::Printf(TEXT("has_item(player, %s, %d)"), *SName, Qty));
+            ItemQuantities.FindOrAdd(SName) = Qty;
+            RestoredCount += 2;
+        }
+    }
+
+    // Restore active quests
+    const TArray<TSharedPtr<FJsonValue>>* QuestsArr;
+    if (Root->TryGetArrayField(TEXT("activeQuests"), QuestsArr))
+    {
+        for (const TSharedPtr<FJsonValue>& QVal : *QuestsArr)
+        {
+            FString QId = QVal->AsString();
+            if (!QId.IsEmpty())
+            {
+                AssertPlayerFact(FString::Printf(TEXT("quest_active(player, %s)"), *Sanitize(QId)));
+                RestoredCount++;
+            }
+        }
+    }
+
+    // Restore completed quests
+    const TArray<TSharedPtr<FJsonValue>>* CompletedArr;
+    if (Root->TryGetArrayField(TEXT("completedQuests"), CompletedArr))
+    {
+        for (const TSharedPtr<FJsonValue>& QVal : *CompletedArr)
+        {
+            FString QId = QVal->AsString();
+            if (!QId.IsEmpty())
+            {
+                AssertPlayerFact(FString::Printf(TEXT("quest_completed(player, %s)"), *Sanitize(QId)));
+                RestoredCount++;
+            }
+        }
+    }
+
+    // Restore raw Prolog facts if present
+    const TArray<TSharedPtr<FJsonValue>>* PrologFactsArr;
+    if (Root->TryGetArrayField(TEXT("prologFacts"), PrologFactsArr))
+    {
+        TArray<FString> FactStrings;
+        for (const TSharedPtr<FJsonValue>& FVal : *PrologFactsArr)
+        {
+            FString F = FVal->AsString();
+            if (!F.IsEmpty())
+            {
+                FactStrings.Add(F);
+            }
+        }
+        RestorePlayerFacts(FactStrings);
+        RestoredCount += FactStrings.Num();
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine::RestoreFromSaveState restored %d facts from structured save data"), RestoredCount);
 }
 
 // ── Volition & Romance Queries ──────────────────────────────────────────────

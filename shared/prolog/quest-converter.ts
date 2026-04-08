@@ -57,6 +57,9 @@ interface QuestData {
   tags?: string[] | null;
   stages?: QuestStage[] | null;
   parentQuestId?: string | null;
+  locationName?: string | null;
+  locationId?: string | null;
+  location?: string | null;
 }
 
 interface ConversionResult {
@@ -119,6 +122,19 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
     predicates.push('quest_tag/2');
   }
 
+  // Quest location (where the quest takes place)
+  const customData = (quest as any).customData || {};
+  const locationName = quest.locationName || quest.location || customData.locationName || null;
+  const locationId = quest.locationId || customData.locationId || null;
+  if (locationName) {
+    lines.push(`quest_location(${questId}, '${escapeString(locationName)}').`);
+  } else if (locationId) {
+    lines.push(`quest_location(${questId}, ${sanitizeAtom(locationId)}).`);
+  } else {
+    lines.push(`quest_location(${questId}, anywhere).`);
+  }
+  predicates.push('quest_location/2');
+
   lines.push('');
 
   // ── Objectives → Prolog goals ──────────────────────────────────────────
@@ -133,6 +149,17 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
   }
   if (objectives.length > 0) {
     predicates.push('quest_objective/3');
+  }
+
+  // ── Objective locations (where each objective can be completed) ────────
+  for (let i = 0; i < objectives.length; i++) {
+    const obj = objectives[i];
+    const type = obj.type || obj.objectiveType || '';
+    const objLocation = deriveObjectiveLocation(obj, type);
+    lines.push(`quest_objective_location(${questId}, ${i}, ${objLocation}).`);
+  }
+  if (objectives.length > 0) {
+    predicates.push('quest_objective_location/3');
   }
 
   lines.push('');
@@ -164,15 +191,17 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
   // ── Prerequisites ──────────────────────────────────────────────────────
 
   const prereqIds = (quest.prerequisiteQuestIds || []).filter(id => id && id.trim());
-  for (const prereqId of prereqIds) {
-    const prereqAtom = sanitizeAtom(prereqId);
-    if (prereqAtom) {
-      lines.push(`quest_prerequisite(${questId}, ${prereqAtom}).`);
-    }
-  }
   if (prereqIds.length > 0) {
-    predicates.push('quest_prerequisite/2');
+    for (const prereqId of prereqIds) {
+      const prereqAtom = sanitizeAtom(prereqId);
+      if (prereqAtom) {
+        lines.push(`quest_prerequisite(${questId}, ${prereqAtom}).`);
+      }
+    }
+  } else {
+    lines.push(`quest_prerequisite(${questId}, none).`);
   }
+  predicates.push('quest_prerequisite/2');
 
   lines.push('');
 
@@ -389,6 +418,109 @@ export function convertQuestsToProlog(quests: QuestData[]): ConversionResult {
   };
 }
 
+// ── Objective Location Derivation ──────────────────────────────────────────
+
+/**
+ * Derive where an objective can be completed.
+ * Returns a Prolog term: specific location, npc(Id), any_npc, or anywhere.
+ */
+function deriveObjectiveLocation(obj: any, type: string): string {
+  // Location-based objectives → specific location
+  if (type === 'visit_location' || type === 'discover_location') {
+    const loc = obj.locationName || obj.location || obj.target || '';
+    return loc ? `location('${escapeString(loc)}')` : 'anywhere';
+  }
+
+  // NPC-based objectives → specific NPC or any_npc
+  if (type === 'talk_to_npc' || type === 'introduce_self' || type === 'give_gift' ||
+      type === 'deliver_item' || type === 'build_friendship') {
+    const npcId = obj.npcId || obj.npc || obj.target || '';
+    const npcName = obj.npcName || '';
+    if (npcId && npcId !== '{npc}') return `npc('${escapeString(npcName || npcId)}')`;
+    return 'any_npc';
+  }
+
+  if (type === 'complete_conversation' || type === 'sustained_conversation') {
+    const npcId = obj.npcId || obj.npc || '';
+    const npcName = obj.npcName || '';
+    if (npcId) return `npc('${escapeString(npcName || npcId)}')`;
+    return 'any_npc';
+  }
+
+  // Commerce objectives → specific merchant
+  if (type === 'order_food' || type === 'haggle_price' || type === 'buy_item' || type === 'sell_item') {
+    const merchant = obj.merchantId || obj.target || '';
+    if (merchant) return `merchant('${escapeString(merchant)}')`;
+    return 'any_merchant';
+  }
+
+  // Craft objectives → any crafting station
+  if (type === 'craft_item') return 'any_crafting_station';
+
+  // Reading/text objectives → wherever texts are found
+  if (type === 'read_document' || type === 'read_text' || type === 'find_text' ||
+      type === 'collect_text' || type === 'read_sign') {
+    return 'any_text_location';
+  }
+
+  // Photography objectives → wherever the subject is
+  if (type === 'photograph' || type === 'photograph_subject') {
+    const subject = obj.targetSubject || '';
+    return subject ? `photo_subject('${escapeString(subject)}')` : 'anywhere';
+  }
+
+  // Vocabulary/grammar/language objectives can happen anywhere (conversation)
+  if (type === 'use_vocabulary' || type === 'collect_vocabulary' || type === 'vocabulary' ||
+      type === 'grammar' || type === 'conversation' || type === 'listen_and_repeat' ||
+      type === 'translation_challenge' || type === 'pronunciation_check' ||
+      type === 'write_response' || type === 'describe_scene' ||
+      type === 'listening_comprehension' || type === 'comprehension_quiz') {
+    return 'anywhere';
+  }
+
+  // Assessment objectives
+  if (type === 'complete_assessment' || type.startsWith('arrival_') ||
+      type.startsWith('departure_') || type.startsWith('periodic_')) {
+    return 'anywhere';
+  }
+
+  // Navigation objectives → follow waypoints
+  if (type === 'follow_directions' || type === 'navigate_language' || type === 'ask_for_directions') {
+    return 'any_npc';
+  }
+
+  // Collect/examine/identify → wherever objects are
+  if (type === 'collect_item' || type === 'examine_object' || type === 'identify_object' ||
+      type === 'point_and_name' || type === 'find_vocabulary_items') {
+    return 'anywhere';
+  }
+
+  // Physical action → hotspots
+  if (type === 'physical_action') {
+    const action = obj.actionType || '';
+    return action ? `hotspot('${escapeString(action)}')` : 'anywhere';
+  }
+
+  // Reputation → settlement
+  if (type === 'gain_reputation') {
+    const target = obj.target || obj.settlement || '';
+    return target ? `settlement('${escapeString(target)}')` : 'anywhere';
+  }
+
+  // Combat/escort
+  if (type === 'defeat_enemies') return 'anywhere';
+  if (type === 'escort_npc') {
+    const dest = obj.destination || '';
+    return dest ? `location('${escapeString(dest)}')` : 'anywhere';
+  }
+
+  // Clue collection
+  if (type === 'collect_clue') return 'anywhere';
+
+  // Default
+  return 'anywhere';
+}
+
 // ── Objective Converter ─────────────────────────────────────────────────────
 
 function convertObjective(obj: any, index: number, errors: string[]): string | null {
@@ -527,6 +659,158 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
   if (type === 'complete_conversation') {
     const turns = obj.requiredTurns || obj.requiredCount || 5;
     return `conversation_turns(${turns})`;
+  }
+
+  // ── Assessment phase objectives ─────────────────────────────────────────
+  if (type === 'complete_assessment') {
+    return `complete_assessment`;
+  }
+  if (type.startsWith('arrival_') || type.startsWith('departure_') || type.startsWith('periodic_')) {
+    const trigger = obj.completionTrigger || type;
+    return `assessment_phase('${escapeString(type)}', '${escapeString(trigger)}')`;
+  }
+
+  // ── Language skill objectives ───────────────────────────────────────────
+  if (type === 'collect_vocabulary') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `collect_vocabulary(${count})`;
+  }
+  if (type === 'identify_object' || type === 'point_and_name') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `identify_object(${count})`;
+  }
+  if (type === 'examine_object') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `examine_object(${count})`;
+  }
+  if (type === 'read_sign') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `read_sign(${count})`;
+  }
+  if (type === 'write_response' || type === 'describe_scene') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `write_response(${count})`;
+  }
+  if (type === 'listening_comprehension') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `listening_comprehension(${count})`;
+  }
+  if (type === 'listen_and_repeat') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `listen_and_repeat(${count})`;
+  }
+  if (type === 'translation_challenge') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `translation_challenge(${count})`;
+  }
+  if (type === 'pronunciation_check') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `pronunciation_check(${count})`;
+  }
+  if (type === 'introduce_self') {
+    return `introduce_self`;
+  }
+
+  // ── Text/document objectives ───────────────────────────────────────────
+  if (type === 'read_document' || type === 'read_text') {
+    const textId = obj.textId || '';
+    return textId ? `read_text('${escapeString(textId)}')` : `read_text(any)`;
+  }
+  if (type === 'find_text' || type === 'collect_text') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `find_text(${count})`;
+  }
+  if (type === 'comprehension_quiz') {
+    const count = obj.requiredCorrect || obj.requiredCount || 1;
+    return `comprehension_quiz(${count})`;
+  }
+  if (type === 'collect_clue') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `collect_clue(${count})`;
+  }
+
+  // ── Commerce objectives ────────────────────────────────────────────────
+  if (type === 'order_food') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `order_food(${count})`;
+  }
+  if (type === 'haggle_price') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `haggle_price(${count})`;
+  }
+  if (type === 'buy_item') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `buy_item(${count})`;
+  }
+  if (type === 'sell_item') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `sell_item(${count})`;
+  }
+
+  // ── Interaction objectives ─────────────────────────────────────────────
+  if (type === 'give_gift') {
+    const npc = obj.npcId || obj.npc || '';
+    return npc ? `give_gift('${escapeString(npc)}')` : `give_gift(any)`;
+  }
+  if (type === 'build_friendship') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `build_friendship(${count})`;
+  }
+  if (type === 'photograph' || type === 'photograph_subject') {
+    const subject = obj.targetSubject || '';
+    const count = obj.requiredCount || obj.count || 1;
+    return subject ? `photograph('${escapeString(subject)}', ${count})` : `photograph(any, ${count})`;
+  }
+  if (type === 'physical_action') {
+    const action = obj.actionType || '';
+    const count = obj.requiredCount || obj.count || 1;
+    return `physical_action('${escapeString(action)}', ${count})`;
+  }
+  if (type === 'escort_npc') {
+    const npc = obj.npc || obj.npcId || '';
+    return `escort('${escapeString(npc)}')`;
+  }
+
+  // ── Navigation objectives ──────────────────────────────────────────────
+  if (type === 'follow_directions' || type === 'navigate_language') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `follow_directions(${count})`;
+  }
+  if (type === 'ask_for_directions') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `ask_for_directions(${count})`;
+  }
+
+  // ── Meta-objectives (chapter quests) ───────────────────────────────────
+  if (type === 'vocabulary') {
+    const count = obj.requiredCount || obj.required || 1;
+    return `vocabulary_activities(${count})`;
+  }
+  if (type === 'conversation') {
+    const count = obj.requiredCount || obj.required || 1;
+    return `conversation_activities(${count})`;
+  }
+  if (type === 'grammar') {
+    const count = obj.requiredCount || obj.required || 1;
+    return `grammar_activities(${count})`;
+  }
+
+  // ── Misc objectives ───────────────────────────────────────────────────
+  if (type === 'sustained_conversation') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `sustained_conversation(${count})`;
+  }
+  if (type === 'master_words') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `master_words(${count})`;
+  }
+  if (type === 'learn_new_words') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `learn_new_words(${count})`;
+  }
+  if (type === 'find_vocabulary_items') {
+    const count = obj.requiredCount || obj.count || 1;
+    return `find_vocabulary_items(${count})`;
   }
 
   // Generic: store as a quoted description
@@ -705,8 +989,8 @@ function convertCompletionCheck(criteria: Record<string, any>, questId: string, 
     return `\\+ (quest_objective(${questId}, Idx, _), \\+ objective_complete(Player, ${questId}, Idx))`;
   }
 
-  // Generic: check progress >= 100%
-  return `quest_progress(Player, ${questId}, Progress), Progress >= 100`;
+  // Generic: check all objectives complete (safer than progress >= 100 which has no tracking)
+  return `\\+ (quest_objective(${questId}, Idx, _), \\+ objective_complete(Player, ${questId}, Idx))`;
 }
 
 // ── Failure Condition Converter ─────────────────────────────────────────────

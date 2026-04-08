@@ -5,6 +5,7 @@
  * action and quest that is missing it.
  *
  * Usage: npx tsx server/scripts/backfill-prolog-content.ts
+ *        npx tsx server/scripts/backfill-prolog-content.ts --force   # regenerate ALL, not just missing
  */
 
 import mongoose from 'mongoose';
@@ -14,10 +15,13 @@ import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
 
 dotenv.config();
 
+const FORCE_REGENERATE = process.argv.includes('--force');
+
 async function backfillPrologContent() {
   const mongoUrl = process.env.MONGO_URL || 'mongodb://localhost:27017/insimul';
 
   try {
+    if (FORCE_REGENERATE) console.log('⚡ FORCE mode: regenerating ALL Prolog content\n');
     console.log('Connecting to MongoDB...');
     await mongoose.connect(mongoUrl);
     console.log('Connected to MongoDB\n');
@@ -34,7 +38,7 @@ async function backfillPrologContent() {
     console.log(`Found ${actions.length} actions`);
 
     for (const action of actions) {
-      if (action.content) {
+      if (action.content && !FORCE_REGENERATE) {
         actionsSkipped++;
         continue;
       }
@@ -78,12 +82,38 @@ async function backfillPrologContent() {
     console.log(`\nFound ${quests.length} quests`);
 
     for (const quest of quests) {
-      if (quest.content) {
+      if (quest.content && !FORCE_REGENERATE) {
         questsSkipped++;
         continue;
       }
       try {
-        const result = convertQuestToProlog(quest as any);
+        // Clean and enrich quest data before conversion
+        const cleanQuest = { ...quest };
+        // Remove chain references from assessment quests (US-009: assessments are self-contained)
+        if (cleanQuest.tags?.includes('assessment') || cleanQuest.questType === 'assessment') {
+          delete cleanQuest.questChainId;
+          delete cleanQuest.questChainOrder;
+        }
+        // Fix 'unassigned' placeholder — use 'player'
+        if (cleanQuest.assignedTo === 'unassigned') {
+          cleanQuest.assignedTo = 'player';
+        }
+        // Derive locationName from objectives if not set on the quest
+        if (!cleanQuest.locationName && !cleanQuest.locationId) {
+          const objectives = cleanQuest.objectives || [];
+          for (const obj of objectives) {
+            const locName = obj.locationName || obj.target || obj.location;
+            if (locName && (obj.type === 'visit_location' || obj.type === 'discover_location')) {
+              cleanQuest.locationName = locName;
+              break;
+            }
+          }
+          // Fall back to customData or settlement name from world
+          if (!cleanQuest.locationName && cleanQuest.customData?.locationName) {
+            cleanQuest.locationName = cleanQuest.customData.locationName;
+          }
+        }
+        const result = convertQuestToProlog(cleanQuest as any);
         if (result.prologContent) {
           await questsCollection.updateOne(
             { _id: quest._id },

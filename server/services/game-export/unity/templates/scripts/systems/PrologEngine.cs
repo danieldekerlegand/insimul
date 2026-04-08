@@ -32,6 +32,46 @@ namespace Insimul.Systems
     }
 
     /// <summary>
+    /// Structured save state for restoring Prolog facts from a save file.
+    /// </summary>
+    [System.Serializable]
+    public class GameSaveState
+    {
+        public SaveInventoryItem[] inventory;
+        public string[] activeQuests;
+        public string[] completedQuests;
+        public SaveConversationCount[] conversationCounts;
+        public SaveReputation[] reputations;
+        public string currentZone;
+        public string[] textsRead;
+        public string cefrLevel;
+        public string[] prologFacts;
+    }
+
+    [System.Serializable]
+    public class SaveInventoryItem
+    {
+        public string name;
+        public int quantity;
+        public string type;
+        public string category;
+    }
+
+    [System.Serializable]
+    public class SaveConversationCount
+    {
+        public string npcId;
+        public int count;
+    }
+
+    [System.Serializable]
+    public class SaveReputation
+    {
+        public string factionId;
+        public int value;
+    }
+
+    /// <summary>
     /// Stub Prolog engine for Unity exports.
     /// Mirrors GamePrologEngine.ts from the Babylon.js source.
     ///
@@ -48,6 +88,7 @@ namespace Insimul.Systems
         private readonly StringBuilder _knowledgeBase = new();
         private readonly List<string> _activeQuestIds = new();
         private readonly Dictionary<string, int> _itemQuantities = new();
+        private readonly HashSet<string> _playerFacts = new();
 
         private Action<string, int> onObjectiveCompleted;
         private HashSet<string> completedObjectives = new HashSet<string>();
@@ -85,6 +126,7 @@ namespace Insimul.Systems
             _facts.Clear();
             _knowledgeBase.Clear();
             _itemQuantities.Clear();
+            _playerFacts.Clear();
 
             // Load pre-generated Prolog content if available
             if (!string.IsNullOrEmpty(content))
@@ -554,7 +596,9 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
 
         /// <summary>
         /// Export the current knowledge base as a Prolog text string.
+        /// Deprecated: Use GetPlayerFacts() for save/load instead.
         /// </summary>
+        [System.Obsolete("Use GetPlayerFacts() for save/load instead of ExportKnowledgeBase().")]
         public string ExportKnowledgeBase()
         {
             var sb = new StringBuilder();
@@ -567,6 +611,128 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                 sb.AppendLine($"{fact}.");
 
             return sb.ToString();
+        }
+
+        // ── Player Fact Tracking (Save/Load) ─────────────────────────────────
+
+        /// <summary>
+        /// Get all player-asserted facts for save serialization.
+        /// Returns facts as Prolog-terminated strings (with trailing dot).
+        /// </summary>
+        public string[] GetPlayerFacts()
+        {
+            return _playerFacts.ToArray();
+        }
+
+        /// <summary>
+        /// Restore previously saved player facts. Re-asserts each fact and
+        /// rebuilds itemQuantities from has_item facts.
+        /// </summary>
+        public void RestorePlayerFacts(string[] facts)
+        {
+            if (facts == null) return;
+
+            foreach (var fact in facts)
+            {
+                var normalized = NormalizeFact(fact);
+                if (string.IsNullOrEmpty(normalized)) continue;
+
+                AssertFact(normalized);
+                _playerFacts.Add(normalized.EndsWith(".") ? normalized : normalized + ".");
+
+                // Rebuild itemQuantities from has_item(player, ItemName, Qty) facts
+                if (normalized.StartsWith("has_item(player, "))
+                {
+                    var inner = normalized.Substring("has_item(player, ".Length).TrimEnd(')');
+                    var parts = inner.Split(',');
+                    if (parts.Length >= 2)
+                    {
+                        var itemName = parts[0].Trim();
+                        if (int.TryParse(parts[1].Trim(), out int qty))
+                            _itemQuantities[itemName] = qty;
+                    }
+                }
+            }
+
+            Debug.Log($"[Insimul] PrologEngine restored {facts.Length} player facts");
+        }
+
+        /// <summary>
+        /// Restore full game state from a structured JSON save state.
+        /// Parses inventory, quests, conversations, reputation, zone, reading progress,
+        /// CEFR level, and additional prologFacts from the save data.
+        /// </summary>
+        public void RestoreFromSaveState(string saveStateJson)
+        {
+            if (string.IsNullOrEmpty(saveStateJson)) return;
+
+            var state = JsonUtility.FromJson<GameSaveState>(saveStateJson);
+            if (state == null) return;
+
+            // Restore inventory
+            if (state.inventory != null)
+            {
+                foreach (var item in state.inventory)
+                {
+                    var name = Sanitize(item.name);
+                    var qty = item.quantity > 0 ? item.quantity : 1;
+                    AssertPlayerFact($"has(player, {name})");
+                    AssertPlayerFact($"has_item(player, {name}, {qty})");
+                    _itemQuantities[name] = qty;
+
+                    if (!string.IsNullOrEmpty(item.type))
+                        AssertPlayerFact($"item_type({name}, {Sanitize(item.type)})");
+                    if (!string.IsNullOrEmpty(item.category))
+                        AssertPlayerFact($"item_category({name}, {Sanitize(item.category)})");
+                }
+            }
+
+            // Restore quest states
+            if (state.activeQuests != null)
+            {
+                foreach (var questId in state.activeQuests)
+                    AssertPlayerFact($"quest_active(player, {Sanitize(questId)})");
+            }
+            if (state.completedQuests != null)
+            {
+                foreach (var questId in state.completedQuests)
+                    AssertPlayerFact($"quest_completed(player, {Sanitize(questId)})");
+            }
+
+            // Restore conversations
+            if (state.conversationCounts != null)
+            {
+                foreach (var entry in state.conversationCounts)
+                    AssertPlayerFact($"npc_conversation_turns(player, {Sanitize(entry.npcId)}, {entry.count})");
+            }
+
+            // Restore reputation
+            if (state.reputations != null)
+            {
+                foreach (var entry in state.reputations)
+                    AssertPlayerFact($"reputation_change(player, {Sanitize(entry.factionId)}, {entry.value})");
+            }
+
+            // Restore current zone
+            if (!string.IsNullOrEmpty(state.currentZone))
+                AssertPlayerFact($"at_location(player, {Sanitize(state.currentZone)})");
+
+            // Restore reading progress
+            if (state.textsRead != null)
+            {
+                foreach (var textId in state.textsRead)
+                    AssertPlayerFact($"text_read(player, {Sanitize(textId)})");
+            }
+
+            // Restore CEFR level
+            if (!string.IsNullOrEmpty(state.cefrLevel))
+                AssertPlayerFact($"player_cefr_level(player, {Sanitize(state.cefrLevel)})");
+
+            // Restore additional raw Prolog facts
+            if (state.prologFacts != null)
+                RestorePlayerFacts(state.prologFacts);
+
+            Debug.Log($"[Insimul] PrologEngine restored from save state");
         }
 
         // ── NPC Intelligence Queries ──────────────────────────────────────────
@@ -746,65 +912,65 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                 case ItemCollectedEvent e:
                 {
                     var name = Sanitize(e.itemName);
-                    AssertFact($"collected(player, {name}, {e.quantity})");
-                    AssertFact($"has(player, {name})");
-                    UpdateItemQuantity(name, e.quantity);
+                    AssertPlayerFact($"collected(player, {name}, {e.quantity})");
+                    AssertPlayerFact($"has(player, {name})");
+                    UpdateItemQuantityTracked(name, e.quantity);
                     if (e.taxonomy != null)
-                        AssertItemTaxonomy(name, e.taxonomy.category, e.taxonomy.material, e.taxonomy.baseType, e.taxonomy.rarity);
+                        AssertItemTaxonomyTracked(name, e.taxonomy.category, e.taxonomy.material, e.taxonomy.baseType, e.taxonomy.rarity);
                     break;
                 }
                 case EnemyDefeatedEvent e:
-                    AssertFact($"defeated(player, {Sanitize(e.enemyType)})");
+                    AssertPlayerFact($"defeated(player, {Sanitize(e.enemyType)})");
                     break;
                 case LocationVisitedEvent e:
-                    AssertFact($"visited(player, {Sanitize(e.locationId)})");
+                    AssertPlayerFact($"visited(player, {Sanitize(e.locationId)})");
                     break;
                 case NpcTalkedEvent e:
-                    AssertFact($"talked_to(player, {Sanitize(e.npcId)}, {e.turnCount})");
+                    AssertPlayerFact($"talked_to(player, {Sanitize(e.npcId)}, {e.turnCount})");
                     break;
                 case ItemDeliveredEvent e:
-                    AssertFact($"delivered(player, {Sanitize(e.npcId)}, {Sanitize(e.itemName)})");
+                    AssertPlayerFact($"delivered(player, {Sanitize(e.npcId)}, {Sanitize(e.itemName)})");
                     break;
                 case VocabularyUsedEvent e:
-                    AssertFact($"vocab_used(player, {Sanitize(e.word)}, {(e.correct ? 1 : 0)})");
+                    AssertPlayerFact($"vocab_used(player, {Sanitize(e.word)}, {(e.correct ? 1 : 0)})");
                     break;
                 case ConversationTurnEvent e:
                     if (e.keywords != null)
                     {
                         foreach (var kw in e.keywords)
-                            AssertFact($"conversation_keyword(player, {Sanitize(e.npcId)}, {Sanitize(kw)})");
+                            AssertPlayerFact($"conversation_keyword(player, {Sanitize(e.npcId)}, {Sanitize(kw)})");
                     }
                     break;
                 case QuestAcceptedEvent e:
-                    AssertFact($"quest_active(player, {Sanitize(e.questId)})");
+                    AssertPlayerFact($"quest_active(player, {Sanitize(e.questId)})");
                     break;
                 case QuestCompletedEvent e:
-                    AssertFact($"quest_completed(player, {Sanitize(e.questId)})");
+                    AssertPlayerFact($"quest_completed(player, {Sanitize(e.questId)})");
                     break;
                 case CombatActionEvent e:
-                    AssertFact($"combat_action(player, {Sanitize(e.actionType)}, {Sanitize(e.targetId)})");
+                    AssertPlayerFact($"combat_action(player, {Sanitize(e.actionType)}, {Sanitize(e.targetId)})");
                     break;
                 case ReputationChangedEvent e:
-                    AssertFact($"reputation_change(player, {Sanitize(e.factionId)}, {e.delta})");
+                    AssertPlayerFact($"reputation_change(player, {Sanitize(e.factionId)}, {e.delta})");
                     break;
                 case ItemCraftedEvent e:
                 {
                     var name = Sanitize(e.itemName);
-                    AssertFact($"crafted(player, {name}, {e.quantity})");
-                    AssertFact($"has(player, {name})");
-                    UpdateItemQuantity(name, e.quantity);
+                    AssertPlayerFact($"crafted(player, {name}, {e.quantity})");
+                    AssertPlayerFact($"has(player, {name})");
+                    UpdateItemQuantityTracked(name, e.quantity);
                     if (e.taxonomy != null)
-                        AssertItemTaxonomy(name, e.taxonomy.category, e.taxonomy.material, e.taxonomy.baseType, e.taxonomy.rarity);
+                        AssertItemTaxonomyTracked(name, e.taxonomy.category, e.taxonomy.material, e.taxonomy.baseType, e.taxonomy.rarity);
                     break;
                 }
                 case LocationDiscoveredEvent e:
-                    AssertFact($"discovered(player, {Sanitize(e.locationId)})");
+                    AssertPlayerFact($"discovered(player, {Sanitize(e.locationId)})");
                     break;
                 case SettlementEnteredEvent e:
-                    AssertFact($"visited(player, {Sanitize(e.settlementId)})");
+                    AssertPlayerFact($"visited(player, {Sanitize(e.settlementId)})");
                     break;
                 case PuzzleSolvedEvent e:
-                    AssertFact($"puzzle_solved(player, {Sanitize(e.puzzleId)})");
+                    AssertPlayerFact($"puzzle_solved(player, {Sanitize(e.puzzleId)})");
                     break;
                 case ItemRemovedEvent e:
                 case ItemDroppedEvent e2:
@@ -822,31 +988,31 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                         itemName = Sanitize(de.itemName);
                         qty = de.quantity > 0 ? de.quantity : 1;
                     }
-                    UpdateItemQuantity(itemName, -qty);
+                    UpdateItemQuantityTracked(itemName, -qty);
                     var remaining = _itemQuantities.GetValueOrDefault(itemName, 0);
                     if (remaining <= 0)
-                        RetractFact($"has(player, {itemName})");
+                        RetractPlayerFact($"has(player, {itemName})");
                     break;
                 }
                 case ItemUsedEvent e:
                 {
                     var name = Sanitize(e.itemName);
-                    UpdateItemQuantity(name, -1);
+                    UpdateItemQuantityTracked(name, -1);
                     var remaining = _itemQuantities.GetValueOrDefault(name, 0);
                     if (remaining <= 0)
-                        RetractFact($"has(player, {name})");
+                        RetractPlayerFact($"has(player, {name})");
                     break;
                 }
                 case ItemEquippedEvent e:
-                    AssertFact($"equipped(player, {Sanitize(e.itemName)}, {Sanitize(e.slot)})");
+                    AssertPlayerFact($"equipped(player, {Sanitize(e.itemName)}, {Sanitize(e.slot)})");
                     break;
                 case ItemUnequippedEvent e:
-                    RetractFact($"equipped(player, {Sanitize(e.itemName)}, {Sanitize(e.slot)})");
+                    RetractPlayerFact($"equipped(player, {Sanitize(e.itemName)}, {Sanitize(e.slot)})");
                     break;
                 case RomanceActionEvent e:
                 {
                     var status = e.accepted ? "accepted" : "rejected";
-                    AssertFact($"romance_action(player, {Sanitize(e.npcId)}, {Sanitize(e.actionType)}, {status})");
+                    AssertPlayerFact($"romance_action(player, {Sanitize(e.npcId)}, {Sanitize(e.actionType)}, {status})");
                     // Emit create_truth event for accepted actions
                     if (e.accepted && _eventBusRef != null)
                     {
@@ -862,9 +1028,9 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                 }
                 case RomanceStageChangedEvent e:
                 {
-                    RetractPattern("romance_stage", "player", Sanitize(e.npcId));
-                    AssertFact($"romance_stage(player, {Sanitize(e.npcId)}, {Sanitize(e.toStage)})");
-                    AssertFact($"romance_history(player, {Sanitize(e.npcId)}, {Sanitize(e.fromStage)}, {Sanitize(e.toStage)})");
+                    RetractPlayerFactByPattern("romance_stage", "player", Sanitize(e.npcId));
+                    AssertPlayerFact($"romance_stage(player, {Sanitize(e.npcId)}, {Sanitize(e.toStage)})");
+                    AssertPlayerFact($"romance_history(player, {Sanitize(e.npcId)}, {Sanitize(e.fromStage)}, {Sanitize(e.toStage)})");
                     // Emit create_truth event
                     if (_eventBusRef != null)
                     {
@@ -879,90 +1045,90 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                     break;
                 }
                 case NpcVolitionActionEvent e:
-                    AssertFact($"volition_acted({Sanitize(e.npcId)}, {Sanitize(e.actionId)}, {Sanitize(e.targetId)})");
+                    AssertPlayerFact($"volition_acted({Sanitize(e.npcId)}, {Sanitize(e.actionId)}, {Sanitize(e.targetId)})");
                     break;
                 case ConversationOverheardEvent e:
-                    AssertFact($"overheard_conversation(player, {Sanitize(e.npcId1)}, {Sanitize(e.npcId2)}, {Sanitize(e.topic)})");
+                    AssertPlayerFact($"overheard_conversation(player, {Sanitize(e.npcId1)}, {Sanitize(e.npcId2)}, {Sanitize(e.topic)})");
                     break;
                 case StateCreatedTruthEvent e:
-                    AssertFact($"has_state({Sanitize(e.characterId)}, {Sanitize(e.stateType)})");
+                    AssertPlayerFact($"has_state({Sanitize(e.characterId)}, {Sanitize(e.stateType)})");
                     break;
                 case StateExpiredTruthEvent e:
-                    RetractPattern("has_state", Sanitize(e.characterId), Sanitize(e.stateType));
+                    RetractPlayerFactByPattern("has_state", Sanitize(e.characterId), Sanitize(e.stateType));
                     break;
                 case PuzzleFailedEvent e:
-                    AssertFact($"puzzle_failed(player, {Sanitize(e.puzzleId)}, {e.attempts})");
+                    AssertPlayerFact($"puzzle_failed(player, {Sanitize(e.puzzleId)}, {e.attempts})");
                     break;
                 case QuestFailedEvent e:
-                    AssertFact($"quest_failed(player, {Sanitize(e.questId)})");
+                    AssertPlayerFact($"quest_failed(player, {Sanitize(e.questId)})");
                     break;
                 case QuestAbandonedEvent e:
-                    AssertFact($"quest_abandoned(player, {Sanitize(e.questId)})");
-                    RetractPattern("quest_active", "player", Sanitize(e.questId));
+                    AssertPlayerFact($"quest_abandoned(player, {Sanitize(e.questId)})");
+                    RetractPlayerFactByPattern("quest_active", "player", Sanitize(e.questId));
                     break;
                 case ConversationalActionCompletedEvent e:
-                    AssertFact($"conversational_action(player, {Sanitize(e.npcId)}, {Sanitize(e.action)}, {Sanitize(e.questId)})");
+                    AssertPlayerFact($"conversational_action(player, {Sanitize(e.npcId)}, {Sanitize(e.action)}, {Sanitize(e.questId)})");
                     break;
                 case TextFoundEvent e:
-                    AssertFact($"text_found(player, {Sanitize(e.textId)})");
+                    AssertPlayerFact($"text_found(player, {Sanitize(e.textId)})");
                     break;
                 case TextReadEvent e:
-                    AssertFact($"text_read(player, {Sanitize(e.textId)})");
+                    AssertPlayerFact($"text_read(player, {Sanitize(e.textId)})");
                     break;
                 case SignReadEvent e:
-                    AssertFact($"sign_read(player, {Sanitize(e.signId)})");
+                    AssertPlayerFact($"sign_read(player, {Sanitize(e.signId)})");
                     break;
                 case ObjectExaminedEvent e:
-                    AssertFact($"object_examined(player, {Sanitize(e.objectName)})");
+                    AssertPlayerFact($"object_examined(player, {Sanitize(e.objectName)})");
                     break;
                 case ObjectIdentifiedEvent e:
-                    AssertFact($"object_identified(player, {Sanitize(e.objectName)})");
+                    AssertPlayerFact($"object_identified(player, {Sanitize(e.objectName)})");
                     break;
                 case ObjectPointedAndNamedEvent e:
-                    AssertFact($"object_pointed_named(player, {Sanitize(e.objectName)})");
+                    AssertPlayerFact($"object_pointed_named(player, {Sanitize(e.objectName)})");
                     break;
                 case WritingSubmittedEvent e:
-                    AssertFact($"response_written(player, {e.wordCount})");
+                    AssertPlayerFact($"response_written(player, {e.wordCount})");
                     break;
                 case PhotoTakenEvent e:
-                    AssertFact($"photo_taken(player, {Sanitize(e.subjectName)})");
+                    AssertPlayerFact($"photo_taken(player, {Sanitize(e.subjectName)})");
                     break;
                 case FoodOrderedEvent e:
-                    AssertFact($"food_ordered(player, {Sanitize(e.itemName)})");
+                    AssertPlayerFact($"food_ordered(player, {Sanitize(e.itemName)})");
                     break;
                 case PriceHaggledEvent e:
-                    AssertFact($"price_haggled(player, {Sanitize(e.itemName)})");
+                    AssertPlayerFact($"price_haggled(player, {Sanitize(e.itemName)})");
                     break;
                 case GiftGivenEvent e:
-                    AssertFact($"gift_given(player, {Sanitize(e.npcId)}, {Sanitize(e.itemName)})");
+                    AssertPlayerFact($"gift_given(player, {Sanitize(e.npcId)}, {Sanitize(e.itemName)})");
                     break;
                 case TranslationAttemptEvent e:
                     if (e.correct)
-                        AssertFact($"translation_completed(player, correct)");
+                        AssertPlayerFact($"translation_completed(player, correct)");
                     break;
                 case PronunciationAttemptEvent e:
-                    AssertFact($"pronunciation_score(player, {Sanitize(e.phrase)}, {e.score}, {e.timestamp})");
+                    AssertPlayerFact($"pronunciation_score(player, {Sanitize(e.phrase)}, {e.score}, {e.timestamp})");
                     if (e.passed)
-                        AssertFact($"pronunciation_passed(player, {Sanitize(e.phrase)})");
+                        AssertPlayerFact($"pronunciation_passed(player, {Sanitize(e.phrase)})");
                     break;
                 case ReadingCompletedEvent e:
-                    AssertFact($"text_read(player, {Sanitize(e.textId)})");
+                    AssertPlayerFact($"text_read(player, {Sanitize(e.textId)})");
                     break;
                 case QuestionsAnsweredEvent e:
-                    AssertFact($"comprehension_done(player, {Sanitize(e.textId)})");
+                    AssertPlayerFact($"comprehension_done(player, {Sanitize(e.textId)})");
                     break;
                 case ConversationTurnCountedEvent e:
                 {
-                    RetractPattern("npc_conversation_turns", "player", Sanitize(e.npcId));
-                    AssertFact($"npc_conversation_turns(player, {Sanitize(e.npcId)}, {e.total})");
+                    RetractPlayerFactByPattern("npc_conversation_turns", "player", Sanitize(e.npcId));
+                    AssertPlayerFact($"npc_conversation_turns(player, {Sanitize(e.npcId)}, {e.total})");
                     break;
                 }
                 case PhysicalActionCompletedEvent e:
-                    AssertFact($"physical_action_done(player, {Sanitize(e.actionType)})");
+                    AssertPlayerFact($"physical_action_done(player, {Sanitize(e.actionType)})");
                     break;
                 case NpcExamCompletedEvent e:
-                    AssertFact($"assessment_result(player, {Sanitize(e.examId)}, {e.score}, {e.maxPoints}, {Sanitize(e.cefrLevel)}, {e.timestamp})");
-                    AssertFact($"player_cefr_level(player, {Sanitize(e.cefrLevel)})");
+                    AssertPlayerFact($"assessment_result(player, {Sanitize(e.examId)}, {e.score}, {e.maxPoints}, {Sanitize(e.cefrLevel)}, {e.timestamp})");
+                    AssertPlayerFact($"player_cefr_level(player, {Sanitize(e.cefrLevel)})");
                     break;
             }
 
@@ -1114,6 +1280,7 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
             _knowledgeBase.Clear();
             _activeQuestIds.Clear();
             _itemQuantities.Clear();
+            _playerFacts.Clear();
             completedObjectives.Clear();
             completedQuests.Clear();
             onObjectiveCompleted = null;
@@ -1171,6 +1338,75 @@ skill_gte(Actor, Skill, MinLevel) :- has_skill(Actor, Skill, Level), Level >= Mi
                     onObjectiveCompleted?.Invoke(questId, idx);
                 }
             }
+        }
+
+        /// <summary>
+        /// Assert a fact and track it as a player fact for save/load.
+        /// </summary>
+        private void AssertPlayerFact(string fact)
+        {
+            AssertFact(fact);
+            var normalized = NormalizeFact(fact);
+            _playerFacts.Add(normalized.EndsWith(".") ? normalized : normalized + ".");
+        }
+
+        /// <summary>
+        /// Retract a fact and remove it from player fact tracking.
+        /// </summary>
+        private void RetractPlayerFact(string fact)
+        {
+            RetractFact(fact);
+            var normalized = NormalizeFact(fact);
+            _playerFacts.Remove(normalized + ".");
+            _playerFacts.Remove(normalized);
+        }
+
+        /// <summary>
+        /// Retract facts by pattern and remove matching entries from player fact tracking.
+        /// </summary>
+        private void RetractPlayerFactByPattern(string predicate, string firstArg, string secondArg = null)
+        {
+            RetractPattern(predicate, firstArg, secondArg);
+
+            var prefix = secondArg != null
+                ? $"{predicate}({firstArg}, {secondArg}"
+                : $"{predicate}({firstArg}";
+
+            _playerFacts.RemoveWhere(f => NormalizeFact(f).StartsWith(prefix));
+        }
+
+        /// <summary>
+        /// Update item quantity and track changes as player facts.
+        /// </summary>
+        private void UpdateItemQuantityTracked(string itemName, int delta)
+        {
+            var oldQty = _itemQuantities.GetValueOrDefault(itemName, 0);
+            var newQty = Math.Max(0, oldQty + delta);
+            _itemQuantities[itemName] = newQty;
+            RetractPlayerFactByPattern("has_item", "player", itemName);
+            if (newQty > 0)
+                AssertPlayerFact($"has_item(player, {itemName}, {newQty})");
+        }
+
+        /// <summary>
+        /// Assert item taxonomy facts and track as player facts.
+        /// </summary>
+        private void AssertItemTaxonomyTracked(string itemName, string category, string material, string baseType, string rarity)
+        {
+            if (!string.IsNullOrEmpty(category))
+            {
+                AssertPlayerFact($"item_category({itemName}, {Sanitize(category)})");
+                AssertPlayerFact($"item_is_a({itemName}, {Sanitize(category)})");
+            }
+            if (!string.IsNullOrEmpty(material))
+                AssertPlayerFact($"item_material({itemName}, {Sanitize(material)})");
+            if (!string.IsNullOrEmpty(baseType))
+            {
+                AssertPlayerFact($"item_base_type({itemName}, {Sanitize(baseType)})");
+                AssertPlayerFact($"item_is_a({itemName}, {Sanitize(baseType)})");
+            }
+            if (!string.IsNullOrEmpty(rarity))
+                AssertPlayerFact($"item_rarity({itemName}, {Sanitize(rarity)})");
         }
 
         private void UpdateItemQuantity(string itemName, int delta)

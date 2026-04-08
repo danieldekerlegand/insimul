@@ -70,7 +70,7 @@ export interface GameStateSource {
   getRelationshipDeltas?(): SavedRelationshipDelta[];
   getMainQuestState?(): SavedMainQuestState;
   getPhotoBookState?(): SavedPhotoBookState;
-  getPrologFacts?(): Array<{ predicate: string; args: Array<string | number> }>;
+  getPrologFacts?(): string | undefined;
   getClueState?(): any;
   getReadingProgress?(): SavedReadingProgress | undefined;
   getContacts?(): Record<string, SavedNPCContact> | undefined;
@@ -109,7 +109,7 @@ export interface GameStateTarget {
   restoreRelationshipDeltas?(data: SavedRelationshipDelta[]): void;
   restoreMainQuestState?(data: SavedMainQuestState): void;
   restorePhotoBookState?(data: SavedPhotoBookState): void;
-  restorePrologFacts?(data: Array<{ predicate: string; args: Array<string | number> }>): void;
+  restorePrologFacts?(data: string, fullState: GameSaveState): void;
   restoreClueState?(data: any): void;
   restoreReadingProgress?(data: SavedReadingProgress): void;
   restoreContacts?(data: Record<string, SavedNPCContact>): void;
@@ -612,9 +612,9 @@ export class WorldStateManager {
     if (state.photoBook != null) {
       target.restorePhotoBookState?.(state.photoBook);
     }
-    if (state.prologFacts != null) {
-      target.restorePrologFacts?.(state.prologFacts);
-    }
+    // Always call restorePrologFacts — it reconstructs from structured state
+    // even when prologFacts is null (e.g. loading an older save format)
+    target.restorePrologFacts?.(state.prologFacts ?? '', state);
     if (state.clueState != null) {
       target.restoreClueState?.(state.clueState);
     }

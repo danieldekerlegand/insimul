@@ -11,6 +11,7 @@
  */
 
 import { ACTION_PREREQUISITES } from './action-prerequisites';
+import { ACTION_EFFECTS } from './action-effects';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -174,16 +175,31 @@ export function convertActionToProlog(action: ActionData, options?: ConvertOptio
       predicates.push('action_effect/2');
     }
   } else {
-    // Legacy: convert from ActionData JSON effects
-    const effects = action.effects || [];
-    for (const effect of effects) {
-      const term = convertEffect(effect, errors);
-      if (term) {
-        lines.push(`action_effect(${actionId}, ${term}).`);
+    // Try auto-lookup from ACTION_EFFECTS catalog if no effects on the action data
+    const actionKey = actionId.replace(/'/g, '');
+    const catalogEntry = ACTION_EFFECTS[actionKey];
+    const legacyEffects = action.effects || [];
+    const effectsToUse = legacyEffects.length > 0 ? legacyEffects : (catalogEntry?.effects || []);
+
+    if (catalogEntry && legacyEffects.length === 0) {
+      // Use catalog effects directly as Prolog terms
+      for (const effect of catalogEntry.effects) {
+        lines.push(`action_effect(${actionId}, (${effect})).`);
       }
-    }
-    if (effects.length > 0) {
-      predicates.push('action_effect/2');
+      if (catalogEntry.effects.length > 0) {
+        predicates.push('action_effect/2');
+      }
+    } else {
+      // Legacy: convert from ActionData JSON effects
+      for (const effect of legacyEffects) {
+        const term = convertEffect(effect, errors);
+        if (term) {
+          lines.push(`action_effect(${actionId}, ${term}).`);
+        }
+      }
+      if (legacyEffects.length > 0) {
+        predicates.push('action_effect/2');
+      }
     }
 
     // Side effects (legacy only)

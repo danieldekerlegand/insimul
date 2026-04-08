@@ -294,6 +294,7 @@ export class AssessmentModalUI {
     const passageStack = new GUI.StackPanel('passageStack');
     passageStack.isVertical = true;
     passageStack.width = '96%';
+    passageStack.adaptHeightToChildren = true;
     passageStack.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     passageStack.background = 'rgba(255, 215, 0, 0.08)';
     stack.addControl(passageStack);
@@ -309,7 +310,7 @@ export class AssessmentModalUI {
     passageText.textWrapping = true;
     passageText.lineSpacing = '4px';
     passageText.resizeToFit = true;
-    passageText.paddingBottom = '12px';
+    passageText.paddingBottom = '4px';
     passageText.width = '90%';
     passageText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     passageText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;

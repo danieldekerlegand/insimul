@@ -618,12 +618,57 @@ export class AssessmentEngine {
 
   private async _scorePhase(
     phaseType: PhaseType,
-    _content: GeneratedContent,
+    content: GeneratedContent,
     answers: Record<string, string>,
   ): Promise<ScoringResult> {
-    // Score client-side using offline heuristic scoring.
-    // Results are persisted as Prolog facts by _assertPhaseScore().
+    // Try LLM scoring via the server first; fall back to offline heuristics.
+    try {
+      const serverResult = await this._scoreLLM(phaseType, content, answers);
+      if (serverResult) return serverResult;
+    } catch (err) {
+      console.warn('[AssessmentEngine] LLM scoring unavailable, falling back to offline:', err);
+    }
     return this._scoreOffline(phaseType, answers);
+  }
+
+  /**
+   * Score answers via the server LLM endpoint (POST /api/assessments/score-phase).
+   * Returns null if the server is unavailable or scoring fails.
+   */
+  private async _scoreLLM(
+    phaseType: PhaseType,
+    content: GeneratedContent,
+    answers: Record<string, string>,
+  ): Promise<ScoringResult | null> {
+    const body: Record<string, unknown> = {
+      phaseType,
+      targetLanguage: this.targetLanguage,
+      answers,
+    };
+    if (content.passage) body.passage = content.passage;
+    if (content.questions) {
+      body.questions = content.questions.map(q => ({
+        id: q.id,
+        text: q.questionText,
+        maxPoints: q.maxPoints,
+      }));
+    }
+    if (content.writingPrompts) body.writingPrompts = content.writingPrompts;
+
+    const response = await fetch('/api/assessments/score-phase', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) return null;
+
+    const result = await response.json() as ScoringResult;
+    if (result.totalScore == null) return null;
+    return result;
   }
 
   private _scoreOffline(phaseType: PhaseType, answers: Record<string, string>): ScoringResult {

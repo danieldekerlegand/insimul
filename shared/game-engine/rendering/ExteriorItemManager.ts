@@ -144,7 +144,6 @@ export class ExteriorItemManager {
     mesh.position = new Vector3(finalX, groundY + 0.15, finalZ);
 
     mesh.isPickable = true;
-    mesh.checkCollisions = true;
     mesh.metadata = {
       objectRole: item.objectRole || item.itemType,
       itemId: item.id,
@@ -154,7 +153,6 @@ export class ExteriorItemManager {
 
     mesh.getChildMeshes().forEach(child => {
       child.isPickable = true;
-      child.checkCollisions = true;
       child.metadata = {
         ...(child.metadata || {}),
         objectRole: item.objectRole || item.itemType,
@@ -163,6 +161,9 @@ export class ExteriorItemManager {
         possessable: item.possessable !== false,
       };
     });
+
+    // Use a single collision box instead of per-mesh collisions to prevent characters getting stuck
+    this.wrapWithCollisionBox(mesh);
 
     return mesh;
   }
@@ -238,6 +239,69 @@ export class ExteriorItemManager {
       }
     }
     return null;
+  }
+
+  /**
+   * Wrap a mesh hierarchy with a single invisible collision box.
+   * Prevents characters from getting trapped between overlapping collision surfaces.
+   */
+  private wrapWithCollisionBox(prop: Mesh, margin: number = 0.15): void {
+    prop.refreshBoundingInfo(false, false);
+    prop.computeWorldMatrix(true);
+
+    const children = prop.getChildMeshes(false);
+    if (children.length === 0 && prop.getTotalVertices() === 0) return;
+
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+    const allMeshes = prop.getTotalVertices() > 0 ? [prop, ...children] : children;
+    for (const m of allMeshes) {
+      (m as Mesh).refreshBoundingInfo(false, false);
+      m.computeWorldMatrix(true);
+      const bi = m.getBoundingInfo();
+      const wMin = bi.boundingBox.minimumWorld;
+      const wMax = bi.boundingBox.maximumWorld;
+      if (wMin.x < minX) minX = wMin.x;
+      if (wMin.y < minY) minY = wMin.y;
+      if (wMin.z < minZ) minZ = wMin.z;
+      if (wMax.x > maxX) maxX = wMax.x;
+      if (wMax.y > maxY) maxY = wMax.y;
+      if (wMax.z > maxZ) maxZ = wMax.z;
+    }
+
+    if (!isFinite(minX) || !isFinite(maxX)) return;
+
+    const width = (maxX - minX) + margin * 2;
+    const height = (maxY - minY) + margin * 2;
+    const depth = (maxZ - minZ) + margin * 2;
+    if (width < 0.1 && depth < 0.1) return;
+
+    const collider = MeshBuilder.CreateBox(
+      `${prop.name}_collider`,
+      { width, height, depth },
+      this.scene
+    );
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+
+    collider.parent = prop;
+    const invPropWorld = prop.getWorldMatrix().clone().invert();
+    collider.position = Vector3.TransformCoordinates(
+      new Vector3(centerX, centerY, centerZ),
+      invPropWorld
+    );
+
+    collider.isVisible = false;
+    collider.isPickable = false;
+    collider.checkCollisions = true;
+
+    prop.checkCollisions = false;
+    for (const child of children) {
+      (child as Mesh).checkCollisions = false;
+    }
   }
 
   public dispose(): void {

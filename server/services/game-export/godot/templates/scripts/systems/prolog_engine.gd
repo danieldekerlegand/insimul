@@ -29,6 +29,11 @@ var debug_logging_enabled: bool = false
 ## IDs of quests currently being tracked for auto-completion.
 var _active_quest_ids: Array[String] = []
 
+## Facts asserted during gameplay (player actions, not world data).
+## These are the facts that need to persist across save/load cycles.
+## Dictionary used as a set: keys are fact strings (with trailing "."), values are true.
+var _player_facts: Dictionary = {}
+
 ## Tracking for objective and quest completion.
 var _completed_objectives: Dictionary = {}  # "questId:idx" -> true
 var _completed_quests: Dictionary = {}  # "questId" -> true
@@ -45,6 +50,9 @@ var _on_quest_completed: Callable = Callable()
 func initialize(data: Dictionary) -> void:
 	_facts.clear()
 	_kb_content = ""
+	_player_facts.clear()
+	_completed_objectives.clear()
+	_completed_quests.clear()
 
 	# Pre-generated Prolog content from the server export pipeline
 	if data.has("content"):
@@ -454,6 +462,8 @@ func query(goal: String) -> Array[Dictionary]:
 
 
 ## Export the full knowledge base as a Prolog text string.
+## @deprecated Use get_player_facts() for save/load. This exports the ENTIRE KB
+## including world data, which should not be persisted in save files.
 func export_knowledge_base() -> String:
 	var output: String = _kb_content + "\n"
 	for fact in _facts:
@@ -658,6 +668,225 @@ func record_player_action(player_id: String, npc_id: String, action_name: String
 	_assert_internal("player_action(%s, %s, %s)" % [p_id, n_id, action])
 
 # ---------------------------------------------------------------------------
+# Player fact tracking (save/load)
+# ---------------------------------------------------------------------------
+
+## Assert a fact and track it as a player-gameplay fact for save/load.
+func _assert_player_fact(fact: String) -> void:
+	_assert_internal(fact)
+	var clean: String = fact.strip_edges().trim_suffix(".")
+	_player_facts[clean + "."] = true
+
+
+## Retract a fact and remove it from player-gameplay tracking.
+func _retract_player_fact(fact: String) -> void:
+	var clean: String = fact.strip_edges().trim_suffix(".")
+	_facts.erase(clean)
+	_player_facts.erase(clean + ".")
+
+
+## Retract player facts by pattern (predicate + args) and clean up tracking.
+func _retract_player_fact_by_pattern(predicate: String, first_arg: String, second_arg: String = "") -> void:
+	var prefix: String
+	if second_arg != "":
+		prefix = "%s(%s, %s" % [predicate, first_arg, second_arg]
+	else:
+		prefix = "%s(%s" % [predicate, first_arg]
+	_retract_pattern(prefix)
+	# Remove matching entries from _player_facts
+	var to_remove: Array = []
+	for key in _player_facts:
+		if str(key).begins_with(prefix):
+			to_remove.append(key)
+	for key in to_remove:
+		_player_facts.erase(key)
+
+
+## Update item quantity and track the facts for save/load.
+func _update_item_quantity_tracked(item_name: String, delta: int) -> void:
+	var old_qty: int = _get_item_quantity(item_name)
+	var new_qty: int = max(0, old_qty + delta)
+	_item_quantities[item_name] = new_qty
+	# Retract old has_item/3 fact (tracked)
+	_retract_player_fact_by_pattern("has_item", "player", item_name)
+	# Assert new quantity if positive
+	if new_qty > 0:
+		_assert_player_fact("has_item(player, %s, %d)" % [item_name, new_qty])
+
+
+## Assert taxonomy facts for an item with player-fact tracking.
+func _assert_item_taxonomy_tracked(item_name: String, taxonomy: Dictionary) -> void:
+	if taxonomy.has("category") and not str(taxonomy["category"]).is_empty():
+		_assert_player_fact("item_category(%s, %s)" % [item_name, _sanitize(str(taxonomy["category"]))])
+		_assert_player_fact("item_is_a(%s, %s)" % [item_name, _sanitize(str(taxonomy["category"]))])
+	if taxonomy.has("material") and not str(taxonomy["material"]).is_empty():
+		_assert_player_fact("item_material(%s, %s)" % [item_name, _sanitize(str(taxonomy["material"]))])
+	if taxonomy.has("base_type") and not str(taxonomy["base_type"]).is_empty():
+		_assert_player_fact("item_base_type(%s, %s)" % [item_name, _sanitize(str(taxonomy["base_type"]))])
+		_assert_player_fact("item_is_a(%s, %s)" % [item_name, _sanitize(str(taxonomy["base_type"]))])
+	elif taxonomy.has("baseType") and not str(taxonomy["baseType"]).is_empty():
+		_assert_player_fact("item_base_type(%s, %s)" % [item_name, _sanitize(str(taxonomy["baseType"]))])
+		_assert_player_fact("item_is_a(%s, %s)" % [item_name, _sanitize(str(taxonomy["baseType"]))])
+	if taxonomy.has("rarity") and not str(taxonomy["rarity"]).is_empty():
+		_assert_player_fact("item_rarity(%s, %s)" % [item_name, _sanitize(str(taxonomy["rarity"]))])
+	if taxonomy.has("item_type") and not str(taxonomy["item_type"]).is_empty():
+		_assert_player_fact("item_is_a(%s, %s)" % [item_name, _sanitize(str(taxonomy["item_type"]))])
+	elif taxonomy.has("itemType") and not str(taxonomy["itemType"]).is_empty():
+		_assert_player_fact("item_is_a(%s, %s)" % [item_name, _sanitize(str(taxonomy["itemType"]))])
+
+
+## Get all player-asserted facts (gameplay facts only, not world data).
+## Returns an array of Prolog fact strings with trailing periods.
+## Used by the save system to persist player state.
+func get_player_facts() -> Array:
+	return _player_facts.keys()
+
+
+## Restore player facts from a saved array.
+## Call after initialize() to restore gameplay state from a save file.
+func restore_player_facts(facts: Array) -> void:
+	if not _initialized:
+		return
+	for fact_with_dot in facts:
+		var fact: String = str(fact_with_dot)
+		if fact.ends_with("."):
+			fact = fact.substr(0, fact.length() - 1)
+		fact = fact.strip_edges()
+		if fact.is_empty():
+			continue
+		_assert_internal(fact)
+		_player_facts[fact + "."] = true
+		# Rebuild _item_quantities from has_item/3 facts
+		var regex := RegEx.new()
+		regex.compile("^has_item\\(player,\\s*(\\S+),\\s*(\\d+)\\)$")
+		var match_result := regex.search(fact)
+		if match_result:
+			_item_quantities[match_result.get_string(1)] = int(match_result.get_string(2))
+	print("[Insimul] PrologEngine restored %d player facts from save" % facts.size())
+
+
+## Reconstruct Prolog facts from structured save state data.
+## This is the primary restore path: derive Prolog facts from the save state
+## dictionary, ensuring consistency between game state and Prolog.
+## Call after initialize() and after the game has restored its state from the save file.
+func restore_from_save_state(state: Dictionary) -> void:
+	if not _initialized:
+		return
+	var restored_count: int = 0
+
+	# 1. Reconstruct inventory facts
+	var inventory: Array = state.get("player", {}).get("inventory", [])
+	for item in inventory:
+		var item_name: String = _sanitize(str(item.get("name", item.get("id", ""))))
+		var qty: int = int(item.get("quantity", 1))
+		_assert_player_fact("has(player, %s)" % item_name)
+		_assert_player_fact("has_item(player, %s, %d)" % [item_name, qty])
+		_item_quantities[item_name] = qty
+		if item.has("type") and not str(item["type"]).is_empty():
+			_assert_player_fact("item_type(%s, %s)" % [item_name, _sanitize(str(item["type"]))])
+		if item.has("category") and not str(item["category"]).is_empty():
+			_assert_player_fact("item_category(%s, %s)" % [item_name, _sanitize(str(item["category"]))])
+			_assert_player_fact("item_is_a(%s, %s)" % [item_name, _sanitize(str(item["category"]))])
+		if item.has("baseType") and not str(item["baseType"]).is_empty():
+			_assert_player_fact("item_base_type(%s, %s)" % [item_name, _sanitize(str(item["baseType"]))])
+			_assert_player_fact("item_is_a(%s, %s)" % [item_name, _sanitize(str(item["baseType"]))])
+		if item.has("material") and not str(item["material"]).is_empty():
+			_assert_player_fact("item_material(%s, %s)" % [item_name, _sanitize(str(item["material"]))])
+		if item.has("rarity") and not str(item["rarity"]).is_empty():
+			_assert_player_fact("item_rarity(%s, %s)" % [item_name, _sanitize(str(item["rarity"]))])
+		if item.get("equipped", false) and item.has("equipSlot"):
+			_assert_player_fact("equipped(player, %s, %s)" % [item_name, _sanitize(str(item["equipSlot"]))])
+		restored_count += 1
+
+	# 2. Reconstruct quest facts
+	var quest_state: Dictionary = state.get("questActiveState", {}).get("quests", {})
+	for quest_id in quest_state:
+		var q_id: String = _sanitize(str(quest_id))
+		var q_status: String = str(quest_state[quest_id].get("status", ""))
+		if q_status == "active":
+			_assert_player_fact("quest_active(player, %s)" % q_id)
+		elif q_status == "completed":
+			_assert_player_fact("quest_completed(player, %s)" % q_id)
+		elif q_status == "failed":
+			_assert_player_fact("quest_failed(player, %s)" % q_id)
+		restored_count += 1
+
+	# 3. Reconstruct conversation facts
+	var conversations: Array = state.get("conversations", [])
+	for conv in conversations:
+		var npc_id: String = _sanitize(str(conv.get("npcId", "")))
+		var turn_count: int = int(conv.get("turnCount", 0))
+		_assert_player_fact("talked_to(player, %s, %s)" % [npc_id, str(turn_count)])
+		_assert_player_fact("npc_conversation_turns(player, %s, %s)" % [npc_id, str(turn_count)])
+		restored_count += 1
+
+	# 4. Reconstruct contact/NPC-met facts
+	var contacts: Dictionary = state.get("contacts", {})
+	for npc_id in contacts:
+		var sanitized_npc: String = _sanitize(str(npc_id))
+		var conv_count: int = int(contacts[npc_id].get("conversationCount", 0))
+		if conv_count > 0:
+			_assert_player_fact("talked_to(player, %s, %s)" % [sanitized_npc, str(conv_count)])
+		restored_count += 1
+
+	# 5. Reconstruct reputation facts
+	var rep_entries: Array = state.get("reputationState", {}).get("entries", [])
+	for entry in rep_entries:
+		var entity_id: String = _sanitize(str(entry.get("entityId", "")))
+		var score: int = int(entry.get("score", 0))
+		_assert_player_fact("reputation_change(player, %s, %s)" % [entity_id, str(score)])
+		restored_count += 1
+
+	# 6. Reconstruct current location facts
+	if state.has("currentZone") and state["currentZone"] is Dictionary:
+		var zone_id: String = _sanitize(str(state["currentZone"].get("id", "")))
+		if not zone_id.is_empty():
+			_assert_player_fact("visited(player, %s)" % zone_id)
+			restored_count += 1
+
+	# 7. Reconstruct reading progress
+	var articles: Dictionary = state.get("readingProgress", {}).get("articles", {})
+	for article_id in articles:
+		if articles[article_id].get("read", false):
+			_assert_player_fact("text_read(player, %s)" % _sanitize(str(article_id)))
+			restored_count += 1
+
+	# 8. Reconstruct CEFR level
+	var cefr_level: String = str(state.get("player", {}).get("cefrLevel", ""))
+	if not cefr_level.is_empty():
+		_assert_player_fact("player_cefr_level(player, %s)" % _sanitize(cefr_level))
+		restored_count += 1
+
+	# 9. Restore additional player facts that have no structured equivalent
+	var prolog_facts_str: String = str(state.get("prologFacts", ""))
+	if not prolog_facts_str.is_empty():
+		var parsed = JSON.parse_string(prolog_facts_str)
+		if parsed is Array:
+			for fact_with_dot in parsed:
+				var fact: String = str(fact_with_dot)
+				if fact.ends_with("."):
+					fact = fact.substr(0, fact.length() - 1)
+				fact = fact.strip_edges()
+				if fact.is_empty():
+					continue
+				# Skip facts already reconstructed from structured data
+				if _player_facts.has(fact + "."):
+					continue
+				_assert_internal(fact)
+				_player_facts[fact + "."] = true
+				# Rebuild _item_quantities from has_item/3
+				var regex := RegEx.new()
+				regex.compile("^has_item\\(player,\\s*(\\S+),\\s*(\\d+)\\)$")
+				var match_result := regex.search(fact)
+				if match_result:
+					_item_quantities[match_result.get_string(1)] = int(match_result.get_string(2))
+				restored_count += 1
+
+	print("[Insimul] PrologEngine restored %d facts from save state" % restored_count)
+	_reevaluate_quests()
+
+
+# ---------------------------------------------------------------------------
 # Event bus integration
 # ---------------------------------------------------------------------------
 
@@ -679,6 +908,7 @@ func subscribe_to_event_bus(event_bus: Node) -> void:
 
 
 ## Handle a game event by asserting the corresponding Prolog facts.
+## Uses _assert_player_fact/_retract_player_fact to track gameplay facts for save/load.
 func _handle_game_event(event: Dictionary) -> void:
 	if not _initialized:
 		return
@@ -686,70 +916,69 @@ func _handle_game_event(event: Dictionary) -> void:
 	match event_type:
 		"item_collected":
 			var name: String = _sanitize(str(event.get("item_name", "")))
-			_assert_internal("collected(player, %s, %s)" % [name, str(event.get("quantity", 1))])
-			_assert_internal("has(player, %s)" % name)
-			_update_item_quantity(name, int(event.get("quantity", 1)))
+			_assert_player_fact("collected(player, %s, %s)" % [name, str(event.get("quantity", 1))])
+			_assert_player_fact("has(player, %s)" % name)
+			_update_item_quantity_tracked(name, int(event.get("quantity", 1)))
 			if event.has("taxonomy"):
-				_assert_item_taxonomy(name, event["taxonomy"])
+				_assert_item_taxonomy_tracked(name, event["taxonomy"])
 		"enemy_defeated":
-			_assert_internal("defeated(player, %s)" % _sanitize(str(event.get("enemy_type", ""))))
+			_assert_player_fact("defeated(player, %s)" % _sanitize(str(event.get("enemy_type", ""))))
 		"location_visited":
-			_assert_internal("visited(player, %s)" % _sanitize(str(event.get("location_id", ""))))
+			_assert_player_fact("visited(player, %s)" % _sanitize(str(event.get("location_id", ""))))
 		"npc_talked":
-			_assert_internal("talked_to(player, %s, %s)" % [_sanitize(str(event.get("npc_id", ""))), str(event.get("turn_count", 0))])
+			_assert_player_fact("talked_to(player, %s, %s)" % [_sanitize(str(event.get("npc_id", ""))), str(event.get("turn_count", 0))])
 		"item_delivered":
-			_assert_internal("delivered(player, %s, %s)" % [_sanitize(str(event.get("npc_id", ""))), _sanitize(str(event.get("item_name", "")))])
+			_assert_player_fact("delivered(player, %s, %s)" % [_sanitize(str(event.get("npc_id", ""))), _sanitize(str(event.get("item_name", "")))])
 		"vocabulary_used":
 			var correct_val: int = 1 if event.get("correct", false) else 0
-			_assert_internal("vocab_used(player, %s, %s)" % [_sanitize(str(event.get("word", ""))), str(correct_val)])
+			_assert_player_fact("vocab_used(player, %s, %s)" % [_sanitize(str(event.get("word", ""))), str(correct_val)])
 		"item_crafted":
 			var name: String = _sanitize(str(event.get("item_name", "")))
-			_assert_internal("crafted(player, %s, %s)" % [name, str(event.get("quantity", 1))])
-			_assert_internal("has(player, %s)" % name)
-			_update_item_quantity(name, int(event.get("quantity", 1)))
+			_assert_player_fact("crafted(player, %s, %s)" % [name, str(event.get("quantity", 1))])
+			_assert_player_fact("has(player, %s)" % name)
+			_update_item_quantity_tracked(name, int(event.get("quantity", 1)))
 			if event.has("taxonomy"):
-				_assert_item_taxonomy(name, event["taxonomy"])
+				_assert_item_taxonomy_tracked(name, event["taxonomy"])
 		"location_discovered":
-			_assert_internal("discovered(player, %s)" % _sanitize(str(event.get("location_id", ""))))
+			_assert_player_fact("discovered(player, %s)" % _sanitize(str(event.get("location_id", ""))))
 		"settlement_entered":
-			_assert_internal("visited(player, %s)" % _sanitize(str(event.get("settlement_id", ""))))
+			_assert_player_fact("visited(player, %s)" % _sanitize(str(event.get("settlement_id", ""))))
 		"reputation_changed":
-			_assert_internal("reputation_change(player, %s, %s)" % [_sanitize(str(event.get("faction_id", ""))), str(event.get("delta", 0))])
+			_assert_player_fact("reputation_change(player, %s, %s)" % [_sanitize(str(event.get("faction_id", ""))), str(event.get("delta", 0))])
 		"quest_accepted":
 			var qid: String = _sanitize(str(event.get("quest_id", "")))
-			_assert_internal("quest_active(player, %s)" % qid)
+			_assert_player_fact("quest_active(player, %s)" % qid)
 			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
 			if npc_id != "":
-				_assert_internal("npc_gave_quest(%s, player, %s)" % [_sanitize(npc_id), qid])
+				_assert_player_fact("npc_gave_quest(%s, player, %s)" % [_sanitize(npc_id), qid])
 		"quest_completed":
 			var qid: String = _sanitize(str(event.get("quest_id", "")))
-			_assert_internal("quest_completed(player, %s)" % qid)
+			_assert_player_fact("quest_completed(player, %s)" % qid)
 			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
 			if npc_id != "":
-				_assert_internal("quest_outcome(%s, player, completed)" % qid)
+				_assert_player_fact("quest_outcome(%s, player, completed)" % qid)
 		"puzzle_solved":
-			_assert_internal("puzzle_solved(player, %s)" % _sanitize(str(event.get("puzzle_id", ""))))
+			_assert_player_fact("puzzle_solved(player, %s)" % _sanitize(str(event.get("puzzle_id", ""))))
 		"item_removed", "item_dropped":
 			var name: String = _sanitize(str(event.get("item_name", "")))
 			var qty: int = int(event.get("quantity", 1))
-			_update_item_quantity(name, -qty)
+			_update_item_quantity_tracked(name, -qty)
 			if _get_item_quantity(name) <= 0:
-				_retract_pattern("has(player, %s)" % name)
+				_retract_player_fact("has(player, %s)" % name)
 		"item_used":
 			var name: String = _sanitize(str(event.get("item_name", "")))
-			_update_item_quantity(name, -1)
+			_update_item_quantity_tracked(name, -1)
 			if _get_item_quantity(name) <= 0:
-				_retract_pattern("has(player, %s)" % name)
+				_retract_player_fact("has(player, %s)" % name)
 		"item_equipped":
-			_assert_internal("equipped(player, %s, %s)" % [_sanitize(str(event.get("item_name", ""))), _sanitize(str(event.get("slot", "")))])
+			_assert_player_fact("equipped(player, %s, %s)" % [_sanitize(str(event.get("item_name", ""))), _sanitize(str(event.get("slot", "")))])
 		"item_unequipped":
-			var equip_fact: String = "equipped(player, %s, %s)" % [_sanitize(str(event.get("item_name", ""))), _sanitize(str(event.get("slot", "")))]
-			_facts.erase(equip_fact)
+			_retract_player_fact("equipped(player, %s, %s)" % [_sanitize(str(event.get("item_name", ""))), _sanitize(str(event.get("slot", "")))])
 		"romance_action":
 			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
 			var action_type: String = _sanitize(str(event.get("action_type", "")))
 			var status: String = "accepted" if event.get("accepted", false) else "rejected"
-			_assert_internal("romance_action(player, %s, %s, %s)" % [npc_id, action_type, status])
+			_assert_player_fact("romance_action(player, %s, %s, %s)" % [npc_id, action_type, status])
 			# Emit create_truth event for accepted actions
 			if event.get("accepted", false) and _event_bus != null and _event_bus.has_method("emit_event"):
 				_event_bus.emit_event({
@@ -763,9 +992,9 @@ func _handle_game_event(event: Dictionary) -> void:
 			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
 			var from_stage: String = _sanitize(str(event.get("from_stage", "")))
 			var to_stage: String = _sanitize(str(event.get("to_stage", "")))
-			_retract_pattern("romance_stage(player, %s" % npc_id)
-			_assert_internal("romance_stage(player, %s, %s)" % [npc_id, to_stage])
-			_assert_internal("romance_history(player, %s, %s, %s)" % [npc_id, from_stage, to_stage])
+			_retract_player_fact_by_pattern("romance_stage", "player", npc_id)
+			_assert_player_fact("romance_stage(player, %s, %s)" % [npc_id, to_stage])
+			_assert_player_fact("romance_history(player, %s, %s, %s)" % [npc_id, from_stage, to_stage])
 			# Emit create_truth event
 			if _event_bus != null and _event_bus.has_method("emit_event"):
 				_event_bus.emit_event({
@@ -776,93 +1005,93 @@ func _handle_game_event(event: Dictionary) -> void:
 					"entry_type": "romance"
 				})
 		"npc_volition_action":
-			_assert_internal("volition_acted(%s, %s, %s)" % [_sanitize(str(event.get("npc_id", ""))), _sanitize(str(event.get("action_id", ""))), _sanitize(str(event.get("target_id", "")))])
+			_assert_player_fact("volition_acted(%s, %s, %s)" % [_sanitize(str(event.get("npc_id", ""))), _sanitize(str(event.get("action_id", ""))), _sanitize(str(event.get("target_id", "")))])
 		"conversation_overheard":
-			_assert_internal("overheard_conversation(player, %s, %s, %s)" % [_sanitize(str(event.get("npc_id_1", ""))), _sanitize(str(event.get("npc_id_2", ""))), _sanitize(str(event.get("topic", "")))])
+			_assert_player_fact("overheard_conversation(player, %s, %s, %s)" % [_sanitize(str(event.get("npc_id_1", ""))), _sanitize(str(event.get("npc_id_2", ""))), _sanitize(str(event.get("topic", "")))])
 		"state_created_truth":
-			_assert_internal("has_state(%s, %s)" % [_sanitize(str(event.get("character_id", ""))), _sanitize(str(event.get("state_type", "")))])
+			_assert_player_fact("has_state(%s, %s)" % [_sanitize(str(event.get("character_id", ""))), _sanitize(str(event.get("state_type", "")))])
 		"state_expired_truth":
-			_retract_pattern("has_state(%s, %s" % [_sanitize(str(event.get("character_id", ""))), _sanitize(str(event.get("state_type", "")))])
+			_retract_player_fact("has_state(%s, %s)" % [_sanitize(str(event.get("character_id", ""))), _sanitize(str(event.get("state_type", "")))])
 		"puzzle_failed":
-			_assert_internal("puzzle_failed(player, %s, %s)" % [_sanitize(str(event.get("puzzle_id", ""))), str(event.get("attempts", 0))])
+			_assert_player_fact("puzzle_failed(player, %s, %s)" % [_sanitize(str(event.get("puzzle_id", ""))), str(event.get("attempts", 0))])
 		"quest_failed":
 			var qid: String = _sanitize(str(event.get("quest_id", "")))
-			_assert_internal("quest_failed(player, %s)" % qid)
+			_assert_player_fact("quest_failed(player, %s)" % qid)
 			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
 			if npc_id != "":
-				_assert_internal("quest_outcome(%s, player, failed)" % qid)
+				_assert_player_fact("quest_outcome(%s, player, failed)" % qid)
 		"quest_abandoned":
 			var qid: String = _sanitize(str(event.get("quest_id", "")))
-			_assert_internal("quest_abandoned(player, %s)" % qid)
+			_assert_player_fact("quest_abandoned(player, %s)" % qid)
 			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
 			if npc_id != "":
-				_assert_internal("quest_outcome(%s, player, abandoned)" % qid)
-			_retract_pattern("quest_active(player, %s" % qid)
+				_assert_player_fact("quest_outcome(%s, player, abandoned)" % qid)
+			_retract_player_fact_by_pattern("quest_active", "player", qid)
 		"direction_step_completed":
 			var dqid: String = _sanitize(str(event.get("quest_id", "")))
-			_retract_pattern("quest_progress(player, %s" % dqid)
-			_assert_internal("quest_progress(player, %s, %s)" % [dqid, str(event.get("steps_completed", 0))])
-			_assert_internal("direction_step_done(player, %s, %s)" % [dqid, str(event.get("step_index", 0))])
+			_retract_player_fact_by_pattern("quest_progress", "player", dqid)
+			_assert_player_fact("quest_progress(player, %s, %s)" % [dqid, str(event.get("steps_completed", 0))])
+			_assert_player_fact("direction_step_done(player, %s, %s)" % [dqid, str(event.get("step_index", 0))])
 		"conversational_action_completed":
 			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
 			var action: String = _sanitize(str(event.get("action", "")))
 			var qid: String = _sanitize(str(event.get("quest_id", "")))
-			_assert_internal("conversational_action(player, %s, %s, %s)" % [npc_id, action, qid])
+			_assert_player_fact("conversational_action(player, %s, %s, %s)" % [npc_id, action, qid])
 		"text_found":
-			_assert_internal("text_found(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+			_assert_player_fact("text_found(player, %s)" % _sanitize(str(event.get("text_id", ""))))
 		"text_read":
-			_assert_internal("text_read(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+			_assert_player_fact("text_read(player, %s)" % _sanitize(str(event.get("text_id", ""))))
 		"sign_read":
-			_assert_internal("sign_read(player, %s)" % _sanitize(str(event.get("sign_id", ""))))
+			_assert_player_fact("sign_read(player, %s)" % _sanitize(str(event.get("sign_id", ""))))
 		"object_examined":
-			_assert_internal("object_examined(player, %s)" % _sanitize(str(event.get("object_name", ""))))
+			_assert_player_fact("object_examined(player, %s)" % _sanitize(str(event.get("object_name", ""))))
 		"object_identified":
-			_assert_internal("object_identified(player, %s)" % _sanitize(str(event.get("object_name", ""))))
+			_assert_player_fact("object_identified(player, %s)" % _sanitize(str(event.get("object_name", ""))))
 		"object_pointed_and_named":
-			_assert_internal("object_pointed_named(player, %s)" % _sanitize(str(event.get("object_name", ""))))
+			_assert_player_fact("object_pointed_named(player, %s)" % _sanitize(str(event.get("object_name", ""))))
 		"writing_submitted":
-			_assert_internal("response_written(player, %s)" % str(event.get("word_count", 0)))
+			_assert_player_fact("response_written(player, %s)" % str(event.get("word_count", 0)))
 		"photo_taken":
-			_assert_internal("photo_taken(player, %s)" % _sanitize(str(event.get("subject_name", ""))))
+			_assert_player_fact("photo_taken(player, %s)" % _sanitize(str(event.get("subject_name", ""))))
 		"food_ordered":
-			_assert_internal("food_ordered(player, %s)" % _sanitize(str(event.get("item_name", ""))))
+			_assert_player_fact("food_ordered(player, %s)" % _sanitize(str(event.get("item_name", ""))))
 		"price_haggled":
-			_assert_internal("price_haggled(player, %s)" % _sanitize(str(event.get("item_name", ""))))
+			_assert_player_fact("price_haggled(player, %s)" % _sanitize(str(event.get("item_name", ""))))
 		"gift_given":
 			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
 			var item_name: String = _sanitize(str(event.get("item_name", "")))
-			_assert_internal("gift_given(player, %s, %s)" % [npc_id, item_name])
+			_assert_player_fact("gift_given(player, %s, %s)" % [npc_id, item_name])
 		"translation_attempt":
 			var correct: bool = event.get("correct", false)
 			if correct:
-				_assert_internal("translation_completed(player, correct)")
+				_assert_player_fact("translation_completed(player, correct)")
 		"pronunciation_attempt":
 			var phrase: String = _sanitize(str(event.get("phrase", "")))
 			var score: int = int(event.get("score", 0))
 			var timestamp: String = str(event.get("timestamp", 0))
-			_assert_internal("pronunciation_score(player, %s, %s, %s)" % [phrase, str(score), timestamp])
+			_assert_player_fact("pronunciation_score(player, %s, %s, %s)" % [phrase, str(score), timestamp])
 			if event.get("passed", false):
-				_assert_internal("pronunciation_passed(player, %s)" % phrase)
+				_assert_player_fact("pronunciation_passed(player, %s)" % phrase)
 		"reading_completed":
-			_assert_internal("text_read(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+			_assert_player_fact("text_read(player, %s)" % _sanitize(str(event.get("text_id", ""))))
 		"questions_answered":
-			_assert_internal("comprehension_done(player, %s)" % _sanitize(str(event.get("text_id", ""))))
+			_assert_player_fact("comprehension_done(player, %s)" % _sanitize(str(event.get("text_id", ""))))
 		"conversation_turn", "conversation_turn_counted":
 			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
 			var total: int = int(event.get("total", event.get("turn_count", 0)))
-			_retract_pattern("npc_conversation_turns(player, %s" % npc_id)
-			_assert_internal("npc_conversation_turns(player, %s, %s)" % [npc_id, str(total)])
+			_retract_player_fact_by_pattern("npc_conversation_turns", "player", npc_id)
+			_assert_player_fact("npc_conversation_turns(player, %s, %s)" % [npc_id, str(total)])
 		"physical_action_completed":
-			_assert_internal("physical_action_done(player, %s)" % _sanitize(str(event.get("action_type", ""))))
+			_assert_player_fact("physical_action_done(player, %s)" % _sanitize(str(event.get("action_type", ""))))
 		"npc_exam_completed":
 			var exam_id: String = _sanitize(str(event.get("exam_id", "")))
 			var score: int = int(event.get("score", 0))
 			var max_points: int = int(event.get("max_points", 0))
 			var cefr_level: String = _sanitize(str(event.get("cefr_level", "")))
 			var timestamp: String = str(event.get("timestamp", 0))
-			_assert_internal("assessment_result(player, %s, %s, %s, %s, %s)" % [exam_id, str(score), str(max_points), cefr_level, timestamp])
-			_retract_pattern("player_cefr_level(player,")
-			_assert_internal("player_cefr_level(player, %s)" % cefr_level)
+			_assert_player_fact("assessment_result(player, %s, %s, %s, %s, %s)" % [exam_id, str(score), str(max_points), cefr_level, timestamp])
+			_retract_player_fact_by_pattern("player_cefr_level", "player")
+			_assert_player_fact("player_cefr_level(player, %s)" % cefr_level)
 		_:
 			return  # No re-evaluation for unhandled events
 	_reevaluate_quests()
@@ -989,6 +1218,7 @@ func dispose() -> void:
 	_event_bus = null
 	_kb_content = ""
 	_facts.clear()
+	_player_facts.clear()
 	_active_quest_ids.clear()
 	_item_quantities.clear()
 	_completed_objectives.clear()

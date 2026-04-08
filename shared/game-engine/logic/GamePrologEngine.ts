@@ -18,6 +18,11 @@ import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
 import { HELPER_PREDICATES_PROLOG } from '@shared/prolog/helper-predicates';
 import type { GameEventBus, GameEvent, ItemTaxonomy } from './GameEventBus';
+import type {
+  GameSaveState,
+  InventoryItem,
+  SavedConversationRecord,
+} from '@shared/game-engine/types';
 import { isDebugLabelsEnabled } from '../rendering/DebugLabelUtils';
 import { getDebugEventBus } from '../debug-event-bus';
 
@@ -56,6 +61,12 @@ export class GamePrologEngine {
   private completedObjectives = new Set<string>();
   /** Track which quests Prolog has already marked complete. */
   private completedQuests = new Set<string>();
+  /**
+   * Track facts asserted during gameplay (player actions, not world data).
+   * These are the facts that need to persist across save/load cycles.
+   * World data facts (characters, settlements, rules) are reloaded by initialize().
+   */
+  private playerFacts = new Set<string>();
 
   constructor() {
     this.engine = new TauPrologEngine();
@@ -106,6 +117,44 @@ export class GamePrologEngine {
     });
   }
 
+  // ── Player Fact Tracking ────────────────────────────────────────────────
+  // These helpers wrap engine.assertFact/retractFact to also track which facts
+  // were asserted during gameplay (as opposed to world initialization).
+  // Only gameplay facts are persisted in save files.
+
+  /** Assert a fact and track it as a player-gameplay fact for save/load. */
+  private async assertPlayerFact(fact: string): Promise<void> {
+    await this.engine.assertFact(fact);
+    this.playerFacts.add(`${fact}.`);
+  }
+
+  /** Retract a fact and remove it from player-gameplay tracking. */
+  private async retractPlayerFact(fact: string): Promise<void> {
+    await this.engine.retractFact(fact);
+    this.playerFacts.delete(`${fact}.`);
+  }
+
+  /**
+   * Retract a player fact by pattern (predicate + args) and clean up tracking.
+   * Used for facts like has_item/3 where we need to retract old values.
+   */
+  private async retractPlayerFactByPattern(predicate: string, firstArg: string, secondArg?: string): Promise<void> {
+    await this.retractPattern(predicate, firstArg, secondArg);
+    // Remove any tracked player facts matching this predicate+args prefix
+    const prefix = secondArg
+      ? `${predicate}(${firstArg}, ${secondArg}`
+      : `${predicate}(${firstArg}`;
+    const toDelete: string[] = [];
+    this.playerFacts.forEach(fact => {
+      if (fact.startsWith(prefix)) {
+        toDelete.push(fact);
+      }
+    });
+    for (const fact of toDelete) {
+      this.playerFacts.delete(fact);
+    }
+  }
+
   /**
    * Handle a game event by asserting Prolog facts and re-evaluating quests.
    */
@@ -115,93 +164,93 @@ export class GamePrologEngine {
     switch (event.type) {
       case 'item_collected': {
         const name = this.sanitize(event.itemName);
-        await this.engine.assertFact(`collected(player, ${name}, ${event.quantity})`);
-        await this.engine.assertFact(`has(player, ${name})`);
-        await this.updateItemQuantity(name, event.quantity);
+        await this.assertPlayerFact(`collected(player, ${name}, ${event.quantity})`);
+        await this.assertPlayerFact(`has(player, ${name})`);
+        await this.updateItemQuantityTracked(name, event.quantity);
         if (event.taxonomy) {
-          await this.assertItemTaxonomy(name, event.taxonomy);
+          await this.assertItemTaxonomyTracked(name, event.taxonomy);
         }
         break;
       }
       case 'enemy_defeated':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `defeated(player, ${this.sanitize(event.enemyType)})`
         );
         break;
       case 'location_visited':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `visited(player, ${this.sanitize(event.locationId)})`
         );
         break;
       case 'npc_talked':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `talked_to(player, ${this.sanitize(event.npcId)}, ${event.turnCount})`
         );
         break;
       case 'conversational_action_completed':
         // Asserted when the LLM confirms a player's conversation achieved a quest objective.
         // conversational_action(player, NpcId, Action, QuestId).
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `conversational_action(player, ${this.sanitize((event as any).npcId)}, ${this.sanitize((event as any).action)}, ${this.sanitize((event as any).questId)})`
         );
         break;
       case 'item_delivered':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `delivered(player, ${this.sanitize(event.npcId)}, ${this.sanitize(event.itemName)})`
         );
         break;
       case 'vocabulary_used':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `vocab_used(player, ${this.sanitize(event.word)}, ${event.correct ? 1 : 0})`
         );
         break;
       case 'item_crafted': {
         const name = this.sanitize(event.itemName);
-        await this.engine.assertFact(`crafted(player, ${name}, ${event.quantity})`);
-        await this.engine.assertFact(`has(player, ${name})`);
-        await this.updateItemQuantity(name, event.quantity);
+        await this.assertPlayerFact(`crafted(player, ${name}, ${event.quantity})`);
+        await this.assertPlayerFact(`has(player, ${name})`);
+        await this.updateItemQuantityTracked(name, event.quantity);
         if (event.taxonomy) {
-          await this.assertItemTaxonomy(name, event.taxonomy);
+          await this.assertItemTaxonomyTracked(name, event.taxonomy);
         }
         break;
       }
       case 'location_discovered':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `discovered(player, ${this.sanitize(event.locationId)})`
         );
         break;
       case 'settlement_entered':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `visited(player, ${this.sanitize(event.settlementId)})`
         );
         break;
       case 'reputation_changed':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `reputation_change(player, ${this.sanitize(event.factionId)}, ${event.delta})`
         );
         break;
       case 'quest_accepted':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `quest_active(player, ${this.sanitize(event.questId)})`
         );
         if (event.assignedByNpcId) {
-          await this.engine.assertFact(
+          await this.assertPlayerFact(
             `npc_gave_quest(${this.sanitize(event.assignedByNpcId)}, player, ${this.sanitize(event.questId)})`
           );
         }
         break;
       case 'quest_completed':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `quest_completed(player, ${this.sanitize(event.questId)})`
         );
         if (event.assignedByNpcId) {
-          await this.engine.assertFact(
+          await this.assertPlayerFact(
             `quest_outcome(${this.sanitize(event.questId)}, player, completed)`
           );
         }
         break;
       case 'puzzle_solved':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `puzzle_solved(player, ${this.sanitize(event.puzzleId)})`
         );
         break;
@@ -209,36 +258,36 @@ export class GamePrologEngine {
       case 'item_dropped': {
         const name = this.sanitize(event.itemName);
         const qty = event.quantity || 1;
-        await this.updateItemQuantity(name, -qty);
+        await this.updateItemQuantityTracked(name, -qty);
         const remaining = this.itemQuantities.get(name) || 0;
         if (remaining <= 0) {
-          await this.engine.retractFact(`has(player, ${name})`);
+          await this.retractPlayerFact(`has(player, ${name})`);
         }
         break;
       }
       case 'item_used': {
         const name = this.sanitize(event.itemName);
-        await this.updateItemQuantity(name, -1);
+        await this.updateItemQuantityTracked(name, -1);
         const remaining = this.itemQuantities.get(name) || 0;
         if (remaining <= 0) {
-          await this.engine.retractFact(`has(player, ${name})`);
+          await this.retractPlayerFact(`has(player, ${name})`);
         }
         break;
       }
       case 'item_equipped':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `equipped(player, ${this.sanitize(event.itemName)}, ${this.sanitize(event.slot)})`
         );
         break;
       case 'item_unequipped':
-        await this.engine.retractFact(
+        await this.retractPlayerFact(
           `equipped(player, ${this.sanitize(event.itemName)}, ${this.sanitize(event.slot)})`
         );
         break;
       // Romance events → assert relationship facts
       case 'romance_action': {
         const npc = this.sanitize(event.npcId);
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `romance_action(player, ${npc}, ${this.sanitize(event.actionType)}, ${event.accepted ? 'accepted' : 'rejected'})`
         );
         // Emit truth for significant romance actions
@@ -258,12 +307,12 @@ export class GamePrologEngine {
         const npc = this.sanitize(event.npcId);
         // Retract old romance stage
         try {
-          await this.engine.retractFact(`romance_stage(player, ${npc}, ${this.sanitize(event.fromStage)})`);
+          await this.retractPlayerFact(`romance_stage(player, ${npc}, ${this.sanitize(event.fromStage)})`);
         } catch { /* may not exist */ }
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `romance_stage(player, ${npc}, ${this.sanitize(event.toStage)})`
         );
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `romance_history(player, ${npc}, ${this.sanitize(event.fromStage)}, ${this.sanitize(event.toStage)})`
         );
         // Emit truth for romance stage transitions
@@ -284,7 +333,7 @@ export class GamePrologEngine {
         const npc = this.sanitize(event.npcId);
         const target = this.sanitize(event.targetId);
         const action = this.sanitize(event.actionId);
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `volition_acted(${npc}, ${action}, ${target})`
         );
         break;
@@ -294,7 +343,7 @@ export class GamePrologEngine {
         const npc1 = this.sanitize(event.npcId1);
         const npc2 = this.sanitize(event.npcId2);
         const topic = this.sanitize(event.topic);
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `overheard_conversation(player, ${npc1}, ${npc2}, ${topic})`
         );
         break;
@@ -303,45 +352,45 @@ export class GamePrologEngine {
       case 'state_created_truth': {
         const charId = this.sanitize(event.characterId);
         const stateType = this.sanitize(event.stateType);
-        await this.engine.assertFact(`has_state(${charId}, ${stateType})`);
+        await this.assertPlayerFact(`has_state(${charId}, ${stateType})`);
         break;
       }
       case 'state_expired_truth': {
         const charId = this.sanitize(event.characterId);
         const stateType = this.sanitize(event.stateType);
         try {
-          await this.engine.retractFact(`has_state(${charId}, ${stateType})`);
+          await this.retractPlayerFact(`has_state(${charId}, ${stateType})`);
         } catch { /* may not exist */ }
         break;
       }
       // Puzzle failure
       case 'puzzle_failed':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `puzzle_failed(player, ${this.sanitize(event.puzzleId)}, ${event.attempts})`
         );
         break;
       // Quest lifecycle
       case 'quest_failed':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `quest_failed(player, ${this.sanitize(event.questId)})`
         );
         if (event.assignedByNpcId) {
-          await this.engine.assertFact(
+          await this.assertPlayerFact(
             `quest_outcome(${this.sanitize(event.questId)}, player, failed)`
           );
         }
         break;
       case 'quest_abandoned':
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `quest_abandoned(player, ${this.sanitize(event.questId)})`
         );
         if (event.assignedByNpcId) {
-          await this.engine.assertFact(
+          await this.assertPlayerFact(
             `quest_outcome(${this.sanitize(event.questId)}, player, abandoned)`
           );
         }
         try {
-          await this.engine.retractFact(
+          await this.retractPlayerFact(
             `quest_active(player, ${this.sanitize(event.questId)})`
           );
         } catch { /* may not exist */ }
@@ -350,15 +399,11 @@ export class GamePrologEngine {
       case 'direction_step_completed': {
         const questId = this.sanitize(event.questId);
         // Retract previous progress, assert updated count
-        try {
-          await this.engine.retractFact(
-            `quest_progress(player, ${questId}, _)`
-          );
-        } catch { /* may not exist */ }
-        await this.engine.assertFact(
+        await this.retractPlayerFactByPattern('quest_progress', 'player', questId);
+        await this.assertPlayerFact(
           `quest_progress(player, ${questId}, ${event.stepsCompleted})`
         );
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `direction_step_done(player, ${questId}, ${event.stepIndex})`
         );
         break;
@@ -366,63 +411,63 @@ export class GamePrologEngine {
       // ── Language learning events ────────────────────────────────────────
       case 'text_found': {
         const textId = this.sanitize(event.textId || event.textName || '');
-        await this.engine.assertFact(`text_found(player, ${textId})`);
+        await this.assertPlayerFact(`text_found(player, ${textId})`);
         break;
       }
       case 'text_read': {
         const textId = this.sanitize(event.textId || '');
-        await this.engine.assertFact(`text_read(player, ${textId})`);
+        await this.assertPlayerFact(`text_read(player, ${textId})`);
         break;
       }
       case 'sign_read': {
         const signId = this.sanitize(event.signId || '');
-        await this.engine.assertFact(`sign_read(player, ${signId})`);
+        await this.assertPlayerFact(`sign_read(player, ${signId})`);
         break;
       }
       case 'object_examined': {
         const objName = this.sanitize(event.objectName || '');
-        await this.engine.assertFact(`object_examined(player, ${objName})`);
+        await this.assertPlayerFact(`object_examined(player, ${objName})`);
         break;
       }
       case 'object_identified': {
         const objName = this.sanitize(event.objectName || '');
-        await this.engine.assertFact(`object_identified(player, ${objName})`);
+        await this.assertPlayerFact(`object_identified(player, ${objName})`);
         break;
       }
       case 'object_pointed_and_named': {
         const objName = this.sanitize(event.objectName || '');
-        await this.engine.assertFact(`object_pointed_named(player, ${objName})`);
+        await this.assertPlayerFact(`object_pointed_named(player, ${objName})`);
         break;
       }
       case 'writing_submitted': {
         const wordCount = (event as any).wordCount || 0;
-        await this.engine.assertFact(`response_written(player, ${wordCount})`);
+        await this.assertPlayerFact(`response_written(player, ${wordCount})`);
         break;
       }
       case 'photo_taken': {
         const subject = this.sanitize((event as any).subjectName || '');
-        await this.engine.assertFact(`photo_taken(player, ${subject})`);
+        await this.assertPlayerFact(`photo_taken(player, ${subject})`);
         break;
       }
       case 'food_ordered': {
         const item = this.sanitize((event as any).itemName || '');
-        await this.engine.assertFact(`food_ordered(player, ${item})`);
+        await this.assertPlayerFact(`food_ordered(player, ${item})`);
         break;
       }
       case 'price_haggled': {
         const item = this.sanitize((event as any).itemName || '');
-        await this.engine.assertFact(`price_haggled(player, ${item})`);
+        await this.assertPlayerFact(`price_haggled(player, ${item})`);
         break;
       }
       case 'gift_given': {
         const npc = this.sanitize((event as any).npcId || '');
         const item = this.sanitize((event as any).itemName || '');
-        await this.engine.assertFact(`gift_given(player, ${npc}, ${item})`);
+        await this.assertPlayerFact(`gift_given(player, ${npc}, ${item})`);
         break;
       }
       case 'translation_attempt': {
         if ((event as any).isCorrect) {
-          await this.engine.assertFact(`translation_completed(player, correct)`);
+          await this.assertPlayerFact(`translation_completed(player, correct)`);
         }
         break;
       }
@@ -431,46 +476,42 @@ export class GamePrologEngine {
         const score = Math.round((event as any).score ?? 0);
         const timestamp = Math.floor(Date.now() / 1000);
         // Store the full score for analytics and quest evaluation
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `pronunciation_score(player, ${phrase}, ${score}, ${timestamp})`
         );
         if ((event as any).passed) {
-          await this.engine.assertFact(`pronunciation_passed(player, ${phrase})`);
+          await this.assertPlayerFact(`pronunciation_passed(player, ${phrase})`);
         }
         break;
       }
       case 'reading_completed': {
         const textId = this.sanitize((event as any).textId || '');
-        await this.engine.assertFact(`text_read(player, ${textId})`);
+        await this.assertPlayerFact(`text_read(player, ${textId})`);
         break;
       }
       case 'questions_answered': {
         const textId = this.sanitize((event as any).textId || '');
-        await this.engine.assertFact(`comprehension_done(player, ${textId})`);
+        await this.assertPlayerFact(`comprehension_done(player, ${textId})`);
         break;
       }
       case 'conversation_turn': {
         // Track aggregate conversation turns for quest progress
         const npcId = this.sanitize((event as any).npcId || 'unknown');
         const total = (event as any).totalTurns || 1;
-        try {
-          await this.engine.retractFact(`npc_conversation_turns(player, ${npcId}, _)`);
-        } catch { /* may not exist */ }
-        await this.engine.assertFact(`npc_conversation_turns(player, ${npcId}, ${total})`);
+        await this.retractPlayerFactByPattern('npc_conversation_turns', 'player', npcId);
+        await this.assertPlayerFact(`npc_conversation_turns(player, ${npcId}, ${total})`);
         break;
       }
       case 'conversation_turn_counted': {
         const npcId = this.sanitize((event as any).npcId || 'unknown');
         const total = (event as any).totalTurns || 1;
-        try {
-          await this.engine.retractFact(`npc_conversation_turns(player, ${npcId}, _)`);
-        } catch { /* may not exist */ }
-        await this.engine.assertFact(`npc_conversation_turns(player, ${npcId}, ${total})`);
+        await this.retractPlayerFactByPattern('npc_conversation_turns', 'player', npcId);
+        await this.assertPlayerFact(`npc_conversation_turns(player, ${npcId}, ${total})`);
         break;
       }
       case 'physical_action_completed': {
         const actionType = this.sanitize((event as any).actionType || '');
-        await this.engine.assertFact(`physical_action_done(player, ${actionType})`);
+        await this.assertPlayerFact(`physical_action_done(player, ${actionType})`);
         break;
       }
       case 'npc_exam_completed': {
@@ -479,10 +520,10 @@ export class GamePrologEngine {
         const maxPoints = (event as any).totalMaxPoints ?? 0;
         const cefrLevel = this.sanitize((event as any).cefrLevel || 'a1');
         const timestamp = Math.floor(Date.now() / 1000);
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `assessment_result(player, ${examId}, ${score}, ${maxPoints}, ${cefrLevel}, ${timestamp})`
         );
-        await this.engine.assertFact(
+        await this.assertPlayerFact(
           `player_cefr_level(player, ${cefrLevel})`
         );
         break;
@@ -491,8 +532,205 @@ export class GamePrologEngine {
         return; // No re-evaluation needed for unhandled events
     }
 
-    // Re-evaluate active quest postconditions after fact assertion
+    // Execute action effects — query action_effect/2 for the action that just fired
+    const actionId = this.deriveActionId(event);
+    if (actionId) {
+      await this.executeActionEffects(actionId, event);
+    }
+
+    // Re-evaluate active quest postconditions after fact + effect assertion
     await this.reevaluateQuests();
+  }
+
+  // ── Action Effect Execution ──────────────────────────────────────────────
+
+  /**
+   * Map a game event to the action ID whose effects should fire.
+   * Returns null if the event doesn't correspond to a defined action.
+   */
+  private deriveActionId(event: GameEvent): string | null {
+    switch (event.type) {
+      case 'conversational_action_completed':
+        return (event as any).action || null;
+      case 'npc_talked':
+        return 'talk_to_npc';
+      case 'item_collected':
+        return 'collect_item';
+      case 'item_delivered':
+        return 'deliver_item';
+      case 'physical_action_completed': {
+        const actionType = (event as any).actionType || '';
+        // Physical actions map directly: fishing, mining, cooking, etc.
+        return actionType || null;
+      }
+      case 'object_examined':
+        return 'examine_object';
+      case 'object_identified':
+        return 'identify_object';
+      case 'gift_given':
+        return 'give_gift';
+      case 'item_purchased':
+        return 'buy_item';
+      case 'item_sold':
+        return 'sell_item';
+      case 'item_used':
+        return 'use_item';
+      case 'text_found':
+        return 'read_sign';
+      case 'text_read':
+        return 'read_text';
+      case 'food_ordered':
+        return 'order_food';
+      case 'price_haggled':
+        return 'haggle_price';
+      case 'enemy_defeated':
+        return 'defeat_enemy';
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Query action_effect/2 for the given action and execute each effect.
+   * Effects are Prolog terms like:
+   *   - assert(met(Actor, Target))      → assert a new fact
+   *   - retract(has_item(Actor, X, _))  → retract a fact
+   *   - modify_disposition(T, A, 10)    → emit disposition change event
+   *   - modify_energy(Actor, -5)        → emit energy change event
+   *   - modify_gold(Actor, 10)          → emit gold change event
+   *   - modify_health(Target, -10)      → emit health change event
+   *   - modify_xp(Actor, skill, 5)      → emit XP event
+   */
+  private async executeActionEffects(actionId: string, event: GameEvent): Promise<void> {
+    const sanitizedAction = this.sanitize(actionId);
+    let effects: any[];
+    try {
+      effects = await this.engine.query(
+        `action_effect(${sanitizedAction}, Effect)`,
+        20, // max 20 effects per action
+      );
+    } catch {
+      return; // No effects defined or query failed
+    }
+
+    if (!effects || effects.length === 0) return;
+
+    const actor = 'player';
+    const target = (event as any).npcId || (event as any).target || '';
+
+    for (const result of effects) {
+      const effectStr = String(result.Effect || '');
+      if (!effectStr) continue;
+
+      try {
+        await this.interpretEffect(effectStr, actor, target);
+      } catch (err) {
+        console.warn(`[GamePrologEngine] Failed to execute effect "${effectStr}" for action ${actionId}:`, err);
+      }
+    }
+  }
+
+  /**
+   * Interpret and execute a single Prolog effect term.
+   * Binds Actor/Target variables to actual values before execution.
+   */
+  private async interpretEffect(effect: string, actor: string, target: string): Promise<void> {
+    // Bind Actor/Target variables
+    let bound = effect
+      .replace(/\bActor\b/g, actor)
+      .replace(/\bTarget\b/g, target ? `'${target}'` : 'unknown');
+
+    // assert(Fact) → assert the inner fact
+    const assertMatch = bound.match(/^assert\((.+)\)$/);
+    if (assertMatch) {
+      const fact = assertMatch[1];
+      await this.assertPlayerFact(fact);
+      return;
+    }
+
+    // retract(Fact) → retract the inner fact
+    const retractMatch = bound.match(/^retract\((.+)\)$/);
+    if (retractMatch) {
+      const fact = retractMatch[1];
+      try {
+        await this.retractPlayerFact(fact);
+      } catch {
+        // Retract may fail if fact doesn't exist — that's OK
+      }
+      return;
+    }
+
+    // modify_disposition(Target, Actor, Amount) → emit event
+    const dispMatch = bound.match(/^modify_disposition\(([^,]+),\s*([^,]+),\s*(-?\d+)\)$/);
+    if (dispMatch) {
+      const [, npcId, , amount] = dispMatch;
+      const cleanNpc = npcId.replace(/'/g, '');
+      if (this.eventBus) {
+        this.eventBus.emit({
+          type: 'npc_disposition_changed' as any,
+          npcId: cleanNpc,
+          delta: parseInt(amount, 10),
+        });
+      }
+      // Also assert the disposition change as a fact
+      await this.assertPlayerFact(
+        `disposition_change(${this.sanitize(cleanNpc)}, player, ${amount})`
+      );
+      return;
+    }
+
+    // modify_energy(Actor, Amount) → emit event
+    const energyMatch = bound.match(/^modify_energy\([^,]+,\s*(-?\d+)\)$/);
+    if (energyMatch) {
+      if (this.eventBus) {
+        this.eventBus.emit({
+          type: 'player_energy_changed' as any,
+          delta: parseInt(energyMatch[1], 10),
+        });
+      }
+      return;
+    }
+
+    // modify_gold(Actor/Target, Amount)
+    const goldMatch = bound.match(/^modify_gold\([^,]+,\s*(-?\d+)\)$/);
+    if (goldMatch) {
+      if (this.eventBus) {
+        this.eventBus.emit({
+          type: 'player_gold_changed' as any,
+          delta: parseInt(goldMatch[1], 10),
+        });
+      }
+      return;
+    }
+
+    // modify_health(Target, Amount)
+    const healthMatch = bound.match(/^modify_health\([^,]+,\s*(-?\d+)\)$/);
+    if (healthMatch) {
+      if (this.eventBus) {
+        this.eventBus.emit({
+          type: 'health_changed' as any,
+          targetId: target,
+          delta: parseInt(healthMatch[1], 10),
+        });
+      }
+      return;
+    }
+
+    // modify_xp(Actor, Skill, Amount) and modify_skill_xp(Actor, Skill, Amount)
+    const xpMatch = bound.match(/^modify_(?:skill_)?xp\([^,]+,\s*(\w+),\s*(\d+)\)$/);
+    if (xpMatch) {
+      if (this.eventBus) {
+        this.eventBus.emit({
+          type: 'xp_gained' as any,
+          skill: xpMatch[1],
+          amount: parseInt(xpMatch[2], 10),
+        });
+      }
+      return;
+    }
+
+    // Unrecognized effect — log for debugging
+    console.debug(`[GamePrologEngine] Unhandled effect: ${effect} (bound: ${bound})`);
   }
 
   /**
@@ -596,6 +834,9 @@ export class GamePrologEngine {
   }): Promise<void> {
     this.engine.clear();
     this.itemQuantities.clear();
+    this.playerFacts.clear();
+    this.completedObjectives.clear();
+    this.completedQuests.clear();
 
     // If server provided pre-generated Prolog content, load it
     if (data.content) {
@@ -1309,11 +1550,221 @@ sumlist([H|T], S) :- sumlist(T, S1), S is S1 + H.
     }
   }
 
+  // ── Player Fact Persistence ────────────────────────────────────────────────
+
+  /**
+   * Get all player-asserted facts (gameplay facts only, not world data).
+   * Returns an array of Prolog fact strings with trailing periods.
+   * Used by the save system to persist player state.
+   */
+  getPlayerFacts(): string[] {
+    return Array.from(this.playerFacts);
+  }
+
+  /**
+   * Restore player facts from a saved array.
+   * Call after initialize() to restore gameplay state from a save file.
+   */
+  async restorePlayerFacts(facts: string[]): Promise<void> {
+    if (!this.initialized) return;
+
+    for (const factWithDot of facts) {
+      // Remove trailing period for assertion
+      const fact = factWithDot.endsWith('.') ? factWithDot.slice(0, -1) : factWithDot;
+      if (!fact.trim()) continue;
+
+      try {
+        await this.engine.assertFact(fact);
+        // Track in playerFacts so subsequent saves include them
+        this.playerFacts.add(`${fact}.`);
+
+        // Rebuild itemQuantities map from has_item/3 facts
+        const hasItemMatch = fact.match(/^has_item\(player,\s*(\S+),\s*(\d+)\)$/);
+        if (hasItemMatch) {
+          this.itemQuantities.set(hasItemMatch[1], parseInt(hasItemMatch[2], 10));
+        }
+      } catch (err) {
+        console.warn('[GamePrologEngine] Failed to restore player fact:', fact, err);
+      }
+    }
+
+    console.log(`[GamePrologEngine] Restored ${facts.length} player facts from save`);
+  }
+
+  /**
+   * Reconstruct Prolog facts from structured save state data.
+   * This is the primary restore path (Option 3): derive Prolog facts from
+   * the JSON save state, ensuring consistency between game state and Prolog.
+   *
+   * Call after initialize() and after the game has restored JS state
+   * (inventory, quests, etc.) from the save file.
+   */
+  async restoreFromSaveState(state: GameSaveState): Promise<void> {
+    if (!this.initialized) return;
+
+    let restoredCount = 0;
+
+    // 1. Reconstruct inventory facts from structured save data
+    if (state.player?.inventory) {
+      for (const item of state.player.inventory) {
+        const name = this.sanitize(item.name);
+        const qty = item.quantity || 1;
+        await this.assertPlayerFact(`has(player, ${name})`);
+        await this.assertPlayerFact(`has_item(player, ${name}, ${qty})`);
+        this.itemQuantities.set(name, qty);
+        // Taxonomy
+        if (item.type) {
+          await this.assertPlayerFact(`item_type(${name}, ${this.sanitize(item.type)})`);
+        }
+        if (item.category) {
+          await this.assertPlayerFact(`item_category(${name}, ${this.sanitize(item.category)})`);
+          await this.assertPlayerFact(`item_is_a(${name}, ${this.sanitize(item.category)})`);
+        }
+        if (item.baseType) {
+          await this.assertPlayerFact(`item_base_type(${name}, ${this.sanitize(item.baseType)})`);
+          await this.assertPlayerFact(`item_is_a(${name}, ${this.sanitize(item.baseType)})`);
+        }
+        if (item.material) {
+          await this.assertPlayerFact(`item_material(${name}, ${this.sanitize(item.material)})`);
+        }
+        if (item.rarity) {
+          await this.assertPlayerFact(`item_rarity(${name}, ${this.sanitize(item.rarity)})`);
+        }
+        if (item.equipped && item.equipSlot) {
+          await this.assertPlayerFact(`equipped(player, ${name}, ${this.sanitize(item.equipSlot)})`);
+        }
+        restoredCount++;
+      }
+    }
+
+    // 2. Reconstruct quest facts from structured save data
+    if (state.questActiveState?.quests) {
+      for (const [questId, questState] of Object.entries(state.questActiveState.quests)) {
+        const qId = this.sanitize(questId);
+        if (questState.status === 'active') {
+          await this.assertPlayerFact(`quest_active(player, ${qId})`);
+        } else if (questState.status === 'completed') {
+          await this.assertPlayerFact(`quest_completed(player, ${qId})`);
+        } else if (questState.status === 'failed') {
+          await this.assertPlayerFact(`quest_failed(player, ${qId})`);
+        }
+        restoredCount++;
+      }
+    }
+
+    // 3. Reconstruct conversation facts from structured save data
+    if (state.conversations) {
+      for (const conv of state.conversations) {
+        const npcId = this.sanitize(conv.npcId);
+        await this.assertPlayerFact(`talked_to(player, ${npcId}, ${conv.turnCount})`);
+        await this.assertPlayerFact(`npc_conversation_turns(player, ${npcId}, ${conv.turnCount})`);
+        restoredCount++;
+      }
+    }
+
+    // 4. Reconstruct contact/NPC-met facts
+    if (state.contacts) {
+      for (const [npcId, contact] of Object.entries(state.contacts)) {
+        const sanitizedNpc = this.sanitize(npcId);
+        if (contact.conversationCount > 0) {
+          await this.assertPlayerFact(`talked_to(player, ${sanitizedNpc}, ${contact.conversationCount})`);
+        }
+        restoredCount++;
+      }
+    }
+
+    // 5. Reconstruct reputation facts
+    if (state.reputationState?.entries) {
+      for (const entry of state.reputationState.entries) {
+        const entityId = this.sanitize(entry.entityId);
+        await this.assertPlayerFact(`reputation_change(player, ${entityId}, ${entry.score})`);
+        restoredCount++;
+      }
+    }
+
+    // 6. Reconstruct current location facts
+    if (state.currentZone) {
+      await this.assertPlayerFact(`visited(player, ${this.sanitize(state.currentZone.id)})`);
+      restoredCount++;
+    }
+
+    // 7. Reconstruct reading progress
+    if (state.readingProgress?.articles) {
+      for (const [articleId, entry] of Object.entries(state.readingProgress.articles)) {
+        if (entry.read) {
+          await this.assertPlayerFact(`text_read(player, ${this.sanitize(articleId)})`);
+          restoredCount++;
+        }
+      }
+    }
+
+    // 8. Reconstruct CEFR level
+    if (state.player?.cefrLevel) {
+      await this.assertPlayerFact(`player_cefr_level(player, ${this.sanitize(state.player.cefrLevel)})`);
+      restoredCount++;
+    }
+
+    // 9. Restore additional player facts that have no structured equivalent
+    //    (defeated enemies, delivered items, discovered locations, puzzle progress,
+    //     conversational actions, language learning facts, romance history, etc.)
+    if (state.prologFacts) {
+      let additionalFacts: string[] = [];
+      try {
+        additionalFacts = JSON.parse(state.prologFacts);
+      } catch {
+        // Backward compat: old format was full KB text — ignore it
+        console.warn('[GamePrologEngine] Old prologFacts format detected, skipping raw KB import');
+      }
+      if (Array.isArray(additionalFacts)) {
+        for (const factWithDot of additionalFacts) {
+          const fact = factWithDot.endsWith('.') ? factWithDot.slice(0, -1) : factWithDot;
+          if (!fact.trim()) continue;
+          // Skip facts already reconstructed from structured data
+          if (this.playerFacts.has(`${fact}.`)) continue;
+          try {
+            await this.engine.assertFact(fact);
+            this.playerFacts.add(`${fact}.`);
+
+            // Rebuild itemQuantities from has_item/3
+            const hasItemMatch = fact.match(/^has_item\(player,\s*(\S+),\s*(\d+)\)$/);
+            if (hasItemMatch) {
+              this.itemQuantities.set(hasItemMatch[1], parseInt(hasItemMatch[2], 10));
+            }
+            restoredCount++;
+          } catch {
+            // Skip invalid facts silently
+          }
+        }
+      }
+    }
+
+    console.log(`[GamePrologEngine] Restored ${restoredCount} facts from save state`);
+
+    // Re-evaluate quest objectives after restoring all facts
+    await this.reevaluateQuests();
+  }
+
   /**
    * Export the current knowledge base as Prolog text.
+   * @deprecated Use getPlayerFacts() for save/load. This exports the ENTIRE KB
+   * including world data, which should not be persisted in save files.
    */
   exportKnowledgeBase(): string {
     return this.engine.export();
+  }
+
+  /**
+   * Import a previously exported knowledge base, restoring all gameplay facts.
+   * @deprecated Use restoreFromSaveState() or restorePlayerFacts() instead.
+   */
+  async importKnowledgeBase(program: string): Promise<boolean> {
+    try {
+      const result = await this.engine.import(program);
+      return result.success;
+    } catch (err) {
+      console.error('[GamePrologEngine] Failed to import KB:', err);
+      return false;
+    }
   }
 
   /**
@@ -1328,6 +1779,9 @@ sumlist([H|T], S) :- sumlist(T, S1), S is S1 + H.
     this.engine.clear();
     this.initialized = false;
     this.itemQuantities.clear();
+    this.playerFacts.clear();
+    this.completedObjectives.clear();
+    this.completedQuests.clear();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1369,6 +1823,42 @@ sumlist([H|T], S) :- sumlist(T, S1), S is S1 + H.
     // Assert new quantity (even if 0 — the has/2 retraction handles boolean presence)
     if (newQty > 0) {
       await this.engine.assertFact(`has_item(player, ${itemName}, ${newQty})`);
+    }
+  }
+
+  /**
+   * Update item quantity with player fact tracking (used in handleGameEvent).
+   */
+  private async updateItemQuantityTracked(itemName: string, delta: number): Promise<void> {
+    const oldQty = this.itemQuantities.get(itemName) || 0;
+    const newQty = Math.max(0, oldQty + delta);
+    this.itemQuantities.set(itemName, newQty);
+    await this.retractPlayerFactByPattern('has_item', 'player', itemName);
+    if (newQty > 0) {
+      await this.assertPlayerFact(`has_item(player, ${itemName}, ${newQty})`);
+    }
+  }
+
+  /**
+   * Assert item taxonomy facts with player tracking (used in handleGameEvent).
+   */
+  private async assertItemTaxonomyTracked(itemName: string, taxonomy: ItemTaxonomy): Promise<void> {
+    if (taxonomy.category) {
+      await this.assertPlayerFact(`item_category(${itemName}, ${this.sanitize(taxonomy.category)})`);
+      await this.assertPlayerFact(`item_is_a(${itemName}, ${this.sanitize(taxonomy.category)})`);
+    }
+    if (taxonomy.material) {
+      await this.assertPlayerFact(`item_material(${itemName}, ${this.sanitize(taxonomy.material)})`);
+    }
+    if (taxonomy.baseType) {
+      await this.assertPlayerFact(`item_base_type(${itemName}, ${this.sanitize(taxonomy.baseType)})`);
+      await this.assertPlayerFact(`item_is_a(${itemName}, ${this.sanitize(taxonomy.baseType)})`);
+    }
+    if (taxonomy.rarity) {
+      await this.assertPlayerFact(`item_rarity(${itemName}, ${this.sanitize(taxonomy.rarity)})`);
+    }
+    if (taxonomy.itemType) {
+      await this.assertPlayerFact(`item_is_a(${itemName}, ${this.sanitize(taxonomy.itemType)})`);
     }
   }
 
