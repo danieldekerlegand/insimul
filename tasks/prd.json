@@ -274,6 +274,85 @@
       "priority": 16,
       "passes": false,
       "notes": "Known details come from the conversation metadata extraction (background LLM call after each chat exchange). The extraction produces structured info about the NPC. This needs to accumulate in a persistent store rather than being ephemeral."
+    },
+    {
+      "id": "US-017",
+      "title": "Resolve quest objective placeholders to actual entity IDs",
+      "description": "As a player, quest objectives that reference {npc}, {location}, etc. should resolve to actual NPC names and location names so I know who to talk to and where to go.",
+      "acceptanceCriteria": [
+        "During quest seed generation, all {npc}, {npc_0}, {npc_1}, {location}, {location_0}, {destination} placeholders in objective descriptions are resolved to actual character names and location names from the world data",
+        "Objective npcId fields are populated with actual character IDs (not placeholder strings) so talk_to_npc matching works",
+        "Objective locationName fields are populated with actual location/settlement names so visit_location matching works",
+        "If a required NPC or location doesn't exist in the world, the quest is not generated (skip rather than create broken quest)",
+        "Quest descriptions also have placeholders resolved (e.g., 'Talk to {npc}' becomes 'Talk to Marie Robichaux')",
+        "The {targetLanguage} placeholder is resolved to the world's target language name",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "The quest seed generator creates quests with placeholder strings. These need to be resolved during seedQuests() or distributeRadiantQuests() using the world's character and settlement data. Check quest-seed-generator.ts and quest-assignment-engine.ts for where placeholders are inserted."
+    },
+    {
+      "id": "US-018",
+      "title": "Wire restaurant food ordering into quest completion",
+      "description": "As a player, when I order food at a restaurant NPC, the food_ordered event should fire so order_food quest objectives complete.",
+      "acceptanceCriteria": [
+        "Verify that restaurant/food businesses exist in the generated world (Tavern, Café, etc.)",
+        "When the player interacts with a food merchant NPC and places an order, the food_ordered event fires with itemName, merchantId, and businessType",
+        "The order_food objective type in quests like 'Lunch Order' and 'Dinner Party' progresses when food_ordered fires",
+        "If no food ordering system exists, add a basic one: player opens shop at food business, selects food item, event fires",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": "Check if NPCBusinessInteractionSystem has a food ordering flow. The event type food_ordered is defined in QuestCompletionEngine but may not be emitted by any game system. Also check if food items exist in merchant inventories."
+    },
+    {
+      "id": "US-019",
+      "title": "Wire merchant haggling into quest completion",
+      "description": "As a player, when I negotiate prices with a merchant in the target language, the price_haggled event should fire so haggle_price quest objectives complete.",
+      "acceptanceCriteria": [
+        "When the player uses bargaining/price-related words during merchant conversation, the price_haggled event fires",
+        "The haggle_price objective type in quests like 'Bargain Hunter' and 'Haggling' progresses when price_haggled fires",
+        "The conversation system detects haggling intent (price words, negotiation phrases) and emits the event",
+        "If no haggling detection exists, add keyword matching for price/number words in merchant conversations",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "The price_haggled event is expected by the quest system but may not be emitted during normal merchant interactions. Check if the conversation metadata extraction or topic tagging detects haggling intent."
+    },
+    {
+      "id": "US-020",
+      "title": "Wire navigation waypoint system into quest completion",
+      "description": "As a player, when I follow directions to reach waypoints, the direction_step_completed event should fire so follow_directions and navigate_language quest objectives complete.",
+      "acceptanceCriteria": [
+        "When the player reaches a waypoint marker during a navigation quest, the direction_step_completed event fires",
+        "The follow_directions and navigate_language objective types progress when direction_step_completed fires",
+        "Navigation quests place visible waypoint markers in the world that the player can walk to",
+        "Reaching a waypoint triggers the next direction step (or completes the objective if it was the last one)",
+        "If no waypoint system exists, add basic proximity-trigger waypoints that fire the event when the player walks within 3m",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": "Check QuestWaypointManager and QuestHotspotManager for existing waypoint infrastructure. The direction_step_completed event may already fire from these systems."
+    },
+    {
+      "id": "US-021",
+      "title": "Make chapter meta-objectives trackable with clear progress indicators",
+      "description": "As a player, I need to understand what counts toward chapter meta-objectives (vocabulary, conversation, grammar) and see my progress.",
+      "acceptanceCriteria": [
+        "Chapter quest objectives with type 'vocabulary', 'conversation', or 'grammar' show a progress counter in the quest tracker HUD (e.g., '2/5 vocabulary activities')",
+        "The quest tracker tooltip or description explains what counts: vocabulary = any word learned or used, conversation = any NPC chat opened, grammar = any positive grammar feedback",
+        "Progress increments visibly when the player performs the relevant action (toast or HUD update)",
+        "Each meta-objective has a reasonable required count based on the chapter's difficulty level",
+        "The collect_text meta-objective shows how many texts have been found vs required",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "The meta-objective mappings (vocabulary→vocabulary_usage, conversation→npc_talked, grammar→grammar_demonstrated) already work technically. This story is about making them visible and understandable to the player through the quest tracker UI."
     }
   ]
 }

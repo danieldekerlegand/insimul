@@ -177,6 +177,25 @@ Past NPC conversations are tracked by the LanguageProgressTracker but not includ
 ### US-016: Persist known NPC details
 Facts learned about NPCs during conversation (extracted by the background metadata LLM call) are ephemeral. Add a `npcKnownDetails` field to `GameSaveState` so the Contacts tab shows previously-learned facts after reload. Cap at 20 facts per NPC.
 
+## Quest Completability Fixes (US-017 — US-021)
+
+Analysis of all 116 quests in the test world revealed that while every objective type now has a mapped event handler, several practical issues prevent players from actually completing certain quests.
+
+### US-017: Resolve quest objective placeholders to actual entity IDs
+Many quest objectives contain unresolved placeholders like `{npc}`, `{location}`, `{targetLanguage}`. These must be resolved to actual character names, location names, and the world's target language during quest generation. Without resolution, objectives like "Talk to {npc}" give the player no actionable information, and `npcId` matching fails because the objective has a placeholder instead of a real ID.
+
+### US-018: Wire restaurant food ordering into quest completion
+Quests like "Lunch Order" and "Dinner Party" have `order_food` objectives, but the `food_ordered` event may not actually fire during gameplay. Verify food businesses exist in the world, that their merchants have food inventories, and that the ordering interaction emits the expected event.
+
+### US-019: Wire merchant haggling into quest completion
+Quests like "Bargain Hunter" and "Haggling" have `haggle_price` objectives, but the `price_haggled` event requires the conversation system to detect bargaining intent (price words, negotiation phrases). Verify this detection exists or add keyword matching for price/number words in merchant conversations.
+
+### US-020: Wire navigation waypoint system into quest completion
+Quests like "Follow the Leader" and "Direction Master" have `follow_directions` objectives requiring the player to reach waypoints. The `direction_step_completed` event needs a waypoint system that places visible markers and triggers events on proximity. Check if QuestWaypointManager provides this or if it needs to be added.
+
+### US-021: Make chapter meta-objectives trackable with clear progress indicators
+Chapter quests (Chapter 1–6) use meta-objective types (`vocabulary`, `conversation`, `grammar`, `collect_text`) that increment on any relevant activity. Players need to see progress counters and understand what counts toward each objective. The quest tracker HUD should show "2/5 vocabulary activities" rather than an opaque progress bar.
+
 ## Non-Goals
 
 - Not changing the assessment UI components (reading/writing/listening modals remain as-is)
