@@ -13497,7 +13497,12 @@ export class BabylonGame {
         this.playerController.addObstructionExclusion(npcMesh);
       }
 
-      // Pause ambient NPC conversations so their TTS doesn't overlap with the player's chat
+      // Cancel any active NPC audio (greetings, ambient conversations) so player chat takes priority
+      this.npcProximitySpeechSystem?.cancelActiveGreeting();
+      this.ambientConversationManager?.cancelAllActive();
+      this.npcAudioLock.forceRelease();
+
+      // Pause ambient NPC conversations so no new ones start during chat
       this.ambientConversationManager?.pause();
 
       // Switch to first-person view for conversation immersion

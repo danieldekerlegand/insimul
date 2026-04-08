@@ -166,6 +166,13 @@ export class NPCAmbientConversationManager {
   public pause(): void { this._paused = true; }
   public resume(): void { this._paused = false; }
 
+  /** Cancel all active ambient conversations (abort LLM streams, stop TTS, release lock). */
+  public cancelAllActive(): void {
+    for (const convId of Array.from(this.activeConversations.keys())) {
+      this.endConversation(convId);
+    }
+  }
+
   public start(): void {
     if (this.checkTimer !== null) return;
     this.checkTimer = window.setInterval(() => this.tick(), this.checkIntervalMs);
