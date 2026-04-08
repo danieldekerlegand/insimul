@@ -25,6 +25,9 @@ public:
                         const TArray<TPair<FVector, FVector>>& RoadSegments,
                         FVector InWorldCenter);
 
+    /** Return all tree ISMC components for external cloning (e.g., grove lots). */
+    TArray<UInstancedStaticMeshComponent*> GetTreeTemplates() const;
+
 private:
     UPROPERTY(VisibleAnywhere) UInstancedStaticMeshComponent* TreeTrunkISMC;
     UPROPERTY(VisibleAnywhere) UInstancedStaticMeshComponent* TreeCanopyISMC;

@@ -221,6 +221,16 @@ void AProceduralNatureGenerator::GenerateNature(int32 TerrainSize, int32 Seed,
         TreesPlaced, RocksPlaced, FlowersPlaced, ScatterRadius);
 }
 
+TArray<UInstancedStaticMeshComponent*> AProceduralNatureGenerator::GetTreeTemplates() const
+{
+    TArray<UInstancedStaticMeshComponent*> Templates;
+    if (TreeTrunkISMC) Templates.Add(TreeTrunkISMC);
+    if (TreeCanopyISMC) Templates.Add(TreeCanopyISMC);
+    if (PineCanopyISMC) Templates.Add(PineCanopyISMC);
+    if (PalmTrunkISMC) Templates.Add(PalmTrunkISMC);
+    return Templates;
+}
+
 bool AProceduralNatureGenerator::IsNearBuilding(const FVector& Pos, const TArray<FVector>& Buildings, float MinDist) const
 {
     float MinDistSq = MinDist * MinDist;

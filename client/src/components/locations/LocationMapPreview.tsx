@@ -985,14 +985,14 @@ export function LocationMapPreview({
         const bc = lot.building?.buildingCategory?.toLowerCase();
         const biz = bizByLot.get(lot.id);
         const res = resByLot.get(lot.id);
-        const isPark = ['park', 'forest', 'cemetery', 'garden'].includes(lt);
+        const isPark = ['park', 'grove', 'cemetery', 'garden'].includes(lt);
         const isBusiness = !isPark && (bc === 'business' || !!biz);
         const isResidence = !isPark && (bc === 'residence' || !!res);
         const buildingType = isPark ? 'park' : isBusiness ? 'business' : isResidence ? 'residence' : 'vacant';
 
         const parkColors: Record<string, BABYLON.Color3> = {
           park: new BABYLON.Color3(0.45, 0.55, 0.35),     // warm sage — town square
-          forest: new BABYLON.Color3(0.15, 0.45, 0.15),    // deep green — grove
+          grove: new BABYLON.Color3(0.15, 0.45, 0.15),     // deep green — grove
           cemetery: new BABYLON.Color3(0.4, 0.4, 0.35),    // muted stone — cemetery
           garden: new BABYLON.Color3(0.35, 0.55, 0.25),    // bright green — garden
         };
@@ -1030,7 +1030,7 @@ export function LocationMapPreview({
           lotPlaneMat.diffuseColor = parkGroundColor;
           lotPlaneMat.alpha = 0.6;
 
-          if (lt === 'forest' || lt === 'garden') {
+          if (lt === 'grove' || lt === 'garden') {
             // Forest/garden: dense trees
             const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
             for (let ti = 0; ti < treeCount; ti++) {
@@ -1107,7 +1107,7 @@ export function LocationMapPreview({
           parkLabelAnchor.isVisible = false;
           tagMesh(parkLabelAnchor, 'labels');
           const labelText = lot.name || lot.address || lt.charAt(0).toUpperCase() + lt.slice(1);
-          const labelColor = lt === 'cemetery' ? '#A0A0A0' : lt === 'forest' ? '#2ECC71' : '#50FA7B';
+          const labelColor = lt === 'cemetery' ? '#A0A0A0' : lt === 'grove' ? '#2ECC71' : '#50FA7B';
           addLabel(gui, parkLabelAnchor, labelText, 10, labelColor, 15);
         } else {
           // Building box using real dimensions
@@ -2140,7 +2140,7 @@ async function buildSettlementView(
     const biz = bizByLot.get(lot.id);
     const res = resByLot.get(lot.id);
 
-    const isPark = ['park', 'forest', 'cemetery', 'garden'].includes(lt);
+    const isPark = ['park', 'grove', 'cemetery', 'garden'].includes(lt);
     const isBusiness = !isPark && (bc === 'business' || !!biz);
     const isResidence = !isPark && (bc === 'residence' || !!res);
 
@@ -2214,7 +2214,7 @@ async function buildSettlementView(
       lotPlaneMat.diffuseColor = parkGroundColor;
       lotPlaneMat.alpha = 0.6;
 
-      if (lt === 'forest' || lt === 'garden') {
+      if (lt === 'grove' || lt === 'garden') {
         // Trees for forest/garden
         const treeCount = Math.max(3, Math.floor((scaledW * scaledD) / 2));
         for (let ti = 0; ti < treeCount; ti++) {
@@ -2284,7 +2284,7 @@ async function buildSettlementView(
       labelAnchor.isVisible = false;
       tagMesh(labelAnchor, 'labels');
       const labelText = lot.name || lot.address || lt.charAt(0).toUpperCase() + lt.slice(1);
-      const labelColor = lt === 'cemetery' ? '#A0A0A0' : lt === 'forest' ? '#2ECC71' : '#50FA7B';
+      const labelColor = lt === 'cemetery' ? '#A0A0A0' : lt === 'grove' ? '#2ECC71' : '#50FA7B';
       addLabel(gui, labelAnchor, labelText, 10, labelColor, 15);
     } else if (prototype && buildingType !== 'vacant') {
       // Create parent mesh at the lot position

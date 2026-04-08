@@ -118,21 +118,7 @@ export function createTownSquare(scene: Scene, options: TownSquareOptions): Town
 
   const groundY = sampleHeight(squareCenterX, squareCenterZ);
 
-  // --- Ground plane (rectangular to match block shape) ---
-  const ground = MeshBuilder.CreateGround(
-    `town_square_ground_${id}`,
-    { width: halfW * 2 * 0.95, height: halfD * 2 * 0.95 },
-    scene,
-  );
-  ground.position = new Vector3(0, groundY + 0.12, 0);
-  ground.parent = root;
-  ground.isPickable = false;
-
-  const groundMat = new StandardMaterial(`town_square_ground_mat_${id}`, scene);
-  groundMat.diffuseColor = theme.groundColor;
-  groundMat.specularColor = Color3.Black();
-  ground.material = groundMat;
-  meshes.push(ground);
+  // No custom ground plane — the park uses the same terrain as the rest of the settlement.
 
   // --- Central feature ---
   const featureMeshes = createCentralFeature(scene, id, theme, groundY);

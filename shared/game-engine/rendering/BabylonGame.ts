@@ -2161,6 +2161,53 @@ export class BabylonGame {
   }
 
   /**
+   * Place a tree at a position using asset collection models if available,
+   * falling back to procedural geometry. Used for grove/garden lots.
+   */
+  private placeAssetTreeAtPosition(scene: Scene, position: Vector3, settlementId: string, rng: () => number): void {
+    // Gather all available tree templates from the nature generator
+    const templates = this.natureGenerator?.getTreeTemplates() ?? [];
+
+    if (templates.length === 0) {
+      // No asset models loaded — fall back to procedural tree
+      this.placeTreeAtPosition(scene, position, settlementId);
+      return;
+    }
+
+    const chosen = templates[Math.floor(rng() * templates.length)];
+    const scale = 0.8 + rng() * 0.4;
+    const treeId = `grove_tree_${settlementId}_${Math.random().toString(36).slice(2, 6)}`;
+
+    if (chosen.getTotalVertices() === 0 && chosen.getChildMeshes().length > 0) {
+      // glTF root — use instantiateHierarchy
+      const root = chosen.instantiateHierarchy(
+        null,
+        undefined,
+        (source, clone) => { clone.name = `${source.name}_${treeId}`; },
+      );
+      if (root) {
+        root.position = position;
+        root.rotation.y = rng() * Math.PI * 2;
+        root.scaling = new Vector3(scale, scale, scale);
+        root.setEnabled(true);
+        root.getChildMeshes().forEach(m => {
+          m.setEnabled(true);
+          m.isPickable = false;
+        });
+        this.worldPropMeshes.push(root as AbstractMesh);
+      }
+    } else if (chosen.getTotalVertices() > 0) {
+      // Single-mesh — use instancing
+      const inst = chosen.createInstance(treeId);
+      inst.position = position;
+      inst.rotation.y = rng() * Math.PI * 2;
+      inst.scaling = new Vector3(scale, scale, scale);
+      inst.isPickable = false;
+      this.worldPropMeshes.push(inst);
+    }
+  }
+
+  /**
    * Place a simple procedural tree at a position (used for park lots in the town square block).
    */
   private placeTreeAtPosition(scene: Scene, position: Vector3, settlementId: string): void {
@@ -2312,7 +2359,7 @@ export class BabylonGame {
       textPlane.position = new Vector3(
         groundPos.x,
         groundPos.y + STONE_HEIGHT / 2,
-        groundPos.z
+        groundPos.z + STONE_DEPTH / 2 + 0.01  // Offset to front face of headstone
       );
       textPlane.material = textMat;
       textPlane.isPickable = false;
@@ -5619,10 +5666,12 @@ export class BabylonGame {
 
 
         // Calculate building count based on population and actual building data
+        const specialLotTypes = new Set(['park', 'grove', 'cemetery', 'garden']);
+        const buildableLotCount = lots.filter((l: any) => !specialLotTypes.has(l.lotType)).length;
         const buildingCount = Math.max(
           WorldScaleManager.getBuildingCount(scaledSettlement.population),
           businesses.length + residences.length,
-          lots.length,
+          buildableLotCount,
           5 // Minimum 5 buildings per settlement
         );
 
@@ -5806,29 +5855,30 @@ export class BabylonGame {
             zone: l.zone,
           }));
 
-          // Place features at park lot positions based on their parkType
+          // Place trees at park lot positions (center block = town square park)
+          // Reserve one park lot for cemetery if there are deceased characters
           const genAllChars = this.characters || this.worldData?.characters || [];
           const genDeceasedChars = genAllChars.filter((c: any) =>
             (c.isAlive === false || c.status === 'deceased') &&
             (c.currentLocation === settlement.id || c.currentLocation === settlement.name)
           );
-          let genCemeteryPlaced = false;
+          let genCemeteryCenter: Vector3 | null = null;
+          let genCemeteryUsed = false;
+          const genCemW = BabylonGame.CEMETERY_WIDTH;
+          const genCemD = BabylonGame.CEMETERY_DEPTH;
           for (const parkLot of parkLots) {
             const parkPos = this.projectToGround(parkLot.position.x, parkLot.position.z);
-            if (parkLot.parkType === 'cemetery') {
-              // Place gravestones on cemetery lots (only once for the first lot)
-              if (!genCemeteryPlaced && genDeceasedChars.length > 0) {
-                genCemeteryPlaced = true;
-                this.placeCemeteryGravestones(scene, parkPos, genDeceasedChars, settlement.id);
-              }
-              // Cemetery lots get no trees
+            if (!genCemeteryUsed && genDeceasedChars.length > 0) {
+              genCemeteryUsed = true;
+              genCemeteryCenter = parkPos.clone();
+              this.placeCemeteryGravestones(scene, parkPos, genDeceasedChars, settlement.id);
+              // Don't place a tree on top of the cemetery lot
               continue;
             }
-            if (parkLot.parkType === 'town_square') {
-              // Town square lots are open space — no trees
+            // Skip trees that would overlap the cemetery
+            if (genCemeteryCenter && Math.abs(parkPos.x - genCemeteryCenter.x) < genCemW / 2 + 1 && Math.abs(parkPos.z - genCemeteryCenter.z) < genCemD / 2 + 1) {
               continue;
             }
-            // Grove lots (and any untyped park lots) get trees
             this.placeTreeAtPosition(scene, parkPos, settlement.id);
           }
         }
@@ -6200,7 +6250,7 @@ export class BabylonGame {
         }
 
         // Place trees/features at DB park lots (park, forest, cemetery, garden)
-        const parkLotTypes = new Set(['park', 'forest', 'cemetery', 'garden']);
+        const parkLotTypes = new Set(['park', 'grove', 'cemetery', 'garden']);
         const dbParkLots = lots.filter((l: any) =>
           parkLotTypes.has(l.lotType) && l.positionX != null && l.positionZ != null
         );
@@ -6229,23 +6279,23 @@ export class BabylonGame {
             // Cemetery: place gravestones
             cemeteryCenter = parkPos.clone();
             this.placeCemeteryGravestones(scene, parkPos, deceasedChars, settlement.id);
-          } else if (lt === 'forest' || lt === 'garden') {
-            // Forest/garden: dense trees
+          } else if (lt === 'grove' || lt === 'garden') {
+            // Grove/garden: dense trees (use asset models if available)
             const treeCount = Math.max(4, Math.floor((pw * pd) / 80));
             for (let ti = 0; ti < treeCount; ti++) {
-              const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
-              const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
+              const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.6;
+              const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.6;
               const treePos = this.projectToGround(tx, tz);
-              this.placeTreeAtPosition(scene, treePos, settlement.id);
+              this.placeAssetTreeAtPosition(scene, treePos, settlement.id, parkRng);
             }
           } else {
-            // Town square (park): place notice board area + scattered trees
+            // Town square (park): scattered trees using asset models
             const treeCount = Math.max(2, Math.floor((pw * pd) / 120));
             for (let ti = 0; ti < treeCount; ti++) {
               const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.8;
               const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.8;
               const treePos = this.projectToGround(tx, tz);
-              this.placeTreeAtPosition(scene, treePos, settlement.id);
+              this.placeAssetTreeAtPosition(scene, treePos, settlement.id, parkRng);
             }
           }
         }
@@ -6567,20 +6617,15 @@ export class BabylonGame {
           autoFillIdx++;
         }
 
-        // Generate street furniture (lamp posts, benches, barrels, etc.) near buildings
+        // Compute settlement center for prop placement (used after roads are built)
         const settlementCenterForProps = this.projectToGround(
           scaledSettlement.position.x,
           scaledSettlement.position.z
         );
-        this.generateStreetFurniture(
-          settlement.id,
-          settlementCenterForProps,
-          settlementBuildingPositions,
-          worldType || '',
-          sampleHeight
-        );
 
         // Generate intra-settlement streets using street network topology
+        // NOTE: Roads must be generated BEFORE street furniture so that
+        // isPointOnRoad checks have stored segments to test against.
         if (this.roadGenerator) {
           // Prefer street network graph if available (new procgen format)
           if (
@@ -6696,7 +6741,22 @@ export class BabylonGame {
           }
         }
 
+        // Generate street furniture (benches, barrels, etc.) near buildings.
+        // Must run AFTER road generation so isPointOnRoad checks work.
+        this.generateStreetFurniture(
+          settlement.id,
+          settlementCenterForProps,
+          settlementBuildingPositions,
+          worldType || '',
+          sampleHeight
+        );
+
         // Spawn outdoor containers near buildings (using real building geometry)
+        // Wire up road checker so containers don't spawn on streets
+        if (this.containerSpawnSystem && this.roadGenerator) {
+          const rg = this.roadGenerator;
+          this.containerSpawnSystem.setRoadChecker((x, z) => rg.isPointOnRoad(x, z, 4));
+        }
         if (this.containerSpawnSystem && this.interactionPrompt) {
           const buildingContexts: import('./ContainerSpawnSystem').BuildingContainerContext[] = [];
           for (const [buildingId, buildingInfo] of this.buildingData) {
@@ -6755,21 +6815,31 @@ export class BabylonGame {
         }
 
         // ── Town Square ──────────────────────────────────────────────────────
-        // Creates a decorated plaza at the settlement center with a central feature,
-        // benches, lamps, and structured positions for civic objects.
-        // Use the actual DB park lot position/dimensions so assets align with
-        // the park trees instead of a separately-computed grid position.
+        // Creates a decorated plaza using the park-type lots from the DB.
+        // The center block has 6 lots: 2 park (town square), 2 grove, 2 cemetery.
+        // The town square ground and furniture only cover the park-type lots;
+        // grove and cemetery lots are rendered by the DB park lot loop above.
         const sampleH = (x: number, z: number) => this.projectToGround(x, z).y;
-        const primaryParkLot = dbParkLots[0];
+
+        // Compute bounds from ALL park-type lots (lotType === 'park') so the
+        // town square covers both park lots, not just the first one.
+        const townSquareLots = dbParkLots.filter((l: any) => (l.lotType || 'park') === 'park');
         let parkBlockBounds: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
         let parkCenter = settlementCenter;
-        if (primaryParkLot) {
-          const px = primaryParkLot.positionX + lotOffsetX;
-          const pz = primaryParkLot.positionZ + lotOffsetZ;
-          const hw = (primaryParkLot.lotWidth || 30) / 2;
-          const hd = (primaryParkLot.lotDepth || 30) / 2;
-          parkBlockBounds = { minX: px - hw, maxX: px + hw, minZ: pz - hd, maxZ: pz + hd };
-          parkCenter = new Vector3(px, 0, pz);
+        if (townSquareLots.length > 0) {
+          let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+          for (const lot of townSquareLots) {
+            const px = lot.positionX + lotOffsetX;
+            const pz = lot.positionZ + lotOffsetZ;
+            const hw = (lot.lotWidth || 12) / 2;
+            const hd = (lot.lotDepth || 12) / 2;
+            minX = Math.min(minX, px - hw);
+            maxX = Math.max(maxX, px + hw);
+            minZ = Math.min(minZ, pz - hd);
+            maxZ = Math.max(maxZ, pz + hd);
+          }
+          parkBlockBounds = { minX, maxX, minZ, maxZ };
+          parkCenter = new Vector3((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
         } else {
           parkBlockBounds = getCenterBlockBounds(settlementCenter, scaledSettlement.radius);
         }
@@ -7010,8 +7080,8 @@ export class BabylonGame {
     // Validate nature positions against roads, sidewalks, and buildings
     natureGenerator.setPositionValidator((x, z) => {
       if (this.isPointInsideAnyBuilding(x, z)) return true;
-      // roadHalfWidth + 2m margin covers road surface + sidewalk buffer
-      if (this.roadGenerator?.isPointOnRoad(x, z, 2)) return true;
+      // roadHalfWidth + 4m margin covers road surface + sidewalk buffer
+      if (this.roadGenerator?.isPointOnRoad(x, z, 4)) return true;
       return false;
     });
     // Extra building proximity check for geological features (5m clearance)
@@ -7512,9 +7582,9 @@ export class BabylonGame {
       const propX = bldgPos.x + toCenter.x * 4 + perpX * sideOffset;
       const propZ = bldgPos.z + toCenter.z * 4 + perpZ * sideOffset;
 
-      // Skip if the prop would land inside a building or on a road
+      // Skip if the prop would land inside a building or on/near a road (4m margin covers sidewalk)
       if (this.isPointInsideAnyBuilding(propX, propZ)) continue;
-      if (this.roadGenerator?.isPointOnRoad(propX, propZ)) continue;
+      if (this.roadGenerator?.isPointOnRoad(propX, propZ, 4)) continue;
 
       const propY = sampleHeight(propX, propZ);
 

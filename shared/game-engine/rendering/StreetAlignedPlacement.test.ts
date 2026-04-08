@@ -80,38 +80,39 @@ console.log('\nBlock-based lot placement:');
   assertGreaterThan(buildingLots.length, 0, 'generates building lots');
   assertGreaterThan(parkLots.length, 0, 'generates park lots for the town square');
 
-  // Grid params for RADIUS=55: gridSize=6, blockCount=5 → 25 blocks, 6 special = 19 building blocks
-  // Each block gets 3x2 = 6 lots, so max = 19 * 6 = 114, capped at lotCount=100
+  // Grid params for RADIUS=55: gridSize=6, blockCount=5 → 25 blocks, 1 park = 24 building blocks
+  // Each block gets 3x2 = 6 lots, so max = 24 * 6 = 144, capped at lotCount=100
   assertLessThanOrEqual(buildingLots.length, 100, 'does not exceed requested lot count');
 }
 
-// ── Special zone blocks (2×3 cluster) ───────────────────────────────────────
+// ── Park block at bottom-center ─────────────────────────────────────────────
 
-console.log('\nSpecial zone blocks (town square, grove, cemetery):');
+console.log('\nPark block at bottom-center:');
 {
   const result = makeResult(100);
   const parkLots = result.lots.filter(l => l.zone === 'park');
   assertGreaterThan(parkLots.length, 0, 'has park lots');
 
-  // Verify all three parkType values are present
-  const townSquareLots = parkLots.filter(l => l.parkType === 'town_square');
-  const groveLots = parkLots.filter(l => l.parkType === 'grove');
-  const cemeteryLots = parkLots.filter(l => l.parkType === 'cemetery');
-  assertGreaterThan(townSquareLots.length, 0, 'has town square lots');
-  assertGreaterThan(groveLots.length, 0, 'has grove lots');
-  assertGreaterThan(cemeteryLots.length, 0, 'has cemetery lots');
-
-  // Special zone covers a 2×3 block area near the center
+  // Park should be at bottom-center (last row, center column)
   const bounds = getCenterBlockBounds(CENTER, RADIUS);
   assert(bounds !== null, 'center block bounds exist');
 
   if (bounds) {
-    // The zone center X should be near the settlement center X
-    const zoneCenterX = (bounds.minX + bounds.maxX) / 2;
-    const { spacing } = getGridParams(RADIUS);
+    const { gridSize, spacing, halfGrid } = getGridParams(RADIUS);
+    const blockCount = gridSize - 1;
+
+    // Verify bottom-center positioning: maxZ should be near the grid bottom edge
+    const gridMaxZ = CENTER.z - halfGrid + blockCount * spacing;
     assert(
-      Math.abs(zoneCenterX - CENTER.x) < spacing,
-      `special zone is near center column (centerX diff: ${Math.abs(zoneCenterX - CENTER.x).toFixed(1)})`,
+      Math.abs(bounds.maxZ - gridMaxZ) < 1,
+      `park block maxZ (${bounds.maxZ.toFixed(1)}) is at grid bottom edge (${gridMaxZ.toFixed(1)})`,
+    );
+
+    // Verify center-column: block center X should equal settlement center X
+    const blockCenterX = (bounds.minX + bounds.maxX) / 2;
+    assert(
+      Math.abs(blockCenterX - CENTER.x) < spacing,
+      `park block is in the center column (centerX diff: ${Math.abs(blockCenterX - CENTER.x).toFixed(1)})`,
     );
 
     // Park lots should all be inside the bounds
@@ -119,7 +120,7 @@ console.log('\nSpecial zone blocks (town square, grove, cemetery):');
       assert(
         lot.position.x >= bounds.minX && lot.position.x <= bounds.maxX &&
         lot.position.z >= bounds.minZ && lot.position.z <= bounds.maxZ,
-        `park lot at (${lot.position.x.toFixed(1)}, ${lot.position.z.toFixed(1)}) is inside special zone bounds`,
+        `park lot at (${lot.position.x.toFixed(1)}, ${lot.position.z.toFixed(1)}) is inside park bounds`,
       );
     }
   }

@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-07T20:45:59.133Z",
+  "lastUpdated": "2026-04-08T01:31:09.150Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -531,7 +531,7 @@
     {
       "path": "shared/game-engine/rendering/ProceduralNatureGenerator.ts",
       "description": "Biome-driven nature placement: 4 tree types, rocks, geological features, grass.",
-      "hash": "396b1115d76e3d35890cc980e0121fb653281246c27b1e557c1bd9ce171040fc",
+      "hash": "a16f203f8f9469fced7e4c33b0be70b0b1207f40501995861a0a7d22b91bf410",
       "engineMappings": [
         {
           "engine": "unity",

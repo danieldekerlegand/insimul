@@ -172,6 +172,12 @@ namespace Insimul.World
             SpawnFlowers(0.3f, preset.flowerColors);
         }
 
+        /// <summary>Return all registered tree template meshes for cloning.</summary>
+        public List<Mesh> GetTreeTemplates()
+        {
+            return new List<Mesh>(treeTemplates.Values);
+        }
+
         #region Template Mesh Building
 
         private void BuildTemplateMeshes()

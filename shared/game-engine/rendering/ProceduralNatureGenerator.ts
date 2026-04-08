@@ -1720,6 +1720,14 @@ export class ProceduralNatureGenerator {
     return parent;
   }
 
+  /** Return all registered tree template meshes (override + variants) for cloning. */
+  public getTreeTemplates(): Mesh[] {
+    const templates: Mesh[] = [];
+    if (this.treeOverrideTemplate) templates.push(this.treeOverrideTemplate);
+    templates.push(...this.treeVariantTemplates);
+    return templates;
+  }
+
   /** Return all tree meshes for distance culling */
   public getTreeMeshes(): AbstractMesh[] {
     return this.treeMeshes;

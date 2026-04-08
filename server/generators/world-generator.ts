@@ -1762,7 +1762,8 @@ IMPORTANT: Return ONLY valid JSON. Use double quotes for all strings. Escape any
     // Convert vacant lots into residences if we don't have enough housing
     if (residences.length === 0 || this.totalCapacity(residences) < livingCharacters.length) {
       const allLots = await storage.getLotsBySettlement(config.settlementId);
-      const vacantLots = allLots.filter((l: any) => !l.building && l.address && l.lotType !== 'park');
+      const specialLotTypes = new Set(['park', 'grove', 'cemetery', 'garden']);
+      const vacantLots = allLots.filter((l: any) => !l.building && l.address && !specialLotTypes.has(l.lotType));
       const needed = livingCharacters.length - this.totalCapacity(residences);
       const housesNeeded = Math.ceil(needed / 4); // each residence holds ~4
       const lotsToConvert = vacantLots.slice(0, housesNeeded);

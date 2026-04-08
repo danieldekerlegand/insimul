@@ -308,6 +308,13 @@ export class ContainerSpawnSystem {
   public onContainerOpened: ((container: ContainerData) => void) | null = null;
   /** Optional provider of active quest collect_item objectives for loot injection. */
   public questObjectiveProvider: (() => QuestItemObjective[]) | null = null;
+  /** Optional checker — returns true if a point is on or near a road/sidewalk. */
+  private isOnRoad: ((x: number, z: number) => boolean) | null = null;
+
+  /** Register a road proximity checker to prevent containers from spawning on streets. */
+  setRoadChecker(checker: (x: number, z: number) => boolean): void {
+    this.isOnRoad = checker;
+  }
 
   constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
@@ -418,6 +425,9 @@ export class ContainerSpawnSystem {
       const points = this.computeExteriorSpawnPoints(bldg);
 
       for (const point of points) {
+        // Skip containers that would land on a road or sidewalk
+        if (this.isOnRoad && this.isOnRoad(point.worldPos.x, point.worldPos.z)) continue;
+
         const containerId = `outdoor_${point.containerType}_${bldg.buildingId}_${point.localTag}`;
         if (this.containers.has(containerId)) continue;
 

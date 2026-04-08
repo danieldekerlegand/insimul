@@ -168,6 +168,23 @@ func _create_tree_proxy(tree_type: String) -> MeshInstance3D:
 			proxy.material_override = _get_mat("dead_proxy", Color(0.3, 0.25, 0.2))
 	return proxy
 
+## Return all registered tree template meshes for cloning.
+func get_tree_templates() -> Array[Node3D]:
+	var templates: Array[Node3D] = []
+	for type_name in ["pine", "oak", "palm", "dead"]:
+		var t := _create_tree_by_type(type_name)
+		if t:
+			templates.append(t)
+	return templates
+
+func _create_tree_by_type(type_name: String) -> Node3D:
+	match type_name:
+		"pine": return _create_pine()
+		"oak": return _create_oak()
+		"palm": return _create_palm()
+		"dead": return _create_dead_tree()
+	return null
+
 func _create_pine() -> Node3D:
 	var root := Node3D.new()
 	root.name = "Pine"

@@ -516,7 +516,7 @@ export function SettlementDetailView({
                           District: {lot.districtName || 'None'}
                           {(() => {
                             const lt = (lot as any).lotType;
-                            const specialTypes: Record<string, string> = { park: 'Park', forest: 'Forest', cemetery: 'Cemetery', garden: 'Garden', agricultural: 'Agricultural' };
+                            const specialTypes: Record<string, string> = { park: 'Park', grove: 'Grove', cemetery: 'Cemetery', garden: 'Garden', agricultural: 'Agricultural' };
                             if (specialTypes[lt]) return ` • ${specialTypes[lt]}`;
                             if (lotBusiness) return ` • ${lotBusiness.name}`;
                             if (lotResidence) return ' • Residence';
