@@ -2542,3 +2542,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The assessment-analytics-routes.ts still uses legacy storage methods — may need updating in a future story
   - When mocking `getEntitiesWithOverlay` in tests, use `vi.mock('../services/playthrough-overlay', ...)` — the mock must return the base entities passed in
 ---
+
+## 2026-04-08 - US-013: Persist reading progress in game save
+- Added `SavedReadingProgress` and `SavedReadingProgressEntry` types to `shared/game-engine/types.ts`
+- Added `readingProgress` field to `GameSaveState` interface
+- Added `getReadingProgress()` to `GameStateSource` interface and `createGameStateSource()` in BabylonGame
+- Added `restoreReadingProgress()` to `GameStateTarget` interface and `createGameStateTarget()` in BabylonGame
+- Added public `getReadArticleIds()`, `restoreReadArticleIds()`, `getAnsweredQuestionIds()`, `restoreAnsweredQuestionIds()` methods to `GameMenuSystem`
+- Wired `readingProgress` through `captureState()`, `applyState()`, `computeDiff()`, and `SUBSYSTEM_KEYS` in `WorldStateManager`
+- Reading progress captures: which articles were read (from GameMenuSystem), quiz answers with scores (from BabylonGame's readingProgressQuizAnswers)
+- Restore path: quiz answers → readingProgressQuizAnswers + readingProgressAnsweredIds, read articles → GameMenuSystem.restoreReadArticleIds, answered questions → GameMenuSystem.restoreAnsweredQuestionIds
+- Files changed:
+  - `shared/game-engine/types.ts` — SavedReadingProgress types, readingProgress on GameSaveState
+  - `shared/game-engine/rendering/BabylonGame.ts` — getReadingProgress getter, restoreReadingProgress restorer
+  - `shared/game-engine/rendering/GameMenuSystem.ts` — 4 new public methods for get/restore reading state
+  - `client/src/components/3DGame/WorldStateManager.ts` — GameStateSource/Target interfaces, captureState, applyState, computeDiff, SUBSYSTEM_KEYS
+  - `shared/game-engine/drift-manifest.json` — updated hashes
+- **Learnings for future iterations:**
+  - BabylonGame already has `readingProgressAnsweredIds` (Set) and `readingProgressQuizAnswers` (Array) for quiz tracking — these sync to server via API but weren't in save state
+  - `GameMenuSystem.libraryReadArticleIds` tracks which articles were opened/read — it's private with no getter, so needed new public methods
+  - Engine drift hook blocks commits when types.ts or GameMenuSystem.ts change — run `npm run drift:update` after changes
+  - The `getAnsweredArticleIds` callback in GameMenuCallbacks delegates to BabylonGame's `readingProgressAnsweredIds` — restoring both BabylonGame and GameMenuSystem sets keeps them in sync
+---

@@ -221,7 +221,7 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "The game already tracks answered articles via a Set (answeredNoticeQuestions). This needs to be serialized into the save state. Check BabylonGame's notice/article tracking and GameMenuSystem's getAnsweredArticleIds()."
     },
     {
