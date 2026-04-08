@@ -92,7 +92,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Wire the onLineReady streaming callback to a sequential TTS playback queue. Each line waits for the previous to finish before starting."
     },
     {

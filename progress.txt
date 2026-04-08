@@ -25,6 +25,9 @@ Started: Sun Mar 29 13:53:35 CDT 2026
 - `ContextualActionMenu` (replaces ActionQuickBar) has `setCEFRLevel()` and `setImmersionMode()` — call these when CEFR level or immersion preference changes
 - `BuildingInfoDisplay` has `setCEFRLevel()` and `setImmersionMode()` — uses `getBilingualDisplay()` for CEFR-aware building name display with hover-to-reveal tooltip
 - `GameMenuCallbacks` interface must be updated when adding new system settings — follow the AI Provider pattern: `getX()` getter + `onSetX()` setter
+- `selectVoice()` is exported from `NpcGreetingTTS.ts` — use it for gender/age-matched TTS voice selection (6 voice profiles: Aoede, Kore, Leda, Zephyr, Puck, Orus)
+- `NPCAmbientConversationManager.setConversationProvider()` wires real NPC-NPC conversations; without it, fallback timer-based animation plays
+- In vitest with `useFakeTimers()`: `queueMicrotask` callbacks do NOT fire during `advanceTimersByTimeAsync` — use `Promise.resolve().then()` in test mocks instead
 ---
 
 ## 2026-04-05 - US-006: Per-line streaming for NPC-NPC conversations
@@ -2078,4 +2081,30 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - Conversation expiry check happens on next tick after duration passes — test timing must account for tick interval (5s) beyond the 20s duration
   - The manager already has `faceEachOther` and talk/listen animation logic that must be preserved (used by new proximity system)
   - Pre-existing type errors in `shared/quests/`, `shared/schema.ts`, `BabylonGame-patch.ts` are unrelated to this branch
+---
+
+## 2026-04-07 - US-005: Streamed ambient conversation with TTS playback
+- Added `ConversationProvider` callback type and `AmbientConversationLine` interface to NPCAmbientConversationManager
+- Extended `NPCInstance` with `gender` and `age` fields; updated `registerNPC` to accept them
+- Added `setConversationProvider()` and `setServerUrl()` methods to the manager
+- Modified `startConversation()`: when a provider is set, fires `runStreamedConversation()` instead of timer-based animation
+- `runStreamedConversation()`: calls provider with random 3-5 maxExchanges, plays lines sequentially via TTS
+- `speakLine()`: calls `/api/tts` endpoint with gender-matched voice (using exported `selectVoice` from NpcGreetingTTS), plays audio via `StreamingAudioPlayer` at the speaking NPC's mesh position
+- 500ms pause between exchanges; AbortController support for cancellation
+- No speech bubbles during streamed conversations (audio only)
+- Streamed conversations don't expire by timer (only end when dialogue finishes or is aborted)
+- `endConversation()` now aborts in-progress conversations and stops active audio players
+- Exported `selectVoice` from `NpcGreetingTTS.ts` for reuse
+- Wired BabylonGame: `setConversationProvider()` with callback that calls `dataSource.simulateRichConversation()`, `setServerUrl()`, and passes gender/age during NPC registration
+- Files changed:
+  - `shared/game-engine/rendering/NPCAmbientConversationManager.ts` — streamed conversation + TTS flow
+  - `shared/game-engine/rendering/NpcGreetingTTS.ts` — exported `selectVoice`
+  - `shared/game-engine/rendering/BabylonGame.ts` — wired conversation provider, server URL, gender/age registration
+  - `shared/__tests__/npc-ambient-streamed-tts.test.ts` — 12 new tests
+  - `shared/game-engine/drift-manifest.json` — updated timestamp
+- **Learnings for future iterations:**
+  - `Promise.resolve().then(fn)` works for simulating microtask callbacks in vitest fake timer tests; `queueMicrotask` does NOT fire during `advanceTimersByTimeAsync` — use `Promise.resolve().then()` in test mocks
+  - `vi.runAllTimersAsync()` will loop infinitely if a `setInterval` is active — use `advanceTimersByTimeAsync()` in controlled steps instead
+  - `MapIterator` direct iteration (`for...of map.values()`) causes TS errors in this codebase — always use `Array.from(map.values())`
+  - The `StreamingAudioPlayer` mock factory in tests should store `completeCb` from `setCallbacks` and trigger it from `finish()` to simulate sequential playback
 ---
