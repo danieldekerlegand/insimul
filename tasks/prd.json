@@ -272,7 +272,7 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Known details come from the conversation metadata extraction (background LLM call after each chat exchange). The extraction produces structured info about the NPC. This needs to accumulate in a persistent store rather than being ephemeral."
     },
     {

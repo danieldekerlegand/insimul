@@ -2605,3 +2605,28 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - restoreConversationRecords deduplicates by conversation id to prevent double-counting on repeated loads
   - Engine drift hook fires on types.ts changes — always run `npm run drift:update` after modifying shared types
 ---
+
+## 2026-04-08 - US-016: Persist known NPC details in game save
+- Added `SavedNPCKnownDetails` type to `shared/game-engine/types.ts` with `facts[]` and `learnedAt[]` parallel arrays
+- Added `npcKnownDetails` field to `GameSaveState`
+- Added `npcKnownDetails` Map to BabylonGame for runtime tracking
+- Added `getNpcKnownDetails()` getter in `createGameStateSource()` and `restoreNpcKnownDetails()` in `createGameStateTarget()`
+- Added `npcDetails` extraction to the metadata extraction LLM prompt (`shared/language/utils.ts`) — extracts 0-3 personal facts per exchange
+- Added `npcDetails` field to `ConversationMetadataResponse` in SDK types
+- BabylonChatPanel processes `metadata.npcDetails` and calls back to BabylonGame via `setOnNpcDetailsLearned()` callback
+- BabylonGame `trackNPCDetails()` deduplicates facts (case-insensitive) and caps at 20 per NPC
+- Contacts menu now reads from `npcKnownDetails` Map instead of hardcoded empty array
+- Updated `GameStateSource`, `GameStateTarget` interfaces and `SUBSYSTEM_KEYS` in WorldStateManager
+- Files changed:
+  - `shared/game-engine/types.ts` — SavedNPCKnownDetails type, npcKnownDetails field on GameSaveState
+  - `shared/game-engine/rendering/BabylonGame.ts` — npcKnownDetails Map, trackNPCDetails(), save/load, contacts menu wiring
+  - `shared/game-engine/rendering/BabylonChatPanel.ts` — npcDetails processing, setOnNpcDetailsLearned callback
+  - `shared/language/utils.ts` — npcDetails in metadata extraction prompt
+  - `packages/typescript/src/types.ts` — npcDetails on ConversationMetadataResponse
+  - `client/src/components/3DGame/WorldStateManager.ts` — interfaces, SUBSYSTEM_KEYS, serialize/deserialize
+- **Learnings for future iterations:**
+  - Engine drift hook blocks commits when `shared/game-engine/types.ts` or `BabylonChatPanel.ts` change — run `npm run drift:update` after changes
+  - Metadata extraction prompt in `shared/language/utils.ts` can be extended with new JSON fields; add corresponding extraction rules
+  - BabylonChatPanel uses callback pattern (setOn*) for communicating extracted data back to BabylonGame
+  - Known details display capped at 4 visible in contacts UI (GameMenuSystem:3041), with "+N more..." for overflow
+---
