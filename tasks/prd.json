@@ -103,7 +103,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "This replaces the server-side assessment completion flow. The CEFR computation logic already exists in shared/ and can be called client-side."
     },
     {

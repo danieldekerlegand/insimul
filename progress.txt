@@ -2387,3 +2387,25 @@ Started: Sun Mar 29 13:53:35 CDT 2026
   - The `ScoringResult.questionScores` array maps 1:1 to question IDs for reading/listening phases, while writing phases have no per-question breakdown
   - `_lastOfflineEntry` tracks the most recently used offline content for scoring rubric lookup — it's overwritten per phase
 ---
+
+## 2026-04-08 - US-006: Complete assessment via quest overlay with CEFR scoring
+- Updated AssessmentEngine to use shared `mapScoreToCEFR()` from `shared/assessment/cefr-mapping.ts` instead of inline threshold logic
+- Updated OnboardingLauncher `onCompleted` callback to:
+  - Compute CEFR level using `mapScoreToCEFR()` 
+  - Build `AssessmentCompletionResult` with totalScore, maxScore, cefrLevel, dimensionScores, completedAt
+  - Store it in quest overlay via `questOverlay.updateQuest(questId, { status: 'completed', assessmentResult })` 
+  - Pass the shared-function CEFR level to `storeCefrLevel()` and `assessment_completed` event
+- Updated CEFR mapping tests to use `mapScoreToCEFR()` instead of inline threshold formula
+- Updated E2E test to accept C1/C2 levels since shared function includes them
+- Updated drift manifest for AssessmentEngine changes
+- Files changed:
+  - `shared/game-engine/logic/AssessmentEngine.ts` — import mapScoreToCEFR, use shared function
+  - `shared/game-engine/rendering/OnboardingLauncher.ts` — import AssessmentCompletionResult + mapScoreToCEFR, store result in quest overlay
+  - `shared/__tests__/assessment-system-audit.test.ts` — updated CEFR mapping tests + E2E assertion
+  - `shared/game-engine/drift-manifest.json` — updated hash
+- **Learnings for future iterations:**
+  - CEFR thresholds differ between old inline (40/60/80) and shared mapScoreToCEFR (25/50/75/85/95) — shared function is now authoritative
+  - `storeCefrLevel()` already handles persisting cefrLevel to save state via `dataSource.saveLanguageProgress()` — no additional save logic needed
+  - No PUT /api/assessments/:sessionId/complete calls exist in game client code — already clean
+  - `PlaythroughQuestOverlay.updateQuest()` does shallow merge, so setting `status: 'completed'` and `assessmentResult` in one call works correctly
+---
