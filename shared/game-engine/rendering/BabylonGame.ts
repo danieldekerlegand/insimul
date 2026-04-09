@@ -407,6 +407,23 @@ interface BabylonGameConfig {
   apiUrl?: string;
 }
 
+/** Clean Prolog syntax from objective descriptions for end-user display */
+function cleanObjectiveText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/^objective\(\s*'?(.*?)'?\s*\)$/, '$1') // unwrap objective('...')
+    .replace(/_/g, ' ')             // snake_case → spaces
+    .replace(/\\/g, '')             // remove backslashes
+    .replace(/^'|'$/g, '')          // strip outer quotes
+    .replace(/\(\s*'[^)]*'\s*\)/g, (m) => {
+      // Clean quoted args: ('Place Name') → Place Name
+      const inner = m.slice(1, -1).trim().replace(/^'|'$/g, '');
+      return inner ? `: ${inner}` : '';
+    })
+    .replace(/^\w/, c => c.toUpperCase()) // capitalize first letter
+    .trim();
+}
+
 function computeWorldVisualTheme(worldType?: string): WorldVisualTheme {
   const type = (worldType || "").toLowerCase();
 
@@ -3026,7 +3043,10 @@ export class BabylonGame {
           questType: q.questType || '',
           difficulty: q.difficulty || '',
           progress: q.progress || null,
-          objectives: q.objectives || [],
+          objectives: (q.objectives || []).map((obj: any) => ({
+            ...obj,
+            description: cleanObjectiveText(obj.description || obj.type || ''),
+          })),
           experienceReward: q.experienceReward || 0,
           assignedBy: q.assignedBy || null,
           targetLanguage: q.targetLanguage || '',
@@ -12137,9 +12157,13 @@ export class BabylonGame {
         // Update quest waypoint fading and compass
         if (this.questTracker && this.playerMesh) {
           // Pass player forward angle from camera
-          if (this.cameraManager) {
-            const cam = this.scene.activeCamera;
-            if (cam && 'rotation' in cam) {
+          const cam = this.scene.activeCamera;
+          if (cam) {
+            if ('alpha' in cam) {
+              // ArcRotateCamera: alpha is horizontal angle (0 = +Z, increases CCW)
+              // Convert to forward angle: player faces the direction the camera looks at
+              this.questTracker.setPlayerForwardAngle((cam as any).alpha + Math.PI / 2);
+            } else if ('rotation' in cam) {
               this.questTracker.setPlayerForwardAngle((cam as any).rotation.y || 0);
             }
           }
@@ -13676,19 +13700,6 @@ export class BabylonGame {
       this.generateMinimapTerrainBackground();
     }
 
-    // Collect quest markers from active quests that have a location (legacy fallback)
-    const questMarkers: Array<{ id: string; title: string; position: { x: number; z: number } }> = [];
-    for (const quest of this.quests) {
-      if (quest.status !== 'active') continue;
-      if (quest.locationPosition) {
-        questMarkers.push({
-          id: quest.id,
-          title: quest.title,
-          position: { x: quest.locationPosition.x, z: quest.locationPosition.z }
-        });
-      }
-    }
-
     // Derive markers from individual quest objectives (type-specific colors/shapes)
     // Pass dynamically resolved positions so objectives without explicit positions still get markers
     const questObjectiveMarkers = extractObjectiveMarkers(this.quests, this._resolvedWaypointPositions).map(m => ({
@@ -13725,7 +13736,7 @@ export class BabylonGame {
       settlements: settlementsData,
       buildings: this._minimapBuildings,
       streets: this._minimapStreets,
-      questMarkers,
+      questMarkers: [],
       questObjectiveMarkers,
       questItemMarkers,
       npcPositions,
@@ -17338,7 +17349,7 @@ export class BabylonGame {
           const engineObj = engineObjectives.find((eo: any) => eo.id === obj.id);
           return {
             type: obj.type || '',
-            description: obj.description || obj.type?.replace(/_/g, ' ') || '',
+            description: cleanObjectiveText(obj.description || obj.type || ''),
             descriptionTranslation: obj.descriptionTranslation,
             completed: engineObj?.completed ?? !!obj.completed,
             current: engineObj?.currentCount ?? obj.current,

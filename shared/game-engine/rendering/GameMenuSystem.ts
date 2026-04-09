@@ -894,6 +894,64 @@ export class GameMenuSystem {
     parent.addControl(spacer);
   }
 
+  /**
+   * Render a horizontal tab bar with positioned tab buttons.
+   * Returns the selected tab id.
+   */
+  private renderTabBar<T extends string>(
+    parent: StackPanel,
+    tabs: Array<{ id: T; label: string; count?: number; color?: string }>,
+    activeId: T,
+    onSelect: (id: T) => void,
+    tabWidth: number = 110,
+  ): void {
+    const tabRow = new Rectangle();
+    tabRow.width = 1;
+    tabRow.height = "32px";
+    tabRow.thickness = 0;
+    tabRow.background = "transparent";
+    parent.addControl(tabRow);
+
+    for (let t = 0; t < tabs.length; t++) {
+      const tab = tabs[t];
+      const isActive = activeId === tab.id;
+      const tabBtn = new Rectangle();
+      tabBtn.width = `${tabWidth}px`;
+      tabBtn.height = "28px";
+      tabBtn.left = `${t * tabWidth}px`;
+      tabBtn.background = isActive ? "rgba(255,255,255,0.12)" : "transparent";
+      tabBtn.thickness = 0;
+      tabBtn.cornerRadius = 4;
+      tabBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      tabBtn.isPointerBlocker = true;
+      tabBtn.hoverCursor = "pointer";
+
+      const labelText = tab.count != null ? `${tab.label} (${tab.count})` : tab.label;
+      const tabLabel = new TextBlock();
+      tabLabel.text = labelText;
+      tabLabel.color = isActive ? (tab.color || COLORS.accent) : COLORS.textMuted;
+      tabLabel.fontSize = 12;
+      tabLabel.fontWeight = isActive ? "bold" : "normal";
+      tabBtn.addControl(tabLabel);
+
+      if (!isActive) {
+        tabBtn.onPointerEnterObservable.add(() => { tabBtn.background = "rgba(255,255,255,0.06)"; });
+        tabBtn.onPointerOutObservable.add(() => { tabBtn.background = "transparent"; });
+      }
+      tabBtn.onPointerClickObservable.add(() => onSelect(tab.id));
+
+      tabRow.addControl(tabBtn);
+    }
+
+    // Separator line
+    const sep = new Rectangle();
+    sep.width = 1;
+    sep.height = "1px";
+    sep.background = "rgba(255,255,255,0.1)";
+    sep.thickness = 0;
+    parent.addControl(sep);
+  }
+
   private makeCard(parent: StackPanel, height?: string): StackPanel {
     const card = new Rectangle();
     card.width = 1;
@@ -1780,31 +1838,14 @@ export class GameMenuSystem {
 
     this.addDivider(stack);
 
-    // ─── Category filter buttons ──────────────────────────────────
-    const filterRow = new StackPanel();
-    filterRow.isVertical = false;
-    filterRow.width = 1;
-    filterRow.height = "36px";
-    filterRow.paddingBottom = "6px";
-    stack.addControl(filterRow);
-
-    for (const cat of GameMenuSystem.CLUE_CATEGORIES) {
-      const isActive = this.cluesFilterCategory === cat.id;
-      const btn = Button.CreateSimpleButton(`clueFilter_${cat.id}`, `${cat.icon} ${cat.label}`);
-      btn.width = `${Math.floor(100 / GameMenuSystem.CLUE_CATEGORIES.length)}%`;
-      btn.height = "30px";
-      btn.color = isActive ? "#fff" : COLORS.textSecondary;
-      btn.background = isActive ? COLORS.tabActive : COLORS.cardBg;
-      btn.cornerRadius = 4;
-      btn.fontSize = 11;
-      btn.thickness = isActive ? 1 : 0;
-      (btn as any).borderColor = isActive ? COLORS.tabActiveBorder : "transparent";
-      btn.onPointerClickObservable.add(() => {
-        this.cluesFilterCategory = cat.id;
-        this.refreshActiveTab();
-      });
-      filterRow.addControl(btn);
-    }
+    // ─── Category filter tabs ──────────────────────────────────
+    this.renderTabBar(
+      stack,
+      GameMenuSystem.CLUE_CATEGORIES.map(cat => ({ id: cat.id, label: `${cat.icon} ${cat.label}` })),
+      this.cluesFilterCategory,
+      (id) => { this.cluesFilterCategory = id; this.refreshActiveTab(); },
+      90,
+    );
 
     if (!data || data.clues.length === 0) {
       const emptyText = new TextBlock();
@@ -2335,6 +2376,7 @@ export class GameMenuSystem {
   // ─── QUESTS TAB ─────────────────────────────────────────────────────────
 
   private _questTabFilter: 'current' | 'available' | 'completed' = 'current';
+  private _activeGuildTab: string = 'all';
 
   private renderQuestsTab(): void {
     const { stack } = this.makeScrollableContent("quests");
@@ -2347,56 +2389,14 @@ export class GameMenuSystem {
     this.addSectionHeader(stack, "Quests");
 
     // ── Tab bar ─────────────────────────────────────────────────────────────
-    const tabRow = new StackPanel();
-    tabRow.isVertical = false;
-    tabRow.width = 1;
-    tabRow.height = "32px";
-    tabRow.paddingBottom = "6px";
-    stack.addControl(tabRow);
-
-    const tabs: Array<{ id: 'current' | 'available' | 'completed'; label: string; count: number; color: string }> = [
-      { id: 'current', label: 'Current', count: current.length, color: COLORS.accentGreen },
-      { id: 'available', label: 'Available', count: available.length, color: COLORS.accent },
-      { id: 'completed', label: 'Completed', count: completed.length, color: COLORS.textMuted },
-    ];
-
-    for (const tab of tabs) {
-      const isActive = this._questTabFilter === tab.id;
-      const tabBtn = new Rectangle();
-      tabBtn.width = `${Math.floor(100 / tabs.length)}%`;
-      tabBtn.height = "28px";
-      tabBtn.background = isActive ? "rgba(255,255,255,0.12)" : "transparent";
-      tabBtn.thickness = 0;
-      tabBtn.cornerRadius = 4;
-      tabBtn.isPointerBlocker = true;
-      tabBtn.hoverCursor = "pointer";
-
-      const tabLabel = new TextBlock();
-      tabLabel.text = `${tab.label} (${tab.count})`;
-      tabLabel.color = isActive ? tab.color : COLORS.textMuted;
-      tabLabel.fontSize = 12;
-      tabLabel.fontWeight = isActive ? "bold" : "normal";
-      tabBtn.addControl(tabLabel);
-
-      if (!isActive) {
-        tabBtn.onPointerEnterObservable.add(() => { tabBtn.background = "rgba(255,255,255,0.06)"; });
-        tabBtn.onPointerOutObservable.add(() => { tabBtn.background = "transparent"; });
-      }
-      tabBtn.onPointerClickObservable.add(() => {
-        this._questTabFilter = tab.id;
-        this.renderQuestsTab();
-      });
-
-      tabRow.addControl(tabBtn);
-    }
-
-    // ── Separator ───────────────────────────────────────────────────────────
-    const sep = new Rectangle();
-    sep.width = 1;
-    sep.height = "1px";
-    sep.background = "rgba(255,255,255,0.1)";
-    sep.thickness = 0;
-    stack.addControl(sep);
+    this.renderTabBar(stack, [
+      { id: 'current' as const, label: 'Current', count: current.length, color: COLORS.accentGreen },
+      { id: 'available' as const, label: 'Available', count: available.length, color: COLORS.accent },
+      { id: 'completed' as const, label: 'Completed', count: completed.length, color: COLORS.textMuted },
+    ], this._questTabFilter, (id) => {
+      this._questTabFilter = id;
+      this.renderQuestsTab();
+    });
 
     // ── Filtered quest list ─────────────────────────────────────────────────
     const filtered = this._questTabFilter === 'current' ? current
@@ -5259,48 +5259,13 @@ export class GameMenuSystem {
     this.addSectionHeader(stack, "Language Progress");
 
     // ── Sub-tab buttons (Vocabulary / Grammar) ──
-    const subTabRow = new Rectangle();
-    subTabRow.width = 1;
-    subTabRow.height = "30px";
-    subTabRow.thickness = 0;
-    subTabRow.background = "transparent";
-    stack.addControl(subTabRow);
-
-    const vocSubBtn = Button.CreateSimpleButton("vocSubTab_vocab", "Vocabulary");
-    vocSubBtn.width = "116px";
-    vocSubBtn.height = "24px";
-    vocSubBtn.fontSize = 12;
-    vocSubBtn.fontWeight = "bold";
-    vocSubBtn.color = COLORS.textPrimary;
-    vocSubBtn.cornerRadius = 5;
-    vocSubBtn.background = this.vocabSubTab === 'vocabulary' ? COLORS.tabActive : COLORS.cardBg;
-    vocSubBtn.thickness = 1;
-    (vocSubBtn as any).borderColor = this.vocabSubTab === 'vocabulary' ? COLORS.tabActiveBorder : COLORS.cardBorder;
-    vocSubBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    vocSubBtn.left = "5px";
-    vocSubBtn.onPointerClickObservable.add(() => {
-      this.vocabSubTab = 'vocabulary';
+    this.renderTabBar(stack, [
+      { id: 'vocabulary' as const, label: 'Vocabulary', color: COLORS.accent },
+      { id: 'grammar' as const, label: 'Grammar', color: COLORS.accentYellow },
+    ], this.vocabSubTab, (id) => {
+      this.vocabSubTab = id;
       this.refreshActiveTab();
     });
-    subTabRow.addControl(vocSubBtn);
-
-    const gramSubBtn = Button.CreateSimpleButton("vocSubTab_gram", "Grammar");
-    gramSubBtn.width = "116px";
-    gramSubBtn.height = "24px";
-    gramSubBtn.fontSize = 12;
-    gramSubBtn.fontWeight = "bold";
-    gramSubBtn.color = COLORS.textPrimary;
-    gramSubBtn.cornerRadius = 5;
-    gramSubBtn.background = this.vocabSubTab === 'grammar' ? COLORS.tabActive : COLORS.cardBg;
-    gramSubBtn.thickness = 1;
-    (gramSubBtn as any).borderColor = this.vocabSubTab === 'grammar' ? COLORS.tabActiveBorder : COLORS.cardBorder;
-    gramSubBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    gramSubBtn.left = "126px";
-    gramSubBtn.onPointerClickObservable.add(() => {
-      this.vocabSubTab = 'grammar';
-      this.refreshActiveTab();
-    });
-    subTabRow.addControl(gramSubBtn);
 
     if (!data || (data.vocabulary.length === 0 && data.grammarPatterns.length === 0)) {
       const noData = new TextBlock();
@@ -5780,8 +5745,25 @@ export class GameMenuSystem {
     }
     this.addSubHeader(stack, `${totalUnlocked}/${totalNodes} skills unlocked across all guilds`);
 
-    // Render each guild's skill tree
-    for (const entry of this.guildSkillTrees) {
+    // Guild tabs
+    const guildTabs: Array<{ id: string; label: string; color: string }> = [
+      { id: 'all', label: 'All', color: COLORS.accent },
+      ...this.guildSkillTrees.map(e => {
+        const def = GUILD_DEFINITIONS[e.guildId];
+        return { id: e.guildId, label: def ? `${def.icon} ${def.nameFr}` : e.guildId, color: def?.color ?? COLORS.accent };
+      }),
+    ];
+    this.renderTabBar(stack, guildTabs, this._activeGuildTab, (id) => {
+      this._activeGuildTab = id;
+      this.renderSkillsTab();
+    }, 95);
+
+    // Render filtered guild skill trees
+    const filteredEntries = this._activeGuildTab === 'all'
+      ? this.guildSkillTrees
+      : this.guildSkillTrees.filter(e => e.guildId === this._activeGuildTab);
+
+    for (const entry of filteredEntries) {
       const guildDef = GUILD_DEFINITIONS[entry.guildId];
       if (!guildDef) continue;
 
