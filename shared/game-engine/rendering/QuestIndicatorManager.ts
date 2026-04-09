@@ -95,13 +95,24 @@ export class QuestIndicatorManager {
     if (turnInQuest) return 'turn_in';
 
     // Priority 2: NPC is the target of an active quest objective — orange !
+    // Match by ID, name, or objectiveLocation npc('Name') reference
+    const npcFullName = [npc.firstName, npc.lastName].filter(Boolean).join(' ');
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;
       if (!Array.isArray(objectives)) return false;
-      return objectives.some((obj: any) =>
-        !obj.completed && (obj.npcId === npc.id || obj.targetNpcId === npc.id)
-      );
+      return objectives.some((obj: any) => {
+        if (obj.completed) return false;
+        // Match by NPC ID
+        if (obj.npcId === npc.id || obj.targetNpcId === npc.id) return true;
+        // Match by NPC name (from hydrated Prolog content)
+        if (npcFullName && (obj.npcId === npcFullName || obj.target === npcFullName || obj.npcName === npcFullName)) return true;
+        // Match by objectiveLocation npc('Name') reference
+        const locRef = obj.objectiveLocation || '';
+        const npcLocMatch = locRef.match(/^npc\(\s*'?([^')]+)'?\s*\)$/);
+        if (npcLocMatch && npcLocMatch[1] === npcFullName) return true;
+        return false;
+      });
     });
     if (isObjectiveTarget) return 'available';
 
@@ -212,7 +223,7 @@ export class QuestIndicatorManager {
   /**
    * Set or update an indicator for an NPC
    */
-  private setIndicator(npcId: string, npcMesh: Mesh, type: QuestIndicatorType): void {
+  public setIndicator(npcId: string, npcMesh: Mesh | null, type: QuestIndicatorType): void {
     const existing = this.indicators.get(npcId);
 
     // Remove existing if type changed or should be removed
@@ -221,7 +232,7 @@ export class QuestIndicatorManager {
     }
 
     // Create new indicator if needed
-    if (type && (!existing || existing.type !== type)) {
+    if (type && npcMesh && (!existing || existing.type !== type)) {
       this.createIndicator(npcId, npcMesh, type);
     }
   }
