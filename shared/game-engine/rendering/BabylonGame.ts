@@ -5062,9 +5062,15 @@ export class BabylonGame {
         this.questIndicatorManager?.setActiveObjectiveNpc(targetId);
         // Also set 3D quest indicator on the NPC mesh
         const npcInstance = this.npcMeshes.get(targetId);
+        console.log(`[Assessment] Setting indicator for NPC ${targetId}: mesh=${!!npcInstance?.mesh}, indicatorMgr=${!!this.questIndicatorManager}`);
         if (npcInstance?.mesh && this.questIndicatorManager) {
           this.questIndicatorManager.setIndicator(targetId, npcInstance.mesh, 'available');
+          console.log(`[Assessment] Indicator created for ${targetId}`);
+        } else {
+          console.warn(`[Assessment] Could NOT create indicator: mesh=${!!npcInstance?.mesh}, mgr=${!!this.questIndicatorManager}`);
         }
+        // Also trigger a quest indicator refresh so the NPC's indicator shows
+        this.updateQuestIndicators();
       } else {
         console.warn('[BabylonGame] assessment_conversation_quest_start: no NPCs available to highlight');
       }
@@ -5253,6 +5259,7 @@ Requirements:
           instance.controller.walk(false);
           instance.controller.turnLeft(false);
           instance.controller.turnRight(false);
+          instance.isWalking = false;
         }
         if (instance?.animationGroups?.length) {
           const animNames: Record<string, string[]> = {
@@ -5448,6 +5455,8 @@ Requirements:
           if (instance.controller) {
             instance.controller.walk(false);
             instance.controller.run(false);
+            instance.isWalking = false;
+            this.playNPCAnimation(instance, 'idle');
           }
         });
       },
@@ -11592,6 +11601,7 @@ Requirements:
             instance.controller.walk(false);
             instance.controller.turnLeft(false);
             instance.controller.turnRight(false);
+            instance.isWalking = false;
           }
         }
       });
@@ -13042,6 +13052,10 @@ Requirements:
         instance.controller.walk(false);
         instance.controller.turnLeft(false);
         instance.controller.turnRight(false);
+        if (instance.isWalking) {
+          instance.isWalking = false;
+          this.playNPCAnimation(instance, 'idle');
+        }
         continue;
       }
 
@@ -13151,6 +13165,8 @@ Requirements:
         const dir = playerPos.subtract(currentPos).normalize();
         instance.mesh.position = playerPos.subtract(dir.scale(followDistance));
         instance.controller.walk(false);
+        instance.isWalking = false;
+        this.playNPCAnimation(instance, 'idle');
       } else if (distToPlayer > followDistance) {
         // Walk toward the player
         instance.wanderTarget = playerPos.clone();
@@ -13160,6 +13176,8 @@ Requirements:
         instance.controller.walk(false);
         instance.controller.turnLeft(false);
         instance.controller.turnRight(false);
+        instance.isWalking = false;
+        this.playNPCAnimation(instance, 'idle');
       }
       // Fall through to normal wander movement logic which handles wanderTarget
     }
@@ -13174,6 +13192,10 @@ Requirements:
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+      if (instance.isWalking) {
+        instance.isWalking = false;
+        this.playNPCAnimation(instance, 'idle');
+      }
       if (characterId) {
         const behavior = this.updateAmbientLifeBehavior(instance, characterId, now);
         if (behavior?.faceTargetPosition && instance.mesh) {
@@ -13302,6 +13324,8 @@ Requirements:
             instance.controller.walk(false);
             instance.controller.turnLeft(false);
             instance.controller.turnRight(false);
+            instance.isWalking = false;
+            this.playNPCAnimation(instance, 'idle');
             const goal = entry?.currentGoal;
             if ((goal?.type === 'go_to_building' || goal?.type === 'visit_friend') && goal.buildingId) {
               this.scheduleExecutor.enterBuilding(characterId, goal.buildingId, now);
@@ -13505,6 +13529,8 @@ Requirements:
     instance.controller.walk(false);
     instance.controller.turnLeft(false);
     instance.controller.turnRight(false);
+    instance.isWalking = false;
+    this.playNPCAnimation(instance, 'idle');
 
     const goalId = instance.volitionGoalId;
     if (goalId) {
@@ -13781,6 +13807,8 @@ Requirements:
         if (instance.stuckTicks >= 2 && instance.stuckTicks < 4) {
           // Turn away from the obstacle
           instance.controller.walk(false);
+          instance.isWalking = false;
+          this.playNPCAnimation(instance, 'idle');
           instance.mesh.rotation.y += (Math.PI / 2) + Math.random() * Math.PI;
           return;
         }
@@ -13792,6 +13820,8 @@ Requirements:
           instance.controller.walk(false);
           instance.controller.turnLeft(false);
           instance.controller.turnRight(false);
+          instance.isWalking = false;
+          this.playNPCAnimation(instance, 'idle');
           return;
         }
       } else {
