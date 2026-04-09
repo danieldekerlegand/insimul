@@ -233,7 +233,9 @@ export function lintQuestContent(content: string | null | undefined, context: Li
     const nameParts = qv.value.split(' ');
     if (nameParts.length === 2 && nameParts[0][0] === nameParts[0][0].toUpperCase() && nameParts[1][0] === nameParts[1][0].toUpperCase()) {
       // Looks like a proper name — check if it's a known character
-      if (!charNameSet.has(qv.value.toLowerCase()) && !['Player', 'the NPC'].includes(qv.value)) {
+      // Skip values inside location(...), merchant(...), settlement(...) terms — those are place names
+      const isLocationRef = /location\s*\(\s*'/.test(qv.context) || /merchant\s*\(\s*'/.test(qv.context) || /settlement\s*\(\s*'/.test(qv.context);
+      if (!isLocationRef && !charNameSet.has(qv.value.toLowerCase()) && !['Player', 'the NPC'].includes(qv.value)) {
         // Only warn if it's in a quest-related predicate context
         if (qv.context.includes('quest_') || qv.context.includes('objective')) {
           warnings.push({
