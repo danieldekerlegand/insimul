@@ -2400,13 +2400,7 @@ export class BabylonGame {
       return this.ambientConversationManager?.getConversationPartner(npcId) ?? null;
     });
     this.interactionPrompt.setQuestIndicatorCallback((npcId) => {
-      const type = this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
-      // Don't show "Quest Available" prompt for NPCs who are objective targets —
-      // they have the ! indicator but shouldn't offer radiant quests
-      if (type === 'available' && this.questIndicatorManager?.isActiveObjectiveTarget(npcId)) {
-        return null;
-      }
-      return type;
+      return this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
     });
     this.interactionPrompt.setIsSignObjectCallback((objectRole) => {
       return this.worldObjectActionManager?.isSignObject(objectRole) ?? false;
@@ -3838,10 +3832,12 @@ export class BabylonGame {
       }
 
       // If assessment is active, check if the conversation met minimum requirements
+      console.log(`[ConversationEnd] assessmentActive=${this.assessmentActive}, playerMessageCount=${result.playerMessageCount}, totalExchanges=${result.totalExchanges}, assessmentTargetNpc=${this._assessmentTargetNpcId}, conversationNpcId=${this.conversationNPCId}`);
       if (this.assessmentActive) {
         const npcId = this.conversationNPCId || '';
         const turnCount = result.playerMessageCount ?? result.totalExchanges ?? 0;
         const MIN_ASSESSMENT_TURNS = 4; // Player must contribute at least 4 messages
+        console.log(`[ConversationEnd] turnCount=${turnCount}, MIN=${MIN_ASSESSMENT_TURNS}, willComplete=${turnCount >= MIN_ASSESSMENT_TURNS}`);
 
         if (turnCount >= MIN_ASSESSMENT_TURNS) {
           // Derive a normalized score (0-10) from conversation metrics
