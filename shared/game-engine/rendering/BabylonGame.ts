@@ -5060,10 +5060,10 @@ export class BabylonGame {
         this.guiManager?.setHighlightedNpc(targetId);
         // Mark this NPC as the active objective target (overrides radiant quests)
         this.questIndicatorManager?.setActiveObjectiveNpc(targetId);
-        // Also set 3D quest indicator on the NPC mesh
+        // Place 3D waypoint marker above the NPC via QuestWaypointManager
         const npcInstance = this.npcMeshes.get(targetId);
-        if (npcInstance?.mesh && this.questIndicatorManager) {
-          this.questIndicatorManager.setIndicator(targetId, npcInstance.mesh, 'available');
+        if (npcInstance?.mesh && this.questWaypointManager) {
+          this.questWaypointManager.createNpcWaypoint(`npc_indicator_${targetId}`, npcInstance.mesh);
         }
       } else {
         console.warn('[BabylonGame] assessment_conversation_quest_start: no NPCs available to highlight');
@@ -5090,8 +5090,8 @@ Requirements:
       this.chatPanel?.setQuestGuidancePrompt(guidancePrompt);
     });
     this.eventBus.on('assessment_conversation_completed', () => {
-      if (this._assessmentTargetNpcId && this.questIndicatorManager) {
-        this.questIndicatorManager.setIndicator(this._assessmentTargetNpcId, null, null);
+      if (this._assessmentTargetNpcId) {
+        this.questWaypointManager?.removeWaypoint(`npc_indicator_${this._assessmentTargetNpcId}`);
       }
       this._assessmentTargetNpcId = null;
       this.questIndicatorManager?.setActiveObjectiveNpc(null);
@@ -12315,6 +12315,7 @@ Requirements:
 
       // Update quest indicator positions (world-space, tracking NPC meshes)
       this.questIndicatorManager?.updatePositions();
+      this.questWaypointManager?.updateTrackedPositions();
 
       // Update weather system (rain, clouds, fog)
       if (this.weatherSystem) {
@@ -18010,8 +18011,28 @@ Requirements:
         }
       });
 
-      // Update NPC indicators
+      // Update NPC indicator logic (determines which NPCs get !/? markers)
       this.questIndicatorManager.updateIndicators(npcMap, quests);
+
+      // Create/remove 3D waypoint markers for NPCs with indicators
+      if (this.questWaypointManager) {
+        // Remove stale NPC indicator waypoints
+        for (const existingId of this.questWaypointManager.getWaypointIds()) {
+          if (existingId.startsWith('npc_qi_')) {
+            this.questWaypointManager.removeWaypoint(existingId);
+          }
+        }
+        // Create waypoints for NPCs that QuestIndicatorManager says should have markers
+        npcMap.forEach((npcData, npcId) => {
+          const indicatorType = this.questIndicatorManager!.getIndicatorTypeForNPC(npcId);
+          if (indicatorType === 'available' || indicatorType === 'turn_in') {
+            const color = indicatorType === 'turn_in'
+              ? new Color3(0.2, 0.8, 0.2)  // green
+              : new Color3(1, 0.84, 0);     // gold
+            this.questWaypointManager!.createNpcWaypoint(`npc_qi_${npcId}`, npcData.mesh, color);
+          }
+        });
+      }
 
       // Update quest-related world object labels and interactivity
       if (this.questWorldObjectLinker && this.buildingData.size > 0) {

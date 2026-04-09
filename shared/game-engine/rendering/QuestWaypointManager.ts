@@ -172,6 +172,49 @@ export class QuestWaypointManager {
     this.createWaypoint(objectiveId, position, getWaypointColor(objectiveType));
   }
 
+  /** Map of waypoint IDs → tracked meshes (for NPC-following waypoints) */
+  private trackedMeshes: Map<string, Mesh> = new Map();
+
+  /**
+   * Create a waypoint that follows an NPC mesh.
+   * The waypoint is placed above the NPC and updated each frame.
+   */
+  public createNpcWaypoint(
+    waypointId: string,
+    npcMesh: Mesh,
+    color: Color3 = new Color3(1, 0.84, 0),
+  ): void {
+    const absPos = npcMesh.getAbsolutePosition();
+    this.createWaypoint(waypointId, new Vector3(absPos.x, absPos.y, absPos.z), color);
+    this.trackedMeshes.set(waypointId, npcMesh);
+  }
+
+  /**
+   * Update positions of NPC-tracked waypoints. Call each frame.
+   */
+  public updateTrackedPositions(): void {
+    this.trackedMeshes.forEach((mesh, id) => {
+      const waypoint = this.waypoints.get(id);
+      if (!waypoint || waypoint.isDisposed()) {
+        this.trackedMeshes.delete(id);
+        return;
+      }
+      if (mesh.isDisposed()) {
+        this.removeWaypoint(id);
+        this.trackedMeshes.delete(id);
+        return;
+      }
+      const absPos = mesh.getAbsolutePosition();
+      // Keep the bobbing animation's Y offset by only updating X/Z
+      // and setting the base Y for the next animation cycle
+      waypoint.position.x = absPos.x;
+      waypoint.position.z = absPos.z;
+      // Update Y base — the bobbing animation adds ±0.4 on top
+      const baseY = absPos.y + 1.5; // 1.5 units above NPC absolute position
+      waypoint.position.y = baseY;
+    });
+  }
+
   /**
    * Update visibility of all waypoints based on distance to player.
    * Call this per-frame or on a throttled interval.
