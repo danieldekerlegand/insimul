@@ -6340,57 +6340,57 @@ Requirements:
         );
 
         // ── Diagnostic: character ↔ building associations ──────────────
-        {
-          const settlementChars = this.characters.filter(
-            (c: any) => c.settlementId === settlement.id && !c.deceased
-          );
-          console.group(`[BuildingAssoc] Settlement: ${settlement.name} (${settlement.id})`);
-          console.log(`  Characters: ${settlementChars.length}, Businesses: ${businesses.length}, Residences: ${residences.length}`);
+        // {
+        //   const settlementChars = this.characters.filter(
+        //     (c: any) => c.settlementId === settlement.id && !c.deceased
+        //   );
+        //   console.group(`[BuildingAssoc] Settlement: ${settlement.name} (${settlement.id})`);
+        //   console.log(`  Characters: ${settlementChars.length}, Businesses: ${businesses.length}, Residences: ${residences.length}`);
 
-          // Residence associations
-          console.group('Residences:');
-          for (const res of residences) {
-            const residentIds: string[] = res.residentIds || res.occupants || [];
-            const residents = residentIds
-              .map((rid: string) => this.characters.find((c: any) => c.id === rid))
-              .filter(Boolean);
-            const residentNames = residents.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`);
-            console.log(`  ${res.address || res.id} [${res.residenceType || 'unknown'}] — ${residentNames.length} residents: ${residentNames.join(', ') || '(none)'}`);
-          }
-          // Characters with no residence
-          const allResidentIds = new Set(
-            residences.flatMap((r: any) => r.residentIds || r.occupants || [])
-          );
-          const homeless = settlementChars.filter((c: any) => !allResidentIds.has(c.id));
-          if (homeless.length > 0) {
-            console.warn(`  ⚠ ${homeless.length} characters with no residence:`, homeless.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`));
-          }
-          console.groupEnd();
+        //   // Residence associations
+        //   console.group('Residences:');
+        //   for (const res of residences) {
+        //     const residentIds: string[] = res.residentIds || res.occupants || [];
+        //     const residents = residentIds
+        //       .map((rid: string) => this.characters.find((c: any) => c.id === rid))
+        //       .filter(Boolean);
+        //     const residentNames = residents.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`);
+        //     console.log(`  ${res.address || res.id} [${res.residenceType || 'unknown'}] — ${residentNames.length} residents: ${residentNames.join(', ') || '(none)'}`);
+        //   }
+        //   // Characters with no residence
+        //   const allResidentIds = new Set(
+        //     residences.flatMap((r: any) => r.residentIds || r.occupants || [])
+        //   );
+        //   const homeless = settlementChars.filter((c: any) => !allResidentIds.has(c.id));
+        //   if (homeless.length > 0) {
+        //     console.warn(`  ⚠ ${homeless.length} characters with no residence:`, homeless.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`));
+        //   }
+        //   console.groupEnd();
 
-          // Business/workplace associations
-          console.group('Businesses:');
-          for (const biz of businesses) {
-            const owner = biz.ownerId ? this.characters.find((c: any) => c.id === biz.ownerId) : null;
-            const ownerStr = owner ? `${owner.firstName} ${owner.lastName} (${owner.id})` : biz.ownerId || '(none)';
-            // Find employees: characters whose currentOccupationId or occupation references this business
-            const employees = settlementChars.filter((c: any) =>
-              c.currentOccupationId === biz.id || c.employerId === biz.id || c.workplaceId === biz.id
-            );
-            const employeeNames = employees.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`);
-            console.log(`  ${biz.name || biz.businessType} [${biz.businessType}] — Owner: ${ownerStr}, Employees: ${employeeNames.length > 0 ? employeeNames.join(', ') : '(none)'}`);
-          }
-          // Characters with no workplace
-          const employedIds = new Set(
-            businesses.flatMap((b: any) => [b.ownerId, ...(b.employeeIds || [])].filter(Boolean))
-          );
-          const unemployed = settlementChars.filter((c: any) => !employedIds.has(c.id) && !c.retired);
-          if (unemployed.length > 0) {
-            console.warn(`  ⚠ ${unemployed.length} non-retired characters with no business association:`, unemployed.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`));
-          }
-          console.groupEnd();
+        //   // Business/workplace associations
+        //   console.group('Businesses:');
+        //   for (const biz of businesses) {
+        //     const owner = biz.ownerId ? this.characters.find((c: any) => c.id === biz.ownerId) : null;
+        //     const ownerStr = owner ? `${owner.firstName} ${owner.lastName} (${owner.id})` : biz.ownerId || '(none)';
+        //     // Find employees: characters whose currentOccupationId or occupation references this business
+        //     const employees = settlementChars.filter((c: any) =>
+        //       c.currentOccupationId === biz.id || c.employerId === biz.id || c.workplaceId === biz.id
+        //     );
+        //     const employeeNames = employees.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`);
+        //     console.log(`  ${biz.name || biz.businessType} [${biz.businessType}] — Owner: ${ownerStr}, Employees: ${employeeNames.length > 0 ? employeeNames.join(', ') : '(none)'}`);
+        //   }
+        //   // Characters with no workplace
+        //   const employedIds = new Set(
+        //     businesses.flatMap((b: any) => [b.ownerId, ...(b.employeeIds || [])].filter(Boolean))
+        //   );
+        //   const unemployed = settlementChars.filter((c: any) => !employedIds.has(c.id) && !c.retired);
+        //   if (unemployed.length > 0) {
+        //     console.warn(`  ⚠ ${unemployed.length} non-retired characters with no business association:`, unemployed.map((c: any) => `${c.firstName} ${c.lastName} (${c.id})`));
+        //   }
+        //   console.groupEnd();
 
-          console.groupEnd();
-        }
+        //   console.groupEnd();
+        // }
 
         // Record settlement stats for UI
         this.settlementStats.set(settlement.id, {
@@ -17983,6 +17983,58 @@ Requirements:
           });
         }
       });
+
+      // For any_npc objectives, find the nearest NPC and set as active objective target
+      // so QuestIndicatorManager shows the ! on that NPC
+      if (this.playerMesh && !this._assessmentTargetNpcId) {
+        for (const quest of quests) {
+          if ((quest as any).status !== 'active') continue;
+          const objectives = (quest as any).objectives || [];
+          const currentObj = objectives.find((o: any) => !o.completed);
+          if (!currentObj) continue;
+          const objLoc = currentObj.objectiveLocation || '';
+          const isNpcObjective = currentObj.type === 'talk_to_npc' || currentObj.type === 'complete_conversation'
+            || currentObj.type === 'introduce_self' || objLoc === 'any_npc'
+            || objLoc.startsWith('npc(');
+
+          if (isNpcObjective) {
+            // If the objective has a specific NPC name, find matching NPC by name
+            const targetName = currentObj.target || currentObj.npcId || currentObj.npcName || '';
+            if (targetName && targetName !== 'any' && targetName !== 'undefined') {
+              // Find NPC by name match
+              npcMap.forEach((npcData, npcId) => {
+                const fullName = [npcData.character.firstName, npcData.character.lastName].filter(Boolean).join(' ');
+                if (fullName === targetName) {
+                  this.questIndicatorManager!.setActiveObjectiveNpc(npcId);
+                }
+              });
+            } else if (objLoc === 'any_npc' || !targetName || targetName === 'any') {
+              // any_npc: use locked target or pick nearest
+              const locked = (this as any)._anyNpcTargetId;
+              if (locked && npcMap.has(locked)) {
+                this.questIndicatorManager!.setActiveObjectiveNpc(locked);
+              } else if (this.playerMesh) {
+                // Pick nearest NPC
+                const px = this.playerMesh.position.x;
+                const pz = this.playerMesh.position.z;
+                let bestDist = Infinity;
+                let bestId: string | null = null;
+                npcMap.forEach((npcData, npcId) => {
+                  const dx = npcData.mesh.position.x - px;
+                  const dz = npcData.mesh.position.z - pz;
+                  const dist = dx * dx + dz * dz;
+                  if (dist < bestDist) { bestDist = dist; bestId = npcId; }
+                });
+                if (bestId) {
+                  (this as any)._anyNpcTargetId = bestId;
+                  this.questIndicatorManager!.setActiveObjectiveNpc(bestId);
+                }
+              }
+            }
+            break; // only process first active quest's current objective
+          }
+        }
+      }
 
       // Update NPC indicators
       this.questIndicatorManager.updateIndicators(npcMap, quests);
