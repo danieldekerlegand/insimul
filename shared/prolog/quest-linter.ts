@@ -172,11 +172,17 @@ export function lintQuestContent(content: string | null | undefined, context: Li
 
     // Check quest_location for location references
     if (pred.predicate === 'quest_location' && pred.args.length >= 2) {
-      const loc = pred.args[1];
-      // 'anywhere' is a reserved placeholder meaning "no specific location required"
-      // Main quest / narrative quests may reference procedural locations that get placed dynamically
+      let loc = pred.args[1];
+      // Unescape Prolog quotes for matching
+      loc = loc.replace(/\\'/g, "'").replace(/\\\\/g, '');
+      // Reserved placeholders — skip validation
+      const reservedLocations = new Set(['anywhere', 'any_npc', 'any_merchant', 'any_text_location', 'any_crafting_station']);
+      // Main quest / narrative quests may reference procedural locations
       const isProceduralQuest = /quest_tag\(\s*\w+\s*,\s*(main_quest|narrative)\s*\)/.test(content);
-      if (loc !== 'anywhere' && !isProceduralQuest && !locationNameSet.has(loc.toLowerCase()) && !locationIdSet.has(loc) && !businessNameSet.has(loc.toLowerCase())) {
+      // Skip validation entirely when the linter context has no location data loaded
+      const hasLocationData = locationNameSet.size > 0 || locationIdSet.size > 0 || businessNameSet.size > 0;
+      if (!reservedLocations.has(loc) && !isProceduralQuest && hasLocationData
+          && !locationNameSet.has(loc.toLowerCase()) && !locationIdSet.has(loc) && !businessNameSet.has(loc.toLowerCase())) {
         warnings.push({
           type: 'location',
           severity: 'warning',

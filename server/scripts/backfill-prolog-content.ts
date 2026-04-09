@@ -76,15 +76,42 @@ async function backfillPrologContent() {
       console.log(`Cleaned up ${staleActions.modifiedCount} stale prologContent fields on actions`);
     }
 
-    // --- Build character ID → name lookup ---
+    // --- Build character ID → name and role → name lookups ---
     const charactersCollection = db.collection('characters');
-    const allCharacters = await charactersCollection.find({}).project({ firstName: 1, lastName: 1 }).toArray();
+    const allCharacters = await charactersCollection.find({}).project({ firstName: 1, lastName: 1, occupation: 1 }).toArray();
     const charIdToName = new Map<string, string>();
+    const roleToName = new Map<string, string>(); // occupation/role → first matching character name
     for (const c of allCharacters) {
       const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
-      if (name) charIdToName.set(c._id.toString(), name);
+      if (name) {
+        charIdToName.set(c._id.toString(), name);
+        // Map occupations to character names (first match wins)
+        if (c.occupation) {
+          const occ = c.occupation.toLowerCase();
+          if (!roleToName.has(occ)) roleToName.set(occ, name);
+          // Also map simplified versions: "Owner (Restaurant)" → "restaurant_owner"
+          const ownerMatch = c.occupation.match(/Owner\s*\((\w+)\)/);
+          if (ownerMatch) {
+            const simplified = ownerMatch[1].toLowerCase() + '_owner';
+            if (!roleToName.has(simplified)) roleToName.set(simplified, name);
+            if (!roleToName.has(ownerMatch[1].toLowerCase())) roleToName.set(ownerMatch[1].toLowerCase(), name);
+          }
+        }
+      }
     }
-    console.log(`\nLoaded ${charIdToName.size} character names for ID resolution`);
+    // Add common role aliases
+    if (roleToName.has('cashier')) roleToName.set('clerk', roleToName.get('cashier')!);
+    if (roleToName.has('merchant')) { if (!roleToName.has('clerk')) roleToName.set('clerk', roleToName.get('merchant')!); }
+    if (roleToName.has('bartender')) roleToName.set('barkeep', roleToName.get('bartender')!);
+    // Assign narrative roles (witness_*) to distinct NPCs
+    const nonOwnerChars = allCharacters
+      .filter(c => c.occupation && !c.occupation.startsWith('Owner') && !c.occupation.startsWith('Retired') && c.firstName)
+      .map(c => [c.firstName, c.lastName].filter(Boolean).join(' '));
+    const shuffled = nonOwnerChars.sort(() => Math.random() - 0.5);
+    if (shuffled[0]) roleToName.set('witness_neighbor', shuffled[0]);
+    if (shuffled[1]) roleToName.set('witness_colleague', shuffled[1]);
+    if (shuffled[2]) roleToName.set('witness_friend', shuffled[2]);
+    console.log(`\nLoaded ${charIdToName.size} character names, ${roleToName.size} role mappings`);
 
     // --- Quests ---
     const questsCollection = db.collection('quests');
@@ -123,6 +150,19 @@ async function backfillPrologContent() {
             // Also resolve npcName if missing
             if (!resolved.npcName && resolved.npcId && charIdToName.has(resolved.npcId)) {
               resolved.npcName = charIdToName.get(resolved.npcId);
+            }
+            // Resolve role-based references (e.g., 'clerk' → 'Philibert Sonnier')
+            for (const field of ['npcId', 'npc', 'target']) {
+              const val = resolved[field];
+              if (val && typeof val === 'string' && !/^[0-9a-f]{24}$/i.test(val) && !val.includes(' ')) {
+                // Looks like a role/occupation name, not a proper name
+                const roleName = roleToName.get(val.toLowerCase());
+                if (roleName) {
+                  resolved[field] = roleName;
+                  if (!resolved.npcName) resolved.npcName = roleName;
+                  idsResolved++;
+                }
+              }
             }
             return resolved;
           });
