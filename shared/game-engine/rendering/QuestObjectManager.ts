@@ -623,11 +623,65 @@ export class QuestObjectManager {
           return;
         }
 
-        // Try to infer objective type from description
+        // ── Type-based objective handling (from hydrated Prolog content) ──
+        const objType = obj.type || '';
+        const objTarget = obj.target || obj.itemName || obj.npcId || obj.npcName || '';
+
+        if (objType === 'collect_item') {
+          const itemName = objTarget || `item_${index}`;
+          const count = obj.requiredCount || obj.required || 1;
+          objectives.push({
+            id: obj.id || `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'collect_item',
+            description: obj.description || `Collect ${itemName}`,
+            completed: obj.completed || false,
+            itemName,
+            itemCount: count,
+            collectedCount: obj.currentCount || obj.current || 0,
+            spawnPositions: obj.spawnPositions || this.generateSpawnPositions(count),
+          });
+          return;
+        }
+
+        if (objType === 'deliver_item') {
+          const itemName = obj.item || objTarget || `delivery_${index}`;
+          objectives.push({
+            id: obj.id || `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'deliver_item',
+            description: obj.description || `Deliver ${itemName}`,
+            completed: obj.completed || false,
+            itemName,
+            itemCount: 1,
+            collectedCount: 0,
+            spawnPositions: obj.spawnPositions || this.generateSpawnPositions(1),
+          });
+          return;
+        }
+
+        // For other typed objectives, pass through without spawning physical items
+        if (objType && objType !== 'objective' && objType !== 'custom') {
+          objectives.push({
+            id: obj.id || `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: objType,
+            description: obj.description || objType.replace(/_/g, ' '),
+            completed: obj.completed || false,
+            npcName: obj.npcName || obj.npcId || obj.target,
+            itemName: obj.item || obj.target,
+            requiredCount: obj.requiredCount || obj.required || 1,
+            currentCount: obj.currentCount || obj.current || 0,
+            completionTrigger: obj.completionTrigger,
+            objectiveLocation: obj.objectiveLocation,
+          } as any);
+          return;
+        }
+
+        // ── Fallback: infer objective type from description ──
         const desc = obj.description?.toLowerCase() || '';
 
         if (desc.includes('collect') || desc.includes('find') || desc.includes('gather')) {
-          // Extract item name from description
           const itemMatch = desc.match(/collect|find|gather\s+(?:the\s+)?(\w+)/i);
           const itemName = itemMatch ? itemMatch[1] : `item_${index}`;
 
