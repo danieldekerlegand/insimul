@@ -113,8 +113,8 @@ function rewriteContent(
 
   // Update status in quest/5 fact
   c = c.replace(
-    /quest\((\s*\w+\s*,\s*(?:'(?:[^'\\]|\\.)*'|[^,)]+)\s*,\s*\w+\s*,\s*\w+\s*,\s*)\w+(\s*\)\.)/,
-    `quest($1${opts.status}$2)`
+    /quest\((\s*\w+\s*,\s*(?:'(?:[^'\\]|\\.)*'|[^,)]+)\s*,\s*\w+\s*,\s*\w+\s*,\s*)\w+\s*\)\./,
+    `quest($1${opts.status}).`
   );
 
   // Update quest_location
