@@ -493,16 +493,14 @@ function deriveObjectiveLocation(obj: any, type: string): string {
   // NPC-based objectives → specific NPC or any_npc
   if (type === 'talk_to_npc' || type === 'introduce_self' || type === 'give_gift' ||
       type === 'deliver_item' || type === 'build_friendship') {
-    const npcId = obj.npcId || obj.npc || obj.target || '';
-    const npcName = obj.npcName || '';
-    if (npcId && npcId !== '{npc}') return `npc('${escapeString(npcName || npcId)}')`;
+    const npcRef = obj.npcName || obj.npc || obj.npcId || obj.target || '';
+    if (npcRef && npcRef !== '{npc}') return `npc('${escapeString(npcRef)}')`;
     return 'any_npc';
   }
 
   if (type === 'complete_conversation' || type === 'sustained_conversation') {
-    const npcId = obj.npcId || obj.npc || '';
-    const npcName = obj.npcName || '';
-    if (npcId) return `npc('${escapeString(npcName || npcId)}')`;
+    const npcRef = obj.npcName || obj.npc || obj.npcId || '';
+    if (npcRef) return `npc('${escapeString(npcRef)}')`;
     return 'any_npc';
   }
 
@@ -597,7 +595,7 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
   }
 
   if (type === 'talk' || type === 'speak' || type === 'conversation') {
-    const npc = obj.npc || obj.target || obj.character || '';
+    const npc = obj.npcName || obj.npc || obj.target || obj.character || '';
     return `talk_to('${escapeString(npc)}')`;
   }
 
@@ -684,14 +682,14 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
   }
 
   if (type === 'talk_to_npc') {
-    const npc = obj.npc || obj.npcId || obj.target || '';
-    const turns = obj.requiredTurns || obj.minTurns || 1;
+    const npc = obj.npcName || obj.npc || obj.npcId || obj.target || '';
+    const turns = obj.requiredTurns || obj.minTurns || obj.required || 1;
     return `talk_to('${escapeString(npc)}', ${turns})`;
   }
 
   if (type === 'deliver_item') {
     const item = obj.item || obj.itemName || '';
-    const npc = obj.npc || obj.npcId || obj.to || '';
+    const npc = obj.npcName || obj.npc || obj.npcId || obj.to || '';
     return `deliver(${sanitizeAtom(item)}, '${escapeString(npc)}')`;
   }
 

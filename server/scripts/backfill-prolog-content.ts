@@ -76,14 +76,25 @@ async function backfillPrologContent() {
       console.log(`Cleaned up ${staleActions.modifiedCount} stale prologContent fields on actions`);
     }
 
+    // --- Build character ID → name lookup ---
+    const charactersCollection = db.collection('characters');
+    const allCharacters = await charactersCollection.find({}).project({ firstName: 1, lastName: 1 }).toArray();
+    const charIdToName = new Map<string, string>();
+    for (const c of allCharacters) {
+      const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
+      if (name) charIdToName.set(c._id.toString(), name);
+    }
+    console.log(`\nLoaded ${charIdToName.size} character names for ID resolution`);
+
     // --- Quests ---
     const questsCollection = db.collection('quests');
     const quests = await questsCollection.find({}).toArray();
     let questsConverted = 0;
     let questsSkipped = 0;
     let questsErrors: string[] = [];
+    let idsResolved = 0;
 
-    console.log(`\nFound ${quests.length} quests`);
+    console.log(`Found ${quests.length} quests`);
 
     for (const quest of quests) {
       if (quest.content && !FORCE_REGENERATE) {
@@ -94,6 +105,40 @@ async function backfillPrologContent() {
         // Hydrate fields from existing content before re-converting
         hydrateQuestFromProlog(quest);
         const cleanQuest = { ...quest };
+
+        // Resolve MongoDB ObjectIds to human-readable names in objectives
+        if (cleanQuest.objectives) {
+          cleanQuest.objectives = cleanQuest.objectives.map((obj: any) => {
+            const resolved = { ...obj };
+            // Resolve NPC IDs
+            for (const field of ['npcId', 'npc', 'target', 'targetNpcId', 'to']) {
+              if (resolved[field] && /^[0-9a-f]{24}$/i.test(resolved[field])) {
+                const name = charIdToName.get(resolved[field]);
+                if (name) {
+                  resolved[field] = name;
+                  idsResolved++;
+                }
+              }
+            }
+            // Also resolve npcName if missing
+            if (!resolved.npcName && resolved.npcId && charIdToName.has(resolved.npcId)) {
+              resolved.npcName = charIdToName.get(resolved.npcId);
+            }
+            return resolved;
+          });
+        }
+        // Resolve assignedByCharacterId
+        if (cleanQuest.assignedByCharacterId && /^[0-9a-f]{24}$/i.test(cleanQuest.assignedByCharacterId)) {
+          const name = charIdToName.get(cleanQuest.assignedByCharacterId);
+          if (name && !cleanQuest.assignedBy) {
+            cleanQuest.assignedBy = name;
+          }
+        }
+
+        // Also resolve any ObjectIds remaining in the description/target fields
+        if (cleanQuest.description && /[0-9a-f]{24}/i.test(cleanQuest.description)) {
+          cleanQuest.description = cleanQuest.description.replace(/\b([0-9a-f]{24})\b/gi, (id: string) => charIdToName.get(id) || id);
+        }
         // Remove chain references from assessment quests (US-009: assessments are self-contained)
         if (cleanQuest.tags?.includes('assessment') || cleanQuest.questType === 'assessment') {
           delete cleanQuest.questChainId;
@@ -133,7 +178,7 @@ async function backfillPrologContent() {
       }
     }
 
-    console.log(`Quests: ${questsConverted} converted, ${questsSkipped} skipped, ${questsErrors.length} errors`);
+    console.log(`Quests: ${questsConverted} converted, ${questsSkipped} skipped, ${questsErrors.length} errors, ${idsResolved} IDs resolved to names`);
     if (questsErrors.length > 0) {
       console.log('Quest errors:', questsErrors);
     }
