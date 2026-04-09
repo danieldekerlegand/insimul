@@ -920,6 +920,25 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
     }
     recoveryDesc = unwrapped;
 
+    // Deep recovery: strip ALL objective/Objective wrappers and quotes aggressively
+    // to find a buried Prolog term like visit_location('...')
+    let stripped = recoveryDesc
+      .replace(/[Oo]bjective\(\s*'?/g, '')  // strip all objective( prefixes
+      .replace(/'?\s*\)(?:\s*'\s*\))*\s*$/g, '') // strip trailing ')') chains
+      .replace(/^'+|'+$/g, '')               // strip outer quotes
+      .trim();
+    // If we found a recognizable Prolog functor, extract the name between parens
+    const buriedFunctor = stripped.match(/^(visit[\s_]location|discover[\s_]location|talk[\s_]to|collect|deliver)\s*\(\s*'?/i);
+    if (buriedFunctor) {
+      const funcName = buriedFunctor[1].replace(/\s/g, '_').toLowerCase();
+      // Extract everything after the opening paren, strip trailing quotes/parens
+      const afterParen = stripped.slice(buriedFunctor[0].length);
+      const targetName = afterParen.replace(/[')\s]+$/g, '').trim();
+      if (targetName) {
+        return `${funcName}('${escapeString(targetName)}')`;
+      }
+    }
+
     // "Learn vocabulary words (N)" / "Learn N vocabulary words"
     const learnWordsMatch = recoveryDesc.match(/learn\s+(?:(\d+)\s+)?vocabulary\s+words(?:\s+\((\d+)\))?/i);
     if (learnWordsMatch) {
