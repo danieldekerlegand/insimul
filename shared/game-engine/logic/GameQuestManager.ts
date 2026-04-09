@@ -439,15 +439,25 @@ export class GameQuestManager {
     const quests = await this.storage.getQuestsByWorld(this.worldId);
     const ctx = await this._buildWorldContext();
 
-    const status = getRecurringQuestStatus(quests, this.playerName);
-    const generated = generateRecurringQuests(
-      quests,
-      ctx,
+    const status = await getRecurringQuestStatus(
+      quests, this.playerName, this.worldId,
+      async (id, data) => {
+        await this.storage.updateQuest(id, data as any);
+        return quests.find(q => q.id === id);
+      },
+    );
+    const generated = await generateRecurringQuests(
+      { ...ctx, existingQuests: quests },
       this.playerName,
-      { pattern: 'daily', count: 3 } as any,
+      'daily',
+      async (quest) => {
+        const saved = await this._saveQuests([quest as InsertQuest]);
+        return saved[0];
+      },
+      { dailyQuestCount: 3 },
     );
 
-    const saved = await this._saveQuests(generated.map((q: any) => q as InsertQuest));
+    const saved = generated;
 
     if (saved.length > 0) {
       this.eventBus.emit({ type: 'daily_quests_reset' } as any);
