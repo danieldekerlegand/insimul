@@ -78,7 +78,7 @@ export class QuestIndicatorManager {
     let created = 0;
     let sample: { id: string; occupation: string | undefined; type: QuestIndicatorType } | null = null;
     npcs.forEach((npcData, npcId) => {
-      const indicatorType = this.getIndicatorType(npcData.character, quests);
+      const indicatorType = this.getIndicatorType(npcData.character, quests, npcId);
       if (indicatorType) created++;
       if (!sample) sample = { id: npcId, occupation: npcData.character?.occupation, type: indicatorType };
       this.setIndicator(npcId, npcData.mesh, indicatorType);
@@ -92,19 +92,21 @@ export class QuestIndicatorManager {
   /** NPC ID currently selected as the single radiant quest marker (staggered display). */
   private _activeRadiantNpcId: string | null = null;
 
-  private getIndicatorType(npc: Character, quests: Quest[]): QuestIndicatorType {
+  private getIndicatorType(npc: Character, quests: Quest[], npcId?: string): QuestIndicatorType {
+    const resolvedId = npcId || npc.id;
+
     // Priority 1 (highest): Quest ready to turn in — green ✓
     const turnInQuest = quests.find(q =>
-      q.assignedByCharacterId === npc.id &&
+      q.assignedByCharacterId === resolvedId &&
       q.status === 'active' &&
       this.isQuestReadyToTurnIn(q)
     );
     if (turnInQuest) return 'turn_in';
 
-    // Priority 2: NPC is the target of the CURRENT (first incomplete) objective — orange !
-    // Also matches if this NPC is the active any_npc / assessment target
+    // Priority 2: NPC is the active objective target (assessment, any_npc) — gold !
+    // This MUST come before radiant quest check to suppress the radiant indicator
     const npcFullName = [npc.firstName, npc.lastName].filter(Boolean).join(' ');
-    if (this._activeObjectiveNpcId && this._activeObjectiveNpcId === npc.id) return 'available';
+    if (this._activeObjectiveNpcId && (this._activeObjectiveNpcId === resolvedId || this._activeObjectiveNpcId === npc.id)) return 'available';
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;
@@ -124,24 +126,26 @@ export class QuestIndicatorManager {
     });
     if (isObjectiveTarget) return 'available';
 
-    // Priority 3: NPC has an active quest they assigned (player accepted) — yellow ?
+    // Priority 3: NPC has an active quest they assigned (player accepted) — silver ?
     const activeQuest = quests.find(q =>
-      q.assignedByCharacterId === npc.id &&
+      q.assignedByCharacterId === resolvedId &&
       q.status === 'active' &&
       !this.isQuestReadyToTurnIn(q)
     );
     if (activeQuest) return 'in_progress';
 
-    // Priority 4: NPC has an available (unaccepted) quest — orange !
+    // Priority 4: NPC has an available (unaccepted) radiant quest — gold !
     // Only show on ONE NPC at a time to avoid overwhelming the player.
+    // SKIP if this NPC is already the active objective target (handled at priority 2)
+    if (this._activeObjectiveNpcId === resolvedId) return null;
     const hasVisibleQuest = quests.some(q =>
-      q.assignedByCharacterId === npc.id
+      q.assignedByCharacterId === resolvedId
       && (q.status as string) === 'available'
     );
     if (hasVisibleQuest) {
       // Stagger: only show if this NPC is the active radiant marker
-      if (this._activeRadiantNpcId === null || this._activeRadiantNpcId === npc.id) {
-        this._activeRadiantNpcId = npc.id;
+      if (this._activeRadiantNpcId === null || this._activeRadiantNpcId === resolvedId) {
+        this._activeRadiantNpcId = resolvedId;
         return 'available';
       }
       return null; // Another NPC is already showing the radiant marker
