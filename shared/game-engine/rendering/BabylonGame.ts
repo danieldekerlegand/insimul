@@ -13751,7 +13751,21 @@ export class BabylonGame {
 
     // Derive markers from individual quest objectives (type-specific colors/shapes)
     // Pass dynamically resolved positions so objectives without explicit positions still get markers
-    const questObjectiveMarkers = extractObjectiveMarkers(this.quests, this._resolvedWaypointPositions).map(m => ({
+    // Build named location map for quest objective resolution
+    const namedLocations = new Map<string, { x: number; z: number }>();
+    // Notice board position (for assessment quest objectives)
+    if (this.settlementNoticeBoard) {
+      const boardPos = (this.settlementNoticeBoard as any).getBoardPosition?.();
+      if (boardPos) namedLocations.set('notice_board', { x: boardPos.x, z: boardPos.z });
+    }
+    // Fallback: use first settlement's center
+    if (!namedLocations.has('notice_board') && this.settlements?.length > 0) {
+      const s = this.settlements[0];
+      const pos = s.position || s.centerPosition;
+      if (pos) namedLocations.set('notice_board', { x: pos.x, z: pos.z });
+    }
+
+    const questObjectiveMarkers = extractObjectiveMarkers(this.quests, this._resolvedWaypointPositions, namedLocations).map(m => ({
       id: m.id,
       questTitle: m.questTitle,
       objectiveType: m.objectiveType,

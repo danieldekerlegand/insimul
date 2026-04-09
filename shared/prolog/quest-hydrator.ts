@@ -241,6 +241,18 @@ function parseObjectives(content: string): any[] {
     }
   }
 
+  // Parse quest_objective_location to attach location atoms to objectives
+  const locPattern = /quest_objective_location\(\s*\w+\s*,\s*(\d+)\s*,\s*(.*)\)\s*\./g;
+  let locMatch;
+  while ((locMatch = locPattern.exec(content)) !== null) {
+    const idx = parseInt(locMatch[1]);
+    const locAtom = locMatch[2].trim().replace(/^'|'$/g, '');
+    const obj = objectives.find(o => o.id === `obj_${idx}`);
+    if (obj) {
+      obj.objectiveLocation = locAtom;
+    }
+  }
+
   return objectives;
 }
 

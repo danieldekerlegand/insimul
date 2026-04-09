@@ -87,6 +87,20 @@ export function getObjectiveMarkerColor(objectiveType: string): string {
     case 'escort_npc':
       return '#9C27B0';
 
+    // Assessment phases — gold
+    case 'complete_assessment':
+    case 'arrival_reading':
+    case 'arrival_writing':
+    case 'arrival_listening':
+    case 'arrival_initiate_conversation':
+    case 'arrival_conversation':
+    case 'departure_reading':
+    case 'departure_writing':
+    case 'departure_listening':
+    case 'departure_conversation':
+    case 'periodic_conversational':
+      return '#FFD700';
+
     // Default — magenta (legacy quest marker color)
     default:
       return '#E040FB';
@@ -135,7 +149,9 @@ export interface QuestObjectiveMarker {
  */
 export function extractObjectiveMarkers(
   quests: Quest[],
-  resolvedPositions?: Map<string, { x: number; z: number }>
+  resolvedPositions?: Map<string, { x: number; z: number }>,
+  /** Named locations that can be referenced by objective location atoms (e.g., notice_board → {x, z}) */
+  namedLocations?: Map<string, { x: number; z: number }>,
 ): QuestObjectiveMarker[] {
   const markers: QuestObjectiveMarker[] = [];
 
@@ -147,7 +163,7 @@ export function extractObjectiveMarkers(
     const questPos = (quest as any).locationPosition as { x: number; y?: number; z: number } | undefined;
 
     for (let i = 0; i < quest.objectives.length; i++) {
-      const obj = quest.objectives[i];
+      const obj = quest.objectives[i] as any;
       if (obj.completed) continue;
 
       // Prefer objective-level position, fall back to quest-level, then dynamic resolution
@@ -161,12 +177,20 @@ export function extractObjectiveMarkers(
         }
       }
 
+      // Resolve named location atoms (e.g., notice_board, any_npc)
+      if (!pos && namedLocations && obj.objectiveLocation) {
+        const namedPos = namedLocations.get(obj.objectiveLocation);
+        if (namedPos) {
+          pos = { x: namedPos.x, y: 0, z: namedPos.z } as any;
+        }
+      }
+
       if (!pos) continue;
 
       markers.push({
         id: `${quest.id}_obj_${i}`,
         questId: quest.id,
-        questTitle: quest.title,
+        questTitle: (quest as any).title || (quest as any).name || quest.id,
         objectiveType: obj.type,
         objectiveDescription: obj.description,
         position: { x: pos.x, z: pos.z },

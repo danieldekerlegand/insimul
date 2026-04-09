@@ -80,16 +80,16 @@ function inferLocation(tags: string[], questType: string, _settlement: string): 
 // ── Assessment objective builder ─────────────────────────────────────────
 function buildAssessmentObjectives(prefix: 'arrival' | 'departure', questId: string): string {
   const phases = [
-    { id: `${prefix}_reading`, type: 'reading', desc: 'Complete the reading comprehension exercise', trigger: 'reading_completed' },
-    { id: `${prefix}_writing`, type: 'writing', desc: 'Complete the writing assessment', trigger: 'writing_submitted' },
-    { id: `${prefix}_listening`, type: 'listening', desc: 'Complete the listening comprehension exercise', trigger: 'listening_completed' },
-    { id: `${prefix}_conversation`, type: 'conversation', desc: 'Complete the conversation assessment', trigger: 'conversation_assessment_completed' },
+    { id: `${prefix}_reading`, trigger: 'reading_completed', location: 'notice_board' },
+    { id: `${prefix}_writing`, trigger: 'writing_submitted', location: 'notice_board' },
+    { id: `${prefix}_listening`, trigger: 'listening_completed', location: 'notice_board' },
+    { id: `${prefix}_conversation`, trigger: 'conversation_assessment_completed', location: 'any_npc' },
   ];
 
   const lines: string[] = [];
   phases.forEach((p, i) => {
     lines.push(`quest_objective(${questId}, ${i}, assessment_phase('${p.id}', '${p.trigger}')).`);
-    lines.push(`quest_objective_location(${questId}, ${i}, anywhere).`);
+    lines.push(`quest_objective_location(${questId}, ${i}, ${p.location}).`);
   });
   return lines.join('\n');
 }
