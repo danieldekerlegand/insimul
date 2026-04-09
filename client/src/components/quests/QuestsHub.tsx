@@ -127,7 +127,11 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
     locationIds: [],
     businessNames: [],
     itemNames: worldItems.map((i: any) => i.name),
-    questIds: quests.map(q => q.id),
+    questIds: [
+      ...quests.map(q => q.id),
+      // Also include Prolog atom IDs extracted from quest content
+      ...quests.map(q => q.content?.match(/quest\(\s*(\w+)/)?.[1]).filter(Boolean) as string[],
+    ],
     targetLanguage: worldData?.targetLanguage,
   }), [worldCharacters, worldItems, quests, worldData]);
 
