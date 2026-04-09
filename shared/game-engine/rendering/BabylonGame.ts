@@ -5295,16 +5295,11 @@ Requirements:
       },
       onEmitEvent: (event) => this.eventBus?.emit(event),
       onStreamToPlayer: (text, _speakerId, speakerName) => {
-        // If chat panel is open in eavesdrop mode, stream text there
-        if (this.chatPanel?.getIsEavesdropMode()) {
-          this.chatPanel.addEavesdropMessage(speakerName, text);
-        } else {
-          this.guiManager?.showToast({
-            title: speakerName,
-            description: `"${text}"`,
-            duration: 4000,
-          });
-        }
+        this.guiManager?.showToast({
+          title: speakerName,
+          description: `"${text}"`,
+          duration: 4000,
+        });
       },
       getGameHour: () => this.gameTimeManager?.hour ?? 12,
       getPlayerPosition: () => this.playerMesh?.position ?? null,
@@ -14030,7 +14025,7 @@ Requirements:
       if (!namedLocations.has('any_npc')) {
         let bestDist = Infinity;
         let bestId: string | null = null;
-        let bestPos: { x: number; z: number } | null = null;
+        let bestPos: any = null;
         this.npcMeshes.forEach((instance, npcId) => {
           if (!instance.mesh?.isEnabled()) return;
           const dx = instance.mesh.position.x - px;
@@ -14039,13 +14034,19 @@ Requirements:
           if (dist < bestDist) {
             bestDist = dist;
             bestId = npcId;
-            bestPos = { x: instance.mesh.position.x, z: instance.mesh.position.z };
+            // Compute NPC model height for marker placement above head
+            let npcTopY = instance.mesh.position.y + 3; // default 3m above root
+            try {
+              instance.mesh.computeWorldMatrix(true);
+              const bounds = instance.mesh.getHierarchyBoundingVectors(true);
+              npcTopY = bounds.max.y + 1.5; // 1.5m above actual model top
+            } catch { /* use default */ }
+            bestPos = { x: instance.mesh.position.x, z: instance.mesh.position.z, topY: npcTopY };
           }
         });
         if (bestPos && bestId) {
           namedLocations.set('any_npc', bestPos);
           (this as any)._anyNpcTargetId = bestId;
-          // Also mark this NPC as the objective target so its indicator shows ! not ?
           this.questIndicatorManager?.setActiveObjectiveNpc(bestId);
         }
       }
@@ -14270,14 +14271,6 @@ Requirements:
       return;
     }
 
-    // In eavesdrop mode, Enter/Escape closes the eavesdrop panel
-    if (this.chatPanel?.getIsEavesdropMode() &&
-        (event.code === KEY_BUILDING_INTERACT || event.code === 'Escape') && !event.repeat) {
-      event.preventDefault();
-      this.chatPanel.hide(false);
-      return;
-    }
-
     // Block game input when any text-input modal/panel is open
     if (assessmentModalOpen || compositionModalOpen ||
         this.chatPanel?.getIsVisible() || this.noticeBoardPanel?.getIsVisible()) {
@@ -14484,13 +14477,6 @@ Requirements:
   ): Promise<void> {
     switch (action.id) {
       // ── Social ─────────────────────────────────────────────────────
-      case '__eavesdrop__': {
-        // Open chat panel in read-only eavesdrop mode
-        const eavesdropPartner = this.ambientConversationManager?.getConversationPartner(target.id);
-        const eavesdropPartnerName = eavesdropPartner?.partnerName || 'NPC';
-        this.chatPanel?.showEavesdrop(`${target.name} & ${eavesdropPartnerName}`);
-        break;
-      }
       case '__talk__': {
         this.setSelectedNPC(target.id);
         await this.handleOpenChat();

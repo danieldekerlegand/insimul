@@ -268,7 +268,6 @@ export class QuestIndicatorManager {
 
     // Use the NPC's absolute world position + fixed height offset
     const absPos = npcMesh.getAbsolutePosition();
-    console.log(`[QuestIndicator] NPC ${npcId}: absPos=(${absPos.x.toFixed(1)}, ${absPos.y.toFixed(1)}, ${absPos.z.toFixed(1)}), indicatorHeight=${this.indicatorHeight}, finalY=${(absPos.y + this.indicatorHeight).toFixed(1)}`);
     indicator.position = new Vector3(absPos.x, absPos.y + this.indicatorHeight, absPos.z);
     indicator.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
