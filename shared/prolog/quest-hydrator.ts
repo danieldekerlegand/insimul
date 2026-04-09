@@ -211,7 +211,8 @@ function parseObjectives(content: string): any[] {
   const objectives: any[] = [];
 
   // quest_objective(QuestId, Index, Goal).
-  const pattern = /quest_objective\(\s*\w+\s*,\s*(\d+)\s*,\s*(.*?)\)\s*\./g;
+  // Use greedy match up to the last ")." on the line to handle nested parens
+  const pattern = /quest_objective\(\s*\w+\s*,\s*(\d+)\s*,\s*(.*)\)\s*\./g;
   let match;
   while ((match = pattern.exec(content)) !== null) {
     const index = parseInt(match[1]);
