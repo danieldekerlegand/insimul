@@ -13989,8 +13989,10 @@ Requirements:
     if (this.settlementNoticeBoard) {
       const boardPos = (this.settlementNoticeBoard as any).getBoardPosition?.();
       if (boardPos) {
-        namedLocations.set('notice_board', { x: boardPos.x, z: boardPos.z });
-        namedLocations.set('Notice Board', { x: boardPos.x, z: boardPos.z });
+        // Notice board is ~4.5m tall — store the top Y for waypoint placement
+        const topY = (boardPos.y || 0) + 5;
+        namedLocations.set('notice_board', { x: boardPos.x, z: boardPos.z, topY } as any);
+        namedLocations.set('Notice Board', { x: boardPos.x, z: boardPos.z, topY } as any);
       }
     }
 
@@ -14057,36 +14059,14 @@ Requirements:
           let locKey = obj.objectiveLocation || '';
           const termMatch = locKey.match(/^(?:location|npc|merchant|settlement)\(\s*'?([^')]+)'?\s*\)$/);
           if (termMatch) locKey = termMatch[1];
-          const namedPos = namedLocations.get(locKey);
+          const namedPos = namedLocations.get(locKey) as any;
           if (namedPos) {
-            // Find the ground height at this position, then place marker above any object there
-            const groundY = this.projectToGround(namedPos.x, namedPos.z).y;
-            // Find the tallest mesh near this position to place marker above it
-            let objectTopY = groundY;
-            for (const mesh of this.worldPropMeshes) {
-              if (!mesh || mesh.isDisposed()) continue;
-              const dx = mesh.position.x - namedPos.x;
-              const dz = mesh.position.z - namedPos.z;
-              if (dx * dx + dz * dz < 9) { // within 3 units
-                mesh.computeWorldMatrix(true);
-                const bounds = mesh.getBoundingInfo()?.boundingBox;
-                if (bounds && bounds.maximumWorld.y > objectTopY) {
-                  objectTopY = bounds.maximumWorld.y;
-                }
-                // Also check child meshes (glTF models have hierarchy)
-                for (const child of mesh.getChildMeshes()) {
-                  child.computeWorldMatrix(true);
-                  const cb = child.getBoundingInfo()?.boundingBox;
-                  if (cb && cb.maximumWorld.y > objectTopY) {
-                    objectTopY = cb.maximumWorld.y;
-                  }
-                }
-              }
-            }
-            // Add clearance above the object top so the marker doesn't overlap
+            // Use pre-computed topY if available (e.g., notice board height)
+            // Otherwise use ground height as base
+            const markerY = namedPos.topY ?? this.projectToGround(namedPos.x, namedPos.z).y;
             this.questWaypointManager.createWaypointForObjectiveType(
               waypointId,
-              new Vector3(namedPos.x, objectTopY + 1, namedPos.z),
+              new Vector3(namedPos.x, markerY, namedPos.z),
               obj.type || 'default',
             );
           }
