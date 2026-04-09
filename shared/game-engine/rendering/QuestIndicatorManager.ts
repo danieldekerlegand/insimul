@@ -44,6 +44,8 @@ export class QuestIndicatorManager {
   private indicators: Map<string, QuestIndicator> = new Map();
   private indicatorHeight: number = 3.5; // Height above NPC
   private questCompletionChecker: QuestCompletionChecker | null = null;
+  /** NPC ID that is the current target for any_npc objectives (e.g., assessment conversation) */
+  private _activeObjectiveNpcId: string | null = null;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -53,6 +55,11 @@ export class QuestIndicatorManager {
    * Set a delegate that checks quest completion via QuestCompletionEngine.
    * When set, isQuestReadyToTurnIn delegates to this instead of reimplementing.
    */
+  /** Set the NPC that is the active target for any_npc / assessment objectives */
+  setActiveObjectiveNpc(npcId: string | null): void {
+    this._activeObjectiveNpcId = npcId;
+  }
+
   setQuestCompletionChecker(checker: QuestCompletionChecker): void {
     this.questCompletionChecker = checker;
   }
@@ -95,8 +102,9 @@ export class QuestIndicatorManager {
     if (turnInQuest) return 'turn_in';
 
     // Priority 2: NPC is the target of the CURRENT (first incomplete) objective — orange !
-    // Match by ID, name, or objectiveLocation npc('Name') reference
+    // Also matches if this NPC is the active any_npc / assessment target
     const npcFullName = [npc.firstName, npc.lastName].filter(Boolean).join(' ');
+    if (this._activeObjectiveNpcId && this._activeObjectiveNpcId === npc.id) return 'available';
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;

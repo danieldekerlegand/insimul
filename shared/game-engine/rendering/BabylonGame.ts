@@ -5058,6 +5058,8 @@ export class BabylonGame {
         }
         this._assessmentTargetNpcId = targetId;
         this.guiManager?.setHighlightedNpc(targetId);
+        // Mark this NPC as the active objective target (overrides radiant quests)
+        this.questIndicatorManager?.setActiveObjectiveNpc(targetId);
         // Also set 3D quest indicator on the NPC mesh
         const npcInstance = this.npcMeshes.get(targetId);
         if (npcInstance?.mesh && this.questIndicatorManager) {
@@ -5092,6 +5094,7 @@ Requirements:
         this.questIndicatorManager.setIndicator(this._assessmentTargetNpcId, null, null);
       }
       this._assessmentTargetNpcId = null;
+      this.questIndicatorManager?.setActiveObjectiveNpc(null);
       this.guiManager?.clearHighlightedNpc();
       this.chatPanel?.setQuestGuidancePrompt(null);
     });
@@ -14007,12 +14010,43 @@ Requirements:
       }
     });
 
-    // any_npc → use a random visible NPC position (first one found)
-    if (!namedLocations.has('any_npc')) {
-      for (const [, instance] of this.npcMeshes) {
-        if (instance.mesh?.isEnabled() && instance.mesh.position) {
-          namedLocations.set('any_npc', { x: instance.mesh.position.x, z: instance.mesh.position.z });
-          break;
+    // any_npc → find the nearest visible NPC to the player, and lock the choice
+    // so it doesn't jump to a different NPC as the player moves
+    if (this.playerMesh) {
+      const px = this.playerMesh.position.x;
+      const pz = this.playerMesh.position.z;
+
+      // If we already locked an any_npc target, keep it unless the NPC is gone
+      if ((this as any)._anyNpcTargetId) {
+        const locked = this.npcMeshes.get((this as any)._anyNpcTargetId);
+        if (locked?.mesh?.isEnabled()) {
+          namedLocations.set('any_npc', { x: locked.mesh.position.x, z: locked.mesh.position.z });
+        } else {
+          (this as any)._anyNpcTargetId = null; // NPC gone, re-pick
+        }
+      }
+
+      // Pick nearest NPC if not locked
+      if (!namedLocations.has('any_npc')) {
+        let bestDist = Infinity;
+        let bestId: string | null = null;
+        let bestPos: { x: number; z: number } | null = null;
+        this.npcMeshes.forEach((instance, npcId) => {
+          if (!instance.mesh?.isEnabled()) return;
+          const dx = instance.mesh.position.x - px;
+          const dz = instance.mesh.position.z - pz;
+          const dist = dx * dx + dz * dz;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestId = npcId;
+            bestPos = { x: instance.mesh.position.x, z: instance.mesh.position.z };
+          }
+        });
+        if (bestPos && bestId) {
+          namedLocations.set('any_npc', bestPos);
+          (this as any)._anyNpcTargetId = bestId;
+          // Also mark this NPC as the objective target so its indicator shows ! not ?
+          this.questIndicatorManager?.setActiveObjectiveNpc(bestId);
         }
       }
     }
@@ -17856,11 +17890,16 @@ Requirements:
       const questData = this.quests.find(q => q.id === quest.id);
       if (!questData) return;
 
-      // Mark as completed in overlay (local state for immediate UI update)
+      // Mark as completed in overlay and local quest array
       await this.dataSource.updateQuest(quest.id, {
         status: 'completed',
         completedAt: new Date().toISOString(),
       });
+      // Update in-memory quest status so UI immediately reflects completion
+      if (questData) {
+        (questData as any).status = 'completed';
+        (questData as any).completedAt = new Date().toISOString();
+      }
 
       // QuestCompletionManager handles server call, celebration, and rewards
       if (this.questCompletionManager) {
