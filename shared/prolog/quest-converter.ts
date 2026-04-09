@@ -903,13 +903,20 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
   // string to recover a structured goal.
   let recoveryDesc = desc || type;
   if (recoveryDesc) {
-    // Strip nested objective('...') wrappers that accumulate from repeated backfills
+    // Strip nested objective('...') / Objective('...') wrappers that accumulate from repeated backfills
     let unwrapped = recoveryDesc;
     for (let i = 0; i < 5; i++) { // max 5 levels of nesting
-      const inner = unwrapped.match(/^objective\(\s*'((?:[^'\\]|\\.)*)'\s*\)$/);
+      // Case-insensitive: handles both objective(...) and Objective(...)
+      const inner = unwrapped.match(/^[Oo]bjective\(\s*'?((?:[^'\\]|\\.)*)(?:'?\s*)\)$/);
       if (inner) {
         unwrapped = inner[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
-      } else break;
+      } else {
+        // Also try without quotes: Objective(objective(...))
+        const bare = unwrapped.match(/^[Oo]bjective\(\s*(.*)\s*\)$/);
+        if (bare) {
+          unwrapped = bare[1];
+        } else break;
+      }
     }
     recoveryDesc = unwrapped;
 

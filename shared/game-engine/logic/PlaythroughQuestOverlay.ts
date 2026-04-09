@@ -105,7 +105,13 @@ export class PlaythroughQuestOverlay {
     for (const savedObj of saved) {
       const obj = quest.objectives.find((o: any) => o.id === savedObj.id);
       if (obj) {
-        Object.assign(obj, savedObj);
+        // Only merge runtime-mutable fields — don't overwrite Prolog-derived fields
+        // like description, type, required, requiredCount with stale saved data
+        if (savedObj.completed !== undefined) obj.completed = savedObj.completed;
+        if (savedObj.currentCount !== undefined) obj.currentCount = savedObj.currentCount;
+        if (savedObj.current !== undefined) obj.current = savedObj.current;
+        if (savedObj.score !== undefined) obj.score = savedObj.score;
+        if (savedObj.maxScore !== undefined) obj.maxScore = savedObj.maxScore;
       }
     }
   }

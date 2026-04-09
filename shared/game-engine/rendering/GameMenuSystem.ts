@@ -2517,21 +2517,24 @@ export class GameMenuSystem {
         check.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         objRow.addControl(check);
 
-        // Description
+        // Description — constrain width when progress count is shown
+        const hasCount = obj.required && obj.required > 1;
         const objDesc = new TextBlock();
         objDesc.text = obj.description || obj.type;
-        objDesc.color = obj.completed ? COLORS.textMuted : COLORS.textPrimary;
+        objDesc.color = obj.completed ? COLORS.textSecondary : COLORS.textPrimary;
         objDesc.fontSize = 11;
+        if (hasCount) objDesc.width = 0.75; // leave room for progress count
         objDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         objRow.addControl(objDesc);
 
-        // Progress count if countable
-        if (obj.required && obj.required > 1) {
+        // Progress count if countable — yellow, right-aligned
+        if (hasCount) {
           const countText = new TextBlock();
           countText.text = `${obj.current || 0}/${obj.required}`;
-          countText.color = COLORS.textMuted;
-          countText.fontSize = 10;
-          countText.width = "40px";
+          countText.color = "#FFD700"; // gold/yellow for visibility
+          countText.fontSize = 11;
+          countText.fontWeight = "bold";
+          countText.width = 0.25;
           countText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
           objRow.addControl(countText);
         }
