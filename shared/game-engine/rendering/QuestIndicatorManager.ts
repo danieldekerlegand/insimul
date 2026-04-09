@@ -79,7 +79,7 @@ export class QuestIndicatorManager {
       if (!sample) sample = { id: npcId, occupation: npcData.character?.occupation, type: indicatorType };
       this.setIndicator(npcId, npcData.mesh, indicatorType);
     });
-    // console.log(`[QuestIndicatorManager] Updated ${npcs.size} NPCs, ${created} indicators created, ${quests.length} quests, sample NPC:`, sample);
+    console.log(`[QuestIndicatorManager] Updated ${npcs.size} NPCs, ${created} indicators created, ${this.indicators.size} active 3D indicators`);
   }
 
   /**
@@ -241,6 +241,7 @@ export class QuestIndicatorManager {
 
     // Create new indicator if needed
     if (type && npcMesh && (!existing || existing.type !== type)) {
+      console.log(`[QuestIndicator] Creating 3D indicator: npc=${npcId}, type=${type}, meshName=${npcMesh.name}, meshPos=(${npcMesh.position.x.toFixed(1)}, ${npcMesh.position.y.toFixed(1)}, ${npcMesh.position.z.toFixed(1)})`);
       this.createIndicator(npcId, npcMesh, type);
     }
   }
