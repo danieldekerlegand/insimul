@@ -6,7 +6,7 @@
  * Supports distance-based fading and per-frame updates.
  */
 
-import { Scene, Mesh, MeshBuilder, StandardMaterial, Color3, Vector3, Animation } from '@babylonjs/core';
+import { Scene, Mesh, MeshBuilder, StandardMaterial, Color3, Vector3, Animation, DynamicTexture } from '@babylonjs/core';
 import { computeWaypointAlpha } from '@shared/game-engine/logic/waypointFading';
 
 /** Color mapping for objective types */
@@ -47,6 +47,18 @@ export function getWaypointColor(objectiveType: string): Color3 {
     case 'translation_challenge':
     case 'listening_comprehension':
       return new Color3(0.2, 0.6, 1); // Blue for language
+    case 'complete_assessment':
+    case 'arrival_reading':
+    case 'arrival_writing':
+    case 'arrival_listening':
+    case 'arrival_initiate_conversation':
+    case 'arrival_conversation':
+    case 'departure_reading':
+    case 'departure_writing':
+    case 'departure_listening':
+    case 'departure_conversation':
+    case 'periodic_conversational':
+      return new Color3(1, 0.84, 0); // Gold for assessments
     default:
       return new Color3(1, 1, 1); // White
   }
@@ -68,74 +80,77 @@ export class QuestWaypointManager {
     objectiveId: string,
     position: Vector3,
     color: Color3 = new Color3(1, 0.8, 0),
-    height: number = 20
+    _height: number = 4
   ): void {
     if (this.waypoints.has(objectiveId)) {
       this.removeWaypoint(objectiveId);
     }
 
-    const beam = MeshBuilder.CreateCylinder(
-      `waypoint_beam_${objectiveId}`,
-      { height, diameter: 0.5 },
+    // Floating exclamation point billboard
+    const size = 1.2;
+    const plane = MeshBuilder.CreatePlane(
+      `waypoint_${objectiveId}`,
+      { width: size, height: size },
       this.scene
     );
 
-    beam.position = position.clone();
-    beam.position.y += height / 2;
+    plane.position = position.clone();
+    plane.position.y += _height;
+    plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
-    const beamMat = new StandardMaterial(`waypoint_mat_${objectiveId}`, this.scene);
-    beamMat.emissiveColor = color;
-    beamMat.alpha = 0.6;
-    beam.material = beamMat;
+    // Draw "!" on a dynamic texture
+    const texSize = 128;
+    const tex = new DynamicTexture(`waypoint_tex_${objectiveId}`, texSize, this.scene, false);
+    const ctx2d = tex.getContext();
 
-    const marker = MeshBuilder.CreateSphere(
-      `waypoint_marker_${objectiveId}`,
-      { diameter: 2, segments: 16 },
-      this.scene
-    );
+    // Background circle
+    const cx = texSize / 2;
+    const cy = texSize / 2;
+    const radius = texSize * 0.42;
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx2d.fillStyle = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+    ctx2d.fill();
+    ctx2d.lineWidth = 3;
+    ctx2d.strokeStyle = '#FFFFFF';
+    ctx2d.stroke();
 
-    marker.position = new Vector3(0, height / 2 + 1, 0);
-    marker.parent = beam;
+    // Exclamation mark
+    ctx2d.font = 'bold 80px Arial';
+    ctx2d.fillStyle = '#000000';
+    (ctx2d as any).textAlign = 'center';
+    (ctx2d as any).textBaseline = 'middle';
+    ctx2d.fillText('!', cx, cy + 2);
+    tex.update();
+    tex.hasAlpha = true;
 
-    const markerMat = new StandardMaterial(`waypoint_marker_mat_${objectiveId}`, this.scene);
-    markerMat.emissiveColor = color;
-    markerMat.diffuseColor = color;
-    marker.material = markerMat;
+    const mat = new StandardMaterial(`waypoint_mat_${objectiveId}`, this.scene);
+    mat.diffuseTexture = tex;
+    mat.emissiveColor = new Color3(0.5, 0.5, 0.5);
+    mat.useAlphaFromDiffuseTexture = true;
+    mat.disableLighting = true;
+    mat.backFaceCulling = false;
+    plane.material = mat;
 
-    // Pulsing animation
-    const pulseAnim = new Animation(
-      `waypoint_pulse_${objectiveId}`,
-      'scaling',
-      30,
-      Animation.ANIMATIONTYPE_VECTOR3,
-      Animation.ANIMATIONLOOPMODE_CYCLE
-    );
-    pulseAnim.setKeys([
-      { frame: 0, value: new Vector3(1, 1, 1) },
-      { frame: 30, value: new Vector3(1.3, 1.3, 1.3) },
-      { frame: 60, value: new Vector3(1, 1, 1) },
-    ]);
-    marker.animations.push(pulseAnim);
-    this.scene.beginAnimation(marker, 0, 60, true);
-
-    // Rotation animation
-    const rotateAnim = new Animation(
-      `waypoint_rotate_${objectiveId}`,
-      'rotation.y',
+    // Bobbing animation (float up and down)
+    const bobAnim = new Animation(
+      `waypoint_bob_${objectiveId}`,
+      'position.y',
       30,
       Animation.ANIMATIONTYPE_FLOAT,
       Animation.ANIMATIONLOOPMODE_CYCLE
     );
-    rotateAnim.setKeys([
-      { frame: 0, value: 0 },
-      { frame: 120, value: Math.PI * 2 },
+    const baseY = plane.position.y;
+    bobAnim.setKeys([
+      { frame: 0, value: baseY },
+      { frame: 30, value: baseY + 0.4 },
+      { frame: 60, value: baseY },
     ]);
-    beam.animations.push(rotateAnim);
-    this.scene.beginAnimation(beam, 0, 120, true);
+    plane.animations.push(bobAnim);
+    this.scene.beginAnimation(plane, 0, 60, true);
 
-    this.waypoints.set(objectiveId, beam);
-    this.waypointBaseAlphas.set(objectiveId, 0.6);
-
+    this.waypoints.set(objectiveId, plane);
+    this.waypointBaseAlphas.set(objectiveId, 1.0);
   }
 
   /**
