@@ -368,15 +368,25 @@ export function showPrologDebugPanel(
   prologPanel.dataset.tabPanel = 'prolog';
   prologPanel.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden;';
 
-  // Output area
+  // Live event feed + query output area
   const output = document.createElement('pre');
   output.dataset.scroll = 'true';
   output.style.cssText =
     'flex:1;overflow-y:auto;padding:8px;margin:0;font:12px monospace;' +
     'color:#0f0;max-height:280px;white-space:pre-wrap;word-break:break-all;';
-  output.textContent = '% Prolog Knowledge Base Inspector\n% Type a query and press Enter.\n% Examples:\n%   person(X).\n%   quest_active(player, Q).\n%   pronunciation_score(player, P, S, T).\n%   has(player, X).\n';
+  output.textContent = '% Prolog Debug Console — live event feed\n% Player actions, fact assertions, and quest evaluations appear here.\n% Type a query below and press Enter to inspect the knowledge base.\n';
   prologPanel.appendChild(output);
   _outputEl = output;
+
+  // Subscribe to debug events and show them in the output area
+  const prologBusSub = getDebugEventBus().subscribe((event: DebugEvent) => {
+    if (event.category !== 'prolog') return;
+    if (!_outputEl) return;
+    // Color-code by tag
+    const prefix = event.tag === 'Assert' ? '\x1b[32m' : event.tag === 'Retract' ? '\x1b[31m' : '';
+    _outputEl.textContent += `${event.summary}\n`;
+    _outputEl.scrollTop = _outputEl.scrollHeight;
+  });
 
   // Quick-action buttons
   const quickBar = document.createElement('div');

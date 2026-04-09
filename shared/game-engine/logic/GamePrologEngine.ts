@@ -139,12 +139,31 @@ export class GamePrologEngine {
   private async assertPlayerFact(fact: string): Promise<void> {
     await this.engine.assertFact(fact);
     this.playerFacts.add(`${fact}.`);
+    // Emit to debug console
+    getDebugEventBus().emit({
+      timestamp: Date.now(),
+      category: 'prolog',
+      level: 'info',
+      tag: 'Assert',
+      summary: `[+] ${fact}`,
+      detail: fact,
+      source: 'client',
+    });
   }
 
   /** Retract a fact and remove it from player-gameplay tracking. */
   private async retractPlayerFact(fact: string): Promise<void> {
     await this.engine.retractFact(fact);
     this.playerFacts.delete(`${fact}.`);
+    getDebugEventBus().emit({
+      timestamp: Date.now(),
+      category: 'prolog',
+      level: 'info',
+      tag: 'Retract',
+      summary: `[-] ${fact}`,
+      detail: fact,
+      source: 'client',
+    });
   }
 
   /**
@@ -173,6 +192,17 @@ export class GamePrologEngine {
    */
   private async handleGameEvent(event: GameEvent): Promise<void> {
     if (!this.initialized) return;
+
+    // Log game event to debug console
+    getDebugEventBus().emit({
+      timestamp: Date.now(),
+      category: 'prolog',
+      level: 'info',
+      tag: 'Event',
+      summary: `[⚡] ${event.type}`,
+      detail: JSON.stringify(event, null, 2).slice(0, 500),
+      source: 'client',
+    });
 
     switch (event.type) {
       case 'item_collected': {
@@ -626,6 +656,15 @@ export class GamePrologEngine {
       // Track that this action was performed (used by generic objective_complete/3 clause)
       await this.assertPlayerFact(`action_performed(player, ${this.sanitize(actionId)})`);
       await this.executeActionEffects(actionId, event);
+      getDebugEventBus().emit({
+        timestamp: Date.now(),
+        category: 'prolog',
+        level: 'info',
+        tag: 'Action',
+        summary: `[▶] ${actionId}`,
+        detail: `Derived action: ${actionId}\nFrom event: ${(event as any).type}`,
+        source: 'client',
+      });
     }
 
     // Re-evaluate active quest postconditions after fact + effect assertion
@@ -847,6 +886,15 @@ export class GamePrologEngine {
       if (complete && !this.completedQuests.has(questId)) {
         this.completedQuests.add(questId);
         this.onQuestCompleted?.(questId);
+        getDebugEventBus().emit({
+          timestamp: Date.now(),
+          category: 'prolog',
+          level: 'info',
+          tag: 'Quest',
+          summary: `[★] Quest complete: ${questId}`,
+          detail: `Quest: ${questId}\nAll objectives satisfied.`,
+          source: 'client',
+        });
       }
     }
   }
@@ -879,6 +927,15 @@ export class GamePrologEngine {
       if (complete) {
         this.completedObjectives.add(key);
         this.onObjectiveCompleted!(questId, idx);
+        getDebugEventBus().emit({
+          timestamp: Date.now(),
+          category: 'prolog',
+          level: 'info',
+          tag: 'Quest',
+          summary: `[✓] Objective ${idx} complete: ${questId}`,
+          detail: `Quest: ${questId}\nObjective index: ${idx}`,
+          source: 'client',
+        });
       }
     }
   }
