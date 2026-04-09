@@ -162,9 +162,14 @@ export function extractObjectiveMarkers(
     // Quest-level fallback position
     const questPos = (quest as any).locationPosition as { x: number; y?: number; z: number } | undefined;
 
+    // Only show marker for the first incomplete objective (the current one)
+    // This prevents cluttering the map with markers for future objectives
+    let foundCurrent = false;
     for (let i = 0; i < quest.objectives.length; i++) {
       const obj = quest.objectives[i] as any;
       if (obj.completed) continue;
+      if (foundCurrent) break; // only show one objective per quest
+      foundCurrent = true;
 
       // Prefer objective-level position, fall back to quest-level, then dynamic resolution
       let pos = obj.locationPosition ?? obj.position ?? questPos;

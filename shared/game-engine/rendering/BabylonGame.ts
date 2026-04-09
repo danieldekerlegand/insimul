@@ -13816,19 +13816,26 @@ export class BabylonGame {
       namedLocations.set('any_crafting_station', namedLocations.get("Sonnier's La Guilde des Artisans")!);
     }
 
-    // Create 3D waypoint markers for objectives resolved via namedLocations
-    // (these aren't handled by DynamicQuestWaypointDirector)
+    // Create 3D waypoint markers for the CURRENT (first incomplete) objective
+    // of each active quest, resolved via namedLocations
     if (this.questWaypointManager) {
+      // First, remove stale namedLocation waypoints (objectives that completed or changed)
+      for (const existingId of this.questWaypointManager.getWaypointIds()) {
+        if (existingId.startsWith('named_')) {
+          this.questWaypointManager.removeWaypoint(existingId);
+        }
+      }
+
       for (const quest of (this.quests || [])) {
         if ((quest as any).status !== 'active') continue;
         const objectives = (quest as any).objectives || [];
+        // Find the first incomplete objective only
         for (let i = 0; i < objectives.length; i++) {
           const obj = objectives[i];
           if (obj.completed) continue;
-          const waypointId = `${quest.id}_obj_${i}`;
+          const waypointId = `named_${quest.id}_obj_${i}`;
           // Skip if already has a waypoint from DynamicQuestWaypointDirector
-          if (this.questWaypointManager.hasWaypoint(waypointId)) continue;
-          if (this._resolvedWaypointPositions.has(waypointId)) continue;
+          if (this._resolvedWaypointPositions.has(`${quest.id}_obj_${i}`)) break;
           // Try resolving via named locations
           let locKey = obj.objectiveLocation || '';
           const termMatch = locKey.match(/^(?:location|npc|merchant|settlement)\(\s*'?([^')]+)'?\s*\)$/);
@@ -13841,6 +13848,7 @@ export class BabylonGame {
               obj.type || 'default',
             );
           }
+          break; // only the first incomplete objective
         }
       }
     }

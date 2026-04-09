@@ -94,25 +94,25 @@ export class QuestIndicatorManager {
     );
     if (turnInQuest) return 'turn_in';
 
-    // Priority 2: NPC is the target of an active quest objective — orange !
+    // Priority 2: NPC is the target of the CURRENT (first incomplete) objective — orange !
     // Match by ID, name, or objectiveLocation npc('Name') reference
     const npcFullName = [npc.firstName, npc.lastName].filter(Boolean).join(' ');
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;
       if (!Array.isArray(objectives)) return false;
-      return objectives.some((obj: any) => {
-        if (obj.completed) return false;
-        // Match by NPC ID
-        if (obj.npcId === npc.id || obj.targetNpcId === npc.id) return true;
-        // Match by NPC name (from hydrated Prolog content)
-        if (npcFullName && (obj.npcId === npcFullName || obj.target === npcFullName || obj.npcName === npcFullName)) return true;
-        // Match by objectiveLocation npc('Name') reference
-        const locRef = obj.objectiveLocation || '';
-        const npcLocMatch = locRef.match(/^npc\(\s*'?([^')]+)'?\s*\)$/);
-        if (npcLocMatch && npcLocMatch[1] === npcFullName) return true;
-        return false;
-      });
+      // Only check the first incomplete objective (the current one)
+      const currentObj = objectives.find((obj: any) => !obj.completed);
+      if (!currentObj) return false;
+      // Match by NPC ID
+      if (currentObj.npcId === npc.id || currentObj.targetNpcId === npc.id) return true;
+      // Match by NPC name (from hydrated Prolog content)
+      if (npcFullName && (currentObj.npcId === npcFullName || currentObj.target === npcFullName || currentObj.npcName === npcFullName)) return true;
+      // Match by objectiveLocation npc('Name') reference
+      const locRef = currentObj.objectiveLocation || '';
+      const npcLocMatch = locRef.match(/^npc\(\s*'?([^')]+)'?\s*\)$/);
+      if (npcLocMatch && npcLocMatch[1] === npcFullName) return true;
+      return false;
     });
     if (isObjectiveTarget) return 'available';
 
