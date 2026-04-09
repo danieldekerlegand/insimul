@@ -170,24 +170,37 @@ export class BabylonShopPanel {
     return 'advanced';
   }
 
-  /** Build English→target language name map from sampleWords */
+  /** Build English→target language name map. Priority: item DB translations > sampleWords */
   private buildItemTranslations(lang: WorldLanguage): void {
     this.itemTranslations.clear();
-    if (!lang.sampleWords) return;
-    // sampleWords is { english: conlangWord }
-    for (const [english, conlang] of Object.entries(lang.sampleWords)) {
-      this.itemTranslations.set(english.toLowerCase(), conlang);
+    // Fallback: sampleWords from the language definition
+    if (lang.sampleWords) {
+      for (const [english, conlang] of Object.entries(lang.sampleWords)) {
+        this.itemTranslations.set(english.toLowerCase(), conlang as string);
+      }
     }
   }
 
-  /** Look up target-language name for an item. Falls back to original name. */
-  private getTranslatedName(englishName: string): string | null {
+  /** Resolve the target language name from an item's own translations field. */
+  private getLanguageName(): string {
+    return this.languageConfig?.targetLanguage?.name || 'French';
+  }
+
+  /** Look up target-language name for an item. Checks item translations first. */
+  private getTranslatedName(englishName: string, item?: any): string | null {
     if (!this.languageConfig) return null;
-    // Try exact match
+
+    // Priority 1: item's own DB translations field (from migration 046)
+    if (item?.translations) {
+      const langName = this.getLanguageName();
+      const trans = item.translations[langName];
+      if (trans?.targetWord) return trans.targetWord;
+    }
+
+    // Priority 2: sampleWords fallback
     const lower = englishName.toLowerCase();
     const direct = this.itemTranslations.get(lower);
     if (direct) return direct;
-    // Try matching any word in the item name
     const words = lower.split(/\s+/);
     for (const w of words) {
       const match = this.itemTranslations.get(w);
@@ -538,7 +551,7 @@ export class BabylonShopPanel {
     const totalPrice = unitPrice * selectedQty;
 
     // Language mode: compute translated name
-    const translatedName = this.isLanguageMode ? this.getTranslatedName(item.name) : null;
+    const translatedName = this.isLanguageMode ? this.getTranslatedName(item.name, item) : null;
     const hasTranslation = translatedName !== null;
     const wordKnown = hasTranslation ? this.isWordLearned(translatedName) : false;
 
@@ -941,7 +954,7 @@ export class BabylonShopPanel {
 
       // Language-learning feedback on purchase
       if (this.isLanguageMode) {
-        const translatedName = this.getTranslatedName(item.name);
+        const translatedName = this.getTranslatedName(item.name, item);
         if (translatedName) {
           // Track vocabulary
           if (this.languageConfig?.onVocabularyLearned) {
