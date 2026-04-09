@@ -46,8 +46,35 @@ export async function batchTranslateItems(
 
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
-    const batchResults = await translateBatch(batch, targetLanguage, llm);
-    results.push(...batchResults);
+    const batchNum = Math.floor(i / batchSize) + 1;
+    const totalBatches = Math.ceil(items.length / batchSize);
+    console.log(`[ItemTranslation] Batch ${batchNum}/${totalBatches} (${batch.length} items)...`);
+
+    // Retry with exponential backoff on rate-limit errors
+    let attempt = 0;
+    const maxRetries = 4;
+    while (attempt <= maxRetries) {
+      try {
+        const batchResults = await translateBatch(batch, targetLanguage, llm);
+        results.push(...batchResults);
+        break;
+      } catch (err: any) {
+        if ((err.status === 503 || err.status === 429) && attempt < maxRetries) {
+          const delayMs = Math.min(2000 * Math.pow(2, attempt), 30000);
+          console.warn(`[ItemTranslation] Rate limited (${err.status}), retrying in ${delayMs / 1000}s (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          attempt++;
+        } else {
+          console.error(`[ItemTranslation] Translation batch failed:`, err);
+          break; // skip this batch
+        }
+      }
+    }
+
+    // Brief pause between batches to avoid rate limits
+    if (i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
 
   return results;
