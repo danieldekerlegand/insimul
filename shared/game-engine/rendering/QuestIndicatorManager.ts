@@ -43,6 +43,7 @@ export class QuestIndicatorManager {
   private questCompletionChecker: QuestCompletionChecker | null = null;
   /** NPC ID that is the current target for any_npc objectives (e.g., assessment conversation) */
   private _activeObjectiveNpcId: string | null = null;
+  private _loggedObjectives = false;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -80,7 +81,21 @@ export class QuestIndicatorManager {
       if (!sample) sample = { id: npcId, occupation: npcData.character?.occupation, type: indicatorType };
       this.setIndicator(npcId, npcData.mesh, indicatorType);
     });
-    // console.log(`[QuestIndicatorManager] Updated ${npcs.size} NPCs, ${created} indicators`);
+    if (created > 0 || this._activeObjectiveNpcId) {
+      console.log(`[QuestIndicatorManager] ${created}/${npcs.size} indicators, activeObjNpc=${this._activeObjectiveNpcId}`);
+    }
+    // Log active quest objectives once for debugging
+    if (!this._loggedObjectives) {
+      this._loggedObjectives = true;
+      const activeQuests = quests.filter(q => q.status === 'active');
+      for (const q of activeQuests) {
+        const objs = (q as any).objectives || [];
+        const current = objs.find((o: any) => !o.completed);
+        if (current) {
+          console.log(`[QuestIndicatorManager] Active objective: quest="${(q as any).title}", type=${current.type}, target="${current.target}", npcId="${current.npcId}", npcName="${current.npcName}"`);
+        }
+      }
+    }
   }
 
   /**
