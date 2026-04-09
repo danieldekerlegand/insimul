@@ -368,9 +368,25 @@ function parseObjectiveGoal(goal: string): any | null {
     };
   }
 
-  // objective('description text') — generic
+  // objective('description text') — generic, with deep recovery for nested corruption
   if (functor === 'objective' && args.length >= 1) {
-    return { type: 'objective', description: capitalize(args[0]), requiredCount: 1, required: 1 };
+    let desc = args[0];
+    // Deep recovery: strip all objective/Objective wrappers to find a buried Prolog term
+    const stripped = desc
+      .replace(/[Oo]bjective\(\s*'?/g, '')
+      .replace(/'?\s*\)(?:\s*'\s*\))*\s*$/g, '')
+      .replace(/^'+|'+$/g, '')
+      .trim();
+    const buriedTerm = stripped.match(/^(visit[\s_]location|discover[\s_]location|talk[\s_]to|collect|deliver|escort)\s*\(\s*'?/i);
+    if (buriedTerm) {
+      const funcName = buriedTerm[1].replace(/\s/g, '_').toLowerCase();
+      const afterParen = stripped.slice(buriedTerm[0].length);
+      const targetName = afterParen.replace(/[')\s]+$/g, '').trim();
+      if (targetName) {
+        return { type: funcName, description: goalToDescription(funcName, [targetName]), target: targetName, requiredCount: 1, required: 1 };
+      }
+    }
+    return { type: 'objective', description: capitalize(desc), requiredCount: 1, required: 1 };
   }
 
   // ── Fallback — produce human-readable description from raw goal ──
