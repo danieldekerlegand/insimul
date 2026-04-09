@@ -5060,16 +5060,7 @@ export class BabylonGame {
         this.guiManager?.setHighlightedNpc(targetId);
         // Mark this NPC as the active objective target (overrides radiant quests)
         this.questIndicatorManager?.setActiveObjectiveNpc(targetId);
-        // Also set 3D quest indicator on the NPC mesh
-        const npcInstance = this.npcMeshes.get(targetId);
-        console.log(`[Assessment] Setting indicator for NPC ${targetId}: mesh=${!!npcInstance?.mesh}, indicatorMgr=${!!this.questIndicatorManager}`);
-        if (npcInstance?.mesh && this.questIndicatorManager) {
-          this.questIndicatorManager.setIndicator(targetId, npcInstance.mesh, 'available');
-          console.log(`[Assessment] Indicator created for ${targetId}`);
-        } else {
-          console.warn(`[Assessment] Could NOT create indicator: mesh=${!!npcInstance?.mesh}, mgr=${!!this.questIndicatorManager}`);
-        }
-        // Also trigger a quest indicator refresh so the NPC's indicator shows
+        // Refresh quest indicators so the active objective NPC gets the ! marker
         this.updateQuestIndicators();
       } else {
         console.warn('[BabylonGame] assessment_conversation_quest_start: no NPCs available to highlight');
@@ -5096,13 +5087,12 @@ Requirements:
       this.chatPanel?.setQuestGuidancePrompt(guidancePrompt);
     });
     this.eventBus.on('assessment_conversation_completed', () => {
-      if (this._assessmentTargetNpcId && this.questIndicatorManager) {
-        this.questIndicatorManager.setIndicator(this._assessmentTargetNpcId, null, null);
-      }
       this._assessmentTargetNpcId = null;
       this.questIndicatorManager?.setActiveObjectiveNpc(null);
       this.guiManager?.clearHighlightedNpc();
       this.chatPanel?.setQuestGuidancePrompt(null);
+      // Refresh indicators so the NPC's ! marker is removed
+      this.updateQuestIndicators();
     });
     this.eventBus.on('onboarding_step_completed', () => {
       this.gamificationTracker?.onOnboardingStepCompleted();
@@ -14100,45 +14090,9 @@ Requirements:
       namedLocations.set('any_crafting_station', namedLocations.get("Sonnier's La Guilde des Artisans")!);
     }
 
-    // Create 3D waypoint markers for the CURRENT (first incomplete) objective
-    // of each active quest, resolved via namedLocations
-    if (this.questWaypointManager) {
-      // First, remove stale namedLocation waypoints (objectives that completed or changed)
-      for (const existingId of this.questWaypointManager.getWaypointIds()) {
-        if (existingId.startsWith('named_')) {
-          this.questWaypointManager.removeWaypoint(existingId);
-        }
-      }
-
-      for (const quest of (this.quests || [])) {
-        if ((quest as any).status !== 'active') continue;
-        const objectives = (quest as any).objectives || [];
-        // Find the first incomplete objective only
-        for (let i = 0; i < objectives.length; i++) {
-          const obj = objectives[i];
-          if (obj.completed) continue;
-          const waypointId = `named_${quest.id}_obj_${i}`;
-          // Skip if already has a waypoint from DynamicQuestWaypointDirector
-          if (this._resolvedWaypointPositions.has(`${quest.id}_obj_${i}`)) break;
-          // Try resolving via named locations
-          let locKey = obj.objectiveLocation || '';
-          const termMatch = locKey.match(/^(?:location|npc|merchant|settlement)\(\s*'?([^')]+)'?\s*\)$/);
-          if (termMatch) locKey = termMatch[1];
-          const namedPos = namedLocations.get(locKey) as any;
-          if (namedPos) {
-            // Use pre-computed topY if available (e.g., notice board height)
-            // Otherwise use ground height as base
-            const markerY = namedPos.topY ?? this.projectToGround(namedPos.x, namedPos.z).y;
-            this.questWaypointManager.createWaypointForObjectiveType(
-              waypointId,
-              new Vector3(namedPos.x, markerY, namedPos.z),
-              obj.type || 'default',
-            );
-          }
-          break; // only the first incomplete objective
-        }
-      }
-    }
+    // 3D quest markers for objectives are now handled by QuestIndicatorManager
+    // (for NPCs) and QuestWaypointManager (for DynamicQuestWaypointDirector resolved positions only).
+    // Named-location waypoints have been removed to avoid duplicate markers.
 
     const questObjectiveMarkers = extractObjectiveMarkers(this.quests, this._resolvedWaypointPositions, namedLocations).map(m => ({
       id: m.id,
