@@ -3761,22 +3761,31 @@ export class BabylonGame {
         }
       }
 
-      // If assessment is active, signal that a conversation was completed
+      // If assessment is active, check if the conversation met minimum requirements
       if (this.assessmentActive) {
         const npcId = this.conversationNPCId || '';
-        // Derive a normalized score (0-10) from conversation metrics
-        const grammarComponent = (result.grammarScore ?? 0.5) * 5; // 0-5
-        const tlComponent = ((result.targetLanguagePercentage ?? 50) / 100) * 5; // 0-5
-        const conversationScore = Math.round((grammarComponent + tlComponent) * 10) / 10;
-        this.eventBus.emit({
-          type: 'assessment_conversation_completed',
-          npcId,
-          score: Math.min(10, conversationScore),
-        });
-        // Emit conversation_assessment_completed trigger for quest objective completion
-        // Use the result's turn count (player messages count as turns)
-        const turnCount = result.playerMessageCount ?? result.totalExchanges ?? 3;
-        this.eventBus.emit({ type: 'conversation_assessment_completed', npcId, turnCount });
+        const turnCount = result.playerMessageCount ?? result.totalExchanges ?? 0;
+        const MIN_ASSESSMENT_TURNS = 4; // Player must contribute at least 4 messages
+
+        if (turnCount >= MIN_ASSESSMENT_TURNS) {
+          // Derive a normalized score (0-10) from conversation metrics
+          const grammarComponent = (result.grammarScore ?? 0.5) * 5;
+          const tlComponent = ((result.targetLanguagePercentage ?? 50) / 100) * 5;
+          const conversationScore = Math.round((grammarComponent + tlComponent) * 10) / 10;
+          this.eventBus.emit({
+            type: 'assessment_conversation_completed',
+            npcId,
+            score: Math.min(10, conversationScore),
+          });
+          this.eventBus.emit({ type: 'conversation_assessment_completed', npcId, turnCount });
+        } else {
+          // Conversation was too short — notify player
+          this.guiManager?.showToast({
+            title: 'Conversation too short',
+            description: `You need at least ${MIN_ASSESSMENT_TURNS} exchanges for the assessment. Try talking more with the NPC!`,
+            duration: 5000,
+          });
+        }
       }
 
       this.guiManager?.showToast({
@@ -4988,7 +4997,21 @@ export class BabylonGame {
     // When the guided conversation phase starts, inject assessment prompt into the chat panel
     this.eventBus.on('assessment_guided_conversation_start', (event) => {
       const topics = event.topics.join(', ');
-      const guidancePrompt = `\n\nASSESSMENT CONVERSATION MODE: This is a language assessment conversation. Guide the conversation through these topics: ${topics}. Ask the player questions in the target language, starting simple and gradually increasing complexity. Aim for ${event.minExchanges}–${event.maxExchanges} exchanges. Evaluate their responses naturally — do not grade out loud. Keep the conversation flowing and supportive.`;
+      const guidancePrompt = `\n\nASSESSMENT CONVERSATION MODE: This is a language proficiency assessment conversation. You MUST guide the conversation through ALL of these topics in order: ${topics}.
+
+For each topic:
+1. Ask the player a question in the target language
+2. Wait for their response
+3. Ask a follow-up question to probe deeper
+4. Then move to the next topic
+
+Requirements:
+- Ask at least ${event.minExchanges} questions total (aim for ${event.maxExchanges})
+- Start with simple questions and gradually increase complexity
+- If the player responds in English, gently encourage them to try in the target language
+- Do NOT end the conversation early — keep asking questions until you've covered all topics
+- Do NOT grade or score out loud — evaluate naturally
+- Keep the conversation warm and supportive, like a friendly local getting to know a visitor`;
       this.chatPanel?.setQuestGuidancePrompt(guidancePrompt);
     });
     this.eventBus.on('assessment_conversation_completed', () => {

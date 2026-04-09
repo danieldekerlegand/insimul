@@ -149,10 +149,10 @@ const ARRIVAL_PHASES: AssessmentPhaseTemplate[] = [
       { id: 'pragmatics', name: 'Pragmatics', maxScore: 2, description: 'Socially appropriate language use' },
     ],
     questConfig: {
-      minExchanges: 6,
-      maxExchanges: 12,
-      topics: ['greetings', 'travel', 'directions'],
-      npcRole: 'A friendly local resident of {{cityName}} who enjoys meeting visitors.',
+      minExchanges: 8,
+      maxExchanges: 14,
+      topics: ['greetings_and_introductions', 'where_you_are_from', 'why_you_are_visiting', 'describing_what_you_see', 'asking_about_local_life'],
+      npcRole: 'A friendly local resident of {{cityName}} who enjoys meeting visitors. You are curious about where the player is from and why they are visiting. You want to help them practice the local language.',
     },
   },
 ];
@@ -231,10 +231,10 @@ const DEPARTURE_PHASES: AssessmentPhaseTemplate[] = [
       { id: 'pragmatics', name: 'Pragmatics', maxScore: 2, description: 'Socially appropriate language use' },
     ],
     questConfig: {
-      minExchanges: 6,
-      maxExchanges: 12,
-      topics: ['farewell', 'experiences', 'future_plans'],
-      npcRole: 'A local friend the player made during their stay in {{cityName}}.',
+      minExchanges: 8,
+      maxExchanges: 14,
+      topics: ['reflecting_on_experiences', 'favorite_memories', 'what_you_learned', 'farewell_and_future_plans', 'recommending_the_town'],
+      npcRole: 'A close local friend the player made during their stay in {{cityName}}. You are sad to see them go and want to hear about their favorite experiences.',
     },
   },
 ];
