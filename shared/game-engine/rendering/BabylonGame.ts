@@ -5292,11 +5292,16 @@ Requirements:
       },
       onEmitEvent: (event) => this.eventBus?.emit(event),
       onStreamToPlayer: (text, _speakerId, speakerName) => {
-        this.guiManager?.showToast({
-          title: speakerName,
-          description: `"${text}"`,
-          duration: 4000,
-        });
+        // If chat panel is open in eavesdrop mode, stream text there
+        if (this.chatPanel?.getIsEavesdropMode()) {
+          this.chatPanel.addEavesdropMessage(speakerName, text);
+        } else {
+          this.guiManager?.showToast({
+            title: speakerName,
+            description: `"${text}"`,
+            duration: 4000,
+          });
+        }
       },
       getGameHour: () => this.gameTimeManager?.hour ?? 12,
       getPlayerPosition: () => this.playerMesh?.position ?? null,
@@ -14054,9 +14059,25 @@ Requirements:
           if (termMatch) locKey = termMatch[1];
           const namedPos = namedLocations.get(locKey);
           if (namedPos) {
+            // Find the ground height at this position, then place marker above any object there
+            const groundY = this.projectToGround(namedPos.x, namedPos.z).y;
+            // Check if there's a mesh near this position to get its height
+            let objectTopY = groundY;
+            for (const mesh of this.worldPropMeshes) {
+              if (!mesh || mesh.isDisposed()) continue;
+              const dx = mesh.position.x - namedPos.x;
+              const dz = mesh.position.z - namedPos.z;
+              if (dx * dx + dz * dz < 9) { // within 3 units
+                const bounds = mesh.getBoundingInfo()?.boundingBox;
+                if (bounds) {
+                  const meshTop = mesh.position.y + (bounds.maximumWorld.y - bounds.minimumWorld.y);
+                  if (meshTop > objectTopY) objectTopY = meshTop;
+                }
+              }
+            }
             this.questWaypointManager.createWaypointForObjectiveType(
               waypointId,
-              new Vector3(namedPos.x, 0, namedPos.z),
+              new Vector3(namedPos.x, objectTopY, namedPos.z),
               obj.type || 'default',
             );
           }
@@ -14223,6 +14244,14 @@ Requirements:
     if (event.code === KEY_PUSH_TO_TALK && !event.repeat) {
       event.preventDefault();
       this.chatPanel?.startPushToTalk();
+      return;
+    }
+
+    // In eavesdrop mode, Enter/Escape closes the eavesdrop panel
+    if (this.chatPanel?.getIsEavesdropMode() &&
+        (event.code === KEY_BUILDING_INTERACT || event.code === 'Escape') && !event.repeat) {
+      event.preventDefault();
+      this.chatPanel.hide(false);
       return;
     }
 
@@ -14434,9 +14463,9 @@ Requirements:
       // ── Social ─────────────────────────────────────────────────────
       case '__eavesdrop__': {
         // Open chat panel in read-only eavesdrop mode
-        const partner = this.npcSocializationController?.getConversationPartner(target.id);
-        const partnerName = partner?.partnerName || 'NPC';
-        this.chatPanel?.showEavesdrop(`${target.name} & ${partnerName}`);
+        const eavesdropPartner = this.ambientConversationManager?.getConversationPartner(target.id);
+        const eavesdropPartnerName = eavesdropPartner?.partnerName || 'NPC';
+        this.chatPanel?.showEavesdrop(`${target.name} & ${eavesdropPartnerName}`);
         break;
       }
       case '__talk__': {
