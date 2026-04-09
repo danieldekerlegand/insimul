@@ -63,7 +63,7 @@ const ITEM_TYPE_LABELS: Record<string, string> = {
   material: 'Materials', collectible: 'Collectibles', key: 'Keys',
   quest: 'Quest Items', container: 'Containers', decoration: 'Decorations',
   document: 'Documents', equipment: 'Equipment', accessory: 'Accessories',
-  ammunition: 'Ammunition', furniture: 'Furniture',
+  ammunition: 'Ammunition', furniture: 'Furniture', environmental: 'Environmental',
 };
 
 const RARITY_COLORS: Record<string, string> = {
@@ -268,7 +268,19 @@ export function AdminItemsHub({ worldId }: AdminItemsHubProps = {}) {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(item);
     }
-    return groups;
+    // Sort items within each group alphabetically
+    for (const items of Array.from(groups.values())) {
+      items.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    // Sort groups alphabetically by display label
+    const sorted = new Map(
+      Array.from(groups.entries()).sort(([a], [b]) => {
+        const la = ITEM_TYPE_LABELS[a] || a;
+        const lb = ITEM_TYPE_LABELS[b] || b;
+        return la.localeCompare(lb);
+      })
+    );
+    return sorted;
   }, [filteredItems]);
 
   // Available worldTypes
@@ -386,14 +398,7 @@ export function AdminItemsHub({ worldId }: AdminItemsHubProps = {}) {
                           onClick={() => { setSelectedItem(item); setExpandedSection('preview'); }}
                         >
                           <span className="shrink-0">{item.icon || '📦'}</span>
-                          <span className="truncate flex-1">
-                            {item.name}
-                            {item.translations && Object.values(item.translations)[0]?.targetWord && (
-                              <span className="text-[10px] text-muted-foreground ml-1">
-                                ({Object.values(item.translations)[0].targetWord})
-                              </span>
-                            )}
-                          </span>
+                          <span className="truncate flex-1">{item.name}</span>
                           {!hasAsset && <span title="No objectRole"><AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" /></span>}
                         </button>
                       );
