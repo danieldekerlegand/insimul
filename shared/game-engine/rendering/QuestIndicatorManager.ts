@@ -241,7 +241,7 @@ export class QuestIndicatorManager {
 
     // Create new indicator if needed
     if (type && npcMesh && (!existing || existing.type !== type)) {
-      console.log(`[QuestIndicator] Creating 3D indicator: npc=${npcId}, type=${type}, meshName=${npcMesh.name}, meshPos=(${npcMesh.position.x.toFixed(1)}, ${npcMesh.position.y.toFixed(1)}, ${npcMesh.position.z.toFixed(1)})`);
+      console.log(`[QuestIndicator] Creating 3D indicator: npc=${npcId}, type=${type}, meshName=${npcMesh.name}, meshPos=(${npcMesh.position.x.toFixed(1)}, ${npcMesh.position.y.toFixed(1)}, ${npcMesh.position.z.toFixed(1)}), meshScale=(${npcMesh.scaling.x.toFixed(3)}, ${npcMesh.scaling.y.toFixed(3)}, ${npcMesh.scaling.z.toFixed(3)}), absPos=(${npcMesh.getAbsolutePosition().x.toFixed(1)}, ${npcMesh.getAbsolutePosition().y.toFixed(1)}, ${npcMesh.getAbsolutePosition().z.toFixed(1)})`);
       this.createIndicator(npcId, npcMesh, type);
     }
   }
