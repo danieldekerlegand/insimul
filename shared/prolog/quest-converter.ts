@@ -190,7 +190,7 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
     for (let i = 0; i < objectives.length; i++) {
       const obj = objectives[i];
       const type = obj.type || obj.objectiveType || '';
-      const objLocation = deriveObjectiveLocation(obj, type);
+      const objLocation = deriveObjectiveLocation(obj, type, quest);
       lines.push(`quest_objective_location(${questId}, ${i}, ${objLocation}).`);
     }
     if (objectives.length > 0) {
@@ -483,11 +483,13 @@ export function convertQuestsToProlog(quests: QuestData[]): ConversionResult {
  * Derive where an objective can be completed.
  * Returns a Prolog term: specific location, npc(Id), any_npc, or anywhere.
  */
-function deriveObjectiveLocation(obj: any, type: string): string {
+function deriveObjectiveLocation(obj: any, type: string, quest?: any): string {
+  // ── Specific target from objective data ──────────────────────────────────
+
   // Location-based objectives → specific location
   if (type === 'visit_location' || type === 'discover_location') {
     const loc = obj.locationName || obj.location || obj.target || '';
-    return loc ? `location('${escapeString(loc)}')` : 'anywhere';
+    return loc ? `location('${escapeString(loc)}')` : 'settlement';
   }
 
   // NPC-based objectives → specific NPC or any_npc
@@ -504,17 +506,17 @@ function deriveObjectiveLocation(obj: any, type: string): string {
     return 'any_npc';
   }
 
-  // Commerce objectives → specific merchant
+  // Commerce objectives → specific merchant or guild marchands
   if (type === 'order_food' || type === 'haggle_price' || type === 'buy_item' || type === 'sell_item') {
     const merchant = obj.merchantId || obj.target || '';
     if (merchant) return `merchant('${escapeString(merchant)}')`;
     return 'any_merchant';
   }
 
-  // Craft objectives → any crafting station
+  // Craft objectives → guild artisans or crafting station
   if (type === 'craft_item') return 'any_crafting_station';
 
-  // Reading/text objectives → wherever texts are found
+  // Reading/text objectives → library / conteurs guild / text location
   if (type === 'read_document' || type === 'read_text' || type === 'find_text' ||
       type === 'collect_text' || type === 'read_sign') {
     return 'any_text_location';
@@ -523,59 +525,91 @@ function deriveObjectiveLocation(obj: any, type: string): string {
   // Photography objectives → wherever the subject is
   if (type === 'photograph' || type === 'photograph_subject') {
     const subject = obj.targetSubject || '';
-    return subject ? `photo_subject('${escapeString(subject)}')` : 'anywhere';
+    return subject ? `photo_subject('${escapeString(subject)}')` : 'settlement';
   }
 
-  // Vocabulary/grammar/language objectives can happen anywhere (conversation)
+  // Assessment objectives → notice board
+  if (type === 'complete_assessment' || type.startsWith('arrival_') ||
+      type.startsWith('departure_') || type.startsWith('periodic_')) {
+    return 'notice_board';
+  }
+
+  // ── Infer from quest context (tags/guild) when objective has no target ──
+
+  const tags = quest?.tags || [];
+  const questLocation = quest?.locationName;
+
+  // Guild quest objectives → guild building
+  const guildLocations: Record<string, string> = {
+    guild_marchands: "Bergeron's La Guilde des Marchands",
+    guild_artisans: "Sonnier's La Guilde des Artisans",
+    guild_conteurs: "Bergeron's La Guilde des Conteurs",
+    guild_explorateurs: "Robichaux's La Guilde des Explorateurs",
+    guild_diplomates: "Bégnaud's La Guilde des Diplomates",
+  };
+  for (const [tag, loc] of Object.entries(guildLocations)) {
+    if (tags.includes(tag)) return `location('${escapeString(loc)}')`;
+  }
+
+  // Quest has a specific location → use it
+  if (questLocation && questLocation !== 'anywhere') {
+    return `location('${escapeString(questLocation)}')`;
+  }
+
+  // Vocabulary/grammar/language objectives → NPC conversations
   if (type === 'use_vocabulary' || type === 'collect_vocabulary' || type === 'vocabulary' ||
       type === 'grammar' || type === 'conversation' || type === 'listen_and_repeat' ||
       type === 'translation_challenge' || type === 'pronunciation_check' ||
-      type === 'write_response' || type === 'describe_scene' ||
       type === 'listening_comprehension' || type === 'comprehension_quiz') {
-    return 'anywhere';
+    return 'any_npc';
   }
 
-  // Assessment objectives
-  if (type === 'complete_assessment' || type.startsWith('arrival_') ||
-      type.startsWith('departure_') || type.startsWith('periodic_')) {
-    return 'anywhere';
+  // Writing/description objectives → notice board or settlement
+  if (type === 'write_response' || type === 'describe_scene') {
+    return 'notice_board';
   }
 
-  // Navigation objectives → follow waypoints
+  // Exploration-tagged quests → settlement
+  if (tags.includes('exploration') || tags.includes('navigation') || tags.includes('directions')) {
+    return 'settlement';
+  }
+
+  // Commerce-tagged quests → marketplace
+  if (tags.includes('commerce') || tags.includes('market') || tags.includes('food')) {
+    return 'any_merchant';
+  }
+
+  // Navigation objectives → NPC conversations for directions
   if (type === 'follow_directions' || type === 'navigate_language' || type === 'ask_for_directions') {
     return 'any_npc';
   }
 
-  // Collect/examine/identify → wherever objects are
+  // Collect/examine/identify → settlement (objects are in the world)
   if (type === 'collect_item' || type === 'examine_object' || type === 'identify_object' ||
       type === 'point_and_name' || type === 'find_vocabulary_items') {
-    return 'anywhere';
+    return 'settlement';
   }
 
-  // Physical action → hotspots
-  if (type === 'physical_action') {
-    const action = obj.actionType || '';
-    return action ? `hotspot('${escapeString(action)}')` : 'anywhere';
-  }
+  // Physical action → settlement hotspots
+  if (type === 'physical_action') return 'settlement';
 
   // Reputation → settlement
-  if (type === 'gain_reputation') {
-    const target = obj.target || obj.settlement || '';
-    return target ? `settlement('${escapeString(target)}')` : 'anywhere';
-  }
+  if (type === 'gain_reputation') return 'settlement';
 
-  // Combat/escort
-  if (type === 'defeat_enemies') return 'anywhere';
+  // Combat → settlement outskirts
+  if (type === 'defeat_enemies') return 'settlement';
+
+  // Escort → destination or settlement
   if (type === 'escort_npc') {
     const dest = obj.destination || '';
-    return dest ? `location('${escapeString(dest)}')` : 'anywhere';
+    return dest ? `location('${escapeString(dest)}')` : 'settlement';
   }
 
-  // Clue collection
-  if (type === 'collect_clue') return 'anywhere';
+  // Clue collection → settlement
+  if (type === 'collect_clue') return 'settlement';
 
-  // Default
-  return 'anywhere';
+  // Default: settlement (player should go to town)
+  return 'settlement';
 }
 
 // ── Objective Converter ─────────────────────────────────────────────────────

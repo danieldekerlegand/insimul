@@ -13753,16 +13753,63 @@ export class BabylonGame {
     // Pass dynamically resolved positions so objectives without explicit positions still get markers
     // Build named location map for quest objective resolution
     const namedLocations = new Map<string, { x: number; z: number }>();
-    // Notice board position (for assessment quest objectives)
+
+    // Settlement center (used by many quest types as general destination)
+    if (this.settlements?.length > 0) {
+      const s = this.settlements[0] as any;
+      const pos = s.position || s.centerPosition;
+      if (pos) {
+        namedLocations.set('settlement', { x: pos.x, z: pos.z });
+        // Notice board is near the settlement center
+        if (!namedLocations.has('notice_board')) {
+          namedLocations.set('notice_board', { x: pos.x, z: pos.z });
+        }
+      }
+    }
+
+    // Notice board exact position (override settlement center if available)
     if (this.settlementNoticeBoard) {
       const boardPos = (this.settlementNoticeBoard as any).getBoardPosition?.();
       if (boardPos) namedLocations.set('notice_board', { x: boardPos.x, z: boardPos.z });
     }
-    // Fallback: use first settlement's center
-    if (!namedLocations.has('notice_board') && this.settlements?.length > 0) {
-      const s = this.settlements[0];
-      const pos = s.position || s.centerPosition;
-      if (pos) namedLocations.set('notice_board', { x: pos.x, z: pos.z });
+
+    // Named building locations from guild tags and building data
+    this.buildingData.forEach((data, _buildingId) => {
+      const meta = data.metadata;
+      if (meta?.businessName && data.position) {
+        const key = meta.businessName.toLowerCase().replace(/'/g, '').replace(/\s+/g, '_');
+        namedLocations.set(key, { x: data.position.x, z: data.position.z });
+        // Also store with original name for location('Name') matching
+        namedLocations.set(meta.businessName, { x: data.position.x, z: data.position.z });
+      }
+    });
+
+    // any_npc → use a random visible NPC position (first one found)
+    if (!namedLocations.has('any_npc')) {
+      for (const [, instance] of this.npcMeshes) {
+        if (instance.mesh?.isEnabled() && instance.mesh.position) {
+          namedLocations.set('any_npc', { x: instance.mesh.position.x, z: instance.mesh.position.z });
+          break;
+        }
+      }
+    }
+
+    // any_merchant → find a merchant NPC or marchands guild
+    if (!namedLocations.has('any_merchant') && namedLocations.has("Bergeron's La Guilde des Marchands")) {
+      namedLocations.set('any_merchant', namedLocations.get("Bergeron's La Guilde des Marchands")!);
+    }
+
+    // any_text_location → conteurs guild or settlement
+    if (!namedLocations.has('any_text_location') && namedLocations.has("Bergeron's La Guilde des Conteurs")) {
+      namedLocations.set('any_text_location', namedLocations.get("Bergeron's La Guilde des Conteurs")!);
+    }
+    if (!namedLocations.has('any_text_location') && namedLocations.has('settlement')) {
+      namedLocations.set('any_text_location', namedLocations.get('settlement')!);
+    }
+
+    // any_crafting_station → artisans guild
+    if (!namedLocations.has('any_crafting_station') && namedLocations.has("Sonnier's La Guilde des Artisans")) {
+      namedLocations.set('any_crafting_station', namedLocations.get("Sonnier's La Guilde des Artisans")!);
     }
 
     const questObjectiveMarkers = extractObjectiveMarkers(this.quests, this._resolvedWaypointPositions, namedLocations).map(m => ({

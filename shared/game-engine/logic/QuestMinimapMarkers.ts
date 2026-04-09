@@ -177,9 +177,14 @@ export function extractObjectiveMarkers(
         }
       }
 
-      // Resolve named location atoms (e.g., notice_board, any_npc)
+      // Resolve named location atoms (e.g., notice_board, any_npc, settlement)
+      // Also handles Prolog terms: location('Name'), npc('Name'), merchant('Name')
       if (!pos && namedLocations && obj.objectiveLocation) {
-        const namedPos = namedLocations.get(obj.objectiveLocation);
+        let locKey = obj.objectiveLocation;
+        // Extract name from Prolog term wrappers: location('Name') → Name
+        const termMatch = locKey.match(/^(?:location|npc|merchant|settlement)\(\s*'?([^')]+)'?\s*\)$/);
+        if (termMatch) locKey = termMatch[1];
+        const namedPos = namedLocations.get(locKey);
         if (namedPos) {
           pos = { x: namedPos.x, y: 0, z: namedPos.z } as any;
         }
