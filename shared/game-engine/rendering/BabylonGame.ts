@@ -14622,8 +14622,12 @@ Requirements:
       this.chatPanel.hide(false);
     }
 
-    // If this NPC has an available quest, show the quest offer panel first
-    if (!this.skipQuestOfferOnce) {
+    // If this NPC has an available radiant quest, show the quest offer panel first.
+    // Skip if this NPC is the active objective target (they're being talked to for a quest objective).
+    const isObjectiveTarget = (this.questIndicatorManager as any)?._activeObjectiveNpcId === npcId
+      || this._assessmentTargetNpcId === npcId
+      || (this as any)._anyNpcTargetId === npcId;
+    if (!this.skipQuestOfferOnce && !isObjectiveTarget) {
       const questIndicator = this.questIndicatorManager?.getIndicatorTypeForNPC(npcId);
       if (questIndicator === 'available' && this.questOfferPanel) {
         const offer = this.buildQuestOfferForNPC(npcId, npcInfo.name);
