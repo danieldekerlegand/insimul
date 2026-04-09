@@ -303,6 +303,7 @@ export class QuestIndicatorManager {
     material.emissiveTexture = dynamicTexture;
     material.useAlphaFromDiffuseTexture = true;
     material.disableLighting = true;
+    material.backFaceCulling = false; // NPC meshes have negative Z scale which flips the plane
     indicator.material = material;
 
     // Add floating animation
