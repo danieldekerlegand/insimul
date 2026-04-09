@@ -103,7 +103,10 @@ export class QuestIndicatorManager {
     // Priority 2: NPC is the active objective target (assessment, any_npc) — gold !
     // This MUST come before radiant quest check to suppress the radiant indicator
     const npcFullName = [npc.firstName, npc.lastName].filter(Boolean).join(' ');
-    if (this._activeObjectiveNpcId && (this._activeObjectiveNpcId === resolvedId || this._activeObjectiveNpcId === npc.id)) return 'available';
+    if (this._activeObjectiveNpcId && (this._activeObjectiveNpcId === resolvedId || this._activeObjectiveNpcId === npc.id)) {
+      console.log(`[QuestIndicator] NPC "${npcFullName}" (${resolvedId}) is active objective NPC`);
+      return 'available';
+    }
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;
@@ -121,7 +124,10 @@ export class QuestIndicatorManager {
       if (npcLocMatch && npcLocMatch[1] === npcFullName) return true;
       return false;
     });
-    if (isObjectiveTarget) return 'available';
+    if (isObjectiveTarget) {
+      console.log(`[QuestIndicator] NPC "${npcFullName}" (${resolvedId}) is objective target`);
+      return 'available';
+    }
 
     // Priority 3: NPC has an active quest they assigned (player accepted) — silver ?
     const activeQuest = quests.find(q =>
