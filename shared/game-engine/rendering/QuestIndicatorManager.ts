@@ -258,31 +258,24 @@ export class QuestIndicatorManager {
     const indicatorConfig = this.getIndicatorConfig(type);
     if (!indicatorConfig) return;
 
-    // Compute height offset from mesh bounds — place indicator well above the NPC's head
-    let heightOffset = this.indicatorHeight;
-    try {
-      npcMesh.computeWorldMatrix(true);
-      const bi = npcMesh.getHierarchyBoundingVectors(true);
-      const modelHeight = bi.max.y - bi.min.y;
-      if (modelHeight > 0.1) {
-        heightOffset = modelHeight + 1.5;
-      }
-    } catch {
-      // Fall back to default
-    }
+    const heightOffset = this.indicatorHeight; // 3.5m above NPC origin
 
-    // Create a plane for the indicator (world-space, not parented)
+    // Create a plane for the indicator, parented to the NPC mesh
+    // so it automatically follows the NPC's position
     const indicator = MeshBuilder.CreatePlane(
       `quest_indicator_${npcId}`,
       { width: 0.8, height: 0.8 },
       this.scene
     );
 
-    // Position in world space above the NPC
-    indicator.position = new Vector3(
-      npcMesh.position.x,
-      npcMesh.position.y + heightOffset,
-      npcMesh.position.z,
+    // Parent to NPC — position is in local space (3.5m above the NPC's origin)
+    indicator.parent = npcMesh;
+    indicator.position = new Vector3(0, heightOffset, 0);
+    // Ensure the indicator isn't affected by the NPC's negative scale (if any)
+    indicator.scaling = new Vector3(
+      1 / Math.abs(npcMesh.scaling.x || 1),
+      1 / Math.abs(npcMesh.scaling.y || 1),
+      1 / Math.abs(npcMesh.scaling.z || 1),
     );
     indicator.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
@@ -350,7 +343,23 @@ export class QuestIndicatorManager {
       this.scene.beginAnimation(indicator, 0, 60, true);
     }
 
-    // Store indicator with tracking info
+    // Add gentle bobbing animation (float up and down)
+    const bobAnim = new Animation(
+      `quest_indicator_bob_${npcId}`,
+      'position.y',
+      30,
+      Animation.ANIMATIONTYPE_FLOAT,
+      Animation.ANIMATIONLOOPMODE_CYCLE
+    );
+    bobAnim.setKeys([
+      { frame: 0, value: heightOffset },
+      { frame: 30, value: heightOffset + 0.3 },
+      { frame: 60, value: heightOffset },
+    ]);
+    indicator.animations.push(bobAnim);
+    this.scene.beginAnimation(indicator, 0, 60, true);
+
+    // Store indicator
     this.indicators.set(npcId, {
       mesh: indicator,
       type,
@@ -361,17 +370,11 @@ export class QuestIndicatorManager {
   }
 
   /**
-   * Update indicator positions to follow their tracked NPC meshes.
-   * Call this each frame from the render loop.
+   * Update indicator state. Indicators are parented to NPC meshes so
+   * position tracking is automatic. This method is kept for API compat.
    */
   public updatePositions(): void {
-    this.indicators.forEach((indicator) => {
-      if (indicator.trackedMesh && !indicator.trackedMesh.isDisposed()) {
-        indicator.mesh.position.x = indicator.trackedMesh.position.x;
-        indicator.mesh.position.y = indicator.trackedMesh.position.y + indicator.heightOffset;
-        indicator.mesh.position.z = indicator.trackedMesh.position.z;
-      }
-    });
+    // Parented indicators follow automatically — nothing to do
   }
 
   /**
