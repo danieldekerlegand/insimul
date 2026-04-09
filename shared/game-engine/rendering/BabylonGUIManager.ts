@@ -2074,7 +2074,7 @@ export class BabylonGUIManager {
         const questMarker = new Rectangle(`quest-${quest.id}`);
         questMarker.width = `${questDotSize}px`;
         questMarker.height = `${questDotSize}px`;
-        questMarker.background = "#E040FB";
+        questMarker.background = "#FFD700";
         questMarker.color = "#FFFFFF";
         questMarker.thickness = 1;
         questMarker.cornerRadius = 2;
@@ -2086,32 +2086,51 @@ export class BabylonGUIManager {
       }
     }
 
-    // Draw quest objective markers (type-specific colors and shapes)
+    // Draw quest objective markers — pulsing exclamation points
     if (data.questObjectiveMarkers) {
       for (const obj of data.questObjectiveMarkers) {
         const [ox, oz] = toMap(obj.position.x, obj.position.z);
-        if (Math.abs(ox) > mapHalf || Math.abs(oz) > mapHalf) continue;
+        // Clamp to minimap bounds so off-screen objectives show at edges
+        const clampedOx = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, ox));
+        const clampedOz = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, oz));
 
-        const objDotSize = Math.max(4, Math.round(8 * zoomDotScale));
-        let objMarker: Rectangle | Ellipse;
+        const markerColor = obj.color || '#FFD700';
+        const objPulseSize = Math.round(16 * zoomDotScale * pulseScale);
 
-        if (obj.shape === 'diamond') {
-          objMarker = new Rectangle(`obj-${obj.id}`);
-          objMarker.cornerRadius = 1;
-          objMarker.rotation = Math.PI / 4;
-        } else {
-          objMarker = new Ellipse(`obj-${obj.id}`);
-        }
+        // Outer glow ring
+        const glow = new Ellipse(`obj-glow-${obj.id}`);
+        glow.width = `${objPulseSize + Math.round(6 * zoomDotScale)}px`;
+        glow.height = `${objPulseSize + Math.round(6 * zoomDotScale)}px`;
+        glow.background = `${markerColor}33`; // 20% opacity
+        glow.color = `${markerColor}80`;       // 50% opacity
+        glow.thickness = 1;
+        glow.left = `${clampedOx}px`;
+        glow.top = `${clampedOz}px`;
+        mapContainer.addControl(glow);
+        this._minimapDynamicControls.push(glow);
 
-        objMarker.width = `${objDotSize}px`;
-        objMarker.height = `${objDotSize}px`;
-        objMarker.background = obj.color;
-        objMarker.color = '#FFFFFF';
-        objMarker.thickness = 1;
-        objMarker.left = `${ox}px`;
-        objMarker.top = `${oz}px`;
-        mapContainer.addControl(objMarker);
-        this._minimapDynamicControls.push(objMarker);
+        // Inner marker
+        const dot = new Ellipse(`obj-dot-${obj.id}`);
+        dot.width = `${objPulseSize}px`;
+        dot.height = `${objPulseSize}px`;
+        dot.background = markerColor;
+        dot.color = '#FFFFFF';
+        dot.thickness = 2;
+        dot.left = `${clampedOx}px`;
+        dot.top = `${clampedOz}px`;
+        mapContainer.addControl(dot);
+        this._minimapDynamicControls.push(dot);
+
+        // Exclamation mark inside
+        const excl = new TextBlock(`obj-excl-${obj.id}`);
+        excl.text = '!';
+        excl.color = '#000000';
+        excl.fontSize = Math.round(10 * zoomDotScale * pulseScale);
+        excl.fontWeight = 'bold';
+        excl.left = `${clampedOx}px`;
+        excl.top = `${clampedOz}px`;
+        mapContainer.addControl(excl);
+        this._minimapDynamicControls.push(excl);
       }
     }
 
