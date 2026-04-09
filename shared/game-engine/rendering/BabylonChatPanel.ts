@@ -225,7 +225,7 @@ export class BabylonChatPanel {
   private _relationshipManager: import('./RelationshipManager').RelationshipManager | null = null;
   private pendingTurnInQuests: any[] = [];
   private questOfferingContext: { questTitle: string; questDescription: string; questType: string; difficulty: string; objectives: string; category: string } | null = null;
-  private activeQuestFromNPC: { questTitle: string; questDescription: string; questId: string } | null = null;
+  private activeQuestFromNPC: { questTitle: string; questDescription: string; questId: string; isQuestGiver?: boolean } | null = null;
   private questGuidancePrompt: string | null = null;
   private _targetLanguage: string | null = null;
   private _timeOfDay: string | null = null;
@@ -965,11 +965,6 @@ export class BabylonChatPanel {
     }
 
     this.updateMessagesDisplay();
-
-    // Auto-enable always-on mic (VAD-gated speech detection)
-    if (!this.isHandsFreeMode) {
-      this.enableHandsFreeMode();
-    }
   }
 
 
@@ -1175,32 +1170,24 @@ export class BabylonChatPanel {
     this.inputText.background = "rgba(60, 60, 60, 0.5)";
     this.inputText.thickness = 1;
     this.inputText.left = "4px";
-    this.inputText.text = "Type your message...";
+    this.inputText.text = "Hold T to Talk...";
     this.inputText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.inputText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     this.inputText.paddingLeft = "10px";
 
     this.inputText.onFocusObservable.add(() => {
-      if (this.inputText && (this.inputText.text === "Type your message..." || this.inputText.text === "Hands-free: speak to chat...")) {
+      if (this.inputText && this.inputText.text === "Hold T to Talk...") {
         this.inputText.text = "";
       }
       this._inputFocused = true;
-      // Pause hands-free while typing
-      if (this.isHandsFreeMode && this.handsFreeController) {
-        this.handsFreeController.stop();
-      }
     });
 
     this.inputText.onBlurObservable.add(() => {
       if (this.inputText && this.inputText.text === "") {
-        this.inputText.text = this.isHandsFreeMode ? "Hands-free: speak to chat..." : "Type your message...";
-        if (this.isHandsFreeMode) this.inputText.color = '#88cc88';
+        this.inputText.text = "Hold T to Talk...";
+        this.inputText.color = "white";
       }
       this._inputFocused = false;
-      // Resume hands-free when leaving text input
-      if (this.isHandsFreeMode && this.handsFreeController && !this.handsFreeController.isActive) {
-        this.handsFreeController.start();
-      }
     });
 
     inputArea.addControl(this.inputText);
@@ -1644,15 +1631,14 @@ export class BabylonChatPanel {
     const startIdx = this._messageControls.size;
     for (let i = startIdx; i < this.messages.length; i++) {
       const ctrl = this.createMessageControl(i);
+      if (!ctrl) continue;
       this._messageControls.set(i, ctrl);
-      this.messagesStack.addControl(ctrl);
-
-      // Rating UI disabled for now
+      try { this.messagesStack.addControl(ctrl); } catch { return; }
     }
 
     // Re-add loading indicator at the end
-    if (this.loadingIndicator) {
-      this.messagesStack.addControl(this.loadingIndicator);
+    if (this.loadingIndicator && this.messagesStack) {
+      try { this.messagesStack.addControl(this.loadingIndicator); } catch { /* disposed */ }
     }
 
     // Auto-scroll to bottom
@@ -2011,7 +1997,7 @@ export class BabylonChatPanel {
     if (this._pendingListenAndRepeatPhrase && this.listenAndRepeatController) {
       const phrase = this._pendingListenAndRepeatPhrase;
       this._pendingListenAndRepeatPhrase = null;
-      this.inputText.text = "Type your message...";
+      this.inputText.text = "Hold T to Talk...";
       if (this.inputText.placeholderText?.startsWith('Type:')) {
         this.inputText.placeholderText = 'Type a message...';
       }
@@ -2026,7 +2012,7 @@ export class BabylonChatPanel {
 
     this.clearHintTimer();
     this._hintShown = false;
-    this.inputText.text = "Type your message...";
+    this.inputText.text = "Hold T to Talk...";
     this.isProcessing = true;
 
     // Add user message
@@ -2658,7 +2644,11 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     // Inject active quest context — NPC should reference the ongoing quest
     if (this.activeQuestFromNPC) {
       const aq = this.activeQuestFromNPC;
-      prompt += `\n\nACTIVE QUEST CONTEXT: You previously gave the player a quest: "${aq.questTitle}" — ${aq.questDescription}. Reference this quest naturally in conversation. Ask about their progress, offer hints or encouragement. Do NOT re-assign the quest.`;
+      if (aq.isQuestGiver) {
+        prompt += `\n\nACTIVE QUEST CONTEXT: You previously gave the player a quest: "${aq.questTitle}" — ${aq.questDescription}. Reference this quest naturally in conversation. Ask about their progress, offer hints or encouragement. Do NOT re-assign the quest.`;
+      } else {
+        prompt += `\n\nACTIVE QUEST CONTEXT: The player is working on a quest called "${aq.questTitle}" — ${aq.questDescription}. You are involved in one of the quest's objectives. Help the player with what they need — provide information, items, or guidance relevant to the quest objective involving you. Stay in character.`;
+      }
     }
 
     // Inject NPC-guided conversation mode for quest objectives
@@ -3073,6 +3063,15 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
     if (this.micButton) {
       this.micButton.background = "rgba(60, 60, 60, 0.8)";
     }
+
+    // Reset input text to placeholder if no transcript was captured
+    if (this.inputText) {
+      const text = this.inputText.text.trim();
+      if (text === '' || text === '🎤 Listening...' || text === 'Recording...') {
+        this.inputText.text = "Hold T to Talk...";
+        this.inputText.color = "white";
+      }
+    }
   }
 
   private resetRecordingUI() {
@@ -3082,7 +3081,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       this.micButton.background = "rgba(60, 60, 60, 0.8)";
     }
     if (this.inputText) {
-      this.inputText.text = "Type your message...";
+      this.inputText.text = "Hold T to Talk...";
       this.inputText.color = "white";
     }
     if (this.loadingIndicator) {
@@ -3755,7 +3754,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
    * Set active quest context so the NPC references an in-progress quest during conversation.
    * Call before show() when the NPC has an 'in_progress' quest indicator.
    */
-  public setActiveQuestFromNPC(context: { questTitle: string; questDescription: string; questId: string } | null) {
+  public setActiveQuestFromNPC(context: { questTitle: string; questDescription: string; questId: string; isQuestGiver?: boolean } | null) {
     this.activeQuestFromNPC = context;
   }
 
@@ -3767,6 +3766,10 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
   /** Set the player's current position so NPCs can turn to face them during conversation. */
   public setPlayerPosition(position: Vector3) {
     this._playerPosition = position;
+  }
+
+  public getQuestGuidancePrompt(): string | null {
+    return this.questGuidancePrompt;
   }
 
   public setQuestGuidancePrompt(prompt: string | null) {
@@ -4374,7 +4377,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
             this.inputText.color = "#ff6b6b";
             setTimeout(() => {
               if (this.inputText) {
-                this.inputText.text = "Type your message...";
+                this.inputText.text = "Hold T to Talk...";
                 this.inputText.color = "white";
               }
             }, 2000);
@@ -4413,7 +4416,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       this.voiceWSClient = null;
     }
     if (this.inputText) {
-      this.inputText.text = "Type your message...";
+      this.inputText.text = "Hold T to Talk...";
       this.inputText.color = "white";
     }
   }
@@ -4505,7 +4508,7 @@ When the player accepts, use the QUEST_ASSIGN format. If declined, continue norm
       this.micButton.background = 'rgba(60, 60, 60, 0.3)';
     }
     if (this.inputText) {
-      this.inputText.text = 'Type your message...';
+      this.inputText.text = 'Hold T to Talk...';
       this.inputText.color = 'white';
     }
   }
