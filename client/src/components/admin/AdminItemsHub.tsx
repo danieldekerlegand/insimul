@@ -20,6 +20,12 @@ import { ModelPreview } from "../ModelPreview";
 import { AssetSelect } from "../AssetSelect";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 
+interface ItemTranslation {
+  targetWord: string;
+  pronunciation: string;
+  category: string;
+}
+
 interface BaseItem {
   id: string;
   name: string;
@@ -41,6 +47,7 @@ interface BaseItem {
   possessable?: boolean;
   loreText?: string;
   isBase?: boolean;
+  translations?: Record<string, ItemTranslation>;
 }
 
 const ITEM_TYPE_ICONS: Record<string, any> = {
@@ -379,7 +386,14 @@ export function AdminItemsHub({ worldId }: AdminItemsHubProps = {}) {
                           onClick={() => { setSelectedItem(item); setExpandedSection('preview'); }}
                         >
                           <span className="shrink-0">{item.icon || '📦'}</span>
-                          <span className="truncate flex-1">{item.name}</span>
+                          <span className="truncate flex-1">
+                            {item.name}
+                            {item.translations && Object.values(item.translations)[0]?.targetWord && (
+                              <span className="text-[10px] text-muted-foreground ml-1">
+                                ({Object.values(item.translations)[0].targetWord})
+                              </span>
+                            )}
+                          </span>
                           {!hasAsset && <span title="No objectRole"><AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" /></span>}
                         </button>
                       );
@@ -577,6 +591,70 @@ export function AdminItemsHub({ worldId }: AdminItemsHubProps = {}) {
               {selectedItem.baseType && <PropertyCard label="Base Type" value={selectedItem.baseType} />}
               <PropertyCard label="Possessable" value={selectedItem.possessable !== false ? 'Yes' : 'No'} />
               <PropertyCard label="Stackable" value={selectedItem.possessable ? 'Yes' : 'No'} />
+            </div>
+
+            {/* Translations */}
+            <div>
+              <h3 className="text-xs font-semibold mb-2 text-muted-foreground flex items-center gap-1">
+                🌐 Translations
+                {!selectedItem.translations && <span className="text-amber-500 text-[10px] font-normal">(none)</span>}
+              </h3>
+              {selectedItem.translations && Object.keys(selectedItem.translations).length > 0 ? (
+                <div className="space-y-2">
+                  {Object.entries(selectedItem.translations).map(([lang, trans]) => (
+                    <div key={lang} className="rounded border p-2 bg-muted/20 space-y-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary" className="text-[10px]">{lang}</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Target Word</Label>
+                          <Input
+                            className="h-7 text-sm"
+                            defaultValue={trans.targetWord || ''}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== trans.targetWord) {
+                                const updatedTranslations = {
+                                  ...selectedItem.translations,
+                                  [lang]: { ...trans, targetWord: val },
+                                };
+                                updateItem.mutate({ id: selectedItem.id, data: { translations: updatedTranslations } as any });
+                                setSelectedItem({ ...selectedItem, translations: updatedTranslations });
+                              }
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Pronunciation</Label>
+                          <Input
+                            className="h-7 text-sm"
+                            defaultValue={trans.pronunciation || ''}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== trans.pronunciation) {
+                                const updatedTranslations = {
+                                  ...selectedItem.translations,
+                                  [lang]: { ...trans, pronunciation: val },
+                                };
+                                updateItem.mutate({ id: selectedItem.id, data: { translations: updatedTranslations } as any });
+                                setSelectedItem({ ...selectedItem, translations: updatedTranslations });
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {trans.category && (
+                        <div className="text-[10px] text-muted-foreground">Category: {trans.category}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  No translations. Run the translation migration to generate them.
+                </p>
+              )}
             </div>
 
             {/* Effects */}
