@@ -199,9 +199,18 @@ export function detectUncompletableObjective(
 
   const typeInfo = getTargetRequirement(type);
 
+  // Only flag objectives with placeholder/template targets as uncompletable.
+  // Objectives with real named targets from Prolog content should be kept —
+  // the player can still complete them even if our world state matching is imperfect.
+  const isPlaceholder = (target: string | undefined): boolean => {
+    if (!target) return false; // no target = no issue
+    // Placeholder patterns: {npc}, {location}, empty, or MongoDB ObjectIds
+    return target.startsWith('{') || target === '' || /^[0-9a-f]{24}$/i.test(target);
+  };
+
   if (typeInfo === 'npc') {
     const target = objective.npcId || objective.npcName || objective.target;
-    if (target && !matchesAny(target, worldState.availableNpcs)) {
+    if (isPlaceholder(target)) {
       return {
         objectiveId: objective.id,
         objectiveType: type,
@@ -213,7 +222,7 @@ export function detectUncompletableObjective(
 
   if (typeInfo === 'location') {
     const target = objective.locationName || objective.target;
-    if (target && !matchesAny(target, worldState.availableLocations)) {
+    if (isPlaceholder(target)) {
       return {
         objectiveId: objective.id,
         objectiveType: type,
@@ -225,7 +234,7 @@ export function detectUncompletableObjective(
 
   if (typeInfo === 'item') {
     const target = objective.itemName || objective.target;
-    if (target && !matchesAny(target, worldState.availableItems)) {
+    if (isPlaceholder(target)) {
       return {
         objectiveId: objective.id,
         objectiveType: type,
