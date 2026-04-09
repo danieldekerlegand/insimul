@@ -258,25 +258,18 @@ export class QuestIndicatorManager {
     const indicatorConfig = this.getIndicatorConfig(type);
     if (!indicatorConfig) return;
 
-    const heightOffset = this.indicatorHeight; // 3.5m above NPC origin
-
     // Create a plane for the indicator, parented to the NPC mesh
-    // so it automatically follows the NPC's position
     const indicator = MeshBuilder.CreatePlane(
       `quest_indicator_${npcId}`,
       { width: 0.8, height: 0.8 },
       this.scene
     );
 
-    // Parent to NPC — position is in local space (3.5m above the NPC's origin)
+    // Parent to NPC mesh — position in local space
+    // If NPC has negative Y scale, the local Y axis is flipped, so negate the offset
     indicator.parent = npcMesh;
-    indicator.position = new Vector3(0, heightOffset, 0);
-    // Ensure the indicator isn't affected by the NPC's negative scale (if any)
-    indicator.scaling = new Vector3(
-      1 / Math.abs(npcMesh.scaling.x || 1),
-      1 / Math.abs(npcMesh.scaling.y || 1),
-      1 / Math.abs(npcMesh.scaling.z || 1),
-    );
+    const ySign = (npcMesh.scaling.y < 0) ? -1 : 1;
+    indicator.position = new Vector3(0, this.indicatorHeight * ySign, 0);
     indicator.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
     // Create dynamic texture for the symbol
@@ -344,6 +337,8 @@ export class QuestIndicatorManager {
     }
 
     // Add gentle bobbing animation (float up and down)
+    // Bobbing animation
+    const baseY = this.indicatorHeight * ySign;
     const bobAnim = new Animation(
       `quest_indicator_bob_${npcId}`,
       'position.y',
@@ -352,9 +347,9 @@ export class QuestIndicatorManager {
       Animation.ANIMATIONLOOPMODE_CYCLE
     );
     bobAnim.setKeys([
-      { frame: 0, value: heightOffset },
-      { frame: 30, value: heightOffset + 0.3 },
-      { frame: 60, value: heightOffset },
+      { frame: 0, value: baseY },
+      { frame: 30, value: baseY + 0.2 * ySign },
+      { frame: 60, value: baseY },
     ]);
     indicator.animations.push(bobAnim);
     this.scene.beginAnimation(indicator, 0, 60, true);
