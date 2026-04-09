@@ -2400,7 +2400,13 @@ export class BabylonGame {
       return this.ambientConversationManager?.getConversationPartner(npcId) ?? null;
     });
     this.interactionPrompt.setQuestIndicatorCallback((npcId) => {
-      return this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
+      const type = this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
+      // Don't show "Quest Available" prompt for NPCs who are objective targets —
+      // they have the ! indicator but shouldn't offer radiant quests
+      if (type === 'available' && this.questIndicatorManager?.isActiveObjectiveTarget(npcId)) {
+        return null;
+      }
+      return type;
     });
     this.interactionPrompt.setIsSignObjectCallback((objectRole) => {
       return this.worldObjectActionManager?.isSignObject(objectRole) ?? false;

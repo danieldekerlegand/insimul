@@ -58,6 +58,11 @@ export class QuestIndicatorManager {
     this._activeObjectiveNpcId = npcId;
   }
 
+  /** Check if an NPC is the active quest objective target (not a radiant quest giver) */
+  isActiveObjectiveTarget(npcId: string): boolean {
+    return this._activeObjectiveNpcId === npcId;
+  }
+
   setQuestCompletionChecker(checker: QuestCompletionChecker): void {
     this.questCompletionChecker = checker;
   }
