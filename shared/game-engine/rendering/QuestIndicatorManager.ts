@@ -258,18 +258,18 @@ export class QuestIndicatorManager {
     const indicatorConfig = this.getIndicatorConfig(type);
     if (!indicatorConfig) return;
 
-    // Create a plane for the indicator, parented to the NPC mesh
+    // Create a plane for the indicator in world space (not parented)
+    // Parenting doesn't work reliably due to NPC model scale variations
     const indicator = MeshBuilder.CreatePlane(
       `quest_indicator_${npcId}`,
       { width: 0.8, height: 0.8 },
       this.scene
     );
 
-    // Parent to NPC mesh — position in local space
-    // If NPC has negative Y scale, the local Y axis is flipped, so negate the offset
-    indicator.parent = npcMesh;
-    const ySign = (npcMesh.scaling.y < 0) ? -1 : 1;
-    indicator.position = new Vector3(0, this.indicatorHeight * ySign, 0);
+    // Use the NPC's absolute world position + fixed height offset
+    // getAbsolutePosition() gives the true world-space position regardless of scale
+    const absPos = npcMesh.getAbsolutePosition();
+    indicator.position = new Vector3(absPos.x, absPos.y + this.indicatorHeight, absPos.z);
     indicator.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
     // Create dynamic texture for the symbol
@@ -337,23 +337,6 @@ export class QuestIndicatorManager {
     }
 
     // Add gentle bobbing animation (float up and down)
-    // Bobbing animation
-    const baseY = this.indicatorHeight * ySign;
-    const bobAnim = new Animation(
-      `quest_indicator_bob_${npcId}`,
-      'position.y',
-      30,
-      Animation.ANIMATIONTYPE_FLOAT,
-      Animation.ANIMATIONLOOPMODE_CYCLE
-    );
-    bobAnim.setKeys([
-      { frame: 0, value: baseY },
-      { frame: 30, value: baseY + 0.2 * ySign },
-      { frame: 60, value: baseY },
-    ]);
-    indicator.animations.push(bobAnim);
-    this.scene.beginAnimation(indicator, 0, 60, true);
-
     // Store indicator
     this.indicators.set(npcId, {
       mesh: indicator,
@@ -365,11 +348,18 @@ export class QuestIndicatorManager {
   }
 
   /**
-   * Update indicator state. Indicators are parented to NPC meshes so
-   * position tracking is automatic. This method is kept for API compat.
+   * Update indicator positions to follow their tracked NPC meshes.
+   * Call this each frame from the render loop.
    */
   public updatePositions(): void {
-    // Parented indicators follow automatically — nothing to do
+    this.indicators.forEach((indicator) => {
+      if (indicator.trackedMesh && !indicator.trackedMesh.isDisposed()) {
+        const absPos = indicator.trackedMesh.getAbsolutePosition();
+        indicator.mesh.position.x = absPos.x;
+        indicator.mesh.position.y = absPos.y + indicator.heightOffset;
+        indicator.mesh.position.z = absPos.z;
+      }
+    });
   }
 
   /**
