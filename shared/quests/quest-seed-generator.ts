@@ -1061,7 +1061,55 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
     const assessmentPosition = (locationPositions.size > 0 ? Array.from(locationPositions.values())[0] : null)
       ?? (settlementIdPositions.size > 0 ? Array.from(settlementIdPositions.values())[0] : null);
 
-    // Arrival Assessment — self-contained, no quest chain dependency
+    // Tutorial Quest — teaches basic controls, prerequisite for the assessment
+    const tutorialQuest: InsertQuest = {
+      worldId: world.id,
+      content: [
+        '% Quest: Learn the Basics',
+        '% Introductory tutorial teaching game controls.',
+        '% Type: tutorial / Difficulty: beginner',
+        '',
+        "quest(learn_the_basics, 'Learn the Basics', tutorial, beginner, active).",
+        "quest_assigned_to(learn_the_basics, 'player').",
+        `quest_language(learn_the_basics, ${targetLanguage.toLowerCase()}).`,
+        "quest_tag(learn_the_basics, tutorial).",
+        "quest_tag(learn_the_basics, onboarding).",
+        `quest_location(learn_the_basics, '${cityName}').`,
+        '',
+        "quest_objective(learn_the_basics, 0, visit_location('town square')).",
+        "quest_objective(learn_the_basics, 1, talk_to('any', 1)).",
+        "quest_objective(learn_the_basics, 2, read_sign(1)).",
+        "quest_objective(learn_the_basics, 3, examine_object(1)).",
+        "quest_objective(learn_the_basics, 4, objective('Open the game menu')).",
+        `quest_objective_location(learn_the_basics, 0, settlement).`,
+        `quest_objective_location(learn_the_basics, 1, any_npc).`,
+        `quest_objective_location(learn_the_basics, 2, any_text_location).`,
+        `quest_objective_location(learn_the_basics, 3, settlement).`,
+        `quest_objective_location(learn_the_basics, 4, settlement).`,
+        '',
+        "quest_completion(learn_the_basics, all_objectives_complete).",
+        '',
+        "quest_prerequisite(learn_the_basics, none).",
+        '',
+        "quest_reward(learn_the_basics, experience, 25).",
+        '',
+        '% Can Player take this quest?',
+        'quest_available(Player, learn_the_basics) :-',
+        '    quest(learn_the_basics, _, _, _, _).',
+        '',
+        '% Check if quest is complete for Player',
+        'quest_complete(Player, learn_the_basics) :-',
+        '    \\+ (quest_objective(learn_the_basics, Idx, _), \\+ objective_complete(Player, learn_the_basics, Idx)).',
+      ].join('\n'),
+      status: 'active',
+    } as any;
+    if (assessmentPosition) {
+      (tutorialQuest as any).locationPosition = assessmentPosition;
+      (tutorialQuest as any).locationName = cityName;
+    }
+    quests.push(tutorialQuest);
+
+    // Arrival Assessment — self-contained, prerequisite: tutorial completion
     const arrivalQuest = buildArrivalAssessmentQuest({
       worldId: world.id,
       playerId: 'player',
@@ -1069,8 +1117,8 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       cityName,
     });
     if (assessmentPosition) {
-      arrivalQuest.locationPosition = assessmentPosition;
-      arrivalQuest.locationName = cityName;
+      (arrivalQuest as any).locationPosition = assessmentPosition;
+      (arrivalQuest as any).locationName = cityName;
     }
     quests.push(arrivalQuest as InsertQuest);
 

@@ -65,13 +65,15 @@ export interface TutorialQuestConfig {
 
 // ── Tutorial Objective Definitions ──────────────────────────────────────────
 
-export function buildTutorialObjectives(includeAssessment: boolean): TutorialObjective[] {
-  const objectives: TutorialObjective[] = [
+export function buildTutorialObjectives(_includeAssessment: boolean): TutorialObjective[] {
+  // Tutorial objectives use events that are already emitted by the game engine.
+  // The assessment is a separate quest — tutorial teaches controls only.
+  return [
     {
       id: 'tut_movement',
       type: 'movement',
       title: 'Walk to the town square',
-      description: 'Use WASD keys to move around. Walk to the marked location.',
+      description: 'Use WASD keys to move around. Walk towards the settlement.',
       controlHint: 'WASD to move',
       isAssessment: false,
       completed: false,
@@ -79,97 +81,52 @@ export function buildTutorialObjectives(includeAssessment: boolean): TutorialObj
     {
       id: 'tut_camera',
       type: 'camera',
-      title: 'Look around',
-      description: 'Move the mouse to look around your surroundings.',
-      controlHint: 'Move mouse to look',
+      title: 'Approach an NPC',
+      description: 'Move the mouse to look around, then walk near a villager.',
+      controlHint: 'Mouse to look',
       isAssessment: false,
       completed: false,
     },
     {
       id: 'tut_interact_npc',
       type: 'interaction',
-      title: 'Talk to the welcome NPC',
-      description: 'Walk up to the nearby NPC and press E to start a conversation.',
-      controlHint: 'E to interact',
+      title: 'Talk to a villager',
+      description: 'Walk up to an NPC and press Enter to start a conversation.',
+      controlHint: 'Enter to interact',
       highlightElement: 'interaction_prompt',
       isAssessment: false,
       completed: false,
     },
+    {
+      id: 'tut_reading',
+      type: 'reading',
+      title: 'Read a sign',
+      description: 'Find a sign in the world and interact with it to read it.',
+      controlHint: 'Enter near a sign',
+      highlightElement: 'notice_board',
+      isAssessment: false,
+      completed: false,
+    },
+    {
+      id: 'tut_examine',
+      type: 'interaction' as TutorialStepType,
+      title: 'Examine an object',
+      description: 'Look at an object in the world and interact with it.',
+      controlHint: 'Enter near an object',
+      isAssessment: false,
+      completed: false,
+    },
+    {
+      id: 'tut_menu',
+      type: 'quest_log',
+      title: 'Open the game menu',
+      description: 'Press Escape to open the game menu and explore your quest log.',
+      controlHint: 'Escape to open menu',
+      highlightElement: 'game_menu',
+      isAssessment: false,
+      completed: false,
+    },
   ];
-
-  if (includeAssessment) {
-    objectives.push({
-      id: 'tut_assessment_reading',
-      type: 'assessment_reading',
-      title: 'Reading Assessment',
-      description: 'Read the passage and answer comprehension questions.',
-      controlHint: 'Click to answer',
-      isAssessment: true,
-      assessmentPhaseId: 'arrival_reading',
-      completed: false,
-    });
-  }
-
-  objectives.push({
-    id: 'tut_inventory',
-    type: 'inventory',
-    title: 'Open your inventory',
-    description: 'Press I to open your inventory and see your items.',
-    controlHint: 'I to open inventory',
-    highlightElement: 'inventory_panel',
-    isAssessment: false,
-    completed: false,
-  });
-
-  objectives.push({
-    id: 'tut_reading',
-    type: 'reading',
-    title: 'Read the notice board',
-    description: 'Find a notice board and press E to read it.',
-    controlHint: 'E to read',
-    highlightElement: 'notice_board',
-    isAssessment: false,
-    completed: false,
-  });
-
-  if (includeAssessment) {
-    objectives.push({
-      id: 'tut_assessment_listening',
-      type: 'assessment_listening',
-      title: 'Listening Assessment',
-      description: 'Listen to the passage and answer questions.',
-      controlHint: 'Click to answer',
-      isAssessment: true,
-      assessmentPhaseId: 'arrival_listening',
-      completed: false,
-    });
-  }
-
-  objectives.push({
-    id: 'tut_quest_log',
-    type: 'quest_log',
-    title: 'Open your quest log',
-    description: 'Press J to open your quest log and track your objectives.',
-    controlHint: 'J to open quest log',
-    highlightElement: 'quest_log',
-    isAssessment: false,
-    completed: false,
-  });
-
-  if (includeAssessment) {
-    objectives.push({
-      id: 'tut_assessment_conversation',
-      type: 'assessment_conversation',
-      title: 'Conversation Assessment',
-      description: 'Have a guided conversation with the NPC to assess your speaking ability.',
-      controlHint: 'Type to respond',
-      isAssessment: true,
-      assessmentPhaseId: 'arrival_conversation',
-      completed: false,
-    });
-  }
-
-  return objectives;
 }
 
 // ── Tutorial Quest System ───────────────────────────────────────────────────
@@ -305,63 +262,51 @@ export class TutorialQuestSystem {
   }
 
   private wireEventListeners(): void {
-    // Movement — complete when player visits a location
+    // Movement — complete when player enters the settlement
+    this.unsubscribers.push(
+      this.eventBus.on('settlement_entered', () => {
+        this.completeObjectiveById('tut_movement');
+      }),
+    );
+    // Fallback: also complete on location_visited
     this.unsubscribers.push(
       this.eventBus.on('location_visited', () => {
         this.completeObjectiveById('tut_movement');
       }),
     );
 
-    // Camera look — complete on first NPC greeting (implies player looked around)
+    // Camera/approach — complete when player gets near an NPC
     this.unsubscribers.push(
-      this.eventBus.on('npc_greeting', () => {
+      this.eventBus.on('player_near_npc', () => {
         this.completeObjectiveById('tut_camera');
       }),
     );
 
-    // NPC interaction
+    // NPC interaction — talked to any NPC
     this.unsubscribers.push(
       this.eventBus.on('npc_talked', () => {
         this.completeObjectiveById('tut_interact_npc');
       }),
     );
 
-    // Inventory — opened inventory panel
-    this.unsubscribers.push(
-      this.eventBus.on('inventory_opened', () => {
-        this.completeObjectiveById('tut_inventory');
-      }),
-    );
-
-    // Reading — notice board or sign read
+    // Reading — read a sign or notice board
     this.unsubscribers.push(
       this.eventBus.on('sign_read', () => {
         this.completeObjectiveById('tut_reading');
       }),
     );
 
-    // Quest log — opened quest log panel
+    // Examine — examined any object
+    this.unsubscribers.push(
+      this.eventBus.on('object_examined', () => {
+        this.completeObjectiveById('tut_examine');
+      }),
+    );
+
+    // Game menu — emit from BabylonGame when menu is opened
     this.unsubscribers.push(
       this.eventBus.on('quest_log_opened', () => {
-        this.completeObjectiveById('tut_quest_log');
-      }),
-    );
-
-    // Assessment phases completed
-    this.unsubscribers.push(
-      this.eventBus.on('assessment_phase_completed', (event) => {
-        if (event.phaseId === 'arrival_reading') {
-          this.completeObjectiveById('tut_assessment_reading');
-        } else if (event.phaseId === 'arrival_listening') {
-          this.completeObjectiveById('tut_assessment_listening');
-        }
-      }),
-    );
-
-    // Assessment conversation completed
-    this.unsubscribers.push(
-      this.eventBus.on('assessment_conversation_completed', () => {
-        this.completeObjectiveById('tut_assessment_conversation');
+        this.completeObjectiveById('tut_menu');
       }),
     );
   }

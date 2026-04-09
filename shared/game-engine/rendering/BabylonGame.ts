@@ -242,15 +242,10 @@ import type { OnboardingLaunchResult } from "@shared/game-engine/rendering/Onboa
 import { PERIODIC_ASSESSMENT_LEVELS, buildPeriodicAssessmentGrammarContext } from "@shared/assessment/periodic-encounter";
 import {
   KEY_BUILDING_INTERACT,
-  KEY_ATTACK,
-  KEY_TARGET_ENEMY,
   KEY_TOGGLE_VR,
   KEY_GAME_MENU,
   KEY_FULLSCREEN_MAP,
   KEY_PUSH_TO_TALK,
-  KEY_EXAMINE_OBJECT,
-  KEY_QUICK_SAVE,
-  KEY_QUICK_LOAD,
   KEY_CAMERA_MODE,
   KEY_PHOTO_BOOK,
   KEY_CYCLE_VEHICLE,
@@ -598,6 +593,7 @@ export class BabylonGame {
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
   private minimap: BabylonMinimap | null = null;
   private fullscreenMap: FullscreenMap | null = null;
+  private tutorialSystem: any = null; // TutorialQuestSystem (lazy import)
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
   private containerPanel: BabylonContainerPanel | null = null;
@@ -1129,6 +1125,9 @@ export class BabylonGame {
 
       // Show game intro cutscene on first playthrough
       this.tryShowGameIntro();
+
+      // Launch tutorial for first-time playthroughs
+      this.tryLaunchTutorial();
 
       // Launch onboarding for first-time language-learning playthroughs
       this.tryLaunchOnboarding();
@@ -6863,7 +6862,7 @@ export class BabylonGame {
           // (Door labels removed — BuildingSignManager handles all sign display)
         }
 
-        // Place trees/features at DB park lots (park, forest, cemetery, garden)
+        // Place trees/features at DB park lots (park, grove, cemetery, garden)
         const parkLotTypes = new Set(['park', 'grove', 'cemetery', 'garden']);
         const dbParkLots = lots.filter((l: any) =>
           parkLotTypes.has(l.lotType) && l.positionX != null && l.positionZ != null
@@ -6899,8 +6898,8 @@ export class BabylonGame {
             for (let ti = 0; ti < treeCount; ti++) {
               const tx = parkPos.x + (parkRng() - 0.5) * pw * 0.6;
               const tz = parkPos.z + (parkRng() - 0.5) * pd * 0.6;
-              // Skip positions that land on streets
-              if (isPointOnSettlementStreet(tx, tz)) continue;
+              // Only skip street positions for gardens (groves are dedicated tree areas)
+              if (lt === 'garden' && isPointOnSettlementStreet(tx, tz)) continue;
               const treePos = this.projectToGround(tx, tz);
               this.placeAssetTreeAtPosition(scene, treePos, settlement.id, parkRng);
             }
@@ -8131,6 +8130,17 @@ export class BabylonGame {
         }
       }
 
+      // Street/road meshes: streets, sidewalks, crosswalks, centerlines, road segments
+      if (name.startsWith('street_') || name.startsWith('sidewalk_') ||
+          name.startsWith('crosswalk_') || name.startsWith('centerline_') ||
+          name.startsWith('road_street_') || name.startsWith('walkway_')) {
+        const match = this.findSettlementForMesh(mesh);
+        if (match) {
+          this.settlementSceneManager!.registerSettlementMesh(mesh, match);
+          continue;
+        }
+      }
+
       // Everything else is overworld (nature, wilderness, roads between settlements)
       this.settlementSceneManager!.registerOverworldMesh(mesh);
     }
@@ -9038,6 +9048,70 @@ export class BabylonGame {
       }
     } catch (err) {
       console.error('[BabylonGame] Failed to restore quest progress:', err);
+    }
+  }
+
+  /**
+   * Launch the tutorial quest system for first-time players.
+   * Creates a "Learn the Basics" quest that teaches controls.
+   */
+  private async tryLaunchTutorial(): Promise<void> {
+    if (!this.eventBus || this.tutorialSystem) return;
+
+    // Check if tutorial was already completed (via quest overlay)
+    const tutorialQuest = (this.quests || []).find((q: any) =>
+      q.tags?.includes('tutorial') || q.title === 'Learn the Basics'
+    );
+    if (tutorialQuest?.status === 'completed') return;
+
+    try {
+      const { TutorialQuestSystem } = await import(
+        '@shared/game-engine/logic/TutorialQuestSystem'
+      );
+      this.tutorialSystem = new TutorialQuestSystem(this.eventBus, {
+        worldName: this.config.worldName || 'the world',
+        targetLanguage: (this.worldData as any)?.targetLanguage || 'the local language',
+        includeAssessment: false, // assessment is a separate quest
+      });
+
+      // When tutorial completes, mark the tutorial quest as completed
+      // and activate the arrival assessment
+      this.eventBus.on('onboarding_completed', () => {
+        if (tutorialQuest) {
+          this.dataSource.updateQuest(tutorialQuest.id, { status: 'completed' });
+        }
+        this.guiManager?.showToast({
+          title: 'Tutorial Complete!',
+          description: 'You\'ve learned the basics. Check the Notice Board for your language assessment.',
+          duration: 5000,
+        });
+        // Refresh quest indicators
+        this.updateQuestIndicators();
+      });
+
+      // Show the current tutorial objective as a toast
+      const current = this.tutorialSystem.getCurrentObjective();
+      if (current) {
+        this.guiManager?.showToast({
+          title: current.title,
+          description: `${current.description} (${current.controlHint})`,
+          duration: 8000,
+        });
+
+        // Show subsequent objectives as toasts when they start
+        this.eventBus.on('onboarding_step_started', (event: any) => {
+          const obj = this.tutorialSystem?.getCurrentObjective();
+          if (obj) {
+            this.guiManager?.showToast({
+              title: obj.title,
+              description: `${obj.description} (${obj.controlHint})`,
+              duration: 6000,
+            });
+          }
+        });
+      }
+    } catch (err) {
+      console.debug('[BabylonGame] Tutorial system unavailable:', err);
     }
   }
 
@@ -11659,33 +11733,42 @@ export class BabylonGame {
    *  - Regular objects trigger examine_object
    * Emits events for quest/vocabulary tracking.
    */
-  private handleExamineObject(): void {
+  private handleExamineObject(targetObjectRole?: string, targetMesh?: AbstractMesh): void {
     if (!this.playerMesh) return;
 
-    const nearest = this.findNearestWorldProp(5);
+    let objectRole: string;
+    let mesh: AbstractMesh;
 
-    if (!nearest) {
-      this.guiManager?.showToast({
-        title: "Nothing to examine",
-        description: "Move closer to an object and try again (X)",
-        duration: 1500,
-      });
-      return;
+    if (targetObjectRole && targetMesh) {
+      objectRole = targetObjectRole;
+      mesh = targetMesh;
+    } else {
+      const nearest = this.findNearestWorldProp(5);
+      if (!nearest) {
+        this.guiManager?.showToast({
+          title: "Nothing to examine",
+          description: "Move closer to an object and try again",
+          duration: 1500,
+        });
+        return;
+      }
+      objectRole = nearest.objectRole;
+      mesh = nearest.mesh;
     }
 
-    const dbItem = this.resolveWorldItem(nearest.objectRole);
+    const dbItem = this.resolveWorldItem(objectRole);
     const isLangWorld = isLanguageLearningWorld(this.worldData);
 
     if (this.worldObjectActionManager) {
       // Build a WorldObjectRef from the mesh + DB item
       const objRef = {
-        id: dbItem?.id || nearest.objectRole,
-        objectRole: nearest.objectRole,
-        name: dbItem?.name || nearest.objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "),
-        position: { x: nearest.mesh.position.x, y: nearest.mesh.position.y, z: nearest.mesh.position.z },
+        id: dbItem?.id || objectRole,
+        objectRole,
+        name: dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "),
+        position: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
         translations: dbItem?.translations,
         signData: dbItem?.signData,
-        isSign: this.worldObjectActionManager.isSignObject(nearest.objectRole),
+        isSign: this.worldObjectActionManager.isSignObject(objectRole),
         description: dbItem?.description,
       };
 
@@ -11709,7 +11792,7 @@ export class BabylonGame {
       }
     } else {
       // Fallback: direct event emission (no manager available)
-      const itemName = dbItem?.name || nearest.objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+      const itemName = dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
       const langData = dbItem ? getItemTranslation(dbItem, getTargetLanguage(this.worldData)) : null;
 
       if (isLangWorld && langData?.targetWord) {
@@ -11721,7 +11804,7 @@ export class BabylonGame {
         });
         this.eventBus.emit({
           type: 'object_examined',
-          objectId: dbItem?.id || nearest.objectRole,
+          objectId: dbItem?.id || objectRole,
           objectName: itemName,
           targetWord: langData.targetWord,
           targetLanguage: getTargetLanguage(this.worldData),
@@ -13405,10 +13488,28 @@ export class BabylonGame {
       instance.controller.walk(true);
       instance.isWalking = true;
       this.playNPCAnimation(instance, 'walk');
+
+      // Stuck detection: if walking but position hasn't changed, reset to idle
+      if (instance.lastWanderPosition) {
+        const posDelta = Vector3.Distance(currentPos, instance.lastWanderPosition);
+        if (posDelta < 0.05) {
+          instance.stuckTicks = (instance.stuckTicks || 0) + 1;
+          if (instance.stuckTicks > 30) {
+            instance.controller.walk(false);
+            instance.isWalking = false;
+            this.playNPCAnimation(instance, 'idle');
+            instance.stuckTicks = 0;
+          }
+        } else {
+          instance.stuckTicks = 0;
+        }
+      }
+      instance.lastWanderPosition = currentPos.clone();
     } else {
       instance.controller.walk(false);
       instance.isWalking = false;
       this.playNPCAnimation(instance, 'idle');
+      instance.stuckTicks = 0;
     }
   }
 
@@ -13986,28 +14087,25 @@ export class BabylonGame {
       }
       if (this.gameMenuSystem) {
         this.gameMenuSystem.toggle();
+        if (this.gameMenuSystem.isOpen) {
+          this.eventBus.emit({ type: 'quest_log_opened' });
+        }
       }
       return; // Don't process other keys while toggling menu
-    }
-
-    // F5 - Quick save (works even with menu open)
-    if (event.code === KEY_QUICK_SAVE && !event.repeat) {
-      event.preventDefault();
-      this.gameMenuSystem?.quickSave();
-      return;
-    }
-
-    // F9 - Quick load (works even with menu open)
-    if (event.code === KEY_QUICK_LOAD && !event.repeat) {
-      event.preventDefault();
-      this.gameMenuSystem?.quickLoad();
-      return;
     }
 
     // Time controls moved to Game Menu → Rest tab
 
     // If the unified menu is open, block all other game input
     if (this.gameMenuSystem?.isOpen) {
+      return;
+    }
+
+    // T - Push-to-talk (hold to record) — must be before the visibility block
+    // so it works when the chat panel is open
+    if (event.code === KEY_PUSH_TO_TALK && !event.repeat) {
+      event.preventDefault();
+      this.chatPanel?.startPushToTalk();
       return;
     }
 
@@ -14036,12 +14134,6 @@ export class BabylonGame {
       }
     }
 
-    // F - Attack/Respawn
-    if (event.code === KEY_ATTACK && !event.repeat) {
-      event.preventDefault();
-      this.handleAttack();
-    }
-
     // Q - Contextual action menu (for any target the player is looking at)
     if (event.code === KEY_PHYSICAL_ACTION && !event.repeat) {
       if (this.contextualActionMenu?.isOpen()) {
@@ -14051,12 +14143,6 @@ export class BabylonGame {
         event.preventDefault();
         await this.handleUnifiedInteraction();
       }
-    }
-
-    // T - Target nearest enemy
-    if (event.code === KEY_TARGET_ENEMY && !event.repeat) {
-      event.preventDefault();
-      this.handleTargetEnemy();
     }
 
     // J shortcut removed — access Journal via Game Menu
@@ -14071,18 +14157,6 @@ export class BabylonGame {
     if (event.code === KEY_TOGGLE_VR && event.shiftKey && !event.repeat) {
       event.preventDefault();
       await this.handleToggleVR();
-    }
-
-    // R - Push-to-talk (hold to record)
-    if (event.code === KEY_PUSH_TO_TALK && !event.repeat) {
-      event.preventDefault();
-      this.chatPanel?.startPushToTalk();
-    }
-
-    // X - Examine nearest object (legacy fallback, G now handles this too)
-    if (event.code === KEY_EXAMINE_OBJECT && !event.repeat) {
-      event.preventDefault();
-      this.handleExamineObject();
     }
 
     // C - Toggle camera viewfinder (photography mode)
@@ -14241,6 +14315,14 @@ export class BabylonGame {
   ): Promise<void> {
     switch (action.id) {
       // ── Social ─────────────────────────────────────────────────────
+      case '__eavesdrop__': {
+        this.guiManager?.showToast({
+          title: 'Eavesdropping',
+          description: `Listening to ${target.name}'s conversation...`,
+          duration: 3000,
+        });
+        break;
+      }
       case '__talk__': {
         this.setSelectedNPC(target.id);
         await this.handleOpenChat();
@@ -14266,7 +14348,8 @@ export class BabylonGame {
 
       // ── Examine ────────────────────────────────────────────────────
       case '__examine__': {
-        this.handleExamineObject();
+        const objectRole = target.objectRole || target.mesh.metadata?.objectRole || '';
+        this.handleExamineObject(objectRole, target.mesh);
         break;
       }
       case '__pick_up_book__': {
@@ -14487,16 +14570,24 @@ export class BabylonGame {
       // Set time of day so NPC conversation prompt has correct time context
       this.chatPanel.setTimeOfDay(String(this.gameTimeManager.hour));
 
-      // Inject reputation context into NPC conversation prompt
+      // Inject active quest context for this NPC (synchronous — available before show)
+      const hasLocalQuestContext = this.injectActiveQuestContext(npcId);
+
+      // Inject reputation context into NPC conversation prompt (appended, not overwriting quest context)
       if (this.reputationManager && this.currentZone) {
         const repContext = this.reputationManager.getConversationContext(this.currentZone.id);
         if (repContext) {
-          this.chatPanel.setQuestGuidancePrompt(repContext);
+          // Append to existing quest guidance or set as standalone
+          const existing = hasLocalQuestContext ? (this.chatPanel.getQuestGuidancePrompt() || '') : '';
+          this.chatPanel.setQuestGuidancePrompt(existing ? `${existing}\n\n${repContext}` : repContext);
         }
       }
 
       // Fetch NPC quest guidance (non-blocking — sets context before or shortly after show)
-      this.fetchQuestGuidance(npcId, this.config.worldId);
+      // Skip if local context was already injected to avoid overwriting richer data
+      if (!hasLocalQuestContext) {
+        this.fetchQuestGuidance(npcId, this.config.worldId);
+      }
 
       // Tell chat panel where the player is so the NPC turns to face them
       if (this.playerMesh) {
@@ -14703,6 +14794,97 @@ export class BabylonGame {
         (this.worldData as any)?.targetLanguage,
       );
     }
+  }
+
+  /**
+   * Inject active quest context into the chat panel for an NPC.
+   * Synchronously checks the local quests array so context is available before show().
+   */
+  private injectActiveQuestContext(npcId: string): boolean {
+    if (!this.chatPanel || !this.quests?.length) return false;
+
+    // Find active quests where this NPC is relevant
+    const activeQuests = (this.quests as any[]).filter((q: any) => {
+      if (q.status !== 'active') return false;
+      // Quest was assigned by this NPC
+      if (q.assignedByCharacterId === npcId) return true;
+      // Quest has objectives targeting this NPC
+      const objectives = (q.objectives || []) as any[];
+      return objectives.some((obj: any) =>
+        obj.npcId === npcId || obj.targetNpcId === npcId || obj.target === npcId
+      );
+    });
+
+    if (activeQuests.length === 0) {
+      this.chatPanel.setActiveQuestFromNPC(null);
+      return false;
+    }
+
+    // Build rich context from all relevant active quests
+    const quest = activeQuests[0]; // Primary quest
+    const isQuestGiver = quest.assignedByCharacterId === npcId;
+    const objectives = ((quest.objectives || []) as any[]);
+    const incompleteObjectives = objectives.filter((o: any) => !o.completed);
+    const completedObjectives = objectives.filter((o: any) => o.completed);
+
+    // Find objectives specifically involving this NPC
+    const npcObjectives = objectives.filter((o: any) =>
+      o.npcId === npcId || o.targetNpcId === npcId || o.target === npcId
+    );
+
+    this.chatPanel.setActiveQuestFromNPC({
+      questTitle: quest.title || 'Unknown Quest',
+      questDescription: quest.description || '',
+      questId: quest.id,
+      isQuestGiver,
+    });
+
+    // Build a detailed guidance prompt with objective progress
+    const objectiveLines = incompleteObjectives.map((o: any) => {
+      const npcRef = o.npcName ? ` (with ${o.npcName})` : '';
+      const isThisNpc = (o.npcId === npcId || o.targetNpcId === npcId || o.target === npcId);
+      const marker = isThisNpc ? ' ← THIS INVOLVES YOU' : '';
+      return `  - [INCOMPLETE] ${o.description || o.type}${npcRef}${marker}`;
+    });
+    const completedLines = completedObjectives.map((o: any) =>
+      `  - [DONE] ${o.description || o.type}`
+    );
+
+    let guidancePrompt: string;
+
+    if (isQuestGiver) {
+      guidancePrompt = `\nACTIVE QUEST CONTEXT — The player is working on a quest you gave them:\n`;
+      guidancePrompt += `Quest: "${quest.title}"\n`;
+      if (quest.description) guidancePrompt += `Description: ${quest.description}\n`;
+      if (quest.questType) guidancePrompt += `Type: ${quest.questType}\n`;
+      guidancePrompt += `\nObjective Progress:\n`;
+      if (completedLines.length > 0) guidancePrompt += completedLines.join('\n') + '\n';
+      if (objectiveLines.length > 0) guidancePrompt += objectiveLines.join('\n') + '\n';
+      guidancePrompt += `\nIMPORTANT: You assigned this quest. Reference it naturally — ask about their progress on incomplete objectives, acknowledge completed ones, and offer guidance or hints. Stay in character. Do NOT re-assign or repeat the full quest description unless asked.`;
+    } else {
+      // NPC is an objective target, not the quest-giver
+      const npcObjDescriptions = npcObjectives
+        .filter((o: any) => !o.completed)
+        .map((o: any) => o.description || o.type);
+
+      guidancePrompt = `\nQUEST OBJECTIVE CONTEXT — The player is on a quest that involves you:\n`;
+      guidancePrompt += `Quest: "${quest.title}"\n`;
+      if (quest.description) guidancePrompt += `Quest Description: ${quest.description}\n`;
+      if (npcObjDescriptions.length > 0) {
+        guidancePrompt += `\nObjectives involving you:\n`;
+        guidancePrompt += npcObjDescriptions.map(d => `  - ${d}`).join('\n') + '\n';
+      }
+      guidancePrompt += `\nIMPORTANT: You may not know the full quest details, but you can help with what involves you. If the player asks about these objectives, assist them naturally — provide the information, items, or directions they need. Stay in character.`;
+    }
+
+    // If there are additional relevant quests, mention them briefly
+    if (activeQuests.length > 1) {
+      const others = activeQuests.slice(1).map((q: any) => `"${q.title}"`).join(', ');
+      guidancePrompt += `\n\nThe player also has other active quests involving you: ${others}. You may briefly reference these if relevant.`;
+    }
+
+    this.chatPanel.setQuestGuidancePrompt(guidancePrompt);
+    return true;
   }
 
   /**
