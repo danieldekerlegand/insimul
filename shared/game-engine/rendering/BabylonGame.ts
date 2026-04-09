@@ -10930,9 +10930,13 @@ Requirements:
     this.interiorPlayerMesh = interiorAvatar;
 
     // Camera + CharacterController — identical to overworld setup in loadPlayer()
+    // Set camera behind the player based on their overworld facing direction
+    const interiorAlpha = this.playerMesh
+      ? this.playerMesh.rotation.y - Math.PI  // behind the player
+      : -Math.PI / 2;                          // fallback
     const intCam = new ArcRotateCamera(
       'interior_camera',
-      -Math.PI / 2,
+      interiorAlpha,
       Math.PI / 3,
       6,              // Closer than overworld (10) for tight interior spaces
       interiorAvatar.position.add(new Vector3(0, 1.6, 0)),
@@ -11011,6 +11015,14 @@ Requirements:
       try {
         const { spawnPosition, meshCount } = await this.interiorSceneManager.loadInteriorModel(interiorAssetPath);
         spawnPos = spawnPosition;
+        // Create a minimal InteriorLayout for NPC placement in asset-based interiors
+        this.activeInterior = {
+          rooms: [{ id: 'main', type: businessType || 'room', x: spawnPos.x - 4, z: spawnPos.z - 4, width: 8, depth: 8 }],
+          furniture: [],
+          doors: [],
+          width: 8,
+          depth: 8,
+        } as any;
       } catch (err) {
         console.warn('[Interior] Failed to load asset interior, falling back to procedural:', err);
         spawnPos = await this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
@@ -13571,6 +13583,15 @@ Requirements:
     const groundHit = this.projectToGround(currentPos.x, currentPos.z);
     if (Math.abs(currentPos.y - groundHit.y) > 1.5) {
       currentPos.y = groundHit.y;
+    }
+
+    // Building collision: if the NPC has entered a building footprint, stop and pick a new target
+    if (this.isPointInsideAnyBuilding(currentPos.x, currentPos.z)) {
+      instance.controller.walk(false);
+      instance.isWalking = false;
+      this.playNPCAnimation(instance, 'idle');
+      instance.wanderTarget = undefined;
+      return;
     }
 
     const dx = target.x - currentPos.x;
