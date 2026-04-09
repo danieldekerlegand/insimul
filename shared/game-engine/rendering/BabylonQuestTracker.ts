@@ -918,7 +918,9 @@ export class BabylonQuestTracker {
         const progressSuffix = (obj.required && obj.required > 1)
           ? ` (${obj.current ?? 0}/${obj.required})`
           : '';
-        objDesc.text = (obj.description || obj.type.replace(/_/g, ' ')) + progressSuffix;
+        // Strip any baked-in count like "(3)" from description — we show it as progress
+        const descText = (obj.description || obj.type?.replace(/_/g, ' ') || '').replace(/\s*\(\d+\)\s*$/, '');
+        objDesc.text = descText + progressSuffix;
         objDesc.color = obj.completed ? "#4CAF50" : "#CCC";
         objDesc.fontSize = 8;
         objDesc.width = "165px";
@@ -1119,7 +1121,8 @@ export class BabylonQuestTracker {
         const progressStr = (obj.required && obj.required > 1)
           ? ` (${obj.current ?? 0}/${obj.required})`
           : '';
-        objText.text = (obj.description || obj.type.replace(/_/g, ' ')) + progressStr;
+        const detailDesc = (obj.description || obj.type?.replace(/_/g, ' ') || '').replace(/\s*\(\d+\)\s*$/, '');
+        objText.text = detailDesc + progressStr;
         objText.color = obj.completed ? "#4CAF50" : "#DDD";
         objText.fontSize = 8;
         objText.textWrapping = TextWrapping.WordWrap;
@@ -1906,6 +1909,9 @@ export class BabylonQuestTracker {
     this.buildingData = buildingData;
     this.npcBuildingMap = npcBuildingMap;
     this.npcPositions = npcPositions;
+    // Re-resolve waypoints now that we have world data
+    // (updateQuests may have run before setWorldData was called)
+    this.updateWaypoints();
   }
 
   /** Update NPC positions (call when NPCs move) */

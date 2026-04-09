@@ -449,9 +449,9 @@ function cleanObjectiveText(text: string): string {
       }
       const verb = functor.replace(/_/g, ' ');
       const capitalized = verb.charAt(0).toUpperCase() + verb.slice(1);
-      // If args look like just a number, format as count
+      // If args are just a number, omit from description (shown as progress counter)
       if (/^\d+$/.test(cleanArgs)) {
-        s = `${capitalized} (${cleanArgs})`;
+        s = capitalized;
       } else if (cleanArgs) {
         s = `${capitalized}: ${cleanArgs}`;
       } else {
@@ -464,7 +464,10 @@ function cleanObjectiveText(text: string): string {
     s = s.replace(/_/g, ' ');
   }
 
-  // Step 5: Capitalize first letter
+  // Step 5: Strip trailing count like " (3)" — shown separately as progress
+  s = s.replace(/\s*\(\d+\)\s*$/, '');
+
+  // Step 6: Capitalize first letter
   s = s.replace(/^\w/, c => c.toUpperCase());
 
   return s.trim();
