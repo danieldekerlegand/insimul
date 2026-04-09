@@ -96,7 +96,13 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
 
   const mainQuests = quests.filter((q: any) => q.questType === 'main_quest' || q.tags?.includes('main_quest'));
   const getQuestForChapter = (chapterId: string) =>
-    mainQuests.find((q: any) => q.tags?.includes(`chapterId:${chapterId}`));
+    mainQuests.find((q: any) =>
+      // Match both tag formats: "chapterId:ch1_..." (legacy) and "chapterid_ch1_..." (Prolog)
+      q.tags?.includes(`chapterId:${chapterId}`) ||
+      q.tags?.includes(`chapterid_${chapterId}`) ||
+      // Also match by narrativeChapterId field
+      q.narrativeChapterId === chapterId
+    );
   const getTextsForChapter = (chapterId: string) =>
     gametexts.filter((t: any) =>
       t.narrativeChapterId === chapterId ||
@@ -358,33 +364,88 @@ export function NarrativeTab({ worldId }: NarrativeTabProps) {
                       );
                     })()}
 
-                    {/* Linked Texts (journal entries, clue letters) */}
+                    {/* Linked Texts — separated into Clue Texts and Ambient Texts */}
                     {(() => {
                       const chapterTexts = getTextsForChapter(ch.chapterId);
                       if (chapterTexts.length === 0) return null;
+                      const clueTexts = chapterTexts.filter((t: any) => t.tags?.includes('clue') || t.clueText);
+                      const redHerrings = chapterTexts.filter((t: any) => t.tags?.includes('red_herring'));
+                      const ambientTexts = chapterTexts.filter((t: any) =>
+                        !t.tags?.includes('clue') && !t.clueText && !t.tags?.includes('red_herring')
+                      );
                       return (
-                        <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
-                          <label className="text-sm font-medium flex items-center gap-1 mb-2">
-                            <BookOpen className="w-3.5 h-3.5" /> Linked Texts ({chapterTexts.length})
-                          </label>
-                          <div className="space-y-1.5">
-                            {chapterTexts.map((text: any) => (
-                              <div key={text.id} className="flex items-start gap-2 text-xs">
-                                <Badge variant="outline" className={`text-[9px] shrink-0 ${
-                                  text.textCategory === 'journal' ? 'text-amber-500 border-amber-500/30' :
-                                  text.textCategory === 'letter' ? 'text-blue-500 border-blue-500/30' :
-                                  'text-muted-foreground'
-                                }`}>{text.textCategory}</Badge>
-                                <div className="flex-1">
-                                  <span className="font-medium">{text.title}</span>
-                                  {text.clueText && (
-                                    <p className="text-muted-foreground mt-0.5">{text.clueText}</p>
-                                  )}
-                                </div>
-                                <Badge variant="outline" className="text-[9px]">{text.cefrLevel}</Badge>
+                        <div className="space-y-2">
+                          {/* Clue Texts — advance the investigation */}
+                          {clueTexts.length > 0 && (
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                              <label className="text-sm font-medium flex items-center gap-1 mb-2 text-amber-600 dark:text-amber-400">
+                                🔍 Clue Texts ({clueTexts.length})
+                              </label>
+                              <div className="space-y-1.5">
+                                {clueTexts.map((text: any) => (
+                                  <div key={text.id} className="flex items-start gap-2 text-xs">
+                                    <Badge variant="outline" className="text-[9px] shrink-0 text-amber-500 border-amber-500/30">
+                                      {text.textCategory}
+                                    </Badge>
+                                    <div className="flex-1">
+                                      <span className="font-medium">{text.title}</span>
+                                      {text.clueText && (
+                                        <p className="text-amber-600/80 dark:text-amber-400/80 mt-0.5 italic">
+                                          Clue: {text.clueText}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge variant="outline" className="text-[9px]">{text.cefrLevel}</Badge>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          )}
+
+                          {/* Red Herrings */}
+                          {redHerrings.length > 0 && (
+                            <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg">
+                              <label className="text-sm font-medium flex items-center gap-1 mb-2 text-red-500">
+                                🎭 Red Herrings ({redHerrings.length})
+                              </label>
+                              <div className="space-y-1.5">
+                                {redHerrings.map((text: any) => (
+                                  <div key={text.id} className="flex items-start gap-2 text-xs">
+                                    <Badge variant="outline" className="text-[9px] shrink-0 text-red-500 border-red-500/30">
+                                      {text.textCategory}
+                                    </Badge>
+                                    <div className="flex-1">
+                                      <span className="font-medium">{text.title}</span>
+                                      {text.clueText && (
+                                        <p className="text-red-500/80 mt-0.5 italic">{text.clueText}</p>
+                                      )}
+                                    </div>
+                                    <Badge variant="outline" className="text-[9px]">{text.cefrLevel}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Ambient Texts — flavor/context, not investigation-critical */}
+                          {ambientTexts.length > 0 && (
+                            <div className="p-3 bg-muted/30 border rounded-lg">
+                              <label className="text-sm font-medium flex items-center gap-1 mb-2 text-muted-foreground">
+                                <BookOpen className="w-3.5 h-3.5" /> Reading Material ({ambientTexts.length})
+                              </label>
+                              <div className="space-y-1.5">
+                                {ambientTexts.map((text: any) => (
+                                  <div key={text.id} className="flex items-start gap-2 text-xs">
+                                    <Badge variant="outline" className="text-[9px] shrink-0">{text.textCategory}</Badge>
+                                    <div className="flex-1">
+                                      <span className="font-medium">{text.title}</span>
+                                    </div>
+                                    <Badge variant="outline" className="text-[9px]">{text.cefrLevel}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
