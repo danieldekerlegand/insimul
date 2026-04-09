@@ -1964,24 +1964,27 @@ export class BabylonGUIManager {
       for (const npc of data.npcPositions) {
         const [nx, nz] = toMap(npc.position.x, npc.position.z);
         const isHighlighted = highlightId && npc.id === highlightId;
+        // Treat highlighted NPCs and NPCs with 'available' quest indicator as prominent
+        const isProminent = isHighlighted || npc.questIndicator === 'available';
 
-        // Show highlighted NPC even if slightly off-screen (with clamped indicator)
-        if (!isHighlighted && (Math.abs(nx) > mapHalf || Math.abs(nz) > mapHalf)) continue;
+        // Show prominent NPCs even if slightly off-screen (clamped to edge)
+        if (!isProminent && (Math.abs(nx) > mapHalf || Math.abs(nz) > mapHalf)) continue;
 
-        if (isHighlighted) {
-          // Prominent pulsing marker for highlighted/target NPC
-          const pulseSize = Math.round(18 * zoomDotScale * pulseScale);
+        if (isProminent) {
+          // Prominent pulsing marker — unified style for quest-target and highlighted NPCs
+          const pulseSize = Math.round(16 * zoomDotScale * pulseScale);
+          const indicatorColor = npc.questIndicator === 'turn_in' ? '#32CD32' : '#FFD700';
+          const indicatorSymbol = npc.questIndicator === 'turn_in' ? '\u2713' : '!';
+          const clampedNx = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nx));
+          const clampedNz = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nz));
 
           // Outer glow ring
           const glow = new Ellipse(`npc-glow-${npc.id}`);
           glow.width = `${pulseSize + Math.round(6 * zoomDotScale)}px`;
           glow.height = `${pulseSize + Math.round(6 * zoomDotScale)}px`;
-          glow.background = 'rgba(255, 215, 0, 0.2)';
-          glow.color = 'rgba(255, 215, 0, 0.5)';
+          glow.background = `${indicatorColor}33`;
+          glow.color = `${indicatorColor}80`;
           glow.thickness = 1;
-          // Clamp to minimap bounds
-          const clampedNx = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nx));
-          const clampedNz = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nz));
           glow.left = `${clampedNx}px`;
           glow.top = `${clampedNz}px`;
           mapContainer.addControl(glow);
@@ -1991,7 +1994,7 @@ export class BabylonGUIManager {
           const dot = new Ellipse(`npc-hl-${npc.id}`);
           dot.width = `${pulseSize}px`;
           dot.height = `${pulseSize}px`;
-          dot.background = '#FFD700';
+          dot.background = indicatorColor;
           dot.color = '#FFFFFF';
           dot.thickness = 2;
           dot.left = `${clampedNx}px`;
@@ -1999,11 +2002,11 @@ export class BabylonGUIManager {
           mapContainer.addControl(dot);
           this._minimapDynamicControls.push(dot);
 
-          // Exclamation mark inside
+          // Symbol text
           const excl = new TextBlock(`npc-hl-text-${npc.id}`);
-          excl.text = '!';
+          excl.text = indicatorSymbol;
           excl.color = '#000000';
-          excl.fontSize = Math.round(12 * zoomDotScale * pulseScale);
+          excl.fontSize = Math.round(10 * zoomDotScale * pulseScale);
           excl.fontWeight = 'bold';
           excl.left = `${clampedNx}px`;
           excl.top = `${clampedNz}px`;
@@ -2028,30 +2031,23 @@ export class BabylonGUIManager {
           this._minimapDynamicControls.push(dot);
 
           // Show quest indicator symbol above NPC dot on minimap
-          if (npc.questIndicator) {
+          // (only for non-prominent indicators — prominent ones are handled above)
+          if (npc.questIndicator && npc.questIndicator === 'in_progress') {
             const indicatorSize = Math.max(6, Math.round(12 * zoomDotScale));
             const symbolOffset = -(npcDotSize / 2 + indicatorSize / 2 + 1);
 
-            // Background circle for the indicator
             const indBg = new Ellipse(`npc-qi-bg-${npc.id}`);
             indBg.width = `${indicatorSize}px`;
             indBg.height = `${indicatorSize}px`;
             indBg.thickness = 0;
-            if (npc.questIndicator === 'available') {
-              indBg.background = '#FFD700'; // gold
-            } else if (npc.questIndicator === 'turn_in') {
-              indBg.background = '#32CD32'; // lime green
-            } else {
-              indBg.background = '#C0C0C0'; // silver for in_progress
-            }
+            indBg.background = '#C0C0C0'; // silver for in_progress
             indBg.left = `${nx}px`;
             indBg.top = `${nz + symbolOffset}px`;
             mapContainer.addControl(indBg);
             this._minimapDynamicControls.push(indBg);
 
-            // Symbol text
             const indText = new TextBlock(`npc-qi-${npc.id}`);
-            indText.text = npc.questIndicator === 'available' ? '!' : npc.questIndicator === 'turn_in' ? '\u2713' : '?';
+            indText.text = '?';
             indText.color = '#000000';
             indText.fontSize = Math.max(5, Math.round(9 * zoomDotScale));
             indText.fontWeight = 'bold';

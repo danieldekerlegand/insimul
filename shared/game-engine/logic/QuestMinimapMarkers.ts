@@ -171,6 +171,11 @@ export function extractObjectiveMarkers(
       if (foundCurrent) break; // only show one objective per quest
       foundCurrent = true;
 
+      // Skip NPC-targeted objectives — these are shown via the NPC indicator system
+      // to avoid duplicate markers on the same NPC
+      const objLoc = obj.objectiveLocation || '';
+      if (objLoc.startsWith('npc(') || objLoc === 'any_npc') continue;
+
       // Prefer objective-level position, fall back to quest-level, then dynamic resolution
       let pos = obj.locationPosition ?? obj.position ?? questPos;
 
