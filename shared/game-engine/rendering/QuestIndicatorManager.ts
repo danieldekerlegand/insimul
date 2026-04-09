@@ -15,10 +15,6 @@ interface QuestIndicator {
   mesh: Mesh;
   type: QuestIndicatorType;
   npcId: string;
-  /** The NPC mesh to track (indicator is NOT parented to avoid scale issues) */
-  trackedMesh: Mesh;
-  /** Height offset above the NPC mesh */
-  heightOffset: number;
 }
 
 interface Quest {
@@ -251,24 +247,22 @@ export class QuestIndicatorManager {
 
   /**
    * Create a quest indicator above an NPC.
-   * Indicators are positioned in world space (NOT parented to the NPC mesh)
-   * to avoid rendering issues from models with negative scale values.
+   * Restored original implementation: parented to NPC mesh, floating animation.
    */
   private createIndicator(npcId: string, npcMesh: Mesh, type: QuestIndicatorType): void {
     const indicatorConfig = this.getIndicatorConfig(type);
     if (!indicatorConfig) return;
 
-    // Create a plane for the indicator in world space (not parented)
-    // Parenting doesn't work reliably due to NPC model scale variations
+    // Create a plane for the indicator
     const indicator = MeshBuilder.CreatePlane(
       `quest_indicator_${npcId}`,
       { width: 0.8, height: 0.8 },
       this.scene
     );
 
-    // Use the NPC's absolute world position + fixed height offset
-    const absPos = npcMesh.getAbsolutePosition();
-    indicator.position = new Vector3(absPos.x, absPos.y + this.indicatorHeight, absPos.z);
+    // Position above NPC — parented so it follows automatically
+    indicator.parent = npcMesh;
+    indicator.position = new Vector3(0, this.indicatorHeight, 0);
     indicator.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
     // Create dynamic texture for the symbol
@@ -308,56 +302,40 @@ export class QuestIndicatorManager {
     material.emissiveTexture = dynamicTexture;
     material.useAlphaFromDiffuseTexture = true;
     material.disableLighting = true;
-    material.backFaceCulling = false;
     indicator.material = material;
 
-    // Add pulse (scale) animation for 'available' and 'turn_in' to draw attention
-    if (type === 'available' || type === 'turn_in') {
-      const pulseAnim = new Animation(
-        `quest_indicator_pulse_${npcId}`,
-        'scaling',
-        30,
-        Animation.ANIMATIONTYPE_VECTOR3,
-        Animation.ANIMATIONLOOPMODE_CYCLE
-      );
+    // Add floating animation
+    const floatAnim = new Animation(
+      `quest_indicator_float_${npcId}`,
+      'position.y',
+      30,
+      Animation.ANIMATIONTYPE_FLOAT,
+      Animation.ANIMATIONLOOPMODE_CYCLE
+    );
 
-      const baseScale = new Vector3(1, 1, 1);
-      const peakScale = new Vector3(1.25, 1.25, 1.25);
+    floatAnim.setKeys([
+      { frame: 0, value: this.indicatorHeight },
+      { frame: 30, value: this.indicatorHeight + 0.2 },
+      { frame: 60, value: this.indicatorHeight }
+    ]);
 
-      pulseAnim.setKeys([
-        { frame: 0, value: baseScale },
-        { frame: 20, value: peakScale },
-        { frame: 40, value: baseScale },
-        { frame: 60, value: baseScale },
-      ]);
-
-      indicator.animations.push(pulseAnim);
-      this.scene.beginAnimation(indicator, 0, 60, true);
-    }
+    indicator.animations.push(floatAnim);
+    this.scene.beginAnimation(indicator, 0, 60, true);
 
     // Store indicator
     this.indicators.set(npcId, {
       mesh: indicator,
       type,
       npcId,
-      trackedMesh: npcMesh,
-      heightOffset: this.indicatorHeight,
     });
   }
 
   /**
-   * Update indicator positions to follow their tracked NPC meshes.
-   * Call this each frame from the render loop.
+   * Update indicator positions — no-op, indicators are parented to NPC meshes.
+   * Kept for API compatibility.
    */
   public updatePositions(): void {
-    this.indicators.forEach((indicator) => {
-      if (indicator.trackedMesh && !indicator.trackedMesh.isDisposed()) {
-        const absPos = indicator.trackedMesh.getAbsolutePosition();
-        indicator.mesh.position.x = absPos.x;
-        indicator.mesh.position.y = absPos.y + indicator.heightOffset;
-        indicator.mesh.position.z = absPos.z;
-      }
-    });
+    // Parented indicators follow automatically
   }
 
   /**
