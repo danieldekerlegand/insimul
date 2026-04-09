@@ -105,15 +105,10 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
     predicates.push('quest_language/2');
   }
 
-  // Quest chain info
-  if (quest.questChainId) {
-    lines.push(`quest_chain(${questId}, ${sanitizeAtom(quest.questChainId)}).`);
-    predicates.push('quest_chain/2');
-    if (quest.questChainOrder != null) {
-      lines.push(`quest_chain_order(${questId}, ${quest.questChainOrder}).`);
-      predicates.push('quest_chain_order/2');
-    }
-  }
+  // Quest chain info — DEPRECATED: sequencing is now handled by quest_prerequisite/2.
+  // Chain predicates are no longer emitted to avoid redundancy.
+  // Legacy quest_chain/2 and quest_chain_order/2 facts in existing content
+  // are harmless but not used by the game engine at runtime.
 
   // Tags
   const tags = quest.tags || [];

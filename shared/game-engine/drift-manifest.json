@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-09T18:51:25.218Z",
+  "lastUpdated": "2026-04-09T19:14:04.120Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "742ffb7fc841f82e9f1da3d7e293dfeb96bbc52440d2a90c4500c3a1279a98ef",
+      "hash": "d9785b232f0b05f7de6cee30c8d6e9ea81ab67de4395c5b171726d356e1fdace",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -592,7 +592,7 @@
     {
       "path": "shared/game-engine/rendering/BabylonChatPanel.ts",
       "description": "NPC dialogue UI: streaming AI responses, action buttons, voice input, conversation history. Core interaction surface.",
-      "hash": "f59696fee1254f1069af2f938fb359c1780c077b50c230082c2df358212fc40e",
+      "hash": "622c780c274a063c632328571424e062a2baa02021c3c352281a67c95be55ee6",
       "engineMappings": [
         {
           "engine": "unity",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "7d2abd549dca491b197bcab7ae30de972717429b5473e11e48bc4aa4113b8b6d",
+      "hash": "e160dcb3644d02186d9cfc8a8485e1c64a84951b3484fd8f2820fd44f471d7c5",
       "engineMappings": [
         {
           "engine": "unity",
