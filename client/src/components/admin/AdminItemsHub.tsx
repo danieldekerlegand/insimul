@@ -602,7 +602,7 @@ export function AdminItemsHub({ worldId }: AdminItemsHubProps = {}) {
               {selectedItem.translations && Object.keys(selectedItem.translations).length > 0 ? (
                 <div className="space-y-2">
                   {Object.entries(selectedItem.translations).map(([lang, trans]) => (
-                    <div key={lang} className="rounded border p-2 bg-muted/20 space-y-1">
+                    <div key={`${selectedItem.id}-${lang}`} className="rounded border p-2 bg-muted/20 space-y-1">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="secondary" className="text-[10px]">{lang}</Badge>
                       </div>
@@ -610,6 +610,7 @@ export function AdminItemsHub({ worldId }: AdminItemsHubProps = {}) {
                         <div>
                           <Label className="text-[10px] text-muted-foreground">Target Word</Label>
                           <Input
+                            key={`tw-${selectedItem.id}-${lang}`}
                             className="h-7 text-sm"
                             defaultValue={trans.targetWord || ''}
                             onBlur={(e) => {
@@ -628,6 +629,7 @@ export function AdminItemsHub({ worldId }: AdminItemsHubProps = {}) {
                         <div>
                           <Label className="text-[10px] text-muted-foreground">Pronunciation</Label>
                           <Input
+                            key={`pr-${selectedItem.id}-${lang}`}
                             className="h-7 text-sm"
                             defaultValue={trans.pronunciation || ''}
                             onBlur={(e) => {
