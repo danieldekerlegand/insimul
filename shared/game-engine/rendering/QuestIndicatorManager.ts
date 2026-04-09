@@ -374,22 +374,22 @@ export class QuestIndicatorManager {
     switch (type) {
       case 'available':
         return {
-          symbol: '?',
-          bgColor: 'rgba(255, 165, 0, 0.9)', // Orange
-          borderColor: '#cc7000',
-          textColor: '#ffffff'
+          symbol: '!',
+          bgColor: 'rgba(255, 215, 0, 0.9)', // Gold — matches minimap #FFD700
+          borderColor: '#cc9900',
+          textColor: '#000000'
         };
       case 'in_progress':
         return {
-          symbol: '!',
-          bgColor: 'rgba(255, 220, 0, 0.9)', // Yellow
-          borderColor: '#b8a000',
+          symbol: '?',
+          bgColor: 'rgba(192, 192, 192, 0.9)', // Silver — matches minimap #C0C0C0
+          borderColor: '#808080',
           textColor: '#000000'
         };
       case 'turn_in':
         return {
           symbol: '✓',
-          bgColor: 'rgba(50, 205, 50, 0.9)', // Lime green
+          bgColor: 'rgba(50, 205, 50, 0.9)', // Lime green — matches minimap #32CD32
           borderColor: '#228b22',
           textColor: '#ffffff'
         };

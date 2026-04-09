@@ -10,57 +10,65 @@ import { Scene, Mesh, MeshBuilder, StandardMaterial, Color3, Vector3, Animation,
 import { computeWaypointAlpha } from '@shared/game-engine/logic/waypointFading';
 
 /** Color mapping for objective types */
+/** Convert hex color string to Color3. Matches minimap marker colors exactly. */
+function hexToColor3(hex: string): Color3 {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return new Color3(r, g, b);
+}
+
+/**
+ * Get waypoint color for an objective type.
+ * Colors match getObjectiveMarkerColor() in QuestMinimapMarkers.ts exactly
+ * so minimap and 3D markers are visually consistent.
+ */
 export function getWaypointColor(objectiveType: string): Color3 {
   switch (objectiveType) {
+    // Location / exploration — cyan (#00BCD4)
+    case 'visit_location': case 'discover_location':
+    case 'navigate_language': case 'follow_directions':
+      return hexToColor3('#00BCD4');
+    // NPC interaction — green (#4CAF50)
+    case 'talk_to_npc': case 'complete_conversation': case 'introduce_self':
+    case 'build_friendship': case 'give_gift': case 'listen_and_repeat':
+    case 'ask_for_directions': case 'teach_vocabulary': case 'eavesdrop':
+      return hexToColor3('#4CAF50');
+    // Item collection — gold (#FFD700)
+    case 'collect_item': case 'deliver_item': case 'identify_object':
+    case 'collect_vocabulary': case 'examine_object': case 'read_sign':
+    case 'point_and_name':
+      return hexToColor3('#FFD700');
+    // Language / education — blue (#2196F3)
+    case 'use_vocabulary': case 'pronunciation_check': case 'translation_challenge':
+    case 'write_response': case 'describe_scene': case 'listening_comprehension':
+    case 'reading_completed': case 'grammar_demonstrated':
+      return hexToColor3('#2196F3');
+    // Commercial — orange (#FF9800)
+    case 'order_food': case 'haggle_price': case 'gain_reputation':
+      return hexToColor3('#FF9800');
+    // Physical actions — amber (#FFC107)
+    case 'physical_action': case 'observe_activity':
+      return hexToColor3('#FFC107');
+    // Combat — red (#F44336)
     case 'defeat_enemies':
-    case 'combat':
-      return new Color3(1, 0, 0); // Red
-    case 'reach_location':
-    case 'discover_location':
-    case 'visit_location':
-    case 'exploration':
-      return new Color3(0, 1, 1); // Cyan
-    case 'talk_to_npc':
-    case 'social':
-    case 'conversation':
-    case 'complete_conversation':
-    case 'introduce_self':
-    case 'build_friendship':
-      return new Color3(0, 1, 0); // Green
-    case 'collect_item':
-    case 'collect_items':
-    case 'collection':
-      return new Color3(1, 0.84, 0); // Gold
+      return hexToColor3('#F44336');
+    // Crafting — teal (#009688)
     case 'craft_item':
-    case 'crafting':
-      return new Color3(1, 0.5, 0); // Orange
-    case 'order_food':
-    case 'haggle_price':
-      return new Color3(1, 0.6, 0); // Orange for commerce
+      return hexToColor3('#009688');
+    // Escort — purple (#9C27B0)
     case 'escort_npc':
-    case 'deliver_item':
-    case 'escort':
-    case 'delivery':
-      return new Color3(0.5, 0, 1); // Purple
-    case 'use_vocabulary':
-    case 'pronunciation_check':
-    case 'translation_challenge':
-    case 'listening_comprehension':
-      return new Color3(0.2, 0.6, 1); // Blue for language
+      return hexToColor3('#9C27B0');
+    // Assessment — gold (#FFD700)
     case 'complete_assessment':
-    case 'arrival_reading':
-    case 'arrival_writing':
-    case 'arrival_listening':
-    case 'arrival_initiate_conversation':
-    case 'arrival_conversation':
-    case 'departure_reading':
-    case 'departure_writing':
-    case 'departure_listening':
-    case 'departure_conversation':
-    case 'periodic_conversational':
-      return new Color3(1, 0.84, 0); // Gold for assessments
+    case 'arrival_reading': case 'arrival_writing': case 'arrival_listening':
+    case 'arrival_conversation': case 'arrival_initiate_conversation':
+    case 'departure_reading': case 'departure_writing': case 'departure_listening':
+    case 'departure_conversation': case 'periodic_conversational':
+      return hexToColor3('#FFD700');
+    // Default — magenta (#E040FB)
     default:
-      return new Color3(1, 1, 1); // White
+      return hexToColor3('#E040FB');
   }
 }
 
