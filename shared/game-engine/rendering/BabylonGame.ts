@@ -410,18 +410,64 @@ interface BabylonGameConfig {
 /** Clean Prolog syntax from objective descriptions for end-user display */
 function cleanObjectiveText(text: string): string {
   if (!text) return '';
-  return text
-    .replace(/^objective\(\s*'?(.*?)'?\s*\)$/, '$1') // unwrap objective('...')
-    .replace(/_/g, ' ')             // snake_case → spaces
-    .replace(/\\/g, '')             // remove backslashes
-    .replace(/^'|'$/g, '')          // strip outer quotes
-    .replace(/\(\s*'[^)]*'\s*\)/g, (m) => {
-      // Clean quoted args: ('Place Name') → Place Name
-      const inner = m.slice(1, -1).trim().replace(/^'|'$/g, '');
-      return inner ? `: ${inner}` : '';
-    })
-    .replace(/^\w/, c => c.toUpperCase()) // capitalize first letter
-    .trim();
+  let s = text;
+
+  // Step 1: Unescape all Prolog escapes first
+  s = s.replace(/\\'/g, "'").replace(/\\\\/g, '');
+
+  // Step 2: Recursively strip objective(...) wrappers
+  for (let i = 0; i < 5; i++) {
+    if (s.startsWith("objective(") && s.endsWith(")")) {
+      s = s.slice(10, -1).trim();
+      if (s.startsWith("'") && s.endsWith("'")) s = s.slice(1, -1);
+    } else break;
+  }
+
+  // Step 3: Unescape again (nested wrappers may have added new escapes)
+  s = s.replace(/\\'/g, "'").replace(/\\\\/g, '');
+
+  // Step 4: Convert Prolog terms to readable text
+  // Match functor_name('arg') or functor_name('arg1', 'arg2')
+  const termMatch = s.match(/^([a-z]\w*)\((.+)\)$/);
+  if (termMatch) {
+    const functor = termMatch[1];
+    const argsRaw = termMatch[2];
+
+    // Check if this looks like a Prolog term (has underscores in functor)
+    // vs already-readable text like "Complete vocabulary activities (3)"
+    if (functor.includes('_') || /^[a-z]+$/.test(functor)) {
+      // Extract readable content from args — strip Prolog delimiter quotes only
+      let cleanArgs = argsRaw.trim();
+      // Strip outer quotes if the entire arg is wrapped
+      if (cleanArgs.startsWith("'") && cleanArgs.endsWith("'")) {
+        cleanArgs = cleanArgs.slice(1, -1);
+      }
+      // For multi-arg like 'Name', 3 — split and clean each
+      if (cleanArgs.includes(',')) {
+        const parts = cleanArgs.split(',').map(p => p.trim().replace(/^'|'$/g, ''));
+        cleanArgs = parts.filter(Boolean).join(', ');
+      }
+      const verb = functor.replace(/_/g, ' ');
+      const capitalized = verb.charAt(0).toUpperCase() + verb.slice(1);
+      // If args look like just a number, format as count
+      if (/^\d+$/.test(cleanArgs)) {
+        s = `${capitalized} (${cleanArgs})`;
+      } else if (cleanArgs) {
+        s = `${capitalized}: ${cleanArgs}`;
+      } else {
+        s = capitalized;
+      }
+    }
+    // else: leave as-is (already readable)
+  } else {
+    // No functor — just clean underscores
+    s = s.replace(/_/g, ' ');
+  }
+
+  // Step 5: Capitalize first letter
+  s = s.replace(/^\w/, c => c.toUpperCase());
+
+  return s.trim();
 }
 
 function computeWorldVisualTheme(worldType?: string): WorldVisualTheme {
