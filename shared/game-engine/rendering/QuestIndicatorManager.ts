@@ -39,7 +39,7 @@ export type QuestCompletionChecker = (questId: string) => boolean;
 export class QuestIndicatorManager {
   private scene: Scene;
   private indicators: Map<string, QuestIndicator> = new Map();
-  private indicatorHeight: number = 8.0; // Height above NPC root (models are ~6-7 units tall)
+  private indicatorHeight: number = 3.0; // Height above NPC absolute position
   private questCompletionChecker: QuestCompletionChecker | null = null;
   /** NPC ID that is the current target for any_npc objectives (e.g., assessment conversation) */
   private _activeObjectiveNpcId: string | null = null;
