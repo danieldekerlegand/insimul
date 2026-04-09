@@ -336,14 +336,13 @@ export class QuestIndicatorManager {
       this.scene.beginAnimation(indicator, 0, 60, true);
     }
 
-    // Add gentle bobbing animation (float up and down)
     // Store indicator
     this.indicators.set(npcId, {
       mesh: indicator,
       type,
       npcId,
       trackedMesh: npcMesh,
-      heightOffset,
+      heightOffset: this.indicatorHeight,
     });
   }
 
