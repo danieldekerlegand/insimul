@@ -258,14 +258,14 @@ export class QuestIndicatorManager {
     const indicatorConfig = this.getIndicatorConfig(type);
     if (!indicatorConfig) return;
 
-    // Compute height offset from mesh bounds
+    // Compute height offset from mesh bounds — place indicator well above the NPC's head
     let heightOffset = this.indicatorHeight;
     try {
       npcMesh.computeWorldMatrix(true);
       const bi = npcMesh.getHierarchyBoundingVectors(true);
       const modelHeight = bi.max.y - bi.min.y;
       if (modelHeight > 0.1) {
-        heightOffset = modelHeight + 0.5;
+        heightOffset = modelHeight + 1.5;
       }
     } catch {
       // Fall back to default
