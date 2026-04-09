@@ -15,6 +15,7 @@ interface QuestIndicator {
   mesh: Mesh;
   type: QuestIndicatorType;
   npcId: string;
+  trackedMesh?: Mesh;
 }
 
 interface Quest {
@@ -248,22 +249,23 @@ export class QuestIndicatorManager {
 
   /**
    * Create a quest indicator above an NPC.
-   * Restored original implementation: parented to NPC mesh, floating animation.
+   * Uses world-space positioning (not parented) to avoid issues with
+   * NPC mesh negative scale values that flip/hide parented children.
    */
   private createIndicator(npcId: string, npcMesh: Mesh, type: QuestIndicatorType): void {
     const indicatorConfig = this.getIndicatorConfig(type);
     if (!indicatorConfig) return;
 
-    // Create a plane for the indicator
+    // Create a plane for the indicator in world space
     const indicator = MeshBuilder.CreatePlane(
       `quest_indicator_${npcId}`,
       { width: 0.8, height: 0.8 },
       this.scene
     );
 
-    // Position above NPC — parented so it follows automatically
-    indicator.parent = npcMesh;
-    indicator.position = new Vector3(0, this.indicatorHeight, 0);
+    // Position in world space above the NPC
+    const absPos = npcMesh.getAbsolutePosition();
+    indicator.position = new Vector3(absPos.x, absPos.y + this.indicatorHeight, absPos.z);
     indicator.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
     // Create dynamic texture for the symbol
@@ -306,29 +308,12 @@ export class QuestIndicatorManager {
     material.backFaceCulling = false; // NPC meshes have negative Z scale which flips the plane
     indicator.material = material;
 
-    // Add floating animation
-    const floatAnim = new Animation(
-      `quest_indicator_float_${npcId}`,
-      'position.y',
-      30,
-      Animation.ANIMATIONTYPE_FLOAT,
-      Animation.ANIMATIONLOOPMODE_CYCLE
-    );
-
-    floatAnim.setKeys([
-      { frame: 0, value: this.indicatorHeight },
-      { frame: 30, value: this.indicatorHeight + 0.2 },
-      { frame: 60, value: this.indicatorHeight }
-    ]);
-
-    indicator.animations.push(floatAnim);
-    this.scene.beginAnimation(indicator, 0, 60, true);
-
-    // Store indicator
+    // Store indicator with tracked mesh for per-frame position updates
     this.indicators.set(npcId, {
       mesh: indicator,
       type,
       npcId,
+      trackedMesh: npcMesh,
     });
   }
 
@@ -337,7 +322,14 @@ export class QuestIndicatorManager {
    * Kept for API compatibility.
    */
   public updatePositions(): void {
-    // Parented indicators follow automatically
+    this.indicators.forEach((indicator) => {
+      if (indicator.trackedMesh && !indicator.trackedMesh.isDisposed()) {
+        const absPos = indicator.trackedMesh.getAbsolutePosition();
+        indicator.mesh.position.x = absPos.x;
+        indicator.mesh.position.y = absPos.y + this.indicatorHeight;
+        indicator.mesh.position.z = absPos.z;
+      }
+    });
   }
 
   /**
