@@ -528,7 +528,11 @@ function deriveObjectiveLocation(obj: any, type: string, quest?: any): string {
     return subject ? `photo_subject('${escapeString(subject)}')` : 'settlement';
   }
 
-  // Assessment objectives → Notice Board
+  // Assessment conversation objectives → NPC
+  if (type.includes('conversation') || type.includes('initiate_conversation')) {
+    return 'any_npc';
+  }
+  // Assessment reading/writing/listening objectives → Notice Board
   if (type === 'complete_assessment' || type.startsWith('arrival_') ||
       type.startsWith('departure_') || type.startsWith('periodic_')) {
     return `location('Notice Board')`;
@@ -979,15 +983,18 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
       const count = parseInt(learnWordsMatch[1] || learnWordsMatch[2] || '1');
       return `learn_words_count(${count})`;
     }
-    // "Complete vocabulary activities (N)"
-    const vocabActMatch = recoveryDesc.match(/complete\s+vocabulary\s+activities?\s*\((\d+)\)/i);
+    // Vocabulary activities — "Complete vocabulary activities (N)" or "Vocabulary activities(N"
+    const vocabActMatch = recoveryDesc.match(/(?:complete\s+)?vocabulary\s+activities?\s*\(?(\d+)\)?/i);
     if (vocabActMatch) return `vocabulary_activities(${parseInt(vocabActMatch[1])})`;
-    // "Complete conversation turns (N)"
-    const convTurnsMatch = recoveryDesc.match(/complete\s+conversation\s+turns?\s*\((\d+)\)/i);
+    // Conversation turns — "Complete conversation turns (N)" or "Conversation turns(N"
+    const convTurnsMatch = recoveryDesc.match(/(?:complete\s+)?conversation\s+turns?\s*\(?(\d+)\)?/i);
     if (convTurnsMatch) return `conversation_turns(${parseInt(convTurnsMatch[1])})`;
-    // "Complete grammar activities (N)"
-    const grammarMatch = recoveryDesc.match(/complete\s+grammar\s+activities?\s*\((\d+)\)/i);
+    // Grammar activities — "Complete grammar activities (N)" or "Grammar activities(N"
+    const grammarMatch = recoveryDesc.match(/(?:complete\s+)?grammar\s+activities?\s*\(?(\d+)\)?/i);
     if (grammarMatch) return `grammar_activities(${parseInt(grammarMatch[1])})`;
+    // Learn words count — "Learn words count(N)" or "Learn words count (N)"
+    const lwcMatch = recoveryDesc.match(/learn\s+words?\s+count\s*\(?(\d+)\)?/i);
+    if (lwcMatch) return `learn_words_count(${parseInt(lwcMatch[1])})`;
     // Nested: "visit location('Place Name')" — handle escaped quotes
     const nestedVisitMatch = recoveryDesc.match(/visit[\s_]+location\s*\(\s*'((?:[^'\\]|\\.)*)'\s*\)/i);
     if (nestedVisitMatch) {

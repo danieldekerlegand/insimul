@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-09T18:40:32.134Z",
+  "lastUpdated": "2026-04-09T18:51:25.218Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "2edfe7c598b41a671c9d4ba439b0e1ed6086e889963197d8b2f16d1e90146022",
+      "hash": "742ffb7fc841f82e9f1da3d7e293dfeb96bbc52440d2a90c4500c3a1279a98ef",
       "engineMappings": [
         {
           "engine": "unreal",
