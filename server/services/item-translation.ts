@@ -32,7 +32,7 @@ interface TranslatedItem {
 export async function batchTranslateItems(
   items: ItemForTranslation[],
   targetLanguage: string,
-  batchSize: number = 50,
+  batchSize: number = 25,
   provider?: ILLMProvider,
 ): Promise<TranslatedItem[]> {
   const llm = provider ?? getDefaultLLMProvider();
@@ -111,8 +111,28 @@ ${itemList}`;
       temperature: 0.2,
     });
 
-    const text = response.text.trim();
-    const parsed = JSON.parse(text);
+    let text = response.text.trim();
+
+    // Repair truncated JSON — close any unclosed strings/arrays/objects
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // Try to salvage: find the last complete object in the array
+      const lastCompleteObj = text.lastIndexOf('}');
+      if (lastCompleteObj > 0) {
+        text = text.slice(0, lastCompleteObj + 1) + ']';
+        try {
+          parsed = JSON.parse(text);
+          console.warn(`[ItemTranslation] Repaired truncated JSON (salvaged ${Array.isArray(parsed) ? parsed.length : 0} entries)`);
+        } catch {
+          console.warn('[ItemTranslation] Could not repair truncated JSON');
+          return [];
+        }
+      } else {
+        return [];
+      }
+    }
 
     if (!Array.isArray(parsed)) {
       console.warn('[ItemTranslation] Unexpected response format, expected array');
