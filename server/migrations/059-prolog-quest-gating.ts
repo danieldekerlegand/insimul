@@ -80,9 +80,9 @@ function inferLocation(tags: string[], questType: string, _settlement: string): 
 // ── Assessment objective builder ─────────────────────────────────────────
 function buildAssessmentObjectives(prefix: 'arrival' | 'departure', questId: string): string {
   const phases = [
-    { id: `${prefix}_reading`, trigger: 'reading_completed', location: 'notice_board' },
-    { id: `${prefix}_writing`, trigger: 'writing_submitted', location: 'notice_board' },
-    { id: `${prefix}_listening`, trigger: 'listening_completed', location: 'notice_board' },
+    { id: `${prefix}_reading`, trigger: 'reading_completed', location: "location('Notice Board')" },
+    { id: `${prefix}_writing`, trigger: 'writing_submitted', location: "location('Notice Board')" },
+    { id: `${prefix}_listening`, trigger: 'listening_completed', location: "location('Notice Board')" },
     { id: `${prefix}_conversation`, trigger: 'conversation_assessment_completed', location: 'any_npc' },
   ];
 

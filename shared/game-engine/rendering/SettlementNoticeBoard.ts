@@ -68,6 +68,16 @@ export class SettlementNoticeBoard {
     this.onBoardClicked = cb;
   }
 
+  /** Get the world position of the first notice board (for minimap markers). */
+  public getBoardPosition(): { x: number; y: number; z: number } | null {
+    const entries = Array.from(this.boards.values());
+    if (entries.length > 0) {
+      const p = entries[0].root.position;
+      return { x: p.x, y: p.y, z: p.z };
+    }
+    return null;
+  }
+
   /**
    * Create a physical notice board at a settlement's center position.
    * The board is offset slightly from the exact center so it doesn't overlap

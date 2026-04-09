@@ -13760,9 +13760,10 @@ export class BabylonGame {
       const pos = s.position || s.centerPosition;
       if (pos) {
         namedLocations.set('settlement', { x: pos.x, z: pos.z });
-        // Notice board is near the settlement center
+        // Notice board is near the settlement center (fallback)
         if (!namedLocations.has('notice_board')) {
           namedLocations.set('notice_board', { x: pos.x, z: pos.z });
+          namedLocations.set('Notice Board', { x: pos.x, z: pos.z });
         }
       }
     }
@@ -13770,7 +13771,10 @@ export class BabylonGame {
     // Notice board exact position (override settlement center if available)
     if (this.settlementNoticeBoard) {
       const boardPos = (this.settlementNoticeBoard as any).getBoardPosition?.();
-      if (boardPos) namedLocations.set('notice_board', { x: boardPos.x, z: boardPos.z });
+      if (boardPos) {
+        namedLocations.set('notice_board', { x: boardPos.x, z: boardPos.z });
+        namedLocations.set('Notice Board', { x: boardPos.x, z: boardPos.z });
+      }
     }
 
     // Named building locations from guild tags and building data

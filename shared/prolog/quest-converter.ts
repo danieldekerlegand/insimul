@@ -528,10 +528,10 @@ function deriveObjectiveLocation(obj: any, type: string, quest?: any): string {
     return subject ? `photo_subject('${escapeString(subject)}')` : 'settlement';
   }
 
-  // Assessment objectives → notice board
+  // Assessment objectives → Notice Board
   if (type === 'complete_assessment' || type.startsWith('arrival_') ||
       type.startsWith('departure_') || type.startsWith('periodic_')) {
-    return 'notice_board';
+    return `location('Notice Board')`;
   }
 
   // ── Infer from quest context (tags/guild) when objective has no target ──
@@ -564,9 +564,9 @@ function deriveObjectiveLocation(obj: any, type: string, quest?: any): string {
     return 'any_npc';
   }
 
-  // Writing/description objectives → notice board or settlement
+  // Writing/description objectives → Notice Board
   if (type === 'write_response' || type === 'describe_scene') {
-    return 'notice_board';
+    return `location('Notice Board')`;
   }
 
   // Exploration-tagged quests → settlement
