@@ -43,7 +43,6 @@ export class QuestIndicatorManager {
   private questCompletionChecker: QuestCompletionChecker | null = null;
   /** NPC ID that is the current target for any_npc objectives (e.g., assessment conversation) */
   private _activeObjectiveNpcId: string | null = null;
-  private _loggedObjectives = false;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -86,21 +85,7 @@ export class QuestIndicatorManager {
       if (!sample) sample = { id: npcId, occupation: npcData.character?.occupation, type: indicatorType };
       this.setIndicator(npcId, npcData.mesh, indicatorType);
     });
-    if (created > 0 || this._activeObjectiveNpcId) {
-      console.log(`[QuestIndicatorManager] ${created}/${npcs.size} indicators, activeObjNpc=${this._activeObjectiveNpcId}`);
-    }
-    // Log active quest objectives once for debugging
-    if (!this._loggedObjectives) {
-      this._loggedObjectives = true;
-      const activeQuests = quests.filter(q => q.status === 'active');
-      for (const q of activeQuests) {
-        const objs = (q as any).objectives || [];
-        const current = objs.find((o: any) => !o.completed);
-        if (current) {
-          console.log(`[QuestIndicatorManager] Active objective: quest="${(q as any).title}", type=${current.type}, target="${current.target}", npcId="${current.npcId}", npcName="${current.npcName}"`);
-        }
-      }
-    }
+    // console.debug(`[QuestIndicatorManager] ${created}/${npcs.size} indicators`);
   }
 
   /**
@@ -123,10 +108,7 @@ export class QuestIndicatorManager {
     // Priority 2: NPC is the active objective target (assessment, any_npc) — gold !
     // This MUST come before radiant quest check to suppress the radiant indicator
     const npcFullName = [npc.firstName, npc.lastName].filter(Boolean).join(' ');
-    if (this._activeObjectiveNpcId && (this._activeObjectiveNpcId === resolvedId || this._activeObjectiveNpcId === npc.id)) {
-      console.log(`[QuestIndicator] NPC "${npcFullName}" (${resolvedId}) is active objective NPC`);
-      return 'available';
-    }
+    if (this._activeObjectiveNpcId && (this._activeObjectiveNpcId === resolvedId || this._activeObjectiveNpcId === npc.id)) return 'available';
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;
@@ -144,10 +126,7 @@ export class QuestIndicatorManager {
       if (npcLocMatch && npcLocMatch[1] === npcFullName) return true;
       return false;
     });
-    if (isObjectiveTarget) {
-      console.log(`[QuestIndicator] NPC "${npcFullName}" (${resolvedId}) is objective target`);
-      return 'available';
-    }
+    if (isObjectiveTarget) return 'available';
 
     // Priority 3: NPC has an active quest they assigned (player accepted) — silver ?
     const activeQuest = quests.find(q =>
@@ -268,7 +247,6 @@ export class QuestIndicatorManager {
 
     // Create new indicator if needed
     if (type && npcMesh && (!existing || existing.type !== type)) {
-      // console.log(`[QuestIndicator] Creating: npc=${npcId}, type=${type}`);
       this.createIndicator(npcId, npcMesh, type);
     }
   }

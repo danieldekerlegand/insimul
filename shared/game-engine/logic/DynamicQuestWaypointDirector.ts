@@ -350,10 +350,16 @@ export class DynamicQuestWaypointDirector {
       }
     }
 
-    console.warn(
-      `[DynamicQuestWaypointDirector] Could not resolve position for objective "${objective.id}" (type: ${objective.type}) in quest "${quest.title || quest.id}". ` +
-      `npcId=${objective.npcId || 'none'}, locationName=${objective.locationName || 'none'}, npcPositions=${npcPositions.length}, buildingData=${buildingData.size}`
-    );
+    // Only log once per objective to avoid spam (runs every frame)
+    const warnKey = `${quest.id}_${objective.id}`;
+    if (!(this as any)._warnedObjectives) (this as any)._warnedObjectives = new Set();
+    if (!(this as any)._warnedObjectives.has(warnKey)) {
+      (this as any)._warnedObjectives.add(warnKey);
+      console.debug(
+        `[DynamicQuestWaypointDirector] Could not resolve position for objective "${objective.id}" (type: ${objective.type}) in quest "${quest.title || quest.id}". ` +
+        `npcId=${objective.npcId || 'none'}, locationName=${objective.locationName || 'none'}, npcPositions=${npcPositions.length}, buildingData=${buildingData.size}`
+      );
+    }
     return null;
   }
 

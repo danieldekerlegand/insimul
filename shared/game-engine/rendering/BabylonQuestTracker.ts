@@ -484,7 +484,7 @@ export class BabylonQuestTracker {
     mainStack.addControl(tabBar);
 
     this.activeTabBtn = Button.CreateSimpleButton("activeTab", "Active");
-    this.activeTabBtn.width = "34%";
+    this.activeTabBtn.width = "70px";
     this.activeTabBtn.height = "19px";
     this.activeTabBtn.color = "white";
     this.activeTabBtn.background = "#4CAF50";
@@ -497,7 +497,7 @@ export class BabylonQuestTracker {
     tabBar.addControl(this.activeTabBtn);
 
     this.completedTabBtn = Button.CreateSimpleButton("completedTab", "Completed");
-    this.completedTabBtn.width = "33%";
+    this.completedTabBtn.width = "70px";
     this.completedTabBtn.height = "19px";
     this.completedTabBtn.color = "#AAA";
     this.completedTabBtn.background = "rgba(60, 60, 60, 0.8)";
@@ -510,7 +510,7 @@ export class BabylonQuestTracker {
     tabBar.addControl(this.completedTabBtn);
 
     this.statsTabBtn = Button.CreateSimpleButton("statsTab", "Stats");
-    this.statsTabBtn.width = "33%";
+    this.statsTabBtn.width = "69px";
     this.statsTabBtn.height = "19px";
     this.statsTabBtn.color = "#AAA";
     this.statsTabBtn.background = "rgba(60, 60, 60, 0.8)";

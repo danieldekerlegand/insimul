@@ -5888,7 +5888,7 @@ Requirements:
       if (!asset.filePath) return null;
       // Skip non-model files (textures, images, etc.)
       if (!MODEL_EXTENSIONS.test(asset.filePath)) {
-        console.warn(`[applyWorld3DConfig] Skipping non-model asset ${asset.id} (${asset.filePath})`);
+        // Non-model asset (texture, image) referenced in model slot — skip silently
         return null;
       }
 
