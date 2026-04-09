@@ -24,9 +24,14 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import mongoose from 'mongoose';
 import { batchTranslateItems } from '../services/item-translation.js';
+import { GeminiProvider } from '../services/llm-provider.js';
+import { GEMINI_MODELS } from '../config/gemini.js';
 
 const TARGET_LANGUAGE = 'French';
 const DRY_RUN = process.argv.includes('--dry-run');
+
+// Use Flash model to avoid 503 rate limits on Pro
+const flashProvider = new GeminiProvider({ model: GEMINI_MODELS.FLASH });
 
 async function run() {
   const mongoUrl = process.env.MONGO_URL;
@@ -76,7 +81,7 @@ async function run() {
 
   console.log(`\n   Translating ${itemsForTranslation.length} items in batches of 50...`);
 
-  const results = await batchTranslateItems(itemsForTranslation, TARGET_LANGUAGE, 50);
+  const results = await batchTranslateItems(itemsForTranslation, TARGET_LANGUAGE, 50, flashProvider);
 
   console.log(`   LLM returned ${results.length} translations`);
 
