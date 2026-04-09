@@ -88,7 +88,7 @@ export class QuestWaypointManager {
     objectiveId: string,
     position: Vector3,
     color: Color3 = new Color3(1, 0.8, 0),
-    _height: number = 4
+    _height: number = 1.5
   ): void {
     if (this.waypoints.has(objectiveId)) {
       this.removeWaypoint(objectiveId);

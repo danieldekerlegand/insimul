@@ -14083,9 +14083,10 @@ Requirements:
                 }
               }
             }
+            // Add clearance above the object top so the marker doesn't overlap
             this.questWaypointManager.createWaypointForObjectiveType(
               waypointId,
-              new Vector3(namedPos.x, objectTopY, namedPos.z),
+              new Vector3(namedPos.x, objectTopY + 1, namedPos.z),
               obj.type || 'default',
             );
           }
