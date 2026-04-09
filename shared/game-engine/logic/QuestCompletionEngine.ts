@@ -1615,6 +1615,10 @@ export class QuestCompletionEngine {
     for (const quest of this.quests) {
       if (questId && quest.id !== questId) continue;
 
+      // Only evaluate objectives for active quests — prevents accidentally
+      // completing objectives on unavailable/available/completed quests
+      if ((quest as any).status && (quest as any).status !== 'active') continue;
+
       // Snapshot eligible objectives before iteration so that completing
       // one objective within the callback doesn't immediately unlock the next.
       const eligible = (quest.objectives || []).filter(

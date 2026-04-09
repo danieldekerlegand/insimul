@@ -902,12 +902,19 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
 
   // ── Description-based recovery ─────────────────────────────────────────
   // When the type is 'objective' or unrecognized, try to parse the description
-  // string to recover a structured goal. Handles patterns like:
-  //   "Complete vocabulary activities (2)", "Learn vocabulary words (3)",
-  //   "Complete conversation turns (5)", "Complete grammar activities (2)",
-  //   "visit location('Place Name')", "discover location('Place Name')"
-  const recoveryDesc = desc || type;
+  // string to recover a structured goal.
+  let recoveryDesc = desc || type;
   if (recoveryDesc) {
+    // Strip nested objective('...') wrappers that accumulate from repeated backfills
+    let unwrapped = recoveryDesc;
+    for (let i = 0; i < 5; i++) { // max 5 levels of nesting
+      const inner = unwrapped.match(/^objective\(\s*'((?:[^'\\]|\\.)*)'\s*\)$/);
+      if (inner) {
+        unwrapped = inner[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      } else break;
+    }
+    recoveryDesc = unwrapped;
+
     // "Learn vocabulary words (N)" / "Learn N vocabulary words"
     const learnWordsMatch = recoveryDesc.match(/learn\s+(?:(\d+)\s+)?vocabulary\s+words(?:\s+\((\d+)\))?/i);
     if (learnWordsMatch) {
@@ -923,15 +930,27 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
     // "Complete grammar activities (N)"
     const grammarMatch = recoveryDesc.match(/complete\s+grammar\s+activities?\s*\((\d+)\)/i);
     if (grammarMatch) return `grammar_activities(${parseInt(grammarMatch[1])})`;
-    // Nested: "visit location('Place Name')" or "objective('visit location(...)')"
-    const nestedVisitMatch = recoveryDesc.match(/visit\s+location\s*\(\s*'([^']*)'\s*\)/i);
-    if (nestedVisitMatch) return `visit_location('${escapeString(nestedVisitMatch[1])}')`;
+    // Nested: "visit location('Place Name')" — handle escaped quotes
+    const nestedVisitMatch = recoveryDesc.match(/visit[\s_]+location\s*\(\s*'((?:[^'\\]|\\.)*)'\s*\)/i);
+    if (nestedVisitMatch) {
+      const loc = nestedVisitMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      return `visit_location('${escapeString(loc)}')`;
+    }
     // Nested: "discover location('Place Name')"
-    const nestedDiscoverMatch = recoveryDesc.match(/discover\s+location\s*\(\s*'([^']*)'\s*\)/i);
-    if (nestedDiscoverMatch) return `discover_location('${escapeString(nestedDiscoverMatch[1])}')`;
+    const nestedDiscoverMatch = recoveryDesc.match(/discover[\s_]+location\s*\(\s*'((?:[^'\\]|\\.)*)'\s*\)/i);
+    if (nestedDiscoverMatch) {
+      const loc = nestedDiscoverMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      return `discover_location('${escapeString(loc)}')`;
+    }
     // "Have a N-turn conversation" / "N-turn conversation"
     const turnConvMatch = recoveryDesc.match(/(\d+)[\s-]+turn\s+conversation/i);
     if (turnConvMatch) return `conversation_turns(${parseInt(turnConvMatch[1])})`;
+    // "talk_to('NPC Name')" embedded in description
+    const talkMatch = recoveryDesc.match(/talk[\s_]+to\s*\(\s*'((?:[^'\\]|\\.)*)'\s*\)/i);
+    if (talkMatch) {
+      const npc = talkMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      return `talk_to('${escapeString(npc)}')`;
+    }
   }
 
   // Also try to use `required` / `requiredCount` with the type to produce a count-based goal

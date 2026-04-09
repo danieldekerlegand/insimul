@@ -17156,7 +17156,7 @@ export class BabylonGame {
         dependsOn: obj.dependsOn,
       }));
 
-      engine.addQuest({ id: quest.id, objectives });
+      engine.addQuest({ id: quest.id, objectives, status: quest.status || 'available' } as any);
 
       // Spawn temporary hotspots for objectives that require them (staged, not yet active)
       if (this.questHotspotManager && quest.locationPosition) {
