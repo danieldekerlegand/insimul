@@ -14061,17 +14061,25 @@ Requirements:
           if (namedPos) {
             // Find the ground height at this position, then place marker above any object there
             const groundY = this.projectToGround(namedPos.x, namedPos.z).y;
-            // Check if there's a mesh near this position to get its height
+            // Find the tallest mesh near this position to place marker above it
             let objectTopY = groundY;
             for (const mesh of this.worldPropMeshes) {
               if (!mesh || mesh.isDisposed()) continue;
               const dx = mesh.position.x - namedPos.x;
               const dz = mesh.position.z - namedPos.z;
               if (dx * dx + dz * dz < 9) { // within 3 units
+                mesh.computeWorldMatrix(true);
                 const bounds = mesh.getBoundingInfo()?.boundingBox;
-                if (bounds) {
-                  const meshTop = mesh.position.y + (bounds.maximumWorld.y - bounds.minimumWorld.y);
-                  if (meshTop > objectTopY) objectTopY = meshTop;
+                if (bounds && bounds.maximumWorld.y > objectTopY) {
+                  objectTopY = bounds.maximumWorld.y;
+                }
+                // Also check child meshes (glTF models have hierarchy)
+                for (const child of mesh.getChildMeshes()) {
+                  child.computeWorldMatrix(true);
+                  const cb = child.getBoundingInfo()?.boundingBox;
+                  if (cb && cb.maximumWorld.y > objectTopY) {
+                    objectTopY = cb.maximumWorld.y;
+                  }
                 }
               }
             }
