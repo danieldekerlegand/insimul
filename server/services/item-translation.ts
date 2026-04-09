@@ -32,7 +32,7 @@ interface TranslatedItem {
 export async function batchTranslateItems(
   items: ItemForTranslation[],
   targetLanguage: string,
-  batchSize: number = 25,
+  batchSize: number = 50,
   provider?: ILLMProvider,
 ): Promise<TranslatedItem[]> {
   const llm = provider ?? getDefaultLLMProvider();
@@ -109,6 +109,7 @@ ${itemList}`;
       prompt,
       responseMimeType: 'application/json',
       temperature: 0.2,
+      maxTokens: 8192,
     });
 
     let text = response.text.trim();
