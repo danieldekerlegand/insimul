@@ -216,6 +216,7 @@ import { QuaterniusNPCLoader, normalizeToQuaterniusGender, selectQuaterniusConfi
 import { selectNPCModel, type NPCGender } from "@shared/game-engine/logic/NPCModelVariety";
 import { QuestOfferPanel } from "@shared/game-engine/rendering/QuestOfferPanel";
 import type { QuestOfferData } from "@shared/game-engine/rendering/QuestOfferPanel";
+import { ExamineOverlay } from "@shared/game-engine/rendering/ExamineOverlay";
 import { QuestNotificationManager, getMetaObjectiveHint } from "@shared/game-engine/rendering/QuestNotificationManager";
 import { ReputationManager } from "@shared/game-engine/rendering/ReputationManager";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
@@ -573,6 +574,7 @@ export class BabylonGame {
   private questHotspotManager: QuestHotspotManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
   private questOfferPanel: QuestOfferPanel | null = null;
+  private examineOverlay: ExamineOverlay | null = null;
   /** Set to true when opening chat after accepting from the QuestOfferPanel to avoid re-showing the offer */
   private skipQuestOfferOnce = false;
   private questWorldObjectLinker: QuestWorldObjectLinker | null = null;
@@ -2714,6 +2716,74 @@ export class BabylonGame {
     ground.metadata = { ...(ground.metadata || {}), terrainSize: this.terrainSize };
   }
 
+  /**
+   * Assign world positions to a selection of base items for exterior vocabulary exploration.
+   * Scatters items contextually around the settlement — tools near artisan buildings,
+   * food near restaurants, etc. Only items with translations and 3D models are placed.
+   */
+  private assignExteriorItemPositions(): void {
+    const settlement = this.settlements?.[0] as any;
+    if (!settlement) return;
+
+    const centerX = settlement.position?.x || settlement.centerPosition?.x || 0;
+    const centerZ = settlement.position?.z || settlement.centerPosition?.z || 0;
+
+    // Filter items suitable for exterior placement:
+    // - Must have a translation (vocabulary learning purpose)
+    // - Must have an objectRole (for 3D model matching)
+    // - Must be possessable (interactable)
+    // - Skip furniture/environmental (too large for scatter)
+    const skipTypes = new Set(['furniture', 'environmental', 'container', 'decoration']);
+    const candidates = this.worldItems.filter((item: any) => {
+      if (!item.objectRole) return false;
+      if (skipTypes.has(item.itemType)) return false;
+      if (!item.translations || Object.keys(item.translations).length === 0) return false;
+      if (item.metadata?.position) return false; // already placed
+      return true;
+    });
+
+    // Limit to ~30 exterior items to avoid clutter
+    const MAX_EXTERIOR = 30;
+    // Shuffle and pick a diverse selection (spread across types)
+    const byType = new Map<string, any[]>();
+    for (const item of candidates) {
+      const t = item.itemType || 'other';
+      if (!byType.has(t)) byType.set(t, []);
+      byType.get(t)!.push(item);
+    }
+
+    const selected: any[] = [];
+    // Round-robin across types to ensure diversity
+    const typeArrays = Array.from(byType.values());
+    let round = 0;
+    while (selected.length < MAX_EXTERIOR) {
+      let added = false;
+      for (const items of typeArrays) {
+        if (round < items.length && selected.length < MAX_EXTERIOR) {
+          selected.push(items[round]);
+          added = true;
+        }
+      }
+      if (!added) break;
+      round++;
+    }
+
+    // Assign positions in a spiral pattern around the settlement center
+    for (let i = 0; i < selected.length; i++) {
+      const angle = (Math.PI * 2 * i) / selected.length + (i * 0.3); // golden-angle-ish spread
+      const distance = 15 + (i % 3) * 10 + Math.random() * 8; // 15-43 units from center
+      const x = centerX + Math.cos(angle) * distance;
+      const z = centerZ + Math.sin(angle) * distance;
+
+      if (!selected[i].metadata) selected[i].metadata = {};
+      selected[i].metadata.position = { x, z };
+    }
+
+    if (selected.length > 0) {
+      console.log(`[BabylonGame] Assigned exterior positions to ${selected.length} items for vocabulary exploration`);
+    }
+  }
+
   private projectToGround(x: number, z: number): Vector3 {
     if (!this.scene) {
       return new Vector3(x, 0, z);
@@ -3949,6 +4019,9 @@ export class BabylonGame {
     // Initialize quest waypoint systems
     this.questWaypointDirector = new DynamicQuestWaypointDirector();
     this.questWaypointManager = new QuestWaypointManager(scene);
+
+    // Initialize examine overlay
+    this.examineOverlay = new ExamineOverlay(scene);
 
     // Initialize quest offer panel
     this.questOfferPanel = new QuestOfferPanel(scene);
@@ -5492,6 +5565,12 @@ Requirements:
             recipeId: t.recipeId || undefined,
           })),
         );
+      }
+
+      // Assign exterior positions to a subset of items for vocabulary exploration
+      // Items are scattered around the settlement for the player to discover
+      if (this.worldItems.length > 0 && this.settlements?.length > 0) {
+        this.assignExteriorItemPositions();
       }
 
       // Spawn exterior items (items with metadata.position) in the overworld
@@ -11781,58 +11860,67 @@ Requirements:
 
     const dbItem = this.resolveWorldItem(objectRole);
     const isLangWorld = isLanguageLearningWorld(this.worldData);
+    const itemName = dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+    const langData = dbItem ? getItemTranslation(dbItem, getTargetLanguage(this.worldData)) : null;
 
+    // Emit examine event and track vocabulary (regardless of overlay vs toast)
     if (this.worldObjectActionManager) {
-      // Build a WorldObjectRef from the mesh + DB item
       const objRef = {
         id: dbItem?.id || objectRole,
         objectRole,
-        name: dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "),
+        name: itemName,
         position: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
         translations: dbItem?.translations,
         signData: dbItem?.signData,
         isSign: this.worldObjectActionManager.isSignObject(objectRole),
         description: dbItem?.description,
       };
-
-      const result = objRef.isSign
-        ? this.worldObjectActionManager.readSign(objRef, isLangWorld, 0)
-        : this.worldObjectActionManager.examineObject(objRef, isLangWorld);
-
-      this.guiManager?.showToast({
-        title: result.displayTitle,
-        description: result.displayDescription,
-        duration: result.action === 'read_sign' ? 4000 : 3000,
-      });
-
-      // Track vocabulary exposure for language learning worlds
-      const resolvedLangData = dbItem ? getItemTranslation(dbItem, getTargetLanguage(this.worldData)) : null;
-      if (isLangWorld && resolvedLangData?.targetWord) {
-        const tracker = this.chatPanel?.getLanguageTracker();
-        if (tracker) {
-          tracker.analyzeNPCResponse(resolvedLangData.targetWord);
-        }
+      // Fire events via the action manager
+      if (objRef.isSign) {
+        this.worldObjectActionManager.readSign(objRef, isLangWorld, 0);
+      } else {
+        this.worldObjectActionManager.examineObject(objRef, isLangWorld);
       }
-    } else {
-      // Fallback: direct event emission (no manager available)
-      const itemName = dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-      const langData = dbItem ? getItemTranslation(dbItem, getTargetLanguage(this.worldData)) : null;
+    } else if (isLangWorld && langData?.targetWord) {
+      this.eventBus.emit({
+        type: 'object_examined',
+        objectId: dbItem?.id || objectRole,
+        objectName: itemName,
+        targetWord: langData.targetWord,
+        targetLanguage: getTargetLanguage(this.worldData),
+        pronunciation: langData.pronunciation,
+        category: langData.category,
+      });
+    }
 
+    // Track vocabulary exposure
+    if (isLangWorld && langData?.targetWord) {
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        tracker.analyzeNPCResponse(langData.targetWord);
+      }
+    }
+
+    // Show examine overlay with 3D object render + vocabulary
+    if (this.examineOverlay) {
+      this.examineOverlay.show({
+        objectRole,
+        name: itemName,
+        targetWord: langData?.targetWord,
+        pronunciation: langData?.pronunciation,
+        category: langData?.category,
+        description: dbItem?.description,
+        mesh,
+        isLanguageWorld: isLangWorld,
+      });
+    } else {
+      // Fallback: toast notification if overlay not available
       if (isLangWorld && langData?.targetWord) {
         const pronunciation = langData.pronunciation ? ` [${langData.pronunciation}]` : '';
         this.guiManager?.showToast({
           title: langData.targetWord,
           description: `${itemName}${pronunciation}`,
           duration: 3000,
-        });
-        this.eventBus.emit({
-          type: 'object_examined',
-          objectId: dbItem?.id || objectRole,
-          objectName: itemName,
-          targetWord: langData.targetWord,
-          targetLanguage: getTargetLanguage(this.worldData),
-          pronunciation: langData.pronunciation,
-          category: langData.category,
         });
       } else {
         this.guiManager?.showToast({
@@ -14101,6 +14189,12 @@ Requirements:
       return;
     }
 
+    // Dismiss examine overlay on any key press
+    if (this.examineOverlay?.isOpen()) {
+      this.examineOverlay.hide();
+      return;
+    }
+
     // M - Close full-screen map first, then toggle game menu
     if (event.code === KEY_GAME_MENU && !event.repeat) {
       event.preventDefault();
@@ -14339,11 +14433,10 @@ Requirements:
     switch (action.id) {
       // ── Social ─────────────────────────────────────────────────────
       case '__eavesdrop__': {
-        this.guiManager?.showToast({
-          title: 'Eavesdropping',
-          description: `Listening to ${target.name}'s conversation...`,
-          duration: 3000,
-        });
+        // Open chat panel in read-only eavesdrop mode
+        const partner = this.npcSocializationController?.getConversationPartner(target.id);
+        const partnerName = partner?.partnerName || 'NPC';
+        this.chatPanel?.showEavesdrop(`${target.name} & ${partnerName}`);
         break;
       }
       case '__talk__': {
@@ -15270,16 +15363,31 @@ Requirements:
     const item = transaction.item;
     this.eventBus.emit({ type: 'object_examined', itemId: item.id, itemName: item.name });
 
-    // Show language word overlay if translation exists
     const lang = getTargetLanguage(this.worldData);
     const translation = getItemTranslation(item, lang);
-    if (translation?.targetWord) {
+    const isLangWorld = isLanguageLearningWorld(this.worldData);
+    const objectRole = (item as any).objectRole || item.baseType || item.category || '';
+
+    // Look up model template for 3D rendering in the overlay
+    const modelTemplate = objectRole ? this.objectModelTemplates.get(objectRole) : undefined;
+
+    if (this.examineOverlay) {
+      this.examineOverlay.show({
+        objectRole,
+        name: item.name,
+        targetWord: translation?.targetWord,
+        pronunciation: translation?.pronunciation,
+        category: translation?.category || (item as any).category,
+        description: item.description,
+        modelTemplate: modelTemplate || undefined,
+        isLanguageWorld: isLangWorld,
+      });
+    } else if (translation?.targetWord) {
       this.showLanguageWordOverlay(translation.targetWord, lang, item.name);
     } else {
-      // No translation — just show the item name as a toast
       this.guiManager?.showToast({
         title: item.name,
-        description: item.description || `${item.category || item.type}`,
+        description: item.description || `${(item as any).category || item.type}`,
         duration: 3000,
       });
     }
